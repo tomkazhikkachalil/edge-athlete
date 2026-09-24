@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Custom domains, part 2 (phase 6b C2): serving on the org's own host.
@@ -27,14 +28,10 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
   const stamp = Date.now();
   const name = `QA Serving League ${stamp}`;
   const host = `qa-${stamp}.example.test`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, role: 'owner' });
-  await admin.from('teams').insert({ league_id: leagueId, name: `Comets ${stamp}` });
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, role: 'owner' });
+  await admin.from('teams').insert({ org_id: leagueId, name: `Comets ${stamp}` });
 
   const ownerApi = await apiAs('state-b.json');
   try {
@@ -144,9 +141,9 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
-    await admin.from('teams').delete().eq('league_id', leagueId);
-    await admin.from('memberships').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
+    await admin.from('teams').delete().eq('org_id', leagueId);
+    await admin.from('memberships').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Golf league depth, part 3 (phase 6d W3): the season generator. An
@@ -30,19 +31,15 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
 
   const stamp = Date.now();
   const start = addDays(utcToday(), 7);
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Season Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Season Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select().single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select().single();
   const { data: course } = await admin
     .from('golf_courses')
     .insert({
@@ -61,20 +58,20 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
   const courseId = course!.id as string;
   const { data: venue } = await admin
     .from('venues')
-    .insert({ club_id: clubId, name: `QA Season Venue ${stamp}`, golf_course_id: courseId })
+    .insert({ org_id: clubId, name: `QA Season Venue ${stamp}`, golf_course_id: courseId })
     .select('id')
     .single();
   const venueId = venue!.id as string;
   // A second, UNLINKED venue: refused as a course.
   const { data: bare } = await admin
     .from('venues')
-    .insert({ club_id: clubId, name: `QA Bare Venue ${stamp}` })
+    .insert({ org_id: clubId, name: `QA Bare Venue ${stamp}` })
     .select('id')
     .single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Season League ${stamp}`,
@@ -185,7 +182,7 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
     // events outlive the club's cascade, so delete them explicitly.
     const { data: evs } = await admin.from('contests').select('event_id').eq('competition_id', competitionId);
     const eventIds = (evs ?? []).map(c => c.event_id).filter(Boolean) as string[];
-    await admin.from('venues').delete().eq('club_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     if (eventIds.length) await admin.from('events').delete().in('id', eventIds);
     await admin.from('golf_courses').delete().eq('id', courseId);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Calendar read-time org merge (fan-out round): an org MEMBER who was never
@@ -12,26 +13,21 @@ test('org calendar: member sees org event, RSVP creates guest row, decline hides
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('events').select('league_id').limit(1);
-  test.skip(!!probe.error, `events.league_id missing — run migration 119 (${probe.error?.message})`);
+  const probe = await admin.from('events').select('org_id').limit(1);
+  test.skip(!!probe.error, `events.org_id missing — run migration 232 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const leagueName = `QA Merge League ${stamp}`;
   const eventTitle = `QA Merge Night ${stamp}`;
 
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
   // The read-time merge places org events for ROSTER members only (the
   // consolidation round retired the flag); every row carries `kind` (a
   // multi-row insert NULLs an omitted key instead of defaulting it).
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member', kind: 'roster' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member', kind: 'roster' },
   ]);
 
   const starts = new Date(Date.now() + 3 * 86_400_000);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -23,13 +24,9 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
   await resetRateBucket(admin, 'upload', owner.id);
 
   const stamp = Date.now();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Identity Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
-  await admin.from('memberships').insert({ club_id: clubId, profile_id: owner.id, role: 'owner' });
+  const club = await createQaOrg(admin, 'club', { name: `QA Identity Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
+  await admin.from('memberships').insert({ org_id: clubId, profile_id: owner.id, role: 'owner' });
 
   const ownerApi = await apiAs('state-b.json');
   const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });

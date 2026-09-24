@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -21,15 +22,11 @@ test('announce archive: members read all, non-member 403, site Notices show the 
   await resetRateBucket(admin, 'org-announce', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Archive League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Archive League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const outsider = await createQaUser();
   const ownerApi = await apiAs('state-b.json');

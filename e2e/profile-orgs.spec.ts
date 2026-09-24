@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The profile org strip (org connections round; the Sep 11 2026 rule). The
@@ -16,27 +17,21 @@ test('profile orgs: both sides on own page + feed; own memberships always; a pri
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('memberships').select('club_id').limit(1);
+  const probe = await admin.from('memberships').select('org_id').limit(1);
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const clubName = `QA Strip Club ${stamp}`;
   const leagueName = `QA Strip League ${stamp}`;
-  const { data: club, error } = await admin.from('clubs').insert({ name: clubName, owner_profile_id: userB.id }).select().single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
-  const { data: league, error: leagueErr } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'ice_hockey', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(leagueErr, leagueErr?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: clubName, owner_profile_id: userB.id });
+  const clubId = club.id;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'ice_hockey', owner_profile_id: userB.id });
+  const leagueId = league.id;
   const { error: memberError } = await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: userB.id, role: 'owner' },
-    { club_id: clubId, profile_id: userA.id, role: 'member' },
-    { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member' },
+    { org_id: clubId, profile_id: userB.id, role: 'owner' },
+    { org_id: clubId, profile_id: userA.id, role: 'member' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);
   expect(memberError, memberError?.message).toBeNull();
   const { data: priorA } = await admin.from('profiles').select('visibility, handle').eq('id', userA.id).single();
@@ -72,7 +67,7 @@ test('profile orgs: both sides on own page + feed; own memberships always; a pri
       expect(res.status(), await readErrorBody(res)).toBe(200);
       let seen = ((await res.json()).organizations as { id: string }[]).map(o => o.id);
       expect(seen).toEqual(expect.arrayContaining([clubId, leagueId]));
-      await admin.from('memberships').delete().eq('club_id', clubId).eq('profile_id', userB.id);
+      await admin.from('memberships').delete().eq('org_id', clubId).eq('profile_id', userB.id);
       res = await bApi.get(`/api/profile/${userA.id}/organizations`);
       seen = ((await res.json()).organizations as { id: string }[]).map(o => o.id);
       expect(seen).toContain(leagueId);

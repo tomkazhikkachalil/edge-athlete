@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -19,22 +20,12 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
   const clubName = `QA Aff Club ${stamp}`;
   const leagueName = `QA Aff League ${stamp}`;
 
-  const { data: club, error: clubError } = await admin
-    .from('clubs')
-    .insert({ name: clubName, owner_profile_id: userA.id })
-    .select()
-    .single();
-  expect(clubError, clubError?.message).toBeNull();
-  const clubId = club!.id as string;
-  const { data: league, error: leagueError } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(leagueError, leagueError?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ club_id: clubId, profile_id: userA.id, role: 'owner' });
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
+  const club = await createQaOrg(admin, 'club', { name: clubName, owner_profile_id: userA.id });
+  const clubId = club.id;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: clubId, profile_id: userA.id, role: 'owner' });
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: userB.id, role: 'owner' });
 
   try {
     // B (league owner) invites the club from the league page.

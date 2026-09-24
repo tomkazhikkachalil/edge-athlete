@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { createQaOrg } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
@@ -21,18 +22,13 @@ test('org claim: signed-in claim → ownership + consumed token; reuse invalid',
   const rawToken = randomBytes(32).toString('base64url');
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name, owner_profile_id: null })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name, owner_profile_id: null });
+  const clubId = club.id;
 
   try {
     const { error: inviteError } = await admin.from('org_claim_invites').insert({
       token_hash: tokenHash,
-      club_id: clubId,
+      org_id: clubId,
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
     });
     expect(inviteError, inviteError?.message).toBeNull();
@@ -55,7 +51,7 @@ test('org claim: signed-in claim → ownership + consumed token; reuse invalid',
       const { data: rows } = await admin
         .from('memberships')
         .select('role, kind')
-        .eq('club_id', clubId)
+        .eq('org_id', clubId)
         .eq('profile_id', claimer.id);
       expect(rows).toEqual([{ role: 'owner', kind: 'follow' }]);
       const { data: invite } = await admin

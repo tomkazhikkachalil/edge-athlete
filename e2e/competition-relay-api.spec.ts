@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 type Detail = { standings: Array<{ entry_id: string; rank: number; points: number | null; entrant_name: string }> };
@@ -24,22 +25,21 @@ test('relays: relay teams as entries, marks by kind, no personal record, the rol
   test.skip(!!probe.error, 'competition_entries.affiliation_team_id missing — run migration 219');
   const api = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Relay League ${stamp}`, sport_key: 'track_field', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Relay League ${stamp}`, sport_key: 'track_field', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   try {
-    const { data: teams } = await admin.from('teams').insert([{ league_id: leagueId, name: `Red ${stamp}` }, { league_id: leagueId, name: `Blue ${stamp}` }]).select('id, name');
+    const { data: teams } = await admin.from('teams').insert([{ org_id: leagueId, name: `Red ${stamp}` }, { org_id: leagueId, name: `Blue ${stamp}` }]).select('id, name');
     const red = teams!.find(t => (t.name as string).startsWith('Red'))!.id as string;
     const blue = teams!.find(t => (t.name as string).startsWith('Blue'))!.id as string;
-    const roster = (profileId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
-    const onTeam = (profileId: string, teamId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
+    const roster = (profileId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
+    const onTeam = (profileId: string, teamId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
     const { error: memberError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
+      { org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       roster(athleteA.id), roster(athleteC.id), roster(athleteD.id),
       onTeam(athleteA.id, red), onTeam(athleteC.id, red), onTeam(athleteD.id, blue),
     ]);
     expect(memberError, memberError?.message).toBeNull();
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select().single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select().single();
     const base = `/api/leagues/${leagueId}/competitions`;
     const created = await api.post(base, { data: { side: 'league', orgId: leagueId, seasonId: season!.id, sportKey: 'track_field', name: 'Relay Meet', format: 'meet', visibility: 'public' } });
     expect(created.ok(), await readErrorBody(created)).toBe(true);

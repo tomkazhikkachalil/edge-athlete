@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, loadQaUser } from './helpers/qa-user';
 
 // Guardian roster gate (0.10, mig 147; its launch flag retired):
@@ -20,13 +21,8 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
 
   const stamp = Date.now();
   const name = `QA Guardian League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   let childId: string | null = null;
   try {
@@ -36,8 +32,8 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
     });
     // roster ⊆ follow: the child must be a member before an offer can land.
     const { error: memberError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-      { league_id: leagueId, profile_id: childId, role: 'member' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: childId, role: 'member' },
     ]);
     expect(memberError, memberError?.message).toBeNull();
 
@@ -53,7 +49,7 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
       const { data: pendingRow } = await admin
         .from('memberships')
         .select('id, status')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', childId)
         .eq('kind', 'roster')
         .maybeSingle();
@@ -129,7 +125,7 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
       const { data: goneRow } = await admin
         .from('memberships')
         .select('id')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', childId)
         .eq('kind', 'roster');
       expect(goneRow?.length).toBe(0);

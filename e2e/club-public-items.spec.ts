@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -26,15 +27,11 @@ test('news audience: private site lists public posts only, members read both in 
   const probe = await admin.from('org_site_news').select('audience').limit(1);
   test.skip(!!probe.error, `news audience missing — run migration 176 (${probe.error?.message})`);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA News Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf', visibility: 'private' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA News Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', visibility: 'private' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');

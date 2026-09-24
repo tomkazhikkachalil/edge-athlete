@@ -1,4 +1,5 @@
 import path from 'path';
+import { createQaOrg } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -26,15 +27,11 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
 
   const stamp = Date.now();
   const name = `QA Site League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: member.id, role: 'member' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: member.id, role: 'member' },
   ]);
 
   try {
@@ -58,7 +55,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const { data: siteRow } = await admin
         .from('org_sites')
         .select('subdomain, published_at')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .single();
       subdomain = siteRow!.subdomain as string;
       // Minted from the org name; DNS-label shaped.
@@ -248,50 +245,42 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
 
   const stamp = Date.now();
   const name = `QA Modules League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   // A second org whose team must 404 under OUR slug (the IDOR line).
-  const { data: otherLeague } = await admin
-    .from('leagues')
-    .insert({ name: `QA Other League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const otherLeagueId = otherLeague!.id as string;
+  const otherLeague = await createQaOrg(admin, 'league', { name: `QA Other League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const otherLeagueId = otherLeague.id;
 
   const eventIds: string[] = [];
   const stubIds: string[] = [];
   let clubId: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
 
     // Structure: season → division → team (+ entry), plus the foreign team.
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27' })
+      .insert({ org_id: leagueId, label: '2026-27' })
       .select()
       .single();
     const { data: division } = await admin
       .from('divisions')
-      .insert({ league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'U13 A' })
+      .insert({ org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'U13 A' })
       .select()
       .single();
     const { data: team } = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+      .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
       .select()
       .single();
     const teamId = team!.id as string;
     await admin.from('team_entries').insert({ team_id: teamId, division_id: division!.id });
     const { data: foreignTeam } = await admin
       .from('teams')
-      .insert({ league_id: otherLeagueId, name: `Intruders ${stamp}` })
+      .insert({ org_id: otherLeagueId, name: `Intruders ${stamp}` })
       .select()
       .single();
 
@@ -299,7 +288,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     const { data: comp } = await admin
       .from('competitions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season!.id,
         sport_key: 'ice_hockey',
         name: 'House League',
@@ -336,7 +325,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
           ends_at: new Date(starts.getTime() + 3_600_000).toISOString(),
           timezone: 'America/Toronto',
           category: 'social',
-          league_id: leagueId,
+          org_id: leagueId,
         },
         {
           organizer_id: owner.id,
@@ -354,16 +343,12 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     // Venue + facility; an active club affiliation.
     const { data: venue } = await admin
       .from('venues')
-      .insert({ league_id: leagueId, name: `QA Arena ${stamp}`, city: 'Toronto', region: 'ON' })
+      .insert({ org_id: leagueId, name: `QA Arena ${stamp}`, city: 'Toronto', region: 'ON' })
       .select()
       .single();
     await admin.from('facilities').insert({ venue_id: venue!.id, name: 'Rink 1' });
-    const { data: club } = await admin
-      .from('clubs')
-      .insert({ name: `QA Affiliated Club ${stamp}`, owner_profile_id: owner.id })
-      .select()
-      .single();
-    clubId = club!.id as string;
+    const club = await createQaOrg(admin, 'club', { name: `QA Affiliated Club ${stamp}`, owner_profile_id: owner.id });
+    clubId = club.id;
     await admin.from('league_clubs').insert({
       league_id: leagueId,
       club_id: clubId,
@@ -401,7 +386,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     const { data: siteRow } = await admin
       .from('org_sites')
       .select('subdomain')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .single();
     subdomain = siteRow!.subdomain as string;
 
@@ -569,15 +554,11 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
 
   const stamp = Date.now();
   const name = `QA Brand League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
     const ownerApi = await apiAs('state-b.json');
     try {
@@ -612,7 +593,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
       const { data: siteForAssets } = await admin
         .from('org_sites')
         .select('id')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .single();
       const assetRes = await ownerApi.post(`/api/leagues/${leagueId}/site/assets`, {
         multipart: { image: { name: 'logo.png', mimeType: 'image/png', buffer: logoBuffer } },
@@ -665,7 +646,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     const { data: siteRow } = await admin
       .from('org_sites')
       .select('subdomain')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .single();
     const base = `/org/${siteRow!.subdomain}`;
 
@@ -728,7 +709,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     const { data: siteIdRow } = await admin
       .from('org_sites')
       .select('id')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .single();
     const siteId = siteIdRow!.id as string;
 
@@ -818,16 +799,12 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
 
   const stamp = Date.now();
   const name = `QA Pages League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   let assetPath: string | null = null;
 
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
     const ownerApi = await apiAs('state-b.json');
     let pageId = '';
@@ -843,7 +820,7 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
       const { data: siteRow } = await admin
         .from('org_sites')
         .select('id, subdomain')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .single();
       siteId = siteRow!.id as string;
       subdomain = siteRow!.subdomain as string;
@@ -1009,15 +986,11 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
 
   const stamp = Date.now();
   const name = `QA News League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
     const ownerApi = await apiAs('state-b.json');
     let subdomain = '';
@@ -1031,7 +1004,7 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
       const { data: siteRow } = await admin
         .from('org_sites')
         .select('subdomain')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .single();
       subdomain = siteRow!.subdomain as string;
 

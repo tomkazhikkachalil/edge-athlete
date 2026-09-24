@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Golf leagues, part 2 (phase 6c G2): the page fills itself. Members'
@@ -23,21 +24,17 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
   test.skip(!!probe.error, `contests.holes missing — run migration 172 (${probe.error?.message})`);
 
   const stamp = Date.now();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Sync Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Sync Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
   const { data: season } = await admin
     .from('seasons')
-    .insert({ club_id: clubId, label: `2026 ${stamp}` })
+    .insert({ org_id: clubId, label: `2026 ${stamp}` })
     .select()
     .single();
   // A 9-hole course; the white tee is rated, the gold tee is not.
@@ -59,7 +56,7 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
   const courseId = course!.id as string;
   const { data: venue } = await admin
     .from('venues')
-    .insert({ club_id: clubId, name: `QA Sync Venue ${stamp}`, golf_course_id: courseId })
+    .insert({ org_id: clubId, name: `QA Sync Venue ${stamp}`, golf_course_id: courseId })
     .select('id')
     .single();
   const venueId = venue!.id as string;
@@ -68,7 +65,7 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Sync League ${stamp}`,
@@ -306,7 +303,7 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
     await admin.from('profiles').update({ visibility: ownerPriorVisibility }).eq('id', owner.id);
     await admin.from('golf_holes').delete().in('round_id', roundIds);
     await admin.from('golf_rounds').delete().in('id', roundIds);
-    await admin.from('venues').delete().eq('club_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }

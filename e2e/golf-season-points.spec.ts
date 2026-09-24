@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 7 C6 — FedEx-style season points. A `golf_points` league ranks each
@@ -26,22 +27,18 @@ test('season points: 78/82 → 100/75; a tie → 87.5 each; PTS on the public we
   await resetRateBucket(admin, 'org-site', owner.id);
   await resetRateBucket(admin, 'org-competitions', owner.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Points Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Points Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select('id').single();
-  const { data: venue } = await admin.from('venues').insert({ club_id: clubId, name: `QA Points Links ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: venue } = await admin.from('venues').insert({ org_id: clubId, name: `QA Points Links ${stamp}` }).select('id').single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Points League ${stamp}`,

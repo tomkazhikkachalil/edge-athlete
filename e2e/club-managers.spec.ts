@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -10,20 +11,15 @@ test('club managers: owner promotes and demotes; non-owners see no controls', as
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('memberships').select('club_id').limit(1);
+  const probe = await admin.from('memberships').select('org_id').limit(1);
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const name = `QA Mgr Club ${Date.now()}`;
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name, owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name, owner_profile_id: userB.id });
+  const clubId = club.id;
   const { error: memberError } = await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: userB.id, role: 'owner' },
-    { club_id: clubId, profile_id: userA.id, role: 'member' },
+    { org_id: clubId, profile_id: userB.id, role: 'owner' },
+    { org_id: clubId, profile_id: userA.id, role: 'member' },
   ]);
   expect(memberError, memberError?.message).toBeNull();
 

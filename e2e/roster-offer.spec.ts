@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -20,16 +21,11 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const name = `QA Roster League ${Date.now()}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
   const { error: memberError } = await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);
   expect(memberError, memberError?.message).toBeNull();
 
@@ -72,7 +68,7 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
       const { data: rosterRow } = await admin
         .from('memberships')
         .select('status')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', userA.id)
         .eq('kind', 'roster')
         .single();
@@ -119,7 +115,7 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
       const { data: gone } = await admin
         .from('memberships')
         .select('id')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', userA.id)
         .eq('kind', 'roster');
       expect(gone ?? []).toHaveLength(0);

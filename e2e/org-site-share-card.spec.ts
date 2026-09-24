@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
@@ -29,13 +30,9 @@ test('share card: hero photo drawn when set; plain gradient otherwise; both PNG 
   await resetRateBucket(admin, 'upload', owner.id);
 
   const make = async (suffix: string) => {
-    const { data: club } = await admin
-      .from('clubs')
-      .insert({ name: `QA Card Club ${suffix} ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-      .select('id')
-      .single();
-    const id = club!.id as string;
-    await admin.from('memberships').insert([{ club_id: id, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
+    const club = await createQaOrg(admin, 'club', { name: `QA Card Club ${suffix} ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+    const id = club.id;
+    await admin.from('memberships').insert([{ org_id: id, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
     return id;
   };
   const heroClub = await make('Hero');

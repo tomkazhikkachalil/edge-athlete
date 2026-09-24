@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P4 — the week hub. /org/{slug}/week shows every active golf
@@ -41,26 +42,22 @@ test('week hub: open window, posted count + points, on-course count (live entran
     .select('id')
     .single();
   const courseId = course!.id as string;
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Week Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Week Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select('id').single();
   const { data: venue } = await admin
     .from('venues')
-    .insert({ club_id: clubId, name: `QA Week Links ${stamp}`, golf_course_id: courseId })
+    .insert({ org_id: clubId, name: `QA Week Links ${stamp}`, golf_course_id: courseId })
     .select('id')
     .single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Week League ${stamp}`,

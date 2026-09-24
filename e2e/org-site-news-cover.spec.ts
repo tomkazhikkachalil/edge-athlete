@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
@@ -29,13 +30,9 @@ test('news covers: list thumbnail + home teaser + og:image from the first image 
   const probe = await admin.from('org_site_news').select('id').limit(1);
   test.skip(!!probe.error, `org_site_news missing — run migration 156 (${probe.error?.message})`);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Cover Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
-  await admin.from('memberships').insert([{ club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
+  const club = await createQaOrg(admin, 'club', { name: `QA Cover Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
+  await admin.from('memberships').insert([{ org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
   const ownerApi = await apiAs('state-b.json');
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let assetPath = '';

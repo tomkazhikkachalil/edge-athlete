@@ -86,7 +86,7 @@ test('org site contest page: public twin renders + 404s + sitemap + in-app link 
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

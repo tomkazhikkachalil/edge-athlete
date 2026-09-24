@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, scoreHoles, setGroups, startRound } from './helpers/sport-events';
 
@@ -24,15 +25,15 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
   let clubId: string | null = null;
   let eventId: string | null = null;
   try {
-    const { data: club } = await admin.from('clubs').insert({ name: `QA Counts Club ${s.stamp}`, owner_profile_id: s.userA.id }).select('id').single();
-    clubId = club!.id as string;
+    const club = await createQaOrg(admin, 'club', { name: `QA Counts Club ${s.stamp}`, owner_profile_id: s.userA.id });
+    clubId = club.id;
     await admin.from('memberships').insert([
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
     ]);
-    const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
-    const { data: league } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Counts League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_net', status: 'active', visibility: 'public' }).select('id').single();
-    const { data: hockey } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'ice_hockey', name: `Counts Hockey ${s.stamp}`, format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' }).select('id').single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
+    const { data: league } = await admin.from('competitions').insert({ org_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Counts League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_net', status: 'active', visibility: 'public' }).select('id').single();
+    const { data: hockey } = await admin.from('competitions').insert({ org_id: clubId, season_id: season!.id, sport_key: 'ice_hockey', name: `Counts Hockey ${s.stamp}`, format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' }).select('id').single();
     const leagueId = league!.id as string;
 
     const view = await createEvent(s.apiA, { name: `QA Counts ${s.stamp}`, publish: true, club_id: clubId, rounds: [
@@ -135,14 +136,14 @@ test('event page: Hosted for · Counts toward · the contest place says Played a
   let clubId: string | null = null;
   let eventId: string | null = null;
   try {
-    const { data: club } = await admin.from('clubs').insert({ name: `QA Counts UI Club ${s.stamp}`, owner_profile_id: s.userA.id }).select('id').single();
-    clubId = club!.id as string;
+    const club = await createQaOrg(admin, 'club', { name: `QA Counts UI Club ${s.stamp}`, owner_profile_id: s.userA.id });
+    clubId = club.id;
     await admin.from('memberships').insert([
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
     ]);
-    const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
-    const { data: league } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Counts UI League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_gross', status: 'active', visibility: 'public' }).select('id').single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
+    const { data: league } = await admin.from('competitions').insert({ org_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Counts UI League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_gross', status: 'active', visibility: 'public' }).select('id').single();
     const created = await s.apiA.post('/api/sport-events', { data: { name: `QA Counts UI ${s.stamp}`, visibility: 'private', publish: true, club_id: clubId, competition_id: league!.id, round: { scheduled_on: '2030-06-01', course_name: 'QA Counts UI Links', holes: 9 } } });
     expect(created.status(), await readErrorBody(created)).toBe(201);
     const view = (await created.json()) as { event: { id: string }; host_org: { name: string } | null; counts_toward: { competition_name: string; contests: Array<{ contest_id: string }> } | null };

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { publishSite as publishSiteDraft } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -42,34 +43,26 @@ test('player pages: public member linked + paged; private member unlinked + 404;
   await admin.from('profiles').update({ visibility: 'public', handle: ownerHandle }).eq('id', owner.id);
   await admin.from('profiles').update({ handle: alphaHandle }).eq('id', alpha.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Players Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
-  const { data: otherClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Other Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const otherClubId = otherClub!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Players Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
+  const otherClub = await createQaOrg(admin, 'club', { name: `QA Other Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const otherClubId = otherClub.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(alpha.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-players-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    ...(childId ? [{ club_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
-    { club_id: otherClubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    ...(childId ? [{ org_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
+    { org_id: otherClubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select('id').single();
-  const { data: venue } = await admin.from('venues').insert({ club_id: clubId, name: `QA Players Links ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: venue } = await admin.from('venues').insert({ org_id: clubId, name: `QA Players Links ${stamp}` }).select('id').single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Players League ${stamp}`,
@@ -234,7 +227,7 @@ test('player pages: public member linked + paged; private member unlinked + 404;
       expect(r.status(), await r.text()).toBe(200);
       // P2-B: edits land in the draft — publish before reading the public projection.
       await publishSiteDraft(ownerApi, 'club', clubId);
-      const { data: siteRow } = await admin.from('org_sites').select('id').eq('club_id', clubId).single();
+      const { data: siteRow } = await admin.from('org_sites').select('id').eq('org_id', clubId).single();
       const streamer = `/api/media/org-gallery/${siteRow!.id as string}/${photoSeed.mediaId}`;
       await expect
         .poll(async () => { const pr = await anon.request.get(`/org/${subdomain}/players/${ownerHandle}`); return pr.ok() ? (await pr.text()).includes('data-player-photos="1"') : false; }, { timeout: 30_000, intervals: [1000, 2000, 3000] })

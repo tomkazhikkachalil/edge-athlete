@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 
@@ -26,20 +27,15 @@ test('org site: a gallery entry re-lays the draft — family, tokens, a welcome 
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Start League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata', region: 'ON' })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Start League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata', region: 'ON' });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
   try {
     // One venue WITH coordinates (mig 141 lat/lng) — the map's source.
     const { data: rink, error: venueError } = await admin
       .from('venues')
-      .insert({ league_id: leagueId, name: `QA Rink ${stamp}`, city: 'Kanata', region: 'ON', lat: 45.3, lng: -75.9 })
+      .insert({ org_id: leagueId, name: `QA Rink ${stamp}`, city: 'Kanata', region: 'ON', lat: 45.3, lng: -75.9 })
       .select('id')
       .single();
     expect(venueError, venueError?.message).toBeNull();
@@ -160,17 +156,12 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Fresh League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata', region: 'ON' })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Fresh League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata', region: 'ON' });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
   try {
-    await admin.from('venues').insert({ league_id: leagueId, name: `QA Fresh Rink ${stamp}`, city: 'Kanata', region: 'ON', lat: 45.3, lng: -75.9 });
+    await admin.from('venues').insert({ org_id: leagueId, name: `QA Fresh Rink ${stamp}`, city: 'Kanata', region: 'ON', lat: 45.3, lng: -75.9 });
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const subdomain = (await res.json()).site.subdomain as string;
@@ -298,14 +289,9 @@ test('@mobile org site editor on a phone: the sections list, the gallery offer (
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Phone League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Phone League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
   try {
     const res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
@@ -363,7 +349,7 @@ async function provisionGolfClub(admin: ReturnType<typeof adminClient>, owner: {
   expect(requested.status(), await readErrorBody(requested)).toBe(200);
   const clubId = ((await requested.json()) as { orgId: string | null }).orgId;
   expect(clubId, 'the club was provisioned').toBeTruthy();
-  const { data: siteRow } = await admin.from('org_sites').select('subdomain').eq('club_id', clubId!).single();
+  const { data: siteRow } = await admin.from('org_sites').select('subdomain').eq('org_id', clubId!).single();
   return { clubId: clubId!, subdomain: siteRow!.subdomain as string };
 }
 

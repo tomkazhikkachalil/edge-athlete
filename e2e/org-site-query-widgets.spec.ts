@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved } from './helpers/isr';
@@ -19,22 +20,17 @@ test('org site: two standings bound to two competitions, a schedule bound to one
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Query League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Query League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
   const eventIds: string[] = [];
 
   try {
     // A season, two teams, two competitions: "Div 1" with a standings row, "Div 2" with none.
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: `2026 ${stamp}` }).select('id').single();
-    const { data: blazers } = await admin.from('teams').insert({ league_id: leagueId, name: `Blazers ${stamp}` }).select('id').single();
-    const { data: comets } = await admin.from('teams').insert({ league_id: leagueId, name: `Comets ${stamp}` }).select('id').single();
-    const compBase = { league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' };
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select('id').single();
+    const { data: blazers } = await admin.from('teams').insert({ org_id: leagueId, name: `Blazers ${stamp}` }).select('id').single();
+    const { data: comets } = await admin.from('teams').insert({ org_id: leagueId, name: `Comets ${stamp}` }).select('id').single();
+    const compBase = { org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' };
     const { data: div1 } = await admin.from('competitions').insert({ ...compBase, name: `Div 1 ${stamp}` }).select('id').single();
     const { data: div2 } = await admin.from('competitions').insert({ ...compBase, name: `Div 2 ${stamp}` }).select('id').single();
     const { data: entries } = await admin
@@ -48,14 +44,14 @@ test('org site: two standings bound to two competitions, a schedule bound to one
       entries!.map((e, i) => ({ competition_id: div1!.id, entry_id: e.id, rank: i + 1, points: 4 - i * 2, played: 2, stats: { w: 2 - i } }))
     );
     // Two venues, one future event at each.
-    const { data: arenaA } = await admin.from('venues').insert({ league_id: leagueId, name: `QA Arena A ${stamp}`, city: 'Toronto', region: 'ON' }).select('id').single();
-    const { data: arenaB } = await admin.from('venues').insert({ league_id: leagueId, name: `QA Arena B ${stamp}`, city: 'Toronto', region: 'ON' }).select('id').single();
+    const { data: arenaA } = await admin.from('venues').insert({ org_id: leagueId, name: `QA Arena A ${stamp}`, city: 'Toronto', region: 'ON' }).select('id').single();
+    const { data: arenaB } = await admin.from('venues').insert({ org_id: leagueId, name: `QA Arena B ${stamp}`, city: 'Toronto', region: 'ON' }).select('id').single();
     const starts = new Date(Date.now() + 3 * 86_400_000);
     const { data: seededEvents } = await admin
       .from('events')
       .insert([
-        { organizer_id: owner.id, title: `Arena A night ${stamp}`, starts_at: starts.toISOString(), ends_at: new Date(starts.getTime() + 3_600_000).toISOString(), timezone: 'America/Toronto', category: 'social', league_id: leagueId, venue_id: arenaA!.id },
-        { organizer_id: owner.id, title: `Arena B night ${stamp}`, starts_at: new Date(starts.getTime() + 86_400_000).toISOString(), ends_at: new Date(starts.getTime() + 90_000_000).toISOString(), timezone: 'America/Toronto', category: 'social', league_id: leagueId, venue_id: arenaB!.id },
+        { organizer_id: owner.id, title: `Arena A night ${stamp}`, starts_at: starts.toISOString(), ends_at: new Date(starts.getTime() + 3_600_000).toISOString(), timezone: 'America/Toronto', category: 'social', org_id: leagueId, venue_id: arenaA!.id },
+        { organizer_id: owner.id, title: `Arena B night ${stamp}`, starts_at: new Date(starts.getTime() + 86_400_000).toISOString(), ends_at: new Date(starts.getTime() + 90_000_000).toISOString(), timezone: 'America/Toronto', category: 'social', org_id: leagueId, venue_id: arenaB!.id },
       ])
       .select('id');
     for (const e of seededEvents ?? []) eventIds.push(e.id as string);

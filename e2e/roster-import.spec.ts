@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -19,17 +20,12 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
 
   const stamp = Date.now();
   const name = `QA Import League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
   const { data: team } = await admin
     .from('teams')
-    .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+    .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
     .select()
     .single();
   const teamId = team!.id as string;
@@ -79,7 +75,7 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
       const { data: rows } = await admin
         .from('memberships')
         .select('kind, status, scope_type, scope_id')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', stub.id)
         .order('kind');
       expect(rows).toEqual([

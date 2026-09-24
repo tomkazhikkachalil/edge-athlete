@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // Season rollover (phase 5.5, mig 165): one button clones the structure
@@ -20,35 +21,30 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
 
   const stamp = Date.now();
   const name = `QA Rollover League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const { data: oldSeason } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
+      .insert({ org_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
       .select()
       .single();
     const { data: divisions } = await admin
       .from('divisions')
       .insert([
         {
-          league_id: leagueId,
+          org_id: leagueId,
           season_id: oldSeason!.id,
           sport_key: 'ice_hockey',
           name: `U11 A ${stamp}`,
           age_band: 'U11',
         },
         {
-          league_id: leagueId,
+          org_id: leagueId,
           season_id: oldSeason!.id,
           sport_key: 'ice_hockey',
           name: `U13 A ${stamp}`,
@@ -59,8 +55,8 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
     const { data: teams } = await admin
       .from('teams')
       .insert([
-        { league_id: leagueId, name: `Blazers ${stamp}` },
-        { league_id: leagueId, name: `Comets ${stamp}` },
+        { org_id: leagueId, name: `Blazers ${stamp}` },
+        { org_id: leagueId, name: `Comets ${stamp}` },
       ])
       .select();
     const d1 = divisions!.find(d => d.name === `U11 A ${stamp}`)!;
@@ -89,7 +85,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       // expires at rollover (masterplan §5) — seeded here, asserted below.
       // Self-tolerant pre-178 (the insert fails → staffExpired reads 0).
       const staffSeed = await admin.from('memberships').insert({
-        league_id: leagueId, profile_id: loadQaUser('user.json').id, kind: 'staff', role: 'staff',
+        org_id: leagueId, profile_id: loadQaUser('user.json').id, kind: 'staff', role: 'staff',
         scope_type: 'org', season_id: oldSeason!.id, sections: ['teams'],
       }).select('id').single();
       const staffSeeded = !staffSeed.error;
@@ -105,7 +101,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
         expect(body.staffExpired).toBe(1);
         const { data: expiredRow } = await admin.from('memberships').select('expires_at').eq('id', staffSeed.data!.id).single();
         expect(expiredRow!.expires_at).not.toBeNull();
-        const { data: trail } = await admin.from('org_staff_audit').select('action').eq('league_id', leagueId).eq('season_id', oldSeason!.id);
+        const { data: trail } = await admin.from('org_staff_audit').select('action').eq('org_id', leagueId).eq('season_id', oldSeason!.id);
         expect((trail ?? []).map(t => t.action)).toEqual(['expired']);
       }
       expect(body.cloned).toMatchObject({ divisions: 2, programs: 1, teamEntries: 2 });
@@ -145,7 +141,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       const { count: newRosterRows } = await admin
         .from('memberships')
         .select('id', { count: 'exact', head: true })
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('kind', 'roster')
         .eq('season_id', newSeasonId);
       expect(newRosterRows).toBe(0);
@@ -191,7 +187,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       await ctx.close();
     }
   } finally {
-    await admin.from('org_staff_audit').delete().eq('league_id', leagueId);
+    await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

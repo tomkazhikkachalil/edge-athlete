@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contests + results + the calendar mirror (phase 2, round 2): the owner
@@ -19,33 +20,28 @@ test('competition console: schedule → publish → score; mirror syncs; member 
 
   const stamp = Date.now();
   const name = `QA Contest League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: member.id, role: 'member' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: member.id, role: 'member' },
   ]);
   const { data: season } = await admin
     .from('seasons')
-    .insert({ league_id: leagueId, label: '2026-27' })
+    .insert({ org_id: leagueId, label: '2026-27' })
     .select()
     .single();
   const { data: teams } = await admin
     .from('teams')
     .insert([
-      { league_id: leagueId, name: `Blazers ${stamp}` },
-      { league_id: leagueId, name: `Comets ${stamp}` },
+      { org_id: leagueId, name: `Blazers ${stamp}` },
+      { org_id: leagueId, name: `Comets ${stamp}` },
     ])
     .select();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'ice_hockey',
       name: 'House League',
@@ -123,13 +119,12 @@ test('competition console: schedule → publish → score; mirror syncs; member 
     expect(results![1].score).toBe(2);
     const { data: event } = await admin
       .from('events')
-      .select('title, category, league_id, club_id, division_id, status, starts_at')
+      .select('title, category, org_id, division_id, status, starts_at')
       .eq('id', contest!.event_id!)
       .single();
     expect(event).toMatchObject({
       category: 'game',
-      league_id: leagueId,
-      club_id: null,
+      org_id: leagueId,
       division_id: null,
       status: 'active',
     });

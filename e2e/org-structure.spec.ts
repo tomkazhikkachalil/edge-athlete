@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The org-manager console (phase 1, round 1): the owner drives the full
@@ -19,16 +20,11 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
 
   const stamp = Date.now();
   const name = `QA Console League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: member.id, role: 'member' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: member.id, role: 'member' },
   ]);
   const consoleUrl = `/app/org/league/${leagueId}`;
 

@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { createQaOrg } from './org';
 import { adminClient, loadQaUser } from './qa-user';
 
 // Contest Place (Sep 2026): one seed for the contest-page specs — a league
@@ -19,21 +20,16 @@ export async function seedContestLeague(): Promise<SeededContestLeague> {
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Place League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Place League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: member.id, role: 'member' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: member.id, role: 'member' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
   const { data: teams } = await admin
     .from('teams')
-    .insert([{ league_id: leagueId, name: `Blazers ${stamp}` }, { league_id: leagueId, name: `Comets ${stamp}` }])
+    .insert([{ org_id: leagueId, name: `Blazers ${stamp}` }, { org_id: leagueId, name: `Comets ${stamp}` }])
     .select();
   const [home, away] = teams!;
 
@@ -41,7 +37,7 @@ export async function seedContestLeague(): Promise<SeededContestLeague> {
     const { data: comp } = await admin
       .from('competitions')
       .insert({
-        league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: `${visibility} League`,
+        org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: `${visibility} League`,
         format: 'fixture', entrant_type: 'team', status: 'active', visibility,
       })
       .select()

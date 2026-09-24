@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { revisionsSupported } from './helpers/org-site';
@@ -26,24 +27,20 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
 
   const stamp = Date.now();
   const name = `QA Modules League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, role: 'owner' });
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, role: 'owner' });
 
   // Structure: a current season → division → team → entry.
   const { data: season } = await admin
     .from('seasons')
-    .insert({ league_id: leagueId, label: `2026-27 ${stamp}`, starts_on: '2026-09-01' })
+    .insert({ org_id: leagueId, label: `2026-27 ${stamp}`, starts_on: '2026-09-01' })
     .select()
     .single();
   const { data: division } = await admin
     .from('divisions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'ice_hockey',
       name: `U13 A ${stamp}`,
@@ -54,7 +51,7 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
     .single();
   const { data: team } = await admin
     .from('teams')
-    .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+    .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
     .select()
     .single();
   const teamId = team!.id as string;
@@ -65,7 +62,7 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'ice_hockey',
       name: `House League ${stamp}`,
@@ -93,7 +90,7 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
   const { data: golfComp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Club Championship ${stamp}`,
@@ -234,13 +231,13 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('contest_stat_lines').delete().eq('profile_id', owner.id);
-    await admin.from('competitions').delete().eq('league_id', leagueId);
+    await admin.from('competitions').delete().eq('org_id', leagueId);
     await admin.from('team_entries').delete().eq('team_id', teamId);
-    await admin.from('teams').delete().eq('league_id', leagueId);
-    await admin.from('seasons').delete().eq('league_id', leagueId);
-    await admin.from('memberships').delete().eq('league_id', leagueId);
+    await admin.from('teams').delete().eq('org_id', leagueId);
+    await admin.from('seasons').delete().eq('org_id', leagueId);
+    await admin.from('memberships').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

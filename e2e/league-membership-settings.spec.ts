@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Program 11 L1 — the league membership settings (migration 177; the twin
@@ -23,16 +24,14 @@ test('league membership settings: defaults public/open → PATCH flips → GET r
   const probe = await admin.from('leagues').select('visibility, join_policy').limit(1);
   test.skip(!!probe.error, `membership columns missing — run migration 177 (${probe.error?.message})`);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Membership League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' })
-    .select('id, visibility, join_policy')
-    .single();
-  const leagueId = league!.id as string;
-  expect(league).toMatchObject({ visibility: 'public', join_policy: 'open' });
+  const league = await createQaOrg(admin, 'league', { name: `QA Membership League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const leagueId = league.id;
+  // The column DEFAULTS (176) on the org row — the helper returns { id } only.
+  const { data: created } = await admin.from('organizations').select('visibility, join_policy').eq('id', leagueId).single();
+  expect(created).toMatchObject({ visibility: 'public', join_policy: 'open' });
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');

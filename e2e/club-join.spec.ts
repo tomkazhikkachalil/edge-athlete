@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The club open-join loop (migration 117) — mirror of league-join.spec.ts.
@@ -10,22 +11,17 @@ test('club: join and leave from the club page', async ({ page }) => {
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('memberships').select('club_id').limit(1);
+  const probe = await admin.from('memberships').select('org_id').limit(1);
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const name = `QA Club ${stamp}`;
 
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name, description: 'e2e probe club', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name, description: 'e2e probe club', owner_profile_id: userB.id });
+  const clubId = club.id;
   const { error: memberError } = await admin
     .from('memberships')
-    .insert({ club_id: clubId, profile_id: userB.id, role: 'owner' });
+    .insert({ org_id: clubId, profile_id: userB.id, role: 'owner' });
   expect(memberError, memberError?.message).toBeNull();
 
   try {

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -32,26 +33,22 @@ test('stat-line import: dry-run, ambiguous + off-roster + unknown-game rows erro
   const jose2 = await createQaUser({ firstName: 'Jose', lastName: 'Nunez', displayName: 'Jose Nunez' });
 
   const stamp = Date.now();
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Stats Import League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Stats Import League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   try {
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
-    const { data: homeTeam } = await admin.from('teams').insert({ league_id: leagueId, name: `Stats Blazers ${stamp}` }).select().single();
-    const { data: awayTeam } = await admin.from('teams').insert({ league_id: leagueId, name: `Stats Comets ${stamp}` }).select().single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
+    const { data: homeTeam } = await admin.from('teams').insert({ org_id: leagueId, name: `Stats Blazers ${stamp}` }).select().single();
+    const { data: awayTeam } = await admin.from('teams').insert({ org_id: leagueId, name: `Stats Comets ${stamp}` }).select().single();
     const homeId = homeTeam!.id as string;
     const awayId = awayTeam!.id as string;
     // Owner + roster edges (ONE homogeneous key set): alpha + both Josés on
     // the home team; the owner on the away team.
     const mem = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active', scope_type: 'org', scope_id: null },
-      { league_id: leagueId, profile_id: owner.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: awayId },
-      { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
-      { league_id: leagueId, profile_id: jose1.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
-      { league_id: leagueId, profile_id: jose2.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active', scope_type: 'org', scope_id: null },
+      { org_id: leagueId, profile_id: owner.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: awayId },
+      { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
+      { org_id: leagueId, profile_id: jose1.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
+      { org_id: leagueId, profile_id: jose2.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
     ]);
     expect(mem.error, mem.error?.message).toBeNull();
     // The names the importer will see (full_name, else first + last).
@@ -65,7 +62,7 @@ test('stat-line import: dry-run, ambiguous + off-roster + unknown-game rows erro
     const { data: comp } = await admin
       .from('competitions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season!.id,
         sport_key: 'ice_hockey',
         name: `Stats Cup ${stamp}`,

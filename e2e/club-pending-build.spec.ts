@@ -57,7 +57,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
 
     const { data: club } = await admin.from('clubs').select('listing_status, approved_at, owner_profile_id').eq('id', clubId).single();
     expect(club).toMatchObject({ listing_status: 'pending', approved_at: null, owner_profile_id: owner.id });
-    const { data: site } = await admin.from('org_sites').select('id, subdomain, published_at').eq('club_id', clubId).single();
+    const { data: site } = await admin.from('org_sites').select('id, subdomain, published_at').eq('org_id', clubId).single();
     expect(site!.published_at).toBeNull();
     const { data: mods } = await admin.from('org_site_modules').select('module_key').eq('site_id', site!.id).order('sort_order');
     expect(mods!.slice(0, 3).map(m => m.module_key)).toEqual(GOLF_MODULE_ORDER.club.slice(0, 3));
@@ -73,7 +73,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
     // The join door joins (open policy) — a member row exists.
     const joined = await joinerApi.post(`/api/clubs/${clubId}/members`, { data: {} });
     expect([200, 201]).toContain(joined.status());
-    const { data: joinRow } = await admin.from('memberships').select('kind, role').eq('club_id', clubId).eq('profile_id', joiner.id);
+    const { data: joinRow } = await admin.from('memberships').select('kind, role').eq('org_id', clubId).eq('profile_id', joiner.id);
     expect(joinRow?.some(r => r.kind === 'follow' && r.role === 'member')).toBe(true);
 
     // NOT DISCOVERABLE: search, the directory, the sitemap.

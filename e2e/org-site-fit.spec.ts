@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';
@@ -18,14 +19,9 @@ test('org site fit: an auto section grows to its content; a fixed one keeps its 
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Fit League ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Fit League ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
@@ -106,14 +102,9 @@ test('org site fit (canvas, H2): a tile grows to its content; dragging it below 
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Canvas Fit ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Canvas Fit ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

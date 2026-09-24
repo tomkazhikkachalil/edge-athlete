@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Competitions (phase 2, round 1): the owner creates a fixture competition
@@ -17,26 +18,21 @@ test('org console: owner creates a competition + entries; member locked out; 375
 
   const stamp = Date.now();
   const name = `QA Comp League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: member.id, role: 'member' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: member.id, role: 'member' },
   ]);
   const { data: season } = await admin
     .from('seasons')
-    .insert({ league_id: leagueId, label: '2026-27' })
+    .insert({ org_id: leagueId, label: '2026-27' })
     .select()
     .single();
   const seasonId = season!.id as string;
   await admin.from('teams').insert([
-    { league_id: leagueId, name: `Blazers ${stamp}` },
-    { league_id: leagueId, name: `Comets ${stamp}` },
+    { org_id: leagueId, name: `Blazers ${stamp}` },
+    { org_id: leagueId, name: `Comets ${stamp}` },
   ]);
 
   try {
@@ -78,11 +74,11 @@ test('org console: owner creates a competition + entries; member locked out; 375
     // DB truth: derived entrant_type, org inherited, both entries approved.
     const { data: comp } = await admin
       .from('competitions')
-      .select('id, league_id, format, entrant_type, status, visibility')
+      .select('id, org_id, format, entrant_type, status, visibility')
       .eq('season_id', seasonId)
       .single();
     expect(comp).toMatchObject({
-      league_id: leagueId,
+      org_id: leagueId,
       format: 'fixture',
       entrant_type: 'team',
       status: 'active',

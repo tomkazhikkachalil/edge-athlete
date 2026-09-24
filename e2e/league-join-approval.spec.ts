@@ -1,4 +1,5 @@
 import { test, expect, request } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — join with approval, the league twin of club-join-approval.
@@ -28,21 +29,13 @@ test('league join approval: request → bell + not a member → withdraw → req
   const probe = await admin.from('league_join_requests').select('id').limit(1);
   test.skip(!!probe.error, `league_join_requests missing — run migration 177 (${probe.error?.message})`);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Approval League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval' })
-    .select('id')
-    .single();
-  const leagueId = league!.id as string;
-  const { data: openLeague } = await admin
-    .from('leagues')
-    .insert({ name: `QA Open League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' })
-    .select('id')
-    .single();
-  const openLeagueId = openLeague!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Approval League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval' });
+  const leagueId = league.id;
+  const openLeague = await createQaOrg(admin, 'league', { name: `QA Open League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const openLeagueId = openLeague.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: openLeagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: openLeagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');
@@ -65,7 +58,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     expect(view.viewerRequestPending).toBe(true);
     expect(view.joinPolicy).toBe('approval');
     expect(await memberCount(leagueId)).toBe(before);
-    const { data: rows } = await admin.from('memberships').select('id').eq('league_id', leagueId).eq('profile_id', alpha.id);
+    const { data: rows } = await admin.from('memberships').select('id').eq('org_id', leagueId).eq('profile_id', alpha.id);
     expect(rows ?? []).toHaveLength(0);
     // The owner's bell (league_join, a join_request).
     const { data: bells } = await admin
@@ -121,7 +114,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     }
     res = await ownerApi.patch(`/api/leagues/${leagueId}/join-requests`, { data: { requestId: gammaRequestId, decision: 'decline' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    const { data: gammaRows } = await admin.from('memberships').select('id').eq('league_id', leagueId).eq('profile_id', gamma.id);
+    const { data: gammaRows } = await admin.from('memberships').select('id').eq('org_id', leagueId).eq('profile_id', gamma.id);
     expect(gammaRows ?? []).toHaveLength(0);
     const { data: declined } = await admin.from('notifications').select('user_id').contains('metadata', { request_id: gammaRequestId, join_decision: 'declined' });
     expect(declined!.map(d => d.user_id)).toEqual([gamma.id]);
@@ -131,7 +124,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     expect(((await res.json()) as { action: string }).action).toBe('joined');
 
     // The console queue and the league page at 375px.
-    await admin.from('memberships').delete().eq('league_id', leagueId).eq('profile_id', alpha.id); // back to a stranger
+    await admin.from('memberships').delete().eq('org_id', leagueId).eq('profile_id', alpha.id); // back to a stranger
     res = await alphaApi.post(`/api/leagues/${leagueId}/members`);
     const asked3 = (await res.json()) as { requestId: string };
     const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 375, height: 812 } });

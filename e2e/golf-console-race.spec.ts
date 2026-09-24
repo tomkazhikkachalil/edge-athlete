@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P5 — the console side of the race. The competition page draws
@@ -32,27 +33,23 @@ test('console race + reminder: not-yet-posted list, one bell each (guardian copy
   const bellsLive = !bellProbe.error;
   if (bellProbe.data) await admin.from('notifications').delete().eq('id', bellProbe.data.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Nudge Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Nudge Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(alpha.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-nudge-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    ...(childId ? [{ club_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    ...(childId ? [{ org_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select('id').single();
-  const { data: venue } = await admin.from('venues').insert({ club_id: clubId, name: `QA Nudge Links ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: venue } = await admin.from('venues').insert({ org_id: clubId, name: `QA Nudge Links ${stamp}` }).select('id').single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Nudge League ${stamp}`,

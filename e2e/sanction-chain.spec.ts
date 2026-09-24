@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The sanctioning chain (phase 6 R3, mig 167): league↔league edges via
@@ -17,31 +18,18 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
   test.skip(!!probe.error, `league_affiliations missing — run migration 167 (${probe.error?.message})`);
 
   const stamp = Date.now();
-  const { data: leagueA, error: errA } = await admin
-    .from('leagues')
-    .insert({ name: `QA Chain KMHA ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: childOwner.id })
-    .select()
-    .single();
-  expect(errA, errA?.message).toBeNull();
-  const aId = leagueA!.id as string;
-  const { data: leagueB } = await admin
-    .from('leagues')
-    .insert({ name: `QA Chain District ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: parentOwner.id })
-    .select()
-    .single();
-  const bId = leagueB!.id as string;
-  const { data: clubC } = await admin
-    .from('clubs')
-    .insert({ name: `QA Chain Club ${stamp}`, owner_profile_id: parentOwner.id })
-    .select()
-    .single();
-  const cId = clubC!.id as string;
+  const leagueA = await createQaOrg(admin, 'league', { name: `QA Chain KMHA ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: childOwner.id });
+  const aId = leagueA.id;
+  const leagueB = await createQaOrg(admin, 'league', { name: `QA Chain District ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: parentOwner.id });
+  const bId = leagueB.id;
+  const clubC = await createQaOrg(admin, 'club', { name: `QA Chain Club ${stamp}`, owner_profile_id: parentOwner.id });
+  const cId = clubC.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: aId, profile_id: childOwner.id, role: 'owner' },
-      { league_id: bId, profile_id: parentOwner.id, role: 'owner' },
-      { club_id: cId, profile_id: parentOwner.id, role: 'owner' },
+      { org_id: aId, profile_id: childOwner.id, role: 'owner' },
+      { org_id: bId, profile_id: parentOwner.id, role: 'owner' },
+      { org_id: cId, profile_id: parentOwner.id, role: 'owner' },
     ]);
 
     const childApi = await apiAs('state-b.json');
@@ -96,22 +84,22 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
 
       const { data: season } = await admin
         .from('seasons')
-        .insert({ league_id: aId, label: '2026-27' })
+        .insert({ org_id: aId, label: '2026-27' })
         .select()
         .single();
       const { data: homeTeam } = await admin
         .from('teams')
-        .insert({ league_id: aId, name: `Chain Blazers ${stamp}` })
+        .insert({ org_id: aId, name: `Chain Blazers ${stamp}` })
         .select()
         .single();
       const { data: awayTeam } = await admin
         .from('teams')
-        .insert({ club_id: cId, name: `Chain Comets ${stamp}` })
+        .insert({ org_id: cId, name: `Chain Comets ${stamp}` })
         .select()
         .single();
       await admin.from('memberships').insert([
         {
-          club_id: cId,
+          org_id: cId,
           profile_id: parentOwner.id,
           kind: 'roster',
           status: 'active',
@@ -122,7 +110,7 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
       const { data: comp } = await admin
         .from('competitions')
         .insert({
-          league_id: aId,
+          org_id: aId,
           season_id: season!.id,
           sport_key: 'ice_hockey',
           name: `Chain Cup ${stamp}`,

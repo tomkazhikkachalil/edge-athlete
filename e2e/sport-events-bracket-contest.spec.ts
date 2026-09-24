@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAcceptAs, openEventSession, readScorecard, readView, roundTransition, scoreHoles, setGroups } from './helpers/sport-events';
 
@@ -27,17 +28,16 @@ test('the bracket door: a bracketed match event links to the org bracket, go-liv
   test.skip(!!probe.error, 'sport_events.competition_id missing — run migration 221');
   test.skip(!s.apiC || !s.userC || !s.apiD || !s.userD, 'the four QA users are not minted — an older global setup');
   const apiC = s.apiC!; const userC = s.userC!; const apiD = s.apiD!; const userD = s.userD!;
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Bracket Door ${s.stamp}`, sport_key: 'golf', owner_profile_id: s.userA.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Bracket Door ${s.stamp}`, sport_key: 'golf', owner_profile_id: s.userA.id, visibility: 'public' });
+  const leagueId = league.id;
   let eventId: string | null = null;
   let spareId: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
-      ...[s.userA.id, s.userB.id, userC.id, userD.id].map(profile_id => ({ league_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
+      { org_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
+      ...[s.userA.id, s.userB.id, userC.id, userD.id].map(profile_id => ({ org_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
     ]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select().single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select().single();
     const base = `/api/leagues/${leagueId}/competitions`;
     const created = await s.apiA.post(base, { data: { side: 'league', orgId: leagueId, seasonId: season!.id, sportKey: 'golf', name: 'Door Match Play', format: 'bracket', visibility: 'public' } });
     expect(created.ok(), await readErrorBody(created)).toBe(true);

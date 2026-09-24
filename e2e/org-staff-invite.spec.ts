@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Org staff program, round 4: the invite loop. The OWNER (user B) invites
@@ -20,37 +21,32 @@ test('staff invite: owner mints → A accepts at 375px → scoped grant honoured
   const a = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const name = `QA Staff League ${rand()}`;
-  const { data: league, error: leagueError } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id, approved_at: new Date().toISOString() })
-    .select('id')
-    .single();
-  expect(leagueError, 'league seeded').toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id, approved_at: new Date().toISOString() });
+  const leagueId = league.id;
   const ownerApi = await apiAs('state-b.json');
   const aApi = await apiAs('state.json');
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
-    await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', scope_type: 'org' });
-    const seeded = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select('id').single();
+    await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', scope_type: 'org' });
+    const seeded = await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select('id').single();
     expect(seeded.error, 'season seeded').toBeNull();
     const season = seeded.data!;
     const div1 = await admin
       .from('divisions')
-      .insert({ league_id: leagueId, season_id: season.id, name: 'U13 Boys', sport_key: 'ice_hockey' })
+      .insert({ org_id: leagueId, season_id: season.id, name: 'U13 Boys', sport_key: 'ice_hockey' })
       .select('id')
       .single();
     expect(div1.error, 'division seeded').toBeNull();
     const division = div1.data!;
     const div2 = await admin
       .from('divisions')
-      .insert({ league_id: leagueId, season_id: season.id, name: 'U15 Girls', sport_key: 'ice_hockey' })
+      .insert({ org_id: leagueId, season_id: season.id, name: 'U15 Girls', sport_key: 'ice_hockey' })
       .select('id')
       .single();
     expect(div2.error, 'second division seeded').toBeNull();
     const otherDivision = div2.data!;
-    const t1 = await admin.from('teams').insert({ league_id: leagueId, name: 'Rangers' }).select('id').single();
-    const t2 = await admin.from('teams').insert({ league_id: leagueId, name: 'Hawks' }).select('id').single();
+    const t1 = await admin.from('teams').insert({ org_id: leagueId, name: 'Rangers' }).select('id').single();
+    const t2 = await admin.from('teams').insert({ org_id: leagueId, name: 'Hawks' }).select('id').single();
     expect(t1.error ?? t2.error, 'teams seeded').toBeNull();
     const team = t1.data!;
     const team2 = t2.data!;
@@ -137,13 +133,13 @@ test('staff invite: owner mints → A accepts at 375px → scoped grant honoured
     expect((await aApi.get(`/api/leagues/${leagueId}/structure`)).status()).toBe(403);
 
     // The audit trail has the whole story.
-    const { data: audit } = await admin.from('org_staff_audit').select('action').eq('league_id', leagueId).order('created_at');
+    const { data: audit } = await admin.from('org_staff_audit').select('action').eq('org_id', leagueId).order('created_at');
     expect((audit ?? []).map(r => r.action)).toEqual(['invited', 'accepted', 'changed', 'revoked']);
   } finally {
     await ownerApi.dispose();
     await aApi.dispose();
     await anon.close();
-    await admin.from('org_staff_audit').delete().eq('league_id', leagueId);
+    await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

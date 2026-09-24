@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -30,20 +31,16 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
   await resetRateBucket(admin, 'org-site', owner.id);
 
   const stamp = Date.now();
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Announce League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Announce League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id });
+  const leagueId = league.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(alpha.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-announce-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    ...(childId ? [{ league_id: leagueId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    ...(childId ? [{ org_id: leagueId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
   ]);
 
   const ownerApi = await apiAs('state-b.json');
@@ -147,7 +144,7 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
       await admin.from('notifications').delete().contains('metadata', { announcement_id: id });
     }
     await resetRateBucket(admin, 'org-announce', owner.id);
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     if (childId) await deleteQaUser(childId);
   }

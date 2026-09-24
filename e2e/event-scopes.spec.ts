@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Event scope polymorphism (0.9, mig 146): a TEAM-scoped event reaches only
@@ -19,33 +20,28 @@ test('event scopes: team event merges for team members only; org page lists it',
   const leagueName = `QA Scope League ${stamp}`;
   const eventTitle = `QA Team Skate ${stamp}`;
 
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'ice_hockey', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'ice_hockey', owner_profile_id: userB.id });
+  const leagueId = league.id;
 
   let eventId: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-      { league_id: leagueId, profile_id: userA.id, role: 'member' },
+      { org_id: leagueId, profile_id: userB.id, role: 'owner' },
+      { org_id: leagueId, profile_id: userA.id, role: 'member' },
     ]);
 
     // Structure: season → division → team → entry (service role; every step
     // asserted — the vacuous-pass rule).
     const season = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27' })
+      .insert({ org_id: leagueId, label: '2026-27' })
       .select()
       .single();
     expect(season.error, season.error?.message).toBeNull();
     const division = await admin
       .from('divisions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season.data!.id,
         sport_key: 'ice_hockey',
         name: 'U13 A',
@@ -55,7 +51,7 @@ test('event scopes: team event merges for team members only; org page lists it',
     expect(division.error, division.error?.message).toBeNull();
     const team = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+      .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
       .select()
       .single();
     expect(team.error, team.error?.message).toBeNull();
@@ -112,7 +108,7 @@ test('event scopes: team event merges for team members only; org page lists it',
       const scopedRow = await admin
         .from('memberships')
         .insert({
-          league_id: leagueId,
+          org_id: leagueId,
           profile_id: userA.id,
           kind: 'roster',
           scope_type: 'team',
