@@ -1,95 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseBody } from '@/lib/validation';
-import { EntryAddSchema, EntryPatchSchema } from '@/lib/competitions/validate';
-import { entryAddPOST, entryAffiliationPATCH, entryDecidePATCH, entryDELETE, entryPoolPATCH, requireCompetitionManager } from '@/lib/orgs/competition-server';
-import { UUID_RE } from '@/lib/golf/course-catalog';
-import { reportRouteError } from '@/lib/observability/report';
+import type { NextRequest } from 'next/server';
+import { competitionsEntriesRoutePOST, competitionsEntriesRoutePATCH, competitionsEntriesRouteDELETE } from '@/lib/orgs/routes/competitions-entries';
 
-// ── /api/leagues/[id]/competitions/entries — manager entry CRUD (phase 2) ───
-// Thin wrapper; the competition-ownership pin (scoped: a foreign org's
-// competition answers 404) and the entrant rules live in
-// orgs/competition-server.ts.
+// ── /api/leagues/[id]/competitions/entries — a shim (Round 5 E-2) ──
+// The body is src/lib/orgs/routes/competitions-entries.ts, one handler for both kinds;
+// the gates live there (the route-authz audit follows the delegation).
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-
-    const parsed = await parseBody(request, EntryAddSchema);
-    if (!parsed.success) return parsed.response;
-    return await entryAddPOST(admin, parsed.data, { side: 'league', orgId: id }, user.id);
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[COMPETITIONS] league entries POST error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return competitionsEntriesRoutePOST(request, 'league', await params);
 }
 
-/** R4: decide a pending cross-org entry (approve|reject). */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-
-    // Track 2 PR 7: the decision on a pending entry, or a meet athlete affiliation.
-    const parsed = await parseBody(request, EntryPatchSchema);
-    if (!parsed.success) return parsed.response;
-    if ('decision' in parsed.data) return await entryDecidePATCH(admin, parsed.data, { side: 'league', orgId: id }, user.id);
-    if ('pool' in parsed.data) return await entryPoolPATCH(admin, parsed.data, { side: 'league', orgId: id });
-    return await entryAffiliationPATCH(admin, parsed.data, { side: 'league', orgId: id });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[COMPETITIONS] league entries PATCH error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return competitionsEntriesRoutePATCH(request, 'league', await params);
 }
 
-/** DELETE ?id= — scoped through the competition join (no org column). */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const entryId = searchParams.get('id');
-    if (!UUID_RE.test(id) || !entryId || !UUID_RE.test(entryId)) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-    return await entryDELETE(admin, entryId, { side: 'league', orgId: id });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[COMPETITIONS] league entries DELETE error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return competitionsEntriesRouteDELETE(request, 'league', await params);
 }

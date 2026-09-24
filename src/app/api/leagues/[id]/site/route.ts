@@ -1,93 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseBody } from '@/lib/validation';
-import { SitePatchSchema } from '@/lib/org-sites/validate';
-import { siteCreatePOST, siteGET, sitePATCH } from '@/lib/org-sites/server';
-import { requireOrgManager } from '@/lib/orgs/structure-server';
-import { UUID_RE } from '@/lib/golf/course-catalog';
-import { reportRouteError } from '@/lib/observability/report';
+import type { NextRequest } from 'next/server';
+import { siteRouteGET, siteRoutePOST, siteRoutePATCH } from '@/lib/orgs/routes/site';
 
-// ── /api/leagues/[id]/site — the console's site CRUD (phase 3 R1) ──────────
-// manage_site gates site editing; publish/unpublish (the site's existence) stay manage_org.
-// POST mints the subdomain from the org name; PATCH publishes/unpublishes.
-// Site Builder P2-B: content PATCHes go to the DRAFT (userId = created_by).
+// ── /api/leagues/[id]/site — a shim (Round 5 E-2) ──
+// The body is src/lib/orgs/routes/site.ts, one handler for both kinds;
+// the gates live there (the route-authz audit follows the delegation).
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
-    if (!gate.ok) return gate.response;
-    return await siteGET(admin, 'league', id);
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[ORG SITES] league GET error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return siteRouteGET(request, 'league', await params);
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-site', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-    // Phase 6 R1: an optional requested slug from the slug engine —
-    // absent body keeps the mint-from-name behavior.
-    const body = (await request.json().catch(() => null)) as { subdomain?: unknown } | null;
-    const requested = typeof body?.subdomain === 'string' ? body.subdomain : null;
-    return await siteCreatePOST(admin, 'league', id, gate.org.name, requested);
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[ORG SITES] league POST error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return siteRoutePOST(request, 'league', await params);
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-site', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    // Org staff program: publish / unpublish is the org's identity act
-    // (manage_org — "not the overall site"); everything else on the site
-    // is the Website section.
-    const parsed = await parseBody(request, SitePatchSchema);
-    if (!parsed.success) return parsed.response;
-    const identityAct = parsed.data.action === 'publish' || parsed.data.action === 'unpublish';
-    const gate = await requireOrgManager(admin, user, 'league', id, {
-      intent: identityAct ? 'manage_org' : 'manage_site',
-    });
-    if (!gate.ok) return gate.response;
-    return await sitePATCH(admin, 'league', id, parsed.data, user.id);
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[ORG SITES] league PATCH error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return siteRoutePATCH(request, 'league', await params);
 }
