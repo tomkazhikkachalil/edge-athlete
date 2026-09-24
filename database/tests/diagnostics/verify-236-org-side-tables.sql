@@ -63,10 +63,10 @@ SELECT 'org_join_requests = both join-request tables, ids carried',
 
 UNION ALL
 
-SELECT 'sanction_grants: grantor_org_id / grantee_org_id NOT NULL and equal to the old columns', '2 columns, 0 mismatched',
-       (SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id','grantee_org_id') AND is_nullable = 'NO') || ' columns, ' ||
+SELECT 'sanction_grants: grantor_org_id / grantee_org_id present (nullable until 237) and equal to the old columns', '2 columns, 0 mismatched',
+       (SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id','grantee_org_id')) || ' columns, ' ||
        (SELECT count(*)::text FROM public.sanction_grants WHERE grantor_org_id IS DISTINCT FROM grantor_league_id OR grantee_org_id IS DISTINCT FROM grantee_id) || ' mismatched',
-       CASE WHEN (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id','grantee_org_id') AND is_nullable = 'NO') = 2
+       CASE WHEN (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id','grantee_org_id')) = 2
              AND (SELECT count(*) FROM public.sanction_grants WHERE grantor_org_id IS DISTINCT FROM grantor_league_id OR grantee_org_id IS DISTINCT FROM grantee_id) = 0 THEN 'OK' ELSE 'CHECK FAILED' END
 
 UNION ALL

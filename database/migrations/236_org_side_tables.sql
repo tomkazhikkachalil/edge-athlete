@@ -21,9 +21,11 @@
 --                                    kind is the org's; no polymorphic pair)
 --
 -- This file is ADDITIVE and safe under the deployed code: the old tables
--- and columns are untouched and stay the readers' source until the D3 code
--- (which reads and writes the new shapes) is deployed; 237 then drops the
--- old ones. Backfills are `ON CONFLICT DO NOTHING` (re-runnable); ids are
+-- and columns are untouched and stay the readers' AND writers' source until
+-- the D3 code is deployed. Rows the deployed code writes to the old shapes
+-- in that window are re-backfilled by 237's pre-flight (the same INSERT …
+-- ON CONFLICT DO NOTHING statements) before 237 drops the old shapes — so
+-- nothing here may be NOT NULL where the deployed writer leaves a NULL. Backfills are `ON CONFLICT DO NOTHING` (re-runnable); ids are
 -- carried over where the old shape had them (the two request tables, the
 -- two join-request tables — random uuids, no collision possible).
 --
@@ -175,8 +177,10 @@ ALTER TABLE public.sanction_grants ADD COLUMN IF NOT EXISTS grantor_org_id uuid 
 ALTER TABLE public.sanction_grants ADD COLUMN IF NOT EXISTS grantee_org_id uuid REFERENCES public.organizations(id) ON DELETE CASCADE;
 UPDATE public.sanction_grants SET grantor_org_id = grantor_league_id WHERE grantor_org_id IS NULL;
 UPDATE public.sanction_grants SET grantee_org_id = grantee_id WHERE grantee_org_id IS NULL;
-ALTER TABLE public.sanction_grants ALTER COLUMN grantor_org_id SET NOT NULL;
-ALTER TABLE public.sanction_grants ALTER COLUMN grantee_org_id SET NOT NULL;
+-- NOT NULL waits for 237: the code deployed while this file lands still
+-- inserts the OLD three columns only (and the old three stay NOT NULL, so
+-- the D3 code fills both sets in the window). 237 re-backfills the rows the
+-- window wrote, then sets NOT NULL on the new pair and drops the old three.
 CREATE UNIQUE INDEX IF NOT EXISTS sanction_grants_live_pair ON public.sanction_grants (grantor_org_id, grantee_org_id) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_sanction_grants_grantee_org ON public.sanction_grants (grantee_org_id);
 COMMENT ON COLUMN public.sanction_grants.grantor_org_id IS 'The sanctioning org (236) — replaces grantor_league_id (dropped in 237).';
@@ -209,5 +213,5 @@ SELECT '236 APPLIED' AS result,
        (SELECT count(*) FROM public.affiliations) - (SELECT count(*) FROM public.league_clubs) - (SELECT count(*) FROM public.league_affiliations) AS affiliations_delta_expect_0,
        (SELECT count(*) FROM public.org_requests) - (SELECT count(*) FROM public.league_requests) - (SELECT count(*) FROM public.club_requests) AS requests_delta_expect_0,
        (SELECT count(*) FROM public.org_join_requests) - (SELECT count(*) FROM public.league_join_requests) - (SELECT count(*) FROM public.club_join_requests) AS join_requests_delta_expect_0,
-       (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id', 'grantee_org_id') AND is_nullable = 'NO') AS sanction_org_columns_expect_2,
+       (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sanction_grants' AND column_name IN ('grantor_org_id', 'grantee_org_id')) - (SELECT count(*) FROM public.sanction_grants WHERE grantor_org_id IS NULL OR grantee_org_id IS NULL) AS sanction_org_columns_backfilled_expect_2,
        (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_236;
