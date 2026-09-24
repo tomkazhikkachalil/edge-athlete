@@ -64,8 +64,9 @@ test('golf club console: Website → Venues → Leagues & events first, golf che
     await page.goto(`/app/org/club/${plainId}`);
     await expect(page.getByRole('heading', { name: 'Roster', level: 2 })).toBeVisible({ timeout: 20_000 });
     const plainOrder = await sectionOrder();
-    // Phase 9 V1: Membership sits right after Roster on a club; Org Staff round 5 (Sep 4 2026) put Hierarchy & people next.
-    expect(plainOrder.slice(0, 3)).toEqual(['Roster', 'Membership', 'Hierarchy & people']);
+    // The classic order is the console page's `default` list — roster, hierarchy,
+    // membership (Org Staff round 5, Sep 4 2026, put Hierarchy & people second).
+    expect(plainOrder.slice(0, 3)).toEqual(['Roster', 'Hierarchy & people', 'Membership']);
     await expect(page.getByRole('heading', { name: 'Competitions', level: 2 })).toBeVisible();
     await expect(checklist().getByText('Create a season with dates')).toBeVisible();
     await expect(checklist().getByText('Create your site', { exact: true })).toHaveCount(0);
