@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
+import { placeToOrgColumns, isMissingTableError } from '@/lib/orgs/validate';
 import { ClubRequestWizardSchema, LeagueRequestWizardSchema } from '@/lib/orgs/wizard-validate';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
@@ -68,7 +68,7 @@ async function prepare(request: NextRequest, kind: OrgKind, userId: string): Pro
         name,
         description: description ?? null,
         sport_key: sportKey,
-        ...placeToLeagueColumns(place),
+        ...placeToOrgColumns(place),
         operates_competitions: capabilities?.operatesCompetitions ?? null,
         operates_teams: capabilities?.operatesTeams ?? null,
         // Server-truth stamp: a league's divisions ARE its sport — client values are untrusted (113).
@@ -112,7 +112,7 @@ async function prepare(request: NextRequest, kind: OrgKind, userId: string): Pro
       requester_profile_id: userId,
       name,
       description: description ?? null,
-      ...placeToLeagueColumns(place), // byte-identical to placeToClubColumns — step E folds them
+      ...placeToOrgColumns(place), // byte-identical to placeToOrgColumns — step E folds them
       operates_competitions: capabilities?.operatesCompetitions ?? null,
       operates_teams: capabilities?.operatesTeams ?? null,
       structure_draft: structure ?? null,

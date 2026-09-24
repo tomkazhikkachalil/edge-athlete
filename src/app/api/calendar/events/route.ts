@@ -11,7 +11,7 @@ import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import { fetchSportEventOverlay } from '@/lib/calendar/sport-event-overlay-server';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
 import { hasEventScope, publicEventRow, resolveEventScope } from '@/lib/calendar/event-scope';
-import { type OrgKindRow } from '@/lib/orgs/org-ref';
+import { type OrgKindRow, type OrgKind } from '@/lib/orgs/org-ref';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     // SCOPED members, never the whole org (strict audience).
     let orgContext:
       | {
-          side: 'league' | 'club';
+          side: OrgKind;
           orgId: string;
           orgName: string;
           scope?: { scopeType: 'division' | 'team'; scopeId: string };

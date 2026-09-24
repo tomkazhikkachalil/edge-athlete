@@ -1,17 +1,18 @@
+// Moved from src/lib/leagues/__tests__ in Round 5 step F — the schemas live in orgs/validate.ts (E-1).
 import { describe, expect, it } from 'vitest';
 import {
   LeagueCreateSchema,
-  LeagueMemberRoleSchema,
+  OrgMemberRoleSchema,
   LeagueRequestSchema,
-  LeagueRequestDecisionSchema,
-  LeagueUpdateSchema,
-  placeToLeagueColumns,
-  type LeaguePlace,
+  OrgRequestDecisionSchema,
+  OrgUpdateSchema,
+  placeToOrgColumns,
+  type OrgPlace,
 } from '../validate';
 
 const OWNER = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
 
-const place: LeaguePlace = {
+const place: OrgPlace = {
   placeId: '688ab18b-c24d-4d24-a93e-6478f3d4acb2',
   city: 'Ottawa',
   region: 'Ontario',
@@ -56,27 +57,27 @@ describe('LeagueCreateSchema', () => {
   });
 });
 
-describe('LeagueUpdateSchema', () => {
+describe('OrgUpdateSchema', () => {
   it('has no sportKey field — immutable in v1', () => {
-    const r = LeagueUpdateSchema.safeParse({ name: 'New Name', sportKey: 'soccer' });
+    const r = OrgUpdateSchema.safeParse({ name: 'New Name', sportKey: 'soccer' });
     expect(r.success).toBe(true);
     if (r.success) expect('sportKey' in r.data).toBe(false);
   });
 
   it('distinguishes place: null (clear) from absent (untouched)', () => {
-    const cleared = LeagueUpdateSchema.safeParse({ place: null });
+    const cleared = OrgUpdateSchema.safeParse({ place: null });
     expect(cleared.success).toBe(true);
     if (cleared.success) expect(cleared.data.place).toBeNull();
 
-    const absent = LeagueUpdateSchema.safeParse({ name: 'X' });
+    const absent = OrgUpdateSchema.safeParse({ name: 'X' });
     expect(absent.success).toBe(true);
     if (absent.success) expect(absent.data.place).toBeUndefined();
   });
 });
 
-describe('placeToLeagueColumns', () => {
+describe('placeToOrgColumns', () => {
   it('maps a full place, with location_source user', () => {
-    expect(placeToLeagueColumns(place)).toEqual({
+    expect(placeToOrgColumns(place)).toEqual({
       place_id: place.placeId,
       city: 'Ottawa',
       region: 'Ontario',
@@ -90,22 +91,22 @@ describe('placeToLeagueColumns', () => {
   });
 
   it('clears with real NULLs (not the profile-PUT empty-string convention)', () => {
-    const cols = placeToLeagueColumns(null);
+    const cols = placeToOrgColumns(null);
     expect(Object.values(cols).every(v => v === null)).toBe(true);
     expect(Object.keys(cols)).toContain('location_source');
   });
 });
 
-describe('LeagueMemberRoleSchema', () => {
+describe('OrgMemberRoleSchema', () => {
   it('accepts manager and member', () => {
-    expect(LeagueMemberRoleSchema.safeParse({ role: 'manager' }).success).toBe(true);
-    expect(LeagueMemberRoleSchema.safeParse({ role: 'member' }).success).toBe(true);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'manager' }).success).toBe(true);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'member' }).success).toBe(true);
   });
 
   it("rejects 'owner' and junk — ownership is not a role PATCH", () => {
-    expect(LeagueMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
-    expect(LeagueMemberRoleSchema.safeParse({ role: 'admin' }).success).toBe(false);
-    expect(LeagueMemberRoleSchema.safeParse({}).success).toBe(false);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'admin' }).success).toBe(false);
+    expect(OrgMemberRoleSchema.safeParse({}).success).toBe(false);
   });
 });
 
@@ -130,21 +131,21 @@ describe('LeagueRequestSchema', () => {
   });
 });
 
-describe('LeagueRequestDecisionSchema', () => {
+describe('OrgRequestDecisionSchema', () => {
   const REQ = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
 
   it('approve needs no reason; decline REQUIRES one', () => {
-    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'approve' }).success).toBe(true);
-    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline' }).success).toBe(false);
+    expect(OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'approve' }).success).toBe(true);
+    expect(OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline' }).success).toBe(false);
     expect(
-      LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'Duplicate of an existing league' }).success
+      OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'Duplicate of an existing league' }).success
     ).toBe(true);
   });
 
   it('caps the reason and rejects unknown decisions', () => {
     expect(
-      LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'a'.repeat(501) }).success
+      OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'a'.repeat(501) }).success
     ).toBe(false);
-    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'defer' }).success).toBe(false);
+    expect(OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'defer' }).success).toBe(false);
   });
 });

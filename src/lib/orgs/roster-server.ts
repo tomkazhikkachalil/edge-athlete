@@ -35,8 +35,8 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
-import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
-import { PAIR_COLUMN } from './org-ref';
+import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole } from './authz';
+import { NOTIFY_ORG_KEY, type OrgKind } from './org-ref';
 import {
   acceptRosterOffer,
   deleteRosterRow,
@@ -53,11 +53,11 @@ import { autoRosterDecision } from './auto-roster';
 type Admin = SupabaseClient<any, 'public', any>;
 
 interface SideConfig {
-  noun: 'league' | 'club';
+  noun: OrgKind;
   notFound: string;
 }
 
-const SIDES: Record<OrgSide, SideConfig> = {
+const SIDES: Record<OrgKind, SideConfig> = {
   league: { noun: 'league', notFound: 'League not found' },
   club: { noun: 'club', notFound: 'Club not found' },
 };
@@ -71,12 +71,11 @@ export function rosterDeleteOutcome(input: {
   return input.status === 'pending' ? 'cancelled' : 'removed';
 }
 
-
 /** POST ?profileId= — a manager offers a roster spot to an existing member. */
 export async function rosterPost(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   targetProfileId: string
 ): Promise<NextResponse> {
@@ -161,7 +160,7 @@ export async function rosterPost(
 export async function rosterSelfPost(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
@@ -225,7 +224,7 @@ export async function rosterSelfPost(
 export async function rosterPatch(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   actingFor?: string,
   photoConsent?: boolean
@@ -291,7 +290,7 @@ export async function rosterPatch(
 export async function rosterConsentPatch(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   consent: boolean,
   actingFor?: string
@@ -348,7 +347,7 @@ export async function rosterConsentPatch(
 export async function rosterDelete(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   targetProfileId: string | null,
   guardianActing = false
@@ -427,18 +426,13 @@ export async function rosterDelete(
 
 async function notifyOffer(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   profileId: string
 ): Promise<void> {
-  if (side === 'league') {
-    const { notifyRosterOffer } = await import('@/lib/leagues/notify');
-    await notifyRosterOffer(admin, { profileId, leagueId: orgId, leagueName: orgName });
-  } else {
-    const { notifyRosterOffer } = await import('@/lib/clubs/notify');
-    await notifyRosterOffer(admin, { profileId, clubId: orgId, clubName: orgName });
-  }
+  const { notifyOrgRosterOffer } = await import('./notify');
+  await notifyOrgRosterOffer(admin, { kind: side, orgId, orgName, profileId });
 }
 
 /** The guardian half (0.10, roster_invite): offer → "you or your athlete
@@ -447,7 +441,7 @@ async function notifyOffer(
  *  acting guardian from their own bell. */
 async function notifyGuardiansOfRoster(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   childProfileId: string,
@@ -470,7 +464,7 @@ async function notifyGuardiansOfRoster(
         message: event === 'offer' ? 'You or your athlete can accept or decline.' : null,
         actionUrl: '/app/guardian',
         actorId,
-        metadata: { [PAIR_COLUMN[side]]: orgId, roster: event },
+        metadata: { [NOTIFY_ORG_KEY[side]]: orgId, roster: event },
       },
       actorId
     );
@@ -484,7 +478,7 @@ async function notifyGuardiansOfRoster(
  *  insert per the org-sender convention — the RPC would drop it). */
 async function notifyChildOfGuardianDecision(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   childProfileId: string,
@@ -499,7 +493,7 @@ async function notifyChildOfGuardianDecision(
       message: null,
       action_url: side === 'league' ? `/league/${orgId}` : `/club/${orgId}`,
       is_read: false,
-      metadata: { [PAIR_COLUMN[side]]: orgId, roster: result },
+      metadata: { [NOTIFY_ORG_KEY[side]]: orgId, roster: result },
     });
     if (error) console.error('[ROSTER] child notify failed:', error);
   } catch (e) {
@@ -509,46 +503,24 @@ async function notifyChildOfGuardianDecision(
 
 async function notifyResult(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   org: { name: string; owner_profile_id: string | null },
   actorId: string,
   result: 'accepted' | 'declined'
 ): Promise<void> {
   if (!org.owner_profile_id || org.owner_profile_id === actorId) return;
-  if (side === 'league') {
-    const { notifyRosterResult } = await import('@/lib/leagues/notify');
-    await notifyRosterResult(admin, {
-      ownerProfileId: org.owner_profile_id,
-      actorId,
-      leagueId: orgId,
-      leagueName: org.name,
-      result,
-    });
-  } else {
-    const { notifyRosterResult } = await import('@/lib/clubs/notify');
-    await notifyRosterResult(admin, {
-      ownerProfileId: org.owner_profile_id,
-      actorId,
-      clubId: orgId,
-      clubName: org.name,
-      result,
-    });
-  }
+  const { notifyOrgRosterResult } = await import('./notify');
+  await notifyOrgRosterResult(admin, { kind: side, orgId, orgName: org.name, ownerProfileId: org.owner_profile_id, actorId, result });
 }
 
 async function notifyRemoved(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   profileId: string
 ): Promise<void> {
-  if (side === 'league') {
-    const { notifyRosterRemoved } = await import('@/lib/leagues/notify');
-    await notifyRosterRemoved(admin, { profileId, leagueId: orgId, leagueName: orgName });
-  } else {
-    const { notifyRosterRemoved } = await import('@/lib/clubs/notify');
-    await notifyRosterRemoved(admin, { profileId, clubId: orgId, clubName: orgName });
-  }
+  const { notifyOrgRosterRemoved } = await import('./notify');
+  await notifyOrgRosterRemoved(admin, { kind: side, orgId, orgName, profileId });
 }

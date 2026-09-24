@@ -16,6 +16,7 @@ import RoundFields, { Choice } from './RoundFields';
 import GameFields from './GameFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { RECORDING_MODE_LABEL } from '@/lib/sport-events/recording';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 /**
  * The creation wizard (Events program): basics → round → format → review,
@@ -25,7 +26,7 @@ import { RECORDING_MODE_LABEL } from '@/lib/sport-events/recording';
  * ask before discarding (useDirtyClose + ConfirmModal). Single column,
  * 44px controls, a sticky footer with the safe-area inset.
  */
-interface ManagedOrg { kind: 'club' | 'league'; id: string; name: string; role: string }
+interface ManagedOrg { kind: OrgKind; id: string; name: string; role: string }
 
 const INPUT = 'w-full min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-primary text-base';
 const PRIMARY = 'ea-cta text-white px-5 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
@@ -77,7 +78,7 @@ export default function EventCreateWizard() {
   const competitions = fetched && fetched.key === pickKey ? fetched.list : [];
   useEffect(() => {
     if (!pickKey) return;
-    const [kind, id] = orgKey.split(':') as ['club' | 'league', string];
+    const [kind, id] = orgKey.split(':') as [OrgKind, string];
     let cancelled = false;
     (async () => {
       let list: CompetitionForLink[] = [];
@@ -99,7 +100,7 @@ export default function EventCreateWizard() {
   const orgTeams = fetchedTeams && fetchedTeams.key === orgKey ? fetchedTeams.list : [];
   useEffect(() => {
     if (!orgKey || !team || s.shape !== 'game') return;
-    const [kind, id] = orgKey.split(':') as ['club' | 'league', string];
+    const [kind, id] = orgKey.split(':') as [OrgKind, string];
     let cancelled = false;
     (async () => {
       let list: Array<{ id: string; name: string; display_name: string | null }> = [];
@@ -199,7 +200,7 @@ export default function EventCreateWizard() {
           {orgs.length > 0 && (
             <label className="block space-y-1">
               <span className="text-sm font-medium text-secondary">Hosted for <span className="text-muted font-normal">(optional)</span></span>
-              <select value={s.org ? `${s.org.kind}:${s.org.id}` : ''} onChange={e => { const v = e.target.value; setS(prev => ({ ...prev, org: v ? { kind: v.split(':')[0] as 'club' | 'league', id: v.split(':')[1] } : null, competition: null })); }} className={INPUT}>
+              <select value={s.org ? `${s.org.kind}:${s.org.id}` : ''} onChange={e => { const v = e.target.value; setS(prev => ({ ...prev, org: v ? { kind: v.split(':')[0] as OrgKind, id: v.split(':')[1] } : null, competition: null })); }} className={INPUT}>
                 <option value="">Just me</option>
                 {orgs.map(o => <option key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>{o.name}</option>)}
               </select>

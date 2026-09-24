@@ -29,8 +29,8 @@ import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, r
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { type OrgSide, capabilityAllows, getOrgAndCapabilities } from './authz';
-import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, type OrgKindRow, type OrgRef, orgRefOf } from './org-ref';
+import { capabilityAllows, getOrgAndCapabilities } from './authz';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, type OrgKindRow, type OrgRef, orgRefOf, type OrgKind } from './org-ref';
 import {
   isMissingTableError,
   type CompetitionCreateInput,
@@ -74,7 +74,7 @@ import { ensureEntries, syncSideMembers } from '@/lib/sport-events/contest-link-
 type Admin = SupabaseClient<any, 'public', any>;
 
 export interface CompetitionScope {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
 }
 
@@ -88,7 +88,7 @@ const TAG = '[COMPETITIONS]';
 export async function requireCompetitionManager(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   opts: { competitionId?: string } = {}
 ): Promise<{ ok: true; org: { id: string; name: string } } | { ok: false; response: NextResponse }> {

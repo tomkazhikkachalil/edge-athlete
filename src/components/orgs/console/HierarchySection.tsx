@@ -5,7 +5,7 @@ import Link from 'next/link';
 import StaffInviteModal, { type InviteScopeOption } from './StaffInviteModal';
 import { buildHierarchy, defaultOpenSeasonId, type HierarchyPerson, type HierarchySeasonInput, type HierarchyTeamInput } from '@/lib/orgs/hierarchy';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // ── Hierarchy & people (org staff program, round 5) ─────────────────────────
 // The org as a tree — org → seasons → divisions → entered teams (+ teams
@@ -19,7 +19,7 @@ import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 // 375px: one column, every level a <details>, chips wrap, 44px targets.
 
 interface Props {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   seasons: HierarchySeasonInput[];
   teams: HierarchyTeamInput[];

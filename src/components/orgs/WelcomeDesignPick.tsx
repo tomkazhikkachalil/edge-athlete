@@ -12,6 +12,7 @@ import type { SiteLayout } from '@/lib/site-builder/layout';
 import { isFreshSite } from '@/lib/site-builder/seeds';
 import { publishPlan } from '@/lib/site-builder/publish-target';
 import { GalleryThumb } from '@/components/site-builder/Gallery';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // ── The design moment at creation (Sep 11 2026) ───────────────────────────
 // The wizard lands on `?welcome=1` right after the sport was picked, on a
@@ -35,7 +36,7 @@ interface CanvasBody {
 }
 
 interface Props {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   plural: 'leagues' | 'clubs';
 }

@@ -18,7 +18,7 @@
 import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
 
-export { isMissingTableError } from '@/lib/leagues/validate';
+export { isMissingTableError } from '@/lib/orgs/validate';
 
 export const PROGRAM_TYPES = ['camp', 'clinic', 'learn_to_play', 'other'] as const;
 

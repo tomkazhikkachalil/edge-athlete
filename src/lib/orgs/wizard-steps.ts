@@ -1,3 +1,4 @@
+import type { OrgKind } from './org-ref';
 // ── Which steps the org wizard shows (Onboarding v2 R2) ─────────────────────
 // The Club Model's rule: structure appears only when you need it. A club
 // with no divisions and no teams is complete and valid, so the SMALL PATH
@@ -17,12 +18,12 @@ export const STEPS_CLUB: readonly WizardStep[] = ['identity', 'structure', 'conn
 export const STEPS_LEAGUE_SMALL: readonly WizardStep[] = ['identity', 'sport', 'review'];
 export const STEPS_CLUB_SMALL: readonly WizardStep[] = ['identity', 'review'];
 
-export function isSmallPath(input: { side: 'league' | 'club'; sportsCount: number; expandStructure: boolean }): boolean {
+export function isSmallPath(input: { side: OrgKind; sportsCount: number; expandStructure: boolean }): boolean {
   if (input.expandStructure) return false;
   return input.side === 'league' || input.sportsCount <= 1;
 }
 
-export function stepsFor(input: { side: 'league' | 'club'; sportsCount: number; expandStructure: boolean }): readonly WizardStep[] {
+export function stepsFor(input: { side: OrgKind; sportsCount: number; expandStructure: boolean }): readonly WizardStep[] {
   const small = isSmallPath(input);
   if (input.side === 'league') return small ? STEPS_LEAGUE_SMALL : STEPS_LEAGUE;
   return small ? STEPS_CLUB_SMALL : STEPS_CLUB;

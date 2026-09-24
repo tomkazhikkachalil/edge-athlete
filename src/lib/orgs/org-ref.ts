@@ -13,11 +13,12 @@
  *   WRITE a row for an org   →  { ...pairFor(ref) }         — org_id (the pair is GONE since 235)
  *   TOUCH the org row itself →  .from('organizations')     — the one table; a LIST of one kind adds .eq('kind', kind)
  *   SPELL a URL family       →  ORG_ROUTE_FAMILY[kind]      — forever (URLs never change)
+ *   BELL about an org        →  metadata: { [NOTIFY_ORG_KEY[kind]]: orgId } — the old column name, forever (history)
  *
  * `OrgKind` is what an org calls itself (its route family and vocabulary —
  * Tom's decision; `operates_competitions` / `operates_teams` stay the
- * behaviour switches). The old name `OrgSide` is this type under its old
- * name until step F retires it.
+ * behaviour switches). It is the ONE name: `OrgSide` retired in step F
+ * (Sep 24 2026); `OrgRef.side` keeps its field name.
  *
  * ZERO imports on purpose: client components spell URL families from here.
  */
@@ -120,12 +121,11 @@ export function publicOrgRow<T extends OrgKindRow>(row: T): Omit<T, 'org'> & { l
   return { ...rest, ...pairFieldsFor(orgRefOf(row)) };
 }
 
-/** The pair column NAME of a kind — no pair table has it any more (235).
- *  Two uses remain: the two side-specific tables (`league_join_requests` /
- *  `club_join_requests`, their OWN column, until D-ii unifies them) and the
- *  notifications `metadata` key the announce readers match on
- *  (`metadata @> {league_id}` — history, so forever). */
-export const PAIR_COLUMN: Record<OrgKind, 'league_id' | 'club_id'> = {
+/** The notifications `metadata` key an org's bells carry — the kind's old
+ *  column name (`league_id` / `club_id`), kept FOREVER: the rows are history
+ *  and the announce readers match on it (`metadata @> {league_id}`). No
+ *  table has the pair since 235 / 237; this is the one place it lives on. */
+export const NOTIFY_ORG_KEY: Record<OrgKind, 'league_id' | 'club_id'> = {
   league: 'league_id',
   club: 'club_id',
 };

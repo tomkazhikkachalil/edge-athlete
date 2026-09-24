@@ -15,19 +15,19 @@ import { fetchPublicStandings } from '@/lib/competitions/public-standings';
 import { parsePageBody } from '@/lib/org-sites/validate';
 import { resolveNewsCover } from '@/lib/org-sites/news-cover';
 import { UUID_RE } from '@/lib/golf/course-catalog';
-import { getOrgAndRole, type OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+import { getOrgAndRole } from './authz';
+import { ORG_ID, type OrgKind } from './org-ref';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
 
-function notFound(side: OrgSide) {
+function notFound(side: OrgKind) {
   return NextResponse.json({ error: side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
 }
 
 type SessionUser = { id: string };
 
 /** A membership (or the owner column) for the already-authenticated user. */
-async function memberGate(user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+async function memberGate(user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return { response: notFound(side) };
   const admin = getSupabaseAdmin();
@@ -39,7 +39,7 @@ async function memberGate(user: SessionUser, side: OrgSide, params: Promise<{ id
   return { admin, id };
 }
 
-export async function standingsMineGET(user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+export async function standingsMineGET(user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   try {
     const g = await memberGate(user, side, params);
     if ('response' in g) return g.response;
@@ -53,7 +53,7 @@ export async function standingsMineGET(user: SessionUser, side: OrgSide, params:
   }
 }
 
-export async function newsMineGET(user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+export async function newsMineGET(user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   try {
     const g = await memberGate(user, side, params);
     if ('response' in g) return g.response;

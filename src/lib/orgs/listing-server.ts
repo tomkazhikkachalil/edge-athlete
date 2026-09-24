@@ -14,7 +14,8 @@ import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { notifyAdminsOfListingRequest } from './listing-notify';
-import { nextListingChange, readListing, type ListingStatus, type OrgSide } from './listing';
+import { nextListingChange, readListing, type ListingStatus } from './listing';
+import type { OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -23,7 +24,7 @@ const TAG = '[ORG LISTING]';
 
 export async function applyListing(
   admin: Admin,
-  input: { side: OrgSide; orgId: string; orgName: string; actorId: string; target: Extract<ListingStatus, 'pending' | 'unlisted'> }
+  input: { side: OrgKind; orgId: string; orgName: string; actorId: string; target: Extract<ListingStatus, 'pending' | 'unlisted'> }
 ): Promise<NextResponse | { ok: true; status: ListingStatus }> {
   const { side, orgId, orgName, actorId, target } = input;
   const table = 'organizations';

@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace } from '@/lib/geo/regions';
 import { clearParkedOrgClaim, saveParkedOrgClaim } from '@/lib/org-claim-parked';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // ── /org-claim/[token] — take ownership of a stub org (phase 1 round 2) ─────
 // The activate/[token] shape: BrandBar (reachable while accountless), a
@@ -18,7 +19,7 @@ import { clearParkedOrgClaim, saveParkedOrgClaim } from '@/lib/org-claim-parked'
 type State = 'loading' | 'invalid' | 'ready' | 'claiming' | 'claimed' | 'conflict';
 
 interface PeekedOrg {
-  side: 'league' | 'club';
+  side: OrgKind;
   name: string;
   sport: string | null;
   city: string | null;

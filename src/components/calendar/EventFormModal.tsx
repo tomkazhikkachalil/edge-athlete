@@ -19,6 +19,7 @@ import type { WorkoutRoutine } from '@/lib/workouts/routines';
 import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
 import type { EditScope, EventDetail } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // Quick-create by default (title + when), everything else behind
 // "More options" — the Google Calendar pattern from the product brief.
@@ -201,7 +202,7 @@ export default function EventFormModal({
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
   // Orgs the user can schedule for (owner/manager only) — same lazy pattern
   // as routines; the picker hides itself entirely when there are none.
-  interface ManagedOrg { kind: 'league' | 'club'; id: string; name: string; role: string }
+  interface ManagedOrg { kind: OrgKind; id: string; name: string; role: string }
   const { user: authUser } = useAuth();
   const [managedOrgs, setManagedOrgs] = useState<ManagedOrg[] | null>(null);
   useEffect(() => {

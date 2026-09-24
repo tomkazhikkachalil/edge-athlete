@@ -10,8 +10,8 @@
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -21,7 +21,7 @@ const TAG = '[ORG SITE LOGO]';
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 export const ORG_LOGO_PREFIX = 'org-logos/';
 
-async function getSite(admin: Admin, side: OrgSide, orgId: string) {
+async function getSite(admin: Admin, side: OrgKind, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain, logo_path')
@@ -39,7 +39,7 @@ async function removeManagedFile(admin: Admin, path: string | null) {
 
 export async function siteLogoPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   file: File
 ): Promise<NextResponse> {
@@ -93,7 +93,7 @@ export async function siteLogoPOST(
 
 export async function siteLogoDELETE(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const site = await getSite(admin, side, orgId);

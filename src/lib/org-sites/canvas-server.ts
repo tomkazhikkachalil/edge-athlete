@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
+
 import { newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
 import { seedLayout } from '@/lib/site-builder/seeds';
 import { canvasLayoutFor } from '@/lib/site-builder/canvas-layout';
@@ -17,6 +17,7 @@ import { loadDraftSnapshot, loadRows, loadSitePointers, rowsSnapshot, writeDraft
 import { rawSiteReaders, resolveHomeData } from './widget-data';
 import { fetchCanvasOptions, type CanvasOptions } from './query-options';
 import type { SiteHomeData } from './home-data';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 /**
  * The editor's read and write — Site Builder P3-B (Sep 9 2026).
@@ -85,12 +86,11 @@ function canvasPages(pages: Record<string, SnapshotPage> | undefined): CanvasPag
   }));
 }
 
-
 /** The draft view of an org's site by org id — the console side of
  *  getDraftSiteBySlug (the preview's read). */
 async function loadDraftSiteView(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<{ site: PublicSite; layout: SiteLayout; draft: CanvasResponse['draft']; published: boolean; pages: CanvasPage[] | null } | null> {
   const { site: pointers } = await loadSitePointers(admin, side, orgId);
@@ -116,7 +116,7 @@ async function loadDraftSiteView(
   };
 }
 
-export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function canvasGET(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   // The data is resolved over the UNION of the home and every page's
@@ -133,7 +133,7 @@ export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Pro
 
 export async function draftLayoutPUT(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   userId: string,
   body: unknown
@@ -202,7 +202,7 @@ export async function draftLayoutPUT(
  *  fresh instances (default size, this site's config), plus each key's
  *  emptiness so the picker can say "Start a season to fill this". One call
  *  for every missing key: `?keys=a,b,c`. */
-export async function widgetDataGET(admin: Admin, side: OrgSide, orgId: string, keysParam: string | null): Promise<NextResponse> {
+export async function widgetDataGET(admin: Admin, side: OrgKind, orgId: string, keysParam: string | null): Promise<NextResponse> {
   const keys = (keysParam ?? '')
     .split(',')
     .map(k => k.trim())

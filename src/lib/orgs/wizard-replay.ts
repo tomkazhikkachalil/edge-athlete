@@ -14,8 +14,8 @@
 // can degrade to "nothing to replay", never crash the route.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { otherKind } from './org-ref';
+
+import { otherKind, type OrgKind } from './org-ref';
 import type { StructureScope } from './structure-server';
 import {
   divisionCreatePOST,
@@ -45,7 +45,7 @@ export interface StructurePlan {
  *  request sport (belt and suspenders over the POST-time stamp). */
 export function planStructureReplay(
   draft: unknown,
-  side: OrgSide,
+  side: OrgKind,
   orgSportKey: string | null
 ): StructurePlan | null {
   const parsed = StructureDraftSchema.safeParse(draft);
@@ -138,7 +138,7 @@ export async function replayConnections(
 ): Promise<{ connections: ConnectionReport[]; stubs: StubReport[] }> {
   const parsed = ConnectionsDraftSchema.safeParse(draft);
   if (!parsed.success) return { connections: [], stubs: [] };
-  const otherSide: OrgSide = otherKind(scope.side);
+  const otherSide: OrgKind = otherKind(scope.side);
   const connections: ConnectionReport[] = [];
   const stubs: StubReport[] = [];
 

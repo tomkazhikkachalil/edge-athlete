@@ -17,7 +17,8 @@ import OrgHero from './OrgHero';
 import OrgGlanceGrid from './OrgGlanceGrid';
 import { SIDE_COPY } from './side-copy';
 import { useOrgPage } from './useOrgPage';
-import type { ClubInfo, LeagueInfo, OrgSide } from './types';
+import type { ClubInfo, LeagueInfo } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The in-app org page, shared by /league/[id] and /club/[id] since R1 of the
 // Org Pages Program (Sep 8 2026) folded the two ~980-line twins. Everything
@@ -33,7 +34,7 @@ import type { ClubInfo, LeagueInfo, OrgSide } from './types';
 // and the hero is OrgHero (logo tile, hero photo or accent band).
 //
 // Search rows (⌘K) link here — no page, no link is the rule.
-export default function OrgPage({ side }: { side: OrgSide }) {
+export default function OrgPage({ side }: { side: OrgKind }) {
   const params = useParams();
   const orgId = params.id as string;
   const copy = SIDE_COPY[side];

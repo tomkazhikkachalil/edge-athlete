@@ -9,7 +9,7 @@
 import { stateFromAction, type ConsentState } from './consent';
 import { formatDisplayName } from './formatters';
 import { agePresetChanges, type HouseholdPolicy } from './household-policy';
-import { orgIdOf, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
+import { orgIdOf, type OrgKindEmbed, orgKindOf, type OrgKind } from '@/lib/orgs/org-ref';
 
 /** Queue items older than this get the amber "waiting N days" badge, and the
  *  48h cron nudge (PR 3) re-bells guardians past the same threshold — one
@@ -141,7 +141,7 @@ export type QueueItem =
       id: string;
       athlete: QueueAthlete;
       createdAt: string;
-      org: { side: 'league' | 'club'; id: string; name: string };
+      org: { side: OrgKind; id: string; name: string };
     }
   | {
       /** Photo-consent ask (phase 4 R4, mig 159): an ACTIVE roster
@@ -153,7 +153,7 @@ export type QueueItem =
       id: string;
       athlete: QueueAthlete;
       createdAt: string;
-      org: { side: 'league' | 'club'; id: string; name: string };
+      org: { side: OrgKind; id: string; name: string };
     }
   | {
       /** Pending event invite for a child — inline respond-as-child via

@@ -19,8 +19,8 @@ import { buildPointsRace, type PointsRace } from './golf-race';
 import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readOrgAccess } from '@/lib/orgs/access';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import {
@@ -104,7 +104,7 @@ export interface PublicStandingsPayload {
 
 export async function fetchPublicStandings(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   opts: {
     /** Phase 9 V4: the members' read (the app's /standings/mine — session-

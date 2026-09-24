@@ -9,6 +9,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // Admin structure console (0.5): seasons → divisions → team entries, plus
 // the org's persistent teams. The ONLY structure writer in v1 (Tom,
@@ -16,7 +17,7 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 // ADMIN_EMAILS, enforced server-side; a 403 renders the lock panel.
 
 interface OrgOption {
-  side: 'league' | 'club';
+  side: OrgKind;
   id: string;
   name: string;
 }

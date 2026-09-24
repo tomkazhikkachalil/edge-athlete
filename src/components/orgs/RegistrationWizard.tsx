@@ -11,7 +11,7 @@ import {
   saveRegistrationDraft,
   type RegistrationDraft,
 } from '@/lib/registration/wizard-draft';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // ── The family registration wizard (phase 5 R3) ─────────────────────────────
 // The OrgStartWizard machine: a named-union Step, all state hoisted here,
@@ -63,7 +63,7 @@ export default function RegistrationWizard({
   orgId,
   orgName,
 }: {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   orgName: string;
 }) {

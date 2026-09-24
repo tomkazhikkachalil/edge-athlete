@@ -19,9 +19,9 @@ import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
 import { COMPETITION_FORMATS, ENTRANT_KINDS, type CompetitionFormat } from '@/lib/sports/competition-profiles';
 
-export { isMissingTableError } from '@/lib/leagues/validate';
-export { OrgSideSchema } from '@/lib/structure/validate';
-import { OrgSideSchema } from '@/lib/structure/validate';
+export { isMissingTableError } from '@/lib/orgs/validate';
+export { OrgKindSchema } from '@/lib/structure/validate';
+import { OrgKindSchema } from '@/lib/structure/validate';
 
 /**
  * The format vocabulary is the DB's four (track 2 PR 1); what is CREATABLE
@@ -39,7 +39,7 @@ export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const CompetitionCreateSchema = z
   .object({
-    side: OrgSideSchema,
+    side: OrgKindSchema,
     orgId: uuid,
     seasonId: uuid,
     divisionId: uuid.optional(),

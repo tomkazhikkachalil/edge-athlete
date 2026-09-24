@@ -11,8 +11,8 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
-import type { OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
@@ -27,7 +27,7 @@ const NOTIFY_CHUNK = 500;
 
 export async function orgAnnouncePOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: OrgAnnounceInput,
   actorId: string,
@@ -120,7 +120,7 @@ export async function orgAnnouncePOST(
 /** Mirror to the site's notice band (S1); true only when the band took
  *  it. A missing site or a failed write is false (never throws). The tag
  *  purge also refreshes the site's News page "Notices" (N3). */
-async function mirrorSiteNotice(admin: Admin, side: OrgSide, orgId: string, title: string, until: string): Promise<boolean> {
+async function mirrorSiteNotice(admin: Admin, side: OrgKind, orgId: string, title: string, until: string): Promise<boolean> {
   try {
     const { data: site } = await admin
       .from('org_sites')

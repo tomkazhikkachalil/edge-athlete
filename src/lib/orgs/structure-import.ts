@@ -13,8 +13,8 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { ORG_ID, pairFor } from './org-ref';
+
+import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 import { parseCsv, checkHeaders } from './csv';
 import { seasonArchivedMap } from './rollover-server';
 
@@ -38,7 +38,7 @@ const OPTIONAL = ['age_band', 'gender_stream', 'tier', 'sport'];
 
 export async function structureImportPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgSportKey: string | null,
   input: { seasonId: string; csv: string; dryRun: boolean }

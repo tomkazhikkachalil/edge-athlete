@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { formPurgeCutoffs, type FormsPatchInput } from './forms';
 
 // ── The site's inbox — program 2, D2 (Sep 11 2026) ─────────────────────────
@@ -15,7 +15,7 @@ const TAG = '[SITE FORMS INBOX]';
 const FIELDS = 'id, kind, fields, page_path, created_at, read_at, archived_at';
 const LIST_MAX = 200;
 
-async function siteIdFor(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
+async function siteIdFor(admin: Admin, side: OrgKind, orgId: string): Promise<string | null> {
   const { data } = await admin.from('org_sites').select('id').eq(ORG_ID, orgId).maybeSingle();
   return (data as { id: string } | null)?.id ?? null;
 }
@@ -30,7 +30,7 @@ export interface InboxRow {
   archivedAt: string | null;
 }
 
-export async function formsGET(admin: Admin, side: OrgSide, orgId: string, state: 'open' | 'archived'): Promise<NextResponse> {
+export async function formsGET(admin: Admin, side: OrgKind, orgId: string, state: 'open' | 'archived'): Promise<NextResponse> {
   const siteId = await siteIdFor(admin, side, orgId);
   if (!siteId) return NextResponse.json({ submissions: [], unread: 0 });
   let query = admin.from('org_site_form_submissions').select(FIELDS).eq('site_id', siteId).order('created_at', { ascending: false }).limit(LIST_MAX);
@@ -54,7 +54,7 @@ export async function formsGET(admin: Admin, side: OrgSide, orgId: string, state
   return NextResponse.json({ submissions, unread: unreadRes.count ?? 0, supported: true });
 }
 
-export async function formsPATCH(admin: Admin, side: OrgSide, orgId: string, input: FormsPatchInput): Promise<NextResponse> {
+export async function formsPATCH(admin: Admin, side: OrgKind, orgId: string, input: FormsPatchInput): Promise<NextResponse> {
   const siteId = await siteIdFor(admin, side, orgId);
   if (!siteId) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const now = new Date().toISOString();

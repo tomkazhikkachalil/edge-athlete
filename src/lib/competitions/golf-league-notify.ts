@@ -15,8 +15,8 @@
 // guardian rail — a guardian sees exactly what their child sees.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { type OrgKindEmbed, orgRefOf } from '@/lib/orgs/org-ref';
+
+import { type OrgKindEmbed, orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 import { notifyGuardians, type GuardianNotificationType } from '@/lib/guardian-notify';
 import { formatIsoDate } from './golf-weeks';
 
@@ -26,7 +26,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 const TAG = '[GOLF LEAGUE NOTIFY]';
 
 export interface GolfLeagueBellContext {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   orgName: string;
   competitionId: string;
@@ -157,7 +157,7 @@ export async function loadGolfLeagueBellContext(
 ): Promise<GolfLeagueBellContext | null> {
   const compRef = orgRefOf(input.competition);
   if (!compRef) return null;
-  const side: OrgSide = compRef.side;
+  const side: OrgKind = compRef.side;
   const orgId = compRef.orgId;
   const { data: org } = await admin
     .from('organizations')

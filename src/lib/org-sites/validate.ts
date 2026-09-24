@@ -13,8 +13,9 @@ import { TEMPLATE_IDS } from './templates';
 import { GALLERY_ENTRY_IDS, GALLERY_MODES } from '@/lib/site-builder/gallery-ids';
 import { SAMPLE_MEDIA_URI_RE } from '@/lib/media/org-site-media';
 import { CONTACT_FIELD_ORDER, SPONSOR_TIERS, type ContactFieldKey, type SponsorTier } from '@/lib/site-builder/display';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
-export { isMissingTableError } from '@/lib/leagues/validate';
+export { isMissingTableError } from '@/lib/orgs/validate';
 
 export const SUBDOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 export const SUBDOMAIN_MIN = 3;
@@ -292,7 +293,7 @@ export function parseNavConfig(navConfig: unknown): NavConfig {
  *  leagues there; a league leads with the table and the schedule. Every
  *  MODULE_KEY appears exactly once per side (a test pins it). Managers
  *  still reorder freely (set_nav) and can come back here (reset_order). */
-export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
+export const DEFAULT_MODULE_ORDER: Record<OrgKind, readonly ModuleKey[]> = {
   club: [
     'hero', 'courses', 'affiliations', 'schedule', 'standings', 'news', 'register',
     'teams', 'divisions', 'leaders', 'members', 'gallery', 'venues', 'staff', 'documents',
@@ -312,7 +313,7 @@ export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[
  *  a golf club is NOT course-specific, so `courses` is a supporting
  *  section, not the lead). Chosen at site creation and by reset_order;
  *  managers still reorder freely. Every MODULE_KEY exactly once (pinned). */
-export const GOLF_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
+export const GOLF_MODULE_ORDER: Record<OrgKind, readonly ModuleKey[]> = {
   club: [
     'hero', 'standings', 'leaders', 'schedule', 'members', 'news', 'gallery', 'courses',
     'register', 'affiliations', 'venues', 'teams', 'divisions', 'staff',
@@ -327,7 +328,7 @@ export const GOLF_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> 
 
 /** The recommended order for an org: its sport's shape when it has one. */
 export function defaultModuleOrder(
-  side: 'league' | 'club',
+  side: OrgKind,
   sportKey?: string | null
 ): readonly ModuleKey[] {
   return sportKey === 'golf' ? GOLF_MODULE_ORDER[side] : DEFAULT_MODULE_ORDER[side];
@@ -341,7 +342,7 @@ export const GOLF_TAGLINE = "Standings, leaderboards and the week's play — liv
 /** Side-aware default titles: the affiliations module reads "Leagues" on a
  *  club site and "Clubs" on a league site (the relationship seen from
  *  that page). Nav labels still override. */
-const SIDE_TITLES: Record<'league' | 'club', Partial<Record<string, string>>> = {
+const SIDE_TITLES: Record<OrgKind, Partial<Record<string, string>>> = {
   club: { affiliations: 'Leagues' },
   league: { affiliations: 'Clubs' },
 };
@@ -357,7 +358,7 @@ const SPORT_TITLES: Record<string, Partial<Record<string, string>>> = {
 export function moduleLabel(
   key: string,
   nav: NavConfig,
-  side?: 'league' | 'club',
+  side?: OrgKind,
   sportKey?: string | null
 ): string {
   return (

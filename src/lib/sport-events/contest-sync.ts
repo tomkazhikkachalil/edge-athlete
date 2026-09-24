@@ -15,6 +15,7 @@
 import type { GolfResultPayload } from '@/lib/competitions/golf-league';
 import type { ResultProvenance } from '@/lib/orgs/provenance';
 import type { LeaderboardRow } from './leaderboard';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export type ContestRule = 'golf_net' | 'golf_gross' | 'stroke_total';
 
@@ -24,7 +25,7 @@ export function contestRule(scoringRule: string | null | undefined): ContestRule
 }
 
 /** The org that hosts the event recorded the result itself. */
-export function provenanceForOrg(org: { side: 'club' | 'league' }): ResultProvenance {
+export function provenanceForOrg(org: { side: OrgKind }): ResultProvenance {
   return org.side === 'league' ? 'league_verified' : 'club_recorded';
 }
 

@@ -12,7 +12,7 @@
 // entered in, and the owning org.
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { type OrgKindRow, pairFieldsOf } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper

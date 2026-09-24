@@ -1,15 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { ORG_KINDS, PAIR_COLUMN } from '../org-ref';
+import { ORG_KINDS, NOTIFY_ORG_KEY } from '../org-ref';
 import { orgCreateSchema, orgRequestSchema, OrgRequestDecisionSchema, OrgUpdateSchema, placeToOrgColumns } from '../validate';
 import {
   notifyOrgJoin, notifyOrgRole, notifyOrgRequestResult, notifyOrgRosterOffer, notifyOrgRosterResult,
   notifyOrgRosterRemoved, notifyOrgJoinRequest, notifyOrgJoinDecision, orgNotifyTypes,
 } from '../notify';
 import { createOrgWithOwner, ORG_CAPABILITY_DEFAULTS } from '../create';
-import { notifyLeagueJoin } from '@/lib/leagues/notify';
-import { notifyClubRequestResult } from '@/lib/clubs/notify';
-import { createLeagueWithOwner } from '@/lib/leagues/create';
-import { createClubWithOwner } from '@/lib/clubs/create';
 
 // Round 5 step E: the league / club library pairs fold into one module each.
 // These pins say what the KIND decides — and that nothing else differs.
@@ -83,7 +79,7 @@ describe.each(ORG_KINDS)('notifications — %s', kind => {
     const rows = inserts.flatMap(i => i.rows);
     expect(inserts.every(i => i.table === 'notifications')).toBe(true);
     expect(rows.map(r => r.type)).toEqual([t.join, t.update, t.requestResult, t.update, t.update, t.update, t.join, t.join, t.update]);
-    expect(t.metadataKey).toBe(PAIR_COLUMN[kind]);
+    expect(t.metadataKey).toBe(NOTIFY_ORG_KEY[kind]);
     for (const r of rows) {
       const meta = r.metadata as Record<string, unknown>;
       if (r.type !== t.requestResult) expect(meta[t.metadataKey]).toBe('org-1');
@@ -100,19 +96,6 @@ describe.each(ORG_KINDS)('notifications — %s', kind => {
     await notifyOrgJoin(admin, { ...org, ownerProfileId: null, actorId: 'a' });
     await notifyOrgJoin(admin, { ...org, ownerProfileId: 'a', actorId: 'a' });
     expect(inserts).toHaveLength(0);
-  });
-});
-
-describe('the side adapters map their old field names onto the one notifier', () => {
-  it('league join → league_join with league_id', async () => {
-    const { admin, inserts } = captureAdmin();
-    await notifyLeagueJoin(admin, { ownerProfileId: 'owner', actorId: 'actor', leagueId: 'L', leagueName: 'Spring' });
-    expect(inserts[0].rows[0]).toMatchObject({ type: 'league_join', action_url: '/league/L', metadata: { league_id: 'L' } });
-  });
-  it('club request result → club_request_result, approved links the club', async () => {
-    const { admin, inserts } = captureAdmin();
-    await notifyClubRequestResult(admin, { requesterProfileId: 'r', requestId: 'q', clubName: 'Eagle', approved: true, clubId: 'C', reason: null });
-    expect(inserts[0].rows[0]).toMatchObject({ type: 'club_request_result', title: 'Your club Eagle was approved', action_url: '/club/C', metadata: { request_id: 'q', decision: 'approved', club_id: 'C' } });
   });
 });
 
@@ -160,14 +143,3 @@ describe.each(ORG_KINDS)('createOrgWithOwner — %s', kind => {
   });
 });
 
-describe('the side wrappers keep their shapes', () => {
-  it('createLeagueWithOwner answers { league }, createClubWithOwner { club } with the club sport as sport_key', async () => {
-    const l = orgAdmin(); const c = orgAdmin();
-    const league = await createLeagueWithOwner(l.admin, { name: 'L', description: null, sportKey: 'golf', ownerProfileId: OWNER, placeColumns: {} });
-    const club = await createClubWithOwner(c.admin, { name: 'C', description: null, ownerProfileId: OWNER, placeColumns: {}, primarySport: 'golf' });
-    expect('league' in league && league.league.id).toBe('new-org');
-    expect('club' in club && club.club.id).toBe('new-org');
-    expect(l.calls[0].payload).toMatchObject({ kind: 'league', sport_key: 'golf', operates_competitions: true, operates_teams: false });
-    expect(c.calls[0].payload).toMatchObject({ kind: 'club', sport_key: 'golf', operates_competitions: false, operates_teams: true });
-  });
-});

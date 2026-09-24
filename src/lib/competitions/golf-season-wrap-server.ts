@@ -8,11 +8,12 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
+
 import { orgAnnouncePOST } from '@/lib/orgs/announce-server';
 import { fetchPublicStandings } from './public-standings';
 import { seasonAnnouncement, type SeasonSummary } from './golf-season-wrap';
 import { addDaysIso, utcToday } from './golf-weeks';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the authz.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -31,7 +32,7 @@ async function announcedAt(admin: Admin, competitionId: string): Promise<string 
 
 async function summaryFor(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   competitionId: string
 ): Promise<{ name: string; summary: SeasonSummary } | null> {
@@ -41,7 +42,7 @@ async function summaryFor(
 }
 
 /** GET — the state the console button needs. */
-export async function seasonAnnounceGET(admin: Admin, side: OrgSide, orgId: string, competitionId: string): Promise<NextResponse> {
+export async function seasonAnnounceGET(admin: Admin, side: OrgKind, orgId: string, competitionId: string): Promise<NextResponse> {
   const [found, at] = await Promise.all([summaryFor(admin, side, orgId, competitionId), announcedAt(admin, competitionId)]);
   return NextResponse.json({ summary: found?.summary ?? null, announcedAt: at });
 }
@@ -49,7 +50,7 @@ export async function seasonAnnounceGET(admin: Admin, side: OrgSide, orgId: stri
 /** POST — announce once. */
 export async function seasonAnnouncePOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   competitionId: string,
   actorId: string

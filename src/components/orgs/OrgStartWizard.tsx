@@ -14,7 +14,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { courseDisplayName } from '@/lib/golf/tees';
 import { normalizeWebsiteInput } from '@/lib/orgs/wizard-validate';
-import { ORG_ROUTE_FAMILY, otherKind } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, otherKind, type OrgKind } from '@/lib/orgs/org-ref';
 import type { GolfCourse } from '@/types/golf';
 import { STRUCTURE_TEMPLATES, defaultSeasonLabel } from '@/lib/orgs/structure-templates';
 import {
@@ -48,7 +48,7 @@ export default function OrgStartWizard({
   onSubmitted,
   initialSport = null,
 }: {
-  side: 'league' | 'club';
+  side: OrgKind;
   /** R2: the created org's id when the request provisioned one (the parent
    *  goes straight to the console); null/undefined on the 409 path. */
   onSubmitted: (orgId?: string | null) => void;

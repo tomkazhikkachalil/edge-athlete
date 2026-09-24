@@ -19,8 +19,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveCompetitionProfile, defaultRuleFor } from '@/lib/sports/competition-profiles';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { ensureDefaultSeason } from './default-season';
-import type { OrgSide } from './listing';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { competitionCreatePOST, competitionPATCH, entryAddPOST } from './competition-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
@@ -40,7 +40,7 @@ export function seasonCompetitionName(sportKey: string, seasonLabel: string): st
 export async function seasonQuickstartPOST(
   admin: Admin,
   actorId: string,
-  scope: { side: OrgSide; orgId: string },
+  scope: { side: OrgKind; orgId: string },
   sportKey: string
 ): Promise<NextResponse> {
   const profile = resolveCompetitionProfile(sportKey);

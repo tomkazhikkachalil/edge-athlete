@@ -16,8 +16,8 @@ import { revalidateTag } from 'next/cache';
 import { isListed, listingFromRow } from '@/lib/orgs/listing';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor, type OrgKind } from '@/lib/orgs/org-ref';
 import {
   defaultModuleOrder,
   GOLF_TAGLINE,
@@ -103,7 +103,7 @@ export async function mintSubdomain(admin: Admin, orgName: string): Promise<stri
  *  ordered module rows (R2: the Sections toggles), or null site. */
 export async function siteGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   // Site Builder phase 2 (180): the two revision pointers ride the same
@@ -173,7 +173,7 @@ export async function siteGET(
 /** Phase 7 C3: the org's shaping sport — `organizations.sport_key` for both
  *  kinds since Round 5 D1 (a club's was `primary_sport` on the old table).
  *  An org without one → null, which every caller treats as "the classic shape". */
-export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
+export async function loadOrgSport(admin: Admin, side: OrgKind, orgId: string): Promise<string | null> {
   const column = 'sport_key';
   const { data, error } = await admin
     .from('organizations')
@@ -189,7 +189,7 @@ export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): 
  *  location off the org row itself (113/117 shape). */
 async function loadOrgIdentity(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<OrgIdentity | null> {
   const { data } = await admin
@@ -209,7 +209,7 @@ async function loadOrgIdentity(
 /** Phase 11: the org facts the gallery writes its content from — the
  *  identity row plus the venues with coordinates (mig 141 lat/lng).
  *  Tolerant: an unreadable list is an empty list; never throws. */
-export async function loadGalleryOrg(admin: Admin, side: OrgSide, orgId: string, known?: { name: string; city: string | null; region: string | null }): Promise<GalleryOrg> {
+export async function loadGalleryOrg(admin: Admin, side: OrgKind, orgId: string, known?: { name: string; city: string | null; region: string | null }): Promise<GalleryOrg> {
   // B5: the canvas already holds the org row — no second identity read.
   const identity = known ?? (await loadOrgIdentity(admin, side, orgId));
   let venues: GalleryOrg['venues'] = [];
@@ -261,7 +261,7 @@ async function slugAvailability(
  *  reach the create path. */
 export async function slugOptionsGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   candidate: string | null
 ): Promise<NextResponse> {
@@ -303,7 +303,7 @@ export async function slugOptionsGET(
  *  flagged list, storage-free). */
 export async function siteCreatePOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   requestedSlug?: string | null
@@ -413,7 +413,7 @@ export async function siteCreatePOST(
  *  home + subpages through the same tag. */
 export async function sitePATCH(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: SitePatchInput,
   userId: string | null = null
@@ -606,7 +606,7 @@ export async function sitePATCH(
 
 export interface PublicSite extends SiteRow {
   orgName: string;
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   // R4: public org geography + sport for JSON-LD (nullable — clubs have
   // no sport_key, and location columns may be empty).
@@ -700,7 +700,7 @@ async function getSiteBySlugInternal(
     return null;
   }
 
-  const side: OrgSide = orgKindOf(site) ?? 'club';
+  const side: OrgKind = orgKindOf(site) ?? 'club';
   const orgId = orgIdOf(site) as string;
   // R4 widens the org read for JSON-LD: geography + sport_key — ONE shape
   // for both kinds since D1 (the org row lives in organizations).

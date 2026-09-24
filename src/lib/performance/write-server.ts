@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { fromGolfRound, groupUniformRows, type GolfRoundOrigin } from './map';
 import { naturalKey, type PerformanceOverlay, type PerformanceRow, type PerformanceSourceTable } from './types';
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatDateRange, formatIsoDate } from '@/lib/competitions/golf-weeks';
 import type { MyGolfEntry } from '@/lib/competitions/golf-league-mine';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // "Your week" (phase 6d W2): the signed-in member's own standing in this
 // org's golf leagues — the round the league leads with and whether their
@@ -16,7 +17,7 @@ import type { MyGolfEntry } from '@/lib/competitions/golf-league-mine';
 // and untouched.
 
 interface GolfYourWeekProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;

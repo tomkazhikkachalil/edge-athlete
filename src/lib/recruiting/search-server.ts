@@ -20,7 +20,7 @@
 // missing table → `performanceFilters: false` and the filters are ignored.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { headlineDirection } from '@/lib/performance/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { isRecruitable, parseRecruitingStatus, type RecruitingStatus } from './profile';

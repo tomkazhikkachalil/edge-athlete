@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -85,7 +86,7 @@ export interface Profile {
   lat?: number | null;
   lng?: number | null;
   location_source?: string | null;
-  user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent' | 'organizer' | 'scout';
+  user_type: 'athlete' | OrgKind | 'fan' | 'parent' | 'organizer' | 'scout';
   onboarded_at?: string | null; // null = first-run onboarding not yet completed
   created_at: string;
   updated_at: string;

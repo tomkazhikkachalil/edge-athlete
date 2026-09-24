@@ -16,8 +16,8 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { isValidPageSlug, PAGES_PER_SITE_MAX, type PageCreateInput, type PagePatchInput } from './validate';
 import { blocksFromPageLayout, orderedPages, pageLayoutFromBody, parsePageLayout, blankPageLayout, type SnapshotPage } from '@/lib/site-builder/pages';
@@ -30,7 +30,7 @@ const TAG = '[ORG SITE PAGES]';
 const MAX_ASSET_BYTES = 10 * 1024 * 1024;
 export const ORG_MEDIA_PREFIX = 'org-media/';
 
-async function getSiteForOrg(admin: Admin, side: OrgSide, orgId: string) {
+async function getSiteForOrg(admin: Admin, side: OrgKind, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain')
@@ -60,7 +60,7 @@ export function pageRowOf(siteId: string, p: SnapshotPage) {
 
 /** The pages as the manager sees them: the draft's when a draft exists,
  *  else the published projection's. Null when the site is missing. */
-async function loadPagesView(admin: Admin, side: OrgSide, orgId: string): Promise<{ siteId: string; subdomain: string; pages: SnapshotPage[] } | null> {
+async function loadPagesView(admin: Admin, side: OrgKind, orgId: string): Promise<{ siteId: string; subdomain: string; pages: SnapshotPage[] } | null> {
   const { site: pointers, support } = await loadSitePointers(admin, side, orgId);
   if (!pointers) return null;
   const state = support === 'supported' && pointers.draft_revision_id ? await loadDraftSnapshot(admin, pointers) : null;
@@ -70,15 +70,15 @@ async function loadPagesView(admin: Admin, side: OrgSide, orgId: string): Promis
   return { siteId: pointers.id, subdomain: pointers.subdomain, pages: orderedPages(rowsSnapshot(rows).pages) };
 }
 
-const CTX = (side: OrgSide) => ({ side, sportKey: null });
+const CTX = (side: OrgKind) => ({ side, sportKey: null });
 
-export async function pagesGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function pagesGET(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const view = await loadPagesView(admin, side, orgId);
   if (!view) return NextResponse.json({ pages: [] });
   return NextResponse.json({ pages: view.pages.map(p => pageRowOf(view.siteId, p)) });
 }
 
-export async function pageCreatePOST(admin: Admin, side: OrgSide, orgId: string, input: PageCreateInput, userId: string | null = null): Promise<NextResponse> {
+export async function pageCreatePOST(admin: Admin, side: OrgKind, orgId: string, input: PageCreateInput, userId: string | null = null): Promise<NextResponse> {
   const view = await loadPagesView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   if (view.pages.length >= PAGES_PER_SITE_MAX) {
@@ -100,14 +100,14 @@ export async function pageCreatePOST(admin: Admin, side: OrgSide, orgId: string,
   return NextResponse.json({ page: pageRowOf(view.siteId, page), draft: result.draft ?? null });
 }
 
-export async function pageGET(admin: Admin, side: OrgSide, orgId: string, pageId: string): Promise<NextResponse> {
+export async function pageGET(admin: Admin, side: OrgKind, orgId: string, pageId: string): Promise<NextResponse> {
   const view = await loadPagesView(admin, side, orgId);
   const page = view?.pages.find(p => p.id === pageId);
   if (!view || !page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ page: pageRowOf(view.siteId, page) });
 }
 
-export async function pagePATCH(admin: Admin, side: OrgSide, orgId: string, pageId: string, input: PagePatchInput, userId: string | null = null): Promise<NextResponse> {
+export async function pagePATCH(admin: Admin, side: OrgKind, orgId: string, pageId: string, input: PagePatchInput, userId: string | null = null): Promise<NextResponse> {
   const view = await loadPagesView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!view.pages.some(p => p.id === pageId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -138,7 +138,7 @@ export async function pagePATCH(admin: Admin, side: OrgSide, orgId: string, page
   return NextResponse.json({ page: pageRowOf(after.siteId, page) });
 }
 
-export async function pageDELETE(admin: Admin, side: OrgSide, orgId: string, pageId: string, userId: string | null = null): Promise<NextResponse> {
+export async function pageDELETE(admin: Admin, side: OrgKind, orgId: string, pageId: string, userId: string | null = null): Promise<NextResponse> {
   const view = await loadPagesView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!view.pages.some(p => p.id === pageId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -154,7 +154,7 @@ export async function pageDELETE(admin: Admin, side: OrgSide, orgId: string, pag
  *  by construction). Returns the bare path an image block stores. */
 export async function siteAssetPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   file: File,
   kind: 'image' | 'document' = 'image'
@@ -216,7 +216,7 @@ export async function siteAssetPOST(
  *  live under THIS site's prefix; a path some content still references is
  *  the caller's problem to know (the editor only deletes what it uploaded
  *  in the same unsaved session). Anything else is the storage sweep's. */
-export async function siteAssetDELETE(admin: Admin, side: OrgSide, orgId: string, path: unknown): Promise<NextResponse> {
+export async function siteAssetDELETE(admin: Admin, side: OrgKind, orgId: string, path: unknown): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   if (typeof path !== 'string' || !path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`) || path.includes('..')) {

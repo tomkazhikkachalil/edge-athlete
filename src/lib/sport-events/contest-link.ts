@@ -13,7 +13,7 @@
  * — an org-side bracket is the masterplan's own program).
  */
 import { isMatchFormat, isStablefordFormat, shapeOf } from './types';
-import { type OrgKindEmbed, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
+import { type OrgKindEmbed, type OrgKindRow, orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 export interface CompetitionForLink {
   id: string;
   name: string;
@@ -133,7 +133,7 @@ export function contestRowFor(round: { id: string; sequence: number; scheduled_o
 }
 
 /** The org side + id an event is hosted for. */
-export function eventOrg(event: OrgKindRow): { side: 'club' | 'league'; id: string } | null {
+export function eventOrg(event: OrgKindRow): { side: OrgKind; id: string } | null {
   const ref = orgRefOf(event);
   return ref ? { side: ref.side, id: ref.orgId } : null;
 }

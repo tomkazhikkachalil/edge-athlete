@@ -7,8 +7,8 @@
 // manager action, not per fan-out sweep.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -18,7 +18,7 @@ const TAG = '[COMPETITION NOTIFY]';
 /** Owner|manager profile ids for one org (follow rows, org scope). */
 async function orgManagerIds(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<string[]> {
   const { data } = await admin
@@ -39,7 +39,7 @@ async function orgManagerIds(
 export async function notifyEntryPending(
   admin: Admin,
   input: {
-    ownerSide: OrgSide;
+    ownerSide: OrgKind;
     ownerOrgId: string;
     competitionId: string;
     competitionName: string;
@@ -115,12 +115,12 @@ export async function notifyEntryDecided(
 export async function notifyDispute(
   admin: Admin,
   input: {
-    orgs: { side: OrgSide; orgId: string }[];
+    orgs: { side: OrgKind; orgId: string }[];
     actorId: string;
     competitionId: string;
     kind: 'raised' | 'resolved' | null;
     note: string | null;
-    side: OrgSide;
+    side: OrgKind;
     orgId: string;
   }
 ): Promise<void> {

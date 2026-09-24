@@ -24,7 +24,7 @@
 // it (Next 16.3 turns a thrown Response into a 500).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { ORG_ID, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
@@ -33,7 +33,6 @@ type Admin = SupabaseClient<any, 'public', any>;
 export type OrgRole = 'owner' | 'manager' | 'member';
 /** The org's kind under its old name — `OrgKind` in `org-ref.ts` is the
  *  one declaration (Round 5 B); this alias goes in step F. */
-export type OrgSide = OrgKind;
 
 const ROLE_RANK: Record<OrgRole, number> = { owner: 3, manager: 2, member: 1 };
 
@@ -64,7 +63,7 @@ export function maxOrgRole(roles: Array<string | null | undefined>): OrgRole | n
  *  to a 500 here (routes 500 on the ORG fetch instead). */
 export async function getOrgRole(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<OrgRole | null> {
@@ -278,7 +277,7 @@ export function capabilityAllows(caps: OrgCapabilities, intent: OrgIntent, scope
  *  behaviour; any other failure degrades to no capabilities, never a 500. */
 export async function getOrgCapabilities(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<OrgCapabilities> {
@@ -311,7 +310,7 @@ export type OrgAndRole =
  *  rows (0.8); the owner column rides along as the primary-owner cache. */
 export async function getOrgAndRole(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<OrgAndRole> {
@@ -345,7 +344,7 @@ export type OrgAndCapabilities =
  *  the profile's full capabilities. Same status contract. */
 export async function getOrgAndCapabilities(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<OrgAndCapabilities> {

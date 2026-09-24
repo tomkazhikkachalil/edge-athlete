@@ -12,9 +12,9 @@
 // paths (a roster edge gets its own gated creation flow in 0.3/0.10).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import { maxOrgRole, type OrgRole, type OrgSide } from './authz';
-import { ORG_ID, ORG_KIND_EMBED, ORG_KIND_EMBED_INNER, type OrgKindRow, type OrgRef, orgRefOf, pairFor } from './org-ref';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { maxOrgRole, type OrgRole } from './authz';
+import { ORG_ID, ORG_KIND_EMBED, ORG_KIND_EMBED_INNER, type OrgKindRow, type OrgRef, orgRefOf, pairFor, type OrgKind } from './org-ref';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { isStubEmail } from '@/lib/config/stubs-config';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -418,7 +418,7 @@ function splitOrgIdsByKind(rows: OrgKindRow[]): { leagueIds: string[]; clubIds: 
  *  Same policy as memberOrgIds (single caller: org peers). */
 export async function memberProfileIdsForOrgs(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgIds: string[]
 ): Promise<string[]> {
   if (orgIds.length === 0) return [];
@@ -472,7 +472,7 @@ export async function anyMembershipExists(
  *  {rows, error}: the caller (getProfileOrganizations) logs and continues. */
 export async function profileMembershipRows(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   profileId: string
 ): Promise<{ rows: Array<{ orgId: string; role: string }>; error: PostgrestError | null }> {
   // ONE KIND with no org id to match (Round 5 D0): the INNER embed on
@@ -674,7 +674,7 @@ export async function orgMemberPreview(
  *  JS-count shape; errors read as empty — matching both admin callers. */
 export async function memberCountsByOrg(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgIds: string[]
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();

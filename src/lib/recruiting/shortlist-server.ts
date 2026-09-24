@@ -5,7 +5,7 @@
 // writer 409s naming the migration — never a 500.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { isRecruitable, parseRecruitingStatus } from './profile';
 import { normalizeShortlistNote, type ShortlistAthlete } from './shortlist';
 

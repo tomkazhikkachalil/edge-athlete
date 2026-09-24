@@ -12,7 +12,7 @@ import type { FormatConfig, MatchConfig } from './types';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow, SportEventRow } from './types';
 import { shapeOf } from './types';
 import type { GameConfig, SportEventShape } from './types';
-import { pairFieldsOf } from '@/lib/orgs/org-ref';
+import { pairFieldsOf, type OrgKind } from '@/lib/orgs/org-ref';
 
 export type ProfileForView = MaskableProfile & { id: string; handle?: string | null; avatar_url?: string | null };
 
@@ -181,7 +181,7 @@ export interface GroupView extends SportEventGroupRow {
 
 /** Phase 2b: the org the event is hosted for, by name. */
 export interface HostOrgView {
-  side: 'club' | 'league';
+  side: OrgKind;
   id: string;
   name: string;
 }

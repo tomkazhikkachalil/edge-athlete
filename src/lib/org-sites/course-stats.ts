@@ -11,8 +11,8 @@
 // ISR window (≤300s) — the same staleness the standings live with.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { isStubEmail } from '@/lib/config/stubs-config';
 import { chunk } from '@/lib/chunk';
@@ -44,7 +44,7 @@ export const EMPTY_COURSE_STATS: CourseStats = {
 
 export async function fetchPublicCourseStats(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   courseIds: string[],
   opts: { sinceDays?: number; parByHole?: Map<number, number> } = {}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // "Share my round photos with this club/league" (M2, program 10; both
 // sides since program 12): a MEMBER's own switch on the in-app org page.
@@ -10,7 +10,7 @@ import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 // never qualify). A supervised member sees why the switch is unavailable
 // instead of a switch.
 
-export default function RoundPhotoConsentSwitch({ side, orgId }: { side: 'league' | 'club'; orgId: string }) {
+export default function RoundPhotoConsentSwitch({ side, orgId }: { side: OrgKind; orgId: string }) {
   const plural = ORG_ROUTE_FAMILY[side];
   const [state, setState] = useState<{ consent: boolean; eligible: boolean } | null>(null);
   const [busy, setBusy] = useState(false);

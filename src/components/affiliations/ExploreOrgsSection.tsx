@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { formatPlace } from '@/lib/geo/regions';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // Explore's org discovery section (connections PR B) — mirrors
 // ExploreCoursesSection: fully self-contained (own search box + near-me,
@@ -102,7 +103,7 @@ export default function ExploreOrgsSection({ sportKey }: ExploreOrgsSectionProps
   const hasResults = visibleLeagues.length > 0 || clubs.length > 0;
   const searched = query.trim().length >= 2 || near !== null;
 
-  const orgRow = (org: OrgRow, kind: 'league' | 'club') => {
+  const orgRow = (org: OrgRow, kind: OrgKind) => {
     const sport = org.sport_key
       ? SPORT_REGISTRY[org.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? org.sport_key
       : null;

@@ -7,9 +7,6 @@
 
 import type { OrgBrand } from '@/lib/org-sites/brand-types';
 import type { AppComposition } from '@/lib/site-builder/app-layout';
-import type { OrgKind } from '@/lib/orgs/org-ref';
-
-export type OrgSide = OrgKind;
 
 // Phase 5 (mig 161): the widened roster lifecycle. 'pending'/'active' keep
 // the invite-flow chips; the four registration statuses get read-only chips

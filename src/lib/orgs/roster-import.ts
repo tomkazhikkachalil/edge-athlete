@@ -60,15 +60,14 @@ export function parseRosterImport(text: string): RosterImportParse {
   return { rows, errors };
 }
 
-
 // ── Orchestration (PR-B) ────────────────────────────────────────────────────
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
 import { makeStubEmail, isStubEmail, STUB_EMAIL_DOMAIN } from '@/lib/config/stubs-config';
-import type { OrgSide } from './authz';
-import { ORG_ID, pairFor } from './org-ref';
+
+import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -90,7 +89,7 @@ export interface ImportReportRow {
 export async function importRoster(
   admin: Admin,
   input: {
-    side: OrgSide;
+    side: OrgKind;
     orgId: string;
     orgName: string;
     teamId: string;
@@ -194,7 +193,7 @@ export async function importRoster(
  *  self row is still 'supervised'. */
 export async function remintAthleteClaim(
   admin: Admin,
-  input: { side: OrgSide; orgId: string; orgName: string; profileId: string; createdBy: string; appUrl: string }
+  input: { side: OrgKind; orgId: string; orgName: string; profileId: string; createdBy: string; appUrl: string }
 ): Promise<{ claimUrl: string; emailSent: boolean } | null> {
   const [{ data: rosterRow }, { data: profile }, { data: selfRow }] = await Promise.all([
     admin

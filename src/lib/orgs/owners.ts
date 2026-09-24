@@ -28,7 +28,7 @@
 
 import { NextResponse } from 'next/server';
 import type { PostgrestError, SupabaseClient, User } from '@supabase/supabase-js';
-import { getOrgAndRole, roleAllows, type OrgRole, type OrgSide } from './authz';
+import { getOrgAndRole, roleAllows, type OrgRole } from './authz';
 import {
   demoteOwnerToManager,
   membershipEdges,
@@ -37,17 +37,18 @@ import {
   type OrgRef,
 } from './members';
 import { readSupervisionState } from './org-creator-gate';
+import type { OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 interface SideConfig {
-  noun: 'league' | 'club';
+  noun: OrgKind;
   notFound: string;
   orgTable: 'leagues' | 'clubs';
 }
 
-const SIDES: Record<OrgSide, SideConfig> = {
+const SIDES: Record<OrgKind, SideConfig> = {
   league: { noun: 'league', notFound: 'League not found', orgTable: 'leagues' },
   club: { noun: 'club', notFound: 'Club not found', orgTable: 'clubs' },
 };
@@ -90,7 +91,6 @@ export function stepDownGuard(input: {
   return { ok: true };
 }
 
-
 /** Recompute the primary-owner cache: earliest remaining owner (id
  *  tie-break). Zero owners → no-op + warn (the column is never NULLed by
  *  these paths — the invariant guards run first). Exported for
@@ -120,7 +120,7 @@ export async function recomputePrimaryOwner(
 export async function promoteToOwner(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   targetProfileId: string
 ): Promise<NextResponse> {
@@ -176,7 +176,7 @@ export async function promoteToOwner(
 export async function stepDownAsOwner(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
@@ -236,16 +236,11 @@ export async function stepDownAsOwner(
 
 async function notifyOwnerPromoted(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   orgName: string,
   profileId: string
 ): Promise<void> {
-  if (side === 'league') {
-    const { notifyLeagueRole } = await import('@/lib/leagues/notify');
-    await notifyLeagueRole(admin, { profileId, leagueId: orgId, leagueName: orgName, role: 'owner' });
-  } else {
-    const { notifyClubRole } = await import('@/lib/clubs/notify');
-    await notifyClubRole(admin, { profileId, clubId: orgId, clubName: orgName, role: 'owner' });
-  }
+  const { notifyOrgRole } = await import('@/lib/orgs/notify');
+  await notifyOrgRole(admin, { kind: side, orgId, orgName, profileId, role: 'owner' });
 }

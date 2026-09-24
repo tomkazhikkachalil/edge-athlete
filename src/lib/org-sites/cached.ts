@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import type { OrgSide } from '@/lib/orgs/authz';
+
 import { fetchPublicStandings, type PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server';
 import { fetchContestView, type ContestView } from '@/lib/competitions/contest-view';
@@ -57,6 +57,7 @@ import {
 import { fetchPublicMemberStats } from '@/lib/org-sites/member-stats';
 import { leadersFromMemberStats } from '@/lib/org-sites/member-leaders';
 import type { MemberStats } from '@/lib/golf/member-stats';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
 // `org-site:{slug}` tag (console writes revalidateTag it — publish,
@@ -75,7 +76,7 @@ export const getCachedSite = (slug: string): Promise<PublicSite | null> =>
 
 export const getCachedStandings = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicStandingsPayload | null> =>
   perSlug(['org-site-standings', slug], slug, () =>
@@ -88,7 +89,7 @@ export const getCachedStandings = (
 export const SCHEDULE_CACHE_LIMIT = 25;
 export const getCachedSchedule = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<OrgEvent[] | null> =>
   perSlug(['org-site-schedule', slug], slug, () =>
@@ -103,7 +104,7 @@ export const getCachedSchedule = (
  *  publish write already purges it (revalidateOrgSiteForCompetition). */
 export const getCachedContest = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   contestId: string
 ): Promise<ContestView | null> =>
@@ -116,7 +117,7 @@ export const getCachedContest = (
 
 export const getCachedTeams = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicTeam[]> =>
   perSlug(['org-site-teams', slug], slug, () =>
@@ -125,7 +126,7 @@ export const getCachedTeams = (
 
 export const getCachedStaff = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicStaffRow[]> =>
   perSlug(['org-site-staff', slug], slug, () =>
@@ -134,7 +135,7 @@ export const getCachedStaff = (
 
 export const getCachedVenues = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicVenue[]> =>
   perSlug(['org-site-venues', slug], slug, () =>
@@ -143,7 +144,7 @@ export const getCachedVenues = (
 
 export const getCachedAffiliations = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicAffiliation[]> =>
   perSlug(['org-site-affiliations', slug], slug, () =>
@@ -152,7 +153,7 @@ export const getCachedAffiliations = (
 
 export const getCachedTeamPage = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   teamId: string
 ): Promise<PublicTeamPage | null> =>
@@ -166,7 +167,7 @@ export const getCachedTeamPage = (
 /** P2: the player page — the handle rides the key (the closure trap). */
 export const getCachedPlayerPage = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   handle: string
 ): Promise<PublicPlayerPage | null> =>
@@ -175,7 +176,7 @@ export const getCachedPlayerPage = (
   );
 
 /** P4: the week hub — one entry per site. */
-export const getCachedWeekHub = (slug: string, side: OrgSide, orgId: string): Promise<PublicWeekHub> =>
+export const getCachedWeekHub = (slug: string, side: OrgKind, orgId: string): Promise<PublicWeekHub> =>
   perSlug(['org-site-week', slug], slug, () => fetchPublicWeekHub(getSupabaseAdmin(), side, orgId));
 
 /** V6: the club directory — one entry, the sitemap's tag (publish purges). */
@@ -202,7 +203,7 @@ export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
 // Phase 5 R5: the open registration windows for the Register card.
 export const getCachedOpenWindows = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicOpenWindow[]> =>
   perSlug(['org-site-open-windows', slug], slug, () =>
@@ -213,7 +214,7 @@ export const getCachedOpenWindows = (
 // safe in the closure (the keyParts rule).
 export const getCachedGallery = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicGalleryItem[]> =>
   perSlug(['org-site-gallery', slug], slug, () =>
@@ -240,7 +241,7 @@ export const getCachedNewsPost = (
 
 // N3: the site's Notices (announcements mirrored to the band); side/orgId/
 // orgName are 1:1 with the slug — safe in the closure.
-export const getCachedNotices = (slug: string, side: OrgSide, orgId: string, orgName: string): Promise<PublicNotice[]> =>
+export const getCachedNotices = (slug: string, side: OrgKind, orgId: string, orgName: string): Promise<PublicNotice[]> =>
   perSlug(['org-site-notices', slug], slug, () =>
     fetchPublicNotices(getSupabaseAdmin(), side, orgId, orgName)
   );
@@ -265,7 +266,7 @@ export const getCachedPage = (
 // data; side/orgId are 1:1 with slug — safe in the closure).
 export const getCachedCourses = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicCourse[]> =>
   perSlug(['org-site-courses', slug], slug, () =>
@@ -276,7 +277,7 @@ export const getCachedCourses = (
 // the course id — the getCachedTeamPage rule.
 export const getCachedCoursePage = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   courseId: string
 ): Promise<PublicCoursePage | null> =>
@@ -289,7 +290,7 @@ export const getCachedCoursePage = (
 // derived from the course's own catalog rows (1:1 with courseId).
 export const getCachedCourseStats = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   courseId: string,
   parByHole?: Map<number, number>
@@ -302,7 +303,7 @@ export const getCachedCourseStats = (
  *  nines and eighteens together — the record is per (holes, tee) inside). */
 export const getCachedClubCourseStrip = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<CourseStats> =>
   perSlug(['org-site-course-strip', slug], slug, async () => {
@@ -315,7 +316,7 @@ export const getCachedClubCourseStrip = (
 // the site's ICS feed (events over a year + the rounds no mirror covers).
 export const getCachedGolfRounds = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicGolfRound[]> =>
   perSlug(['org-site-golf-rounds', slug], slug, () =>
@@ -324,7 +325,7 @@ export const getCachedGolfRounds = (
 
 export const getCachedScheduleFeed = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   name: string
 ): Promise<string> =>
@@ -340,7 +341,7 @@ export const getCachedScheduleFeed = (
 // Phase 6b B3: divisions + stat leaders (both viewer-independent reads).
 export const getCachedDivisions = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicDivision[]> =>
   perSlug(['org-site-divisions', slug], slug, () =>
@@ -349,7 +350,7 @@ export const getCachedDivisions = (
 
 export const getCachedLeaders = (
   slug: string,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   sportKey: string | null = null
 ): Promise<PublicLeaderBoard[]> =>
@@ -363,7 +364,7 @@ export const getCachedLeaders = (
   });
 
 /** R5: the members table — every member, their posted rounds this year. */
-export const getCachedMemberStats = (slug: string, side: OrgSide, orgId: string): Promise<MemberStats> =>
+export const getCachedMemberStats = (slug: string, side: OrgKind, orgId: string): Promise<MemberStats> =>
   perSlug(['org-site-member-stats', slug], slug, () => fetchPublicMemberStats(getSupabaseAdmin(), side, orgId));
 
 /** C2: one site's sitemap entry, from the same hourly enumeration —

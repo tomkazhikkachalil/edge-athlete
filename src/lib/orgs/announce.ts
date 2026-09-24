@@ -8,7 +8,7 @@
 // in the email digest. Node-tested.
 
 import { z } from 'zod';
-import type { OrgSide } from './authz';
+import type { OrgKind } from './org-ref';
 
 export const ANNOUNCE_TITLE_MAX = 80;
 export const ANNOUNCE_MESSAGE_MAX = 500;
@@ -22,7 +22,7 @@ export const OrgAnnounceSchema = z.object({
 export type OrgAnnounceInput = z.infer<typeof OrgAnnounceSchema>;
 
 export interface AnnouncementContext {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   orgName: string;
   title: string;
@@ -49,7 +49,7 @@ export interface AnnouncementRow {
   metadata: { org: string; announcement_id: string; announcement: true } & Record<string, string | true>;
 }
 
-export function announcementType(side: OrgSide): AnnouncementRow['type'] {
+export function announcementType(side: OrgKind): AnnouncementRow['type'] {
   return side === 'league' ? 'league_update' : 'club_update';
 }
 

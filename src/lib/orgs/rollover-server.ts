@@ -20,8 +20,8 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError, type RolloverInput } from '@/lib/structure/validate';
-import type { OrgSide } from './authz';
-import { ORG_ID, pairFor } from './org-ref';
+
+import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -75,7 +75,7 @@ export async function seasonArchivedMap(
 
 export async function seasonRolloverPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: RolloverInput,
   /** The manager performing the rollover — the staff-expiry trail's actor. */
@@ -249,7 +249,7 @@ export async function seasonRolloverPOST(
  *  console shows it until the next rollover pass, which is acceptable. */
 export async function expireSeasonStaff(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   seasonId: string,
   actorId: string | null

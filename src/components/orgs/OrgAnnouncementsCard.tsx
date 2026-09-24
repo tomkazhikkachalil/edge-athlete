@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // The announcement archive for MEMBERS (N3, program 10): every notice the
 // org sent, newest first, from the session-gated /announcements read.
@@ -64,7 +64,7 @@ export default function OrgAnnouncementsCard({
   isMember,
   bare = false,
 }: {
-  side: 'club' | 'league';
+  side: OrgKind;
   orgId: string;
   isMember: boolean;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */

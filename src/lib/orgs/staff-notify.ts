@@ -5,8 +5,8 @@
 // Never-throws (the leagues/notify.ts contract).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { ORG_ID, PAIR_COLUMN } from './org-ref';
+
+import { ORG_ID, NOTIFY_ORG_KEY, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -24,7 +24,7 @@ async function insertBell(admin: Admin, row: Record<string, unknown>): Promise<v
 /** Bell the invitee if their email already has an account. */
 export async function notifyStaffInvite(
   admin: Admin,
-  n: { invitedEmail: string; side: OrgSide; orgId: string; orgName: string; summary: string; inviteUrlPath: string }
+  n: { invitedEmail: string; side: OrgKind; orgId: string; orgName: string; summary: string; inviteUrlPath: string }
 ): Promise<boolean> {
   const { data: profile } = await admin.from('profiles').select('id').eq('email', n.invitedEmail.toLowerCase()).maybeSingle();
   if (!profile) return false;
@@ -33,7 +33,7 @@ export async function notifyStaffInvite(
     type: 'org_staff_invite',
     title: `${n.orgName} invited you to help run it — ${n.summary}`,
     action_url: n.inviteUrlPath,
-    metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
+    metadata: { [NOTIFY_ORG_KEY[n.side]]: n.orgId },
   });
   return true;
 }
@@ -41,7 +41,7 @@ export async function notifyStaffInvite(
 /** The org's owners hear that someone accepted. */
 export async function notifyStaffAccepted(
   admin: Admin,
-  n: { side: OrgSide; orgId: string; orgName: string; personName: string; summary: string; exceptProfileId: string }
+  n: { side: OrgKind; orgId: string; orgName: string; personName: string; summary: string; exceptProfileId: string }
 ): Promise<void> {
   const { data } = await admin
     .from('memberships')
@@ -59,7 +59,7 @@ export async function notifyStaffAccepted(
         type: 'org_staff_accepted',
         title: `${n.personName} joined ${n.orgName}'s staff — ${n.summary}`,
         action_url: `/app/org/${n.side}/${n.orgId}`,
-        metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
+        metadata: { [NOTIFY_ORG_KEY[n.side]]: n.orgId },
       })
     )
   );
@@ -67,13 +67,13 @@ export async function notifyStaffAccepted(
 
 export async function notifyStaffRevoked(
   admin: Admin,
-  n: { profileId: string; side: OrgSide; orgId: string; orgName: string }
+  n: { profileId: string; side: OrgKind; orgId: string; orgName: string }
 ): Promise<void> {
   await insertBell(admin, {
     user_id: n.profileId,
     type: 'org_staff_revoked',
     title: `Your staff access to ${n.orgName} was removed`,
     action_url: `/${n.side}/${n.orgId}`,
-    metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
+    metadata: { [NOTIFY_ORG_KEY[n.side]]: n.orgId },
   });
 }

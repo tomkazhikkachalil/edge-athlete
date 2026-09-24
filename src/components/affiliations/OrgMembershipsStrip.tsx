@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatPlace } from '@/lib/geo/regions';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The "Clubs & Leagues" strip (org connections round) — mounted in the
 // affiliation zone of the athlete pages and fed from the /u/ aggregate on
@@ -12,7 +13,7 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 // renders NOTHING when the profile has no memberships.
 
 export interface OrgMembership {
-  kind: 'league' | 'club';
+  kind: OrgKind;
   id: string;
   name: string;
   role: string;

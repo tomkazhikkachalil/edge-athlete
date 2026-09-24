@@ -6,7 +6,7 @@ import BubbleCard from '@/components/bubbles/BubbleCard';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import MediaGridItem, { type MediaItem } from '@/components/media/MediaGridItem';
 import PostDetailModal from '@/components/PostDetailModal';
-import type { OrgSide } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // "From members" — Org Pages R5 (Sep 8/9 2026): the org's members' public
 // posts with media, as a wall of the profile page's own tiles
@@ -68,7 +68,7 @@ const FACE_LIMIT = 12;
 const PAGE_LIMIT = 24;
 
 interface OrgMemberPostsGridProps {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   viewerId: string | undefined;
   canManage: boolean;

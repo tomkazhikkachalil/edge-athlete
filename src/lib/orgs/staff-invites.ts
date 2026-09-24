@@ -13,8 +13,8 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
-import type { OrgSection, OrgSide } from './authz';
-import { ORG_ID, orgIdOf, orgKindOf, pairFor } from './org-ref';
+import type { OrgSection } from './authz';
+import { ORG_ID, orgIdOf, orgKindOf, pairFor, type OrgKind } from './org-ref';
 import { mergeSections, normalizeSections, type StaffGrantInput } from './staff-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -44,7 +44,7 @@ export function grantFromInput(input: StaffGrantInput): StaffGrant {
 
 export async function createStaffInvite(
   admin: Admin,
-  input: { side: OrgSide; orgId: string; invitedEmail: string; grant: StaffGrant; createdBy: string }
+  input: { side: OrgKind; orgId: string; invitedEmail: string; grant: StaffGrant; createdBy: string }
 ): Promise<{ rawToken: string; inviteId: string; expiresAt: string } | { error: PostgrestError }> {
   const rawToken = generateInviteToken();
   const expiresAt = new Date(Date.now() + STAFF_INVITE_EXPIRY_DAYS * 86_400_000).toISOString();
@@ -75,7 +75,7 @@ export interface PeekedStaffInvite {
   inviteId: string;
   /** For the server's own match — NEVER returned to a client. */
   invitedEmail: string;
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   orgName: string;
   grant: StaffGrant;
@@ -96,7 +96,7 @@ export async function peekStaffInvite(admin: Admin, rawToken: string): Promise<P
   if (!invite || invite.consumed_at || invite.revoked_at || new Date(invite.expires_at as string) <= new Date()) {
     return null;
   }
-  const side: OrgSide = orgKindOf(invite) ?? 'club';
+  const side: OrgKind = orgKindOf(invite) ?? 'club';
   const orgId = orgIdOf(invite) as string;
   const { data: org } = await admin
     .from('organizations')
@@ -173,7 +173,7 @@ export interface StaffInviteRow {
 
 /** The org's OPEN invites (not consumed, not revoked, not expired). 42P01-
  *  safe: a pre-178 database answers an empty list. */
-export async function listStaffInvites(admin: Admin, side: OrgSide, orgId: string): Promise<StaffInviteRow[]> {
+export async function listStaffInvites(admin: Admin, side: OrgKind, orgId: string): Promise<StaffInviteRow[]> {
   const { data, error } = await admin
     .from('org_staff_invites')
     .select('id, invited_email, role, sections, scope_type, scope_id, season_id, created_at, expires_at')
@@ -198,7 +198,7 @@ export async function listStaffInvites(admin: Admin, side: OrgSide, orgId: strin
 }
 
 /** Revoke an open invite. False when it was not this org's open invite. */
-export async function revokeStaffInvite(admin: Admin, side: OrgSide, orgId: string, inviteId: string): Promise<boolean> {
+export async function revokeStaffInvite(admin: Admin, side: OrgKind, orgId: string, inviteId: string): Promise<boolean> {
   const { data } = await admin
     .from('org_staff_invites')
     .update({ revoked_at: new Date().toISOString() })
@@ -225,7 +225,7 @@ export interface GrantResult {
  *  a write failure (the caller restores the invite). */
 export async function grantStaffRow(
   admin: Admin,
-  input: { side: OrgSide; orgId: string; profileId: string; grant: StaffGrant; grantedBy: string }
+  input: { side: OrgKind; orgId: string; profileId: string; grant: StaffGrant; grantedBy: string }
 ): Promise<GrantResult | null> {
   let q = admin
     .from('memberships')
@@ -290,7 +290,7 @@ export async function grantStaffRow(
 export async function writeStaffAudit(
   admin: Admin,
   entry: {
-    side: OrgSide;
+    side: OrgKind;
     orgId: string;
     profileId: string | null;
     actorId: string | null;

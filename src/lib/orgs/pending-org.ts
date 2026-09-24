@@ -12,12 +12,11 @@
 // the admin path falls back to creating the org at approval as before.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClubWithOwner } from '@/lib/clubs/create';
-import { createLeagueWithOwner } from '@/lib/leagues/create';
+import { createOrgWithOwner } from './create';
 import { SiteDraftSchema } from './wizard-validate';
 import { siteDraftToContact } from './approval';
-import type { OrgSide } from './listing';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { orgVenueCreatePOST } from '@/lib/venues/org-venues-server';
 import { siteCreatePOST } from '@/lib/org-sites/server';
 import { courseDisplayName } from '@/lib/golf/tees';
@@ -56,7 +55,7 @@ export interface ProvisionResult {
 
 export async function provisionPendingOrg(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   row: PendingRequestRow
 ): Promise<ProvisionResult | null> {
   try {
@@ -87,20 +86,16 @@ export async function provisionPendingOrg(
       listingStatus: (siteDraft.listing === 'unlisted' ? 'unlisted' : 'pending') as 'unlisted' | 'pending',
     };
 
-    let orgId: string;
-    if (side === 'club') {
-      const created = await createClubWithOwner(admin, {
-        ...shared,
-        primarySport: siteDraft.sports?.[0] ?? null,
-      });
-      if ('error' in created) return null;
-      orgId = created.club.id;
-    } else {
-      if (!row.sport_key) return null;
-      const created = await createLeagueWithOwner(admin, { ...shared, sportKey: row.sport_key });
-      if ('error' in created) return null;
-      orgId = created.league.id;
-    }
+    // A league's sport is the request's (required); a club leads with the
+    // first sport its site draft names, if any.
+    if (side === 'league' && !row.sport_key) return null;
+    const created = await createOrgWithOwner(admin, {
+      ...shared,
+      kind: side,
+      sportKey: side === 'league' ? row.sport_key : (siteDraft.sports?.[0] ?? null),
+    });
+    if ('error' in created) return null;
+    const orgId: string = created.org.id;
 
     // Pre-174 the column is absent and the org is LIVE (create.ts fell
     // back) — a live org must never be linked as "pending". Verify.
@@ -173,7 +168,7 @@ export async function provisionPendingOrg(
  *  pre-155 database → absent. */
 export async function draftPreviewUrls(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgIds: Array<string | null>
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();

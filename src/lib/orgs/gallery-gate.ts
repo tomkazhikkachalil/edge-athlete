@@ -16,12 +16,12 @@
 // call shapes, so a stale ISR document can never out-serve the gate.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ORG_ID, type OrgKindRow, orgRefOf, pairFieldsOf } from './org-ref';
+import { ORG_ID, type OrgKindRow, orgRefOf, pairFieldsOf, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
-export function orgKey(side: 'league' | 'club', id: string): string {
+export function orgKey(side: OrgKind, id: string): string {
   return `${side}:${id}`;
 }
 

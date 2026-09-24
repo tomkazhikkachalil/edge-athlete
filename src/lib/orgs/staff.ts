@@ -5,8 +5,8 @@
 // "who runs this org".
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { normalizeSections } from './staff-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -30,7 +30,7 @@ export interface StaffPerson {
 
 /** Everyone with authority in the org: ladder rows (owner/manager) and live
  *  staff rows. 42703-safe: a pre-178 database answers the ladder alone. */
-export async function listStaff(admin: Admin, side: OrgSide, orgId: string): Promise<StaffPerson[]> {
+export async function listStaff(admin: Admin, side: OrgKind, orgId: string): Promise<StaffPerson[]> {
   let rows: Record<string, unknown>[] = [];
   const full = await admin
     .from('memberships')
@@ -91,7 +91,7 @@ export async function listStaff(admin: Admin, side: OrgSide, orgId: string): Pro
 /** A grant row of this org, by id — the change/revoke routes' lookup. */
 export async function readStaffRow(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   rowId: string
 ): Promise<{ id: string; profileId: string; role: string; sections: string[] | null; scopeType: string; scopeId: string | null; seasonId: string | null } | null> {

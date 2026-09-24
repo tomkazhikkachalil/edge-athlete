@@ -8,6 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { memberOrgIds, memberProfileIdsForOrgs } from '@/lib/orgs/members';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -57,9 +58,9 @@ export async function getOrgPeerIds(admin: Admin, profileId: string): Promise<st
 /** Org Pages R5: the posts route's `?org=<side>:<uuid>` parameter — ONE
  *  org's members' public posts (the grid on the org page). Pure; malformed
  *  → null (the route answers 400). */
-export function parseOrgParam(value: string | null | undefined): { side: 'league' | 'club'; orgId: string } | null {
+export function parseOrgParam(value: string | null | undefined): { side: OrgKind; orgId: string } | null {
   if (!value) return null;
   const m = /^(league|club):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(value.trim());
   if (!m) return null;
-  return { side: m[1].toLowerCase() as 'league' | 'club', orgId: m[2].toLowerCase() };
+  return { side: m[1].toLowerCase() as OrgKind, orgId: m[2].toLowerCase() };
 }

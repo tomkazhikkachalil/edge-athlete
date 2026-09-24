@@ -23,7 +23,6 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 /** The kind under its old name — every `from './listing'` importer keeps
  *  resolving (authz.ts does the same). */
-export type OrgSide = OrgKind;
 export type ListingStatus = 'unlisted' | 'pending' | 'listed';
 
 export const LISTING_STATUSES: readonly ListingStatus[] = ['unlisted', 'pending', 'listed'];
@@ -76,7 +75,7 @@ export function isListed(state: Pick<ListingState, 'status'>): boolean {
 
 /** The live read. A 42703 on listing_status (pre-179) steps down to the
  *  approved_at read (pre-174 → not known). Any other error → not known. */
-export async function readListing(admin: Admin, side: OrgSide, orgId: string): Promise<ListingState> {
+export async function readListing(admin: Admin, side: OrgKind, orgId: string): Promise<ListingState> {
   const table = 'organizations';
   const sportCol = ', sport_key';
   const first = await admin
@@ -131,7 +130,7 @@ export function listingSelectLadder(cols: string): string[] {
 
 /** Batch read: org id → state, for the sitemap and the org lists. Missing
  *  ids read not known (listed). Any non-42703 error → all not known. */
-export async function readListingMap(admin: Admin, side: OrgSide, ids: readonly string[]): Promise<Map<string, ListingState>> {
+export async function readListingMap(admin: Admin, side: OrgKind, ids: readonly string[]): Promise<Map<string, ListingState>> {
   const out = new Map<string, ListingState>();
   if (ids.length === 0) return out;
   const table = 'organizations';

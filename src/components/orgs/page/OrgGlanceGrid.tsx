@@ -37,7 +37,8 @@ import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhot
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
 import { SIDE_COPY } from './side-copy';
 import type { OrgPageController } from './useOrgPage';
-import type { MemberRow, OrgSide } from './types';
+import type { MemberRow } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The glance grid — Org Pages R3 (Sep 8 2026), the Vitals principle applied
 // to the org page: every dense section lives behind a tappable bubble that
@@ -173,7 +174,7 @@ function Face({ big, sub, children }: { big: ReactNode; sub?: ReactNode; childre
 }
 
 interface OrgGlanceGridProps {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   isMember: boolean;
   canManage: boolean;

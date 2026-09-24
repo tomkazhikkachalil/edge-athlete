@@ -1,8 +1,8 @@
 /**
  * Orgs — the PURE validation half, ONE module for both kinds (Round 5 step E,
  * Sep 2026; node-only vitest covers this file; no framework or Supabase
- * imports). `src/lib/leagues/validate.ts` and `src/lib/clubs/validate.ts`
- * are re-export shims over it until step F retires them.
+ * imports). The two side files it replaced (`leagues/validate.ts`,
+ * `clubs/validate.ts`) were deleted in step F.
  *
  * The one designed divergence between the kinds is the SPORT: a league is
  * one sport (`sportKey` required at creation, immutable after — changing it

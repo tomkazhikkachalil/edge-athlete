@@ -8,8 +8,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { isPublicProfile, publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { readGalleryPicks } from './member-photo-gate';
 
@@ -34,7 +34,7 @@ export interface MemberPhotoCandidate {
 
 export async function listMemberPhotoCandidates(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   siteId: string
 ): Promise<{ candidates: MemberPhotoCandidate[]; picks: number }> {

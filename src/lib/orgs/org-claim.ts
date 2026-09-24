@@ -10,8 +10,8 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
-import type { OrgSide } from './authz';
-import { orgIdOf, orgKindOf, pairFor } from './org-ref';
+
+import { orgIdOf, orgKindOf, pairFor, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -19,7 +19,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 export const ORG_CLAIM_EXPIRY_DAYS = 30;
 
 export interface OrgClaimOrg {
-  side: OrgSide;
+  side: OrgKind;
   id: string;
   name: string;
   sport_key?: string | null;
@@ -31,7 +31,7 @@ export interface OrgClaimOrg {
 
 export async function createOrgClaimInvite(
   admin: Admin,
-  input: { side: OrgSide; orgId: string; invitedEmail: string | null; createdBy: string }
+  input: { side: OrgKind; orgId: string; invitedEmail: string | null; createdBy: string }
 ): Promise<{ rawToken: string; inviteId: string } | null> {
   const rawToken = generateInviteToken();
   const expiresAt = new Date(Date.now() + ORG_CLAIM_EXPIRY_DAYS * 86_400_000).toISOString();
@@ -66,7 +66,7 @@ export async function peekOrgClaimInvite(
   if (!invite || invite.consumed_at || new Date(invite.expires_at as string) <= new Date()) {
     return null;
   }
-  const side: OrgSide = orgKindOf(invite) ?? 'club';
+  const side: OrgKind = orgKindOf(invite) ?? 'club';
   const orgId = orgIdOf(invite) as string;
   const { data: org } = await admin
     .from('organizations')
@@ -87,7 +87,7 @@ export async function redeemOrgClaimInvite(
   admin: Admin,
   rawToken: string,
   consumedBy: string
-): Promise<{ side: OrgSide; orgId: string } | null> {
+): Promise<{ side: OrgKind; orgId: string } | null> {
   const { data } = await admin
     .from('org_claim_invites')
     .update({ consumed_at: new Date().toISOString(), consumed_by: consumedBy })

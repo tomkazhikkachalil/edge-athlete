@@ -13,10 +13,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { clampScheduleQuery, SCHEDULE_LIMIT_DEFAULT } from '@/lib/org-sites/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -49,7 +49,7 @@ export interface OrgEvent {
  *  database (missing table/column) is an empty schedule. */
 export async function fetchOrgEvents(
   admin: Admin,
-  side: 'league' | 'club',
+  side: OrgKind,
   orgId: string,
   opts: { limit?: number; rangeDays?: number } = {}
 ): Promise<OrgEvent[] | null> {
@@ -121,7 +121,7 @@ export async function fetchOrgEvents(
 
 export async function orgEventsGET(
   request: NextRequest,
-  side: 'league' | 'club',
+  side: OrgKind,
   orgId: string
 ) {
   if (!UUID_RE.test(orgId)) {

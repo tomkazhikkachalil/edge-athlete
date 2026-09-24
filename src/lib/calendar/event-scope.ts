@@ -11,8 +11,8 @@
 // like an unscoped event.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { type OrgKindRow, type OrgRef, isOrgKind, orgRefOf, publicOrgRow } from '@/lib/orgs/org-ref';
+
+import { type OrgKindRow, type OrgRef, isOrgKind, orgRefOf, publicOrgRow, type OrgKind } from '@/lib/orgs/org-ref';
 import type { SubOrgScopeType } from '@/lib/orgs/scoped-members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -26,7 +26,7 @@ export interface ScopeColumns extends OrgKindRow {
 export interface EventScope {
   /** 'org' = attached directly to a league/club (the 119 shape). */
   scopeType: 'org' | SubOrgScopeType;
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   /** The division/team id for sub-org scopes; null at org scope. */
   scopeId: string | null;
@@ -79,6 +79,6 @@ export async function resolveEventScope(
   if (error || !data) return null;
   const owner = orgRefOf(data as OrgKindRow);
   if (!owner) return null;
-  const side: OrgSide = owner.side;
+  const side: OrgKind = owner.side;
   return { scopeType: sub.scopeType, side, orgId: owner.orgId, scopeId: sub.id };
 }

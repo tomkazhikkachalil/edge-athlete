@@ -18,8 +18,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
@@ -60,7 +60,7 @@ export interface PublicTeam {
 
 export async function fetchPublicTeams(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicTeam[]> {
   const { data: teams, error } = await admin
@@ -117,7 +117,7 @@ export interface PublicStaffRow {
 
 export async function fetchPublicStaff(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicStaffRow[]> {
   const { data, error } = await admin
@@ -157,7 +157,7 @@ export interface PublicVenue {
 
 export async function fetchPublicVenues(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicVenue[]> {
   const { data: venues, error } = await admin
@@ -208,7 +208,7 @@ export interface PublicAffiliation {
 
 export async function fetchPublicAffiliations(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicAffiliation[]> {
   const listed = await listAffiliations(admin, side, orgId);
@@ -265,7 +265,7 @@ const TEAM_EVENT_FIELDS =
  *  foreign teamId under this slug must 404 indistinguishably), or null. */
 export async function fetchPublicTeamPage(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   teamId: string
 ): Promise<PublicTeamPage | null> {
@@ -665,7 +665,7 @@ const SITEMAP_CONTESTS_PER_ORG = 200;
  *  newest first, capped. Two bounded batches; degrades to nothing. */
 async function fetchContestIdsForOrgs(
   admin: Admin,
-  orgs: { key: string; side: 'league' | 'club'; orgId: string }[]
+  orgs: { key: string; side: OrgKind; orgId: string }[]
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (orgs.length === 0) return out;
@@ -823,7 +823,7 @@ export interface PublicNotice {
   noticeUntil: string | null;
 }
 
-export async function fetchPublicNotices(admin: Admin, side: OrgSide, orgId: string, orgName: string): Promise<PublicNotice[]> {
+export async function fetchPublicNotices(admin: Admin, side: OrgKind, orgId: string, orgName: string): Promise<PublicNotice[]> {
   const { data, error } = await admin
     .from('notifications')
     .select('title, message, created_at, metadata')
@@ -857,7 +857,7 @@ export interface PublicOpenWindow {
 
 export async function fetchPublicOpenWindows(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicOpenWindow[]> {
   const { data: rows, error } = await admin
@@ -915,7 +915,7 @@ export interface PublicGalleryItem {
 
 export async function fetchPublicGallery(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicGalleryItem[]> {
   // M2 (program 10): the members' round photos a manager picked come
@@ -927,7 +927,7 @@ export async function fetchPublicGallery(
   return [...memberItems, ...contestItems];
 }
 
-async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
+async function fetchMemberGalleryItems(admin: Admin, side: OrgKind, orgId: string): Promise<PublicGalleryItem[]> {
   try {
     const { data: site } = await admin.from('org_sites').select('id').eq(ORG_ID, orgId).maybeSingle();
     if (!site) return [];
@@ -959,7 +959,7 @@ async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: strin
   }
 }
 
-async function fetchContestGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
+async function fetchContestGalleryItems(admin: Admin, side: OrgKind, orgId: string): Promise<PublicGalleryItem[]> {
   const { data: comps, error: compsError } = await admin
     .from('competitions')
     .select('id')
@@ -1072,7 +1072,7 @@ export interface PublicCoursePage extends PublicCourse {
 
 export async function fetchPublicCourses(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicCourse[]> {
   let res: { data: unknown[] | null; error: { code?: string } | null } = await admin
@@ -1152,7 +1152,7 @@ export async function fetchPublicCourses(
  *  CATALOG_ROW_COLUMNS feeds the app's pickers and must not grow. */
 export async function fetchPublicCoursePage(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   courseId: string
 ): Promise<PublicCoursePage | null> {
@@ -1203,7 +1203,7 @@ export interface PublicGolfRound {
 
 export async function fetchPublicGolfRounds(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicGolfRound[]> {
   try {
@@ -1277,7 +1277,7 @@ export interface PublicDivision {
 
 export async function fetchPublicDivisions(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicDivision[]> {
   const today = new Date().toISOString().slice(0, 10);
@@ -1474,7 +1474,7 @@ async function fetchGolfLeaderBoards(
 
 export async function fetchPublicStatLeaders(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<PublicLeaderBoard[]> {
   const { data: comps, error } = await admin
@@ -1755,7 +1755,7 @@ export interface PublicPlayerPhoto {
 
 export async function fetchPublicPlayerPage(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   handle: string
 ): Promise<PublicPlayerPage | null> {
@@ -1954,7 +1954,7 @@ export async function fetchPublicPlayerPage(
  *  org); the sitemap's enumerator. */
 export async function fetchPlayerHandlesForOrgs(
   admin: Admin,
-  orgs: { key: string; side: OrgSide; orgId: string }[],
+  orgs: { key: string; side: OrgKind; orgId: string }[],
   capPerOrg = 200
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
@@ -2117,7 +2117,7 @@ async function countEntrantsOnCourse(
   return onCourse.size;
 }
 
-export async function fetchPublicWeekHub(admin: Admin, side: OrgSide, orgId: string): Promise<PublicWeekHub> {
+export async function fetchPublicWeekHub(admin: Admin, side: OrgKind, orgId: string): Promise<PublicWeekHub> {
   const now = Date.now();
   const { utcToday } = await import('@/lib/competitions/golf-weeks');
   const today = utcToday();
@@ -2222,7 +2222,7 @@ export interface DirectoryRegion {
   orgs: DirectoryOrg[];
 }
 
-export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Promise<DirectoryRegion[]> {
+export async function fetchPublicOrgDirectory(admin: Admin, side: OrgKind): Promise<DirectoryRegion[]> {
   // This read lists ONE KIND's orgs (the directory is per kind). Round 5
   // D0-b INVERTS it: `organizations` filtered by kind — its own index — with
   // the published site embedded through org_sites' one FK. `org_sites.org_id`

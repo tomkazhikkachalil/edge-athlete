@@ -30,6 +30,7 @@ import { LEGACY_ID_PREFIX, appendWidget, compactLayout, newInstanceFor, validate
 import { applySeed, seedLayout } from './seeds';
 import { NEUTRAL_ORG, applyGallerySeed, galleryEntry, gallerySeed, type GalleryOrg } from './gallery';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export const SNAPSHOT_VERSION = 1 as const;
 
@@ -281,7 +282,7 @@ export type SnapshotAction =
   | (Extract<SitePatchInput, { action: 'add_page' }> & { id: string; createdAt: string });
 
 export interface ApplyContext {
-  side: 'league' | 'club';
+  side: OrgKind;
   sportKey: string | null;
   /** Phase 11, `apply_gallery` only — the org facts the generated content is
    *  written from, loaded once by the server; the reducer stays pure. */

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { readOrgAccess } from '@/lib/orgs/access';
-import { getOrgAndRole, type OrgSide } from '@/lib/orgs/authz';
+import { getOrgAndRole } from '@/lib/orgs/authz';
 import { fetchPublicGallery } from './public-data';
 import { orderGalleryForApp } from './app-gallery';
 import { readSiteBrandRow } from './revalidate';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The in-app org gallery read (Org Pages R4, Sep 8 2026) — the Photos
 // bubble on /league/[id] and /club/[id]. IDENTICAL gates to the public
@@ -23,13 +24,13 @@ import { readSiteBrandRow } from './revalidate';
 type Admin = SupabaseClient;
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
 
-function notFound(side: OrgSide) {
+function notFound(side: OrgKind) {
   return NextResponse.json({ error: side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
 }
 
 export async function orgGalleryGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   viewerId: string | null
 ): Promise<NextResponse> {

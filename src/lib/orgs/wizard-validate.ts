@@ -16,8 +16,8 @@
 
 import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
-import { LeagueRequestSchema } from '@/lib/leagues/validate';
-import { ClubRequestSchema } from '@/lib/clubs/validate';
+import { LeagueRequestSchema } from '@/lib/orgs/validate';
+import { ClubRequestSchema } from '@/lib/orgs/validate';
 import { httpsUrl } from '@/lib/org-sites/validate';
 
 export const CapabilitiesSchema = z

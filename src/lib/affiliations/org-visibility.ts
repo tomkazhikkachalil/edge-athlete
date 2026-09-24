@@ -1,3 +1,4 @@
+import type { OrgKind } from '@/lib/orgs/org-ref';
 // ── Which of a profile's orgs a VIEWER may see — pure (Sep 11 2026) ──────
 // Tom's rule, written down:
 //   * your OWN memberships always appear on your own profile, regardless of
@@ -17,12 +18,12 @@ export interface ViewerOrgFilterInput {
 }
 
 export interface VisibilityRow {
-  kind: 'league' | 'club';
+  kind: OrgKind;
   id: string;
   visibility?: string | null;
 }
 
-export function orgKey(kind: 'league' | 'club', id: string): string {
+export function orgKey(kind: OrgKind, id: string): string {
   return `${kind}:${id}`;
 }
 

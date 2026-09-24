@@ -6,7 +6,7 @@
 // and never darkens anything. The pure halves are node-tested.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
+import type { OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -39,7 +39,7 @@ export function accessFromRow(row: Record<string, unknown> | null | undefined): 
 
 /** The live read for either side. Any error (42703 on a pre-176/177
  *  database included) → open. */
-export async function readOrgAccess(admin: Admin, side: OrgSide, orgId: string): Promise<OrgAccess> {
+export async function readOrgAccess(admin: Admin, side: OrgKind, orgId: string): Promise<OrgAccess> {
   const { data, error } = await admin
     .from('organizations')
     .select('id, visibility, join_policy')

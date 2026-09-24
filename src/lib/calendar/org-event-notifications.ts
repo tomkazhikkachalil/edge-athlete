@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunk } from '@/lib/chunk';
 import { memberProfileIds } from '@/lib/orgs/members';
 import { scopedMemberProfileIds, type SubOrgScopeType } from '@/lib/orgs/scoped-members';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -61,7 +62,7 @@ export function buildOrgEventNotificationRows(
 
 export interface OrgEventNotifyInput {
   supabase: Admin;
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Sub-org scope (146): present → the fan-out enumerates the SCOPED
    *  members only, never the whole org (strict audience — a house-league

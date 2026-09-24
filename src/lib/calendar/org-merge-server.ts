@@ -15,7 +15,7 @@
 // grants, not audience). v1 runs dormant: nothing mints sub-org rows yet.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { rosterOrgIds } from '@/lib/orgs/members';
 import { viewerScopeSet } from '@/lib/orgs/scoped-members';
 import { EVENT_FIELDS } from './detail-server';

@@ -8,19 +8,15 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  getOrgAndCapabilities,
-  hasAnyCapability,
-  visibleSections,
-  type OrgSide,
-} from './authz';
+import { getOrgAndCapabilities, hasAnyCapability, visibleSections } from './authz';
+import type { OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 export async function capabilitiesGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<NextResponse> {

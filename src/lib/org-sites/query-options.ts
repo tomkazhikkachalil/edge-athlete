@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { fetchPublicVenues } from './public-data';
 
 /**
@@ -26,7 +26,7 @@ export interface CanvasOptions {
 
 export const EMPTY_OPTIONS: CanvasOptions = { competitions: [], venues: [] };
 
-export async function fetchCanvasOptions(admin: Admin, side: OrgSide, orgId: string): Promise<CanvasOptions> {
+export async function fetchCanvasOptions(admin: Admin, side: OrgKind, orgId: string): Promise<CanvasOptions> {
   const [competitions, venues] = await Promise.all([
     (async () => {
       try {

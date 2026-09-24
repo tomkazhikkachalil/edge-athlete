@@ -8,8 +8,8 @@
 // the console's explicit path; this is the one-tap path's.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './listing';
-import { ORG_ID, pairFor } from './org-ref';
+
+import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -21,7 +21,7 @@ export function defaultSeasonLabel(today: Date): string {
 
 export async function ensureDefaultSeason(
   admin: Admin,
-  scope: { side: OrgSide; orgId: string },
+  scope: { side: OrgKind; orgId: string },
   sportKey: string | null,
   today: Date = new Date()
 ): Promise<{ seasonId: string; label: string; created: boolean } | { error: string }> {
