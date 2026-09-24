@@ -11,7 +11,7 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import { ATHLETE_CLAIM_EXPIRY_DAYS, isStubEmail } from '@/lib/config/stubs-config';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_TABLE, orgRefOf } from '@/lib/orgs/org-ref';
+import { orgRefOf } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -93,7 +93,7 @@ export async function peekAthleteClaimInvite(
   const orgRef = orgRefOf(invite);
   if (orgRef) {
     const { data: org } = await admin
-      .from(ORG_TABLE[orgRef.side])
+      .from('organizations')
       .select('name')
       .eq('id', orgRef.orgId)
       .maybeSingle();

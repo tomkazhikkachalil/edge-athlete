@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isSportEventResultsData, lineHasStats, provenanceForLine, resultsPostData, statLinePostCaption, statLinePostData, statLinePostRow } from '../stat-results';
 
-const event = { id: 'e1', name: 'Friday skate', sport_key: 'ice_hockey', visibility: 'public' as const, club_id: null, league_id: null, host_profile_id: 'h', created_by_user_id: null };
+const event = { id: 'e1', name: 'Friday skate', sport_key: 'ice_hockey', visibility: 'public' as const, org_id: null, org: null, host_profile_id: 'h', created_by_user_id: null };
 const round = { id: 'r1', scheduled_on: '2030-06-01' };
 const game = { score: { side1_score: 4, side2_score: 2, period: 3 }, sides: ['Reds', 'Blues'] as [string, string] };
 const b = { id: 'l1', participant_id: 'pb', profile_id: 'B', stats: { goals: 2, assists: 1 }, side: 1 as const, name: 'Edge B.', entered_by: 'B' };
@@ -32,10 +32,10 @@ describe('a line\'s results post — the existing stat_line shape, found again b
   });
   it('provenance: an org-hosted event\'s recorder / organizer entry is the org\'s; a player\'s own, or an athlete-run event, is self-reported', () => {
     expect(provenanceForLine(event, b)).toBe('self_reported');
-    expect(provenanceForLine({ ...event, club_id: 'club' }, c)).toBe('club_recorded');
-    expect(provenanceForLine({ ...event, league_id: 'lg' }, c)).toBe('league_verified');
-    expect(provenanceForLine({ ...event, league_id: 'lg' }, b)).toBe('self_reported');
-    expect(provenanceForLine({ ...event, club_id: 'club' }, d)).toBe('self_reported');
+    expect(provenanceForLine({ ...event, org_id: 'club', org: { kind: 'club' } }, c)).toBe('club_recorded');
+    expect(provenanceForLine({ ...event, org_id: 'lg', org: { kind: 'league' } }, c)).toBe('league_verified');
+    expect(provenanceForLine({ ...event, org_id: 'lg', org: { kind: 'league' } }, b)).toBe('self_reported');
+    expect(provenanceForLine({ ...event, org_id: 'club', org: { kind: 'club' } }, d)).toBe('self_reported');
   });
 });
 

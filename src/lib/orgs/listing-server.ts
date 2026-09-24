@@ -15,7 +15,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { notifyAdminsOfListingRequest } from './listing-notify';
 import { nextListingChange, readListing, type ListingStatus, type OrgSide } from './listing';
-import { ORG_TABLE } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -27,7 +26,7 @@ export async function applyListing(
   input: { side: OrgSide; orgId: string; orgName: string; actorId: string; target: Extract<ListingStatus, 'pending' | 'unlisted'> }
 ): Promise<NextResponse | { ok: true; status: ListingStatus }> {
   const { side, orgId, orgName, actorId, target } = input;
-  const table = ORG_TABLE[side];
+  const table = 'organizations';
   const requestTable = side === 'league' ? 'league_requests' : 'club_requests';
   const orgCol = side === 'league' ? 'created_league_id' : 'created_club_id';
 

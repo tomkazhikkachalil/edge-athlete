@@ -7,7 +7,7 @@ import {
   restoreOrgClaimInvite,
 } from '@/lib/orgs/org-claim';
 import { insertOwnerRow } from '@/lib/orgs/members';
-import { ORG_TABLE } from '@/lib/orgs/org-ref';
+
 import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/org-claim/[token] — stub-org handover (phase 1 round 2) ────────────
@@ -92,7 +92,7 @@ export async function POST(
     // Guarded owner fill: zero rows = an owner appeared inside the race
     // window → restore the invite (never burn a token on a lost race).
     const { data: filled, error: fillError } = await admin
-      .from(ORG_TABLE[redeemed.side])
+      .from('organizations')
       .update({ owner_profile_id: user.id })
       .eq('id', redeemed.orgId)
       .is('owner_profile_id', null)
@@ -115,7 +115,7 @@ export async function POST(
     );
     if (memberError) {
       reportRouteError('[ORG CLAIM] owner row error:', memberError);
-      await admin.from(ORG_TABLE[redeemed.side]).update({ owner_profile_id: null }).eq('id', redeemed.orgId);
+      await admin.from('organizations').update({ owner_profile_id: null }).eq('id', redeemed.orgId);
       await restoreOrgClaimInvite(admin, token);
       return NextResponse.json({ error: 'Could not complete the claim' }, { status: 500 });
     }

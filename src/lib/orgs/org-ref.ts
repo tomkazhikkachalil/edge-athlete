@@ -10,8 +10,8 @@
  *   READ an org's rows       →  .eq(ORG_ID, orgId)          — never the pair
  *   READ a row's KIND        →  select ORG_KIND_EMBED        — organizations.kind, never the pair (step D0)
  *   ACCEPT / EMIT the public league_id / club_id fields → orgRefFromBody / pairFieldsFor (the boundary)
- *   WRITE a row for an org   →  { ...pairFor(ref) }         — org_id since step C (233 fills the pair)
- *   TOUCH the org row itself →  .from('organizations')     — since step D1 (ORG_TABLE resolves there; a LIST of one kind adds .eq('kind', kind))
+ *   WRITE a row for an org   →  { ...pairFor(ref) }         — org_id (the pair is GONE since 235)
+ *   TOUCH the org row itself →  .from('organizations')     — the one table; a LIST of one kind adds .eq('kind', kind)
  *   SPELL a URL family       →  ORG_ROUTE_FAMILY[kind]      — forever (URLs never change)
  *
  * `OrgKind` is what an org calls itself (its route family and vocabulary —
@@ -72,9 +72,6 @@ export type OrgKindEmbed = { kind: string } | { kind: string }[] | null;
 export interface OrgKindRow {
   org_id?: string | null;
   org?: OrgKindEmbed;
-  /** The pair — read only as a fallback until step D2 removes it. */
-  league_id?: string | null;
-  club_id?: string | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,29 +115,19 @@ export function pairFieldsOf(row: OrgKindRow): { league_id: string | null; club_
 /** A stored row as a CLIENT reads it: the embed stripped, the public
  *  league_id / club_id derived from org_id + kind (Tom, Sep 22 2026: the
  *  contract does not change). */
-export function publicOrgRow<T extends OrgKindRow>(row: T): Omit<T, 'org' | 'league_id' | 'club_id'> & { league_id: string | null; club_id: string | null } {
-  const { org: _org, league_id: _l, club_id: _c, ...rest } = row; // eslint-disable-line @typescript-eslint/no-unused-vars -- stripped on purpose
+export function publicOrgRow<T extends OrgKindRow>(row: T): Omit<T, 'org'> & { league_id: string | null; club_id: string | null } {
+  const { org: _org, ...rest } = row; // eslint-disable-line @typescript-eslint/no-unused-vars -- stripped on purpose
   return { ...rest, ...pairFieldsFor(orgRefOf(row)) };
 }
 
-/** The pair column of a kind. For WRITES in the mirror window (the
- *  generated org_id follows), for the two side-specific tables
- *  (league_join_requests / club_join_requests) and for the notifications
- *  `metadata` key the announce readers match on (`metadata @> {league_id}`).
- *  Never for a read of a pair table — that is ORG_ID. */
+/** The pair column NAME of a kind — no pair table has it any more (235).
+ *  Two uses remain: the two side-specific tables (`league_join_requests` /
+ *  `club_join_requests`, their OWN column, until D-ii unifies them) and the
+ *  notifications `metadata` key the announce readers match on
+ *  (`metadata @> {league_id}` — history, so forever). */
 export const PAIR_COLUMN: Record<OrgKind, 'league_id' | 'club_id'> = {
   league: 'league_id',
   club: 'club_id',
-};
-
-/** The org row's own table. Since step D1 (Sep 23 2026) BOTH kinds resolve
- *  to `organizations` — the one table since 231, the same ids as the old
- *  two, so every `.eq('id', orgId)` read moved without a change at the
- *  call site. A read that LISTS one kind adds `.eq('kind', kind)`. The
- *  constant is retired in step F; `leagues` / `clubs` become views in 235. */
-export const ORG_TABLE: Record<OrgKind, 'organizations'> = {
-  league: 'organizations',
-  club: 'organizations',
 };
 
 /** The URL family: `/api/leagues/…`, `/leagues`, `/league/[id]`. Spelled
@@ -151,31 +138,25 @@ export const ORG_ROUTE_FAMILY: Record<OrgKind, 'leagues' | 'clubs'> = {
   club: 'clubs',
 };
 
-/** The org for a write. Since 233 this is `org_id` alone: the row's
- *  `org_pair_sync` trigger fills `league_id` / `club_id` from
- *  `organizations.kind`, so the pairing CHECKs and every old reader stay
- *  satisfied. (Before 233 it was the pair; the name stays because the
- *  call sites did not change.) Spread it into the insert. */
+/** The org for a write: `org_id`. (The name is from the mirror window,
+ *  when it was the pair; the call sites did not change.) Spread it into
+ *  the insert. */
 export function pairFor(ref: OrgRef): { org_id: string } {
   return { org_id: ref.orgId };
 }
 
-/** The kind a row names: the embedded `organizations.kind` when the select
- *  carried ORG_KIND_EMBED, else (until step D2) the pair. Null when the row
- *  names no org. */
+/** The kind a row names: the embedded `organizations.kind` — the select
+ *  must carry ORG_KIND_EMBED. Null when the row names no org or the select
+ *  did not ask. */
 export function orgKindOf(row: OrgKindRow): OrgKind | null {
   const org = Array.isArray(row.org) ? row.org[0] : row.org;
-  if (org && isOrgKind(org.kind)) return org.kind;
-  if (row.league_id) return 'league';
-  if (row.club_id) return 'club';
-  return null;
+  return org && isOrgKind(org.kind) ? org.kind : null;
 }
 
-/** The org a row names, from whichever column the select carried: `org_id`
- *  when it was selected, else (until step D2) the pair. A row check compares
- *  this, never `row[column]`. */
+/** The org a row names: `org_id`. A row check compares this, never
+ *  `row[column]`. */
 export function orgIdOf(row: OrgKindRow): string | null {
-  return row.org_id ?? row.league_id ?? row.club_id ?? null;
+  return row.org_id ?? null;
 }
 
 /** The ref a row names — null when it names no org or the kind is unknown. */

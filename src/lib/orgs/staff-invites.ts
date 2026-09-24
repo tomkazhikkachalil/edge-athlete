@@ -14,7 +14,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import type { OrgSection, OrgSide } from './authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, orgKindOf, pairFor } from './org-ref';
+import { ORG_ID, orgIdOf, orgKindOf, pairFor } from './org-ref';
 import { mergeSections, normalizeSections, type StaffGrantInput } from './staff-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -99,7 +99,7 @@ export async function peekStaffInvite(admin: Admin, rawToken: string): Promise<P
   const side: OrgSide = orgKindOf(invite) ?? 'club';
   const orgId = orgIdOf(invite) as string;
   const { data: org } = await admin
-    .from(ORG_TABLE[side])
+    .from('organizations')
     .select('id, name')
     .eq('id', orgId)
     .maybeSingle();

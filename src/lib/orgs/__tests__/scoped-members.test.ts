@@ -51,8 +51,8 @@ describe('viewerScopeSet', () => {
     const { admin } = mockAdmin({
       memberships: { data: [{ scope_type: 'team', scope_id: 'team-1' }] },
       team_entries: { data: [{ division_id: 'div-1' }] },
-      teams: { data: [{ id: 'team-1', league_id: 'lg-1', club_id: null }] },
-      divisions: { data: [{ id: 'div-1', league_id: 'lg-1', club_id: null }] },
+      teams: { data: [{ id: 'team-1', org_id: 'lg-1', org: { kind: 'league' } }] },
+      divisions: { data: [{ id: 'div-1', org_id: 'lg-1', org: { kind: 'league' } }] },
     });
     const set = await viewerScopeSet(admin, 'p1');
     expect(set.teamIds).toEqual(['team-1']);
@@ -66,7 +66,7 @@ describe('viewerScopeSet', () => {
   it('division row (club side) carries its own scope + owning club', async () => {
     const { admin } = mockAdmin({
       memberships: { data: [{ scope_type: 'division', scope_id: 'div-2' }] },
-      divisions: { data: [{ id: 'div-2', league_id: null, club_id: 'cl-1' }] },
+      divisions: { data: [{ id: 'div-2', org_id: 'cl-1', org: { kind: 'club' } }] },
     });
     const set = await viewerScopeSet(admin, 'p1');
     expect(set.divisionIds).toEqual(['div-2']);

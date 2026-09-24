@@ -17,7 +17,7 @@ import { isListed, listingFromRow } from '@/lib/orgs/listing';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
 import {
   defaultModuleOrder,
   GOLF_TAGLINE,
@@ -176,7 +176,7 @@ export async function siteGET(
 export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
   const column = 'sport_key';
   const { data, error } = await admin
-    .from(ORG_TABLE[side])
+    .from('organizations')
     .select(column)
     .eq('id', orgId)
     .maybeSingle();
@@ -193,7 +193,7 @@ async function loadOrgIdentity(
   orgId: string
 ): Promise<OrgIdentity | null> {
   const { data } = await admin
-    .from(ORG_TABLE[side])
+    .from('organizations')
     .select('name, sport_key, city, region')
     .eq('id', orgId)
     .maybeSingle();
@@ -705,7 +705,7 @@ async function getSiteBySlugInternal(
   // R4 widens the org read for JSON-LD: geography + sport_key — ONE shape
   // for both kinds since D1 (the org row lives in organizations).
   const readOrg = (fields: string) =>
-    admin.from(ORG_TABLE[side]).select(fields).eq('id', orgId).maybeSingle();
+    admin.from('organizations').select(fields).eq('id', orgId).maybeSingle();
   const [orgRead, { data: modules }] = await Promise.all([
     readOrg('id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at'),
     admin

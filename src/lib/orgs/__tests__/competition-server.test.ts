@@ -206,15 +206,15 @@ describe('competitionPATCH scope pinning', () => {
 describe('entryAddPOST', () => {
   const comp = {
     id: 'c1',
-    league_id: 'org-1',
-    club_id: null,
+    org_id: 'org-1',
+    org: { kind: 'league' },
     division_id: null,
     entrant_type: 'team',
     status: 'active',
   };
 
   it('404s a foreign-org competition when scoped', async () => {
-    const { admin } = mockAdmin({ competitions: { data: { ...comp, league_id: 'OTHER' } } });
+    const { admin } = mockAdmin({ competitions: { data: { ...comp, org_id: 'OTHER' } } });
     const res = await entryAddPOST(admin, { competitionId: 'c1', teamId: 't1' }, SCOPE);
     expect(res.status).toBe(404);
   });
@@ -234,13 +234,13 @@ describe('entryAddPOST', () => {
   it('team path: foreign-org team 404s; archived team 400s (v1 own-org rule)', async () => {
     const foreign = mockAdmin({
       competitions: { data: comp },
-      teams: { data: { id: 't1', league_id: 'OTHER', club_id: null, status: 'active' } },
+      teams: { data: { id: 't1', org_id: 'OTHER', org: { kind: 'league' }, status: 'active' } },
     });
     expect((await entryAddPOST(foreign.admin, { competitionId: 'c1', teamId: 't1' }, SCOPE)).status).toBe(404);
 
     const archived = mockAdmin({
       competitions: { data: comp },
-      teams: { data: { id: 't1', league_id: 'org-1', club_id: null, status: 'archived' } },
+      teams: { data: { id: 't1', org_id: 'org-1', org: { kind: 'league' }, status: 'archived' } },
     });
     expect((await entryAddPOST(archived.admin, { competitionId: 'c1', teamId: 't1' }, SCOPE)).status).toBe(400);
   });
@@ -248,7 +248,7 @@ describe('entryAddPOST', () => {
   it('division-pinned competition requires a team_entry in that division', async () => {
     const { admin } = mockAdmin({
       competitions: { data: { ...comp, division_id: 'd1' } },
-      teams: { data: { id: 't1', league_id: 'org-1', club_id: null, status: 'active' } },
+      teams: { data: { id: 't1', org_id: 'org-1', org: { kind: 'league' }, status: 'active' } },
       team_entries: { data: null },
     });
     const res = await entryAddPOST(admin, { competitionId: 'c1', teamId: 't1' }, SCOPE);
@@ -286,7 +286,7 @@ describe('entryAddPOST', () => {
   it('duplicate entry 23505 → 409', async () => {
     const { admin } = mockAdmin({
       competitions: { data: comp },
-      teams: { data: { id: 't1', league_id: 'org-1', club_id: null, status: 'active' } },
+      teams: { data: { id: 't1', org_id: 'org-1', org: { kind: 'league' }, status: 'active' } },
       competition_entries: { data: null, error: { code: '23505' } },
     });
     const res = await entryAddPOST(admin, { competitionId: 'c1', teamId: 't1' }, SCOPE);
@@ -297,14 +297,14 @@ describe('entryAddPOST', () => {
 describe('entryDELETE', () => {
   it('scoped verifies through the COMPETITION JOIN (no org column)', async () => {
     const foreign = mockAdmin({
-      competition_entries: { data: { id: 'e1', competition: { league_id: 'OTHER', club_id: null } } },
+      competition_entries: { data: { id: 'e1', competition: { org_id: 'OTHER', org: { kind: 'league' } } } },
     });
     expect((await entryDELETE(foreign.admin, 'e1', SCOPE)).status).toBe(404);
     expect(foreign.calls[0].op).toBe('select');
 
     const ok = mockAdmin({
       competition_entries: [
-        { data: { id: 'e1', competition: { league_id: 'org-1', club_id: null } } },
+        { data: { id: 'e1', competition: { org_id: 'org-1', org: { kind: 'league' } } } },
         { data: [{ id: 'e1' }] },
       ],
     });
@@ -355,8 +355,8 @@ describe('competitionsAggregateGET', () => {
 describe('contestCreatePOST (R2)', () => {
   const comp = {
     id: 'c1',
-    league_id: 'org-1',
-    club_id: null,
+    org_id: 'org-1',
+    org: { kind: 'league' },
     division_id: null,
     format: 'fixture',
     entrant_type: 'team',
@@ -365,7 +365,7 @@ describe('contestCreatePOST (R2)', () => {
   };
 
   it('foreign-org competition 404s when scoped', async () => {
-    const { admin } = mockAdmin({ competitions: { data: { ...comp, league_id: 'OTHER' } } });
+    const { admin } = mockAdmin({ competitions: { data: { ...comp, org_id: 'OTHER' } } });
     const res = await contestCreatePOST(
       admin,
       { competitionId: 'c1', homeEntryId: 'e1', awayEntryId: 'e2' },
@@ -445,13 +445,13 @@ describe('contestCreatePOST (R2)', () => {
 describe('contestDELETE (R2)', () => {
   it('scoped verifies through the competition join', async () => {
     const foreign = mockAdmin({
-      contests: { data: { id: 'g1', competition: { league_id: 'OTHER', club_id: null } } },
+      contests: { data: { id: 'g1', competition: { org_id: 'OTHER', org: { kind: 'league' } } } },
     });
     expect((await contestDELETE(foreign.admin, 'g1', SCOPE)).status).toBe(404);
 
     const ok = mockAdmin({
       contests: [
-        { data: { id: 'g1', competition: { league_id: 'org-1', club_id: null } } },
+        { data: { id: 'g1', competition: { org_id: 'org-1', org: { kind: 'league' } } } },
         { data: [{ id: 'g1', event_id: null }] },
       ],
     });
@@ -463,13 +463,13 @@ describe('resultsUpsertPOST (R2)', () => {
   const contestRow = {
     id: 'g1',
     status: 'scheduled',
-    competition: { id: 'c1', league_id: 'org-1', club_id: null, format: 'fixture' },
+    competition: { id: 'c1', org_id: 'org-1', org: { kind: 'league' }, format: 'fixture' },
   };
   const twoSides = { data: [{ id: 'p1', side: 'home' }, { id: 'p2', side: 'away' }] };
 
   it('foreign-org contest 404s; canceled 400s', async () => {
     const foreign = mockAdmin({
-      contests: { data: { ...contestRow, competition: { ...contestRow.competition, league_id: 'OTHER' } } },
+      contests: { data: { ...contestRow, competition: { ...contestRow.competition, org_id: 'OTHER' } } },
     });
     expect(
       (await resultsUpsertPOST(foreign.admin, { contestId: 'g1', results: [{ participantId: 'p1', score: 3 }] }, SCOPE, 'u1')).status

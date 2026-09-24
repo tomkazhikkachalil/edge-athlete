@@ -3,11 +3,10 @@ import { mergeOrgEvents, type OrgEventRow } from '../org-merge-server';
 
 const ev = (
   id: string,
-  scope: { league_id?: string; club_id?: string; division_id?: string; team_id?: string } = {}
+  scope: { org_id?: string; division_id?: string; team_id?: string } = {}
 ): OrgEventRow => ({
   id,
-  league_id: scope.league_id ?? null,
-  club_id: scope.club_id ?? null,
+  org_id: scope.org_id ?? null,
   division_id: scope.division_id ?? null,
   team_id: scope.team_id ?? null,
   title: `Event ${id}`,
@@ -20,7 +19,7 @@ const NAMES = new Map([
 
 describe('mergeOrgEvents', () => {
   it('decorates org events with the merged shape and the org name', () => {
-    const out = mergeOrgEvents(new Set(), [[ev('a', { league_id: 'league-1' })]], NAMES);
+    const out = mergeOrgEvents(new Set(), [[ev('a', { org_id: 'league-1' })]], NAMES);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
       id: 'a',
@@ -33,7 +32,7 @@ describe('mergeOrgEvents', () => {
   });
 
   it('falls back to a null org name when the org row is unknown', () => {
-    const out = mergeOrgEvents(new Set(), [[ev('a', { club_id: 'club-x' })]], NAMES);
+    const out = mergeOrgEvents(new Set(), [[ev('a', { org_id: 'club-x' })]], NAMES);
     expect(out[0].org_name).toBeNull();
   });
 
@@ -43,8 +42,8 @@ describe('mergeOrgEvents', () => {
     const out = mergeOrgEvents(
       new Set(['guest-of', 'declined']),
       [
-        [ev('guest-of', { league_id: 'league-1' }), ev('declined', { league_id: 'league-1' })],
-        [ev('fresh', { club_id: 'club-1' })],
+        [ev('guest-of', { org_id: 'league-1' }), ev('declined', { org_id: 'league-1' })],
+        [ev('fresh', { org_id: 'club-1' })],
       ],
       NAMES
     );
@@ -55,8 +54,8 @@ describe('mergeOrgEvents', () => {
     const out = mergeOrgEvents(
       new Set(),
       [
-        [ev('dup', { league_id: 'league-1' })],
-        [ev('dup', { league_id: 'league-1' }), ev('other', { club_id: 'club-1' })],
+        [ev('dup', { org_id: 'league-1' })],
+        [ev('dup', { org_id: 'league-1' }), ev('other', { org_id: 'club-1' })],
       ],
       NAMES
     );

@@ -7,7 +7,6 @@ import {
   ORG_KIND_EMBED_INNER,
   ORG_KINDS,
   ORG_ROUTE_FAMILY,
-  ORG_TABLE,
   PAIR_COLUMN,
   isOrgKind,
   orgIdOf,
@@ -31,28 +30,26 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     expect(otherKind('club')).toBe('league');
   });
 
-  it.each(ORG_KINDS)('%s: the column, the table and the route family agree', kind => {
+  it.each(ORG_KINDS)('%s: the pair column NAME and the route family agree', kind => {
     expect(PAIR_COLUMN[kind]).toBe(`${kind}_id`);
-    expect(ORG_TABLE[kind]).toBe('organizations'); // D1: one table for both kinds
     expect(ORG_ROUTE_FAMILY[kind]).toBe(`${kind}s`);
   });
 
-  it('reads AND writes through org_id (233 fills the pair)', () => {
+  it('reads AND writes through org_id (the pair is gone since 235)', () => {
     expect(ORG_ID).toBe('org_id');
     expect(pairFor({ side: 'league', orgId: 'L' })).toEqual({ org_id: 'L' });
     expect(pairFor({ side: 'club', orgId: 'C' })).toEqual({ org_id: 'C' });
   });
 
-  it('recovers the kind and the ref from a row, league first, null when neither', () => {
-    expect(orgKindOf({ league_id: 'L', club_id: null })).toBe('league');
-    expect(orgKindOf({ league_id: null, club_id: 'C' })).toBe('club');
+  it('never reads the pair (step D2): a row without the embed has an id but no kind', () => {
     expect(orgKindOf({})).toBeNull();
-    expect(orgRefOf({ league_id: 'L' })).toEqual({ side: 'league', orgId: 'L' });
-    expect(orgRefOf({ club_id: 'C' })).toEqual({ side: 'club', orgId: 'C' });
-    expect(orgRefOf({ league_id: null, club_id: null })).toBeNull();
-    expect(orgIdOf({ org_id: 'O', league_id: 'L' })).toBe('O');
-    expect(orgIdOf({ league_id: null, club_id: 'C' })).toBe('C');
+    expect(orgKindOf({ org_id: 'O' })).toBeNull();
+    expect(orgRefOf({ org_id: 'O' })).toBeNull();
     expect(orgIdOf({})).toBeNull();
+    expect(orgIdOf({ org_id: 'O' })).toBe('O');
+    // a stale pair key on an untyped row is ignored, never a fallback
+    expect(orgKindOf({ league_id: 'L' } as never)).toBeNull();
+    expect(orgIdOf({ club_id: 'C' } as never)).toBeNull();
   });
 
   it('reads the kind through the organizations embed FIRST (step D0), object or array shape', () => {
@@ -60,9 +57,8 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     expect(ORG_KIND_EMBED_INNER).toBe('org:organizations!inner(kind)');
     expect(orgKindOf({ org_id: 'O', org: { kind: 'club' } })).toBe('club');
     expect(orgKindOf({ org_id: 'O', org: [{ kind: 'league' }] })).toBe('league');
-    // The embed wins over a stale pair; an unknown kind falls back to the pair.
-    expect(orgKindOf({ org_id: 'O', org: { kind: 'club' }, league_id: 'L' })).toBe('club');
-    expect(orgKindOf({ org_id: 'O', org: { kind: 'school' }, club_id: 'C' })).toBe('club');
+    // An unknown kind is no kind (a future `school` extends OrgKind first).
+    expect(orgKindOf({ org_id: 'O', org: { kind: 'school' } })).toBeNull();
     expect(orgRefOf({ org_id: 'O', org: { kind: 'league' } })).toEqual({ side: 'league', orgId: 'O' });
     // A nullable org_id (events, venues …) with a null embed names no org.
     expect(orgRefOf({ org_id: null, org: null })).toBeNull();
@@ -119,7 +115,6 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     //   · the side-specific tables league_clubs / league_affiliations / *_requests /
     //     *_join_requests / sanction_grants (their OWN columns — step D-ii / 236 unifies them)
     //   · golf_courses.club_id → golf_clubs (the rename trap — never an org)
-    //   · the D0-b subsystems (calendar, sport-events, admin venues, public-data) until that PR
     // A file not listed here may not name the pair at all; a listed file may not
     // exceed its count — the number only ever goes DOWN.
     const ALLOW: Record<string, number> = {
@@ -145,10 +140,11 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       'lib/competitions/golf-league.ts': 3,
       'lib/competitions/golf-league-server.ts': 5,
       'app/api/golf/courses/route.ts': 11,
-      // D0-b (the next PR): calendar · sport-events · admin venues · public-data · site-forms
+      // the BOUNDARY — the public league_id / club_id fields the calendar, sport-event,
+      // admin-venue and public-data readers still speak (Tom, Sep 22 2026: the contract holds)
       'lib/org-sites/public-data.ts': 11,
       'lib/calendar/events.ts': 4,
-      'lib/calendar/event-scope.ts': 8,
+      'lib/calendar/event-scope.ts': 6,
       'lib/sport-events/validate.ts': 22,
       'lib/sport-events/view.ts': 4,
       'lib/sport-events/types.ts': 2,

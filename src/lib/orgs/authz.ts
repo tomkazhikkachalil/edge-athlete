@@ -25,7 +25,7 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
-import { ORG_ID, ORG_TABLE, type OrgKind } from './org-ref';
+import { ORG_ID, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -315,7 +315,7 @@ export async function getOrgAndRole(
   orgId: string,
   profileId: string
 ): Promise<OrgAndRole> {
-  const orgTable = ORG_TABLE[side];
+  const orgTable = 'organizations';
 
   const { data: org, error } = await admin
     .from(orgTable)
@@ -349,7 +349,7 @@ export async function getOrgAndCapabilities(
   orgId: string,
   profileId: string
 ): Promise<OrgAndCapabilities> {
-  const orgTable = ORG_TABLE[side];
+  const orgTable = 'organizations';
   const { data: org, error } = await admin
     .from(orgTable)
     .select('id, name, owner_profile_id')

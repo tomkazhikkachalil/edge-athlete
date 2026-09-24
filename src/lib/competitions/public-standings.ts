@@ -20,7 +20,7 @@ import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readOrgAccess } from '@/lib/orgs/access';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, ORG_TABLE } from '@/lib/orgs/org-ref';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import {
@@ -114,7 +114,7 @@ export async function fetchPublicStandings(
     membersView?: boolean;
   } = {}
 ): Promise<PublicStandingsPayload | null> {
-  const { data: org } = await admin.from(ORG_TABLE[side]).select('id, name').eq('id', orgId).maybeSingle();
+  const { data: org } = await admin.from('organizations').select('id, name').eq('id', orgId).maybeSingle();
   if (!org) return null;
   // Onboarding v2 R1 (179): a pending listing no longer empties the
   // standings — the org is live by link; listing gates discoverability only.
