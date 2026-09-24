@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 /** True once mig 163 widened the notifications CHECK (probe by insert —
@@ -43,28 +44,23 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
 
   const stamp = Date.now();
   const name = `QA Reg League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
+      .insert({ org_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
       .select()
       .single();
     const seasonId = season!.id as string;
     const { data: division } = await admin
       .from('divisions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: seasonId,
         sport_key: 'ice_hockey',
         name: `U13 A ${stamp}`,
@@ -76,7 +72,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
     const divisionId = division!.id as string;
     const { data: team } = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+      .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
       .select()
       .single();
 
@@ -117,7 +113,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       const { data: rosterRow } = await admin
         .from('memberships')
         .select('status, season_id, kind, scope_type')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster')
         .single();
@@ -168,7 +164,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       const { data: division2 } = await admin
         .from('divisions')
         .insert({
-          league_id: leagueId,
+          org_id: leagueId,
           season_id: seasonId,
           sport_key: 'ice_hockey',
           name: `U15 B ${stamp}`,
@@ -261,7 +257,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       const { data: teamRow } = await admin
         .from('memberships')
         .select('status, season_id')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster')
         .eq('scope_type', 'team')
@@ -271,7 +267,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       const { data: orgRow } = await admin
         .from('memberships')
         .select('status')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster')
         .eq('scope_type', 'org')
@@ -290,7 +286,7 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       const { data: afterRelease } = await admin
         .from('memberships')
         .select('status, scope_type')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster');
       expect(afterRelease).toHaveLength(1);

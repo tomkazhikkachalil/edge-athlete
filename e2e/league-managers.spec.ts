@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -17,16 +18,11 @@ test('league managers: owner promotes and demotes; non-owners see no controls', 
   test.skip(!!probe.error, `leagues table missing — run migration 113 (${probe.error?.message})`);
 
   const name = `QA Mgr League ${Date.now()}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
   const { error: memberError } = await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);
   expect(memberError, memberError?.message).toBeNull();
 

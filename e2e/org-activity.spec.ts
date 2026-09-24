@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import { openWindow } from './helpers/org-page';
@@ -13,7 +14,7 @@ test('org activity: public member post shows, private member post does not', asy
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('memberships').select('club_id').limit(1);
+  const probe = await admin.from('memberships').select('org_id').limit(1);
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
@@ -21,16 +22,11 @@ test('org activity: public member post shows, private member post does not', asy
   const publicCaption = `Public activity probe ${stamp}`;
   const privateCaption = `Private activity probe ${stamp}`;
 
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name: clubName, owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: clubName, owner_profile_id: userB.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: userB.id, role: 'owner' },
-    { club_id: clubId, profile_id: userA.id, role: 'member' },
+    { org_id: clubId, profile_id: userB.id, role: 'owner' },
+    { org_id: clubId, profile_id: userA.id, role: 'member' },
   ]);
 
   // A goes public and posts; B stays private and posts.

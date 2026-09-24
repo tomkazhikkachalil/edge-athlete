@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 type View = { event: { id: string; status: string; game?: { side_names: [string, string]; side_team_ids?: [string, string] } | null }; participants: Array<{ id: string; profile_id: string; status: string; playing: boolean; role: string }>; groups: Array<{ sport_event_round_id: string; members: Array<{ participant_id: string; side?: 1 | 2 | null }> }> };
@@ -21,20 +22,19 @@ test('team sides: two org teams picked in the wizard → the rosters become the 
   const probe = await admin.from('sport_events').select('shape').limit(1);
   test.skip(!!probe.error, 'sport_events.shape missing — run migration 215');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Sides League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Sides League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   let eventId: string | null = null;
   try {
-    const { data: teams } = await admin.from('teams').insert([{ league_id: leagueId, name: `Reds ${stamp}` }, { league_id: leagueId, name: `Blues ${stamp}` }]).select('id, name');
+    const { data: teams } = await admin.from('teams').insert([{ org_id: leagueId, name: `Reds ${stamp}` }, { org_id: leagueId, name: `Blues ${stamp}` }]).select('id, name');
     const reds = teams!.find(t => (t.name as string).startsWith('Reds'))!.id as string;
     const blues = teams!.find(t => (t.name as string).startsWith('Blues'))!.id as string;
     const roster = (profileId: string, teamId: string) => [
-      { league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-      { league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId },
+      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
+      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId },
     ];
     const { error: memberError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
+      { org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       ...roster(b.id, reds), ...roster(c.id, blues),
     ]);
     expect(memberError, memberError?.message).toBeNull();

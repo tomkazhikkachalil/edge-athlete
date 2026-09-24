@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -25,15 +26,11 @@ test('org gallery: picked member photo → face, window, lightbox; revoke → go
   const priorVisibility = alphaProfile!.visibility as string;
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Gallery Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Gallery Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');

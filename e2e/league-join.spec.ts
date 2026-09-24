@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The league open-join loop (migration 113): creation is admin-provisioned,
@@ -20,21 +21,16 @@ test('league: join and leave from the league page', async ({ page }) => {
   const stamp = Date.now();
   const name = `QA League ${stamp}`;
 
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({
+  const league = await createQaOrg(admin, 'league', {
       name,
       sport_key: 'golf',
       description: 'e2e probe league',
       owner_profile_id: userB.id,
-    })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+    });
+  const leagueId = league.id;
   const { error: memberError } = await admin
     .from('memberships')
-    .insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
+    .insert({ org_id: leagueId, profile_id: userB.id, role: 'owner' });
   expect(memberError, memberError?.message).toBeNull();
 
   try {

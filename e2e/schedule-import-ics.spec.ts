@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // ICS schedule import (phase 6c I1, zero DDL): a pasted calendar export
@@ -16,27 +17,19 @@ test('ICS schedule import: dry-run 2+2 → commit instants, org venue resolved, 
   await resetRateBucket(admin, 'org-competitions', owner.id);
 
   const stamp = Date.now();
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA ICS League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  const { data: other } = await admin
-    .from('leagues')
-    .insert({ name: `QA ICS Decoy League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const otherId = other!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA ICS League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  const other = await createQaOrg(admin, 'league', { name: `QA ICS Decoy League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const otherId = other.id;
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
-    const { data: homeTeam } = await admin.from('teams').insert({ league_id: leagueId, name: `ICS Blazers ${stamp}` }).select().single();
-    const { data: awayTeam } = await admin.from('teams').insert({ league_id: leagueId, name: `ICS Comets ${stamp}` }).select().single();
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
+    const { data: homeTeam } = await admin.from('teams').insert({ org_id: leagueId, name: `ICS Blazers ${stamp}` }).select().single();
+    const { data: awayTeam } = await admin.from('teams').insert({ org_id: leagueId, name: `ICS Comets ${stamp}` }).select().single();
     const { data: comp } = await admin
       .from('competitions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season!.id,
         sport_key: 'ice_hockey',
         name: `ICS Cup ${stamp}`,
@@ -54,8 +47,8 @@ test('ICS schedule import: dry-run 2+2 → commit instants, org venue resolved, 
     ]);
     // The org's own venue, and a same-named DECOY under the other org.
     const venueName = `ICS Arena ${stamp}`;
-    const { data: ownVenue } = await admin.from('venues').insert({ league_id: leagueId, name: venueName }).select('id').single();
-    await admin.from('venues').insert({ league_id: otherId, name: `Decoy Rink ${stamp}` });
+    const { data: ownVenue } = await admin.from('venues').insert({ org_id: leagueId, name: venueName }).select('id').single();
+    await admin.from('venues').insert({ org_id: otherId, name: `Decoy Rink ${stamp}` });
 
     const ics = [
       'BEGIN:VCALENDAR',
@@ -156,7 +149,7 @@ test('ICS schedule import: dry-run 2+2 → commit instants, org venue resolved, 
       await ctx.close();
     }
   } finally {
-    await admin.from('venues').delete().in('league_id', [leagueId, otherId]);
+    await admin.from('venues').delete().in('org_id', [leagueId, otherId]);
     await admin.from('leagues').delete().in('id', [leagueId, otherId]);
   }
 });

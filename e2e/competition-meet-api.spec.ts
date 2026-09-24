@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -27,22 +28,21 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
   test.skip(!!probe.error, 'competition_entries.affiliation_team_id missing — run migration 219');
   const api = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Meet League ${stamp}`, sport_key: 'track_field', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Meet League ${stamp}`, sport_key: 'track_field', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   try {
-    const { data: teams } = await admin.from('teams').insert([{ league_id: leagueId, name: `Red ${stamp}` }, { league_id: leagueId, name: `Blue ${stamp}` }]).select('id, name');
+    const { data: teams } = await admin.from('teams').insert([{ org_id: leagueId, name: `Red ${stamp}` }, { org_id: leagueId, name: `Blue ${stamp}` }]).select('id, name');
     const red = teams!.find(t => (t.name as string).startsWith('Red'))!.id as string;
     const blue = teams!.find(t => (t.name as string).startsWith('Blue'))!.id as string;
-    const roster = (profileId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
-    const onTeam = (profileId: string, teamId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
+    const roster = (profileId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
+    const onTeam = (profileId: string, teamId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
     const { error: memberError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
+      { org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       roster(athleteA.id), roster(athleteC.id), roster(athleteD.id),
       onTeam(athleteA.id, red), onTeam(athleteC.id, blue),
     ]);
     expect(memberError, memberError?.message).toBeNull();
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select().single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select().single();
     const seasonId = season!.id as string;
     const base = `/api/leagues/${leagueId}/competitions`;
 
@@ -135,7 +135,7 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
     const pub = await api.post(`${base}/${compId}/meet/sessions/publish`, { data: { competitionId: compId, session: 1, startsAt: '2030-06-01T16:00:00.000Z', timezone: 'America/Denver' } });
     expect(pub.status(), await readErrorBody(pub)).toBe(201);
     const { eventId } = (await pub.json()) as { eventId: string; created: boolean };
-    const ev = await admin.from('events').select('title, starts_at, ends_at, timezone, league_id, category, status').eq('id', eventId).single();
+    const ev = await admin.from('events').select('title, starts_at, ends_at, timezone, org_id, category, status').eq('id', eventId).single();
     expect(ev.data).toMatchObject({ title: 'Spring Meet — Session 1', timezone: 'America/Denver', league_id: leagueId, category: 'game', status: 'active' });
     expect(Date.parse(ev.data!.starts_at as string)).toBe(Date.parse('2030-06-01T16:00:00Z'));
     expect(Date.parse(ev.data!.ends_at as string) - Date.parse(ev.data!.starts_at as string)).toBe(180 * 60_000);

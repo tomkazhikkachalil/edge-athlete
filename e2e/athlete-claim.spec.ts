@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { createQaOrg } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
@@ -27,14 +28,14 @@ async function seedStub(admin: ReturnType<typeof adminClient>, leagueId: string,
   });
   expect(rpcError, rpcError?.message).toBeNull();
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: id, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-    { league_id: leagueId, profile_id: id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
+    { org_id: leagueId, profile_id: id, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
+    { org_id: leagueId, profile_id: id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
   ]);
   const rawToken = randomBytes(32).toString('base64url');
   await admin.from('athlete_claim_invites').insert({
     token_hash: createHash('sha256').update(rawToken).digest('hex'),
     profile_id: id,
-    league_id: leagueId,
+    org_id: leagueId,
     expires_at: new Date(Date.now() + 86_400_000).toISOString(),
   });
   return { id, rawToken };
@@ -49,12 +50,8 @@ test('athlete claim: adult accountless path + guardian path + single-use', async
   test.skip(!!probe.error, `athlete_claim_invites missing — run migration 150 (${probe.error?.message})`);
 
   const stamp = Date.now();
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Claim League ${stamp}`, sport_key: 'ice_hockey' })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Claim League ${stamp}`, sport_key: 'ice_hockey' });
+  const leagueId = league.id;
 
   const stubIds: string[] = [];
   try {

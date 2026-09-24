@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
 
 // The phase-5 exit condition, in one spec: "a season runs end to end from
@@ -23,28 +24,23 @@ test('phase 5 exit: registration → placement → competition → standings →
 
   const stamp = Date.now();
   const name = `QA Exit League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
+      .insert({ org_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
       .select()
       .single();
     const seasonId = season!.id as string;
     const { data: division } = await admin
       .from('divisions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: seasonId,
         sport_key: 'ice_hockey',
         name: `U18 A ${stamp}`,
@@ -54,12 +50,12 @@ test('phase 5 exit: registration → placement → competition → standings →
       .single();
     const { data: teamA } = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+      .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
       .select()
       .single();
     const { data: teamB } = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Comets ${stamp}` })
+      .insert({ org_id: leagueId, name: `Comets ${stamp}` })
       .select()
       .single();
 
@@ -89,7 +85,7 @@ test('phase 5 exit: registration → placement → competition → standings →
       const { data: comp } = await admin
         .from('competitions')
         .insert({
-          league_id: leagueId,
+          org_id: leagueId,
           season_id: seasonId,
           sport_key: 'ice_hockey',
           name: `House League ${stamp}`,

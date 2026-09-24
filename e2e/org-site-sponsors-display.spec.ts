@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';
@@ -15,14 +16,9 @@ test('org site sponsors: the panel edits the list with tiers and order, saves it
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Sponsors League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Sponsors League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);

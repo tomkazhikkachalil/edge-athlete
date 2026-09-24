@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -28,13 +29,8 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
 
   const stamp = Date.now();
   const name = `QA Consent League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   let childId: string | null = null;
 
   try {
@@ -43,12 +39,12 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
     // union and NULLs it on the roster row (NOT NULL violation → the whole
     // batch silently dies) — the homogeneous-keys trap, fifth sighting.
     const { error: followsError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-      { league_id: leagueId, profile_id: athlete.id, role: 'member' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: athlete.id, role: 'member' },
     ]);
     expect(followsError, followsError?.message).toBeNull();
     const { error: offerError } = await admin.from('memberships').insert({
-      league_id: leagueId,
+      org_id: leagueId,
       profile_id: athlete.id,
       kind: 'roster',
       status: 'pending',
@@ -69,7 +65,7 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
       let { data: row } = await admin
         .from('memberships')
         .select('photo_consent, photo_consent_by')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster')
         .single();
@@ -83,7 +79,7 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
       ({ data: row } = await admin
         .from('memberships')
         .select('photo_consent, photo_consent_by')
-        .eq('league_id', leagueId)
+        .eq('org_id', leagueId)
         .eq('profile_id', athlete.id)
         .eq('kind', 'roster')
         .single());
@@ -123,7 +119,7 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
         });
         // Active roster row, consent never asked.
         await admin.from('memberships').insert({
-          league_id: leagueId,
+          org_id: leagueId,
           profile_id: childId,
           kind: 'roster',
           status: 'active',
@@ -148,7 +144,7 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
         const { data: childRow } = await admin
           .from('memberships')
           .select('photo_consent, photo_consent_by')
-          .eq('league_id', leagueId)
+          .eq('org_id', leagueId)
           .eq('profile_id', childId)
           .eq('kind', 'roster')
           .single();

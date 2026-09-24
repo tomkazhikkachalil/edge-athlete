@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The leaderboard format (phase 2, round 5 — the adapter-seam proof): a
@@ -20,25 +21,21 @@ test('leaderboard: club championship — rounds, totals ascending, public board;
 
   const stamp = Date.now();
   const name = `QA Golf Club ${stamp}`;
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name, owner_profile_id: owner.id });
+  const clubId = club.id;
   // Roster rows are what make athletes enterable (§8 invariant 3): the
   // owner and athlete A both hold ACTIVE roster rows; a follow-only
   // member must never appear in the picker or pass the API.
   // ONE homogeneous key set across all rows (the PGRST102 rule).
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { club_id: clubId, profile_id: athleteA.id, role: 'member', kind: 'follow' },
-    { club_id: clubId, profile_id: athleteA.id, role: 'member', kind: 'roster' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: clubId, profile_id: athleteA.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: athleteA.id, role: 'member', kind: 'roster' },
   ]);
   const { data: season } = await admin
     .from('seasons')
-    .insert({ club_id: clubId, label: '2026' })
+    .insert({ org_id: clubId, label: '2026' })
     .select()
     .single();
 
@@ -89,7 +86,7 @@ test('leaderboard: club championship — rounds, totals ascending, public board;
     const { data: comp } = await admin
       .from('competitions')
       .select('id, format, entrant_type')
-      .eq('club_id', clubId)
+      .eq('org_id', clubId)
       .single();
     expect(comp).toMatchObject({ format: 'leaderboard', entrant_type: 'athlete' });
     const competitionId = comp!.id as string;

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V3 — the join door. A club's public site carries "Join {club}"
@@ -25,21 +26,13 @@ test('join door: site CTA → account-first → sign in returns → request to j
   const probe = await admin.from('clubs').select('join_policy').limit(1);
   test.skip(!!probe.error, `membership columns missing — run migration 176 (${probe.error?.message})`);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Door Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf', join_policy: 'approval', city: 'Kanata', region: 'ON' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
-  const { data: openClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Open Door ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const openClubId = openClub!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Door Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval', city: 'Kanata', region: 'ON' });
+  const clubId = club.id;
+  const openClub = await createQaOrg(admin, 'club', { name: `QA Open Door ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const openClubId = openClub.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: openClubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: openClubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');

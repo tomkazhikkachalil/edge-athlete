@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -28,26 +29,22 @@ test('golf leaders: low gross 9/18, low net, most rounds, best week from results
   await resetRateBucket(admin, 'org-site', owner.id);
 
   const stamp = Date.now();
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Leaders League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Leaders League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id });
+  const leagueId = league.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(owner.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-leaders-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    ...(childId ? [{ league_id: leagueId, profile_id: childId, role: 'member', kind: 'follow' }] : []),
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    ...(childId ? [{ org_id: leagueId, profile_id: childId, role: 'member', kind: 'follow' }] : []),
   ]);
-  const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: `2026 ${stamp}` }).select().single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select().single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Net League ${stamp}`,
@@ -157,7 +154,7 @@ test('golf leaders: low gross 9/18, low net, most rounds, best week from results
   } finally {
     await ownerApi.dispose();
     await anonCtx.close();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     if (childId) await deleteQaUser(childId);
   }

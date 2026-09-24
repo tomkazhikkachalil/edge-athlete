@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -20,12 +21,11 @@ test('ad-hoc sides: named entries from the console, a game between them, the nam
   test.skip(!!probe.error, 'competition_entries.name missing — run migration 219');
   const api = await apiAs('state.json'); // the owner's (A's) API session — the same person the page runs as
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA AdHoc League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA AdHoc League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
     const base = `/api/leagues/${leagueId}/competitions`;
     const created = await api.post(base, { data: { side: 'league', orgId: leagueId, seasonId: season!.id, sportKey: 'ice_hockey', name: 'Pickup Night', format: 'fixture', entrantType: 'ad_hoc_team', visibility: 'public' } });
     expect(created.ok(), await readErrorBody(created)).toBe(true);

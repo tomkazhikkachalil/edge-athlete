@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { createQaOrg } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
@@ -20,14 +21,9 @@ test('org site display (content widgets): hero, text, image, form and contact ax
   await resetRateBucket(admin, 'org-site', owner.id);
   const ownerApi = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Display Content ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Display Content ${stamp}`, sport_key: 'soccer', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
 
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);

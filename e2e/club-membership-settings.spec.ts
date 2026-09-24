@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Phase 9 V1 — the membership settings (migration 176). A club is public +
@@ -23,16 +24,12 @@ test('membership settings: defaults public/open → PATCH flips → GET reflects
   const probe = await admin.from('clubs').select('visibility, join_policy').limit(1);
   test.skip(!!probe.error, `membership columns missing — run migration 176 (${probe.error?.message})`);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Membership Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id, visibility, join_policy')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Membership Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   expect(club).toMatchObject({ visibility: 'public', join_policy: 'open' });
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');

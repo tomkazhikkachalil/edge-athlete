@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import path from 'node:path';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { closeWindow, openWindow } from './helpers/org-page';
@@ -18,16 +19,11 @@ test('@mobile org page glance grid: faces, deep link, sheet, no overflow', async
   const admin = adminClient();
   const stamp = Date.now();
   const name = `QA Glance Club ${stamp}`;
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name, description: 'Glance probe club', owner_profile_id: userA.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name, description: 'Glance probe club', owner_profile_id: userA.id });
+  const clubId = club.id;
   const { error: me } = await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: userA.id, role: 'owner' },
-    { club_id: clubId, profile_id: userB.id, role: 'member' },
+    { org_id: clubId, profile_id: userA.id, role: 'owner' },
+    { org_id: clubId, profile_id: userB.id, role: 'member' },
   ]);
   expect(me, me?.message).toBeNull();
 
@@ -94,14 +90,9 @@ test('org page glance grid at desktop width: four columns, a small face takes on
   const admin = adminClient();
   const stamp = Date.now();
   const name = `QA Glance Wide ${stamp}`;
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name, description: 'Glance probe club', owner_profile_id: userA.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
-  const { error: me } = await admin.from('memberships').insert([{ club_id: clubId, profile_id: userA.id, role: 'owner' }]);
+  const club = await createQaOrg(admin, 'club', { name, description: 'Glance probe club', owner_profile_id: userA.id });
+  const clubId = club.id;
+  const { error: me } = await admin.from('memberships').insert([{ org_id: clubId, profile_id: userA.id, role: 'owner' }]);
   expect(me, me?.message).toBeNull();
   try {
     await page.goto(`/club/${clubId}`);

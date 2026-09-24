@@ -1,4 +1,5 @@
 import { test, expect, request } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L2 — a PRIVATE league on the public site (the twin of
@@ -31,22 +32,18 @@ test('private league: panels on the site, empty public standings, members read /
   const probe = await admin.from('leagues').select('visibility').limit(1);
   test.skip(!!probe.error, `membership columns missing — run migration 177 (${probe.error?.message})`);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Private League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', visibility: 'private', join_policy: 'approval' })
-    .select('id')
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Private League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', visibility: 'private', join_policy: 'approval' });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: `2026 ${stamp}` }).select('id').single();
-  const { data: venue } = await admin.from('venues').insert({ league_id: leagueId, name: `QA Private Links ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: venue } = await admin.from('venues').insert({ org_id: leagueId, name: `QA Private Links ${stamp}` }).select('id').single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Private Ladder ${stamp}`,

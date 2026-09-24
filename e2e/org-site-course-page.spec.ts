@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -28,13 +29,9 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
   test.skip(!!probe.error, `golf_courses.hole_geometry missing — run migration 102 (${probe.error?.message})`);
 
   const stamp = Date.now();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Course Page Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
-  await admin.from('memberships').insert({ club_id: clubId, profile_id: owner.id, role: 'owner' });
+  const club = await createQaOrg(admin, 'club', { name: `QA Course Page Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
+  await admin.from('memberships').insert({ org_id: clubId, profile_id: owner.id, role: 'owner' });
 
   const holes = Array.from({ length: 9 }, (_, i) => ({
     number: i + 1,
@@ -88,7 +85,7 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
     .select('id')
     .single();
   const unlinkedId = unlinked!.id as string;
-  await admin.from('venues').insert({ club_id: clubId, name: `QA Venue ${stamp}`, golf_course_id: courseId });
+  await admin.from('venues').insert({ org_id: clubId, name: `QA Venue ${stamp}`, golf_course_id: courseId });
 
   const ownerApi = await apiAs('state-b.json');
   const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
@@ -188,9 +185,9 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
   } finally {
     await ownerApi.dispose();
     await anonCtx.close();
-    await admin.from('org_sites').delete().eq('club_id', clubId);
-    await admin.from('venues').delete().eq('club_id', clubId);
-    await admin.from('memberships').delete().eq('club_id', clubId);
+    await admin.from('org_sites').delete().eq('org_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
+    await admin.from('memberships').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     await admin.from('golf_courses').delete().in('id', [courseId, unlinkedId]);
   }

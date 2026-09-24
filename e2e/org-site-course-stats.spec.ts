@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -31,20 +32,16 @@ test('course stats: two-key rule (public post + public profile), masked record, 
   const alpha = await createQaUser({ firstName: 'Priv', lastName: 'Ate', displayName: 'Priv Ate' }); // stays PRIVATE
 
   const stamp = Date.now();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Stats Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Stats Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(owner.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-stats-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member' },
-    ...(childId ? [{ club_id: clubId, profile_id: childId, role: 'member' }] : []),
+    { org_id: clubId, profile_id: owner.id, role: 'owner' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member' },
+    ...(childId ? [{ org_id: clubId, profile_id: childId, role: 'member' }] : []),
   ]);
   const { data: prevVis } = await admin.from('profiles').select('visibility').eq('id', owner.id).single();
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', owner.id);
@@ -66,7 +63,7 @@ test('course stats: two-key rule (public post + public profile), masked record, 
     .select('id')
     .single();
   const courseId = course!.id as string;
-  await admin.from('venues').insert({ club_id: clubId, name: `QA Stats Venue ${stamp}`, golf_course_id: courseId });
+  await admin.from('venues').insert({ org_id: clubId, name: `QA Stats Venue ${stamp}`, golf_course_id: courseId });
 
   const today = new Date().toISOString().slice(0, 10);
   const roundIds: string[] = [];
@@ -174,9 +171,9 @@ test('course stats: two-key rule (public post + public profile), masked record, 
     await admin.from('golf_holes').delete().in('round_id', roundIds);
     await admin.from('golf_rounds').delete().in('id', roundIds);
     await admin.from('profiles').update({ visibility: prevVis?.visibility ?? 'private' }).eq('id', owner.id);
-    await admin.from('org_sites').delete().eq('club_id', clubId);
-    await admin.from('venues').delete().eq('club_id', clubId);
-    await admin.from('memberships').delete().eq('club_id', clubId);
+    await admin.from('org_sites').delete().eq('org_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
+    await admin.from('memberships').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await deleteQaUser(alpha.id);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { publishSite } from './helpers/org-site';
 import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/lib/org-sites/validate';
@@ -34,33 +35,24 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
   const probe = await admin.from('clubs').select('primary_sport').limit(1);
   test.skip(!!probe.error, `clubs.primary_sport missing — run migration 174 (${probe.error?.message})`);
 
-  const { data: golfClub, error: golfErr } = await admin
-    .from('clubs')
-    .insert({
+  const golfClub = await createQaOrg(admin, 'club', {
       name: `QA Golf Order Club ${stamp}`,
       owner_profile_id: owner.id,
-      primary_sport: 'golf',
+      sport_key: 'golf',
       approved_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-  expect(golfErr, 'golf club seeded').toBeNull();
-  const { data: plainClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Classic Order Club ${stamp}`, owner_profile_id: owner.id, approved_at: new Date().toISOString() })
-    .select('id')
-    .single();
-  const golfId = golfClub!.id as string;
-  const plainId = plainClub!.id as string;
+    });
+  const plainClub = await createQaOrg(admin, 'club', { name: `QA Classic Order Club ${stamp}`, owner_profile_id: owner.id, approved_at: new Date().toISOString() });
+  const golfId = golfClub.id;
+  const plainId = plainClub.id;
   // The site route gates on the org membership, not the owner column.
   await admin.from('memberships').insert([
-    { club_id: golfId, profile_id: owner.id, role: 'owner' },
-    { club_id: plainId, profile_id: owner.id, role: 'owner' },
+    { org_id: golfId, profile_id: owner.id, role: 'owner' },
+    { org_id: plainId, profile_id: owner.id, role: 'owner' },
   ]);
   await resetRateBucket(admin, 'org-site', owner.id);
 
   const moduleOrder = async (clubId: string) => {
-    const { data: site } = await admin.from('org_sites').select('id, subdomain, hero_config').eq('club_id', clubId).single();
+    const { data: site } = await admin.from('org_sites').select('id, subdomain, hero_config').eq('org_id', clubId).single();
     const { data: mods } = await admin
       .from('org_site_modules')
       .select('module_key, sort_order')
@@ -106,8 +98,10 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
       .toBe(200);
     // P3-C: empty sections never render publicly, so the golf ORDER is read
     // off the nav strip (enabled subpage modules in sort_order), after Home.
+    // Since program 2 B (Sep 11 2026, `navEntries`) a golf org's "This week"
+    // hub rides DIRECTLY after the standings link — it is part of the order.
     const links = navTexts(html);
-    expect(links.slice(1, 4), 'the golf order in the nav').toEqual(['Season standings', 'Leaders', 'Rounds &amp; events']);
+    expect(links.slice(1, 5), 'the golf order in the nav').toEqual(['Season standings', 'This week', 'Leaders', 'Rounds &amp; events']);
     expect(html).toContain(GOLF_TAGLINE.replace(/'/g, '&#x27;'));
     const leaders = await request.get(`/org/${slug}/leaders`);
     expect(leaders.status()).toBe(200);
@@ -129,7 +123,7 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
     expect((plain.site.hero_config as { tagline?: string } | null)?.tagline ?? '').toBe('');
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().in('club_id', [golfId, plainId]);
+    await admin.from('org_sites').delete().in('org_id', [golfId, plainId]);
     await admin.from('clubs').delete().in('id', [golfId, plainId]);
   }
 });

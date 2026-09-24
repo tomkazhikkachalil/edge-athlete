@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L3 — the public league directory (the twin of club-directory).
@@ -23,13 +24,9 @@ test('league directory: published public + private leagues by region, unpublishe
   await resetRateBucket(admin, 'org-site', owner.id);
 
   const mk = async (name: string, extra: Record<string, unknown>) => {
-    const { data } = await admin
-      .from('leagues')
-      .insert({ name, owner_profile_id: owner.id, sport_key: 'golf', city: 'Kanata', region: 'Ontario', country: 'Canada', ...extra })
-      .select('id')
-      .single();
-    const id = data!.id as string;
-    await admin.from('memberships').insert({ league_id: id, profile_id: owner.id, role: 'owner', kind: 'follow' });
+    const data = await createQaOrg(admin, 'league', { name, owner_profile_id: owner.id, sport_key: 'golf', city: 'Kanata', region: 'Ontario', country: 'Canada', ...extra });
+    const id = data.id;
+    await admin.from('memberships').insert({ org_id: id, profile_id: owner.id, role: 'owner', kind: 'follow' });
     return id;
   };
   const openId = await mk(`QA LDir Open ${stamp}`, {});

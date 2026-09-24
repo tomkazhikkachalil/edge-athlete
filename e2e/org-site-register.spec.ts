@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 /** Document-content settle (the org-site suite's multi-POP lesson, third
@@ -38,21 +39,16 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
 
   const stamp = Date.now();
   const name = `QA RegCard League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
+      .insert({ org_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
       .select()
       .single();
 

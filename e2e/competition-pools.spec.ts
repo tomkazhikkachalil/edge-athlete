@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { pollUntil } from './helpers/isr';
 
@@ -19,15 +20,14 @@ test('pools: the letter on the pills → two pooled games → one table per pool
   const admin = adminClient();
   const api = await apiAs('state.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Pools League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Pools League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
-    const { data: teams } = await admin.from('teams').insert(['Ash', 'Birch', 'Cedar', 'Dell'].map(n => ({ league_id: leagueId, name: `${n} ${stamp}` }))).select('id, name');
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
+    const { data: teams } = await admin.from('teams').insert(['Ash', 'Birch', 'Cedar', 'Dell'].map(n => ({ org_id: leagueId, name: `${n} ${stamp}` }))).select('id, name');
     const teamId = (prefix: string) => teams!.find(t => (t.name as string).startsWith(prefix))!.id as string;
-    const { data: comp } = await admin.from('competitions').insert({ league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Pool Play', format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
+    const { data: comp } = await admin.from('competitions').insert({ org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Pool Play', format: 'fixture', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
     const competitionId = comp!.id as string;
     const { data: entries } = await admin.from('competition_entries').insert(['Ash', 'Birch', 'Cedar', 'Dell'].map(p => ({ competition_id: competitionId, team_id: teamId(p), status: 'approved' }))).select('id, team_id');
     const entryOf = (prefix: string) => entries!.find(e => e.team_id === teamId(prefix))!.id as string;
@@ -93,7 +93,7 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     await expect(page.locator('[data-standings-pool="B"]')).toContainText(`Cedar ${stamp}`);
 
     // PR 2: seed a bracket from the pools' tables — A1, B1 onto the target; a second pass re-writes the same seeds.
-    const { data: bracket } = await admin.from('competitions').insert({ league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Playoffs', format: 'bracket', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
+    const { data: bracket } = await admin.from('competitions').insert({ org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Playoffs', format: 'bracket', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
     const bracketId = bracket!.id as string;
     await page.goto(`/app/org/league/${leagueId}/competitions/${competitionId}`);
     await expect(page.locator('[data-pools-target]')).toBeVisible({ timeout: 20_000 });

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 /**
@@ -18,15 +19,14 @@ test('bracket surfaces: seeds → preview → generate → a tied match decided 
   const probe = await admin.from('contests').select('stage').limit(1);
   test.skip(!!probe.error, 'contests.stage missing — run migration 218');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Bracket Page ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Bracket Page ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' });
+  const leagueId = league.id;
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
-    const { data: teams } = await admin.from('teams').insert(Array.from({ length: 4 }, (_, i) => ({ league_id: leagueId, name: `Seed ${i + 1} ${stamp}` }))).select('id, name');
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
+    const { data: teams } = await admin.from('teams').insert(Array.from({ length: 4 }, (_, i) => ({ org_id: leagueId, name: `Seed ${i + 1} ${stamp}` }))).select('id, name');
     const sorted = (teams ?? []).sort((a, b) => a.name.localeCompare(b.name));
-    const { data: comp } = await admin.from('competitions').insert({ league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Playoffs', format: 'bracket', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
+    const { data: comp } = await admin.from('competitions').insert({ org_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Playoffs', format: 'bracket', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
     const competitionId = comp!.id as string;
     await admin.from('competition_entries').insert(sorted.map(t => ({ competition_id: competitionId, team_id: t.id })));
 

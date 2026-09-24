@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -18,16 +19,11 @@ test('org owners: promote co-owner, step down, last-owner blocked', async ({ pag
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const name = `QA Owners League ${Date.now()}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
   const { error: memberError } = await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner', joined_at: '2026-01-01T00:00:00Z' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member', joined_at: '2026-02-01T00:00:00Z' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner', joined_at: '2026-01-01T00:00:00Z' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member', joined_at: '2026-02-01T00:00:00Z' },
   ]);
   expect(memberError, memberError?.message).toBeNull();
 
@@ -55,7 +51,7 @@ test('org owners: promote co-owner, step down, last-owner blocked', async ({ pag
     const { data: ownerRows } = await admin
       .from('memberships')
       .select('profile_id')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .eq('role', 'owner');
     expect((ownerRows ?? []).map(r => r.profile_id).sort()).toEqual([userA.id, userB.id].sort());
     expect(await cachedOwner()).toBe(userB.id);
@@ -96,7 +92,7 @@ test('org owners: promote co-owner, step down, last-owner blocked', async ({ pag
     const { data: afterRows } = await admin
       .from('memberships')
       .select('profile_id, role')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .eq('profile_id', userA.id)
       .eq('kind', 'follow');
     expect(afterRows).toHaveLength(1);

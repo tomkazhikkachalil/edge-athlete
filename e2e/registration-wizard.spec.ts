@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // The family wizard (phase 5 R3): a guardian registers a supervised child
@@ -27,28 +28,23 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
 
   const stamp = Date.now();
   const name = `QA Wizard League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   let childId: string | null = null;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
+      .insert({ org_id: leagueId, label: '2026-27', starts_on: '2026-09-01' })
       .select()
       .single();
     const { data: division } = await admin
       .from('divisions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season!.id,
         sport_key: 'ice_hockey',
         name: `U13 A ${stamp}`,
@@ -124,7 +120,7 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
     const { data: rosterRow } = await admin
       .from('memberships')
       .select('status, season_id, photo_consent, photo_consent_by')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .eq('profile_id', childId)
       .eq('kind', 'roster')
       .eq('scope_type', 'org')
@@ -138,7 +134,7 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
     const { data: regRow } = await admin
       .from('registrations')
       .select('division_id, submitted_by, answers')
-      .eq('league_id', leagueId)
+      .eq('org_id', leagueId)
       .eq('profile_id', childId)
       .single();
     expect(regRow).toMatchObject({ division_id: division!.id, submitted_by: guardian.id });

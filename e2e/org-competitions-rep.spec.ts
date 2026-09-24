@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Cross-org rep entries (phase 2, round 4): a league owner enters an
@@ -19,27 +20,15 @@ test('rep entries: affiliated pending → approve + bells; unaffiliated 400; 375
 
   const stamp = Date.now();
   const name = `QA Rep League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: leagueOwner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Rep Club ${stamp}`, owner_profile_id: clubOwner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
-  const { data: strangerClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Stranger Club ${stamp}` })
-    .select()
-    .single();
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: leagueOwner.id });
+  const leagueId = league.id;
+  const club = await createQaOrg(admin, 'club', { name: `QA Rep Club ${stamp}`, owner_profile_id: clubOwner.id });
+  const clubId = club.id;
+  const strangerClub = await createQaOrg(admin, 'club', { name: `QA Stranger Club ${stamp}` });
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: leagueOwner.id, role: 'owner' },
-    { league_id: leagueId, profile_id: clubOwner.id, role: 'manager' },
-    { club_id: clubId, profile_id: clubOwner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: leagueOwner.id, role: 'owner' },
+    { org_id: leagueId, profile_id: clubOwner.id, role: 'manager' },
+    { org_id: clubId, profile_id: clubOwner.id, role: 'owner' },
   ]);
   await admin.from('league_clubs').insert({
     league_id: leagueId,
@@ -50,23 +39,23 @@ test('rep entries: affiliated pending → approve + bells; unaffiliated 400; 375
   });
   const { data: season } = await admin
     .from('seasons')
-    .insert({ league_id: leagueId, label: '2026-27' })
+    .insert({ org_id: leagueId, label: '2026-27' })
     .select()
     .single();
   const { data: repTeam } = await admin
     .from('teams')
-    .insert({ club_id: clubId, name: `Rep Blazers ${stamp}` })
+    .insert({ org_id: clubId, name: `Rep Blazers ${stamp}` })
     .select()
     .single();
   const { data: strangerTeam } = await admin
     .from('teams')
-    .insert({ club_id: strangerClub!.id, name: `Strangers ${stamp}` })
+    .insert({ org_id: strangerClub.id, name: `Strangers ${stamp}` })
     .select()
     .single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'ice_hockey',
       name: 'Rep Season',
@@ -146,6 +135,6 @@ test('rep entries: affiliated pending → approve + bells; unaffiliated 400; 375
     await admin.from('notifications').delete().contains('metadata', { competition_id: competitionId });
     await admin.from('leagues').delete().eq('id', leagueId);
     await admin.from('clubs').delete().eq('id', clubId);
-    await admin.from('clubs').delete().eq('id', strangerClub!.id);
+    await admin.from('clubs').delete().eq('id', strangerClub.id);
   }
 });

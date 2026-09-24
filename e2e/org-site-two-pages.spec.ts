@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
@@ -24,28 +25,24 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
   const stamp = Date.now();
   const clubName = `QA Two Pages Club ${stamp}`;
   const leagueName = `QA Two Pages League ${stamp}`;
-  const { data: club } = await admin.from('clubs').insert({ name: clubName, owner_profile_id: owner.id }).select().single();
-  const clubId = club!.id as string;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'golf', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: clubName, owner_profile_id: owner.id });
+  const clubId = club.id;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'golf', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, league_id: null, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: null, league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: null, league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { club_id: null, league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
   // The league is affiliated with (plays at) the club.
   await admin.from('league_clubs').insert({ league_id: leagueId, club_id: clubId, status: 'active', initiated_by: 'league' });
   // A public golf leaderboard on the league with a materialized board.
-  const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: `2026 ${stamp}` }).select().single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select().single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Thursday Nine ${stamp}`,
@@ -174,7 +171,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
   } finally {
     await ownerApi.dispose();
     await admin.from('org_sites').delete().in('id', [sites.club?.id, sites.league?.id].filter(Boolean) as string[]);
-    await admin.from('competitions').delete().eq('league_id', leagueId);
+    await admin.from('competitions').delete().eq('org_id', leagueId);
     await admin.from('league_clubs').delete().eq('league_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     await admin.from('clubs').delete().eq('id', clubId);

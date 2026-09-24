@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openManageMenu, openWindow } from './helpers/org-page';
 
@@ -23,15 +24,11 @@ test('org venues: member 403 → owner create → link course → org page shows
   test.skip(!!probe.error, `venues.golf_course_id missing — run migration 169 (${probe.error?.message})`);
 
   const stamp = Date.now();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Golf Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Golf Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner' },
-    { club_id: clubId, profile_id: member.id, role: 'member' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner' },
+    { org_id: clubId, profile_id: member.id, role: 'member' },
   ]);
 
   // A QA catalog course: a single-course facility (no golf_clubs row — the
@@ -179,9 +176,9 @@ test('org venues: member 403 → owner create → link course → org page shows
   } finally {
     await memberApi.dispose();
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('club_id', clubId);
-    await admin.from('venues').delete().eq('club_id', clubId);
-    await admin.from('memberships').delete().eq('club_id', clubId);
+    await admin.from('org_sites').delete().eq('org_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
+    await admin.from('memberships').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }

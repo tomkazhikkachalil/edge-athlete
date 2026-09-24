@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Custom domains, part 1 (phase 6b C1): the claim/verify/remove lifecycle
@@ -21,21 +22,13 @@ test('org site domain: publish gate → claim (normalized, token, DNS table) →
 
   const stamp = Date.now();
   const name = `QA Domain League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, role: 'owner' });
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, role: 'owner' });
   // A second org + site for the duplicate-claim check.
-  const { data: other } = await admin
-    .from('leagues')
-    .insert({ name: `QA Domain Other ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const otherId = other!.id as string;
-  await admin.from('memberships').insert({ league_id: otherId, profile_id: owner.id, role: 'owner' });
+  const other = await createQaOrg(admin, 'league', { name: `QA Domain Other ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const otherId = other.id;
+  await admin.from('memberships').insert({ org_id: otherId, profile_id: owner.id, role: 'owner' });
 
   const ownerApi = await apiAs('state-b.json');
   const host = `qa-${stamp}.example.test`;
@@ -134,8 +127,8 @@ test('org site domain: publish gate → claim (normalized, token, DNS table) →
     expect(cleared!.domain_verification_token).toBeNull();
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().in('league_id', [leagueId, otherId]);
-    await admin.from('memberships').delete().in('league_id', [leagueId, otherId]);
+    await admin.from('org_sites').delete().in('org_id', [leagueId, otherId]);
+    await admin.from('memberships').delete().in('org_id', [leagueId, otherId]);
     await admin.from('leagues').delete().in('id', [leagueId, otherId]);
   }
 });

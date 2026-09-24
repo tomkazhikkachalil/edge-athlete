@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -20,15 +21,11 @@ test('org posts wall: public media post → tile → detail; text-only + private
   const priorVisibility = alphaProfile!.visibility as string;
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Posts Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Posts Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const alphaApi = await apiAs('state.json');
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });

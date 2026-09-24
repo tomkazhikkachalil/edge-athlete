@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 
@@ -26,15 +27,11 @@ test('league member photos on the site: gallery tile + streamer; revoke → 404;
   const handle = `qalphotos${stamp}`;
   await admin.from('profiles').update({ visibility: 'public', handle }).eq('id', alpha.id);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Photos League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' })
-    .select('id')
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Photos League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');

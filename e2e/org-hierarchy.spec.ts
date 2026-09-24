@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Org staff program, round 5: the console's Hierarchy & people section.
@@ -21,26 +22,21 @@ test('hierarchy: tree + people + invite from a node + revoke; section staff see 
   const a = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const name = `QA Hierarchy League ${rand()}`;
-  const { data: league, error: leagueError } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id, approved_at: new Date().toISOString() })
-    .select('id')
-    .single();
-  expect(leagueError, 'league seeded').toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id, approved_at: new Date().toISOString() });
+  const leagueId = league.id;
   try {
-    await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', scope_type: 'org' });
-    const season = (await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select('id').single()).data!;
+    await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', scope_type: 'org' });
+    const season = (await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select('id').single()).data!;
     const division = (
-      await admin.from('divisions').insert({ league_id: leagueId, season_id: season.id, name: 'U13 Boys', sport_key: 'ice_hockey' }).select('id').single()
+      await admin.from('divisions').insert({ org_id: leagueId, season_id: season.id, name: 'U13 Boys', sport_key: 'ice_hockey' }).select('id').single()
     ).data!;
-    const team = (await admin.from('teams').insert({ league_id: leagueId, name: 'Rangers' }).select('id').single()).data!;
-    await admin.from('teams').insert({ league_id: leagueId, name: 'Free Agents' });
+    const team = (await admin.from('teams').insert({ org_id: leagueId, name: 'Rangers' }).select('id').single()).data!;
+    await admin.from('teams').insert({ org_id: leagueId, name: 'Free Agents' });
     await admin.from('team_entries').insert({ team_id: team.id, division_id: division.id });
     const staffRow = await admin
       .from('memberships')
       .insert({
-        league_id: leagueId, profile_id: a.id, kind: 'staff', role: 'staff', scope_type: 'division', scope_id: division.id,
+        org_id: leagueId, profile_id: a.id, kind: 'staff', role: 'staff', scope_type: 'division', scope_id: division.id,
         sections: ['teams'], granted_by: owner.id, granted_at: new Date().toISOString(),
       })
       .select('id')
@@ -88,7 +84,7 @@ test('hierarchy: tree + people + invite from a node + revoke; section staff see 
 
     // A (re-granted) sees the tree without Invite buttons.
     await admin.from('memberships').insert({
-      league_id: leagueId, profile_id: a.id, kind: 'staff', role: 'staff', scope_type: 'org',
+      org_id: leagueId, profile_id: a.id, kind: 'staff', role: 'staff', scope_type: 'org',
       sections: ['teams'], granted_by: owner.id, granted_at: new Date().toISOString(),
     });
     const aCtx = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
@@ -105,7 +101,7 @@ test('hierarchy: tree + people + invite from a node + revoke; section staff see 
       await aCtx.close();
     }
   } finally {
-    await admin.from('org_staff_audit').delete().eq('league_id', leagueId);
+    await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

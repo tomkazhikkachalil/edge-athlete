@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // team_update senders (fan-out round PR 3): scheduling an org event bells
@@ -11,23 +12,18 @@ test('org notify: member belled on schedule and cancel, organizer never', async 
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('events').select('league_id').limit(1);
-  test.skip(!!probe.error, `events.league_id missing — run migration 119 (${probe.error?.message})`);
+  const probe = await admin.from('events').select('org_id').limit(1);
+  test.skip(!!probe.error, `events.org_id missing — run migration 232 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const leagueName = `QA Notify League ${stamp}`;
   const eventTitle = `QA Notify Night ${stamp}`;
 
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: leagueName, sport_key: 'golf', owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: leagueName, sport_key: 'golf', owner_profile_id: userB.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member' },
+    { org_id: leagueId, profile_id: userB.id, role: 'owner' },
+    { org_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);
 
   const starts = new Date(Date.now() + 3 * 86_400_000);

@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import fs from 'node:fs';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -21,16 +22,11 @@ async function seedBrandedClub(ownerApi: APIRequestContext, stamp: number) {
   const admin = adminClient();
   const owner = loadQaUser('user.json');
   await resetRateBucket(admin, 'upload', owner.id);
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name: `QA Brand Club ${stamp}`, description: 'Brand probe club', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Brand Club ${stamp}`, description: 'Brand probe club', owner_profile_id: owner.id });
+  const clubId = club.id;
   const { error: me } = await admin
     .from('memberships')
-    .insert([{ club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
+    .insert([{ org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
   expect(me, me?.message).toBeNull();
 
   let res = await ownerApi.post(`/api/clubs/${clubId}/site`);

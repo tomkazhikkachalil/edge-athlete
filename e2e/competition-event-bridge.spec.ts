@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cleanupEvent, goLive, openEventSession, readView, roundTransition } from './helpers/sport-events';
 
@@ -27,17 +28,16 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
   const userC = s.userC!;
   const userD = s.userD!;
   const stamp = s.stamp;
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Bridge League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: s.userA.id, visibility: 'public' }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Bridge League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: s.userA.id, visibility: 'public' });
+  const leagueId = league.id;
   let eventId1: string | null = null;
   let eventId2: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
-      ...[s.userB.id, userC.id, userD.id].map(profile_id => ({ league_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
+      { org_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
+      ...[s.userB.id, userC.id, userD.id].map(profile_id => ({ org_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
     ]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
     const base = `/api/leagues/${leagueId}/competitions`;
     const created = await s.apiA.post(base, { data: { side: 'league', orgId: leagueId, seasonId: season!.id, sportKey: 'ice_hockey', name: 'Pickup League', format: 'fixture', entrantType: 'ad_hoc_team', visibility: 'public' } });
     expect(created.ok(), await readErrorBody(created)).toBe(true);

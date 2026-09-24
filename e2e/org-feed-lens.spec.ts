@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Feed org lens (fan-out round PR 2): ?scope=orgs shows org peers' posts
@@ -13,7 +14,7 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('memberships').select('club_id').limit(1);
+  const probe = await admin.from('memberships').select('org_id').limit(1);
   test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
@@ -21,16 +22,11 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
   const publicCaption = `Lens public probe ${stamp}`;
   const privateCaption = `Lens private probe ${stamp}`;
 
-  const { data: club, error } = await admin
-    .from('clubs')
-    .insert({ name: clubName, owner_profile_id: userB.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: clubName, owner_profile_id: userB.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: userB.id, role: 'owner' },
-    { club_id: clubId, profile_id: userA.id, role: 'member' },
+    { org_id: clubId, profile_id: userB.id, role: 'owner' },
+    { org_id: clubId, profile_id: userA.id, role: 'member' },
   ]);
 
   // B goes public and posts publicly (the visible one); B also posts to a
@@ -73,7 +69,7 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
 
     // A viewer with no orgs gets the noOrgs marker: user B leaves no orgs
     // to check against, so probe by removing A's membership.
-    await admin.from('memberships').delete().eq('club_id', clubId).eq('profile_id', userA.id);
+    await admin.from('memberships').delete().eq('org_id', clubId).eq('profile_id', userA.id);
     const apiA2 = await apiAs('state.json');
     try {
       const res3 = await apiA2.get('/api/posts?limit=10&scope=orgs');

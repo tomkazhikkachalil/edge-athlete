@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -22,13 +23,9 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
   await resetRateBucket(admin, 'org-site', owner.id);
   await resetRateBucket(admin, 'upload', owner.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Hole Photos Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
-  await admin.from('memberships').insert([{ club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
+  const club = await createQaOrg(admin, 'club', { name: `QA Hole Photos Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
+  await admin.from('memberships').insert([{ org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
   const holes = Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: i % 3 === 0 ? 5 : 4, yardage: { white: 380 - i * 10 }, handicap: i + 1 }));
   const { data: course } = await admin
     .from('golf_courses')
@@ -47,7 +44,7 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
     .select('id')
     .single();
   const courseId = course!.id as string;
-  await admin.from('venues').insert({ club_id: clubId, name: `QA Hole Venue ${stamp}`, golf_course_id: courseId });
+  await admin.from('venues').insert({ org_id: clubId, name: `QA Hole Venue ${stamp}`, golf_course_id: courseId });
 
   const ownerApi = await apiAs('state-b.json');
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });

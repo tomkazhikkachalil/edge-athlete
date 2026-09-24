@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contest stat lines (phase 4, round 1): per-athlete stats on a fixture
@@ -24,38 +25,29 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
 
   const stamp = Date.now();
   const name = `QA StatLine League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA StatLine Club ${stamp}`, owner_profile_id: clubManager.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  const club = await createQaOrg(admin, 'club', { name: `QA StatLine Club ${stamp}`, owner_profile_id: clubManager.id });
+  const clubId = club.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
-      { club_id: clubId, profile_id: clubManager.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: clubId, profile_id: clubManager.id, role: 'owner' },
     ]);
     const { data: season } = await admin
       .from('seasons')
-      .insert({ league_id: leagueId, label: '2026-27' })
+      .insert({ org_id: leagueId, label: '2026-27' })
       .select()
       .single();
     const { data: homeTeam } = await admin
       .from('teams')
-      .insert({ league_id: leagueId, name: `Blazers ${stamp}` })
+      .insert({ org_id: leagueId, name: `Blazers ${stamp}` })
       .select()
       .single();
     const { data: awayTeam } = await admin
       .from('teams')
-      .insert({ club_id: clubId, name: `Comets ${stamp}` })
+      .insert({ org_id: clubId, name: `Comets ${stamp}` })
       .select()
       .single();
     const homeTeamId = homeTeam!.id as string;
@@ -65,7 +57,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
     // manager for the club's team (kind='roster' — THE attribution edge).
     await admin.from('memberships').insert([
       {
-        league_id: leagueId,
+        org_id: leagueId,
         profile_id: owner.id,
         kind: 'roster',
         status: 'active',
@@ -73,7 +65,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
         scope_id: homeTeamId,
       },
       {
-        club_id: clubId,
+        org_id: clubId,
         profile_id: clubManager.id,
         kind: 'roster',
         status: 'active',
@@ -85,7 +77,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
     const { data: comp } = await admin
       .from('competitions')
       .insert({
-        league_id: leagueId,
+        org_id: leagueId,
         season_id: season!.id,
         sport_key: 'ice_hockey',
         name: `House League ${stamp}`,

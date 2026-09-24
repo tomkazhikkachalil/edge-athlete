@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P6 — the season wrap. Once every windowed week has closed, the
@@ -25,27 +26,23 @@ test('season wrap: closed weeks → summary on site + console; announce once (be
   await resetRateBucket(admin, 'org-announce', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Wrap Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Wrap Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(alpha.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-wrap-minor-${stamp}` });
   }
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    ...(childId ? [{ club_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    ...(childId ? [{ org_id: clubId, profile_id: childId, role: 'member', kind: 'roster' }] : []),
   ]);
-  const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2026 ${stamp}` }).select('id').single();
-  const { data: venue } = await admin.from('venues').insert({ club_id: clubId, name: `QA Wrap Links ${stamp}` }).select('id').single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2026 ${stamp}` }).select('id').single();
+  const { data: venue } = await admin.from('venues').insert({ org_id: clubId, name: `QA Wrap Links ${stamp}` }).select('id').single();
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Wrap League ${stamp}`,

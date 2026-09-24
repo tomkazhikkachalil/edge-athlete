@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -43,29 +44,25 @@ test('golf league weeks: the open window, who posted, per-round results on every
 
   const stamp = Date.now();
   const today = utcToday();
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Weeks Club ${stamp}`, owner_profile_id: owner.id })
-    .select()
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Weeks Club ${stamp}`, owner_profile_id: owner.id });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
   let childId: string | null = null;
   if (guardianFlagOn()) {
     childId = await createQaChild(owner.id, { firstName: 'Casey', lastName: 'Minor', handle: `qa-weeks-minor-${stamp}` });
     await admin.from('memberships').insert([
-      { club_id: clubId, profile_id: childId, role: 'member', kind: 'follow' },
-      { club_id: clubId, profile_id: childId, role: 'member', kind: 'roster' },
+      { org_id: clubId, profile_id: childId, role: 'member', kind: 'follow' },
+      { org_id: clubId, profile_id: childId, role: 'member', kind: 'roster' },
     ]);
   }
   const { data: season } = await admin
     .from('seasons')
-    .insert({ club_id: clubId, label: `2026 ${stamp}` })
+    .insert({ org_id: clubId, label: `2026 ${stamp}` })
     .select()
     .single();
   const { data: course } = await admin
@@ -86,7 +83,7 @@ test('golf league weeks: the open window, who posted, per-round results on every
   const courseId = course!.id as string;
   const { data: venue } = await admin
     .from('venues')
-    .insert({ club_id: clubId, name: `QA Weeks Venue ${stamp}`, golf_course_id: courseId })
+    .insert({ org_id: clubId, name: `QA Weeks Venue ${stamp}`, golf_course_id: courseId })
     .select('id')
     .single();
   const venueId = venue!.id as string;
@@ -95,7 +92,7 @@ test('golf league weeks: the open window, who posted, per-round results on every
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      club_id: clubId,
+      org_id: clubId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Weeks League ${stamp}`,
@@ -271,7 +268,7 @@ test('golf league weeks: the open window, who posted, per-round results on every
     await anonCtx.close();
     await admin.from('golf_holes').delete().in('round_id', roundIds);
     await admin.from('golf_rounds').delete().in('id', roundIds);
-    await admin.from('venues').delete().eq('club_id', clubId);
+    await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
     await admin.from('golf_courses').delete().eq('id', courseId);
     if (childId) await deleteQaUser(childId);

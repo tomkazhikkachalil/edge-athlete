@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Phase 7 C5 — the golf-first console. A golf club's console (clubs.primary_sport
@@ -19,26 +20,18 @@ test('golf club console: Website → Venues → Leagues & events first, golf che
   const probe = await admin.from('clubs').select('primary_sport').limit(1);
   test.skip(!!probe.error, `clubs.primary_sport missing — run migration 174 (${probe.error?.message})`);
 
-  const { data: golfClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Golf Console ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const { data: plainClub } = await admin
-    .from('clubs')
-    .insert({ name: `QA Classic Console ${stamp}`, owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  const golfId = golfClub!.id as string;
-  const plainId = plainClub!.id as string;
+  const golfClub = await createQaOrg(admin, 'club', { name: `QA Golf Console ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const plainClub = await createQaOrg(admin, 'club', { name: `QA Classic Console ${stamp}`, owner_profile_id: owner.id });
+  const golfId = golfClub.id;
+  const plainId = plainClub.id;
   // The create form needs a season to hang a competition off.
   await admin.from('seasons').insert([
-    { club_id: golfId, label: `2026 ${stamp}` },
-    { club_id: plainId, label: `2026 ${stamp}` },
+    { org_id: golfId, label: `2026 ${stamp}` },
+    { org_id: plainId, label: `2026 ${stamp}` },
   ]);
   await admin.from('memberships').insert([
-    { club_id: golfId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: plainId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: golfId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: plainId, profile_id: owner.id, role: 'owner', kind: 'follow' },
   ]);
 
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });

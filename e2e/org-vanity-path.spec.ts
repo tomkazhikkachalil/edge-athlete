@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The vanity root tree (phase 6 R1): edgeathlete/{slug} serves the same
@@ -20,17 +21,12 @@ test('vanity path: /{slug} serves the site; unknown slug gets the linked 404; re
 
   const stamp = Date.now();
   const name = `QA Vanity League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata' })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata' });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const ownerApi = await apiAs('state-b.json');
     let subdomain = '';
@@ -113,17 +109,12 @@ test('canonical flip: /org 301s to vanity; preview and card.png exempt', async (
 
   const stamp = Date.now();
   const name = `QA Canonical League ${stamp}`;
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata' })
-    .select()
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata' });
+  const leagueId = league.id;
 
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { org_id: leagueId, profile_id: owner.id, role: 'owner' },
     ]);
     const ownerApi = await apiAs('state-b.json');
     try {

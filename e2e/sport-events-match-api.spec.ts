@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, readView, scoreHoles, setGroups, startRound } from './helpers/sport-events';
 
@@ -78,14 +79,14 @@ test('sport events API: match play — the vocabulary, the config refusals, side
     expect(plain.groups[0].members.map(m => m.side ?? null)).toEqual([null, null]);
 
     // An org event on a match format never counts toward a competition.
-    const { data: club } = await admin.from('clubs').insert({ name: `QA Match Club ${s.stamp}`, owner_profile_id: s.userA.id }).select('id').single();
-    clubId = club!.id as string;
+    const club = await createQaOrg(admin, 'club', { name: `QA Match Club ${s.stamp}`, owner_profile_id: s.userA.id });
+    clubId = club.id;
     await admin.from('memberships').insert([
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
-      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
+      { org_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
     ]);
-    const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
-    const { data: league } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Match League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_net', status: 'active', visibility: 'public' }).select('id').single();
+    const { data: season } = await admin.from('seasons').insert({ org_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
+    const { data: league } = await admin.from('competitions').insert({ org_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Match League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_net', status: 'active', visibility: 'public' }).select('id').single();
     const orgMatch = await s.apiA.post('/api/sport-events', { data: { name: `QA Match Org ${s.stamp}`, format: 'match_gross', club_id: clubId, competition_id: league!.id, round: { scheduled_on: '2030-06-01', course_name: 'QA Links' } } });
     expect(orgMatch.status()).toBe(400);
     // Leftovers PR 7 (Sep 17 2026): the bracket door — a match event answers not_golf_bracket unless the target IS a golf bracket.

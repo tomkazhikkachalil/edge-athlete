@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -22,14 +23,13 @@ test('bracket API: seeds, generate (dry + real), the tie decision, advancement b
   test.skip(!!probe.error, 'contests.stage missing — run migration 218');
   const api = await apiAs('state-b.json');
   const stamp = Date.now();
-  const { data: league, error } = await admin.from('leagues').insert({ name: `QA Bracket League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id }).select().single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Bracket League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
   try {
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-    const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
+    await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026-27' }).select().single();
     const seasonId = season!.id as string;
-    const { data: teams } = await admin.from('teams').insert(Array.from({ length: 5 }, (_, i) => ({ league_id: leagueId, name: `Seed ${i + 1} ${stamp}` }))).select('id, name');
+    const { data: teams } = await admin.from('teams').insert(Array.from({ length: 5 }, (_, i) => ({ org_id: leagueId, name: `Seed ${i + 1} ${stamp}` }))).select('id, name');
     const teamIds = (teams ?? []).sort((a, b) => a.name.localeCompare(b.name)).map(t => t.id as string);
     expect(teamIds).toHaveLength(5);
     const base = `/api/leagues/${leagueId}/competitions`;

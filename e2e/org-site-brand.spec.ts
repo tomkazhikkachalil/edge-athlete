@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
@@ -20,13 +21,9 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
 
   const stamp = Date.now();
   const name = `QA Brand League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, role: 'owner' });
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, role: 'owner' });
 
   const ownerApi = await apiAs('state-b.json');
   try {
@@ -135,8 +132,8 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
-    await admin.from('memberships').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
+    await admin.from('memberships').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

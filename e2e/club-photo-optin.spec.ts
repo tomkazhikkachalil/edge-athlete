@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import { publishSite } from './helpers/org-site';
@@ -29,15 +30,11 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
   const priorSupervision = (alphaProfile!.supervision_state as string | null) ?? null;
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
 
-  const { data: club } = await admin
-    .from('clubs')
-    .insert({ name: `QA Optin Club ${stamp}`, owner_profile_id: owner.id, primary_sport: 'golf' })
-    .select('id')
-    .single();
-  const clubId = club!.id as string;
+  const club = await createQaOrg(admin, 'club', { name: `QA Optin Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const clubId = club.id;
   await admin.from('memberships').insert([
-    { club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
@@ -57,7 +54,7 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
     const { data: rows } = await admin
       .from('memberships')
       .select('kind, photo_consent, photo_consent_by')
-      .eq('club_id', clubId)
+      .eq('org_id', clubId)
       .eq('profile_id', alpha.id);
     expect(rows!.map(r => [r.kind, r.photo_consent, r.photo_consent_by])).toEqual([['follow', true, alpha.id]]);
 

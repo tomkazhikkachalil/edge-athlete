@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
@@ -19,15 +20,11 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
 
   const stamp = Date.now();
   const name = `QA Template League ${stamp}`;
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, role: 'owner' });
+  const league = await createQaOrg(admin, 'league', { name, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert({ org_id: leagueId, profile_id: owner.id, role: 'owner' });
   // A team so the tile grid has something to render.
-  await admin.from('teams').insert({ league_id: leagueId, name: `QA Tigers ${stamp}` });
+  await admin.from('teams').insert({ org_id: leagueId, name: `QA Tigers ${stamp}` });
 
   const ownerApi = await apiAs('state-b.json');
   try {
@@ -119,9 +116,9 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
-    await admin.from('teams').delete().eq('league_id', leagueId);
-    await admin.from('memberships').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
+    await admin.from('teams').delete().eq('org_id', leagueId);
+    await admin.from('memberships').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });

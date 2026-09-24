@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 
@@ -45,21 +46,17 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
   const stamp = Date.now();
   const tz = 'America/Toronto';
   const start = addDays(utcToday(), -3); // week 1 is OPEN today
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Season Cal League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id })
-    .select()
-    .single();
-  const leagueId = league!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Season Cal League ${stamp}`, sport_key: 'golf', owner_profile_id: owner.id });
+  const leagueId = league.id;
   await admin.from('memberships').insert([
     // Every row carries every key — a multi-row insert NULLs omitted keys
     // instead of defaulting them (memberships.kind is NOT NULL).
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'roster' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
-    { league_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'roster' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
+    { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
-  const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: `2026 ${stamp}` }).select().single();
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select().single();
   const { data: course } = await admin
     .from('golf_courses')
     .insert({
@@ -78,14 +75,14 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
   const courseId = course!.id as string;
   const { data: venue } = await admin
     .from('venues')
-    .insert({ league_id: leagueId, name: `QA Cal Venue ${stamp}`, golf_course_id: courseId })
+    .insert({ org_id: leagueId, name: `QA Cal Venue ${stamp}`, golf_course_id: courseId })
     .select('id')
     .single();
   const venueId = venue!.id as string;
   const { data: comp } = await admin
     .from('competitions')
     .insert({
-      league_id: leagueId,
+      org_id: leagueId,
       season_id: season!.id,
       sport_key: 'golf',
       name: `Cal League ${stamp}`,
@@ -128,13 +125,13 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
     const week1 = contests![0];
     const { data: ev } = await admin
       .from('events')
-      .select('title, description, starts_at, ends_at, all_day, timezone, category, league_id, location')
+      .select('title, description, starts_at, ends_at, all_day, timezone, category, org_id, location')
       .eq('id', week1.event_id)
       .single();
     expect(ev!.all_day).toBe(true);
     expect(ev!.timezone).toBe(tz);
     expect(ev!.category).toBe('game');
-    expect(ev!.league_id).toBe(leagueId);
+    expect(ev!.org_id).toBe(leagueId);
     expect(ev!.title).toBe(`Week 1 — Cal League ${stamp}`);
     expect(ev!.description).toContain('9 holes at QA Cal Nine');
     expect(new Date(ev!.starts_at).toISOString()).toBe(localMidnightUtc(week1.play_from, tz));
@@ -223,8 +220,8 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
     await anonCtx.close();
     const { data: evs } = await admin.from('contests').select('event_id').eq('competition_id', competitionId);
     const eventIds = (evs ?? []).map(c => c.event_id).filter(Boolean) as string[];
-    await admin.from('org_sites').delete().eq('league_id', leagueId);
-    await admin.from('venues').delete().eq('league_id', leagueId);
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
+    await admin.from('venues').delete().eq('org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     if (eventIds.length) await admin.from('events').delete().in('id', eventIds);
     await admin.from('golf_courses').delete().eq('id', courseId);

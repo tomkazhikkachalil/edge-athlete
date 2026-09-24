@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — the join door for leagues (the twin of club-join-door). A
@@ -26,21 +27,13 @@ test('league join door: site CTA → account-first → sign in returns → reque
   const probe = await admin.from('leagues').select('join_policy').limit(1);
   test.skip(!!probe.error, `membership columns missing — run migration 177 (${probe.error?.message})`);
 
-  const { data: league } = await admin
-    .from('leagues')
-    .insert({ name: `QA Door League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval', city: 'Kanata', region: 'ON' })
-    .select('id')
-    .single();
-  const leagueId = league!.id as string;
-  const { data: openLeague } = await admin
-    .from('leagues')
-    .insert({ name: `QA Open Door League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' })
-    .select('id')
-    .single();
-  const openLeagueId = openLeague!.id as string;
+  const league = await createQaOrg(admin, 'league', { name: `QA Door League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval', city: 'Kanata', region: 'ON' });
+  const leagueId = league.id;
+  const openLeague = await createQaOrg(admin, 'league', { name: `QA Open Door League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
+  const openLeagueId = openLeague.id;
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
-    { league_id: openLeagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
+    { org_id: openLeagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
   ]);
 
   const ownerApi = await apiAs('state-b.json');

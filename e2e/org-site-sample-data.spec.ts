@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Browser } from '@playwright/test';
+import { createQaOrg } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';
@@ -16,14 +17,9 @@ async function freshLeague(api: APIRequestContext, stamp: number) {
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
   await resetRateBucket(admin, 'org-site', owner.id);
-  const { data: league, error } = await admin
-    .from('leagues')
-    .insert({ name: `QA Sample League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
-    .select('id')
-    .single();
-  expect(error, error?.message).toBeNull();
-  const leagueId = league!.id as string;
-  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  const league = await createQaOrg(admin, 'league', { name: `QA Sample League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id });
+  const leagueId = league.id;
+  await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, role: 'owner' }]);
   let res = await api.post(`/api/leagues/${leagueId}/site`);
   expect(res.status(), await readErrorBody(res)).toBe(200);
   const subdomain = (await res.json()).site.subdomain as string;
