@@ -4,6 +4,7 @@
 // owner and links to THEIR OWN page — that is where the Accept button lives.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- schema-agnostic notifier
 type Admin = SupabaseClient<any, 'public', any>;
@@ -14,7 +15,7 @@ export interface AffiliationInviteNotification {
   leagueName: string;
   clubName: string;
   /** Which side initiated — phrases the title from the recipient's view. */
-  initiatedBy: 'league' | 'club';
+  initiatedBy: OrgKind;
   /** The RECIPIENT's own org page, where Accept lives. */
   actionUrl: string;
   /** 143's vocabulary — carried in metadata; titles stay name-only. */

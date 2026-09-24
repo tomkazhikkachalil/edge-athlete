@@ -1124,37 +1124,53 @@ const { canView } = await response.json();
    ticket (no inbound parsing, by decision). **The program is COMPLETE**
    (Sep 20 2026); `docs/SUPPORT.md` is the reference for every spec.
 
-24. **An org is named by `org_id` through ONE module (Round 5 steps A–C,
-   Sep 22 2026, #891–#896, migs 231–233)** — `public.organizations` (231)
-   is the org table: one row per league or club with the SAME id as the old
-   tables, `kind ∈ {league, club}` (the org's self-description and route
-   family — school later; Tom's decision) beside the capability columns
+24. **An org is ONE row, ONE kind, ONE name (Round 5 — the organizations
+   unification, Sep 22–24 2026, #891–#912, migs 231–237)** —
+   `public.organizations` is THE org table: one row per league or club,
+   `kind ∈ {league, club}` (the org's self-description and route family —
+   school later; Tom's decision) beside the capability columns
    `operates_competitions` / `operates_teams`, which stay the behaviour
-   switches. Every table that names an org (fifteen: memberships,
-   competitions, seasons, divisions, teams, venues, events, sport_events,
-   registrations, registration_windows, org_sites, org_staff_invites,
-   org_staff_audit, org_claim_invites, athlete_claim_invites) carries a real
-   `org_id` (232 generated it, 233 made it the column, NOT NULL where the
-   pairing CHECK is `= 1`, the six uniques lead with it). `league_id` /
-   `club_id` STILL EXIST but are kept correct by `org_pair_sync()` from
-   `organizations.kind` — **never written by hand**, and `organizations` ↔
-   `leagues` / `clubs` are mirrored both ways by trigger (`pg_trigger_depth`
-   guarded). In code, `src/lib/orgs/org-ref.ts` (zero imports) is the one
-   spelling: READ with `.eq(ORG_ID, orgId)`; WRITE with `...pairFor(ref)`
-   (sends `org_id`); the org row through `ORG_TABLE[kind]`; a URL family
-   through `ORG_ROUTE_FAMILY[kind]` (URLs never changed — `/league/[id]`,
-   `/api/clubs/…` stay); `PAIR_COLUMN[kind]` ONLY for the two side-specific
-   tables (`league_join_requests` / `club_join_requests`), the notifications
-   `metadata` key, and a reader that lists ONE SIDE's rows (`IS NOT NULL` is
-   the side filter there — `profileMembershipRows`, the public directory);
-   a row's org through `orgIdOf(row)` / `orgKindOf(row)`. `OrgSide` is an
-   alias of `OrgKind` until step F. `org-ref.test.ts` sweeps `src/` for a
-   re-spelled ternary. **Step D (drop the pair, `leagues` / `clubs` as views,
-   `affiliation` + `org_requests` unified) is PARKED** — ~534 literal
-   references in 96 files; the alternative on the table is to stop at C,
-   since 233's trigger keeps the pair correct indefinitely. Staging is the
-   FREE tier: previews + CI smoke + local e2e together crash it (HARDENING).
-
+   switches. `leagues` and `clubs` are `security_invoker` VIEWS over it
+   (235: the old column sets, `sport_key AS primary_sport`; service_role
+   SELECT / UPDATE / DELETE, **never INSERT** — a stray insert through an
+   old name fails loudly). Every table that names an org carries `org_id`
+   alone (the `league_id` / `club_id` pair, its CHECKs, indexes, sync and
+   mirrors left in 235); the four side-named shapes are org shapes since
+   236 / 237: `affiliations` (org_id = the CHILD, parent_org_id = the
+   PARENT; `initiated_by child | parent`), `org_requests` (`kind`; a league
+   needs `sport_key`; ONE pending per profile across kinds),
+   `org_join_requests`, and `sanction_grants.grantor_org_id /
+   grantee_org_id`. **In code, `src/lib/orgs/org-ref.ts` (zero imports) is
+   the one spelling:** `OrgKind` is the ONE name (`OrgSide` and every inline
+   `'league' | 'club'` are gone — the sweep test forbids them); READ a
+   pair table with `.eq(ORG_ID, orgId)` and its kind through
+   `ORG_KIND_EMBED` (`org:organizations(kind)`; `!inner` + `.eq('org.kind',
+   kind)` to LIST one kind); WRITE with `...pairFor(ref)` (sends `org_id`);
+   the org row through `.from('organizations')` (a list of one kind adds
+   `.eq('kind', kind)`); a URL family through `ORG_ROUTE_FAMILY[kind]` (URLs
+   never changed — `/league/[id]`, `/api/clubs/…` stay); a person-facing
+   word through `ORG_LABEL[kind]`; a row's org through `orgIdOf` /
+   `orgKindOf` / `orgRefOf` (the embed is the ONLY source of a kind — no
+   fallback). **The public API keeps speaking `league_id` / `club_id`**
+   (calendar events, sport events, admin venues, affiliations, the request
+   rows' `created_<kind>_id`) — translated at the route boundary by
+   `orgRefFromBody` / `pairFieldsFor` / `publicOrgRow` / `publicRequestRow`;
+   and the notifications `metadata` key stays the kind's old column name
+   FOREVER (`NOTIFY_ORG_KEY[kind]` — history, and the announce readers
+   match on it). **One library, one handler per twin:** `orgs/validate.ts`
+   (a league's one sport is the ONE designed divergence), `orgs/notify.ts`,
+   `orgs/create.ts createOrgWithOwner`, `orgs/requests-server.ts` +
+   `admin-requests-server.ts`, and `src/lib/orgs/routes/<name>.ts` — the 42
+   paired route bodies as `<name>Route<VERB>(request, kind, params)`; every
+   `/api/leagues/[id]/…` and `/api/clubs/[id]/…` file is a shim that passes
+   its kind, and the route-authz audit FOLLOWS the delegation (the gate
+   lives in the handler module). `OrgStartPage` / `OrgStandingsPage` are
+   the two page pairs. A migration that drops a shape re-backfills first
+   (237's rule) and a dual-write for a migration window is removed in the
+   drop's own PR (the 237 probe caught one outliving its columns). Staging
+   is the FREE tier: previews + CI smoke + local e2e together crash it
+   (HARDENING). Read DEVLOG Sep 22–24 2026 (A–C, D0-a…D3, 234–237, E-1…F)
+   before touching any of it.
 
 ---
 

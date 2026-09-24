@@ -7,6 +7,7 @@ import OAuthButtons from '@/components/OAuthButtons';
 import InviteLinkShare from '@/components/InviteLinkShare';
 import { loadParkedInvite, saveParkedInvite, clearParkedInvite } from '@/lib/parked-invite';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // Registration step machine (guardian-profiles feature).
 //
@@ -34,7 +35,6 @@ import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 // role cards are never shown on the org path.
 type Step = 'entry' | 'organizer' | 'scout' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
 type Role = 'athlete' | 'parent';
-type OrgKind = 'club' | 'league';
 /** Phase 7 C1: the org door lands in the wizard with golf preselected. */
 // Round 4: no default sport on the door — the wizard starts on the creator's
 // profile sport when set and offers the picker otherwise.

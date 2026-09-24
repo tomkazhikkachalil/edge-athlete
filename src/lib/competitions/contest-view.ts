@@ -30,10 +30,10 @@
 // then the live round comes from the golf sync's payload.roundRef.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { readOrgAccess, type OrgAccess } from '@/lib/orgs/access';
-import { getOrgCapabilities, hasAnyCapability, type OrgSide } from '@/lib/orgs/authz';
-import { type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
+import { getOrgCapabilities, hasAnyCapability } from '@/lib/orgs/authz';
+import { type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 import { deriveDisplayTier, type ResultProvenance } from '@/lib/orgs/provenance';
 import { readSanctionedPairs } from '@/lib/orgs/sanction-reads';
 import { evaluatePublicContestMedia } from '@/lib/orgs/gallery-gate';
@@ -121,7 +121,7 @@ export interface ContestView {
     visibility: string;
     seasonLabel: string | null;
   };
-  org: { side: OrgSide; id: string; name: string };
+  org: { side: OrgKind; id: string; name: string };
   entrants: ContestViewEntrant[];
   outcome: ContestOutcome;
   /** The sport's stat vocabulary, in schema order (empty for golf). */
@@ -305,7 +305,7 @@ export async function resolveContestAccess(admin: Admin, input: AccessInput): Pr
   if (input.competition.visibility === 'public' && input.orgAccess.visibility === 'public') return 'public';
   const viewer = input.viewerId;
   if (!viewer) return null;
-  const side: OrgSide = input.competition.leagueId ? 'league' : 'club';
+  const side: OrgKind = input.competition.leagueId ? 'league' : 'club';
   const orgId = input.competition.leagueId ?? input.competition.clubId;
   if (!orgId) return null;
   try {
@@ -409,7 +409,7 @@ export async function fetchContestView(
     const comp = compData as unknown as CompetitionRow;
     const compRef = orgRefOf(comp);
     if (!compRef) return null;
-    const side: OrgSide = compRef.side;
+    const side: OrgKind = compRef.side;
     const orgId = compRef.orgId;
 
     // Participants + entries first: access needs the entered teams.

@@ -13,9 +13,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
-import { LeagueRequestDecisionSchema, isMissingTableError } from '@/lib/leagues/validate';
-import { createLeagueWithOwner } from '@/lib/leagues/create';
-import { createClubWithOwner } from '@/lib/clubs/create';
+import { OrgRequestDecisionSchema, isMissingTableError } from '@/lib/orgs/validate';
+import { createOrgWithOwner } from './create';
 import { revalidateTag } from 'next/cache';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { draftPreviewUrls } from '@/lib/orgs/pending-org';
@@ -93,12 +92,8 @@ async function createFromRow(
             operatesTeams: (row.operates_teams as boolean | null) ?? false,
           },
   };
-  if (kind === 'league') {
-    const created = await createLeagueWithOwner(supabase, { ...common, sportKey: row.sport_key as string });
-    return 'error' in created ? created : { org: created.league };
-  }
-  const created = await createClubWithOwner(supabase, common);
-  return 'error' in created ? created : { org: created.club };
+  // A league's sport is its own (required); a club's request carries none.
+  return createOrgWithOwner(supabase, { ...common, kind, sportKey: kind === 'league' ? (row.sport_key as string) : null });
 }
 
 /** PATCH { requestId, decision, reason? } — approve or decline. */
@@ -109,7 +104,7 @@ export async function adminRequestsPATCH(request: NextRequest, kind: OrgKind) {
   const supabase = getSupabaseAdmin();
   const label = kind === 'league' ? 'league' : 'club';
 
-  const parsed = await parseBody(request, LeagueRequestDecisionSchema);
+  const parsed = await parseBody(request, OrgRequestDecisionSchema);
   if (!parsed.success) return parsed.response;
   const { requestId, decision, reason } = parsed.data;
 
@@ -248,11 +243,6 @@ async function notifyResult(
   kind: OrgKind,
   n: { requesterProfileId: string; requestId: string; name: string; approved: boolean; orgId: string | null; reason: string | null }
 ) {
-  if (kind === 'league') {
-    const { notifyLeagueRequestResult } = await import('@/lib/leagues/notify');
-    await notifyLeagueRequestResult(supabase, { requesterProfileId: n.requesterProfileId, requestId: n.requestId, leagueName: n.name, approved: n.approved, leagueId: n.orgId, reason: n.reason });
-  } else {
-    const { notifyClubRequestResult } = await import('@/lib/clubs/notify');
-    await notifyClubRequestResult(supabase, { requesterProfileId: n.requesterProfileId, requestId: n.requestId, clubName: n.name, approved: n.approved, clubId: n.orgId, reason: n.reason });
-  }
+  const { notifyOrgRequestResult } = await import('@/lib/orgs/notify');
+  await notifyOrgRequestResult(supabase, { kind, requesterProfileId: n.requesterProfileId, requestId: n.requestId, orgName: n.name, approved: n.approved, orgId: n.orgId, reason: n.reason });
 }

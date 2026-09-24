@@ -11,8 +11,7 @@
 // required — 234's CHECK; a club's is the sport it leads with, optional) and
 // the capability DEFAULTS (142: a league operates competitions, a club
 // operates teams — `organizations`' own defaults are false / false, so they
-// are explicit here). `src/lib/leagues/create.ts` and `src/lib/clubs/
-// create.ts` wrap this under their old names until step F.
+// are explicit here). The two side wrappers were deleted in step F.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { insertOwnerRow } from './members';

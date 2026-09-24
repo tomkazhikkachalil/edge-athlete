@@ -5,7 +5,7 @@ import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { formatPlace } from '@/lib/geo/regions';
-import { ORG_ROUTE_FAMILY, otherKind } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, otherKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 
@@ -44,7 +44,7 @@ interface AffData {
 }
 
 interface AffiliationSectionProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;

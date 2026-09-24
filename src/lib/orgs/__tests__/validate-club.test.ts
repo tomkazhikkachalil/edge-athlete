@@ -1,16 +1,17 @@
+// Moved from src/lib/clubs/__tests__ in Round 5 step F — the schemas live in orgs/validate.ts (E-1).
 import { describe, expect, it } from 'vitest';
 import {
   ClubCreateSchema,
-  ClubMemberRoleSchema,
+  OrgMemberRoleSchema,
   ClubRequestSchema,
-  ClubRequestDecisionSchema,
-  placeToClubColumns,
-  type ClubPlace,
+  OrgRequestDecisionSchema,
+  placeToOrgColumns,
+  type OrgPlace,
 } from '../validate';
 
 const OWNER = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
 
-const place: ClubPlace = {
+const place: OrgPlace = {
   placeId: '688ab18b-c24d-4d24-a93e-6478f3d4acb2',
   city: 'Ottawa',
   region: 'Ontario',
@@ -56,28 +57,28 @@ describe('ClubRequestSchema', () => {
   });
 });
 
-describe('ClubRequestDecisionSchema', () => {
+describe('OrgRequestDecisionSchema', () => {
   const REQ = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
   it('decline requires a reason; approve does not', () => {
-    expect(ClubRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'approve' }).success).toBe(true);
-    expect(ClubRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline' }).success).toBe(false);
+    expect(OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'approve' }).success).toBe(true);
+    expect(OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline' }).success).toBe(false);
     expect(
-      ClubRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'Duplicate' }).success
+      OrgRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'Duplicate' }).success
     ).toBe(true);
   });
 });
 
-describe('ClubMemberRoleSchema', () => {
+describe('OrgMemberRoleSchema', () => {
   it("allows manager/member, never 'owner'", () => {
-    expect(ClubMemberRoleSchema.safeParse({ role: 'manager' }).success).toBe(true);
-    expect(ClubMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'manager' }).success).toBe(true);
+    expect(OrgMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
   });
 });
 
-describe('placeToClubColumns', () => {
+describe('placeToOrgColumns', () => {
   it('maps a full place and clears with real NULLs', () => {
-    expect(placeToClubColumns(place).city).toBe('Ottawa');
-    expect(placeToClubColumns(place).location_source).toBe('user');
-    expect(Object.values(placeToClubColumns(null)).every(v => v === null)).toBe(true);
+    expect(placeToOrgColumns(place).city).toBe('Ottawa');
+    expect(placeToOrgColumns(place).location_source).toBe('user');
+    expect(Object.values(placeToOrgColumns(null)).every(v => v === null)).toBe(true);
   });
 });

@@ -9,7 +9,8 @@ import { orgSitePath } from '@/lib/org-sites/urls';
 import type { OrgBrand } from '@/lib/org-sites/brand-types';
 import OrgManageMenu, { type ManageItem } from './OrgManageMenu';
 import { SIDE_COPY } from './side-copy';
-import type { OrgInfo, OrgSide } from './types';
+import type { OrgInfo } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's hero — Org Pages R2 (Sep 8 2026), the first surface to
 // carry the org's own media in the app. The public site's hero photo and
@@ -32,7 +33,7 @@ import type { OrgInfo, OrgSide } from './types';
 // duplicating the controls with CSS hiding.
 
 interface OrgHeroProps {
-  side: OrgSide;
+  side: OrgKind;
   org: OrgInfo;
   brand: OrgBrand | null | undefined;
   sportLabels: string[];

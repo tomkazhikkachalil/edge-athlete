@@ -1,3 +1,4 @@
+import type { OrgKind } from '@/lib/orgs/org-ref';
 // Registration-wizard draft persistence (phase 5 R3) — the org-wizard
 // recipe scaled down: versioned flat envelope, TTL, PURE parse for node
 // tests, storage ops that no-op on throw, restore offered as a notice
@@ -33,7 +34,7 @@ export const EMPTY_REGISTRATION_DRAFT: RegistrationDraft = {
   birthday: '',
 };
 
-const key = (side: 'league' | 'club', orgId: string) =>
+const key = (side: OrgKind, orgId: string) =>
   `ea:registration-draft:${side}:${orgId}:v1`;
 
 function str(v: unknown, fallback = ''): string {
@@ -76,7 +77,7 @@ export function parseRegistrationDraft(
   }
 }
 
-export function loadRegistrationDraft(side: 'league' | 'club', orgId: string): RegistrationDraft | null {
+export function loadRegistrationDraft(side: OrgKind, orgId: string): RegistrationDraft | null {
   try {
     return parseRegistrationDraft(localStorage.getItem(key(side, orgId)));
   } catch {
@@ -85,7 +86,7 @@ export function loadRegistrationDraft(side: 'league' | 'club', orgId: string): R
 }
 
 export function saveRegistrationDraft(
-  side: 'league' | 'club',
+  side: OrgKind,
   orgId: string,
   draft: RegistrationDraft
 ): void {
@@ -96,7 +97,7 @@ export function saveRegistrationDraft(
   }
 }
 
-export function clearRegistrationDraft(side: 'league' | 'club', orgId: string): void {
+export function clearRegistrationDraft(side: OrgKind, orgId: string): void {
   try {
     localStorage.removeItem(key(side, orgId));
   } catch {

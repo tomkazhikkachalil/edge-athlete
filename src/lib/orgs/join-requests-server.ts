@@ -8,8 +8,8 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { joinOrg } from './members';
 import { JOIN_REQUESTS_TABLE } from './join-requests';
 
@@ -19,7 +19,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 const TAG = '[ORG JOIN REQUESTS]';
 
 /** Owners + managers of the org (follow rows). */
-export async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string): Promise<string[]> {
+export async function orgManagerIds(admin: Admin, side: OrgKind, orgId: string): Promise<string[]> {
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
@@ -33,7 +33,7 @@ export async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string):
 
 export async function viewerJoinRequest(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string | null
 ): Promise<{ id: string } | null> {
@@ -48,31 +48,21 @@ export async function viewerJoinRequest(
   return { id: data.id as string };
 }
 
-async function notifyRequest(admin: Admin, side: OrgSide, org: { id: string; name: string }, actorId: string, requestId: string) {
+async function notifyRequest(admin: Admin, side: OrgKind, org: { id: string; name: string }, actorId: string, requestId: string) {
   const managerIds = await orgManagerIds(admin, side, org.id);
-  if (side === 'league') {
-    const { notifyLeagueJoinRequest } = await import('@/lib/leagues/notify');
-    await notifyLeagueJoinRequest(admin, { managerIds, actorId, leagueId: org.id, leagueName: org.name, requestId });
-  } else {
-    const { notifyClubJoinRequest } = await import('@/lib/clubs/notify');
-    await notifyClubJoinRequest(admin, { managerIds, actorId, clubId: org.id, clubName: org.name, requestId });
-  }
+  const { notifyOrgJoinRequest } = await import('./notify');
+  await notifyOrgJoinRequest(admin, { kind: side, orgId: org.id, orgName: org.name, managerIds, actorId, requestId });
 }
 
-async function notifyDecision(admin: Admin, side: OrgSide, org: { id: string; name: string }, profileId: string, approved: boolean, requestId: string) {
-  if (side === 'league') {
-    const { notifyLeagueJoinDecision } = await import('@/lib/leagues/notify');
-    await notifyLeagueJoinDecision(admin, { profileId, leagueId: org.id, leagueName: org.name, approved, requestId });
-  } else {
-    const { notifyClubJoinDecision } = await import('@/lib/clubs/notify');
-    await notifyClubJoinDecision(admin, { profileId, clubId: org.id, clubName: org.name, approved, requestId });
-  }
+async function notifyDecision(admin: Admin, side: OrgKind, org: { id: string; name: string }, profileId: string, approved: boolean, requestId: string) {
+  const { notifyOrgJoinDecision } = await import('./notify');
+  await notifyOrgJoinDecision(admin, { kind: side, orgId: org.id, orgName: org.name, profileId, approved, requestId });
 }
 
 /** The requester asks (idempotent — a second ask answers the same request). */
 export async function requestJoin(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   org: { id: string; name: string },
   profileId: string
 ): Promise<{ requestId: string; created: boolean } | { error: string; status: number }> {
@@ -99,7 +89,7 @@ export async function requestJoin(
 }
 
 /** The requester withdraws. */
-export async function cancelJoinRequest(admin: Admin, side: OrgSide, orgId: string, profileId: string): Promise<boolean> {
+export async function cancelJoinRequest(admin: Admin, side: OrgKind, orgId: string, profileId: string): Promise<boolean> {
   const { data } = await admin
     .from(JOIN_REQUESTS_TABLE)
     .delete()
@@ -119,7 +109,7 @@ export interface JoinRequestRow {
 }
 
 /** The manager's queue (a manager surface — real names). */
-export async function listJoinRequests(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function listJoinRequests(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { data, error } = await admin
     .from(JOIN_REQUESTS_TABLE)
     .select('id, profile_id, message, created_at')
@@ -159,7 +149,7 @@ export async function listJoinRequests(admin: Admin, side: OrgSide, orgId: strin
 /** A manager decides. The delete is the claim (zero rows ⇒ already decided). */
 export async function decideJoinRequest(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   org: { id: string; name: string },
   requestId: string,
   decision: 'approve' | 'decline'

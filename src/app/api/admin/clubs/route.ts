@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
-import { ClubCreateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
-import { createClubWithOwner } from '@/lib/clubs/create';
+import { ClubCreateSchema, placeToOrgColumns, isMissingTableError } from '@/lib/orgs/validate';
+import { createOrgWithOwner } from '@/lib/orgs/create';
 import { memberCountsByOrg } from '@/lib/orgs/members';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -31,17 +31,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Owner profile not found' }, { status: 404 });
     }
 
-    const result = await createClubWithOwner(supabase, {
+    const result = await createOrgWithOwner(supabase, {
+      kind: 'club',
       name,
       description: description ?? null,
       ownerProfileId,
-      placeColumns: placeToClubColumns(place),
+      placeColumns: placeToOrgColumns(place),
     });
     if ('error' in result) {
       return NextResponse.json({ error: 'Failed to create club' }, { status: 500 });
     }
 
-    return NextResponse.json({ club: result.club });
+    return NextResponse.json({ club: result.org });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ADMIN CLUBS] POST error:', error);

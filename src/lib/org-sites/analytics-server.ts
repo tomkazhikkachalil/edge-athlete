@@ -46,14 +46,14 @@ export async function runAnalyticsPrune(admin: Admin, now = new Date()): Promise
 
 // ── The console's read (E2) ─────────────────────────────────────────────────
 import { NextResponse } from 'next/server';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { rollupStats, statsWindow, type DailyRow, type StatsRange } from './analytics-rollup';
 
 const ROWS_MAX = 5000;
 
 /** The site's numbers for the last N days; `supported: false` pre-188. */
-export async function statsGET(admin: Admin, side: OrgSide, orgId: string, days: StatsRange): Promise<NextResponse> {
+export async function statsGET(admin: Admin, side: OrgKind, orgId: string, days: StatsRange): Promise<NextResponse> {
   const { data: site } = await admin.from('org_sites').select('id, published_at').eq(ORG_ID, orgId).maybeSingle();
   const siteId = (site as { id: string } | null)?.id ?? null;
   if (!siteId) return NextResponse.json({ supported: true, live: false, stats: rollupStats([], days, new Date()) }, { headers: { 'Cache-Control': 'private, no-store' } });

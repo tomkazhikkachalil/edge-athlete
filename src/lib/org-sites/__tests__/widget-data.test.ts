@@ -3,8 +3,9 @@ import type { PublicSite } from '../server';
 import { neededFields, resolveHomeData, type SiteReaders } from '../widget-data';
 import { deriveLegacyLayout } from '@/lib/site-builder/layout';
 import { WEB_WIDGET_KEYS, WIDGETS } from '@/lib/site-builder/catalog';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
-function site(side: 'league' | 'club', keys: string[], visibility: 'public' | 'private' = 'public'): PublicSite {
+function site(side: OrgKind, keys: string[], visibility: 'public' | 'private' = 'public'): PublicSite {
   return {
     id: 'site', org_id: 'org', org: { kind: side },
     subdomain: 'qa', template_id: 'classic', theme_token_set: {}, nav_config: [], logo_path: null,

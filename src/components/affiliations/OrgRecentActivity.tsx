@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's recent-activity section (connections PR D): light excerpt
 // rows of members' already-public posts, linking into the feed. Renders
@@ -24,7 +25,7 @@ interface ActivityRow {
 }
 
 interface OrgRecentActivityProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;

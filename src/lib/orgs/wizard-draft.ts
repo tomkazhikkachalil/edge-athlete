@@ -10,6 +10,7 @@ import type {
   ConnectionsDraftInput,
   DivisionDraftRow,
 } from './wizard-validate';
+import type { OrgKind } from './org-ref';
 
 export interface OrgWizardDraft {
   step: string;
@@ -37,7 +38,7 @@ export interface OrgWizardDraft {
 
 export const WIZARD_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
 
-const key = (side: 'league' | 'club') => `ea:org-wizard-draft:${side}:v1`;
+const key = (side: OrgKind) => `ea:org-wizard-draft:${side}:v1`;
 
 export function isEmptyOrgWizardDraft(draft: OrgWizardDraft): boolean {
   return (
@@ -121,7 +122,7 @@ export function parseOrgWizardDraft(raw: string | null, now: number = Date.now()
   }
 }
 
-export function loadOrgWizardDraft(side: 'league' | 'club'): OrgWizardDraft | null {
+export function loadOrgWizardDraft(side: OrgKind): OrgWizardDraft | null {
   try {
     return parseOrgWizardDraft(window.localStorage.getItem(key(side)));
   } catch {
@@ -129,7 +130,7 @@ export function loadOrgWizardDraft(side: 'league' | 'club'): OrgWizardDraft | nu
   }
 }
 
-export function saveOrgWizardDraft(side: 'league' | 'club', draft: OrgWizardDraft): void {
+export function saveOrgWizardDraft(side: OrgKind, draft: OrgWizardDraft): void {
   try {
     if (isEmptyOrgWizardDraft(draft)) {
       window.localStorage.removeItem(key(side));
@@ -141,7 +142,7 @@ export function saveOrgWizardDraft(side: 'league' | 'club', draft: OrgWizardDraf
   }
 }
 
-export function clearOrgWizardDraft(side: 'league' | 'club'): void {
+export function clearOrgWizardDraft(side: OrgKind): void {
   try {
     window.localStorage.removeItem(key(side));
   } catch {

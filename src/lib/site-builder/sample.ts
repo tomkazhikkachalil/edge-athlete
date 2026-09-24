@@ -24,6 +24,7 @@ import { WIDGETS, isContentWidgetKey, type SiteWidgetKey } from './catalog';
 import type { ContentSource } from './config';
 import { displayString, instanceDisplay } from './display';
 import type { SiteLayout, WidgetInstance } from './layout';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 /**
  * Sample data for the EDITOR — Site Builder program 3, S1 (Sep 13 2026).
@@ -414,7 +415,7 @@ function news(family: Family, now: Date): PublicNewsItem[] {
 
 /** The whole sample bag for a sport family. Every key filled — a widget
  *  merges only the keys it reads (`WIDGETS[key].data`). */
-export function sampleHomeData(sportKey: string | null | undefined, side: 'league' | 'club', now: Date = new Date()): SiteHomeData {
+export function sampleHomeData(sportKey: string | null | undefined, side: OrgKind, now: Date = new Date()): SiteHomeData {
   const family = familyOf(sportKey);
   const sport = sportKey ?? null;
   const year = now.getUTCFullYear();
@@ -562,7 +563,7 @@ export function sampleContentFor(key: SiteWidgetKey, ctx: { orgName: string; spo
 export interface SampleSite extends ContentSource {
   orgName: string;
   sportKey: string | null;
-  side: 'league' | 'club';
+  side: OrgKind;
 }
 
 export interface SampleView<S extends SampleSite> {

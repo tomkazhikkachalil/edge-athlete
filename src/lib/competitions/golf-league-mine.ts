@@ -10,8 +10,8 @@
 import { NextResponse } from 'next/server';
 import { roundRuleFor } from './golf-league';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { selectCurrentWeek, sortWeeks, utcToday, weekState, type GolfWeekState } from './golf-weeks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -54,7 +54,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 
 export async function golfMineGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   userId: string
 ): Promise<NextResponse> {

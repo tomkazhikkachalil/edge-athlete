@@ -23,13 +23,14 @@ import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getOrgRole, isOwnerOrManager } from '@/lib/orgs/authz';
 import { profileMembershipRows } from '@/lib/orgs/members';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { listingFromRow } from '@/lib/orgs/listing';
 import { filterOrgsForViewer, orgKey } from './org-visibility';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
-export type AffSide = 'league' | 'club';
+export type AffSide = OrgKind;
 
 interface SideConfig {
   side: AffSide;
@@ -57,7 +58,7 @@ const SIDES: Record<AffSide, SideConfig> = {
 // ONE row per (child org, parent org). A club in a league is (club → league):
 // org_id = the club, parent_org_id = the league; initiated_by is which END
 // asked (child | parent). The API keeps speaking league_id / club_id and
-// initiated_by 'league' | 'club' (Tom, Sep 22 2026: the contract holds) —
+// initiated_by OrgKind (Tom, Sep 22 2026: the contract holds) —
 // `publicEdge` is the one translation, `edgeKey` the one filter.
 
 const EDGE_SELECT = 'org_id, parent_org_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type';

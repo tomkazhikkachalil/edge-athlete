@@ -19,9 +19,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getOrgRole, isOwnerOrManager } from '@/lib/orgs/authz';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- admin client alias (the server.ts pattern)
 type Admin = any;
@@ -53,7 +54,7 @@ async function loadLeague(admin: Admin, id: string): Promise<LeagueRow | null> {
 export async function recordSanctionGrant(
   admin: Admin,
   grantorLeagueId: string,
-  granteeKind: 'club' | 'league',
+  granteeKind: OrgKind,
   granteeId: string
 ): Promise<void> {
   try {
@@ -79,7 +80,7 @@ export async function recordSanctionGrant(
 export async function revokeSanctionGrant(
   admin: Admin,
   grantorLeagueId: string,
-  granteeKind: 'club' | 'league',
+  granteeKind: OrgKind,
   granteeId: string
 ): Promise<void> {
   try {

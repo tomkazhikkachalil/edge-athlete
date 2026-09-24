@@ -9,8 +9,8 @@
 // posting-consent state. This is per-org, revocable, membership-scoped.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -43,7 +43,7 @@ export function canGrantPhotoConsent(input: {
  */
 export async function photoConsentByProfile(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileIds: string[]
 ): Promise<Map<string, boolean>> {
@@ -75,7 +75,7 @@ export async function photoConsentByProfile(
  */
 export async function setPhotoConsent(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string,
   consent: boolean,
@@ -117,7 +117,7 @@ export async function setPhotoConsent(
 
 export function setRoundPhotoConsent(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string,
   consent: boolean,
@@ -128,7 +128,7 @@ export function setRoundPhotoConsent(
 
 export async function roundPhotoConsentFor(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string
 ): Promise<boolean> {

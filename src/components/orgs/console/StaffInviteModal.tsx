@@ -6,7 +6,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { ORG_SECTIONS, type OrgSection } from '@/lib/orgs/authz';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // ── Invite someone to manage sections (org staff program, round 5) ───────────
 // Opened from any node of the Hierarchy section with that node as the
@@ -24,7 +24,7 @@ export interface InviteScopeOption {
 }
 
 interface Props {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   seasons: Array<{ id: string; label: string }>;
   scopeOptions: InviteScopeOption[];

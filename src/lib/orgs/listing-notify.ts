@@ -7,8 +7,8 @@
 // fail the request. Direct insert, the staff-notify.ts shape.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from './listing';
-import { ORG_ROUTE_FAMILY, PAIR_COLUMN } from './org-ref';
+
+import { ORG_ROUTE_FAMILY, NOTIFY_ORG_KEY, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -25,7 +25,7 @@ export function adminEmailsFrom(allowlist: string | undefined): string[] {
 
 export async function notifyAdminsOfListingRequest(
   admin: Admin,
-  n: { side: OrgSide; orgId: string; orgName: string; requesterId: string }
+  n: { side: OrgKind; orgId: string; orgName: string; requesterId: string }
 ): Promise<void> {
   try {
     const emails = adminEmailsFrom(process.env.ADMIN_EMAILS);
@@ -42,7 +42,7 @@ export async function notifyAdminsOfListingRequest(
       action_url: `/dashboard/${plural}`,
       actor_id: n.requesterId,
       is_read: false,
-      metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
+      metadata: { [NOTIFY_ORG_KEY[n.side]]: n.orgId },
     }));
     const { error } = await admin.from('notifications').insert(rows);
     if (error) console.error(`${TAG} insert failed:`, error);

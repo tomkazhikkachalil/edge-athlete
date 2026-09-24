@@ -47,7 +47,7 @@ export default async function OrgStandingsPage({ kind, id }: { kind: OrgKind; id
     return (
       <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-primary mb-2">{ORG_LABEL[kind]} not found</h1>
+          <h1 className="text-xl font-bold text-primary mb-2">{`${ORG_LABEL[kind]} not found`}</h1>
           <Link href="/sports/explore" className="text-sm text-brand-fg font-medium">
             Explore Edge Athlete →
           </Link>
@@ -73,7 +73,8 @@ export default async function OrgStandingsPage({ kind, id }: { kind: OrgKind; id
             href={`/${kind}/${id}`}
             className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium shrink-0"
           >
-            {ORG_LABEL[kind]} page →
+            {/* one text node — the crawlable HTML is asserted as a plain substring */}
+            {`${ORG_LABEL[kind]} page →`}
           </Link>
         </div>
       </header>

@@ -9,9 +9,9 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { capabilityAllows, getOrgAndCapabilities, type OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { capabilityAllows, getOrgAndCapabilities } from './authz';
+import { ORG_ID, type OrgKind } from './org-ref';
+import { isMissingTableError } from '@/lib/orgs/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -24,7 +24,7 @@ export interface StructureOption {
 export async function structureOptionsGET(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);

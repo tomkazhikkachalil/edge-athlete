@@ -13,8 +13,8 @@ import type { User } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
-import { getOrgAndRole, type OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+import { getOrgAndRole } from '@/lib/orgs/authz';
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { canGrantPhotoConsent, roundPhotoConsentFor, setRoundPhotoConsent } from '@/lib/orgs/photo-consent';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { revalidateOrgSiteForOrg } from './revalidate';
@@ -25,12 +25,12 @@ type SessionUser = User; // what requireAuth returns
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
 const ConsentSchema = z.object({ consent: z.boolean() });
 
-function notFound(side: OrgSide) {
+function notFound(side: OrgKind) {
   return NextResponse.json({ error: side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
 }
 
 /** A member (any role) of the org, plus whether they are supervised. */
-async function memberContext(user: SessionUser, side: OrgSide, id: string) {
+async function memberContext(user: SessionUser, side: OrgKind, id: string) {
   if (!UUID_RE.test(id)) return { response: notFound(side) };
   const admin = getSupabaseAdmin();
   const loaded = await getOrgAndRole(admin, side, id, user.id);
@@ -41,7 +41,7 @@ async function memberContext(user: SessionUser, side: OrgSide, id: string) {
 }
 
 /** GET /api/{side}s/[id]/photo-consent — the member's own switch. */
-export async function photoConsentGET(user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+export async function photoConsentGET(user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   try {
     const { id } = await params;
     const ctx = await memberContext(user, side, id);
@@ -56,7 +56,7 @@ export async function photoConsentGET(user: SessionUser, side: OrgSide, params: 
 }
 
 /** PATCH /api/{side}s/[id]/photo-consent {consent} — self only; purges the site. */
-export async function photoConsentPATCH(request: NextRequest, user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+export async function photoConsentPATCH(request: NextRequest, user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   try {
     const { id } = await params;
     const ctx = await memberContext(user, side, id);
@@ -82,7 +82,7 @@ export async function photoConsentPATCH(request: NextRequest, user: SessionUser,
 }
 
 /** GET /api/{side}s/[id]/site/photo-candidates — the manager's browse list. */
-export async function photoCandidatesGET(user: SessionUser, side: OrgSide, params: Promise<{ id: string }>) {
+export async function photoCandidatesGET(user: SessionUser, side: OrgKind, params: Promise<{ id: string }>) {
   try {
     const { id } = await params;
     if (!UUID_RE.test(id)) return notFound(side);

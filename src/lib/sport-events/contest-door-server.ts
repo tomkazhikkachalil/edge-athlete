@@ -21,7 +21,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
-import { orgIdOf, type OrgKindEmbed } from '@/lib/orgs/org-ref';
+import { orgIdOf, type OrgKindEmbed, type OrgKind } from '@/lib/orgs/org-ref';
 import { EVENT_COLUMNS } from './access-server';
 import { LINK_REFUSAL_COPY, type LinkRefusal } from './contest-link';
 import { linkContestToRound, readSportEventMatchLink } from './contest-link-server';
@@ -63,7 +63,7 @@ async function sideMembers(admin: Admin, entry: SideEntry, orgId: string): Promi
   return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
 }
 
-export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEventInput, scope: { side: 'club' | 'league'; orgId: string }, userId: string): Promise<NextResponse> {
+export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEventInput, scope: { side: OrgKind; orgId: string }, userId: string): Promise<NextResponse> {
   const { data: contestRow, error: readError } = await admin
     .from('contests')
     .select('id, status, round, scheduled_at, sport_event_round_id, competition:competition_id (id, name, org_id, org:organizations(kind), sport_key, format, entrant_type, status)')

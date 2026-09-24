@@ -1,4 +1,5 @@
-import type { OrgSide } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
+
 
 // The per-side vocabulary of the org page — a LITERAL lookup table, so every
 // string the two page twins carried survives the R1 fold byte-identical.
@@ -11,10 +12,10 @@ export interface SideCopy {
   /** Toast scope + headings ("League", "Club"). */
   label: 'League' | 'Club';
   /** Lower-case noun in running copy ("Join league", "Leave this club?"). */
-  noun: OrgSide;
+  noun: OrgKind;
 }
 
-export const SIDE_COPY: Record<OrgSide, SideCopy> = {
+export const SIDE_COPY: Record<OrgKind, SideCopy> = {
   league: { plural: 'leagues', label: 'League', noun: 'league' },
   club: { plural: 'clubs', label: 'Club', noun: 'club' },
 };

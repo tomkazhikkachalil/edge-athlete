@@ -8,16 +8,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { isMissingTableError } from '@/lib/orgs/validate';
 import { memberProfileIds } from '@/lib/orgs/members';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 const LIMIT = 10;
 const EXCERPT = 140;
 
 export async function orgActivityGET(
   request: NextRequest,
-  side: 'league' | 'club',
+  side: OrgKind,
   orgId: string
 ) {
   if (!UUID_RE.test(orgId)) {

@@ -10,8 +10,8 @@
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import {
   isMissingTableError,
   isValidPageSlug,
@@ -31,7 +31,7 @@ const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, u
 const NEWS_FIELDS_189 = `${NEWS_FIELDS}, pinned_at`;
 const PIN_NEEDS_189 = 'Pinning needs migration 189 — run it, then try again';
 
-async function getSiteForOrg(admin: Admin, side: OrgSide, orgId: string) {
+async function getSiteForOrg(admin: Admin, side: OrgKind, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain')
@@ -47,7 +47,7 @@ function purge(subdomain: string) {
 
 export async function newsListGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
@@ -66,7 +66,7 @@ export async function newsListGET(
 
 export async function newsCreatePOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: NewsCreateInput
 ): Promise<NextResponse> {
@@ -141,7 +141,7 @@ export async function newsCreatePOST(
 
 export async function newsGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   newsId: string
 ): Promise<NextResponse> {
@@ -156,7 +156,7 @@ export async function newsGET(
 
 export async function newsPATCH(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   newsId: string,
   input: NewsPatchInput
@@ -225,7 +225,7 @@ export async function newsPATCH(
 
 export async function newsDELETE(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   newsId: string
 ): Promise<NextResponse> {

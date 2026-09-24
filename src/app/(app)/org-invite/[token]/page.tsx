@@ -6,6 +6,7 @@ import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { useAuth } from '@/lib/auth';
 import { clearParkedOrgInvite, saveParkedOrgInvite } from '@/lib/org-invite-parked';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // ── /org-invite/[token] — accept a staff invite (org staff program, 178) ────
 // The org-claim page's shape: BrandBar (reachable while accountless), a
@@ -17,7 +18,7 @@ import { clearParkedOrgInvite, saveParkedOrgInvite } from '@/lib/org-invite-park
 type State = 'loading' | 'invalid' | 'ready' | 'accepting' | 'accepted' | 'wrong-account';
 
 interface Peeked {
-  org: { side: 'league' | 'club'; id: string; name: string };
+  org: { side: OrgKind; id: string; name: string };
   grant: { role: 'admin' | 'staff'; scopeType: 'org' | 'division' | 'team'; scopeName: string | null; seasonLabel: string | null };
   summary: string;
 }

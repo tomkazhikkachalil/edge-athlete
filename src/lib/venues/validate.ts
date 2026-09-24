@@ -11,10 +11,10 @@
 
 import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
-import { PlaceValueSchema, type LeaguePlace } from '@/lib/leagues/validate';
+import { PlaceValueSchema, type OrgPlace } from '@/lib/orgs/validate';
 
-export { PlaceValueSchema, isMissingTableError } from '@/lib/leagues/validate';
-export type VenuePlace = LeaguePlace;
+export { PlaceValueSchema, isMissingTableError } from '@/lib/orgs/validate';
+export type VenuePlace = OrgPlace;
 
 export const FacilityCreateSchema = z.object({
   name: boundedText(120),
@@ -70,7 +70,7 @@ export function golfLinkColumns(
 }
 
 /** PlaceValue → venues location columns (real NULLs when cleared — the
- *  placeToLeagueColumns convention; venues are admin-client writes). */
+ *  placeToOrgColumns convention; venues are admin-client writes). */
 export function placeToVenueColumns(
   place: VenuePlace | null | undefined
 ): Record<string, string | number | null> {

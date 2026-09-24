@@ -17,8 +17,8 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { generateRoundWindows, type SeasonRoundSpec } from '@/lib/competitions/golf-season';
 import type { GolfQuickstartInput } from '@/lib/competitions/validate';
 import { ensureDefaultSeason } from './default-season';
-import type { OrgSide } from './listing';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { rosterSelfPost } from './roster-server';
 import {
   competitionCreatePOST,
@@ -64,7 +64,7 @@ async function readJson(res: NextResponse): Promise<Record<string, unknown>> {
 export async function golfQuickstartPOST(
   admin: Admin,
   user: User,
-  scope: { side: OrgSide; orgId: string },
+  scope: { side: OrgKind; orgId: string },
   input: GolfQuickstartInput
 ): Promise<NextResponse> {
   // Idempotent: a live golf leaderboard already exists → hand it back.

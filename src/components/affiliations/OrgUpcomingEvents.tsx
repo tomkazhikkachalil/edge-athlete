@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's schedule section (119) — public upcoming events attached
 // to this league/club. Renders nothing when the org has no scheduled
@@ -19,7 +20,7 @@ interface OrgEvent {
 }
 
 interface OrgUpcomingEventsProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;

@@ -22,12 +22,12 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { User } from '@supabase/supabase-js';
-import type { OrgSide } from './authz';
+
 import { getOrgRole, isOwnerOrManager } from './authz';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
-import { orgRefOf } from './org-ref';
+import { orgRefOf, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias
 type Admin = SupabaseClient<any, 'public', any>;
@@ -49,8 +49,8 @@ async function contestOrgs(
   contestId: string
 ): Promise<{
   competitionId: string;
-  owner: { side: OrgSide; orgId: string };
-  participants: { side: OrgSide; orgId: string }[];
+  owner: { side: OrgKind; orgId: string };
+  participants: { side: OrgKind; orgId: string }[];
 } | null> {
   const { data: contest } = await admin
     .from('contests')
@@ -64,7 +64,7 @@ async function contestOrgs(
     .eq('id', contest.competition_id)
     .maybeSingle();
   if (!comp) return null;
-  const owner: { side: OrgSide; orgId: string } | null = orgRefOf(comp);
+  const owner: { side: OrgKind; orgId: string } | null = orgRefOf(comp);
   if (!owner) return null;
 
   const { data: parts } = await admin
@@ -80,7 +80,7 @@ async function contestOrgs(
   const { data: teams } = teamIds.length
     ? await admin.from('teams').select('id, org_id, org:organizations(kind)').in('id', teamIds)
     : { data: [] };
-  const participants: { side: OrgSide; orgId: string }[] = [];
+  const participants: { side: OrgKind; orgId: string }[] = [];
   for (const t of teams ?? []) {
     const teamRef = orgRefOf(t);
     if (teamRef) participants.push(teamRef);
@@ -91,7 +91,7 @@ async function contestOrgs(
 export async function disputePATCH(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   competitionId: string,
   input: DisputeInput

@@ -20,6 +20,7 @@ import { useTheme } from '@/lib/use-theme';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 /**
  * Last known pill geometry, kept at MODULE level on purpose.
@@ -91,7 +92,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // header adds no request to ordinary page loads. null = not yet loaded;
   // [] = loaded, none (the section hides itself).
   const [managedOrgs, setManagedOrgs] = useState<
-    { kind: 'league' | 'club'; id: string; name: string }[] | null
+    { kind: OrgKind; id: string; name: string }[] | null
   >(null);
   useEffect(() => {
     if (!user?.id || managedOrgs !== null) return;
@@ -103,7 +104,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         if (!cancelled) {
-          const all = (data.organizations ?? []) as { kind: 'league' | 'club'; id: string; name: string; role: string }[];
+          const all = (data.organizations ?? []) as { kind: OrgKind; id: string; name: string; role: string }[];
           // Org staff program: admins and section staff manage too (178).
           setManagedOrgs(all.filter(o => ['owner', 'manager', 'admin', 'staff'].includes(o.role)).slice(0, 3));
         }

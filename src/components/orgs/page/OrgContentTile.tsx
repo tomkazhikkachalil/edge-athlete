@@ -7,6 +7,7 @@ import type { AppSlot } from '@/lib/site-builder/app-layout';
 import { WIDGETS } from '@/lib/site-builder/catalog';
 import BubbleCard from '@/components/bubbles/BubbleCard';
 import PageBlocks from '@/app/(public)/org/[slug]/_components/PageBlocks';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 /**
  * A content tile on the in-app org page — Site Builder P10-B (Sep 9 2026).
@@ -40,7 +41,7 @@ export default function OrgContentTile({
 }: {
   slot: AppSlot;
   siteId: string | null;
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   canManage: boolean;
   staggerIndex: number;

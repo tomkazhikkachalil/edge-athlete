@@ -21,8 +21,8 @@ import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, orgKindOf, type OrgKindRow } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, orgKindOf, type OrgKindRow, type OrgKind } from '@/lib/orgs/org-ref';
 import {
   WELL_KNOWN_PATH,
   dnsInstructions,
@@ -67,7 +67,7 @@ const PRE_171 = () =>
 
 async function loadSite(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<{ site: DomainSiteRow | null; pre171: boolean }> {
   const { data, error } = await admin
@@ -212,7 +212,7 @@ async function purge(site: { subdomain: string }): Promise<void> {
 
 // ── Route cores ─────────────────────────────────────────────────────────────
 
-export async function domainGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function domainGET(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { site, pre171 } = await loadSite(admin, side, orgId);
   if (pre171) return NextResponse.json({ domain: toStatus(null, true) });
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
@@ -224,7 +224,7 @@ export async function domainGET(admin: Admin, side: OrgSide, orgId: string): Pro
  *  domain from Vercel, best-effort). */
 export async function domainPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: { domain: string }
 ): Promise<NextResponse> {
@@ -277,7 +277,7 @@ export async function domainPOST(
 
 /** Verify ownership: resolve the TXT record; on a match record it and
  *  attach the domain to Vercel (or mark it awaiting the platform step). */
-export async function domainVerifyPOST(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function domainVerifyPOST(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { site, pre171 } = await loadSite(admin, side, orgId);
   if (pre171) return PRE_171();
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
@@ -345,7 +345,7 @@ async function attachAndRespond(admin: Admin, site: DomainSiteRow): Promise<Next
 
 /** "Check connection": re-attach if needed, then the reachability proof.
  *  Activation is the ONLY path that sets domain_active_at. */
-export async function domainCheckPOST(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function domainCheckPOST(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { site, pre171 } = await loadSite(admin, side, orgId);
   if (pre171) return PRE_171();
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
@@ -383,7 +383,7 @@ export async function domainCheckPOST(admin: Admin, side: OrgSide, orgId: string
 }
 
 /** Remove the domain entirely (Vercel detach best-effort). */
-export async function domainDELETE(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function domainDELETE(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { site, pre171 } = await loadSite(admin, side, orgId);
   if (pre171) return PRE_171();
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
@@ -415,7 +415,7 @@ export interface AdminDomainRow {
   siteId: string;
   slug: string;
   orgName: string;
-  side: OrgSide;
+  side: OrgKind;
   domain: string;
   state: DomainState;
   requestedAt: string | null;
@@ -447,7 +447,7 @@ export async function adminDomainsGET(admin: Admin): Promise<NextResponse> {
   const platformConfigured = !!vercelEnv();
   const domains: AdminDomainRow[] = rows.map(r => {
     const status = toStatus(r);
-    const side: OrgSide = orgKindOf(r) ?? 'club';
+    const side: OrgKind = orgKindOf(r) ?? 'club';
     return {
       siteId: r.id,
       slug: r.subdomain,
@@ -481,7 +481,7 @@ export async function adminDomainActionPOST(
     return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   }
   const row = data as unknown as DomainSiteRow & OrgKindRow;
-  const side: OrgSide = orgKindOf(row) ?? 'club';
+  const side: OrgKind = orgKindOf(row) ?? 'club';
   const orgId = row.org_id as string;
   if (input.action === 'retry-attach') {
     if (!row.domain_verified_at) return NextResponse.json({ error: 'Not verified yet' }, { status: 409 });

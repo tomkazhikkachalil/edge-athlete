@@ -10,14 +10,14 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import { ATHLETE_CLAIM_EXPIRY_DAYS, isStubEmail } from '@/lib/config/stubs-config';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { orgRefOf } from '@/lib/orgs/org-ref';
+
+import { orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 export interface AthleteClaimContext {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
   teamId: string | null;
 }

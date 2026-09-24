@@ -31,8 +31,8 @@ import {
   type WindowCreateInput,
 } from '@/lib/registration/validate';
 import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
-import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
-import { ORG_ID, pairFor } from './org-ref';
+import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole } from './authz';
+import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 import { seasonArchivedMap } from './rollover-server';
@@ -51,7 +51,7 @@ const TAG = '[REGISTRATION]';
 export async function requireRegistrar(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<{ ok: true; org: { id: string; name: string } } | { ok: false; response: NextResponse }> {
   const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
@@ -116,7 +116,7 @@ export function applicableWindow(
 
 async function loadSeasonForOrg(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   seasonId: string
 ): Promise<{ id: string; starts_on: string | null } | null> {
@@ -134,7 +134,7 @@ async function loadSeasonForOrg(
 export async function registrationCreatePOST(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: RegistrationCreateInput,
   actingFor?: string
@@ -399,7 +399,7 @@ interface RegistrarListRow {
  *  one query set, one row shape, so the two surfaces can never drift. */
 async function loadRegistrarRows(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   seasonId: string | null
 ): Promise<
@@ -511,7 +511,7 @@ async function loadRegistrarRows(
 
 export async function registrationsGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   seasonId: string | null
 ): Promise<NextResponse> {
@@ -532,7 +532,7 @@ function csvField(value: string | null | undefined): string {
  *  Emergency contact rides along — it exists to be handed to coaches. */
 export async function registrationsExportGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   seasonId: string | null
 ): Promise<NextResponse> {
@@ -589,7 +589,7 @@ export async function registrationsExportGET(
 export async function registrationTransitionPATCH(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   registrationId: string,
   input: RegistrationTransitionInput,
@@ -735,7 +735,7 @@ export async function registrationTransitionPATCH(
 /** Load the two lookups the decision bell needs, then send — best-effort. */
 async function notifyDecision(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   profileId: string,
   decision: 'placed' | 'released',
@@ -769,7 +769,7 @@ async function notifyDecision(
 
 export async function windowsGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const { data, error } = await admin
@@ -788,7 +788,7 @@ export async function windowsGET(
 
 export async function windowCreatePOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   input: WindowCreateInput,
   createdBy: string
@@ -841,7 +841,7 @@ export async function windowCreatePOST(
 
 export async function windowDELETE(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   windowId: string
 ): Promise<NextResponse> {
@@ -878,7 +878,7 @@ export interface ViewerRegistration {
  *  one. Flag-off or pre-162 reads as closed/none — surface hidden. */
 export async function viewerRegistrationSummary(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   viewerId: string | null,
   flagOn: boolean
@@ -960,7 +960,7 @@ export async function viewerRegistrationSummary(
  *  personal data, NO answers — safe anywhere. */
 export async function offeringsGET(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<NextResponse> {
   const { data: seasons, error: seasonsError } = await admin

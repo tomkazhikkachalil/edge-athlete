@@ -25,7 +25,7 @@ import {
 } from '@/lib/org-sites/validate';
 import { navEntries } from '@/lib/org-sites/nav';
 import { orgSitePath } from '@/lib/org-sites/urls';
-import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -1286,7 +1286,7 @@ export default function OrgConsolePage() {
   const sectionNodes: Record<ConsoleSectionKey, ReactNode> = {
     hierarchy: (
       <HierarchySection
-        side={side as 'league' | 'club'}
+        side={side as OrgKind}
         orgId={orgId}
         seasons={seasons}
         teams={teams}
@@ -3977,7 +3977,7 @@ export default function OrgConsolePage() {
               </div>
               {/* M2 (both sides since program 12): the manager curates members' round photos onto the gallery. */}
               {site && (
-                <MemberPhotoPicker side={side as 'league' | 'club'} orgId={orgId} onError={message => showError('Website', message)} />
+                <MemberPhotoPicker side={side as OrgKind} orgId={orgId} onError={message => showError('Website', message)} />
               )}
               <div className="pt-2 space-y-1.5">
                 <p className="text-sm font-medium text-primary">Documents &amp; policies</p>

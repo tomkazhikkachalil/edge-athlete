@@ -31,6 +31,7 @@ import { osmEmbedAround, type Embed } from './embeds';
 import { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode } from './gallery-ids';
 import { GRID, clampToConstraints, compactLayout, layoutBottom, sortByPosition, type LegacySiteShape, type SiteLayout, type WidgetInstance } from './layout';
 import { place, seedLayout } from './seeds';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode };
 
@@ -64,7 +65,7 @@ export interface GalleryEntry {
   family: TemplateId;
   name: string;
   blurb: string;
-  forSides: readonly ('league' | 'club')[];
+  forSides: readonly (OrgKind)[];
   forSports: readonly GallerySport[];
   tokens: GalleryDesignTokens;
   slots: readonly GallerySlot[];
@@ -266,7 +267,7 @@ export function galleryEntry(id: string): GalleryEntry | null {
   return GALLERY_ENTRIES.find(e => e.id === id) ?? null;
 }
 
-export function galleryEntriesFor(side: 'league' | 'club', sportKey: string | null | undefined): GalleryEntry[] {
+export function galleryEntriesFor(side: OrgKind, sportKey: string | null | undefined): GalleryEntry[] {
   const sport = gallerySport(sportKey);
   return GALLERY_ENTRIES.filter(e => e.forSides.includes(side) && e.forSports.includes(sport));
 }
@@ -287,12 +288,12 @@ export function clip(text: string, max: number): string {
 
 /** A neutral org when the server hands the reducer no facts (tests, an
  *  org row that vanished): the copy still reads, still validates. */
-export const NEUTRAL_ORG = (side: 'league' | 'club'): GalleryOrg => ({ orgName: side === 'club' ? 'our club' : 'our league', city: null, region: null, venues: [] });
+export const NEUTRAL_ORG = (side: OrgKind): GalleryOrg => ({ orgName: side === 'club' ? 'our club' : 'our league', city: null, region: null, venues: [] });
 
 const humanSport = (sportKey: string | null): string => (sportKey ? sportKey.replace(/_/g, ' ') : 'sports');
 
 /** The welcome tile's blocks: a heading and one paragraph by side × sport. */
-export function galleryWelcome(org: GalleryOrg, side: 'league' | 'club', sportKey: string | null): { heading: string; paragraph: string } {
+export function galleryWelcome(org: GalleryOrg, side: OrgKind, sportKey: string | null): { heading: string; paragraph: string } {
   const name = clip(org.orgName || NEUTRAL_ORG(side).orgName, 80);
   const loc = org.city ? ` in ${org.city}${org.region ? `, ${org.region}` : ''}` : '';
   const heading = clip(`Welcome to ${name}`, HEADING_MAX);
@@ -331,7 +332,7 @@ export function gallerySeed(
   entry: GalleryEntry,
   shape: LegacySiteShape & { template_id: string },
   org: GalleryOrg,
-  side: 'league' | 'club',
+  side: OrgKind,
   sportKey: string | null
 ): SiteLayout {
   const enabledOrder = seedLayout({ ...shape, template_id: entry.family }).widgets.map(w => w.key);

@@ -1,5 +1,6 @@
 import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
 import { appBaseUrl } from '@/lib/org-sites/urls';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // Phase 5 R5: the public registration door — the open windows and ONE
 // button into the app's registration flow (the site never registers
@@ -16,7 +17,7 @@ export default function RegisterCard({
   variant = 'list',
 }: {
   windows: PublicOpenWindow[];
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   variant?: 'list' | 'button';
 }) {

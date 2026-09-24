@@ -15,8 +15,8 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 import { emailService } from '@/lib/email-service';
 import { appBaseUrl } from '@/lib/org-sites/urls';
 import { requireOrgManager } from './structure-server';
-import type { OrgSide } from './authz';
-import { ORG_ID } from './org-ref';
+
+import { ORG_ID, type OrgKind } from './org-ref';
 import { createStaffInvite, grantFromInput, listStaffInvites, revokeStaffInvite, writeStaffAudit } from './staff-invites';
 import { deleteStaffRow, listStaff, readStaffRow, updateStaffSections } from './staff';
 import { notifyStaffInvite, notifyStaffRevoked } from './staff-notify';
@@ -27,7 +27,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 type Params = Promise<{ id: string }>;
 const TAG = '[ORG STAFF]';
 
-function notFound(side: OrgSide): NextResponse {
+function notFound(side: OrgKind): NextResponse {
   return NextResponse.json({ error: side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
 }
 
@@ -35,7 +35,7 @@ function notFound(side: OrgSide): NextResponse {
 // audit's contract — and the user arrives here; the org-role gate runs here.
 async function gate(
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   params: Params,
   intent: 'enter_console' | 'change_roles'
 ): Promise<{ response: NextResponse } | { user: User; admin: Admin; org: { id: string; name: string } }> {
@@ -54,7 +54,7 @@ function fail(label: string, error: unknown): NextResponse {
 }
 
 /** GET /staff — the org's people with authority + open invites. */
-export async function staffListGET(request: NextRequest, user: User, side: OrgSide, params: Params): Promise<NextResponse> {
+export async function staffListGET(request: NextRequest, user: User, side: OrgKind, params: Params): Promise<NextResponse> {
   try {
     const g = await gate(user, side, params, 'enter_console');
     if ('response' in g) return g.response;
@@ -67,7 +67,7 @@ export async function staffListGET(request: NextRequest, user: User, side: OrgSi
 
 /** POST /staff — mint an invite. Owners only. The link is ALWAYS in the
  *  response (the guaranteed channel); email + bell are conveniences. */
-export async function staffInvitePOST(request: NextRequest, user: User, side: OrgSide, params: Params): Promise<NextResponse> {
+export async function staffInvitePOST(request: NextRequest, user: User, side: OrgKind, params: Params): Promise<NextResponse> {
   try {
     const g = await gate(user, side, params, 'change_roles');
     if ('response' in g) return g.response;
@@ -128,7 +128,7 @@ export async function staffInvitePOST(request: NextRequest, user: User, side: Or
 }
 
 /** DELETE /staff/invites/[inviteId] — revoke an open invite. Owners only. */
-export async function staffInviteDELETE(request: NextRequest, user: User, side: OrgSide, params: Promise<{ id: string; inviteId: string }>): Promise<NextResponse> {
+export async function staffInviteDELETE(request: NextRequest, user: User, side: OrgKind, params: Promise<{ id: string; inviteId: string }>): Promise<NextResponse> {
   try {
     const { inviteId } = await params;
     if (!UUID_RE.test(inviteId)) return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
@@ -144,7 +144,7 @@ export async function staffInviteDELETE(request: NextRequest, user: User, side: 
 }
 
 /** PATCH /staff/[rowId] {sections} — change a staff grant's sections. */
-export async function staffRowPATCH(request: NextRequest, user: User, side: OrgSide, params: Promise<{ id: string; rowId: string }>): Promise<NextResponse> {
+export async function staffRowPATCH(request: NextRequest, user: User, side: OrgKind, params: Promise<{ id: string; rowId: string }>): Promise<NextResponse> {
   try {
     const { rowId } = await params;
     if (!UUID_RE.test(rowId)) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
@@ -168,7 +168,7 @@ export async function staffRowPATCH(request: NextRequest, user: User, side: OrgS
 }
 
 /** DELETE /staff/[rowId] — revoke a grant. Owners only. */
-export async function staffRowDELETE(request: NextRequest, user: User, side: OrgSide, params: Promise<{ id: string; rowId: string }>): Promise<NextResponse> {
+export async function staffRowDELETE(request: NextRequest, user: User, side: OrgKind, params: Promise<{ id: string; rowId: string }>): Promise<NextResponse> {
   try {
     const { rowId } = await params;
     if (!UUID_RE.test(rowId)) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });

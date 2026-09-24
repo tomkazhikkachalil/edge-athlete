@@ -21,8 +21,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCsv, checkHeaders } from './csv';
 import { wallClockInZone, zonedWallClockToUtc } from '@/lib/calendar/recurrence';
 import { parseIcs, summaryToMatchup } from '@/lib/calendar/ics-parse';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 
@@ -64,7 +64,7 @@ export interface ScheduleRow {
 }
 
 export interface ScheduleImportScope {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
 }
 

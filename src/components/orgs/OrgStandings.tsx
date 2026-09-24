@@ -13,7 +13,7 @@ import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 import { groupRowsByPool } from '@/lib/competitions/pools';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's standings section (phase 2 R3) — public competitions'
 // materialized tables. The OrgUpcomingEvents contract: additive, renders
@@ -51,7 +51,7 @@ interface CompetitionStandings {
 }
 
 interface OrgStandingsProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Phase 9 V4 (leagues in program 11 L2): a private org's members read the session-gated path. */
   scope?: 'public' | 'mine';

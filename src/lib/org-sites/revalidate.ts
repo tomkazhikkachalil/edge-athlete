@@ -14,8 +14,8 @@ import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SiteBrandRow } from './brand';
 import { loadDraftSnapshotBySiteId, loadSnapshotByRevisionId } from './revisions-server';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, orgIdOf, orgKindOf, type OrgKind } from '@/lib/orgs/org-ref';
 import type { SiteSnapshot } from '@/lib/site-builder/snapshot';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import type { SiteLayout } from '@/lib/site-builder/layout';
@@ -30,7 +30,7 @@ const TAG = '[ORG SITE REVALIDATE]';
  *  link from this, so the two surfaces agree on what "published" means. */
 export async function findPublishedSite(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<{ subdomain: string } | null> {
   try {
@@ -82,7 +82,7 @@ const BRAND_COLUMNS_180 = `${BRAND_COLUMNS}, draft_revision_id, published_revisi
  *  `{ layout: true }` (phase 10), the composition the in-app page follows. */
 export async function readSiteBrandRow(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   opts?: { layout?: boolean }
 ): Promise<SiteBrandRowWithLayout | null> {
@@ -130,7 +130,7 @@ export async function readSiteBrandRow(
 /** Purge the org's PUBLISHED site (if any) after a public-surface write. */
 export async function revalidateOrgSiteForOrg(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<void> {
   try {
@@ -154,7 +154,7 @@ export async function revalidateOrgSiteForCompetition(
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return;
-    const side: OrgSide = orgKindOf(comp) ?? 'club';
+    const side: OrgKind = orgKindOf(comp) ?? 'club';
     const orgId = orgIdOf(comp);
     if (orgId) await revalidateOrgSiteForOrg(admin, side, orgId);
     // Phase 6c G3: a league's boards also show on its affiliated clubs'

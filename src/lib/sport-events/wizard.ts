@@ -15,6 +15,7 @@ import { DEFAULT_SIDE_NAMES, parseGameConfig, SIDE_NAME_MAX } from './format-con
 import type { SportEventShape, SportEventSport } from './types';
 import { wallClockInZone, zonedWallClockToUtc } from '@/lib/calendar/recurrence';
 import { viewerTimeZone } from '@/lib/calendar/venue-time';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
@@ -143,7 +144,7 @@ export interface WizardState {
   description: string;
   visibility: SportEventVisibility;
   join_mode: SportEventJoinMode;
-  org: { kind: 'club' | 'league'; id: string } | null;
+  org: { kind: OrgKind; id: string } | null;
   /** Phase 2b: the org's competition the event counts toward (only with an org). */
   competition: string | null;
   /** The rounds in order (1..MAX_ROUNDS); a tournament is more than one. */

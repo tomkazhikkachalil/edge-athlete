@@ -18,8 +18,8 @@ import { NextResponse } from 'next/server';
 import { parseCoursePhotos } from '@/lib/org-sites/validate';
 import { coursePhotoUrls, type AppCoursePhotos } from '@/lib/org-sites/course-photos';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, pairFor } from '@/lib/orgs/org-ref';
+
+import { ORG_ID, pairFor, type OrgKind } from '@/lib/orgs/org-ref';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import {
   CATALOG_ROW_COLUMNS,
@@ -43,7 +43,7 @@ const TAG = '[ORG VENUES]';
 const MISSING_COLUMN = '42703';
 
 export interface OrgVenueScope {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
 }
 

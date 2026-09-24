@@ -11,6 +11,7 @@ import MediaTile from '@/components/media/MediaTile';
 import MediaLightbox from '@/components/media/MediaLightbox';
 import type { CollageItem } from '@/components/media/MediaCollage';
 import type { AppCoursePhotos } from '@/lib/org-sites/course-photos';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's venues & courses section (phase 6b A1) — the club's
 // PROPERTY: its venues, their facilities, and any catalog golf course a
@@ -29,7 +30,7 @@ interface VenueRow {
 }
 
 interface OrgVenuesProps {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;

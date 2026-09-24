@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // The manager's candidate browser (M2, program 10): "Round photos from
 // members" — photos on PUBLIC golf round posts by members who opted in,
@@ -24,7 +24,7 @@ export default function MemberPhotoPicker({
   orgId,
   onError,
 }: {
-  side: 'league' | 'club';
+  side: OrgKind;
   orgId: string;
   onError: (message: string) => void;
 }) {

@@ -7,7 +7,7 @@ import {
   ORG_KIND_EMBED_INNER,
   ORG_KINDS,
   ORG_ROUTE_FAMILY,
-  PAIR_COLUMN,
+  NOTIFY_ORG_KEY,
   isOrgKind,
   orgIdOf,
   orgKindOf,
@@ -31,7 +31,7 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
   });
 
   it.each(ORG_KINDS)('%s: the pair column NAME and the route family agree', kind => {
-    expect(PAIR_COLUMN[kind]).toBe(`${kind}_id`);
+    expect(NOTIFY_ORG_KEY[kind]).toBe(`${kind}_id`);
     expect(ORG_ROUTE_FAMILY[kind]).toBe(`${kind}s`);
   });
 
@@ -118,9 +118,6 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     // A file not listed here may not name the pair at all; a listed file may not
     // exceed its count — the number only ever goes DOWN.
     const ALLOW: Record<string, number> = {
-      // class (c) — the notify metadata key, forever
-      'lib/clubs/notify.ts': 8,
-      'lib/leagues/notify.ts': 8,
       // the public affiliation shapes (league_id / club_id / parent_league_id on the wire — the boundary of D-ii's `affiliations`)
       'lib/affiliations/parents-server.ts': 17,
       'lib/affiliations/server.ts': 12,
@@ -179,6 +176,28 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     };
     walk(root);
     expect(over).toEqual([]);
+  });
+
+  it('OrgKind is the ONE name (step F): no OrgSide, no inline union, no PAIR_COLUMN outside this module', () => {
+    const root = join(__dirname, '..', '..', '..');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) {
+          if (name === 'node_modules' || name === '__tests__') continue;
+          walk(p);
+        } else if (/\.(ts|tsx)$/.test(name) && !p.endsWith('org-ref.ts')) {
+          const text = readFileSync(p, 'utf8');
+          const rel = p.slice(root.length + 1);
+          if (/\bOrgSide\b/.test(text)) offenders.push(`${rel}: OrgSide`);
+          if (/'league'\s*\|\s*'club'|'club'\s*\|\s*'league'/.test(text)) offenders.push(`${rel}: an inline 'league' | 'club' union`);
+          if (/\bPAIR_COLUMN\b/.test(text)) offenders.push(`${rel}: PAIR_COLUMN (NOTIFY_ORG_KEY is the one remaining use)`);
+        }
+      }
+    };
+    walk(root);
+    expect(offenders).toEqual([]);
   });
 
   it('is the ONLY place the pair, the table or the family is spelled from a kind', () => {

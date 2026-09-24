@@ -13,16 +13,16 @@
 import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
 
-export { isMissingTableError } from '@/lib/leagues/validate';
+export { isMissingTableError } from '@/lib/orgs/validate';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isoDate = z.string().regex(ISO_DATE, 'Expected YYYY-MM-DD');
 
-export const OrgSideSchema = z.enum(['league', 'club']);
+export const OrgKindSchema = z.enum(['league', 'club']);
 
 export const SeasonCreateSchema = z
   .object({
-    side: OrgSideSchema,
+    side: OrgKindSchema,
     orgId: uuid,
     label: boundedText(60),
     startsOn: isoDate.optional(),
@@ -48,7 +48,7 @@ export const DivisionCreateSchema = z.object({
 export type DivisionCreateInput = z.infer<typeof DivisionCreateSchema>;
 
 export const TeamCreateSchema = z.object({
-  side: OrgSideSchema,
+  side: OrgKindSchema,
   orgId: uuid,
   name: boundedText(80),
   displayName: optionalText(80),

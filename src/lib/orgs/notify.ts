@@ -8,14 +8,13 @@
 // (`league_join` / `club_join`, `league_update` / `club_update`,
 // `league_request_result` / `club_request_result` — the vocabulary
 // notifications_type_check admits since 113 / 117), the `metadata` key
-// (the kind's PAIR_COLUMN — history, and the announce readers match on it:
+// (the kind's NOTIFY_ORG_KEY — history, and the announce readers match on it:
 // that constant's one remaining use), and the URL family. The copy is one
-// text. `src/lib/leagues/notify.ts` and `src/lib/clubs/notify.ts` adapt
-// their old field names onto these until step F retires them.
+// text. The two side files it replaced were deleted in step F.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { joinDecisionMessage, joinDecisionTitle, joinRequestTitle } from './join-requests';
-import { type OrgKind, PAIR_COLUMN } from './org-ref';
+import { type OrgKind, NOTIFY_ORG_KEY } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches guardian-notify's Admin alias; the notifier is schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -29,7 +28,7 @@ export function orgNotifyTypes(kind: OrgKind) {
     update: `${kind}_update` as const,
     requestResult: `${kind}_request_result` as const,
     /** The metadata key the announce readers match on — history, forever. */
-    metadataKey: PAIR_COLUMN[kind],
+    metadataKey: NOTIFY_ORG_KEY[kind],
     page: (id: string) => `/${kind}/${id}`,
     console: (id: string) => `/app/org/${kind}/${id}`,
     start: `/${kind}/start`,

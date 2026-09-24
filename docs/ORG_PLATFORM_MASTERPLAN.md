@@ -72,16 +72,17 @@ facility            venue_id, name, type, sport_config
                     (a golf course, an ice pad, court 3, field B)
 ```
 
-> **Status (Round 5 steps A–C, Sep 22 2026, migs 231–233):** `organization` is
-> the live `organizations` table — one row per league or club, same ids as
-> the old tables, `kind` (the org's self-description and route family) plus
-> the two capability columns `operates_competitions` / `operates_teams`
-> (`org_capability` stays two columns until a third capability exists).
-> Every table that names an org carries a real `org_id`; `league_id` /
-> `club_id` are kept correct by trigger for readers not yet switched. Step D
-> (the pair dropped, `affiliation` unified from `league_clubs` /
-> `league_affiliations`, `leagues` / `clubs` as views) is parked — see the
-> DEVLOG entry of Sep 22.
+> **Status — SHIPPED (Round 5, Sep 22–24 2026, migs 231–237):** `organization`
+> is the live `organizations` table — one row per league or club, same ids
+> as the old tables, `kind` (the org's self-description and route family)
+> plus the two capability columns `operates_competitions` / `operates_teams`
+> (`org_capability` stays two columns until a third capability exists —
+> columns-on-one-table, as this section proposed). Every table that names an
+> org carries `org_id` alone; `leagues` / `clubs` are security_invoker views
+> (never inserted through); `affiliation` is the live `affiliations` table
+> (child → parent, both kinds), the requests and join requests are
+> `org_requests` / `org_join_requests`, a sanction grant names two orgs.
+> CLAUDE.md convention 24 is the working reference.
 
 `org_capability` replaces a type column. Kanata Minor Hockey operates teams
 (its Blazers play in HEO) and operates competitions (it runs its own house

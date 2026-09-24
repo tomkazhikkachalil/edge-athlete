@@ -16,15 +16,8 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import {
-  capabilityAllows,
-  getOrgAndCapabilities,
-  type IntentScope,
-  type OrgCapabilities,
-  type OrgIntent,
-  type OrgSide,
-} from './authz';
-import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from './org-ref';
+import { capabilityAllows, getOrgAndCapabilities, type IntentScope, type OrgCapabilities, type OrgIntent } from './authz';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor, type OrgKind } from './org-ref';
 import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
@@ -41,7 +34,7 @@ import { seasonArchivedMap } from './rollover-server';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export interface StructureScope {
-  side: OrgSide;
+  side: OrgKind;
   orgId: string;
 }
 
@@ -57,7 +50,7 @@ const TAG = '[ORG STRUCTURE]';
 export async function requireOrgManager(
   admin: Admin,
   user: User,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   opts: { intent?: OrgIntent; scope?: IntentScope } = {}
 ): Promise<

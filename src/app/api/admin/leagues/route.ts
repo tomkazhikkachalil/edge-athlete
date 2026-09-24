@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
-import { LeagueCreateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
-import { createLeagueWithOwner } from '@/lib/leagues/create';
+import { LeagueCreateSchema, placeToOrgColumns, isMissingTableError } from '@/lib/orgs/validate';
+import { createOrgWithOwner } from '@/lib/orgs/create';
 import { memberCountsByOrg } from '@/lib/orgs/members';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
@@ -38,18 +38,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Owner profile not found' }, { status: 404 });
     }
 
-    const result = await createLeagueWithOwner(supabase, {
+    const result = await createOrgWithOwner(supabase, {
+      kind: 'league',
       name,
       description: description ?? null,
       sportKey,
       ownerProfileId,
-      placeColumns: placeToLeagueColumns(place),
+      placeColumns: placeToOrgColumns(place),
     });
     if ('error' in result) {
       return NextResponse.json({ error: 'Failed to create league' }, { status: 500 });
     }
 
-    return NextResponse.json({ league: result.league });
+    return NextResponse.json({ league: result.org });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ADMIN LEAGUES] POST error:', error);

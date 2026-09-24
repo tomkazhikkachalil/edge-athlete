@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { SIDE_COPY } from './side-copy';
-import type { MemberRow, OrgPageResponse, OrgSide } from './types';
+import type { MemberRow, OrgPageResponse } from './types';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 // The org page's data + every mutation, lifted out of the two page twins in
 // R1 of the Org Pages Program (Sep 8 2026). Behaviour is the twins' verbatim:
@@ -12,7 +13,7 @@ import type { MemberRow, OrgPageResponse, OrgSide } from './types';
 // guard, refetch-on-success everywhere (no optimistic updates), toasts scoped
 // by side. Feature-local on purpose (next to OrgPage, not src/hooks — that
 // directory holds generic hooks).
-export function useOrgPage(side: OrgSide, orgId: string) {
+export function useOrgPage(side: OrgKind, orgId: string) {
   const copy = SIDE_COPY[side];
   const { user, profile: viewerProfile } = useAuth();
   const { showError, showSuccess } = useToast();

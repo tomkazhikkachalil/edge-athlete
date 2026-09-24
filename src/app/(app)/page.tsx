@@ -14,10 +14,11 @@ import OAuthButtons from '@/components/OAuthButtons';
 import RegistrationSteps from '@/components/signup/RegistrationSteps';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { FEATURE_FLAGS } from '@/lib/features';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
-  const [orgIntent, setOrgIntent] = useState<'club' | 'league' | null>(null);
+  const [orgIntent, setOrgIntent] = useState<OrgKind | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -159,7 +160,7 @@ export default function Home() {
   // rides sessionStorage, the one channel that survives the registration
   // hard-reload in BOTH flag states: `/` honours `ea:invite-return` after
   // sign-in (the invite-claim precedent above).
-  const handleOrgClick = (kind: 'club' | 'league') => {
+  const handleOrgClick = (kind: OrgKind) => {
     try {
       window.sessionStorage.setItem('ea:invite-return', `/${kind}/start?sport=golf`);
     } catch { /* storage unavailable — the start page's own CTA still parks it */ }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { orgSitePath } from '@/lib/org-sites/urls';
-import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // Org news for MEMBERS (phase 9 V5; leagues in program 11 L2): every
 // published post, including the members-only ones a private org keeps off
@@ -30,7 +30,7 @@ interface MemberPost {
   cover?: { url: string; alt: string; width?: number; height?: number } | null;
 }
 
-export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { side: 'league' | 'club'; orgId: string; isMember: boolean; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
+export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { side: OrgKind; orgId: string; isMember: boolean; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
   const plural = ORG_ROUTE_FAMILY[side];
   const label = side === 'league' ? 'League news' : 'Club news';
   const [posts, setPosts] = useState<MemberPost[] | null>(null);
