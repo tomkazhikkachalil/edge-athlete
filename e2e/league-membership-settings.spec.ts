@@ -26,7 +26,9 @@ test('league membership settings: defaults public/open → PATCH flips → GET r
 
   const league = await createQaOrg(admin, 'league', { name: `QA Membership League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf' });
   const leagueId = league.id;
-  expect(league).toMatchObject({ visibility: 'public', join_policy: 'open' });
+  // The column DEFAULTS (176) on the org row — the helper returns { id } only.
+  const { data: created } = await admin.from('organizations').select('visibility, join_policy').eq('id', leagueId).single();
+  expect(created).toMatchObject({ visibility: 'public', join_policy: 'open' });
   await admin.from('memberships').insert([
     { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow' },
     { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'follow' },
