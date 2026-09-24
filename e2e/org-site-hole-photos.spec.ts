@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -154,7 +154,7 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('golf_courses').delete().eq('id', courseId);
     if (assets.length) await admin.storage.from('uploads').remove(assets);
   }

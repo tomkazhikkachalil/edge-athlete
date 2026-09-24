@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { GOLF_MODULE_ORDER } from '../src/lib/org-sites/validate';
 
@@ -33,7 +34,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
   // Leftovers from earlier runs (one pending request per user).
   const { data: stale } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', owner.id);
   const staleIds = (stale ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
-  if (staleIds.length) await admin.from('clubs').delete().in('id', staleIds);
+  if (staleIds.length) await deleteQaOrgs(admin, staleIds);
   await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
   await resetRateBucket(admin, 'club-request', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
@@ -129,6 +130,6 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
     await ownerApi.dispose();
     await joinerApi.dispose();
     await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
-    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    if (clubId) await deleteQaOrgs(admin, [clubId]);
   }
 });

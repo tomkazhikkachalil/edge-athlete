@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
@@ -72,6 +72,6 @@ test('org claim: signed-in claim → ownership + consumed token; reuse invalid',
     }
   } finally {
     await admin.from('org_claim_invites').delete().eq('token_hash', tokenHash);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { RateLimitAction } from '@/lib/rate-limit-core';
+import { SWEEP_CUTOFF_MS, isQaUserEmail, isShadowEmail, staleQaOrgs, staleShadows, type AccessRow, type OrgRow, type ShadowRow } from './qa-sweep-rules';
+import { deleteQaOrgs } from './org';
 import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -117,22 +120,41 @@ export function adminClient(): SupabaseClient {
   });
 }
 
-/** Reset a user-keyed rate bucket for the shared QA user (phase 6 R2).
- *  The org-site bucket is 30/hour and the site suite bursts past it when
- *  run whole (rate_limits is DB-backed, so a tripped bucket poisons the
- *  next hour of runs too). Key shape: `${action}:${identifier}` — see
- *  buildRateLimitKey. Best-effort: a missing table (pre-094 target) is
- *  fine. */
+/** Reset ONE user-keyed rate bucket for a QA user (phase 6 R2). rate_limits
+ *  is DB-backed, so a tripped bucket poisons the next hour of runs too. Key
+ *  shape: `${action}:${identifier}` — see buildRateLimitKey. Typed since the
+ *  teardown hardening (Sep 24 2026): `action` is a RateLimitAction (a typo
+ *  used to compile into a silent no-op), the user must be THE USER WHO POSTS
+ *  (five registration specs reset the owner's bucket while the athlete
+ *  posted — the 429 every prod probe after the first hit), and a refused
+ *  delete THROWS instead of pretending. */
 export async function resetRateBucket(
   admin: SupabaseClient,
-  action: string,
+  action: RateLimitAction,
   userId: string
 ): Promise<void> {
-  try {
-    await admin.from('rate_limits').delete().like('key', `${action}:${userId}%`);
-  } catch {
-    // best-effort
+  const { error } = await admin.from('rate_limits').delete().like('key', `${action}:${userId}%`);
+  if (error) throw new Error(`resetRateBucket(${action}, ${userId}) failed: ${error.message}`);
+}
+
+/** Every user-keyed bucket for these users — the run-wide belt the global
+ *  setup fastens after minting A–D (their ids are fresh, so this only
+ *  matters when a run reuses ids — but it costs one statement). Keys are
+ *  `${action}:${identifier}` and a uuid never spells an IP, so the LIKE is
+ *  exact enough. */
+export async function resetQaBuckets(admin: SupabaseClient, userIds: readonly string[]): Promise<void> {
+  for (const id of userIds) {
+    const { error } = await admin.from('rate_limits').delete().like('key', `%:${id}%`);
+    if (error) throw new Error(`resetQaBuckets(${id}) failed: ${error.message}`);
   }
+}
+
+/** An error-CHECKED delete step: the teardown's steps used to discard every
+ *  `{ error }`, so a refused child delete surfaced only as an opaque
+ *  `profiles delete failed` at the end. */
+async function mustDelete(label: string, step: PromiseLike<{ error: { message: string } | null }>): Promise<void> {
+  const { error } = await step;
+  if (error) throw new Error(`${label} failed: ${error.message}`);
 }
 
 export interface QaUser {
@@ -405,14 +427,52 @@ export async function deleteQaUser(userId: string): Promise<void> {
   // trigger stayed quiet, and the parked child + shadow user leaked instead.)
   // Recursively deleting managed athletes first fixes both shapes; children
   // are never guardians, so the recursion is one level deep.
-  const { data: managed } = await admin
+  // Teardown hardening (Sep 24 2026): not only `role = 'guardian'` rows — a
+  // roster STUB's access row is `{ role: 'supervised', user_id: <itself> }`
+  // and a minor the guardian route parked keeps its rows too. Every profile
+  // whose access rows are ALL held by this user (or by itself) goes first;
+  // a child with a second, live guardian stays and only this user's row
+  // cascades (one row remains, the deferred guard stays quiet).
+  const { data: held, error: heldError } = await admin
     .from('profile_access')
     .select('profile_id')
     .eq('user_id', userId)
-    .eq('role', 'guardian');
-  for (const m of managed ?? []) {
-    await deleteQaUser(m.profile_id);
+    .neq('profile_id', userId);
+  if (heldError) throw new Error(`deleteQaUser(${userId}): profile_access read failed: ${heldError.message}`);
+  const heldIds = [...new Set((held ?? []).map(r => r.profile_id as string))];
+  if (heldIds.length) {
+    const { data: others, error: othersError } = await admin
+      .from('profile_access')
+      .select('profile_id, user_id')
+      .in('profile_id', heldIds)
+      .neq('user_id', userId);
+    if (othersError) throw new Error(`deleteQaUser(${userId}): profile_access read failed: ${othersError.message}`);
+    const protectedIds = new Set((others ?? []).filter(r => r.user_id !== r.profile_id).map(r => r.profile_id as string));
+    for (const child of heldIds) {
+      if (!protectedIds.has(child)) await deleteQaUser(child);
+    }
   }
+
+  // ── The competition chain (the quirk the Sep 24 staging sweep met) ──────────
+  // contest_results.entered_by / confirmed_by / disputed_by → profiles SET
+  // NULL, participant_id → contest_participants CASCADE, and the entry is the
+  // profile's (CASCADE): one profile delete fires the SET NULL update on a
+  // results row whose participant is going in the SAME cascade → FK
+  // violation. The results, participants and entries this profile owns go
+  // first, explicitly — the QA org they belong to is going too, so nothing
+  // is lost that the product would keep.
+  const { data: entries } = await admin.from('competition_entries').select('id').eq('profile_id', userId);
+  const entryIds = (entries ?? []).map(e => e.id as string);
+  if (entryIds.length) {
+    const { data: cps } = await admin.from('contest_participants').select('id').in('entry_id', entryIds);
+    const cpIds = (cps ?? []).map(c => c.id as string);
+    if (cpIds.length) {
+      await mustDelete(`contest_results of ${userId}`, admin.from('contest_results').delete().in('participant_id', cpIds));
+      await mustDelete(`contest_participants of ${userId}`, admin.from('contest_participants').delete().in('id', cpIds));
+    }
+    await mustDelete(`competition_entries of ${userId}`, admin.from('competition_entries').delete().in('id', entryIds));
+  }
+  await mustDelete(`contest_stat_lines of ${userId}`, admin.from('contest_stat_lines').delete().eq('profile_id', userId));
 
   // ── Social cleanup ────────────────────────────────────────────────────────
   // Conversations this user touches, as participant or creator.
@@ -508,26 +568,75 @@ export async function deleteQaUser(userId: string): Promise<void> {
 }
 
 /**
- * Best-effort sweep of edgeqa-* users older than 24h — orphans from runs
- * that were killed before teardown. Unique emails per run make collisions
- * impossible, so orphans only accumulate; this drains them.
+ * Best-effort sweep of what runs killed before their teardown left behind —
+ * older than 24h, so a run in flight is never swept by a concurrent one.
+ * Three shapes since the teardown hardening (Sep 24 2026), taken in the
+ * order the database wants: the QA ORGS first (Tom's strict rule — a QA-
+ * shaped name, old, and an owner that is null or a stale QA user; their
+ * cascades take sites, competitions, entries, results and memberships — the
+ * bulk of what leaked: 1 021 orgs on staging), then the SHADOW users no live
+ * holder protects (stubs and minors — children before their guardians by
+ * construction), then the edgeqa-* USERS. Each deletion is caught on its
+ * own; one refusal never aborts the rest; the whole sweep is non-fatal.
  */
-export async function sweepStaleQaUsers(): Promise<void> {
+export async function sweepStaleQa(): Promise<void> {
   try {
     const admin = adminClient();
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const stale = await listStaleQaUsers(admin, cutoff);
-    if (stale.length) console.log(`[e2e sweep] ${stale.length} stale QA user(s) to delete`);
+    const cutoff = Date.now() - SWEEP_CUTOFF_MS;
+    const { users, shadows, orgs } = await listStaleQaShapes(admin, cutoff);
+    const total = orgs.length + shadows.length + users.length;
+    if (total === 0) return;
+    console.log(`[e2e sweep] stale QA shapes: orgs ${orgs.length} · shadows ${shadows.length} · users ${users.length}`);
     let deleted = 0;
-    for (const u of stale) {
-      await deleteQaUser(u.id).then(() => { deleted++; }).catch(err =>
-        console.warn(`[e2e sweep] could not delete stale ${u.email}:`, err.message)
-      );
+    for (const o of orgs) {
+      await deleteQaOrgs(admin, [o.id]).then(() => { deleted++; }).catch(err =>
+        console.warn(`[e2e sweep] could not delete stale org ${o.name}:`, (err as Error).message));
     }
-    if (stale.length) console.log(`[e2e sweep] deleted ${deleted} / ${stale.length}`);
+    for (const u of [...shadows, ...users]) {
+      await deleteQaUser(u.id).then(() => { deleted++; }).catch(err =>
+        console.warn(`[e2e sweep] could not delete stale ${u.email}:`, (err as Error).message));
+    }
+    console.log(`[e2e sweep] deleted ${deleted} / ${total}`);
   } catch (err) {
     console.warn('[e2e sweep] skipped:', (err as Error).message);
   }
+}
+
+/** The old name — the global setup's import until every caller says sweepStaleQa. */
+export const sweepStaleQaUsers = sweepStaleQa;
+
+/** The three stale shapes, by the pure rules in qa-sweep-rules.ts. */
+export async function listStaleQaShapes(
+  admin: ReturnType<typeof adminClient>,
+  cutoff: number
+): Promise<{ users: Array<{ id: string; email: string }>; shadows: ShadowRow[]; orgs: OrgRow[] }> {
+  const users = await listStaleQaUsers(admin, cutoff);
+  const staleIds = new Set(users.map(u => u.id));
+  // shadows: every stubs / minors auth user, then the rule over their access rows
+  const shadowCandidates: ShadowRow[] = [];
+  const perPage = 1000;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) throw new Error(`listUsers(page ${page}) failed: ${error.message}`);
+    const list = data?.users ?? [];
+    for (const u of list) {
+      if (u.email && isShadowEmail(u.email)) shadowCandidates.push({ id: u.id, email: u.email, created_at: u.created_at });
+    }
+    if (list.length < perPage) break;
+  }
+  let access: AccessRow[] = [];
+  if (shadowCandidates.length) {
+    const { data, error } = await admin.from('profile_access').select('profile_id, user_id').in('profile_id', shadowCandidates.map(s => s.id));
+    if (error) throw new Error(`profile_access read failed: ${error.message}`);
+    access = (data ?? []) as AccessRow[];
+  }
+  const shadows = staleShadows(shadowCandidates, access, cutoff, staleIds);
+  // orgs: the QA-shaped names, then the rule
+  const { data: orgRows, error: orgError } = await admin
+    .from('organizations').select('id, name, created_at, owner_profile_id').like('name', 'QA %').limit(5000);
+  if (orgError) throw new Error(`organizations read failed: ${orgError.message}`);
+  const orgs = staleQaOrgs((orgRows ?? []) as OrgRow[], cutoff, staleIds);
+  return { users, shadows, orgs };
 }
 
 /**
@@ -547,7 +656,7 @@ export async function listStaleQaUsers(
     if (error) throw new Error(`listUsers(page ${page}) failed: ${error.message}`);
     const users = data?.users ?? [];
     for (const u of users) {
-      if (!u.email?.startsWith('edgeqa-')) continue;
+      if (!u.email || !isQaUserEmail(u.email)) continue;
       if (new Date(u.created_at).getTime() > cutoff) continue;
       stale.push({ id: u.id, email: u.email, created_at: u.created_at });
     }

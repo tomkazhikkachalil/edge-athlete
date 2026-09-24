@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAcceptAs, openEventSession, readScorecard, readView, roundTransition, scoreHoles, setGroups } from './helpers/sport-events';
 
@@ -154,7 +154,7 @@ test('the bracket door: a bracketed match event links to the org bracket, go-liv
   } finally {
     await cleanupEvent(s.apiA, spareId);
     await cleanupEvent(s.apiA, eventId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await s.dispose();
   }
 });

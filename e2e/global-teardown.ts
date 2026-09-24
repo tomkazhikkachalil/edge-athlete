@@ -1,6 +1,7 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
-import { deleteQaUser, type QaUser } from './helpers/qa-user';
+import { adminClient, deleteQaUser, type QaUser } from './helpers/qa-user';
+import { createdQaOrgIds, deleteQaOrgs } from './helpers/org';
 
 // Deletes in reverse order of minting (D, C, B, A): cross-user artifacts
 // (conversations, follows, notifications) are cleaned by whichever deletion
@@ -28,6 +29,23 @@ export default async function globalTeardown() {
       console.error(`[e2e] TEARDOWN FAILED for ${user.email}:`, err);
       errors.push(err);
     }
+  }
+  // Teardown hardening (Sep 24 2026): the orgs a spec minted and never
+  // reached its `finally` for (a kill, a timeout) — the run's registry is
+  // the list. Loud: a non-zero count is a spec whose teardown is broken.
+  if (createdQaOrgIds.size) {
+    const ids = [...createdQaOrgIds];
+    try {
+      const removed = await deleteQaOrgs(adminClient(), ids);
+      console.warn(`[e2e] teardown removed ${removed} org(s) a spec left behind: ${ids.join(', ')}`);
+    } catch (err) {
+      console.error('[e2e] TEARDOWN FAILED for the run\'s orgs:', err);
+      errors.push(err);
+    }
+  }
+  // The state files are this run's; a stale user.json must never be re-read.
+  if (existsSync(authDir)) {
+    for (const f of readdirSync(authDir)) if (f.endsWith('.json')) rmSync(join(authDir, f), { force: true });
   }
   if (errors.length) throw errors[0];
 }

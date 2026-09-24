@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The vanity root tree (phase 6 R1): edgeathlete/{slug} serves the same
@@ -89,7 +89,7 @@ test('vanity path: /{slug} serves the site; unknown slug gets the linked 404; re
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -155,7 +155,7 @@ test('canonical flip: /org 301s to vanity; preview and card.png exempt', async (
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 

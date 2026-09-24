@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody, settleStatus } from './helpers/isr';
 import { publishSite, revisionsSupported } from './helpers/org-site';
@@ -180,6 +180,6 @@ test('org site revisions: draft → preview → publish → history → restore 
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

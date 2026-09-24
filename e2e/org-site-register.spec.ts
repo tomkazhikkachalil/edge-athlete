@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 /** Document-content settle (the org-site suite's multi-POP lesson, third
@@ -33,6 +33,7 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
   await resetRateBucket(admin, 'org-site', owner.id);
+  await resetRateBucket(admin, 'registration', owner.id); // registration-windows rides this bucket
 
   const probe = await admin.from('registration_windows').select('id').limit(1);
   test.skip(!!probe.error, `registration_windows missing — run migration 162 (${probe.error?.message})`);
@@ -132,6 +133,6 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

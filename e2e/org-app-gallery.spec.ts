@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -117,7 +117,7 @@ test('org gallery: picked member photo → face, window, lightbox; revoke → go
     await ownerApi.dispose();
     await alphaApi.dispose();
     await cleanRoundPost(admin, pub);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('profiles').update({ visibility: priorVisibility }).eq('id', alpha.id);
   }
 });

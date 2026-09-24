@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V3 — the join door. A club's public site carries "Join {club}"
@@ -92,6 +92,6 @@ test('join door: site CTA → account-first → sign in returns → request to j
     await anon.close();
     await ownerApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { club_id: clubId });
-    await admin.from('clubs').delete().in('id', [clubId, openClubId]);
+    await deleteQaOrgs(admin, [clubId, openClubId]);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -54,6 +54,6 @@ test('club managers: owner promotes and demotes; non-owners see no controls', as
     }
   } finally {
     await admin.from('notifications').delete().eq('type', 'club_update').eq('user_id', userA.id);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

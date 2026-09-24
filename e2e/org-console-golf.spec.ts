@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Phase 7 C5 — the golf-first console. A golf club's console (clubs.primary_sport
@@ -76,6 +76,6 @@ test('golf club console: Website → Venues → Leagues & events first, golf che
     expect(plainScroll, 'classic console: no horizontal overflow at 390px').toBeLessThanOrEqual(390);
   } finally {
     await ctx.close();
-    await admin.from('clubs').delete().in('id', [golfId, plainId]);
+    await deleteQaOrgs(admin, [golfId, plainId]);
   }
 });

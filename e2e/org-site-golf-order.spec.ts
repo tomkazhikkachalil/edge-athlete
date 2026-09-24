@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { publishSite } from './helpers/org-site';
 import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/lib/org-sites/validate';
@@ -124,6 +124,6 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
   } finally {
     await ownerApi.dispose();
     await admin.from('org_sites').delete().in('org_id', [golfId, plainId]);
-    await admin.from('clubs').delete().in('id', [golfId, plainId]);
+    await deleteQaOrgs(admin, [golfId, plainId]);
   }
 });

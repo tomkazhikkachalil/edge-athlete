@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, goLive, openEventSession, readScorecard, readView, scoreHoles } from './helpers/sport-events';
 
@@ -107,7 +107,7 @@ test('the match bridge: a bracket final runs as a match, go-live swaps the link,
     expect(d.standings.find(r => r.entry_id === eC)?.rank).toBe(2);
   } finally {
     await cleanupEvent(s.apiA, eventId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await s.dispose();
   }
 });

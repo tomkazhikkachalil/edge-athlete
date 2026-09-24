@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
@@ -119,6 +119,6 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
     await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('teams').delete().eq('org_id', leagueId);
     await admin.from('memberships').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

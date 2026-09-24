@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { settleBody } from './helpers/isr';
@@ -211,7 +211,7 @@ test('private club: panels on the site, empty public standings, members read /mi
     await ownerApi.dispose();
     await alphaApi.dispose();
     await strangerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await deleteQaUser(stranger.id);
   }
 });

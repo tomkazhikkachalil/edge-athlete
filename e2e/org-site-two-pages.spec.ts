@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
@@ -173,7 +173,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
     await admin.from('org_sites').delete().in('id', [sites.club?.id, sites.league?.id].filter(Boolean) as string[]);
     await admin.from('competitions').delete().eq('org_id', leagueId);
     await admin.from('affiliations').delete().eq('parent_org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

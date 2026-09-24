@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -80,7 +80,7 @@ test('ad-hoc sides: named entries from the console, a game between them, the nam
     await expect(page.getByText('Reds', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Blues', { exact: true }).first()).toBeVisible();
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await api.dispose();
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V2 — join with approval. On an approval club a join POST queues a
@@ -145,7 +145,7 @@ test('join approval: request → bell + not a member → withdraw → request �
     await ownerApi.dispose();
     await alphaApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { club_id: clubId });
-    await admin.from('clubs').delete().in('id', [clubId, openClubId]);
+    await deleteQaOrgs(admin, [clubId, openClubId]);
     await deleteQaUser(gamma.id);
   }
 });

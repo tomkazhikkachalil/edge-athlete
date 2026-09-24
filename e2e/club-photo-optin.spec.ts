@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import { publishSite } from './helpers/org-site';
@@ -149,7 +149,7 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
     await alphaApi.dispose();
     await cleanRoundPost(admin, pub);
     await cleanRoundPost(admin, priv);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('profiles').update({ visibility: priorVisibility, supervision_state: priorSupervision }).eq('id', alpha.id);
   }
 });

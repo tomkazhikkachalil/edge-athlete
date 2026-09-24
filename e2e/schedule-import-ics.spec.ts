@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // ICS schedule import (phase 6c I1, zero DDL): a pasted calendar export
@@ -150,6 +150,6 @@ test('ICS schedule import: dry-run 2+2 → commit instants, org venue resolved, 
     }
   } finally {
     await admin.from('venues').delete().in('org_id', [leagueId, otherId]);
-    await admin.from('leagues').delete().in('id', [leagueId, otherId]);
+    await deleteQaOrgs(admin, [leagueId, otherId]);
   }
 });

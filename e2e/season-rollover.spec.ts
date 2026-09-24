@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // Season rollover (phase 5.5, mig 165): one button clones the structure
@@ -15,6 +15,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
   const admin = adminClient();
   // The windows POST shares the 'registration' bucket across the twins in one run.
   await resetRateBucket(admin, 'registration', owner.id);
+  await resetRateBucket(admin, 'registration', loadQaUser('user.json').id); // the athlete posts
 
   const probe = await admin.from('seasons').select('archived_at').limit(1);
   test.skip(!!probe.error, `archived_at missing — run migration 165 (${probe.error?.message})`);
@@ -188,6 +189,6 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
     }
   } finally {
     await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

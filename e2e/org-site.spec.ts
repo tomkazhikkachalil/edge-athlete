@@ -1,8 +1,8 @@
 import path from 'path';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
-import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, apiAs, deleteQaUser, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody, settleStatus } from './helpers/isr';
 
 // The public org site shell (phase 3, round 1): create → publish → the
@@ -220,7 +220,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
     }
   } finally {
     // League delete cascades the site (and its modules/pages).
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -529,13 +529,10 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
       await admin.from('event_guests').delete().eq('event_id', id);
       await admin.from('events').delete().eq('id', id);
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('leagues').delete().eq('id', otherLeagueId);
-    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
-    for (const id of stubIds) {
-      await admin.from('profiles').delete().eq('id', id);
-      await admin.auth.admin.deleteUser(id).catch(() => {});
-    }
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [otherLeagueId]);
+    if (clubId) await deleteQaOrgs(admin, [clubId]);
+    for (const id of stubIds) await deleteQaUser(id);
   }
 });
 
@@ -780,7 +777,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
       await ctxAnon3.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -966,7 +963,7 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
     if (assetPath) {
       await admin.storage.from('uploads').remove([assetPath]).catch(() => {});
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -1085,6 +1082,6 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
       await ctxAnon.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -120,7 +120,7 @@ test('bracket API: seeds, generate (dry + real), the tie decision, advancement b
     // The contest API answers `{ access, view, publicSitePath }` — the contest sits under `view`.
     expect(((await view.json()) as { view: { contest: { stage: number; slot: number; roundName: string } } }).view.contest).toMatchObject({ stage: 3, slot: 1, roundName: 'Final' });
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await api.dispose();
   }
 });

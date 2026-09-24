@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Org discovery on Explore (connections PR B): a seeded league and club are
@@ -35,7 +35,7 @@ test('explore orgs: search finds seeded league and club, rows navigate', async (
     await section.getByText(leagueName).click();
     await expect(page.getByRole('heading', { name: leagueName })).toBeVisible({ timeout: 15_000 });
   } finally {
-    await admin.from('leagues').delete().eq('id', league.id);
-    await admin.from('clubs').delete().eq('id', club.id);
+    await deleteQaOrgs(admin, [league.id]);
+    await deleteQaOrgs(admin, [club.id]);
   }
 });

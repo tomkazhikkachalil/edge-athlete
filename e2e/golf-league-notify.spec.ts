@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { openWindow } from './helpers/org-page';
 import {
   adminClient,
@@ -266,7 +266,7 @@ test('golf league bells: counted (once), confirmed (once, with rank), guardian c
     await admin.from('golf_holes').delete().in('round_id', roundIds);
     await admin.from('golf_rounds').delete().in('id', roundIds);
     await admin.from('venues').delete().eq('org_id', clubId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('golf_courses').delete().eq('id', courseId);
     if (childId) await deleteQaUser(childId);
   }

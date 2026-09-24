@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 /**
@@ -76,6 +76,6 @@ test('meet surfaces: add an event → enter marks → the placed line and the te
     await expect(page.locator('[data-standings-meet]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-meet-event="100m"]')).toContainText('11.85s');
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Competitions (phase 2, round 1): the owner creates a fixture competition
@@ -105,6 +105,6 @@ test('org console: owner creates a competition + entries; member locked out; 375
     }
   } finally {
     // League delete cascades seasons → competitions → entries and teams.
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

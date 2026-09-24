@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — join with approval, the league twin of club-join-approval.
@@ -155,7 +155,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     await alphaApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { league_id: leagueId });
     await admin.from('notifications').delete().contains('metadata', { league_id: openLeagueId });
-    await admin.from('leagues').delete().in('id', [leagueId, openLeagueId]);
+    await deleteQaOrgs(admin, [leagueId, openLeagueId]);
     await deleteQaUser(gamma.id);
   }
 });

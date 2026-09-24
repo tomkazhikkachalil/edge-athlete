@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contest stat lines (phase 4, round 1): per-athlete stats on a fixture
@@ -301,7 +301,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
   } finally {
     // League delete cascades season → competition → contests → lines;
     // club delete cascades its memberships and team.
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

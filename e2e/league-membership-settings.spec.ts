@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Program 11 L1 — the league membership settings (migration 177; the twin
@@ -75,6 +75,6 @@ test('league membership settings: defaults public/open → PATCH flips → GET r
   } finally {
     await ownerApi.dispose();
     await alphaApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

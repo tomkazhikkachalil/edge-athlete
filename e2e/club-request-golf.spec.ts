@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Club sign-up, part 2 (phase 7 C2): the golf fast path. `/club/start?sport=golf`
@@ -54,7 +55,7 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
   // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
     const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userB.id);
     const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
-    if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
+    if (provisionedIds.length) await deleteQaOrgs(admin, provisionedIds);
     await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
   await resetRateBucket(admin, 'club-request', userB.id);
 

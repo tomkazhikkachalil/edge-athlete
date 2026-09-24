@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 type View = { event: { id: string; status: string; game?: { side_names: [string, string]; side_team_ids?: [string, string] } | null }; participants: Array<{ id: string; profile_id: string; status: string; playing: boolean; role: string }>; groups: Array<{ sport_event_round_id: string; members: Array<{ participant_id: string; side?: 1 | 2 | null }> }> };
@@ -86,6 +86,6 @@ test('team sides: two org teams picked in the wizard → the rosters become the 
       await page.request.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } });
       await page.request.delete(`/api/sport-events/${eventId}`);
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

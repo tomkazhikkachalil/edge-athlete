@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L3 — the public league directory (the twin of club-directory).
@@ -89,6 +89,6 @@ test('league directory: published public + private leagues by region, unpublishe
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('leagues').delete().in('id', [openId, privateId, draftId, pendingId]);
+    await deleteQaOrgs(admin, [openId, privateId, draftId, pendingId]);
   }
 });

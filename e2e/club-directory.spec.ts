@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V6 — the public club directory. /clubs lists every published
@@ -85,6 +85,6 @@ test('club directory: published public + private clubs by region, unpublished/pe
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().in('id', [openId, privateId, draftId, pendingId]);
+    await deleteQaOrgs(admin, [openId, privateId, draftId, pendingId]);
   }
 });

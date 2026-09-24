@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, loadQaUser } from './helpers/qa-user';
 
 // Guardian roster gate (0.10, mig 147; its launch flag retired):
@@ -142,6 +142,6 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
   } finally {
     await admin.from('notifications').delete().eq('user_id', guardian.id).eq('type', 'roster_invite');
     if (childId) await deleteQaUser(childId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

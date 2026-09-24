@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, readView, scoreHoles, setGroups, startRound } from './helpers/sport-events';
 
@@ -94,7 +94,7 @@ test('sport events API: match play — the vocabulary, the config refusals, side
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await cleanupEvent(s.apiA, strokeId);
-    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    if (clubId) await deleteQaOrgs(admin, [clubId]);
     await s.dispose();
   }
 });

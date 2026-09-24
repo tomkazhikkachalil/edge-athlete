@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Org staff program, round 5: the console's Hierarchy & people section.
@@ -102,6 +102,6 @@ test('hierarchy: tree + people + invite from a node + revoke; section staff see 
     }
   } finally {
     await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

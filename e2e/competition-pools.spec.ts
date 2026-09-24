@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { pollUntil } from './helpers/isr';
 
@@ -108,7 +108,7 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     const wrongTarget = await api.post(`${base}/${competitionId}/pools/seed`, { data: { competitionId, targetCompetitionId: competitionId, perPool: 1 } });
     expect(((await wrongTarget.json()) as { reason?: string }).reason).toBe('target_not_bracket');
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await api.dispose();
   }
 });

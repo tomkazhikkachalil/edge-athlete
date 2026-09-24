@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
@@ -94,7 +94,7 @@ test('share card: hero photo drawn when set; plain gradient otherwise; both PNG 
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().in('id', [heroClub, plainClub]);
+    await deleteQaOrgs(admin, [heroClub, plainClub]);
     if (assetPath) await admin.storage.from('uploads').remove([assetPath]);
   }
 });

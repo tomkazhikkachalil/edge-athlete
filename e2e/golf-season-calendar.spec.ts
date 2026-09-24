@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 
@@ -222,7 +222,7 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
     const eventIds = (evs ?? []).map(c => c.event_id).filter(Boolean) as string[];
     await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('venues').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     if (eventIds.length) await admin.from('events').delete().in('id', eventIds);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }

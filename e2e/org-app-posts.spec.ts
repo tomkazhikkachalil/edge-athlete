@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -79,7 +79,7 @@ test('org posts wall: public media post → tile → detail; text-only + private
     if (textPostId) await admin.from('posts').delete().eq('id', textPostId);
     await cleanRoundPost(admin, alphaMedia);
     await cleanRoundPost(admin, ownerMedia);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('profiles').update({ visibility: priorVisibility }).eq('id', alpha.id);
   }
 });

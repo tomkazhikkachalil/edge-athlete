@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The profile org strip (org connections round; the Sep 11 2026 rule). The
@@ -96,7 +96,7 @@ test('profile orgs: both sides on own page + feed; own memberships always; a pri
     await aApi.dispose();
     await bApi.dispose();
     await admin.from('profiles').update({ visibility: priorA!.visibility as string, handle: (priorA!.handle as string | null) ?? null }).eq('id', userA.id);
-    await admin.from('clubs').delete().eq('id', clubId); // members cascade
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [clubId]); // members cascade
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

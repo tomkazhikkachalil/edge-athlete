@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Golf league depth, part 3 (phase 6d W3): the season generator. An
@@ -183,7 +183,7 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
     const { data: evs } = await admin.from('contests').select('event_id').eq('competition_id', competitionId);
     const eventIds = (evs ?? []).map(c => c.event_id).filter(Boolean) as string[];
     await admin.from('venues').delete().eq('org_id', clubId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (eventIds.length) await admin.from('events').delete().in('id', eventIds);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }

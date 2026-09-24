@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Cross-org rep entries (phase 2, round 4): a league owner enters an
@@ -133,8 +133,8 @@ test('rep entries: affiliated pending → approve + bells; unaffiliated 400; 375
     }
   } finally {
     await admin.from('notifications').delete().contains('metadata', { competition_id: competitionId });
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('clubs').delete().eq('id', clubId);
-    await admin.from('clubs').delete().eq('id', strangerClub.id);
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [clubId]);
+    await deleteQaOrgs(admin, [strangerClub.id]);
   }
 });

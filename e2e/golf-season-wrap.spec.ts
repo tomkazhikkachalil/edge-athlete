@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P6 — the season wrap. Once every windowed week has closed, the
@@ -172,7 +172,7 @@ test('season wrap: closed weeks → summary on site + console; announce once (be
     await ownerApi.dispose();
     await alphaApi.dispose();
     for (const id of announcementIds) await admin.from('notifications').delete().contains('metadata', { announcement_id: id });
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (childId) await deleteQaUser(childId);
   }
 });

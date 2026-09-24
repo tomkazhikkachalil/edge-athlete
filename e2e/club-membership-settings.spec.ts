@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Phase 9 V1 — the membership settings (migration 176). A club is public +
@@ -75,6 +75,6 @@ test('membership settings: defaults public/open → PATCH flips → GET reflects
   } finally {
     await ownerApi.dispose();
     await alphaApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

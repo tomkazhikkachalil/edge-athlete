@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Result disputes (phase 6 R4, mig 168): a participating club raises,
@@ -186,7 +186,7 @@ test('result dispute: raise by the club, bells both ways, owner resolves', async
       await clubApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

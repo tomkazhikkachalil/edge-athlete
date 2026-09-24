@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
-import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // The phase-5 exit condition, in one spec: "a season runs end to end from
 // registration to standings." A family registers → the registrar places
@@ -14,6 +14,9 @@ test('phase 5 exit: registration → placement → competition → standings →
   const athlete = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  // Both post against the 20/h `registration` bucket (the athlete registers, the owner opens windows).
+  await resetRateBucket(admin, 'registration', athlete.id);
+  await resetRateBucket(admin, 'registration', owner.id);
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
@@ -186,6 +189,6 @@ test('phase 5 exit: registration → placement → competition → standings →
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

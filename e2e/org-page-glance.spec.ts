@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import path from 'node:path';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { closeWindow, openWindow } from './helpers/org-page';
@@ -80,7 +80,7 @@ test('@mobile org page glance grid: faces, deep link, sheet, no overflow', async
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   } finally {
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });
 
@@ -114,6 +114,6 @@ test('org page glance grid at desktop width: four columns, a small face takes on
       await page.screenshot({ path: path.join(dump, 'org-glance-1280-dark.png'), fullPage: true });
     }
   } finally {
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

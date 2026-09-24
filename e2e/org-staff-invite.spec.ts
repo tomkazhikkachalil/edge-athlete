@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Org staff program, round 4: the invite loop. The OWNER (user B) invites
@@ -140,6 +140,6 @@ test('staff invite: owner mints → A accepts at 375px → scoped grant honoured
     await aApi.dispose();
     await anon.close();
     await admin.from('org_staff_audit').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 /**
@@ -69,6 +69,6 @@ test('bracket surfaces: seeds → preview → generate → a tied match decided 
     await expect(page.locator('[data-standings-bracket] [data-bracket-column]')).toHaveCount(2);
     await expect(page.locator('[data-standings-bracket] [data-bracket-slot="1:1"]')).toContainText('2–2');
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

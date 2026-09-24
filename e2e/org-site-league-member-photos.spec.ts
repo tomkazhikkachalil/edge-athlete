@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 
@@ -110,7 +110,7 @@ test('league member photos on the site: gallery tile + streamer; revoke → 404;
     await ownerApi.dispose();
     await alphaApi.dispose();
     await cleanRoundPost(admin, seed);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await admin.from('profiles').update({ visibility: priorVisibility, handle: priorHandle }).eq('id', alpha.id);
   }
 });

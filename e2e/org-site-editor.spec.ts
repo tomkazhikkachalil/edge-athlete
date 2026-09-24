@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { revisionsSupported } from './helpers/org-site';
@@ -678,7 +678,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -791,6 +791,6 @@ test('org site editor: pages — New page…, words, switch and back, settings, 
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

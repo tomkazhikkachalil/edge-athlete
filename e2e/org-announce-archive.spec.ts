@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -130,6 +130,6 @@ test('announce archive: members read all, non-member 403, site Notices show the 
     await alphaApi.dispose();
     await deleteQaUser(outsider.id);
     await admin.from('notifications').delete().contains('metadata', { org: `league:${leagueId}` });
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

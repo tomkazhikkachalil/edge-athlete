@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L2 — a PRIVATE league on the public site (the twin of
@@ -188,7 +188,7 @@ test('private league: panels on the site, empty public standings, members read /
     await ownerApi.dispose();
     await alphaApi.dispose();
     await strangerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await deleteQaUser(stranger.id);
   }
 });

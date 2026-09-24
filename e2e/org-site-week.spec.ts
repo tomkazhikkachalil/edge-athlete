@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P4 — the week hub. /org/{slug}/week shows every active golf
@@ -171,7 +171,7 @@ test('week hub: open window, posted count + points, on-course count (live entran
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (groupPostIds.length) await admin.from('group_posts').delete().in('id', groupPostIds);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await deleteQaUser(stranger.id);

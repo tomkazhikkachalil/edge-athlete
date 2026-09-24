@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The leaderboard format (phase 2, round 5 — the adapter-seam proof): a
@@ -160,6 +160,6 @@ test('leaderboard: club championship — rounds, totals ascending, public board;
       await ctxAnon.close();
     }
   } finally {
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

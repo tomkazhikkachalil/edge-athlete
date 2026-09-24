@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Feed org lens (fan-out round PR 2): ?scope=orgs shows org peers' posts
@@ -86,6 +86,6 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
   } finally {
     if (postPublic) await admin.from('posts').delete().eq('id', postPublic.id);
     await admin.from('profiles').update({ visibility: 'private' }).eq('id', userB.id);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

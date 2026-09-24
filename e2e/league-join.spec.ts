@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The league open-join loop (migration 113): creation is admin-provisioned,
@@ -64,6 +64,6 @@ test('league: join and leave from the league page', async ({ page }) => {
     await admin.from('notifications').delete().eq('type', 'league_join').eq('actor_id', userA.id);
     // Members cascade with the league row; the doc-sync delete trigger
     // removes its search document.
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs } from './helpers/qa-user';
 import { seedContestLeague } from './helpers/contests';
 
@@ -34,7 +35,7 @@ test('contest page (server path): a stranger reads a public contest — API 200 
     expect(html).toContain('Final · 3–2');
     expect(html).toContain(`<title>Blazers ${seeded.stamp} vs Comets ${seeded.stamp} — public League`);
   } finally {
-    await admin.from('leagues').delete().eq('id', seeded.leagueId);
+    await deleteQaOrgs(admin, [seeded.leagueId]);
   }
 });
 
@@ -109,6 +110,6 @@ test('contest page: public SSR for a stranger, member-only for a private competi
     }
   } finally {
     // League delete cascades seasons → competitions → contests → participants → results.
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
