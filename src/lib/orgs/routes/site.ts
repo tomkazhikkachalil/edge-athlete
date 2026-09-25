@@ -52,7 +52,7 @@ export async function siteRoutePOST(request: NextRequest, kind: OrgKind, params:
     // absent body keeps the mint-from-name behavior.
     const body = (await request.json().catch(() => null)) as { subdomain?: unknown } | null;
     const requested = typeof body?.subdomain === 'string' ? body.subdomain : null;
-    return await siteCreatePOST(admin, kind, id, gate.org.name, requested);
+    return await siteCreatePOST(admin, kind, id, gate.org.name, requested, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[ORG SITES] ${kind} POST error:`, error);

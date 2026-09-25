@@ -17,6 +17,7 @@ import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { eventShape } from '@/lib/sport-events/contest-link';
 import { readCountsTowardAll } from '@/lib/sport-events/contest-link-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 import { orgRefFromBody, orgRefOf } from '@/lib/orgs/org-ref';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
@@ -149,6 +150,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Could not update the event' }, { status: 500 });
     }
     const row = updated as SportEventRow;
+    await recordAuthority(admin, {
+      subject: { type: 'sport_event', id },
+      actor: { kind: 'member', profileId: actor.profileId },
+      action: 'event_details_changed',
+      detail: { fields: Object.keys(update).filter(k => k !== 'link_token') },
+    });
     const capacityRaised = patch.capacity !== undefined && (patch.capacity === null || (read.event.capacity !== null && patch.capacity > read.event.capacity));
     let promoted: string[] = [];
     if (capacityRaised) promoted = await applyCapacityChange(admin, row, row.capacity, actor.profileId);
@@ -180,6 +187,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       reportRouteError('[api/sport-events/[id]] delete failed:', deleteError);
       return NextResponse.json({ error: 'Could not delete the event' }, { status: 500 });
     }
+    await recordAuthority(admin, {
+      subject: { type: 'sport_event', id },
+      actor: { kind: 'member', profileId: actor.profileId },
+      action: 'event_deleted',
+      detail: { title: (read.event as { name?: string }).name ?? null, status: read.event.status },
+    });
     return NextResponse.json({ deleted: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     reportRouteError('[api/sport-events/[id]] DELETE error:', error);

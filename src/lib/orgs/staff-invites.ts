@@ -16,6 +16,7 @@ import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import type { OrgSection } from './authz';
 import { ORG_ID, orgIdOf, orgKindOf, pairFor, type OrgKind } from './org-ref';
 import { mergeSections, normalizeSections, type StaffGrantInput } from './staff-validate';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -316,4 +317,20 @@ export async function writeStaffAudit(
     new_sections: entry.newSections ?? null,
   });
   if (error) console.error(`${TAG} audit insert failed:`, error);
+
+  // Authority (240): a grant that CHANGES who can run the org is mirrored into
+  // the org's one authority log (invites and invite revokes change nothing).
+  const mirrored = entry.action === 'accepted' ? 'staff_granted'
+    : entry.action === 'changed' ? 'staff_changed'
+    : entry.action === 'revoked' || entry.action === 'expired' ? 'staff_revoked'
+    : null;
+  if (mirrored) {
+    await recordAuthority(admin, {
+      subject: { type: 'org', id: entry.orgId },
+      actor: entry.actorId ? { kind: 'member', profileId: entry.actorId } : { kind: 'system' },
+      action: mirrored,
+      targetProfileId: entry.profileId,
+      detail: { role: entry.role ?? null, scope: entry.scopeType ?? null, sections: entry.newSections ?? null, via: entry.action },
+    });
+  }
 }

@@ -46,6 +46,7 @@ import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, typ
 import { mintStatRound, syncStatLineForPlayer } from './stats-server';
 import { mirrorStatRound } from './stat-results-server';
 import { mirrorEventMedia } from './media-server';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -212,6 +213,12 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
   if (req.to === 'cancelled') {
     const { error } = await admin.from('sport_event_rounds').update({ status: 'cancelled' }).eq('sport_event_id', req.eventId).neq('status', 'cancelled');
     if (error) console.error('[sport-events] round status write failed:', error);
+    await recordAuthority(admin, {
+      subject: { type: 'sport_event', id: req.eventId },
+      actor: { kind: 'member', profileId: req.actorProfileId },
+      action: 'event_cancelled',
+      detail: { status: from },
+    });
   }
 
   return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId, shapeOf(event)) };

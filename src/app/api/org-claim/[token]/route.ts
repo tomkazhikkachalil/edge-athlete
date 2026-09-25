@@ -7,6 +7,7 @@ import {
   restoreOrgClaimInvite,
 } from '@/lib/orgs/org-claim';
 import { insertOwnerRow } from '@/lib/orgs/members';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -120,6 +121,11 @@ export async function POST(
       return NextResponse.json({ error: 'Could not complete the claim' }, { status: 500 });
     }
 
+    await recordAuthority(admin, {
+      subject: { type: 'org', id: redeemed.orgId },
+      actor: { kind: 'member', profileId: user.id },
+      action: 'owner_claimed', // the claimant is the actor — no separate target
+    });
     return NextResponse.json({ ok: true, side: redeemed.side, orgId: redeemed.orgId });
   } catch (error) {
     if (error instanceof Response) return error;

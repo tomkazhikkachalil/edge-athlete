@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { insertOwnerRow } from './members';
 import type { OrgKind } from './org-ref';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -89,5 +90,11 @@ export async function createOrgWithOwner(admin: Admin, input: CreateOrgInput): P
     return { error: 'member_failed' };
   }
 
+  await recordAuthority(admin, {
+    subject: { type: 'org', id: org.id as string },
+    actor: { kind: 'member', profileId: input.ownerProfileId },
+    action: 'org_created',
+    targetProfileId: input.ownerProfileId,
+  });
   return { org: org as OrgRow };
 }

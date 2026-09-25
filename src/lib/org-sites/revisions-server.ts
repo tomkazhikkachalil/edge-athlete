@@ -24,6 +24,7 @@ import { blankPageLayout, blocksFromPageLayout, parsePageLayout } from '@/lib/si
 import type { RevisionActionInput } from './validate';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { parsePublishStats, publishStats, type PublishStats } from '@/lib/site-builder/metrics';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 /**
  * Draft / publish / revisions — Site Builder phase 2 (Sep 9 2026, mig 180).
@@ -737,6 +738,14 @@ export async function revisionsPOST(
         case 'published':
         case 'materialised':
         case 'noop':
+          if (result.status !== 'noop') {
+            await recordAuthority(admin, {
+              subject: { type: 'org', id: orgId },
+              actor: { kind: 'member', profileId: userId },
+              action: 'site_published',
+              detail: { revision_id: result.revisionId ?? null, label: input.label ?? null },
+            });
+          }
           return NextResponse.json({ ok: true, status: result.status, revisionId: result.revisionId ?? null });
         case 'raced':
           return NextResponse.json({ error: 'The draft changed while publishing — reload and try again' }, { status: 409 });
@@ -755,6 +764,12 @@ export async function revisionsPOST(
     case 'restore': {
       const result = await restoreRevision(admin, site, userId, input.revisionId);
       if (result === 'ok') {
+        await recordAuthority(admin, {
+          subject: { type: 'org', id: orgId },
+          actor: { kind: 'member', profileId: userId },
+          action: 'revision_restored',
+          detail: { revision_id: input.revisionId },
+        });
         const { site: fresh } = await loadSitePointers(admin, side, orgId);
         const draft = fresh ? await draftSummary(admin, fresh) : null;
         return NextResponse.json({ ok: true, draft });
@@ -766,6 +781,12 @@ export async function revisionsPOST(
     case 'label': {
       const result = await labelRevision(admin, site, input.revisionId, input.label);
       if (result === 'not_found') return NextResponse.json({ error: 'Revision not found' }, { status: 404 });
+      await recordAuthority(admin, {
+        subject: { type: 'org', id: orgId },
+        actor: { kind: 'member', profileId: userId },
+        action: 'revision_labelled',
+        detail: { revision_id: input.revisionId, label: input.label ?? null },
+      });
       return NextResponse.json({ ok: true });
     }
     default:

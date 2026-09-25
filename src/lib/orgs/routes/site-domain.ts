@@ -12,6 +12,7 @@ import { domainDELETE, domainGET, domainPOST } from '@/lib/org-sites/domain-serv
 import { DomainClaimSchema } from '@/lib/org-sites/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // ── /api/{leagues,clubs}/[id]/site/domain — the custom-domain claim (phase 6b C1) ────
 // Manager-gated; GET = status + DNS instructions, POST = claim/replace,
@@ -30,7 +31,7 @@ async function gate(request: NextRequest, kind: OrgKind, params: { id: string },
   const admin = getSupabaseAdmin();
   const managed = await requireOrgManager(admin, user, kind, id);
   if (!managed.ok) return { response: managed.response };
-  return { admin, id };
+  return { admin, id, userId: user.id };
 }
 
 export async function siteDomainRouteGET(request: NextRequest, kind: OrgKind, params: { id: string }) {
@@ -51,7 +52,16 @@ export async function siteDomainRoutePOST(request: NextRequest, kind: OrgKind, p
     if ('response' in g) return g.response;
     const parsed = await parseBody(request, DomainClaimSchema);
     if (!parsed.success) return parsed.response;
-    return await domainPOST(g.admin, kind, g.id, parsed.data);
+    const res = await domainPOST(g.admin, kind, g.id, parsed.data);
+    if (res.ok) {
+      await recordAuthority(g.admin, {
+        subject: { type: 'org', id: g.id },
+        actor: { kind: 'member', profileId: g.userId },
+        action: 'domain_added',
+        detail: { domain: parsed.data.domain },
+      });
+    }
+    return res;
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ORG DOMAINS] POST error:', error);
@@ -63,7 +73,15 @@ export async function siteDomainRouteDELETE(request: NextRequest, kind: OrgKind,
   try {
     const g = await gate(request, kind, params, true);
     if ('response' in g) return g.response;
-    return await domainDELETE(g.admin, kind, g.id);
+    const res = await domainDELETE(g.admin, kind, g.id);
+    if (res.ok) {
+      await recordAuthority(g.admin, {
+        subject: { type: 'org', id: g.id },
+        actor: { kind: 'member', profileId: g.userId },
+        action: 'domain_removed',
+      });
+    }
+    return res;
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ORG DOMAINS] DELETE error:', error);
