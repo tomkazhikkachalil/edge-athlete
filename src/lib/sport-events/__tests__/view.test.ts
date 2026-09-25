@@ -49,7 +49,7 @@ describe('the event projection', () => {
   it('counts and the viewer block', () => {
     const rows = [row(), row({ role: 'follower', playing: false }), row({ status: 'waitlisted', waitlist_position: 1 }), row({ playing: false }), row({ status: 'invited' })];
     expect(roundCounts(rows)).toEqual({ playing: 1, followers: 1, waitlisted: 1 });
-    expect(projectViewer('v', view, null)).toEqual({ profile_id: 'v', role: 'viewer', can_manage: false, can_delete: false, participant_id: null, participant_status: null, playing: false, hide_from_profile: false, waitlist_ahead: null, recorder: false });
+    expect(projectViewer('v', view, null)).toEqual({ profile_id: 'v', role: 'viewer', can_manage: false, can_delete: false, participant_id: null, participant_status: null, playing: false, hide_from_profile: false, waitlist_ahead: null, recorder: false, authority_paused: false });
     const q1 = row({ status: 'waitlisted', waitlist_position: 1 });
     const q2 = row({ status: 'waitlisted', waitlist_position: 2 });
     expect(projectViewer(q2.profile_id, view, q2, [row(), q1, q2]).waitlist_ahead).toBe(1); // phase 2: the queue in front

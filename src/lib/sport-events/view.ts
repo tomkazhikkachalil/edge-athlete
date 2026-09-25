@@ -91,6 +91,8 @@ export interface ViewerView {
   recorder: boolean;
   /** Authority PR 2: does someone else hold the keys? For organizers only (null otherwise). */
   backup?: BackupState | null;
+  /** Authority PR 3: an organizer whose account is limited / suspended / banned. */
+  authority_paused?: boolean;
 }
 
 export function projectEvent(row: SportEventRow, access: SportEventAccess): EventView {
@@ -173,6 +175,7 @@ export function projectViewer(viewerId: string | null, access: SportEventAccess,
     hide_from_profile: own?.hide_from_profile ?? false,
     waitlist_ahead: ahead,
     recorder: own?.status === 'accepted' && own.recorder === true,
+    authority_paused: access.authorityPaused === true,
   };
 }
 

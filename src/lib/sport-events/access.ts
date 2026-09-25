@@ -25,6 +25,10 @@ export interface AccessInput {
   presentedToken: string | null;
   /** The viewer's own participant row, if any. */
   participant: { role: SportEventRole; status: SportEventParticipantStatus } | null;
+  /** Authority PR 3: false when the viewer is limited / suspended / banned —
+   *  they keep SEEING the event but lose the power to run it (Tom's rule).
+   *  Absent = true. */
+  viewerHoldsAuthority?: boolean;
 }
 
 export type ViewerRole = SportEventRole | 'viewer';
@@ -35,6 +39,9 @@ export interface SportEventAccess {
   canDelete: boolean;
   role: ViewerRole;
   participantStatus: SportEventParticipantStatus | null;
+  /** Authority PR 3: the viewer would run this event, but their account is
+   *  limited / suspended / banned — the page says so instead of hiding it. */
+  authorityPaused?: boolean;
 }
 
 const GONE: ReadonlySet<SportEventParticipantStatus> = new Set(['declined', 'removed']);
@@ -46,14 +53,20 @@ export function participantAdmits(p: AccessInput['participant']): boolean {
 
 export function resolveSportEventAccess(input: AccessInput): SportEventAccess | null {
   const { event, viewerId, presentedToken, participant } = input;
+  const holds = input.viewerHoldsAuthority !== false;
   const isHost = Boolean(viewerId) && viewerId === event.hostProfileId;
-  const role: ViewerRole = isHost ? 'organizer' : participant?.role ?? 'viewer';
+  const rawRole: ViewerRole = isHost ? 'organizer' : participant?.role ?? 'viewer';
   // Authority PR 2: running the event needs an ACCEPTED organizer row — an
   // invited, requested or waitlisted co-organizer is not a backup yet.
-  const manages = isHost || (participant?.status === 'accepted' && isManagingRole(participant.role));
+  const rawManages = isHost || (participant?.status === 'accepted' && isManagingRole(participant.role));
+  // Authority PR 3: the moderation ceiling — an organizer who does not hold
+  // authority is a participant here (every organizer branch keyed on the role
+  // drops with it); they are still admitted below.
+  const manages = rawManages && holds;
+  const role: ViewerRole = !holds && (rawRole === 'organizer' || rawRole === 'co_organizer') ? 'participant' : rawRole;
 
   let admitted = false;
-  if (isHost || manages) admitted = true;
+  if (isHost || rawManages) admitted = true;
   else if (event.visibility === 'public') admitted = true;
   else if (event.visibility === 'link') admitted = (presentedToken !== null && presentedToken !== '' && presentedToken === event.linkToken) || participantAdmits(participant);
   else admitted = participantAdmits(participant); // private
@@ -62,7 +75,8 @@ export function resolveSportEventAccess(input: AccessInput): SportEventAccess | 
   return {
     canView: true,
     canManage: manages,
-    canDelete: isHost,
+    canDelete: isHost && holds,
+    authorityPaused: rawManages && !holds,
     role,
     participantStatus: participant?.status ?? null,
   };
