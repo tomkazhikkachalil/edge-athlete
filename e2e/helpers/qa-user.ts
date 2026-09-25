@@ -475,6 +475,12 @@ export async function deleteQaUser(userId: string): Promise<void> {
     await mustDelete(`competition_entries of ${userId}`, admin.from('competition_entries').delete().in('id', entryIds));
   }
   await mustDelete(`contest_stat_lines of ${userId}`, admin.from('contest_stat_lines').delete().eq('profile_id', userId));
+  // 238 (Sep 25 2026): a deleted profile no longer takes its performance rows
+  // with it — the FK is SET NULL so a real person's facts outlive them. A QA
+  // user's rows are test data, never facts: delete them BY PERSON first, or
+  // every run leaves anonymous QA rows in the analysis dataset (the first
+  // prod probe after 238 left 37).
+  await mustDelete(`athlete_performances of ${userId}`, admin.from('athlete_performances').delete().eq('profile_id', userId));
 
   // ── Social cleanup ────────────────────────────────────────────────────────
   // Conversations this user touches, as participant or creator.
