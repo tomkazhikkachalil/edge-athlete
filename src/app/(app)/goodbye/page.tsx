@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
+import { COPY } from '@/lib/copy';
 
 export default function GoodbyePage() {
   useEffect(() => {
@@ -33,12 +34,12 @@ export default function GoodbyePage() {
 
           {/* Heading */}
           <h1 className="text-3xl sm:text-4xl font-bold text-primary mb-4">
-            Your account has been deleted
+            {COPY.ACCOUNT.GOODBYE_TITLE}
           </h1>
 
           {/* Message */}
           <p className="text-lg text-tertiary mb-8 max-w-xl mx-auto">
-            We&apos;re sorry to see you go. All your data has been permanently removed from Edge Athlete.
+            We&apos;re sorry to see you go. {COPY.ACCOUNT.GOODBYE_BODY}
           </p>
 
           {/* Divider */}
@@ -48,34 +49,21 @@ export default function GoodbyePage() {
           <div className="text-left bg-surface-muted rounded-lg p-6 mb-8">
             <h2 className="font-semibold text-primary mb-3 flex items-center gap-2">
               <i className="fas fa-check-circle text-green-600 dark:text-green-400"></i>
-              What we deleted:
+              {COPY.ACCOUNT.DELETE_GOES_TITLE}
             </h2>
             <ul className="space-y-2 text-sm text-secondary">
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>Your profile and personal information</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>All posts, photos, videos, and media content</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>Comments, likes, and social interactions</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>Followers, following, and connection data</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>Performance stats, achievements, and sport data</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fas fa-circle text-xs text-faint mt-1.5"></i>
-                <span>Notifications and activity history</span>
-              </li>
+              {COPY.ACCOUNT.DELETE_GOES.map(text => (
+                <li key={text} className="flex items-start gap-2">
+                  <i className="fas fa-circle text-xs text-faint mt-1.5" aria-hidden="true"></i>
+                  <span>{text}</span>
+                </li>
+              ))}
             </ul>
+            <h2 className="font-semibold text-primary mt-6 mb-3 flex items-center gap-2">
+              <i className="fas fa-trophy text-brand-fg" aria-hidden="true"></i>
+              {COPY.ACCOUNT.DELETE_STAYS_TITLE}
+            </h2>
+            <p className="text-sm text-secondary">{COPY.ACCOUNT.DELETE_STAYS}</p>
           </div>
 
           {/* Single Action Button */}

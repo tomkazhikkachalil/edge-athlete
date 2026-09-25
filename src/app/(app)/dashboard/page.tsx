@@ -10,6 +10,7 @@ import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
 import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
+import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
 import SupportQueueTile from '@/components/admin/SupportQueueTile';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
@@ -26,6 +27,8 @@ interface UserRow {
   visibility: string | null;
   created_at: string;
   onboarded_at: string | null;
+  /** 238: a departed tombstone — shown, marked, never actionable as a person. */
+  departed_at?: string | null;
 }
 
 const name = (p: { first_name: string | null; last_name: string | null; full_name: string | null } | null) =>
@@ -132,7 +135,7 @@ export default function AdminDashboardPage() {
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/admin/users?q=${encodeURIComponent(userQuery.trim())}`);
+        const response = await fetch(`/api/admin/users?q=${encodeURIComponent(userQuery.trim())}&includeDeparted=1`);
         if (response.ok) {
           const data = await response.json();
           setUsers(data.users);
@@ -358,6 +361,9 @@ export default function AdminDashboardPage() {
         {/* Data foundation F5b: the backfill's door — no developer console needed. */}
         <PerformanceBackfillPanel />
 
+        {/* Departed accounts (Sep 24 2026): purge a parked account now — the door. */}
+        <AccountPurgePanel />
+
         {/* Phase 6b C1: custom domains — the lifecycle list + retry actions. */}
         {orgDomains.length > 0 && (
           <section
@@ -468,17 +474,21 @@ export default function AdminDashboardPage() {
                       <td className="px-3 py-2 font-medium text-primary whitespace-nowrap">{name(u)}</td>
                       <td className="px-3 py-2 text-tertiary">{u.email || '—'}</td>
                       <td className="px-3 py-2 text-tertiary">{u.handle || '—'}</td>
-                      <td className="px-3 py-2 text-tertiary capitalize">{u.user_type}{u.visibility === 'private' ? ' · private' : ''}</td>
+                      <td className="px-3 py-2 text-tertiary capitalize">
+                        {u.departed_at
+                          ? <span className="inline-block px-2 py-0.5 rounded-md border border-border text-xs font-semibold normal-case" data-user-departed="">Departed {new Date(u.departed_at).toLocaleDateString()}</span>
+                          : <>{u.user_type}{u.visibility === 'private' ? ' · private' : ''}</>}
+                      </td>
                       <td className="px-3 py-2 text-muted whitespace-nowrap">
                         {new Date(u.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-3 py-2">
-                        <button
+                        {!u.departed_at && <button
                           onClick={() => router.push(`/athlete/${u.id}`)}
                           className="text-xs font-medium text-brand-fg hover:text-brand-fg-strong"
                         >
                           View →
-                        </button>
+                        </button>}
                       </td>
                     </tr>
                   ))}

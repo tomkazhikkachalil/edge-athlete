@@ -66,3 +66,22 @@ export function staleShadows(
   }
   return shadows.filter(s => candidates.has(s.id) && !liveHolders.has(s.id));
 }
+
+// ── Departed tombstones (238, Sep 24 2026) ─────────────────────────────────
+// A QA user whose account was purged as a TOMBSTONE has no auth user and no
+// edgeqa-* email any more (`<id>@departed.invalid`), so the user listing can
+// never see it. The one column guaranteed to survive a departure is the NAME,
+// so the marker is the name: `QA <anything> <Date.now()>` — the org rule's
+// shape (a real person does not carry a 13-digit epoch). Stale by the
+// departure time, not the creation time.
+export const DEPARTED_EMAIL_RE = /@departed\.invalid$/;
+/** The SQL twin of DEPARTED_EMAIL_RE for the bulk script (LIKE pattern). */
+export const DEPARTED_EMAIL_LIKE = '%@departed.invalid';
+
+export interface TombstoneRow { id: string; email: string | null; full_name: string | null; departed_at: string | null }
+
+export function staleQaTombstones(rows: TombstoneRow[], cutoffMs: number): TombstoneRow[] {
+  return rows.filter(r => !!r.departed_at && !!r.email && DEPARTED_EMAIL_RE.test(r.email)
+    && isQaOrgName(r.full_name) && isStale(r.departed_at, cutoffMs));
+}
+

@@ -112,6 +112,14 @@ export function parseExtraHoles(raw: unknown): ExtraHole[] {
 }
 
 /** The decision a row stores that the computation must honour (holes / extra_holes are re-derived from the cards). */
+/** The completion-written outcome (212: decided_by · winner_side · result set together). */
+export function writtenOutcomeOf(row: Pick<MatchRow, 'decided_by' | 'winner_side' | 'result'>): MatchInput['written'] {
+  const by = row.decided_by;
+  if (!by || !row.result || (row.winner_side !== 1 && row.winner_side !== 2)) return null;
+  if (!['holes', 'concession', 'extra_holes', 'organizer', 'bye'].includes(by)) return null;
+  return { decided_by: by as NonNullable<MatchInput['written']>['decided_by'], winner_side: row.winner_side, result: row.result };
+}
+
 export function storedDecisionOf(row: Pick<MatchRow, 'decided_by' | 'winner_side'>): StoredDecision {
   if ((row.decided_by === 'organizer' || row.decided_by === 'concession' || row.decided_by === 'bye') && (row.winner_side === 1 || row.winner_side === 2)) return { decided_by: row.decided_by, winner_side: row.winner_side };
   return null;
@@ -194,6 +202,7 @@ export async function fetchRoundMatches(admin: Admin, event: SportEventRow, roun
       concessions: parseConcessions(row.concessions),
       extraHoles: parseExtraHoles(row.extra_holes),
       decision: storedDecisionOf(row),
+      written: writtenOutcomeOf(row),
     };
     out.push({
       id: row.id,

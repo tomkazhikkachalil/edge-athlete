@@ -85,6 +85,11 @@ export interface MatchInput {
   concessions: Concession[];
   extraHoles: ExtraHole[];
   decision: StoredDecision;
+  /** The outcome written ONCE at round completion (212), when there is one.
+   *  Departed accounts (Sep 24 2026): it wins over the bye reading when a
+   *  side has since lost its players — an erased minor's opponent keeps the
+   *  win they earned. */
+  written?: { decided_by: MatchDecidedBy; winner_side: Side; result: string } | null;
 }
 
 export interface HoleOutcome {
@@ -224,6 +229,11 @@ export function computeMatch(input: MatchInput): MatchState {
 
   // A bye: one side only.
   if (input.sideA.players.length === 0 || input.sideB.players.length === 0) {
+    const wr = input.written;
+    if (wr && wr.decided_by !== 'bye') {
+      const w = wr.winner_side;
+      return { ...empty, status: 'completed', winnerSide: w, decidedBy: wr.decided_by, result: wr.result, summary: `${names[w]} wins ${wr.result}` };
+    }
     const w: Side = input.sideA.players.length > 0 ? 1 : 2;
     return { ...empty, status: 'completed', winnerSide: w, decidedBy: 'bye', result: 'bye', summary: `${names[w]} · bye` };
   }

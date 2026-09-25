@@ -1172,6 +1172,42 @@ const { canView } = await response.json();
    (HARDENING). Read DEVLOG Sep 22–24 2026 (A–C, D0-a…D3, 234–237, E-1…F)
    before touching any of it.
 
+25. **Results outlive the person; a departed account is a TOMBSTONE, not a
+   gap (Departed accounts, Sep 24 2026, mig 238)** — Tom's rule: a result
+   that is part of a game, event, round, club or league OUTLIVES the person
+   ("if someone leaves, I don't want that affecting other players' stats").
+   The ONE writer is `src/lib/account-deletion.ts hardDeleteAccount` (the
+   30-day park purge, the owner's `POST /api/admin/account-purge` door, the
+   orphan path); the ONE decision is `src/lib/account-departure.ts
+   departureMode` → `erase` (nothing tied, a stub, a minor whose guardian
+   signed consent **v2** — that signature promised erasure) · `tombstone`
+   (an adult with tied rows: entries, stat lines, event participation, a
+   hosted event, a shared / minted round, a card on another's round, an
+   org calendar event, shared media) · `masked` (a supervised athlete whose
+   guardian signed **v3**, renamed "Athlete"). A kept row: auth user
+   deleted (238 dropped `profiles_id_fkey` — NEVER delete users from the
+   Supabase dashboard; the twin counts orphans), personal columns stripped
+   by the pinned KEEP / SET / NULL lists (a test holds them equal to the
+   live column set), `<id>@departed.invalid`, handle released, private,
+   `departed_at` stamped. Every cascading FK onto profiles is classified in
+   `PROFILE_FK_POLICY` (survives · goes · engine) and a test holds the
+   engine to deleting each `goes` entry by name — a new table must be
+   classified. ONE predicate: `departed_at` (`isDeparted` in
+   `orgs/public-names.ts`; REQUIRED on `MaskableProfile`, and a sweep test
+   holds every select carrying `visibility, email, supervision_state` to
+   carry it): `publicDisplayName` answers the FULL name, `isPublicProfile`
+   false (no link, no page, never recruitable). `canViewProfile`,
+   `/api/profile`, messages and follow refuse a tombstone; search forgets
+   it (238); a bell to it is dropped (238's trigger); `athlete_performances`
+   is SET NULL for everyone who leaves (kept, severed). You cannot delete
+   your account while you are the ONLY one who can run an unfinished event,
+   a club or a league (`account-sole-authority.ts`, 409) — the creation-time
+   "two accounts" rule and the untag rule (self-untag except from an
+   official event; a wrong tag through a support case; never to hide a bad
+   round) are the NEXT rounds. `docs/EVENTS.md` "When a person leaves" and
+   `docs/PERFORMANCE_DATA.md` are the references; read DEVLOG Sep 24 2026
+   (Departed accounts PR 1–2) first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1258,6 +1294,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** September 2026 (Round 5 close) — this file is the single source of truth for project
+**Last Updated:** September 2026 (Departed accounts) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.

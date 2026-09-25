@@ -34,6 +34,7 @@ import {
 import { projectTicketForAdmin, projectTicketForUser, projectTicketForSubject, subjectVisibleEvents, userVisibleEvents, type AdminTicketView, type SubjectTicketView, type UserEventView, type UserTicketView } from './visibility';
 import { PILE_ON_HIDE_COUNT } from '@/lib/moderation/state';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { isDepartedEmail } from '@/lib/account-departure';
 
 /** Spec 3: the screenshot through the media proxy's `ticket` entity. */
 function withAttachment<T extends { id: string; attachment: string | null }>(view: T, storedUrl: string | null): T {
@@ -82,7 +83,7 @@ export interface Submitter {
 export async function readSubmitter(admin: Admin, userId: string): Promise<Submitter> {
   const { data } = await admin.from('profiles').select('email, supervision_state, first_name').eq('id', userId).maybeSingle();
   const supervised = data?.supervision_state === 'supervised';
-  const email = data?.email && !isSyntheticEmail(data.email) ? data.email : null;
+  const email = data?.email && !isSyntheticEmail(data.email) && !isDepartedEmail(data.email) ? data.email : null;
   return { id: userId, email: supervised ? null : email, supervised, firstName: data?.first_name ?? null };
 }
 

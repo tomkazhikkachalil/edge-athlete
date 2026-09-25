@@ -55,7 +55,8 @@ export async function restoreAccount(admin: SupabaseClient, profileId: string): 
   const { error } = await admin
     .from('profiles')
     .update({ deletion_requested_at: null })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('departed_at', null); // 238: a departed tombstone is never restorable
   if (error) throw new Error(`restore failed: ${error.message}`);
 }
 
@@ -74,6 +75,7 @@ export async function runDeletionPurge(
     .select('id')
     .not('deletion_requested_at', 'is', null)
     .lt('deletion_requested_at', cutoff)
+    .is('departed_at', null) // 238: the strip clears the stamp; belt and braces
     .limit(50); // bounded per run; the daily cadence drains any backlog
   if (error) {
     console.error('[deletion-purge] expired lookup failed:', error);

@@ -69,8 +69,11 @@ export default function PrivacyPage() {
                 <li>Turn notification types off in Settings → Notifications</li>
                 <li>Block users from contacting you</li>
                 <li>
-                  Delete your account (Settings → Account) — this permanently removes your profile,
-                  posts, media, activities, messages, and notifications
+                  Delete your account (Settings → Account) — after a 30-day window in which you can
+                  restore it, this permanently removes your profile, login, posts, media, activities,
+                  messages, and notifications. Results you recorded with other people — a club or
+                  league competition, an event, a round played with others — stay part of those
+                  records under your name, so other players&apos; results never change
                 </li>
               </ul>
             </section>

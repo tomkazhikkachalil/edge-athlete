@@ -32,6 +32,7 @@ import {
   type ModerationState,
   type ResolutionAction,
 } from './state';
+import { isDepartedEmail } from '@/lib/account-departure';
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 const TAG = '[moderation]';
@@ -293,7 +294,7 @@ async function noticeSubject(admin: Admin, ticket: TicketRow, action: Resolution
   }
   if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     const { recipientsFor } = await import('@/lib/tickets/mail');
-    const to = await recipientsFor(admin, { id: ticket.id, reporter_profile_id: ticket.target_profile_id, reporter_email: p?.email && !isSyntheticEmail(p.email) && p.supervision_state !== 'supervised' ? p.email : null, guest_email: null });
+    const to = await recipientsFor(admin, { id: ticket.id, reporter_profile_id: ticket.target_profile_id, reporter_email: p?.email && !isSyntheticEmail(p.email) && !isDepartedEmail(p.email) && p.supervision_state !== 'supervised' ? p.email : null, guest_email: null });
     for (const address of to) await emailService.sendModerationNotice({ to: address, title: copy.title, message: copy.message, ticketId: ticket.id });
   }
   return true;

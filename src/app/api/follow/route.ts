@@ -97,14 +97,15 @@ export async function POST(request: NextRequest) {
       // and whether it's private
       const { data: targetProfile, error: profileError } = await supabase
         .from('profiles')
-        .select('visibility, supervision_state')
+        .select('visibility, supervision_state, departed_at')
         .eq('id', followingId)
         .maybeSingle();
 
       if (profileError) {
         reportRouteError('[FOLLOW API] Profile fetch error:', profileError);
       }
-      if (!targetProfile) {
+      // 238: a departed account is not a person to follow.
+      if (!targetProfile || targetProfile.departed_at) {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
       }
 

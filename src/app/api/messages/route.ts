@@ -5,6 +5,7 @@ import type { Conversation } from '@/types/messages';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
+import { COPY } from '@/lib/copy';
 
 // ── GET /api/messages ─────────────────────────────────────────────────────────
 // List all active conversations for the current user, ordered by updated_at DESC.
@@ -136,9 +137,14 @@ export async function POST(request: NextRequest) {
       // Check target user's messaging_permission
       const { data: targetProfile } = await supabase
         .from('profiles')
-        .select('messaging_permission')
+        .select('messaging_permission, departed_at')
         .eq('id', participantId)
         .single();
+
+      // 238: a departed account has no one to receive a message.
+      if (targetProfile?.departed_at) {
+        return NextResponse.json({ error: COPY.ACCOUNT.DEPARTED_DM }, { status: 404 });
+      }
 
       const permission = targetProfile?.messaging_permission || 'everyone';
 
@@ -323,7 +329,7 @@ export async function POST(request: NextRequest) {
       }
 
       const [{ data: memberProfiles }, { data: iFollowRows }, { data: followMeRows }] = await Promise.all([
-        supabase.from('profiles').select('id, messaging_permission').in('id', otherIds),
+        supabase.from('profiles').select('id, messaging_permission, departed_at').in('id', otherIds),
         supabase.from('follows').select('following_id').eq('follower_id', user.id).in('following_id', otherIds).eq('status', 'accepted'),
         supabase.from('follows').select('follower_id').eq('following_id', user.id).in('follower_id', otherIds).eq('status', 'accepted'),
       ]);
@@ -331,6 +337,10 @@ export async function POST(request: NextRequest) {
       const followsMe = new Set((followMeRows || []).map(f => f.follower_id));
 
       for (const member of memberProfiles || []) {
+        // 238: a departed account is no longer on Edge Athlete.
+        if (member.departed_at) {
+          return NextResponse.json({ error: COPY.ACCOUNT.DEPARTED_DM }, { status: 404 });
+        }
         const perm = member.messaging_permission || 'everyone';
         if (
           perm === 'nobody' ||

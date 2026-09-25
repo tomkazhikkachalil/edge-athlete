@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RateLimitAction } from '@/lib/rate-limit-core';
-import { SWEEP_CUTOFF_MS, isQaUserEmail, isShadowEmail, staleQaOrgs, staleShadows, type AccessRow, type OrgRow, type ShadowRow } from './qa-sweep-rules';
+import { SWEEP_CUTOFF_MS, DEPARTED_EMAIL_LIKE, isQaUserEmail, isShadowEmail, staleQaOrgs, staleQaTombstones, staleShadows, type AccessRow, type OrgRow, type ShadowRow, type TombstoneRow } from './qa-sweep-rules';
 import { deleteQaOrgs } from './org';
 import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
@@ -459,8 +459,10 @@ export async function deleteQaUser(userId: string): Promise<void> {
   // profile's (CASCADE): one profile delete fires the SET NULL update on a
   // results row whose participant is going in the SAME cascade → FK
   // violation. The results, participants and entries this profile owns go
-  // first, explicitly — the QA org they belong to is going too, so nothing
-  // is lost that the product would keep.
+  // first, explicitly. NOTE (238, Sep 24 2026): the PRODUCT keeps a departed
+  // person's results (the deletion engine leaves a name-only tombstone);
+  // this is QA teardown, which deletes them because the QA org they belong
+  // to is going too — never a model of what account deletion does.
   const { data: entries } = await admin.from('competition_entries').select('id').eq('profile_id', userId);
   const entryIds = (entries ?? []).map(e => e.id as string);
   if (entryIds.length) {
@@ -583,14 +585,18 @@ export async function sweepStaleQa(): Promise<void> {
   try {
     const admin = adminClient();
     const cutoff = Date.now() - SWEEP_CUTOFF_MS;
-    const { users, shadows, orgs } = await listStaleQaShapes(admin, cutoff);
-    const total = orgs.length + shadows.length + users.length;
+    const { users, shadows, orgs, tombstones } = await listStaleQaShapes(admin, cutoff);
+    const total = orgs.length + shadows.length + users.length + tombstones.length;
     if (total === 0) return;
-    console.log(`[e2e sweep] stale QA shapes: orgs ${orgs.length} · shadows ${shadows.length} · users ${users.length}`);
+    console.log(`[e2e sweep] stale QA shapes: orgs ${orgs.length} · shadows ${shadows.length} · users ${users.length} · tombstones ${tombstones.length}`);
     let deleted = 0;
     for (const o of orgs) {
       await deleteQaOrgs(admin, [o.id]).then(() => { deleted++; }).catch(err =>
         console.warn(`[e2e sweep] could not delete stale org ${o.name}:`, (err as Error).message));
+    }
+    for (const t of tombstones) {
+      await deleteQaUser(t.id).then(() => { deleted++; }).catch(err =>
+        console.warn(`[e2e sweep] could not delete stale tombstone ${t.full_name}:`, (err as Error).message));
     }
     for (const u of [...shadows, ...users]) {
       await deleteQaUser(u.id).then(() => { deleted++; }).catch(err =>
@@ -609,7 +615,7 @@ export const sweepStaleQaUsers = sweepStaleQa;
 export async function listStaleQaShapes(
   admin: ReturnType<typeof adminClient>,
   cutoff: number
-): Promise<{ users: Array<{ id: string; email: string }>; shadows: ShadowRow[]; orgs: OrgRow[] }> {
+): Promise<{ users: Array<{ id: string; email: string }>; shadows: ShadowRow[]; orgs: OrgRow[]; tombstones: TombstoneRow[] }> {
   const users = await listStaleQaUsers(admin, cutoff);
   const staleIds = new Set(users.map(u => u.id));
   // shadows: every stubs / minors auth user, then the rule over their access rows
@@ -636,7 +642,14 @@ export async function listStaleQaShapes(
     .from('organizations').select('id, name, created_at, owner_profile_id').like('name', 'QA %').limit(5000);
   if (orgError) throw new Error(`organizations read failed: ${orgError.message}`);
   const orgs = staleQaOrgs((orgRows ?? []) as OrgRow[], cutoff, staleIds);
-  return { users, shadows, orgs };
+  // tombstones (238): departed QA profiles — no auth user, found by the name
+  const { data: tombRows, error: tombError } = await admin
+    .from('profiles').select('id, email, full_name, departed_at')
+    .like('email', DEPARTED_EMAIL_LIKE).like('full_name', 'QA %').limit(5000);
+  // pre-238 the column is missing — no tombstones can exist; anything else is loud
+  if (tombError && !/departed_at/.test(tombError.message)) throw new Error(`tombstone read failed: ${tombError.message}`);
+  const tombstones = staleQaTombstones((tombRows ?? []) as TombstoneRow[], cutoff);
+  return { users, shadows, orgs, tombstones };
 }
 
 /**

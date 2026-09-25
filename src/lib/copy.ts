@@ -126,6 +126,33 @@ export const COPY = {
   },
 
   // Error Messages
+  // Departed accounts (Sep 24 2026, Tom): an adult's results outlive the
+  // person — they stay with the club, league or event under the person's
+  // name. A supervised athlete follows the consent their guardian signed.
+  ACCOUNT: {
+    DELETE_TITLE: 'Your account will be deleted in 30 days',
+    DELETE_BODY: 'Your account is hidden now and deleted after 30 days. Sign back in before then to restore it; after that it cannot be undone.',
+    DELETE_GOES_TITLE: 'What is deleted',
+    DELETE_GOES: [
+      'Your profile, login and personal details',
+      'Posts, photos and videos you shared on your profile',
+      'Your comments, likes and saved posts',
+      'Your followers, following and messages',
+      'Your notifications and activity history',
+      'Rounds you played on your own, and your sport settings',
+    ],
+    DELETE_STAYS_TITLE: 'What stays',
+    DELETE_STAYS: 'Results you recorded with other people — a club or league competition, an event, a round you played with others — stay part of those records under your name, the way a printed results sheet would. Other players\' results never change because you left.',
+    DELETE_FINAL: 'After 30 days your account is deleted and cannot be restored.',
+    BANNER_STAYS: 'Results you recorded with a club, league, event or other players will stay under your name.',
+    GOODBYE_TITLE: 'Your account is scheduled for deletion',
+    GOODBYE_BODY: 'It is hidden now and will be deleted in 30 days. Sign back in before then to restore it.',
+    MINOR_V2: 'Withdrawing consent permanently deletes this athlete\'s profile and all of its content, including results, after a 30-day window in which you can restore it.',
+    MINOR_V3: 'Withdrawing consent permanently deletes this athlete\'s profile and its content after a 30-day window in which you can restore it. Results recorded with other players stay part of those records under the name "Athlete", so no one else\'s results change.',
+    DEPARTED_PAGE: 'This account is no longer on Edge Athlete.',
+    DEPARTED_DM: 'This person is no longer on Edge Athlete.',
+  },
+
   // Support & Reporting, Spec 2: the words the report sheet speaks.
   SUPPORT: {
     REPORT_TITLE: 'Report',

@@ -636,6 +636,41 @@ pinned:
 **Parked, named:** the per-photo guardian bell and realtime as a wake-up for the stat poll (Tom, Sep 17); countback on a Stableford tie; a relay standings table of its own; a zone on golf rounds; `competition_id` for stroke / game events (they keep 211's contest rows).
 
 
+## When a person leaves (Sep 24 2026, migration 238)
+
+Tom's rule: a result that is part of an event OUTLIVES the person, and no
+one else's results change because someone left. The deletion engine
+(`src/lib/account-deletion.ts`, the rules in `src/lib/account-departure.ts`)
+keeps a departing adult's `profiles` row as a name-only **tombstone**
+whenever anything of theirs is tied to other people — an event
+participation, a hosted event, a shared or event-minted round, a card on
+someone else's round:
+
+- **The field stays.** `sport_event_participants`, `sport_event_stat_lines`,
+  the cards (`group_post_participants` → `golf_participant_scores` →
+  `golf_hole_scores`) and the matches keep pointing at the same id, so the
+  board, the breakdown, the overall fold and the match view are unchanged.
+- **The name is the full name**, as text: `publicDisplayName` answers a
+  departed row's full name and `publicHandle` nothing, so no roster card,
+  board row or player sheet links to a profile that is gone.
+  `ParticipantView.departed` lets the page render "Hosted by <name>" as
+  plain text (`EventHeader`'s `hostDeparted`).
+- **The event keeps its host.** `sport_events.host_profile_id` and the
+  minted round's `creator_id` point at the tombstone; a co-organizer keeps
+  running a live event. No new delete right is granted — a finished
+  event's results are exactly what the rule protects.
+- **Nobody is left unable to run an event:** an account cannot be deleted
+  while it is the only host / accepted organizer of a draft, open or live
+  event (`src/lib/account-sole-authority.ts`, a 409 from
+  `/api/account/delete`). The creation-time "two accounts" rule is the
+  next round.
+- **Posts:** the event round's announce / results post (the
+  `sport_event_round_id` feed card) stays; the person's own posts go.
+- **A supervised athlete** follows the consent the guardian signed: v2 →
+  erased (the event passes to a co-organizer first; a decided match keeps
+  its written outcome — `match.ts`'s `written` input — so the opponent's
+  win stands); v3 → a masked tombstone named "Athlete".
+
 ## Phase 3 status
 
 Complete (Sep 16 2026): the chain #775 → #786 (migrations 212 · 213) and

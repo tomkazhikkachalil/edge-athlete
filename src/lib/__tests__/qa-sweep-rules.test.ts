@@ -3,8 +3,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   QA_ORG_NAME_RE, QA_ORG_NAME_SQL, SWEEP_CUTOFF_MS, isQaOrgName, isQaUserEmail, isShadowEmail, isStale,
-  staleQaOrgs, staleShadows,
+  staleQaOrgs, staleShadows, staleQaTombstones, DEPARTED_EMAIL_LIKE,
 } from '../../../e2e/helpers/qa-sweep-rules';
+import { DEPARTED_EMAIL_DOMAIN } from '../account-departure';
 
 // The e2e sweep's rules (Sep 24 2026): what a run may take from a database
 // that still holds real data — proven here on the shapes that must be
@@ -82,3 +83,28 @@ describe('the shadow rule — a live holder protects the profile', () => {
     expect(staleShadows(shadows, access, CUTOFF, stale).map(s => s.id)).toEqual(['orphan-stub', 'qa-minor']);
   });
 });
+
+// Departed tombstones (238): a purged QA user kept as a name-only row has no
+// auth user and no edgeqa-* email; the NAME is the marker.
+describe('stale QA tombstones', () => {
+  const t = (over: Partial<{ id: string; email: string | null; full_name: string | null; departed_at: string | null }>) => ({
+    id: 't1', email: 't1@departed.invalid', full_name: 'QA Departure 1790223560574', departed_at: old, ...over,
+  });
+  it('admits a QA-named, departed, stale tombstone', () => {
+    expect(staleQaTombstones([t({})], CUTOFF)).toHaveLength(1);
+  });
+  it('refuses a real departed person, a fresh departure, a live account, a masked minor', () => {
+    expect(staleQaTombstones([t({ full_name: 'Casey Zimmerman' })], CUTOFF)).toHaveLength(0);
+    expect(staleQaTombstones([t({ departed_at: fresh })], CUTOFF)).toHaveLength(0);
+    expect(staleQaTombstones([t({ departed_at: null })], CUTOFF)).toHaveLength(0);
+    expect(staleQaTombstones([t({ email: 'edgeqa-abc@example.com' })], CUTOFF)).toHaveLength(0);
+    expect(staleQaTombstones([t({ full_name: 'Athlete' })], CUTOFF)).toHaveLength(0);
+  });
+  it('the domain agrees with the engine, and the bulk script carries the class', () => {
+    expect(DEPARTED_EMAIL_LIKE).toBe(`%@${DEPARTED_EMAIL_DOMAIN}`);
+    const script = readFileSync(join(__dirname, '..', '..', '..', 'scripts', 'staging-sweep.mjs'), 'utf8');
+    expect(script).toContain(`'${DEPARTED_EMAIL_LIKE}'`);
+    expect(script).toContain('PROFILE_SWEEP(STALE_TOMBSTONES)');
+  });
+});
+

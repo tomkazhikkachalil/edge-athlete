@@ -25,7 +25,7 @@ table with one row per event per athlete.
 
 | Column | Meaning |
 | --- | --- |
-| `profile_id` | the athlete (CASCADE — their data dies with them) |
+| `profile_id` | the athlete; nullable and `ON DELETE SET NULL` since 238 — when the person leaves, the fact stays and the link is severed (Tom, Sep 24 2026) |
 | `sport_key` | the registry key |
 | `occurred_on` | the event's day (`date`) |
 | `source` | HOW the fact entered: `post` · `live_round` · `org_entry` · `import` |
@@ -71,8 +71,9 @@ on, zero policies, REVOKEd — service-role only, app-layer authz.
 5. **A lost fact is a deleted row.** Every mapper answers `null` when the
    origin holds no fact (no gross, no finite stat, a pending post, a sport
    without a schema); the writer then deletes the key. Rows live and die
-   with their origin: post delete, round delete, line delete, and the
-   profile cascade.
+   with their origin: post delete, round delete, line delete. A person
+   LEAVING is not a lost fact (238): the deletion engine sets
+   `profile_id` to NULL and the row stays in the dataset, anonymous.
 6. **The dataset stores nothing the schema does not define** (the posts
    route's 400 — F2) and nothing fabricated. A legacy line the backfill
    meets that fails the schema is skipped and counted, never repaired.
@@ -109,7 +110,12 @@ per-event fact), and any number the sport's schema does not define.
 | manager confirm | `confirmGolfContest` | the overlay re-applied as `league_verified` |
 | org stat line PUT / DELETE | `stat-lines-server.ts` | `upsertPerformances([fromContestStatLine(...)])` / delete by key |
 
-Account deletion is covered by the profile cascade.
+Account deletion (departed accounts, migration 238): the engine
+(`src/lib/account-deletion.ts`) sets `athlete_performances.profile_id` to
+NULL for everyone who leaves — a tombstone, a masked minor and a full
+erase alike (the FK is `SET NULL`) — so the dataset keeps every fact and
+names no one. Readers that group by athlete skip a NULL `profile_id` (the
+scout search does, `recruiting/search-server.ts`).
 
 ## Backfill (F5)
 

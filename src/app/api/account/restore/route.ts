@@ -34,11 +34,15 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await admin
       .from('profiles')
-      .select('id, deletion_requested_at, supervision_state, dob')
+      .select('id, deletion_requested_at, departed_at, supervision_state, dob')
       .eq('id', targetId)
       .maybeSingle();
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+    // 238: a departed account is gone — only its results remain, by name.
+    if (profile.departed_at) {
+      return NextResponse.json({ error: 'This account was deleted and can no longer be restored.' }, { status: 410 });
     }
     if (!profile.deletion_requested_at) {
       return NextResponse.json({ error: 'This account is not scheduled for deletion' }, { status: 400 });

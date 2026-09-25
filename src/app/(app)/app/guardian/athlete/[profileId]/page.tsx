@@ -32,6 +32,8 @@ import {
   type CommentModeration,
 } from '@/lib/profile-privacy';
 import type { ConsentState } from '@/lib/consent';
+import { COPY } from '@/lib/copy';
+import { MASKED_CONSENT_VERSIONS } from '@/lib/account-departure';
 
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 const BlockedUsersList = dynamic(() => import('@/components/settings/BlockedUsersList'), { ssr: false });
@@ -116,6 +118,8 @@ interface ConsoleAthlete {
   messaging_permission: string | null;
   comment_moderation: string | null;
   consentState: ConsentState;
+  /** The consent version the guardian signed (Sep 24 2026) — decides what withdrawal keeps. */
+  consentVersion?: string | null;
   hasLogin: boolean;
   pendingPostCount: number;
   activeTransfer: { state: string } | null;
@@ -1340,9 +1344,8 @@ export default function GuardianAthletePage() {
                     used to link to the credentials screen, of all places. */}
                 <section className="border border-red-200 dark:border-red-900 rounded-lg p-5">
                   <h2 className="text-base font-bold text-red-600 dark:text-red-400 mb-1">Danger zone</h2>
-                  <p className="text-xs text-tertiary mb-3">
-                    Withdrawing consent deletes this profile and all of its
-                    content, after a 30-day window in which you can restore it.
+                  <p className="text-xs text-tertiary mb-3" data-withdraw-promise={MASKED_CONSENT_VERSIONS.includes(athlete.consentVersion ?? '') ? 'v3' : 'v2'}>
+                    {MASKED_CONSENT_VERSIONS.includes(athlete.consentVersion ?? '') ? COPY.ACCOUNT.MINOR_V3 : COPY.ACCOUNT.MINOR_V2}
                   </p>
                   {!deleteOpen ? (
                     <button

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { PROFILE_FK_POLICY } from '../account-departure';
 import { profileForeignKeys } from './helpers/live-schema';
 
@@ -42,5 +44,16 @@ describe('every cascading FK onto profiles is classified for a departed row', ()
       'sport_event_stat_lines.profile_id',
       'sport_events.host_profile_id',
     ]) expect(PROFILE_FK_POLICY[k], k).toBe('survives');
+  });
+
+  it('the engine deletes every "goes" entry by name, and handles every "engine" table', () => {
+    const engine = fs.readFileSync(path.join(process.cwd(), 'src/lib/account-deletion.ts'), 'utf8');
+    const missing: string[] = [];
+    for (const [key, policy] of Object.entries(PROFILE_FK_POLICY)) {
+      const [table, column] = key.split('.');
+      if (policy === 'goes' && !engine.includes(`mustDelete('${table}', '${column}')`)) missing.push(key);
+      if (policy === 'engine' && !engine.includes(`'${table}'`)) missing.push(key);
+    }
+    expect(missing).toEqual([]);
   });
 });
