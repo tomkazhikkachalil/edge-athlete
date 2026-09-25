@@ -44,9 +44,10 @@ export default async function globalTeardown() {
       errors.push(err);
     }
   }
-  // The state files are this run's; a stale user.json must never be re-read.
+  // The state files and the org registry are this run's; a stale user.json or
+  // orgs.txt must never be re-read by the next run.
   if (existsSync(authDir)) {
-    for (const f of readdirSync(authDir)) if (f.endsWith('.json')) rmSync(join(authDir, f), { force: true });
+    for (const f of readdirSync(authDir)) if (/\.(json|txt)$/.test(f)) rmSync(join(authDir, f), { force: true });
   }
   if (errors.length) throw errors[0];
 }
