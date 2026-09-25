@@ -22,7 +22,7 @@
 
 **Also:** the catalog test's real-chain pins follow the chain — `search_people` is now owned by 238, and trigger drift from a migration newer than the saved catalog is pending, not drift (the rule the grant and stale-claim checks already had).
 
-**No behaviour change yet:** nothing writes `departed_at` until PR 2 (the engine). Course stats need no change — they count only rounds attached to a public post, and a departed person's posts are deleted. **Deploy order:** 238 runs on prod through the SQL editor BEFORE this merges (the SELECT strings name the column — the 207 lesson), then `npm run build:baseline` from prod.
+**No behaviour change yet:** nothing writes `departed_at` until PR 2 (the engine). Course stats need no change — they count only rounds attached to a public post, and a departed person's posts are deleted. **Deploy order:** 238 runs on prod through the SQL editor BEFORE this merges (the SELECT strings name the column — the 207 lesson), then `npm run build:baseline` from prod. **238 RAN ON PROD (Sep 25 2026, the SQL editor, by Tom):** `238 APPLIED | 1 | 0 | 1 | 1 | 1 | 238`; `check:schema:prod` OK on every facet, `Ledger OK` at 238; the baseline regenerated FROM PROD at 238 (118 tables, 110 functions, 180 policies, 103 triggers; no `profiles_id_fkey`). (A first attempt pasted 237 by mistake — its pre-flight answered "237 has already run here" and changed nothing, as designed.)
 
 ## September 24, 2026 — the e2e teardown that leaves nothing behind (test tooling; zero DDL)
 
