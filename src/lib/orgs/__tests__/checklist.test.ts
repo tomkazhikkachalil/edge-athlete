@@ -6,7 +6,7 @@ const base = { hasSeasonWithDates: false, hasDivisions: false, hasTeams: false, 
 describe('buildOrgChecklistSteps (phase 7 C5)', () => {
   it('default: the phase-1 steps, registration only when known, anchors into the console', () => {
     const steps = buildOrgChecklistSteps(base);
-    expect(steps.map(s => s.key)).toEqual(['season', 'divisions', 'teams', 'managers', 'roster']);
+    expect(steps.map(s => s.key)).toEqual(['season', 'divisions', 'teams', 'backup', 'roster']);
     expect(steps[0].href).toBe('#seasons');
     expect(buildOrgChecklistSteps({ ...base, hasOpenRegistration: false }).map(s => s.key)).toContain('registration');
     expect(buildOrgChecklistSteps(base, 'default')).toEqual(steps);
@@ -14,7 +14,7 @@ describe('buildOrgChecklistSteps (phase 7 C5)', () => {
 
   it('golf: the site-builder checklist — site, photo/CTA, home course (optional), publish, members, league, notice', () => {
     const steps = buildOrgChecklistSteps(base, 'golf');
-    expect(steps.map(s => s.key)).toEqual(['site', 'brand', 'course', 'publish', 'members', 'league', 'notice']);
+    expect(steps.map(s => s.key)).toEqual(['site', 'brand', 'course', 'publish', 'members', 'league', 'notice', 'backup']);
     expect(steps.every(s => !s.done)).toBe(true);
     expect(steps.find(s => s.key === 'course')?.optional).toBe(true);
     expect(steps.find(s => s.key === 'league')?.href).toBe('#competitions');
@@ -35,8 +35,18 @@ describe('buildOrgChecklistSteps (phase 7 C5)', () => {
       'golf'
     );
     const done = Object.fromEntries(steps.map(s => [s.key, s.done]));
-    expect(done).toEqual({ site: true, brand: true, course: false, publish: true, members: false, league: true, notice: true });
-    expect(remainingSteps(steps).map(s => s.key)).toEqual(['members']); // the optional course never blocks
-    expect(remainingSteps(buildOrgChecklistSteps({ ...base, hasSite: true, hasSitePhotoOrCta: true, sitePublished: true, memberCount: 2, hasGolfLeague: true, hasNotice: true }, 'golf'))).toEqual([]);
+    expect(done).toEqual({ site: true, brand: true, course: false, publish: true, members: false, league: true, notice: true, backup: false });
+    expect(remainingSteps(steps).map(s => s.key)).toEqual(['members', 'backup']); // the optional course never blocks
+    expect(remainingSteps(buildOrgChecklistSteps({ ...base, hasSite: true, hasSitePhotoOrCta: true, sitePublished: true, memberCount: 2, hasGolfLeague: true, hasNotice: true, backup: 'ok' }, 'golf'))).toEqual([]);
+  });
+
+  // Authority PR 2 (Sep 25 2026): the backup step — a co-owner or manager
+  // (staff do not count), in both variants, never optional.
+  it('the backup step reads the backup state, and falls back to the count pre-240', () => {
+    const backup = (input: Partial<typeof base> & { backup?: 'ok' | 'none' }) => buildOrgChecklistSteps({ ...base, ...input }).find(s => s.key === 'backup')!;
+    expect(backup({ backup: 'ok' }).done).toBe(true);
+    expect(backup({ backup: 'none', managerCount: 5 }).done).toBe(false); // staff admins no longer satisfy it
+    expect(backup({ managerCount: 2 }).done).toBe(true);
+    expect(backup({}).optional).toBeUndefined();
   });
 });

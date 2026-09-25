@@ -25,6 +25,7 @@ import FlightsWindow from './FlightsWindow';
 import CountsTowardWindow from './CountsTowardWindow';
 import FormatSettingsWindow from './FormatSettingsWindow';
 import InviteWindow from './InviteWindow';
+import BackupBanner from '@/components/authority/BackupBanner';
 import RoundEditWindow from './RoundEditWindow';
 import EventStatsTab from './EventStatsTab';
 import EventGalleryTab from './EventGalleryTab';
@@ -69,6 +70,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteAsCo, setInviteAsCo] = useState(false);
   const [flightsOpen, setFlightsOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [countsTowardOpen, setCountsTowardOpen] = useState(false);
@@ -208,6 +210,11 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   return (
     <div className="space-y-4" data-event-place="">
       <EventHeader view={view} hostName={host?.name ?? 'the host'} hostDeparted={host?.departed ?? false} control={control} busy={busy} actions={joinActions} organizerControls={organizerControls} todayKey={today()} />
+      <BackupBanner
+        state={viewer.backup}
+        subject="event"
+        onAct={viewer.profile_id === event.host_profile_id ? () => { setInviteAsCo(true); setInviteOpen(true); } : undefined}
+      />
       {(error || notice) && (
         <p role="status" className={`text-sm rounded-lg px-3 py-2 ${error ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'}`} data-event-notice="">
           {error ?? notice}
@@ -227,6 +234,14 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onOpenInvite={() => setInviteOpen(true)}
               onInviteHandle={async h => { await run(() => api.inviteHandles([h]), 'Invited.'); }}
               onDecide={(target, action) => run(() => api.participantAction(target, action))}
+              onRoleAction={(target, action, name) => {
+                if (action === 'make_host') {
+                  setConfirm({ title: `Make ${name} the host?`, message: `${name} will run this event. You stay on as a co-organizer, and only they can hand it back.`, confirmText: 'Make host', danger: false, run: async () => { await run(() => api.participantAction(target, 'make_host'), `${name} is now the host.`); } });
+                  return;
+                }
+                const done = action === 'make_co_organizer' ? `${name} is now a co-organizer.` : action === 'step_down' ? 'You stepped down as co-organizer.' : `${name} is now a player.`;
+                void run(() => api.participantAction(target, action), done);
+              }}
               onHideToggle={(target, hidden) => run(() => api.participantPatch(target, { hide_from_profile: hidden }))}
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
               onRecorderToggle={(target, recorder) => run(() => api.participantPatch(target, { recorder }), recorder ? 'Named as a recorder.' : 'No longer a recorder.')}
@@ -272,9 +287,11 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       {inviteOpen && (
         <InviteWindow
           excludeIds={excludeIds}
-          onClose={() => setInviteOpen(false)}
-          onInvite={async (id, recorder) => {
-            const res = await api.invite([id], recorder);
+          onClose={() => { setInviteOpen(false); setInviteAsCo(false); }}
+          canInviteCoOrganizer={viewer.profile_id === event.host_profile_id}
+          startAsCoOrganizer={inviteAsCo}
+          onInvite={async (id, recorder, coOrganizer) => {
+            const res = await api.invite([id], recorder, coOrganizer);
             if (!res.ok) { setError(res.error); return false; }
             await refetch();
             return (res.data?.invited ?? []).includes(id);

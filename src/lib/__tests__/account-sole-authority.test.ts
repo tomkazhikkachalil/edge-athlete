@@ -59,3 +59,23 @@ describe('soleAuthorityMessage', () => {
     expect(soleAuthorityMessage([b('A'), b('B'), b('C')])).toContain('run A, B and C.');
   });
 });
+
+// Authority PR 2: a MANAGER backs up an org (Tom), and a backup must hold
+// authority — a moderated or departed account is no backup.
+describe('the backup rules (Authority PR 2)', () => {
+  it('a manager is the backup of an org', () => {
+    const orgs = [{ id: 'c1', name: 'Pine Valley', kind: 'club' }];
+    expect(soleOrgBlockers(ME, { orgs, ownerRows: [{ org_id: 'c1', profile_id: ME }, { org_id: 'c1', profile_id: 'mgr' }] })).toEqual([]);
+  });
+  it('a backup who cannot hold authority does not count', () => {
+    const orgs = [{ id: 'c1', name: 'Pine Valley', kind: 'club' }];
+    expect(soleOrgBlockers(ME, { orgs, ownerRows: [{ org_id: 'c1', profile_id: ME }, { org_id: 'c1', profile_id: 'x' }] }, id => id !== 'x')).toHaveLength(1);
+    expect(soleEventBlockers(ME, { events: [ev('e1', 'open')], organizerRows: [row('e1', 'x')] }, id => id !== 'x')).toHaveLength(1);
+  });
+  it('a moderated host of someone else\'s event leaves my organizer role sole', () => {
+    expect(soleEventBlockers(ME, { events: [ev('e1', 'open', 'host')], organizerRows: [row('e1', ME, 'organizer')] }, id => id !== 'host')).toHaveLength(1);
+  });
+  it('the message names a manager as a backup too', () => {
+    expect(soleAuthorityMessage([{ kind: 'club', id: 'c', name: 'A' }])).toContain('co-organizer, co-owner or manager');
+  });
+});

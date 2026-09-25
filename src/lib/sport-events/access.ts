@@ -48,7 +48,9 @@ export function resolveSportEventAccess(input: AccessInput): SportEventAccess | 
   const { event, viewerId, presentedToken, participant } = input;
   const isHost = Boolean(viewerId) && viewerId === event.hostProfileId;
   const role: ViewerRole = isHost ? 'organizer' : participant?.role ?? 'viewer';
-  const manages = isHost || (participantAdmits(participant) && isManagingRole(participant!.role));
+  // Authority PR 2: running the event needs an ACCEPTED organizer row — an
+  // invited, requested or waitlisted co-organizer is not a backup yet.
+  const manages = isHost || (participant?.status === 'accepted' && isManagingRole(participant.role));
 
   let admitted = false;
   if (isHost || manages) admitted = true;

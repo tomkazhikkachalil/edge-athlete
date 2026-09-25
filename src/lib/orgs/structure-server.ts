@@ -29,6 +29,8 @@ import {
 } from '@/lib/structure/validate';
 import { type ProgramCreateInput } from '@/lib/registration/validate';
 import { seasonArchivedMap } from './rollover-server';
+import { orgBackupStatus, type BackupState } from '@/lib/authority/backup';
+import { readAuthorityHolders } from '@/lib/authority/holders-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -138,7 +140,7 @@ export async function structureAggregateGET(
     divisionsBySeason.get(d.season_id)!.push({ ...d, entries: entriesByDivision.get(d.id) ?? [] });
   }
 
-  let counts: { managers: number; rosterAthletes: number } | undefined;
+  let counts: { managers: number; rosterAthletes: number; backup?: BackupState } | undefined;
   if (opts?.includeCounts) {
     const [managersRes, rosterRes] = await Promise.all([
       admin
@@ -161,7 +163,7 @@ export async function structureAggregateGET(
         .eq('scope_type', 'org')
         .in('status', ['active', 'placed']),
     ]);
-    counts = { managers: managersRes.count ?? 0, rosterAthletes: rosterRes.count ?? 0 };
+    counts = { managers: managersRes.count ?? 0, rosterAthletes: rosterRes.count ?? 0, backup: await readOrgBackup(admin, scope.orgId) };
   }
 
   return NextResponse.json({
@@ -558,4 +560,19 @@ export async function entryDELETE(
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   return NextResponse.json({ action: 'deleted' });
+}
+
+/** Authority PR 2: the org's backup state — two distinct active owners or
+ *  managers who hold authority (staff do not count; Tom's rule). */
+export async function readOrgBackup(admin: Admin, orgId: string): Promise<BackupState> {
+  const { data, error } = await admin
+    .from('memberships').select('profile_id, role, status')
+    .eq(ORG_ID, orgId).eq('kind', 'follow').eq('scope_type', 'org').in('role', ['owner', 'manager']);
+  if (error) {
+    console.error('[org backup] read failed:', error.message);
+    return 'none';
+  }
+  const rows = (data ?? []) as Array<{ profile_id: string; role: string; status: string }>;
+  const holders = await readAuthorityHolders(admin, rows.map(r => r.profile_id));
+  return orgBackupStatus({ rows: rows.map(r => ({ profileId: r.profile_id, role: r.role, status: r.status })), holdsAuthority: id => holders.get(id) === true });
 }

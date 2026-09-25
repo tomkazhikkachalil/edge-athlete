@@ -13,9 +13,11 @@ import type { SportEventParticipantRow } from '@/lib/sport-events/types';
 import { applyProfileOptOut } from '@/lib/sport-events/results-server';
 import { parseParticipantPatch } from '@/lib/sport-events/validate';
 import { reportRouteError } from '@/lib/observability/report';
+import { ROLE_ACTIONS, isRoleAction } from '@/lib/sport-events/roles';
+import { applyRoleChange } from '@/lib/sport-events/roles-server';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
-const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw', 'approve', 'reject', 'remove', 'promote']);
+const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw', 'approve', 'reject', 'remove', 'promote', ...ROLE_ACTIONS]);
 
 /**
  * POST {action} — accept | decline | withdraw on YOUR OWN row (or a
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (limited) return limited;
     const body = await readJson(request);
     const action = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).action : null;
-    if (typeof action !== 'string' || !ROW_ACTIONS.has(action)) return NextResponse.json({ error: 'action must be one of accept, decline, withdraw, approve, reject, remove, promote' }, { status: 400 });
+    if (typeof action !== 'string' || !ROW_ACTIONS.has(action)) return NextResponse.json({ error: `action must be one of ${[...ROW_ACTIONS].join(', ')}` }, { status: 400 });
     const actor = await resolveActor(user.id, bodyProfileId(body));
     if (!actor.ok) return actor.response;
 
@@ -49,6 +51,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: target } = await admin.from('sport_event_participants').select(PARTICIPANT_COLUMNS).eq('id', pid).eq('sport_event_id', id).maybeSingle();
     if (!target) return NextResponse.json({ error: 'Participant not found' }, { status: 404 });
     const row = target as SportEventParticipantRow;
+
+    // Authority PR 2: the role actions — a co-organizer (the event's backup), stepping down, handing the event over.
+    if (isRoleAction(action)) {
+      const changed = await applyRoleChange(admin, { event: read.event, action, actorProfileId: actor.profileId, target: row });
+      if (!changed.ok) return NextResponse.json({ error: changed.error }, { status: changed.status });
+      return NextResponse.json({ participant: changed.participant, hostTransferred: changed.hostTransferred, promoted: [] }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }
 
     let outcome: JoinOutcome;
     if (ORGANIZER_ACTIONS.has(action as JoinAction)) {

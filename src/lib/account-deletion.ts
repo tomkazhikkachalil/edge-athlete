@@ -32,7 +32,7 @@ import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
 import { orgRefOf } from './orgs/org-ref';
 import { departedProfilePatch, departureMode, type DepartureMode, type TiedCounts } from './account-departure';
-import { recordAuthority } from './authority/audit-server';
+import { transferHost } from './sport-events/host-transfer-server';
 
 /**
  * Parse any Supabase public-object URL into { bucket, path }. Returns null
@@ -296,6 +296,7 @@ export async function hardDeleteAccount(
   if (!keep) {
     await eraseRoundsAndPosts(admin, userId, rounds, profileRow.supervision_state === 'supervised', warnings, mustDelete);
   } else {
+    await handOverHostedEvents(admin, userId, warnings);
     await keepRoundsAndPosts(admin, userId, rounds, doomedPostIds, check);
     await deleteOwnThings(admin, userId, mustDelete, check);
   }
@@ -370,22 +371,12 @@ async function eraseRoundsAndPosts(admin: Admin, userId: string, rounds: Rounds,
         .in('role', ['organizer', 'co_organizer'])
         .order('created_at', { ascending: true }).limit(1).maybeSingle();
       if (!heir) { warnings.push(`hosted event ${ev.id}: no co-organizer to inherit it — it goes with the host`); continue; }
-      const { error } = await admin.from('sport_events').update({ host_profile_id: heir.profile_id }).eq('id', ev.id);
-      if (error) throw new Error(`Failed to hand over event ${ev.id}: ${error.message}`);
-      // The event's minted rounds are created by the host — they follow it.
-      const { data: minted } = await admin.from('sport_event_rounds').select('id').eq('sport_event_id', ev.id);
-      const mintedIds = (minted ?? []).map(r => r.id as string);
-      if (mintedIds.length > 0) {
-        const { error: rErr } = await admin.from('group_posts').update({ creator_id: heir.profile_id }).in('sport_event_round_id', mintedIds).eq('creator_id', userId);
-        if (rErr) throw new Error(`Failed to hand over event rounds of ${ev.id}: ${rErr.message}`);
-      }
-      await recordAuthority(admin, {
-        subject: { type: 'sport_event', id: ev.id as string },
-        actor: { kind: 'system' },
-        action: 'host_transferred',
-        targetProfileId: heir.profile_id as string,
-        detail: { from_profile_id: userId, to_profile_id: heir.profile_id, reason: 'account_erased' },
+      // The ONE host writer: the event, the two rows, the minted rounds and the event's posts move together.
+      const moved = await transferHost(admin, {
+        eventId: ev.id as string, fromProfileId: userId, toProfileId: heir.profile_id as string,
+        actor: { kind: 'system' }, oldHostRole: 'removed', reason: 'account_erased',
       });
+      if (!moved.ok) throw new Error(`Failed to hand over event ${ev.id}: ${moved.error}`);
     }
   }
   // Sport data (golf_holes has no profile_id — cascades from golf_rounds).
@@ -400,6 +391,26 @@ async function eraseRoundsAndPosts(admin: Admin, userId: string, rounds: Rounds,
 
 /** The keeping path's rounds and posts: solo rounds go, shared rounds (and
  *  the person's cards on them, and on everyone else's) stay. */
+/** A departing adult's hosted events pass to an accepted co-organizer when
+ *  one exists (Authority PR 2) — the backup Tom asked every event to have.
+ *  With none, the tombstone stays the host and the results stand as they are.
+ *  The departed host's own row stays (the field record) as a co-organizer. */
+async function handOverHostedEvents(admin: Admin, userId: string, warnings: string[]): Promise<void> {
+  const { data: hosted } = await admin.from('sport_events').select('id').eq('host_profile_id', userId);
+  for (const ev of hosted ?? []) {
+    const { data: heir } = await admin
+      .from('sport_event_participants').select('profile_id')
+      .eq('sport_event_id', ev.id).neq('profile_id', userId).eq('status', 'accepted').eq('role', 'co_organizer')
+      .order('created_at', { ascending: true }).limit(1).maybeSingle();
+    if (!heir) continue;
+    const moved = await transferHost(admin, {
+      eventId: ev.id as string, fromProfileId: userId, toProfileId: heir.profile_id as string,
+      actor: { kind: 'system' }, reason: 'host_departed',
+    });
+    if (!moved.ok) warnings.push(`hosted event ${ev.id}: handover failed — ${moved.error}`);
+  }
+}
+
 async function keepRoundsAndPosts(admin: Admin, userId: string, rounds: Rounds, doomedPostIds: string[], check: Check): Promise<void> {
   // group_posts: the SOLO ones only. Their participants and cards cascade;
   // their mirror golf_rounds lose group_post_id (SET NULL) and go below.

@@ -8,27 +8,34 @@ import { formatDisplayName } from '@/lib/formatters';
 
 interface Props {
   excludeIds: Set<string>;
-  /** Phase 4: `recorder` = "Invite as recorder" — the row carries the flag from the invite. */
-  onInvite: (profileId: string, recorder: boolean) => Promise<boolean>;
+  /** Phase 4: `recorder` = "Invite as recorder" — the row carries the flag from the invite.
+   *  Authority PR 2: `coOrganizer` = invite the event's BACKUP (the host only). */
+  onInvite: (profileId: string, recorder: boolean, coOrganizer: { playing: boolean } | null) => Promise<boolean>;
   onClose: () => void;
+  /** The host may invite a co-organizer (a co-organizer never mints peers). */
+  canInviteCoOrganizer?: boolean;
+  /** Open with "Invite as co-organizer" ticked (the backup banner's door). */
+  startAsCoOrganizer?: boolean;
 }
 
 /** The organizer's invite window: the house bottom sheet over the public athlete search. */
-export default function InviteWindow({ excludeIds, onInvite, onClose }: Props) {
+export default function InviteWindow({ excludeIds, onInvite, onClose, canInviteCoOrganizer = false, startAsCoOrganizer = false }: Props) {
   const search = useProfileSearch({ minChars: 2 });
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<string | null>(null);
   const [asRecorder, setAsRecorder] = useState(false);
+  const [asCoOrganizer, setAsCoOrganizer] = useState(canInviteCoOrganizer && startAsCoOrganizer);
+  const [coPlays, setCoPlays] = useState(false);
 
   const invite = async (id: string) => {
     setPending(id);
-    const ok = await onInvite(id, asRecorder);
+    const ok = await onInvite(id, asRecorder, asCoOrganizer ? { playing: coPlays } : null);
     setPending(null);
     if (ok) setSent(prev => new Set(prev).add(id));
   };
 
   return (
-    <LargerWindow title="Invite players" subtitle="Search by name or handle" onClose={onClose} windowKey="event-invite">
+    <LargerWindow title={asCoOrganizer ? 'Invite a co-organizer' : 'Invite players'} subtitle="Search by name or handle" onClose={onClose} windowKey="event-invite">
       <div className="space-y-3">
         <input
           type="search"
@@ -41,10 +48,24 @@ export default function InviteWindow({ excludeIds, onInvite, onClose }: Props) {
           className="w-full min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-primary text-base"
           data-event-invite-search=""
         />
-        <label className="flex items-center gap-3 min-h-[44px] text-sm text-primary">
-          <input type="checkbox" checked={asRecorder} onChange={e => setAsRecorder(e.target.checked)} className="h-4 w-4" data-event-invite-recorder="" />
-          Invite as recorder <span className="text-xs text-muted">— enters scores for everyone; may play or not</span>
-        </label>
+        {canInviteCoOrganizer && (
+          <label className="flex items-center gap-3 min-h-[44px] text-sm text-primary">
+            <input type="checkbox" checked={asCoOrganizer} onChange={e => setAsCoOrganizer(e.target.checked)} className="h-4 w-4" data-event-invite-co-organizer="" />
+            Invite as co-organizer <span className="text-xs text-muted">— your backup: can run the event if you can’t</span>
+          </label>
+        )}
+        {asCoOrganizer && (
+          <label className="flex items-center gap-3 min-h-[44px] pl-7 text-sm text-primary">
+            <input type="checkbox" checked={coPlays} onChange={e => setCoPlays(e.target.checked)} className="h-4 w-4" data-event-invite-co-plays="" />
+            Also plays <span className="text-xs text-muted">— otherwise they organize without taking a spot</span>
+          </label>
+        )}
+        {!asCoOrganizer && (
+          <label className="flex items-center gap-3 min-h-[44px] text-sm text-primary">
+            <input type="checkbox" checked={asRecorder} onChange={e => setAsRecorder(e.target.checked)} className="h-4 w-4" data-event-invite-recorder="" />
+            Invite as recorder <span className="text-xs text-muted">— enters scores for everyone; may play or not</span>
+          </label>
+        )}
         {search.failed && <p className="text-sm text-red-700 dark:text-red-300">Search is unavailable right now.</p>}
         <ul className="divide-y divide-border-subtle">
           {search.results.map(p => {

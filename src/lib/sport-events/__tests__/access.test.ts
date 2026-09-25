@@ -37,3 +37,16 @@ describe('resolveSportEventAccess — the one gate', () => {
     expect(resolveSportEventAccess({ event: base(), viewerId: 'c', presentedToken: null, participant: p('co_organizer', 'removed') })).toBeNull();
   });
 });
+
+// Authority PR 2 (Sep 25 2026): running an event needs an ACCEPTED organizer
+// row — an invited, requested or waitlisted co-organizer is not a backup yet.
+describe('managing needs an accepted row (Authority PR 2)', () => {
+  it('an accepted co-organizer manages; an invited or waitlisted one does not', () => {
+    const run = (status: NonNullable<AccessInput['participant']>['status']) =>
+      resolveSportEventAccess({ event: base({ visibility: 'public' }), viewerId: 'c', presentedToken: null, participant: p('co_organizer', status) });
+    expect(run('accepted')?.canManage).toBe(true);
+    expect(run('invited')?.canManage).toBe(false);
+    expect(run('waitlisted')?.canManage).toBe(false);
+    expect(run('requested')?.canManage).toBe(false);
+  });
+});

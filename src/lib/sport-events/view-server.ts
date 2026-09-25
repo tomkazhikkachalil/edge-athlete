@@ -13,6 +13,8 @@ import { projectEvent, projectParticipant, projectViewer, roundCounts, visiblePa
 import { eventOrg } from './contest-link';
 import { readCountsTowardAll, readEventCompetition, readMatchLinks } from './contest-link-server';
 import { readRoster } from './join-server';
+import { eventBackupStatus } from '@/lib/authority/backup';
+import { holdsAuthority } from '@/lib/moderation/state';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -31,7 +33,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
 
   const [profilesRes, groupsRes, membersRes, groupPostsRes] = await Promise.all([
     roster.length > 0
-      ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', roster.map(r => r.profile_id))
+      ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url, moderation_state, moderation_until').in('id', roster.map(r => r.profile_id))
       : Promise.resolve({ data: [] as ProfileForView[] }),
     roundIds.length > 0
       ? admin.from('sport_event_groups').select('id, sport_event_round_id, sequence, name, tee_time, starting_hole, created_at, updated_at').in('sport_event_round_id', roundIds).order('sequence', { ascending: true })
@@ -85,7 +87,18 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
     participants,
     groups,
     counts: roundCounts(roster as SportEventParticipantRow[]),
-    viewer: projectViewer(viewerId, access, participant, roster as SportEventParticipantRow[]),
+    viewer: {
+      ...projectViewer(viewerId, access, participant, roster as SportEventParticipantRow[]),
+      // Authority PR 2: the backup warning, for the people who can act on it.
+      backup: access.canManage
+        ? eventBackupStatus({
+            status: event.status,
+            hostProfileId: event.host_profile_id,
+            rows: (roster as SportEventParticipantRow[]).map(r => ({ profileId: r.profile_id, role: r.role, status: r.status })),
+            holdsAuthority: id => holdsAuthority(profileById.get(id) as Parameters<typeof holdsAuthority>[0]),
+          })
+        : null,
+    },
     host_org,
     counts_toward,
   };

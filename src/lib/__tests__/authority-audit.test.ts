@@ -103,7 +103,11 @@ describe('one writer, and every authority writer calls it', () => {
     'src/app/api/org-claim/[token]/route.ts',
     'src/app/api/sport-events/[id]/route.ts',
     'src/lib/sport-events/lifecycle-server.ts',
-    'src/lib/account-deletion.ts',
+    // PR 2: the co-organizer roles and the one host writer (the deletion
+    // engine hands events over through transferHost, so it records there).
+    'src/lib/sport-events/host-transfer-server.ts',
+    'src/lib/sport-events/roles-server.ts',
+    'src/lib/sport-events/join-server.ts',
   ];
   it.each(AUDITED_WRITERS)('%s records through recordAuthority', file => {
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
