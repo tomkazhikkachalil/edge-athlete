@@ -139,6 +139,10 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
       console.warn('[club-request-golf] site_draft column missing — run migration 174; the fallback insert was exercised instead');
     }
   } finally {
+    // The provisioned club goes WITH its request row — the old order deleted the row first and the
+    // next run's pre-sweep looked the club up through that row, so every run leaked one club.
+    const { data: made } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userB.id);
+    await deleteQaOrgs(admin, (made ?? []).map(r => r.created_org_id as string | null));
     await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await ctx.close();
