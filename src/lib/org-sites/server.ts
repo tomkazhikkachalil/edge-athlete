@@ -39,6 +39,7 @@ import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { NEUTRAL_ORG, type GalleryOrg } from '@/lib/site-builder/gallery';
 import type { SiteLayout } from '@/lib/site-builder/layout';
 import { recordAuthority } from '@/lib/authority/audit-server';
+import { HELD_MESSAGE, readSiteHold } from '@/lib/authority/hold-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -435,6 +436,10 @@ export async function sitePATCH(
       .eq(ORG_ID, orgId)
       .maybeSingle();
     if (!current) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    // Authority (240): a site paused by Edge Athlete support does not go live.
+    if (input.action === 'publish' && (await readSiteHold(admin, current.id as string))) {
+      return NextResponse.json({ error: HELD_MESSAGE, held: true }, { status: 409 });
+    }
     // Onboarding v2 R1 (179): publishing no longer waits for approval — an
     // org is live by link; an unlisted/pending site serves noindex and stays
     // out of the directory, the sitemap and search until it is LISTED.
@@ -681,6 +686,8 @@ export async function getSiteBySlugAnyStatus(
 export async function getDraftSiteBySlug(admin: Admin, slug: string): Promise<PublicSite | null> {
   const site = await getSiteBySlugInternal(admin, slug, true);
   if (!site) return null;
+  // Authority (240): a held site has no preview — the token is not a way around the hold.
+  if (await readSiteHold(admin, site.id)) return null;
   const { data, error } = await admin.from('org_sites').select('draft_revision_id').eq('id', site.id).maybeSingle();
   if (error || !data?.draft_revision_id) return site;
   const state = await loadDraftSnapshot(admin, {

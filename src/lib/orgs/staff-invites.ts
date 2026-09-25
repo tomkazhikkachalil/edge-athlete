@@ -302,6 +302,8 @@ export async function writeStaffAudit(
     seasonId?: string | null;
     oldSections?: string[] | null;
     newSections?: string[] | null;
+    /** Authority PR 4: set when the Edge Athlete team acted — the mirror is a platform act on this ticket. */
+    platformTicketId?: string | null;
   }
 ): Promise<void> {
   const { error } = await admin.from('org_staff_audit').insert({
@@ -327,7 +329,8 @@ export async function writeStaffAudit(
   if (mirrored) {
     await recordAuthority(admin, {
       subject: { type: 'org', id: entry.orgId },
-      actor: entry.actorId ? { kind: 'member', profileId: entry.actorId } : { kind: 'system' },
+      actor: entry.platformTicketId && entry.actorId ? { kind: 'platform', profileId: entry.actorId } : entry.actorId ? { kind: 'member', profileId: entry.actorId } : { kind: 'system' },
+      ticketId: entry.platformTicketId ?? null,
       action: mirrored,
       targetProfileId: entry.profileId,
       detail: { role: entry.role ?? null, scope: entry.scopeType ?? null, sections: entry.newSections ?? null, via: entry.action },

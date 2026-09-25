@@ -36,6 +36,8 @@ export default function OrgClaimPage() {
   const [org, setOrg] = useState<PeekedOrg | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Authority (240): a recovery link from Edge Athlete support adds an owner beside whoever is there.
+  const [recovery, setRecovery] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +48,7 @@ export default function OrgClaimPage() {
         if (cancelled) return;
         if (res.ok && data.valid) {
           setOrg(data.org);
+          setRecovery(data.recovery === true);
           setState('ready');
         } else {
           setState('invalid');
@@ -76,7 +79,7 @@ export default function OrgClaimPage() {
         setState('invalid');
         return;
       }
-      if (res.status === 409) {
+      if (res.status === 409 && !recovery) {
         setState('conflict');
         return;
       }
@@ -148,9 +151,11 @@ export default function OrgClaimPage() {
               </div>
               <h1 className="text-xl font-bold text-primary mb-1">{org.name}</h1>
               {orgLine && <p className="text-sm text-muted mb-2">{orgLine}</p>}
-              <p className="text-sm text-secondary mb-4">
-                You&apos;ve been invited to take ownership of this page — rosters, schedules,
-                and its public presence.
+              <p className="text-sm text-secondary mb-4" data-org-claim-purpose={recovery ? 'recovery' : 'handover'}>
+                {recovery
+                  ? 'Edge Athlete support sent you this link to give you back the running of this organization. Accepting makes you an owner; no one else loses their place.'
+                  : <>You&apos;ve been invited to take ownership of this page — rosters, schedules,
+                and its public presence.</>}
               </p>
               {error && (
                 <p role="alert" className="text-sm text-red-600 mb-3">
@@ -164,11 +169,11 @@ export default function OrgClaimPage() {
                   onClick={() => void claim()}
                   className="w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60"
                 >
-                  {state === 'claiming' ? 'Claiming…' : `Claim ${org.name}`}
+                  {state === 'claiming' ? 'Claiming…' : recovery ? `Become an owner of ${org.name}` : `Claim ${org.name}`}
                 </button>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted">Sign in or create an account to claim.</p>
+                  <p className="text-xs text-muted">{recovery ? 'Sign in with the email address this link was sent to.' : 'Sign in or create an account to claim.'}</p>
                   <Link
                     href="/"
                     onClick={() => saveParkedOrgClaim({ token, orgName: org.name })}
@@ -187,10 +192,12 @@ export default function OrgClaimPage() {
                 <i className="fas fa-circle-check text-xl text-emerald-600" aria-hidden="true"></i>
               </div>
               <h1 className="text-xl font-bold text-primary mb-2">
-                {org?.name ?? 'Your organization'} is yours
+                {recovery ? `You're an owner of ${org?.name ?? 'the organization'}` : `${org?.name ?? 'Your organization'} is yours`}
               </h1>
               <p className="text-sm text-tertiary mb-4">
-                You&apos;re the owner — set up seasons, divisions, and your roster from the console.
+                {recovery
+                  ? 'You can run it again from the console. Add a co-owner or manager so it always has a backup.'
+                  : <>You&apos;re the owner — set up seasons, divisions, and your roster from the console.</>}
               </p>
               <Link
                 href={orgId && org ? `/app/org/${org.side}/${orgId}` : '/feed'}

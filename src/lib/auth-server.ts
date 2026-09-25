@@ -253,7 +253,9 @@ export async function requireAdmin(request: NextRequest) {
 export type PlatformRole = 'owner' | 'moderator';
 
 /** What a moderator may do; anything not listed is owner-only. */
-export type ModeratorIntent = 'work_queue' | 'delete_ticket' | 'manage_roles';
+// Authority PR 4: 'recover_authority' (the recovery panels) is owner-only
+// for now — deliberately NOT in MODERATOR_INTENTS; open it later by adding it.
+export type ModeratorIntent = 'work_queue' | 'delete_ticket' | 'manage_roles' | 'recover_authority';
 const MODERATOR_INTENTS: ReadonlySet<ModeratorIntent> = new Set(['work_queue']);
 
 /** The caller's platform role: the allowlist decides owner; the table decides moderator; else null. */

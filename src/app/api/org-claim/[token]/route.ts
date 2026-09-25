@@ -8,6 +8,7 @@ import {
 } from '@/lib/orgs/org-claim';
 import { insertOwnerRow } from '@/lib/orgs/members';
 import { recordAuthority } from '@/lib/authority/audit-server';
+import { redeemRecoveryLink } from '@/lib/authority/recovery-server';
 
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -31,11 +32,15 @@ export async function GET(
       return NextResponse.json({ valid: false }, { status: 404 });
     }
     const peeked = await peekOrgClaimInvite(getSupabaseAdmin(), token);
-    if (!peeked || peeked.org.owner_profile_id) {
+    // Authority (240): a RECOVERY link adds an owner beside whoever is there,
+    // so an owned org is fine; a handover link needs an ownerless one.
+    const recovery = peeked?.purpose === 'recovery';
+    if (!peeked || (!recovery && peeked.org.owner_profile_id)) {
       return NextResponse.json({ valid: false }, { status: 404 });
     }
     return NextResponse.json({
       valid: true,
+      recovery,
       org: {
         side: peeked.org.side,
         name: peeked.org.name,
@@ -73,6 +78,12 @@ export async function POST(
         { error: 'This link has expired or was already used.' },
         { status: 410 }
       );
+    }
+    // Authority (240): the recovery branch — its own rules (email-bound, adds an owner) in the lib.
+    if (peeked.purpose === 'recovery') {
+      const recovered = await redeemRecoveryLink(admin, token, user);
+      if (!recovered.ok) return NextResponse.json({ error: recovered.error }, { status: recovered.status === 404 ? 410 : recovered.status });
+      return NextResponse.json({ ok: true, side: recovered.side, orgId: recovered.orgId, recovery: true });
     }
     if (peeked.org.owner_profile_id) {
       return NextResponse.json(
