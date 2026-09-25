@@ -50,7 +50,7 @@ export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, 
 
   const profiles = new Map<string, ProfileForView>();
   if (field.length > 0) {
-    const { data } = await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle, avatar_url').in('id', field.map(f => f.profile_id));
+    const { data } = await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', field.map(f => f.profile_id));
     for (const p of (data ?? []) as ProfileForView[]) profiles.set(p.id, p);
   }
 

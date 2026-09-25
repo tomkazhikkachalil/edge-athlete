@@ -133,6 +133,8 @@ export interface Profile {
   // Soft-delete park stamp (migration 128): non-null = scheduled for hard
   // deletion 30 days later; the root-layout banner offers restore.
   deletion_requested_at?: string | null;
+  /** 238: a departed tombstone (src/lib/account-departure.ts) — never a live account. */
+  departed_at?: string | null;
   // Account-level theme preference (migration 069). Deliberately `unknown`:
   // always read through sanitizeThemePrefs (src/lib/theme-prefs.ts).
   theme_prefs?: unknown;

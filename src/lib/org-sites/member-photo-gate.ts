@@ -153,7 +153,7 @@ export async function evaluateMemberPhotos(
     const profileIds = [...new Set([...postById.values()].map(p => p.profileId))];
     const { data: profiles } = await admin
       .from('profiles')
-      .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+      .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
       .in('id', profileIds);
     const publicAuthor = new Map<string, string>();
     for (const p of (profiles ?? []) as (MaskableProfile & { id: string })[]) {

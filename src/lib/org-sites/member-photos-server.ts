@@ -59,7 +59,7 @@ export async function listMemberPhotoCandidates(
   if (grantsError || !grants || grants.length === 0) return { candidates: [], picks: picks.length };
   const { data: profiles } = await admin
     .from('profiles')
-    .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+    .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
     .in('id', grants.map(g => g.profile_id as string));
   const authors = new Map<string, string>();
   for (const p of (profiles ?? []) as (MaskableProfile & { id: string })[]) {

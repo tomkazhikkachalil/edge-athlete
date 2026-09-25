@@ -35,7 +35,7 @@ export interface ResolvedTarget {
   snapshot: Record<string, unknown>;
 }
 
-const PERSON_COLUMNS = 'id, first_name, last_name, full_name, handle, avatar_url, visibility, email, supervision_state';
+const PERSON_COLUMNS = 'id, first_name, last_name, full_name, handle, avatar_url, visibility, email, supervision_state, departed_at';
 
 type PersonRow = MaskableProfile & { id: string; handle: string | null; avatar_url: string | null };
 

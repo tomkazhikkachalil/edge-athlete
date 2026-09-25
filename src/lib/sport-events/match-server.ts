@@ -138,7 +138,7 @@ export async function fetchRoundMatches(admin: Admin, event: SportEventRow, roun
   const participants = new Map(((participantRows ?? []) as Array<{ id: string; profile_id: string; handicap_index: number | null }>).map(p => [p.id, p]));
   const profileIds = [...new Set([...participants.values()].map(p => p.profile_id))];
   const [{ data: profileRows }, cardsRes] = await Promise.all([
-    profileIds.length > 0 ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle, avatar_url').in('id', profileIds) : Promise.resolve({ data: [] as ProfileForView[] }),
+    profileIds.length > 0 ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', profileIds) : Promise.resolve({ data: [] as ProfileForView[] }),
     gp?.id
       ? admin.from('group_post_participants').select('profile_id, status, card:golf_participant_scores (hole_scores:golf_hole_scores (hole_number, strokes))').eq('group_post_id', gp.id as string)
       : Promise.resolve({ data: [] as unknown[] }),

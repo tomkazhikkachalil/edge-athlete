@@ -223,7 +223,7 @@ export async function fetchPublicStandings(
         // public org-site surface; email is selected ONLY to feed it.
         admin
           .from('profiles')
-          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle')
+          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle')
           .in('id', profileIds)
       : Promise.resolve({ data: [] as never[] }),
   ]);

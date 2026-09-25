@@ -63,7 +63,7 @@ export async function fetchPublicMemberStats(
     for (const batch of chunk(memberIds, IN_BATCH)) {
       const { data: profiles } = await admin
         .from('profiles')
-        .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state')
+        .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
         .in('id', batch);
       for (const p of (profiles ?? []) as (MaskableProfile & { id: string; handle?: string | null })[]) {
         if (p.supervision_state === 'supervised' || isStubEmail(p.email)) continue;

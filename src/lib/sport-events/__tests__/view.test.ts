@@ -28,7 +28,7 @@ describe('the event projection', () => {
   });
   it('a participant is masked like a contest player: a private profile prints "First L.", never an email or supervision state', () => {
     const r = row({ profile_id: 'p' });
-    const priv = { id: 'p', first_name: 'Sam', last_name: 'Kim', full_name: 'Sam Kim', visibility: 'private', email: 'sam@example.com', supervision_state: null, handle: 'samk', avatar_url: null };
+    const priv = { id: 'p', first_name: 'Sam', last_name: 'Kim', full_name: 'Sam Kim', visibility: 'private', email: 'sam@example.com', supervision_state: null, departed_at: null, handle: 'samk', avatar_url: null };
     const pub = { ...priv, visibility: 'public' };
     const out = projectParticipant(r, priv, { profileId: 'x', canManage: false });
     expect(out).toMatchObject({ name: 'Sam K.', handle: null, hide_from_profile: null });

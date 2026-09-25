@@ -26,7 +26,7 @@ export async function readEventMedia(admin: Admin, event: SportEventRow, viewer:
   }
   const rows = (data ?? []) as EventMediaRow[];
   const ids = [...new Set(rows.map(r => r.uploaded_by))];
-  const { data: profs } = ids.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle, avatar_url').in('id', ids) : { data: [] };
+  const { data: profs } = ids.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', ids) : { data: [] };
   const names = new Map(((profs ?? []) as Array<MaskableProfile & { id: string; avatar_url: string | null }>).map(p => [p.id, { name: publicDisplayName(p), avatar_url: p.avatar_url }]));
   return projectMedia(rows, names, { profileId: viewer.profileId, canManage: viewer.canManage, eventStatus: event.status }).map(v => ({
     ...v,

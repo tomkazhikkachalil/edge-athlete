@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-24T03:39:29.646241+00:00 from server 17.4 by
+-- Generated 2026-09-25T05:04:29.828597+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 237.
+-- public.schema_dump() (migration 227). Ledger head at generation: 238.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -36,7 +36,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (109; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (110; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -2138,6 +2138,22 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notifications_skip_departed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = NEW.user_id AND p.departed_at IS NOT NULL) THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.notify_comment_like()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3186,7 +3202,8 @@ AS $function$
 DECLARE
   t text := COALESCE(NULLIF(btrim(COALESCE(NEW.full_name, '')), ''), NEW.handle);
 BEGIN
-  IF t IS NULL THEN
+  -- 238: a departed tombstone has no searchable identity
+  IF t IS NULL OR NEW.departed_at IS NOT NULL THEN
     DELETE FROM search_documents sd WHERE sd.entity_type = 'athlete' AND sd.entity_id = NEW.id;
     RETURN NULL;
   END IF;
@@ -3477,6 +3494,8 @@ BEGIN
   FROM public.profiles p
   WHERE
     ((include_public AND p.visibility = 'public') OR p.id = ANY(visible_ids))
+    -- 238: a departed tombstone is never a person to find
+    AND p.departed_at IS NULL
     AND (NOT require_handle OR p.handle IS NOT NULL)
     AND (exclude_id IS NULL OR p.id <> exclude_id)
     AND (p_country_code IS NULL OR p.country_code = upper(p_country_code))
@@ -4061,7 +4080,7 @@ CREATE TABLE IF NOT EXISTS public.athlete_equipment (
 
 CREATE TABLE IF NOT EXISTS public.athlete_performances (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
-  profile_id uuid NOT NULL,
+  profile_id uuid,
   sport_key text NOT NULL,
   occurred_on date NOT NULL,
   source text NOT NULL,
@@ -5231,7 +5250,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   moderation_until timestamp with time zone,
   moderation_ticket_id uuid,
   followers_count integer DEFAULT 0,
-  following_count integer DEFAULT 0
+  following_count integer DEFAULT 0,
+  departed_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -8072,7 +8092,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_profile_id_fkey' AND conrelid = 'public.athlete_performances'::regclass) THEN
-    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8961,11 +8981,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_id_fkey' AND conrelid = 'public.profiles'::regclass) THEN
-    ALTER TABLE public.profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
-  END IF;
-END $$;
-DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_moderation_ticket_id_fkey' AND conrelid = 'public.profiles'::regclass) THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_moderation_ticket_id_fkey FOREIGN KEY (moderation_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL;
   END IF;
@@ -9585,6 +9600,7 @@ CREATE INDEX IF NOT EXISTS idx_profile_transfers_cron ON public.profile_transfer
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_transfers_one_active ON public.profile_transfers USING btree (profile_id) WHERE (state <> ALL (ARRAY['completed'::text, 'cancelled'::text, 'expired'::text, 'aborted'::text]));
 CREATE INDEX IF NOT EXISTS idx_profiles_country_region ON public.profiles USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_profiles_deletion_requested ON public.profiles USING btree (deletion_requested_at) WHERE (deletion_requested_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_profiles_departed ON public.profiles USING btree (departed_at) WHERE (departed_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_profiles_first_name_prefix ON public.profiles USING btree (lower(first_name) COLLATE "C");
 CREATE INDEX IF NOT EXISTS idx_profiles_first_name_trgm ON public.profiles USING gin (lower(first_name) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_full_name_prefix ON public.profiles USING btree (lower(full_name) COLLATE "C");
@@ -9729,7 +9745,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (109) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (110) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11720,6 +11736,20 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.notifications_skip_departed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = NEW.user_id AND p.departed_at IS NOT NULL) THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.notify_comment_like()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -12716,7 +12746,8 @@ AS $function$
 DECLARE
   t text := COALESCE(NULLIF(btrim(COALESCE(NEW.full_name, '')), ''), NEW.handle);
 BEGIN
-  IF t IS NULL THEN
+  -- 238: a departed tombstone has no searchable identity
+  IF t IS NULL OR NEW.departed_at IS NOT NULL THEN
     DELETE FROM search_documents sd WHERE sd.entity_type = 'athlete' AND sd.entity_id = NEW.id;
     RETURN NULL;
   END IF;
@@ -12993,6 +13024,8 @@ BEGIN
   FROM public.profiles p
   WHERE
     ((include_public AND p.visibility = 'public') OR p.id = ANY(visible_ids))
+    -- 238: a departed tombstone is never a person to find
+    AND p.departed_at IS NULL
     AND (NOT require_handle OR p.handle IS NOT NULL)
     AND (exclude_id IS NULL OR p.id <> exclude_id)
     AND (p_country_code IS NULL OR p.country_code = upper(p_country_code))
@@ -13548,6 +13581,8 @@ DROP TRIGGER IF EXISTS update_messages_updated_at ON public.messages;
 CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 DROP TRIGGER IF EXISTS update_notification_preferences_updated_at ON public.notification_preferences;
 CREATE TRIGGER update_notification_preferences_updated_at BEFORE UPDATE ON public.notification_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS notifications_skip_departed ON public.notifications;
+CREATE TRIGGER notifications_skip_departed BEFORE INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION notifications_skip_departed();
 DROP TRIGGER IF EXISTS update_notifications_updated_at ON public.notifications;
 CREATE TRIGGER update_notifications_updated_at BEFORE UPDATE ON public.notifications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 DROP TRIGGER IF EXISTS org_requests_updated_at ON public.org_requests;
@@ -13615,7 +13650,7 @@ CREATE TRIGGER auto_split_full_name BEFORE INSERT OR UPDATE OF full_name ON publ
 DROP TRIGGER IF EXISTS handle_updated_at_profiles ON public.profiles;
 CREATE TRIGGER handle_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS profiles_search_doc ON public.profiles;
-CREATE TRIGGER profiles_search_doc AFTER INSERT OR UPDATE OF first_name, last_name, full_name, handle, location, city, region, region_code, country, country_code, place_id, lat, lng, visibility, avatar_url, search_vector ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_doc_sync_athlete();
+CREATE TRIGGER profiles_search_doc AFTER INSERT OR UPDATE OF first_name, last_name, full_name, handle, location, city, region, region_code, country, country_code, place_id, lat, lng, visibility, avatar_url, search_vector, departed_at ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_doc_sync_athlete();
 DROP TRIGGER IF EXISTS profiles_search_doc_delete ON public.profiles;
 CREATE TRIGGER profiles_search_doc_delete AFTER DELETE ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_document_delete('athlete');
 DROP TRIGGER IF EXISTS profiles_search_vector ON public.profiles;
@@ -13785,7 +13820,7 @@ ALTER TABLE public.workout_routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sets ENABLE ROW LEVEL SECURITY;
 
--- ── Policies (179) ────────────────────────────────────────────────────────────
+-- ── Policies (180) ────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS achievements_delete_policy ON public.athlete_achievements;
 CREATE POLICY achievements_delete_policy ON public.athlete_achievements
   AS PERMISSIVE
@@ -14620,6 +14655,12 @@ CREATE POLICY profile_access_audit_select_policy ON public.profile_access_audit
   FOR SELECT
   TO public
   USING (((user_id = ( SELECT auth.uid() AS uid)) OR (profile_id = ( SELECT auth.uid() AS uid))));
+DROP POLICY IF EXISTS profiles_departed_select ON public.profiles;
+CREATE POLICY profiles_departed_select ON public.profiles
+  AS PERMISSIVE
+  FOR SELECT
+  TO public
+  USING ((departed_at IS NOT NULL));
 DROP POLICY IF EXISTS profiles_profile_access_select ON public.profiles;
 CREATE POLICY profiles_profile_access_select ON public.profiles
   AS PERMISSIVE
@@ -15467,6 +15508,8 @@ REVOKE EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) FROM PUB
 GRANT EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.notifications_skip_departed() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_comment_like() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.notify_comment_like() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_follow_accepted() FROM PUBLIC, anon, authenticated, service_role;
@@ -15581,6 +15624,7 @@ COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) �
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
 COMMENT ON COLUMN public.athlete_equipment.group_label IS 'Optional custom set name ("Tournament bag"). NULL = automatic category grouping only. App-capped at 60 chars.';
+COMMENT ON COLUMN public.athlete_performances.profile_id IS 'The athlete (194; 238: nullable, SET NULL — the fact survives the person; the deletion engine severs it explicitly for a departed profile).';
 COMMENT ON COLUMN public.competition_entries.name IS 'An AD-HOC entry''s label (219): neither a team nor an athlete — a named side with members. Promoting it to a club''s team later = SET team_id; the name stays the snapshot label.';
 COMMENT ON COLUMN public.competition_entries.source_ref IS 'The bridge''s idempotency key (219): sport_event_side:<id> — an event''s side minted once as an entry.';
 COMMENT ON COLUMN public.competition_entries.affiliation_team_id IS 'A meet athlete''s team for the roll-up (219): snapshotted at entry, organizer-editable; NULL = unattached. Never a second entrant kind.';
@@ -15700,6 +15744,7 @@ COMMENT ON COLUMN public.profiles.moderation_until IS 'When a suspension ends (2
 COMMENT ON COLUMN public.profiles.moderation_ticket_id IS 'The ticket behind the current state (223).';
 COMMENT ON COLUMN public.profiles.followers_count IS '229: accepted follows where this profile is following_id. Maintained by follows_counts_sync; nullable (the row-type insert rule), read as coalesce(…, 0).';
 COMMENT ON COLUMN public.profiles.following_count IS '229: accepted follows where this profile is follower_id. Maintained by follows_counts_sync; nullable, read as coalesce(…, 0).';
+COMMENT ON COLUMN public.profiles.departed_at IS 'Departed tombstone (238): the auth user is gone and every personal column is stripped; the row survives, name only, because a result tied to an org, competition, sport event or shared round outlives the person. Never restorable. Written only by src/lib/account-deletion.ts.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
 COMMENT ON COLUMN public.sanction_grants.grantor_org_id IS 'The sanctioning org (236) — replaces grantor_league_id (dropped in 237).';
@@ -16151,7 +16196,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (234, '234_org_prep.sql', 'rebuild-000'),
   (235, '235_org_drop.sql', 'rebuild-000'),
   (236, '236_org_side_tables.sql', 'rebuild-000'),
-  (237, '237_org_side_tables_drop.sql', 'rebuild-000')
+  (237, '237_org_side_tables_drop.sql', 'rebuild-000'),
+  (238, '238_departed_profiles.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16160,12 +16206,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 118 | 109 | 172 | 237
+-- Expected: 000 REBUILT | 118 | 110 | 173 | 238
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_118,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_109,
-       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_172,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_237;
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
+       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_238;
 

@@ -70,12 +70,13 @@ interface Row {
   email: string | null;
   visibility: string | null;
   recruiting_status: string | null;
+  departed_at?: string | null;
   city: string | null;
   region: string | null;
   country_code: string | null;
 }
 
-const FIELDS = 'id, first_name, last_name, full_name, handle, avatar_url, sport, school, class_year, email, visibility, recruiting_status, city, region, country_code';
+const FIELDS = 'id, first_name, last_name, full_name, handle, avatar_url, sport, school, class_year, email, visibility, recruiting_status, departed_at, city, region, country_code';
 
 /** The most profile ids the performance pass hands to the profiles query. */
 const PERFORMANCE_PROFILE_CAP = 500;
@@ -88,7 +89,7 @@ function sportLabels(sport: string): string[] {
 }
 
 interface PerfRow {
-  profile_id: string;
+  profile_id: string | null;
   source: string;
   source_id: string;
 }
@@ -100,6 +101,7 @@ async function performanceProfileIds(admin: Admin, sport: string, p: RecruitingS
     .from('athlete_performances')
     .select('profile_id, source, source_id')
     .eq('sport_key', sport)
+    .not('profile_id', 'is', null) // 238: a severed row (the person left) names nobody
     .neq('dispute_status', 'disputed')
     .order('occurred_on', { ascending: false })
     .limit(PERFORMANCE_SCAN_LIMIT);
@@ -137,7 +139,7 @@ async function performanceProfileIds(admin: Admin, sport: string, p: RecruitingS
   const seen = new Set<string>();
   for (const r of rows) {
     if (r.source === 'post' && !visiblePosts.has(r.source_id)) continue;
-    if (seen.has(r.profile_id)) continue;
+    if (!r.profile_id || seen.has(r.profile_id)) continue;
     seen.add(r.profile_id);
     ids.push(r.profile_id);
     if (ids.length >= PERFORMANCE_PROFILE_CAP) break;
@@ -175,7 +177,7 @@ export async function searchRecruitableAthletes(admin: Admin, p: RecruitingSearc
   }
   const athletes: RecruitableAthlete[] = [];
   for (const r of (data ?? []) as Row[]) {
-    if (!isRecruitable({ email: r.email, visibility: r.visibility, recruiting_status: r.recruiting_status })) continue;
+    if (!isRecruitable({ email: r.email, visibility: r.visibility, recruiting_status: r.recruiting_status, departed_at: r.departed_at })) continue;
     athletes.push({
       id: r.id,
       name: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.full_name || 'Athlete',

@@ -148,7 +148,7 @@ export async function readRoundStats(admin: Admin, event: SportEventRow, round: 
   const parts = (partRows ?? []) as SportEventParticipantRow[];
   const memberByParticipant = new Map(((memberRows ?? []) as Array<{ participant_id: string; position: number; side: number | null }>).map(m => [m.participant_id, m]));
   const profileIds = [...new Set(lines.map(l => l.profile_id))];
-  const { data: profRows } = profileIds.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle, avatar_url').in('id', profileIds) : { data: [] };
+  const { data: profRows } = profileIds.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', profileIds) : { data: [] };
   const profById = new Map(((profRows ?? []) as Array<MaskableProfile & { id: string; avatar_url: string | null }>).map(p => [p.id, p]));
 
   const views: StatLineView[] = lines.map(l => {

@@ -7,7 +7,7 @@ const profile = (over: Partial<RawProfile> & { id: string }): RawProfile => ({
   full_name: 'Jordan Baker',
   visibility: 'public',
   email: `${over.id}@example.com`,
-  supervision_state: 'self',
+  supervision_state: 'self', departed_at: null,
   handle: over.id,
   ...over,
 });
@@ -70,7 +70,7 @@ describe('projectContestView', () => {
         { participantId: 'p1', entryId: 'e1', side: null, startPosition: null, teamId: null, teamName: null, teamClubId: null,
           profile: profile({ id: 'pub' }), result: { score: 68, provenance: 'self_reported', disputeStatus: 'none', payload: { gross: 70, net: 68 } } },
         { participantId: 'p2', entryId: 'e2', side: null, startPosition: null, teamId: null, teamName: null, teamClubId: null,
-          profile: profile({ id: 'kid', first_name: 'Sam', last_name: 'Minor', full_name: 'Sam Minor', supervision_state: 'supervised' }),
+          profile: profile({ id: 'kid', first_name: 'Sam', last_name: 'Minor', full_name: 'Sam Minor', supervision_state: 'supervised', departed_at: null }),
           result: { score: 72, provenance: 'self_reported', disputeStatus: 'none', payload: null } },
         { participantId: 'p3', entryId: 'e3', side: null, startPosition: null, teamId: null, teamName: null, teamClubId: null,
           profile: profile({ id: 'stub', first_name: 'Pat', last_name: 'Stub', full_name: 'Pat Stub', email: 'stub-1@stubs.invalid' }),
@@ -80,7 +80,7 @@ describe('projectContestView', () => {
           result: null },
       ],
       statLines: [
-        { teamId: null, teamName: null, teamClubId: null, profile: profile({ id: 'kid', first_name: 'Sam', last_name: 'Minor', full_name: 'Sam Minor', supervision_state: 'supervised' }),
+        { teamId: null, teamName: null, teamClubId: null, profile: profile({ id: 'kid', first_name: 'Sam', last_name: 'Minor', full_name: 'Sam Minor', supervision_state: 'supervised', departed_at: null }),
           stats: { goals: 2 }, provenance: 'club_recorded' },
       ],
     }));
@@ -105,7 +105,7 @@ describe('projectContestView', () => {
   it('lets nothing private out: no emails, supervision state, profile ids or club ids in the view', () => {
     const view = projectContestView(base({
       entrants: [{ participantId: 'p1', entryId: 'e1', side: 'home', startPosition: null, teamId: 't1', teamName: 'A', teamClubId: 'C1',
-        profile: profile({ id: 'secret-profile-id', email: 'hidden@example.com', supervision_state: 'supervised' }),
+        profile: profile({ id: 'secret-profile-id', email: 'hidden@example.com', supervision_state: 'supervised', departed_at: null }),
         result: { score: 1, provenance: 'club_recorded', disputeStatus: 'none', payload: { note: 'ok' } } }],
       statLines: [{ teamId: 't1', teamName: 'A', teamClubId: 'C1', profile: profile({ id: 'line-profile', handle: 'liner', email: 'line@example.com' }), stats: { goals: 1 }, provenance: 'club_recorded' }],
     }));
