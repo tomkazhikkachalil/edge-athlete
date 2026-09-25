@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contest media (phase 4, round 3): org-side library + roster-scoped
@@ -255,7 +255,7 @@ test('contest media: upload, roster tag, athlete surface, tombstone, proxy gate'
     if (storagePaths.length) {
       await admin.storage.from('uploads').remove(storagePaths);
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [leagueId]);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

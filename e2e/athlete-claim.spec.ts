@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from '@playwright/test';
-import { adminClient, loadQaUser } from './helpers/qa-user';
+import { adminClient, deleteQaUser, loadQaUser } from './helpers/qa-user';
 
 // The stub-athlete claim (phase 1 R3), both paths against seeded stubs.
 // Adult: ACCOUNTLESS — email+password activates the stub AS the claimer's
@@ -149,11 +149,7 @@ test('athlete claim: adult accountless path + guardian path + single-use', async
       await ctxG.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
-    for (const id of stubIds) {
-      await admin.from('profile_access').delete().eq('profile_id', id);
-      await admin.from('profiles').delete().eq('id', id);
-      await admin.auth.admin.deleteUser(id).catch(() => {});
-    }
+    await deleteQaOrgs(admin, [leagueId]);
+    for (const id of stubIds) await deleteQaUser(id);
   }
 });

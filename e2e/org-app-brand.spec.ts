@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import fs from 'node:fs';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -54,7 +54,7 @@ async function seedBrandedClub(ownerApi: APIRequestContext, stamp: number) {
   return {
     clubId,
     async teardown() {
-      await admin.from('clubs').delete().eq('id', clubId);
+      await deleteQaOrgs(admin, [clubId]);
       const keys = [assetPath, siteRow?.logo_path as string | null].filter((k): k is string => !!k);
       if (keys.length) await admin.storage.from('uploads').remove(keys);
     },

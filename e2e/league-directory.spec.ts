@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L3 — the public league directory (the twin of club-directory).
@@ -9,7 +9,7 @@ import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-us
 // list; the sitemap carries /leagues; the login page links it; `leagues`
 // is a reserved slug. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -89,6 +89,6 @@ test('league directory: published public + private leagues by region, unpublishe
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('leagues').delete().in('id', [openId, privateId, draftId, pendingId]);
+    await deleteQaOrgs(admin, [openId, privateId, draftId, pendingId]);
   }
 });

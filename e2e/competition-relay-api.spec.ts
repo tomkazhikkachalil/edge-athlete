@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 type Detail = { standings: Array<{ entry_id: string; rank: number; points: number | null; entrant_name: string }> };
@@ -93,7 +93,7 @@ test('relays: relay teams as entries, marks by kind, no personal record, the rol
     const block = pub.competitions.find(c => c.id === compId)?.meet;
     expect(block?.events.find(e => e.round === '4×100m relay')?.winner).toEqual({ name: 'Red A', mark: '42.10s' });
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await api.dispose();
   }
 });

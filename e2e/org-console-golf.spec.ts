@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Phase 7 C5 — the golf-first console. A golf club's console (clubs.primary_sport
@@ -9,7 +9,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // checklist is the golf one. A club without a sport keeps the classic
 // console (Roster first, the phase-1 checklist). Both at 390px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('golf club console: Website → Venues → Leagues & events first, golf checklist, golf leaderboard defaults; classic club unchanged; 390px', async ({
   browser,
@@ -76,6 +76,6 @@ test('golf club console: Website → Venues → Leagues & events first, golf che
     expect(plainScroll, 'classic console: no horizontal overflow at 390px').toBeLessThanOrEqual(390);
   } finally {
     await ctx.close();
-    await admin.from('clubs').delete().in('id', [golfId, plainId]);
+    await deleteQaOrgs(admin, [golfId, plainId]);
   }
 });

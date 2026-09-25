@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -188,7 +188,7 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
     await admin.from('org_sites').delete().eq('org_id', clubId);
     await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('memberships').delete().eq('org_id', clubId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('golf_courses').delete().in('id', [courseId, unlinkedId]);
   }
 });

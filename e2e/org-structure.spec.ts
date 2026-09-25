@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The org-manager console (phase 1, round 1): the owner drives the full
@@ -120,6 +120,6 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
   } finally {
     // League delete cascades seasons/divisions/teams/entries (145) +
     // memberships (140).
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

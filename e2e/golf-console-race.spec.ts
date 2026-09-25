@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P5 — the console side of the race. The competition page draws
@@ -9,7 +9,7 @@ import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQa
 // keyed apart from the cron's window-closing reminder so both can fire.
 // The member's "Your week" carries the season standing. 375px console.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 const isoDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
@@ -192,7 +192,7 @@ test('console race + reminder: not-yet-posted list, one bell each (guardian copy
     await ownerApi.dispose();
     await alphaApi.dispose();
     if (contestIds.length) await admin.from('notifications').delete().in('metadata->>contest_id', contestIds);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (childId) await deleteQaUser(childId);
   }
 });

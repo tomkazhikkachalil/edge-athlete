@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -155,7 +155,7 @@ test('golf leaders: low gross 9/18, low net, most rounds, best week from results
     await ownerApi.dispose();
     await anonCtx.close();
     await admin.from('org_sites').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     if (childId) await deleteQaUser(childId);
   }
 });

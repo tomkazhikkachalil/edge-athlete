@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext, type Browser } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';
@@ -130,7 +130,7 @@ test('org site sample data: chips on empty sections, real content untouched, tog
       await anon.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -160,6 +160,6 @@ test('@mobile org site sample data: the phone list chips sampled sections and th
       await ctx.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

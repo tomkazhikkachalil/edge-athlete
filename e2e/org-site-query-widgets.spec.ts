@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved } from './helpers/isr';
@@ -182,6 +182,6 @@ test('org site: two standings bound to two competitions, a schedule bound to one
   } finally {
     await ownerApi.dispose();
     if (eventIds.length > 0) await admin.from('events').delete().in('id', eventIds);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

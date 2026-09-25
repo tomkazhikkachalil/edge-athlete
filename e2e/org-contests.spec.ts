@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contests + results + the calendar mirror (phase 2, round 2): the owner
@@ -172,7 +172,7 @@ test('competition console: schedule → publish → score; mirror syncs; member 
       .from('contests')
       .select('event_id')
       .eq('competition_id', competitionId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     for (const c of leftoverContests ?? []) {
       if (c.event_id) await admin.from('events').delete().eq('id', c.event_id);
     }

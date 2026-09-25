@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — the join door for leagues (the twin of club-join-door). A
@@ -9,7 +9,7 @@ import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-us
 // instantly on an open league, as a request on an approval league. 375px
 // on the site and the door.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -99,6 +99,6 @@ test('league join door: site CTA → account-first → sign in returns → reque
     await ownerApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { league_id: leagueId });
     await admin.from('notifications').delete().contains('metadata', { league_id: openLeagueId });
-    await admin.from('leagues').delete().in('id', [leagueId, openLeagueId]);
+    await deleteQaOrgs(admin, [leagueId, openLeagueId]);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cleanupEvent, goLive, openEventSession, readView, roundTransition } from './helpers/sport-events';
 
@@ -136,7 +136,7 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
   } finally {
     await cleanupEvent(s.apiA, eventId1);
     await cleanupEvent(s.apiA, eventId2);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await s.dispose();
   }
 });

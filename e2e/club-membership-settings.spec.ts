@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Phase 9 V1 — the membership settings (migration 176). A club is public +
@@ -8,7 +8,7 @@ import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 // org site); the club GET reflects them; a member cannot change them.
 // 375px console.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -75,6 +75,6 @@ test('membership settings: defaults public/open → PATCH flips → GET reflects
   } finally {
     await ownerApi.dispose();
     await alphaApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

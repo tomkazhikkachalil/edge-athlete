@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // The family wizard (phase 5 R3): a guardian registers a supervised child
@@ -17,6 +17,7 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
   const admin = adminClient();
   // The windows POST shares the 'registration' bucket across the twins in one run.
   await resetRateBucket(admin, 'registration', owner.id);
+  await resetRateBucket(admin, 'registration', guardian.id); // the guardian posts for the child
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
@@ -140,7 +141,7 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
     expect(regRow).toMatchObject({ division_id: division!.id, submitted_by: guardian.id });
     expect(JSON.stringify(regRow!.answers)).toContain(`bee sting allergy ${stamp}`);
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     if (childId) await deleteQaUser(childId);
   }
 });

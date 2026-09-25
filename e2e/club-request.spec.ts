@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, loadQaUser } from './helpers/qa-user';
+import { deleteQaOrgs } from './helpers/org';
+import { adminClient, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // The club onboarding WIZARD — the multi-sport path: no sport step, the
 // template buttons ARE the sport pickers (each adds a per-sport grid
@@ -11,6 +12,7 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
   test.setTimeout(120_000);
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'club-request', userB.id); // 3 per DAY
 
   const probe = await admin.from('org_requests').select('structure_draft').limit(1);
   test.skip(!!probe.error, `wizard columns missing — run migration 149 (${probe.error?.message})`);
@@ -74,7 +76,7 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
     // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
     const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userB.id);
     const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
-    if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
+    if (provisionedIds.length) await deleteQaOrgs(admin, provisionedIds);
     await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
     await ctx.close();
   }

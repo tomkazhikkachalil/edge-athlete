@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 /** True once mig 163 widened the notifications CHECK (probe by insert —
@@ -33,7 +33,10 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
   // The windows POST shares the 'registration' bucket across the twins in one run.
+  // The ATHLETE posts the registrations (20/h); the owner's windows ride the same bucket.
+  await resetRateBucket(admin, 'registration', athlete.id);
   await resetRateBucket(admin, 'registration', owner.id);
+  await resetRateBucket(admin, 'roster-offer', owner.id);
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
@@ -312,6 +315,6 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

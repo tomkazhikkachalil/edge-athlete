@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -76,6 +76,6 @@ test('org events: owner schedules, org page lists, non-manager 403', async ({ pa
       await admin.from('event_guests').delete().eq('event_id', eventId);
       await admin.from('events').delete().eq('id', eventId);
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

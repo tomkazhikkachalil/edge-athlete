@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The club open-join loop (migration 117) — mirror of league-join.spec.ts.
@@ -49,6 +49,6 @@ test('club: join and leave from the club page', async ({ page }) => {
     await expect(page.getByText('1 member', { exact: false })).toBeVisible();
   } finally {
     await admin.from('notifications').delete().eq('type', 'club_join').eq('actor_id', userA.id);
-    await admin.from('clubs').delete().eq('id', clubId); // members cascade
+    await deleteQaOrgs(admin, [clubId]); // members cascade
   }
 });

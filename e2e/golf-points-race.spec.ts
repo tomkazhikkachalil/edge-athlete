@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P1 — the points race. A golf_points league's season, week by
@@ -10,7 +10,7 @@ import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQa
 // table never disagree. Rendered on the public site's standings page and
 // the /club/[id]/standings twin; 375px scroll containment.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -177,7 +177,7 @@ test('points race: weekly points → totals → ranks → movement; supervised e
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (childId) await deleteQaUser(childId);
   }
 });

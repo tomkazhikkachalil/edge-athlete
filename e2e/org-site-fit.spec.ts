@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';
@@ -91,7 +91,7 @@ test('org site fit: an auto section grows to its content; a fixed one keeps its 
       await phone.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -181,6 +181,6 @@ test('org site fit (canvas, H2): a tile grows to its content; dragging it below 
       await phone.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

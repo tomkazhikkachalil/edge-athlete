@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The sanctioning chain (phase 6 R3, mig 167): league↔league edges via
@@ -192,9 +192,9 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
       await parentApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', aId);
-    await admin.from('leagues').delete().eq('id', bId);
-    await admin.from('clubs').delete().eq('id', cId);
+    await deleteQaOrgs(admin, [aId]);
+    await deleteQaOrgs(admin, [bId]);
+    await deleteQaOrgs(admin, [cId]);
     await admin.from('sanction_grants').delete().eq('grantor_org_id', bId);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V2 — join with approval. On an approval club a join POST queues a
@@ -9,7 +9,7 @@ import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUse
 // or declines; an open club still joins instantly. The club page shows the
 // request state; the console shows the queue at 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -145,7 +145,7 @@ test('join approval: request → bell + not a member → withdraw → request �
     await ownerApi.dispose();
     await alphaApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { club_id: clubId });
-    await admin.from('clubs').delete().in('id', [clubId, openClubId]);
+    await deleteQaOrgs(admin, [clubId, openClubId]);
     await deleteQaUser(gamma.id);
   }
 });

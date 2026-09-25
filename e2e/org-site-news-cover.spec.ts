@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
@@ -13,7 +13,7 @@ import { openWindow } from './helpers/org-page';
 // the ABSOLUTE org-media streamer (bytes 200) — a post without an image
 // keeps the org card. 375px on the list.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -132,7 +132,7 @@ test('news covers: list thumbnail + home teaser + og:image from the first image 
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (assetPath) await admin.storage.from('uploads').remove([assetPath]);
   }
 });

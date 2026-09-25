@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -145,7 +145,7 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
     }
     await resetRateBucket(admin, 'org-announce', owner.id);
     await admin.from('org_sites').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     if (childId) await deleteQaUser(childId);
   }
 });

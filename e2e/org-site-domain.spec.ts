@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Custom domains, part 1 (phase 6b C1): the claim/verify/remove lifecycle
@@ -129,6 +129,6 @@ test('org site domain: publish gate → claim (normalized, token, DNS table) →
     await ownerApi.dispose();
     await admin.from('org_sites').delete().in('org_id', [leagueId, otherId]);
     await admin.from('memberships').delete().in('org_id', [leagueId, otherId]);
-    await admin.from('leagues').delete().in('id', [leagueId, otherId]);
+    await deleteQaOrgs(admin, [leagueId, otherId]);
   }
 });

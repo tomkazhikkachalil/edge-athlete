@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P4 — the week hub. /org/{slug}/week shows every active golf
@@ -9,7 +9,7 @@ import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, resetRateBu
 // round and a non-entrant's round are not counted. "This week" rides the
 // nav and the home teaser for a golf org. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 const isoDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
@@ -171,7 +171,7 @@ test('week hub: open window, posted count + points, on-course count (live entran
   } finally {
     await anon.close();
     await ownerApi.dispose();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (groupPostIds.length) await admin.from('group_posts').delete().in('id', groupPostIds);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await deleteQaUser(stranger.id);

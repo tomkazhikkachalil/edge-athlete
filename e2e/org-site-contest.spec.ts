@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, readErrorBody, resetRateBucket, loadQaUser } from './helpers/qa-user';
 import { settleBody, settleStatus } from './helpers/isr';
 import { seedContestLeague } from './helpers/contests';
@@ -87,6 +88,6 @@ test('org site contest page: public twin renders + 404s + sitemap + in-app link 
     await anon.close();
     await ownerApi.dispose();
     await admin.from('org_sites').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

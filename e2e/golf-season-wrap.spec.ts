@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 
 // Phase 8 P6 — the season wrap. Once every windowed week has closed, the
@@ -8,7 +8,7 @@ import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQa
 // ONCE through the announce rails (bells to members, a guardian copy, the
 // site notice) — a repeat 409s. An open week → no summary, no button.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 const isoDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
@@ -172,7 +172,7 @@ test('season wrap: closed weeks → summary on site + console; announce once (be
     await ownerApi.dispose();
     await alphaApi.dispose();
     for (const id of announcementIds) await admin.from('notifications').delete().contains('metadata', { announcement_id: id });
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     if (childId) await deleteQaUser(childId);
   }
 });

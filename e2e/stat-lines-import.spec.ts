@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -168,7 +168,7 @@ test('stat-line import: dry-run, ambiguous + off-roster + unknown-game rows erro
       await ctx.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await deleteQaUser(jose1.id);
     await deleteQaUser(jose2.id);
   }

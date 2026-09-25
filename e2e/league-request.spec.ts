@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { deleteQaOrgs } from './helpers/org';
+import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The league onboarding WIZARD (phase 1 round 2): identity + capabilities →
 // sport → structure (template grid, prune a row, add a team) → connections
@@ -13,6 +14,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
   test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'league-request', userA.id); // 3 per DAY — two runs in a day used to 429
 
   const probe = await admin.from('org_requests').select('structure_draft').limit(1);
   test.skip(!!probe.error, `wizard columns missing — run migration 149 (${probe.error?.message})`);
@@ -98,7 +100,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
     // C4: the request provisioned a pending league — delete it too (FK SET NULL would leak it).
     const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userA.id);
     const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
-    if (provisionedIds.length) await admin.from('leagues').delete().in('id', provisionedIds);
+    if (provisionedIds.length) await deleteQaOrgs(admin, provisionedIds);
     await admin.from('org_requests').delete().eq('requester_profile_id', userA.id);
   }
 });

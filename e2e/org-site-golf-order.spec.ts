@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { publishSite } from './helpers/org-site';
 import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/lib/org-sites/validate';
@@ -11,7 +11,7 @@ import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/li
 // standings", "Leaders", "Rounds & events"). A club without a sport keeps
 // the classic order. 375px on the public home.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -124,6 +124,6 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
   } finally {
     await ownerApi.dispose();
     await admin.from('org_sites').delete().in('org_id', [golfId, plainId]);
-    await admin.from('clubs').delete().in('id', [golfId, plainId]);
+    await deleteQaOrgs(admin, [golfId, plainId]);
   }
 });

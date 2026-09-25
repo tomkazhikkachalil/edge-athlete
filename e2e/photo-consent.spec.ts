@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -160,7 +160,7 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     if (childId) await deleteQaUser(childId);
   }
 });

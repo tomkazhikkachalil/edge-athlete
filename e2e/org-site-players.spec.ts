@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { publishSite as publishSiteDraft } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
@@ -15,7 +15,7 @@ let photoSeed: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
 // a private member's handle 404s, a foreign handle 404s, a supervised
 // child is omitted. The sitemap lists the public players. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -291,7 +291,7 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     await admin.from('profiles').update({ visibility: priorVisibility, handle: priorHandles.owner }).eq('id', owner.id);
     await admin.from('profiles').update({ handle: priorHandles.alpha }).eq('id', alpha.id);
     await cleanRoundPost(admin, photoSeed);
-    await admin.from('clubs').delete().in('id', [clubId, otherClubId]);
+    await deleteQaOrgs(admin, [clubId, otherClubId]);
     if (postIds.length) await admin.from('posts').delete().in('id', postIds);
     if (roundIds.length) await admin.from('golf_rounds').delete().in('id', roundIds);
     await admin.from('golf_courses').delete().eq('id', courseId);

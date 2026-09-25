@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L2 — a PRIVATE league on the public site (the twin of
@@ -13,7 +13,7 @@ import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUse
 // sitemap keeps the public subpages only; flipping to public revalidates.
 // 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -188,7 +188,7 @@ test('private league: panels on the site, empty public standings, members read /
     await ownerApi.dispose();
     await alphaApi.dispose();
     await strangerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await deleteQaUser(stranger.id);
   }
 });

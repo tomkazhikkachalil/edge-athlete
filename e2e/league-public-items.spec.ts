@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -11,7 +11,7 @@ import { openWindow } from './helpers/org-page';
 // shows everything on the site. The editor's audience control PATCHes it;
 // the console list shows the chip. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -133,6 +133,6 @@ test('league news audience: private site lists public posts only, members read b
     await anon.close();
     await ownerApi.dispose();
     await alphaApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

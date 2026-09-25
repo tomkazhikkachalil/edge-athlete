@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -174,7 +174,7 @@ test('course stats: two-key rule (public post + public profile), masked record, 
     await admin.from('org_sites').delete().eq('org_id', clubId);
     await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('memberships').delete().eq('org_id', clubId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await deleteQaUser(alpha.id);
     if (childId) await deleteQaUser(childId);

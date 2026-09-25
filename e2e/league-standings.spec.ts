@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -162,7 +162,7 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
       await ctx2.close();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -244,6 +244,6 @@ test('club standings: the SSR twin renders crawlable HTML', async ({ browser }) 
       await ctxAnon.close();
     }
   } finally {
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

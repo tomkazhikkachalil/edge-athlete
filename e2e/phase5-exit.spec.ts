@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
-import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // The phase-5 exit condition, in one spec: "a season runs end to end from
 // registration to standings." A family registers → the registrar places
@@ -14,6 +14,9 @@ test('phase 5 exit: registration → placement → competition → standings →
   const athlete = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  // Both post against the 20/h `registration` bucket (the athlete registers, the owner opens windows).
+  await resetRateBucket(admin, 'registration', athlete.id);
+  await resetRateBucket(admin, 'registration', owner.id);
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
@@ -177,15 +180,16 @@ test('phase 5 exit: registration → placement → competition → standings →
         r => r.competitionName === `House League ${stamp}`
       );
       expect(officialRows).toHaveLength(1);
-      expect(officialRows[0]).toMatchObject({
-        provenance: 'league_verified',
-        href: `/league/${leagueId}/standings`,
-      });
+      // Contest Place (Sep 10 2026): an official row links to the CONTEST's
+      // place, not the standings page — a stale expectation the registration
+      // bucket's 429 had hidden on every prod probe until Sep 24.
+      expect(officialRows[0]).toMatchObject({ provenance: 'league_verified' });
+      expect(officialRows[0].href).toMatch(/^\/event\/[0-9a-f-]{36}$/);
     } finally {
       await athleteApi.dispose();
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

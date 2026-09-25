@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import { openWindow } from './helpers/org-page';
@@ -75,6 +75,6 @@ test('org activity: public member post shows, private member post does not', asy
     if (postA) await admin.from('posts').delete().eq('id', postA.id);
     if (postB) await admin.from('posts').delete().eq('id', postB.id);
     await admin.from('profiles').update({ visibility: 'private' }).eq('id', userA.id);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

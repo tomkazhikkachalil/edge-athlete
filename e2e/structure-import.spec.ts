@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Structure import (phase 6 R5, zero DDL): CSV paste → dry-run plan →
@@ -87,6 +87,6 @@ test('structure import: dry-run, commit, idempotent re-run, per-row errors', asy
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

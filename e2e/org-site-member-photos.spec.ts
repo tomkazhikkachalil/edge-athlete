@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 
@@ -9,7 +9,7 @@ import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 // consent revoke, the post made private, or the club gone private stops
 // the bytes at once (the tile follows on the ISR clock). 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('member photos on the site: gallery tile + streamer + player page; revoke → 404; private post → 404; private club → 404; 375px', async ({
   browser,
@@ -114,7 +114,7 @@ test('member photos on the site: gallery tile + streamer + player page; revoke �
     await ownerApi.dispose();
     await alphaApi.dispose();
     await cleanRoundPost(admin, seed);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('profiles').update({ visibility: priorVisibility, handle: priorHandle }).eq('id', alpha.id);
   }
 });

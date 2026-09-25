@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
-import { adminClient, loadQaUser } from './helpers/qa-user';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { adminClient, deleteQaUser, loadQaUser } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
 // Roster import (phase 1 R3): the owner pastes two athletes into a team
@@ -128,12 +128,8 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
     }
   } finally {
     // Org delete cascades ALL memberships (team rows carry the org pair);
-    // stub profiles cascade their invites; shadow users go explicitly —
-    // deleteQaUser knows nothing about stubs.
-    await admin.from('leagues').delete().eq('id', leagueId);
-    for (const id of stubIds) {
-      await admin.from('profiles').delete().eq('id', id);
-      await admin.auth.admin.deleteUser(id).catch(() => {});
-    }
+    // the stubs (profile + shadow auth user) go through the one deletion path.
+    await deleteQaOrgs(admin, [leagueId]);
+    for (const id of stubIds) await deleteQaUser(id);
   }
 });

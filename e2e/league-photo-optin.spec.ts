@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import { publishSite } from './helpers/org-site';
@@ -13,7 +13,7 @@ import { publishSite } from './helpers/org-site';
 // an ineligible pick is 400. 375px: the league page switch and the
 // console picker.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('league photo opt-in: follow-row consent, supervised 403, candidates = public posts only, pick/unpick with the gate; 375px', async ({
   browser,
@@ -150,7 +150,7 @@ test('league photo opt-in: follow-row consent, supervised 403, candidates = publ
     await alphaApi.dispose();
     await cleanRoundPost(admin, pub);
     await cleanRoundPost(admin, priv);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
     await admin.from('profiles').update({ visibility: priorVisibility, supervision_state: priorSupervision }).eq('id', alpha.id);
   }
 });

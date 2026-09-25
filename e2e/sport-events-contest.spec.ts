@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, scoreHoles, setGroups, startRound } from './helpers/sport-events';
 
@@ -117,7 +117,7 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     expect((await admin.from('contests').select('id', { count: 'exact', head: true }).eq('competition_id', leagueId)).count).toBe(2);
   } finally {
     await cleanupEvent(s.apiA, eventId);
-    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    if (clubId) await deleteQaOrgs(admin, [clubId]);
     await s.dispose();
   }
 });
@@ -163,7 +163,7 @@ test('event page: Hosted for · Counts toward · the contest place says Played a
     await expect(page).toHaveURL(new RegExp(`/events/${eventId}`), { timeout: 20_000 });
   } finally {
     await cleanupEvent(s.apiA, eventId);
-    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    if (clubId) await deleteQaOrgs(admin, [clubId]);
     await s.dispose();
   }
 });

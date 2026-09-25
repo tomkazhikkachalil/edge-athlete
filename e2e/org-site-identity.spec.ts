@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
@@ -176,6 +176,6 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
   } finally {
     await ownerApi.dispose();
     await anonCtx.close();
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
   }
 });

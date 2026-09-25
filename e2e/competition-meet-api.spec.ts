@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -160,6 +160,6 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
     expect((await api.patch(`${base}/${compId}/contests`, { data: { id: c400.id, status: 'canceled' } })).ok()).toBe(true);
     expect((await admin.from('events').select('status').eq('id', eventId).single()).data?.status).toBe('cancelled');
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

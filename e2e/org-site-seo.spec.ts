@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
@@ -98,7 +98,7 @@ test('org site seo + footer + icon: the draft writes, publish, the public head a
   } finally {
     await ownerApi.dispose();
     if (assetPath) await admin.storage.from('uploads').remove([assetPath]).catch(() => {});
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
 
@@ -173,6 +173,6 @@ test('org site settings panel: SEO, footer and icon from the editor; the sheet a
   } finally {
     await ownerApi.dispose();
     if (iconPath) await admin.storage.from('uploads').remove([iconPath]).catch(() => {});
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

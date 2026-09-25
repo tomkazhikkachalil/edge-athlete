@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Custom domains, part 2 (phase 6b C2): serving on the org's own host.
@@ -144,6 +144,6 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
     await admin.from('org_sites').delete().eq('org_id', leagueId);
     await admin.from('teams').delete().eq('org_id', leagueId);
     await admin.from('memberships').delete().eq('org_id', leagueId);
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

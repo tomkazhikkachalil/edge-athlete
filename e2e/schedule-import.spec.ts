@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Schedule + historical results import (phase 6 R6, zero DDL): a pasted
@@ -134,6 +134,6 @@ test('schedule import: dry-run, commit with results, standings, idempotent re-ru
       await ownerApi.dispose();
     }
   } finally {
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

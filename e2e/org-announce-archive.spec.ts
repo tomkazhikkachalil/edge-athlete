@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 
@@ -10,7 +10,7 @@ import { openWindow } from './helpers/org-page';
 // the ones a manager also put on the notice band ("Notices" — public by
 // definition, stamped only when the band actually took the title). 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('announce archive: members read all, non-member 403, site Notices show the mirrored one, console history; 375px', async ({
   browser,
@@ -130,6 +130,6 @@ test('announce archive: members read all, non-member 403, site Notices show the 
     await alphaApi.dispose();
     await deleteQaUser(outsider.id);
     await admin.from('notifications').delete().contains('metadata', { org: `league:${leagueId}` });
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

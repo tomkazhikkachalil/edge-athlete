@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — join with approval, the league twin of club-join-approval.
@@ -10,7 +10,7 @@ import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUse
 // declines; an open league still joins instantly. The league page shows
 // the request state; the console shows the queue at 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
@@ -155,7 +155,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     await alphaApi.dispose();
     await admin.from('notifications').delete().contains('metadata', { league_id: leagueId });
     await admin.from('notifications').delete().contains('metadata', { league_id: openLeagueId });
-    await admin.from('leagues').delete().in('id', [leagueId, openLeagueId]);
+    await deleteQaOrgs(admin, [leagueId, openLeagueId]);
     await deleteQaUser(gamma.id);
   }
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Program 2, E1 (Sep 11 2026): the first-party page-view pixel. A live site's
@@ -104,6 +104,6 @@ test('org site analytics: the pixel counts views and daily visitors, honours opt
     }
   } finally {
     await ownerApi.dispose();
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });

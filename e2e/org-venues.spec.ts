@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openManageMenu, openWindow } from './helpers/org-page';
 
@@ -179,7 +179,7 @@ test('org venues: member 403 → owner create → link course → org page shows
     await admin.from('org_sites').delete().eq('org_id', clubId);
     await admin.from('venues').delete().eq('org_id', clubId);
     await admin.from('memberships').delete().eq('org_id', clubId);
-    await admin.from('clubs').delete().eq('id', clubId);
+    await deleteQaOrgs(admin, [clubId]);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }
 });

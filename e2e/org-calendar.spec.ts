@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg } from './helpers/org';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Calendar read-time org merge (fan-out round): an org MEMBER who was never
@@ -114,6 +114,6 @@ test('org calendar: member sees org event, RSVP creates guest row, decline hides
       await admin.from('event_guests').delete().eq('event_id', eventId);
       await admin.from('events').delete().eq('id', eventId);
     }
-    await admin.from('leagues').delete().eq('id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
   }
 });
