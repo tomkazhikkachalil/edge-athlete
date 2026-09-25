@@ -11,7 +11,7 @@ import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/li
 // standings", "Leaders", "Rounds & events"). A club without a sport keeps
 // the classic order. 375px on the public home.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

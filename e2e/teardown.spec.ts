@@ -122,7 +122,7 @@ test('the worst-case QA profile deletes cleanly and leaves nothing: orgs, result
     if (stubId) await deleteQaUser(stubId).catch(() => {});
     const removed = await deleteQaOrgs(admin, [league.id, club.id]);
     expect(removed, 'deleteQaOrgs reports the rows it removed').toBe(2);
-    expect(createdQaOrgIds.has(league.id), 'the run registry forgets a deleted org').toBe(false);
+    expect(createdQaOrgIds().has(league.id), 'the run registry forgets a deleted org').toBe(false);
     await deleteQaUser(t.id).catch(() => {});
   }
 });

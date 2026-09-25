@@ -33,8 +33,9 @@ export default async function globalTeardown() {
   // Teardown hardening (Sep 24 2026): the orgs a spec minted and never
   // reached its `finally` for (a kill, a timeout) — the run's registry is
   // the list. Loud: a non-zero count is a spec whose teardown is broken.
-  if (createdQaOrgIds.size) {
-    const ids = [...createdQaOrgIds];
+  const leftover = createdQaOrgIds();
+  if (leftover.size) {
+    const ids = [...leftover];
     try {
       const removed = await deleteQaOrgs(adminClient(), ids);
       console.warn(`[e2e] teardown removed ${removed} org(s) a spec left behind: ${ids.join(', ')}`);

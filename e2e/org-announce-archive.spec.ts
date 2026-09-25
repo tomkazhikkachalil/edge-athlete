@@ -10,7 +10,7 @@ import { openWindow } from './helpers/org-page';
 // the ones a manager also put on the notice band ("Notices" — public by
 // definition, stamped only when the band actually took the title). 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('announce archive: members read all, non-member 403, site Notices show the mirrored one, console history; 375px', async ({
   browser,

@@ -8,7 +8,7 @@ import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 // section (the league PATCH, which now revalidates the org site); the
 // league GET reflects them; a member cannot change them. 375px console.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

@@ -10,7 +10,7 @@ import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQa
 // table never disagree. Rendered on the public site's standings page and
 // the /club/[id]/standings twin; 375px scroll containment.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

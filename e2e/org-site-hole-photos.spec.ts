@@ -12,7 +12,7 @@ import { openWindow } from './helpers/org-page';
 // table (that hole only), a legacy course-photo entry keeps rendering,
 // and the console offers a hole picker + upload per course. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the course photo survives; console at 375px', async ({
   browser,

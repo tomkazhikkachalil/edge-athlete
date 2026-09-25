@@ -10,7 +10,7 @@ import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-us
 // the site's leaders page shows "Most points", the console offers the rule
 // with a preview. 375px on the console.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

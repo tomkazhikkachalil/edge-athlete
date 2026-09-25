@@ -12,7 +12,7 @@ import { publishSite } from './helpers/org-site';
 // gallery module's config after the gate; an ineligible pick is 400.
 // 375px: the club page switch and the console picker.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('photo opt-in: follow-row consent, supervised 403, candidates = public posts only, pick/unpick with the gate; 375px', async ({
   browser,

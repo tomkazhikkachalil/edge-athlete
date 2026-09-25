@@ -26,7 +26,9 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
 
   // A catalog row with contact details but NO place row (the hint branch).
   const token = `qafp${stamp}`;
-  const clubName = `QA Fast Path Golf Club ${stamp}`;
+  // The QA org name carries the epoch: the sweep's rule (`^QA .* \d{13}$`) is what takes a
+  // provisioned org a killed run leaves behind (the course token keeps the short stamp).
+  const clubName = `QA Fast Path Golf Club ${Date.now()}`;
   const { data: course, error: seedError } = await admin
     .from('golf_courses')
     .insert({

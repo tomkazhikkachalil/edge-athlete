@@ -9,7 +9,7 @@ import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-us
 // instantly on an open league, as a request on an approval league. 375px
 // on the site and the door.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

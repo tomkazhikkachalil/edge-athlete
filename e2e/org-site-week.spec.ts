@@ -9,7 +9,7 @@ import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, resetRateBu
 // round and a non-entrant's round are not counted. "This week" rides the
 // nav and the home teaser for a golf org. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 const isoDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {

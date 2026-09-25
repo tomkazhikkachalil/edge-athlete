@@ -10,7 +10,7 @@ import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 // gone private (177) stops the bytes at once (the tile follows on the ISR
 // clock). 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('league member photos on the site: gallery tile + streamer; revoke → 404; private post → 404; private league → 404; 375px', async ({
   browser,

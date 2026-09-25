@@ -9,7 +9,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // checklist is the golf one. A club without a sport keeps the classic
 // console (Roster first, the phase-1 checklist). Both at 390px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 test('golf club console: Website → Venues → Leagues & events first, golf checklist, golf leaderboard defaults; classic club unchanged; 390px', async ({
   browser,

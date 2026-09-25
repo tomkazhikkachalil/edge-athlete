@@ -180,10 +180,11 @@ test('phase 5 exit: registration → placement → competition → standings →
         r => r.competitionName === `House League ${stamp}`
       );
       expect(officialRows).toHaveLength(1);
-      expect(officialRows[0]).toMatchObject({
-        provenance: 'league_verified',
-        href: `/league/${leagueId}/standings`,
-      });
+      // Contest Place (Sep 10 2026): an official row links to the CONTEST's
+      // place, not the standings page — a stale expectation the registration
+      // bucket's 429 had hidden on every prod probe until Sep 24.
+      expect(officialRows[0]).toMatchObject({ provenance: 'league_verified' });
+      expect(officialRows[0].href).toMatch(/^\/event\/[0-9a-f-]{36}$/);
     } finally {
       await athleteApi.dispose();
       await ownerApi.dispose();

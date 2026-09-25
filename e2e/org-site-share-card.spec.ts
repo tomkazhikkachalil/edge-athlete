@@ -13,7 +13,7 @@ import { publishSite } from './helpers/org-site';
 // caches card.png for an hour, so the hero is set BEFORE the card's
 // first fetch.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {

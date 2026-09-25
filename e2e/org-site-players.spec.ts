@@ -15,7 +15,7 @@ let photoSeed: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
 // a private member's handle 404s, a foreign handle 404s, a supervised
 // child is omitted. The sitemap lists the public players. 375px.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);

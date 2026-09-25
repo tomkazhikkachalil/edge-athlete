@@ -14,7 +14,7 @@ import { GOLF_MODULE_ORDER } from '../src/lib/org-sites/validate';
 // indexed, in the directory, in search. Was (phase 7 C4): outsiders 404,
 // publish 409, a pending org hidden everywhere.
 
-const stamp = Math.random().toString(36).slice(2, 8);
+const stamp = Date.now().toString(); // the epoch: the sweep's QA-name rule keys on it
 
 async function readErrorBody(res: { text: () => Promise<string> }): Promise<string> {
   return (await res.text()).slice(0, 300);
