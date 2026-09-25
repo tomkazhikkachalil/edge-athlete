@@ -122,7 +122,7 @@ export async function fetchPublicStaff(
 ): Promise<PublicStaffRow[]> {
   const { data, error } = await admin
     .from('memberships')
-    .select('role, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
+    .select('role, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state, departed_at)')
     .eq(ORG_ID, orgId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
@@ -282,7 +282,7 @@ export async function fetchPublicTeamPage(
     admin.from('team_entries').select('division_id').eq('team_id', teamId),
     admin
       .from('memberships')
-      .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
+      .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state, departed_at)')
       .eq(ORG_ID, orgId)
       .eq('kind', 'roster')
       .eq('status', 'active')
@@ -992,7 +992,7 @@ async function fetchContestGalleryItems(admin: Admin, side: OrgKind, orgId: stri
   const { data: profileRows } = taggedIds.length
     ? await admin
         .from('profiles')
-        .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+        .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
         .in('id', taggedIds)
     : { data: [] };
   const labelById = new Map<string, string | null>(
@@ -1402,7 +1402,7 @@ async function fetchGolfLeaderBoards(
     const { data: profiles } = profileIds.length
       ? await admin
           .from('profiles')
-          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle')
+          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle')
           .in('id', profileIds)
       : { data: [] as (MaskableProfile & { id: string })[] };
     const nameByProfile = new Map<string, string | null>(
@@ -1529,7 +1529,7 @@ export async function fetchPublicStatLeaders(
   const [{ data: profiles }, { data: teams }] = await Promise.all([
     admin
       .from('profiles')
-      .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+      .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
       .in('id', profileIds),
     teamIds.length
       ? admin.from('teams').select('id, name, display_name').in('id', teamIds)
@@ -1764,7 +1764,7 @@ export async function fetchPublicPlayerPage(
     if (!wanted || wanted.length > 40) return null;
     const { data: profile, error } = await admin
       .from('profiles')
-      .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state')
+      .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
       .ilike('handle', wanted)
       .maybeSingle();
     if (degraded('player profile', error) || !profile) return null;
@@ -1988,7 +1988,7 @@ export async function fetchPlayerHandlesForOrgs(
       for (let i = 0; i < profileIds.length; i += 500) {
         const { data: profiles } = await admin
           .from('profiles')
-          .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state')
+          .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
           .in('id', profileIds.slice(i, i + 500))
           .eq('visibility', 'public');
         for (const pr of (profiles ?? []) as (MaskableProfile & { id: string; handle: string | null })[]) {

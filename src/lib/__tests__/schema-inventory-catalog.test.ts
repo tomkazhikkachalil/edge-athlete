@@ -431,7 +431,7 @@ describe('the real chain', () => {
     expect(chain.functions.get('get_conversation_list(uuid)')!.state).toBe('dropped'); // 127's pg_proc loop
     expect(chain.functions.get('get_conversation_list(uuid,integer,timestamp with time zone)')).toMatchObject({ state: 'created', file: '131_first_contact_hold.sql' });
     expect(chain.functions.get('search_people(text,uuid[],boolean,integer,boolean,uuid)')!.state).toBe('dropped'); // 108 drops the 7-arg
-    expect(chain.functions.get('search_people(text,uuid[],boolean,integer,boolean,uuid,text,text,double precision,double precision,double precision)')).toMatchObject({ state: 'created', file: '108_profiles_clubs_places.sql' });
+    expect(chain.functions.get('search_people(text,uuid[],boolean,integer,boolean,uuid,text,text,double precision,double precision,double precision)')).toMatchObject({ state: 'created', file: '238_departed_profiles.sql' }); // 108's body, re-declared by 238 with the departed filter
     // 193 copied split_full_name verbatim from pg_get_functiondef: comments are body.
     expect(chain.functions.get('split_full_name()')).toMatchObject({ state: 'created', file: '193_profiles_measurables.sql', searchPath: '' });
     expect(chain.functions.get('split_full_name()')!.body).toContain('-- Only process');
@@ -509,7 +509,7 @@ describe('the real chain', () => {
     // saved catalog predates a REVOKE the chain has made since (199's four trigger functions), those keys.
     const revokedBy199 = ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()'];
     expect(r.grantDrift.filter(g => !newer((g as { at?: string }).at)).map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
-    expect(r.triggerDrift).toEqual([]);
+    expect(r.triggerDrift.filter(d => !newer((d as { at?: string }).at))).toEqual([]);
     expect(r.staleTriggerClaims.filter(c => !newer(c.at))).toEqual([]);
     expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
   });

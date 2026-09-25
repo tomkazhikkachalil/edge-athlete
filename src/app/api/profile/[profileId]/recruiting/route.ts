@@ -29,7 +29,7 @@ import { reportRouteError } from '@/lib/observability/report';
 // / 409.
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
-const FIELDS = 'id, first_name, visibility, email, supervision_state, school, class_year, recruiting_status, recruiting_profile';
+const FIELDS = 'id, first_name, visibility, email, supervision_state, departed_at, school, class_year, recruiting_status, recruiting_profile';
 
 interface Row {
   id: string;
@@ -40,6 +40,7 @@ interface Row {
   school: string | null;
   class_year: number | null;
   recruiting_status: string | null;
+  departed_at?: string | null;
   recruiting_profile: unknown;
 }
 
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       gradYear: row.class_year,
       gradYearLabel: gradYearLabel(row.class_year),
       profile: status === 'closed' && !canEdit ? undefined : parseRecruitingProfile(row.recruiting_profile),
-      recruitable: isRecruitable({ email: row.email, visibility: row.visibility, recruiting_status: status }),
+      recruitable: isRecruitable({ email: row.email, visibility: row.visibility, recruiting_status: status, departed_at: row.departed_at }),
       supervised: row.supervision_state === 'supervised',
       ...(canEdit ? { shortlistedBy: await shortlistedByCount(admin, profileId) } : {}),
     };

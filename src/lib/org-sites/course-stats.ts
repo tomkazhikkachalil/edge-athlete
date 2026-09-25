@@ -123,7 +123,7 @@ export async function fetchPublicCourseStats(
     for (const batch of chunk(authorIds, IN_BATCH)) {
       const { data: profiles } = await admin
         .from('profiles')
-        .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+        .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
         .in('id', batch);
       for (const p of (profiles ?? []) as (MaskableProfile & { id: string })[]) {
         if (p.visibility !== 'public' || p.supervision_state === 'supervised' || isStubEmail(p.email)) continue;

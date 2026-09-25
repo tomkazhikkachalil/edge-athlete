@@ -44,7 +44,8 @@ export interface PerformanceOverlay {
  *  so a row written without them leaves an existing overlay untouched
  *  (`provenance DEFAULT 'self_reported'` carries the first write). */
 export interface PerformanceRow extends Partial<PerformanceOverlay> {
-  profile_id: string;
+  /** 238: NULL once the person left (the fact survives, the link is severed). */
+  profile_id: string | null;
   sport_key: string;
   occurred_on: string; // YYYY-MM-DD
   source: PerformanceSource;

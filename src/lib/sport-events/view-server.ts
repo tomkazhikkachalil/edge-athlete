@@ -31,7 +31,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
 
   const [profilesRes, groupsRes, membersRes, groupPostsRes] = await Promise.all([
     roster.length > 0
-      ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle, avatar_url').in('id', roster.map(r => r.profile_id))
+      ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle, avatar_url').in('id', roster.map(r => r.profile_id))
       : Promise.resolve({ data: [] as ProfileForView[] }),
     roundIds.length > 0
       ? admin.from('sport_event_groups').select('id, sport_event_round_id, sequence, name, tee_time, starting_hole, created_at, updated_at').in('sport_event_round_id', roundIds).order('sequence', { ascending: true })

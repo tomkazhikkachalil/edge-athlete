@@ -5,8 +5,8 @@ import { bellCopy } from '../notify';
 describe('toLeaderboardPlayers', () => {
   it('the field is the accepted, playing participants; a declined round row and a missing card both mean no scores; names are masked', () => {
     const profiles = new Map([
-      ['a', { id: 'a', first_name: 'Ann', last_name: 'Lee', full_name: 'Ann Lee', visibility: 'public', email: 'a@x.com', supervision_state: null, handle: 'ann' }],
-      ['b', { id: 'b', first_name: 'Bo', last_name: 'Kim', full_name: 'Bo Kim', visibility: 'private', email: 'b@x.com', supervision_state: null, handle: 'bo' }],
+      ['a', { id: 'a', first_name: 'Ann', last_name: 'Lee', full_name: 'Ann Lee', visibility: 'public', email: 'a@x.com', supervision_state: null, departed_at: null, handle: 'ann' }],
+      ['b', { id: 'b', first_name: 'Bo', last_name: 'Kim', full_name: 'Bo Kim', visibility: 'private', email: 'b@x.com', supervision_state: null, departed_at: null, handle: 'bo' }],
     ]);
     const out = toLeaderboardPlayers(
       [{ id: 'pa', profile_id: 'a', handicap_index: 10 }, { id: 'pb', profile_id: 'b', handicap_index: null }, { id: 'pc', profile_id: 'c', handicap_index: null }],

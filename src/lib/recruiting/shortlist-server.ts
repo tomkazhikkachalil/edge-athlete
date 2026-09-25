@@ -20,7 +20,7 @@ const MIGRATION_409 = { ok: false as const, status: 409 as const, error: 'Shortl
 
 const unsupported = (code: string | undefined | null) => isMissingTableError(code) || code === '42703' || code === '42P01';
 
-const ATHLETE_FIELDS = 'id, first_name, last_name, full_name, handle, avatar_url, sport, school, class_year, email, visibility, recruiting_status';
+const ATHLETE_FIELDS = 'id, first_name, last_name, full_name, handle, avatar_url, sport, school, class_year, email, visibility, recruiting_status, departed_at';
 
 interface AthleteRow {
   id: string;
@@ -35,6 +35,7 @@ interface AthleteRow {
   email: string | null;
   visibility: string | null;
   recruiting_status: string | null;
+  departed_at?: string | null;
 }
 
 const displayName = (a: AthleteRow) =>
@@ -102,7 +103,7 @@ export async function addToShortlist(admin: Admin, scoutId: string, athleteId: s
   if (readErr?.code === '42703') return MIGRATION_409;
   if (readErr || !athlete) return { ok: false, status: 404, error: 'Athlete not found' };
   const a = athlete as AthleteRow;
-  if (!isRecruitable({ email: a.email, visibility: a.visibility, recruiting_status: a.recruiting_status })) {
+  if (!isRecruitable({ email: a.email, visibility: a.visibility, recruiting_status: a.recruiting_status, departed_at: a.departed_at })) {
     return { ok: false, status: 403, error: 'This athlete is not open to recruiting' };
   }
   const { error } = await admin

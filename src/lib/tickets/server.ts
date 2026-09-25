@@ -457,7 +457,7 @@ async function readEnforcement(admin: Admin, t: TicketRow): Promise<EnforcementS
 
 async function personContext(admin: Admin, profileId: string): Promise<PersonContext | null> {
   const [{ data: p }, filed, against, strikes] = await Promise.all([
-    admin.from('profiles').select('id, first_name, middle_name, last_name, full_name, handle, email, visibility, supervision_state, created_at').eq('id', profileId).maybeSingle(),
+    admin.from('profiles').select('id, first_name, middle_name, last_name, full_name, handle, email, visibility, supervision_state, departed_at, created_at').eq('id', profileId).maybeSingle(),
     admin.from('tickets').select('id', { count: 'exact', head: true }).eq('reporter_profile_id', profileId),
     admin.from('tickets').select('id', { count: 'exact', head: true }).eq('target_profile_id', profileId),
     admin.from('tickets').select('id', { count: 'exact', head: true }).eq('target_profile_id', profileId).in('resolution_code', [...STRIKE_CODES]),
@@ -478,7 +478,7 @@ async function personContext(admin: Admin, profileId: string): Promise<PersonCon
 async function displayNames(admin: Admin, ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (ids.length === 0) return out;
-  const { data } = await admin.from('profiles').select('id, first_name, middle_name, last_name, full_name, email, visibility, supervision_state').in('id', ids);
+  const { data } = await admin.from('profiles').select('id, first_name, middle_name, last_name, full_name, email, visibility, supervision_state, departed_at').in('id', ids);
   for (const p of data ?? []) out.set(p.id, publicDisplayName(p));
   return out;
 }

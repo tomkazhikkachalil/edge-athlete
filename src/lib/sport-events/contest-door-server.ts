@@ -112,7 +112,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
   const profileIds = [home.profile_id, away.profile_id].filter((id): id is string => !!id);
   const [{ data: teams }, { data: profiles }] = await Promise.all([
     teamIds.length ? admin.from('teams').select('id, name, display_name').in('id', teamIds) : Promise.resolve({ data: [] }),
-    profileIds.length ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle').in('id', profileIds) : Promise.resolve({ data: [] }),
+    profileIds.length ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle').in('id', profileIds) : Promise.resolve({ data: [] }),
   ]);
   const teamName = new Map(((teams ?? []) as Array<{ id: string; name: string; display_name: string | null }>).map(t => [t.id, (t.display_name || t.name) as string]));
   const profileName = new Map(((profiles ?? []) as Array<MaskableProfile & { id: string }>).map(p => [p.id, publicDisplayName(p)]));

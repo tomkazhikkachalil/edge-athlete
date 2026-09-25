@@ -59,12 +59,15 @@ export interface RecruitableInput {
   email: string | null;
   visibility: string | null;
   recruiting_status: string | null | undefined;
+  /** 238: a departed tombstone is never recruitable (there is no person). */
+  departed_at?: string | null;
 }
 
 /** THE predicate: a claimed, PUBLIC profile whose recruiting is open or
  *  committed. Supervision is not a term (Tom's call — see the header). */
 export function isRecruitable(p: RecruitableInput): boolean {
   if (isStubEmail(p.email)) return false;
+  if (p.departed_at) return false;
   if (p.visibility !== 'public') return false;
   return parseRecruitingStatus(p.recruiting_status) !== 'closed';
 }

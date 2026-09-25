@@ -39,7 +39,7 @@ export async function readResultLines(admin: Admin, event: SportEventRow, round:
   const lines = ((lineRows ?? []) as StatLineRow[]).filter(l => active.has(l.participant_id));
   const sideOf = new Map<string, 1 | 2 | null>(((memberRows ?? []) as Array<{ participant_id: string; side: number | null }>).map(m => [m.participant_id, m.side === 1 ? 1 : m.side === 2 ? 2 : null]));
   const ids = [...new Set(lines.map(l => l.profile_id))];
-  const { data: profs } = ids.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle').in('id', ids) : { data: [] };
+  const { data: profs } = ids.length > 0 ? await admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle').in('id', ids) : { data: [] };
   const nameOf = new Map(((profs ?? []) as Array<MaskableProfile & { id: string }>).map(p => [p.id, publicDisplayName(p)]));
   return lines.map(l => ({ id: l.id, participant_id: l.participant_id, profile_id: l.profile_id, stats: l.stats ?? {}, side: sideOf.get(l.participant_id) ?? null, name: nameOf.get(l.profile_id) ?? 'Athlete', entered_by: l.entered_by }));
 }

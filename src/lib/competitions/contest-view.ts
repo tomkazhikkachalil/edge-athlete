@@ -498,7 +498,7 @@ export async function fetchContestView(
       profileIds.length
         ? admin
             .from('profiles')
-            .select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle')
+            .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at, handle')
             .in('id', profileIds)
         : Promise.resolve({ data: [] as never[] }),
     ]);
@@ -703,7 +703,7 @@ async function readLiveRounds(
   const { data: creators } = creatorIds.length
     ? await admin
         .from('profiles')
-        .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+        .select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at')
         .in('id', creatorIds)
     : { data: [] };
   const nameById = new Map(
