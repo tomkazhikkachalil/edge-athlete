@@ -52,6 +52,10 @@ test('feed: the following lens is self + accepted followees, private included, k
     expect(all).not.toContain(charliePost);
   } finally {
     for (const { api, id } of created) await api.delete(`/api/posts?postId=${id}`).catch(() => null);
+    // The follow this spec upserted goes too: follow-request.spec (next in
+    // the alphabet, the same QA users) starts from "A does not follow B" and
+    // met a leftover accepted follow — "Fan" where it clicks "Become a Fan".
+    await admin.from('follows').delete().eq('follower_id', alpha.id).eq('following_id', bravo.id);
     await alphaApi.dispose();
     await bravoApi.dispose();
     await charlieApi.dispose();

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
 import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
+import { COPY } from '@/lib/copy';
 
 interface AccountSettingsProps {
   onEditProfile?: () => void;
@@ -182,7 +183,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-red-900 dark:text-red-200 mb-2">Danger Zone</h3>
               <p className="text-red-800 dark:text-red-200 text-sm mb-4">
-                Once you delete your account, there is no going back. Please be certain.
+                {COPY.ACCOUNT.DANGER_ZONE}
               </p>
               <button
                 onClick={() => setIsDeleteModalOpen(true)}

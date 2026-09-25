@@ -89,6 +89,11 @@ test('feed: a match round — the format on the announce card, the results card 
   const admin = adminClient();
   const probe = await admin.from('sport_event_matches').select('id').limit(1);
   test.skip(!!probe.error, 'sport_event_matches missing — run migration 212');
+  // The masked names below assume both QA users are private (their default);
+  // a spec earlier in a long run can leave one public (the Sep 25 prod probe
+  // saw "Edge Alpha" for "Edge A."), so this test says so itself.
+  const alphaId = loadQaUser('user.json').id;
+  await admin.from('profiles').update({ visibility: 'private' }).in('id', [alphaId, userB.id]);
   let eventId: string | null = null;
   try {
     const created = await api.post('/api/sport-events', { data: { name: `QA Feed Match ${stamp}`, visibility: 'public', publish: true, format: 'match_gross', format_config: { match: { sides: 'singles' } }, round: { scheduled_on: '2030-06-01', course_name: 'QA Feed Links', holes: 9, name: 'Final' } } });

@@ -74,6 +74,7 @@ const PROFILE_SWEEP = (who) => `
   UPDATE public.contest_results SET disputed_by = NULL WHERE disputed_by IN (SELECT id FROM sweep_p);
   DELETE FROM public.golf_participant_scores gs USING public.group_post_participants gp WHERE gs.participant_id = gp.id AND gp.profile_id IN (SELECT id FROM sweep_p);
   DELETE FROM public.group_post_participants WHERE profile_id IN (SELECT id FROM sweep_p);
+  DELETE FROM public.athlete_performances WHERE profile_id IN (SELECT id FROM sweep_p);
   DELETE FROM public.profiles WHERE id IN (SELECT id FROM sweep_p);
   DELETE FROM auth.users WHERE id IN (SELECT id FROM sweep_p);
   SELECT count(*) AS n FROM sweep_p;`;

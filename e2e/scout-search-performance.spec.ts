@@ -32,6 +32,11 @@ test('scout search: performance filters — since, verified only, a headline flo
     scoutId = ((await admin.from('profiles').select('id').eq('email', scoutEmail).single()).data!.id as string);
     const scoutCtx = await browser.newContext({ storageState: await mintStorageState({ id: scoutId, email: scoutEmail, password: scoutPassword }) });
     try {
+      // Alpha starts with NO hockey rows: the suite's user is shared, and an
+      // earlier spec in the same run (an org stat line dated today) leaves
+      // rows whose origin went with its org — the `since` floor then finds
+      // them (the Sep 25 prod probe). QA data, never facts.
+      await admin.from('athlete_performances').delete().eq('profile_id', alpha.id).eq('sport_key', 'ice_hockey');
       // Alpha: open, public, a hockey athlete with one self-reported line on 2026-09-10 (headline 3).
       await admin.from('profiles').update({ visibility: 'public', sport: 'Ice Hockey' }).eq('id', alpha.id);
       res = await api.patch(`/api/profile/${alpha.id}/recruiting`, { data: { status: 'open', school: 'QA High' } });

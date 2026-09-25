@@ -144,6 +144,7 @@ export const COPY = {
     DELETE_STAYS_TITLE: 'What stays',
     DELETE_STAYS: 'Results you recorded with other people — a club or league competition, an event, a round you played with others — stay part of those records under your name, the way a printed results sheet would. Other players\' results never change because you left.',
     DELETE_FINAL: 'After 30 days your account is deleted and cannot be restored.',
+    DANGER_ZONE: 'Deleting your account hides it now and deletes it after 30 days. Results you recorded with other people stay under your name.',
     BANNER_STAYS: 'Results you recorded with a club, league, event or other players will stay under your name.',
     GOODBYE_TITLE: 'Your account is scheduled for deletion',
     GOODBYE_BODY: 'It is hidden now and will be deleted in 30 days. Sign back in before then to restore it.',
