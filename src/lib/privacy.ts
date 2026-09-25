@@ -53,6 +53,18 @@ export async function canViewProfile(
 
   const supabaseAdmin = getSupabaseAdmin();
 
+  // 238: a departed account has no profile to view — only its results,
+  // which the result readers show by name. Checked BEFORE the access-row
+  // shortcut, so no stale grant can open it.
+  const { data: departedRow } = await supabaseAdmin
+    .from('profiles')
+    .select('departed_at')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (departedRow?.departed_at) {
+    return { canView: false, limitedAccess: true, reason: 'not_found' };
+  }
+
   // Guardian/supervised/viewer access rows grant view regardless of
   // visibility (guardian-profiles feature; inert while the flag is off —
   // profile_access doesn't exist until migration 048 runs).

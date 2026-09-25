@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { dispatch, emailDelivered } from './notify/dispatch';
 import { isSyntheticEmail } from './config/minors-config';
 import { isStubEmail } from './config/stubs-config';
+import { isDepartedEmail } from './account-departure';
 import { buildDigestGroups } from './digest-groups';
 import { chunk } from './chunk';
 
@@ -84,8 +85,9 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         .select('email, first_name, last_name, full_name, supervision_state')
         .eq('id', pref.user_id)
         .maybeSingle();
-      if (!profile?.email) {
-        // Structurally undeliverable — don't retry forever.
+      if (!profile?.email || isDepartedEmail(profile.email)) {
+        // Structurally undeliverable — don't retry forever. (238: a departed
+        // tombstone has no one behind the address.)
         await advanceWatermark();
         return 0;
       }

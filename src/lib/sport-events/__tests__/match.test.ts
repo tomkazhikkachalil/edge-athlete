@@ -68,6 +68,17 @@ describe('computeMatch — singles, gross', () => {
     expect(decided).toMatchObject({ status: 'completed', decidedBy: 'extra_holes', winnerSide: 1, result: '11 holes', summary: 'Ann wins · 11 holes', thru: 11 });
     expect(completionSnapshot(decided)).toEqual({ decided_by: 'extra_holes', winner_side: 1, result: '11 holes' });
   });
+  it('departed accounts: a written outcome survives a side that lost its player (never re-read as a bye)', () => {
+    const erased = computeMatch(base({ sideB: side(2, []), written: { decided_by: 'holes', winner_side: 1, result: '3&2' } }));
+    expect(erased).toMatchObject({ status: 'completed', winnerSide: 1, decidedBy: 'holes', result: '3&2', summary: 'Ann wins 3&2' });
+    // the WINNER's side emptied: the loser keeps nothing it did not earn
+    const winnerGone = computeMatch(base({ sideA: side(1, []), written: { decided_by: 'extra_holes', winner_side: 1, result: '19 holes' } }));
+    expect(winnerGone).toMatchObject({ status: 'completed', winnerSide: 1, result: '19 holes' });
+    // a written bye stays a bye; no written outcome reads as before
+    expect(computeMatch(base({ sideB: side(2, []), written: { decided_by: 'bye', winner_side: 1, result: 'bye' } }))).toMatchObject({ decidedBy: 'bye' });
+    expect(computeMatch(base({ sideB: side(2, []), written: null }))).toMatchObject({ decidedBy: 'bye' });
+  });
+
   it('a stored decision wins over the computation; a bye completes at once', () => {
     const m = computeMatch(base({ decision: { decided_by: 'organizer', winner_side: 2 } }));
     expect(m).toMatchObject({ status: 'completed', winnerSide: 2, decidedBy: 'organizer', result: 'decided', summary: 'Bob wins · decided by the organizer' });

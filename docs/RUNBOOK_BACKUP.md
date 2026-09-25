@@ -36,6 +36,14 @@ What Supabase provides (docs read Sep 21 2026):
   everything; `avatars` and `post-media` are the legacy pair), and a
   deleted object is gone from every backup instantly.
 
+**Never delete a user from the Supabase dashboard** (Sep 24 2026, mig 238).
+Since 238 a profile no longer cascades from its auth user — the row has to
+outlive the login so a departed person's results keep their name. A
+dashboard delete now leaves an ORPHAN profile with its personal data; the
+account's owner deletes through Settings, and an owner purges a parked
+account from the admin dashboard ("Purge a parked account now"). The
+twin `verify-238-departed-profiles.sql` counts orphans.
+
 ## 2. The decisions (Tom)
 
 **Decision A — the database tier.** Recommendation: **Pro with daily

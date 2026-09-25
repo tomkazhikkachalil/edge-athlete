@@ -207,7 +207,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
 
   return (
     <div className="space-y-4" data-event-place="">
-      <EventHeader view={view} hostName={host?.name ?? 'the host'} control={control} busy={busy} actions={joinActions} organizerControls={organizerControls} todayKey={today()} />
+      <EventHeader view={view} hostName={host?.name ?? 'the host'} hostDeparted={host?.departed ?? false} control={control} busy={busy} actions={joinActions} organizerControls={organizerControls} todayKey={today()} />
       {(error || notice) && (
         <p role="status" className={`text-sm rounded-lg px-3 py-2 ${error ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'}`} data-event-notice="">
           {error ?? notice}

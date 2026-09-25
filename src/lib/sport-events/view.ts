@@ -5,7 +5,7 @@
  * supervised profile), never an email or a supervision state,
  * hide_from_profile only to its owner and the organizers.
  */
-import { publicDisplayName, publicHandle, type MaskableProfile } from '@/lib/orgs/public-names';
+import { publicDisplayName, publicHandle, type MaskableProfile, isDeparted } from '@/lib/orgs/public-names';
 import type { SportEventAccess } from './access';
 import { readFormatConfig, readGameConfig, readMatchConfig } from './format-config';
 import type { FormatConfig, MatchConfig } from './types';
@@ -55,6 +55,8 @@ export interface ParticipantView {
   id: string;
   profile_id: string;
   name: string;
+  /** 238: the person left Edge Athlete — the name stands, nothing links. */
+  departed: boolean;
   handle: string | null;
   avatar_url: string | null;
   role: SportEventParticipantRow['role'];
@@ -125,6 +127,7 @@ export function projectParticipant(row: SportEventParticipantRow, profile: Profi
     id: row.id,
     profile_id: row.profile_id,
     name: profile ? publicDisplayName(profile) : 'Athlete',
+    departed: profile ? isDeparted(profile) : false,
     handle: profile ? publicHandle(profile) : null,
     avatar_url: profile?.avatar_url ?? null,
     role: row.role,

@@ -21,7 +21,8 @@ not rewrites.
 ## Gates (each in exactly one place)
 
 - `isRecruitable(p)` — `src/lib/recruiting/profile.ts`: claimed (not a stub)
-  AND public AND status ≠ closed. **Supervision is not a term** (Tom, Sep
+  AND not departed (`departed_at`, mig 238 — a tombstone has no person
+  behind it) AND public AND status ≠ closed. **Supervision is not a term** (Tom, Sep
   10): the only way a supervised profile's status changes is a guardian
   through `manage_settings`, so a guardian-opened supervised athlete is
   recruitable. The shortlist POST and the scout search re-apply it.

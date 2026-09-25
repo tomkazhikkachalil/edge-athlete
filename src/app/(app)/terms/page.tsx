@@ -33,7 +33,9 @@ export default function TermsPage() {
                 You are responsible for your account and for keeping your password secure. Provide
                 accurate information, don&apos;t impersonate others, and don&apos;t create accounts
                 for anyone but yourself. You can delete your account at any time from Settings —
-                deletion removes your profile, posts, activities, messages, and related data.
+                after a 30-day window, deletion removes your profile, posts, activities, messages,
+                and related data. Results you recorded as part of a club, league, event or round
+                with other people remain part of those records under your name.
               </p>
             </section>
 

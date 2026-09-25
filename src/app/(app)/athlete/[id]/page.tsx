@@ -32,6 +32,7 @@ import {
   formatSocialHandleDisplay
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
+import { COPY } from '@/lib/copy';
 
 export default function AthleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -138,7 +139,10 @@ export default function AthleteProfilePage() {
       if (seq !== requestSeqRef.current) return; // stale response
       if (!response.ok) {
         if (response.status === 404) {
-          setError('Athlete not found');
+          // 238: a departed account says so — its results stay with the
+          // clubs, leagues and events it played in.
+          const body = await response.json().catch(() => null) as { departed?: boolean } | null;
+          setError(body?.departed ? COPY.ACCOUNT.DEPARTED_PAGE : 'Athlete not found');
           return;
         }
         throw new Error('Failed to load profile');
@@ -261,7 +265,9 @@ export default function AthleteProfilePage() {
           <p className="text-primary font-medium mb-4">
             {error === 'Athlete not found'
               ? 'This athlete profile could not be found or may not be public.'
-              : 'There was an error loading the athlete profile.'}
+              : error === COPY.ACCOUNT.DEPARTED_PAGE
+                ? 'Results they recorded with clubs, leagues and events stay under their name.'
+                : 'There was an error loading the athlete profile.'}
           </p>
           <div className="space-x-4">
             <button
@@ -270,12 +276,12 @@ export default function AthleteProfilePage() {
             >
               Back to Feed
             </button>
-            <button
+            {error !== COPY.ACCOUNT.DEPARTED_PAGE && <button
               onClick={loadAthleteProfile}
               className="bg-gray-200 dark:bg-stone-800 text-primary font-semibold px-6 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
             >
               Try Again
-            </button>
+            </button>}
           </div>
         </div>
       </div>

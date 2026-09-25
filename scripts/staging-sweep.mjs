@@ -48,9 +48,14 @@ const STALE_SHADOWS = `SELECT p.id FROM public.profiles p WHERE p.email ~ '@(stu
   AND NOT EXISTS (SELECT 1 FROM public.profile_access a WHERE a.profile_id = p.id AND a.user_id <> p.id
     AND a.user_id NOT IN (${STALE_USERS}) AND a.user_id NOT IN (SELECT id FROM public.profiles WHERE email ~ '@(stubs|minors)\\.invalid$'))`;
 
-const counts = await sql(`SELECT (SELECT count(*) FROM (${STALE_ORGS}) o) AS orgs, (SELECT count(*) FROM (${STALE_SHADOWS}) s) AS shadows, (SELECT count(*) FROM (${STALE_USERS}) u) AS users`);
-const { orgs, shadows, users } = counts[0];
-console.log(`staging-sweep: stale QA orgs ${orgs} · shadow users ${shadows} · QA users ${users}${APPLY ? '' : ' (dry run — pass --apply to delete)'}`);
+// Departed tombstones (238): a purged QA user kept as a name-only row — no
+// auth user, email <id>@departed.invalid, the QA name (the org rule's shape).
+const DEPARTED_EMAIL_LIKE = '%@departed.invalid';
+const STALE_TOMBSTONES = `SELECT id FROM public.profiles WHERE email LIKE '${DEPARTED_EMAIL_LIKE}' AND full_name ~ '${QA_ORG_NAME_SQL}' AND departed_at <= ${CUTOFF_SQL}`;
+
+const counts = await sql(`SELECT (SELECT count(*) FROM (${STALE_ORGS}) o) AS orgs, (SELECT count(*) FROM (${STALE_SHADOWS}) s) AS shadows, (SELECT count(*) FROM (${STALE_USERS}) u) AS users, (SELECT count(*) FROM (${STALE_TOMBSTONES}) t) AS tombstones`);
+const { orgs, shadows, users, tombstones } = counts[0];
+console.log(`staging-sweep: stale QA orgs ${orgs} · shadow users ${shadows} · QA users ${users} · tombstones ${tombstones}${APPLY ? '' : ' (dry run — pass --apply to delete)'}`);
 if (!APPLY) process.exit(0);
 
 // 1. orgs, 200 per statement — the cascades take sites, competitions, entries, results, memberships
@@ -74,4 +79,5 @@ const PROFILE_SWEEP = (who) => `
   SELECT count(*) AS n FROM sweep_p;`;
 const s = await sql(PROFILE_SWEEP(STALE_SHADOWS)); console.log(`staging-sweep: shadow users deleted ${s[0].n}`);
 const u = await sql(PROFILE_SWEEP(STALE_USERS)); console.log(`staging-sweep: QA users deleted ${u[0].n}`);
+const t = await sql(PROFILE_SWEEP(STALE_TOMBSTONES)); console.log(`staging-sweep: QA tombstones deleted ${t[0].n}`);
 console.log('staging-sweep: done.');

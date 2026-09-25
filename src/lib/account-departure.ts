@@ -66,11 +66,17 @@ export interface TiedCounts {
   sharedRoundsCreated: number;
   /** group_post_participants on a round someone else created */
   cardsOnOthersRounds: number;
+  /** calendar events the person organized FOR an org (events.org_id set) */
+  orgCalendarEvents: number;
+  /** media on a shared thing: event media, photos on someone else's round,
+   *  an org contest photo tag */
+  sharedMedia: number;
 }
 
 export const NO_TIES: TiedCounts = {
   entries: 0, entryMembers: 0, contestStatLines: 0, eventParticipants: 0,
   hostedEvents: 0, sharedRoundsCreated: 0, cardsOnOthersRounds: 0,
+  orgCalendarEvents: 0, sharedMedia: 0,
 };
 
 export function hasTies(t: TiedCounts): boolean {
@@ -193,6 +199,7 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'profile_access.user_id': 'engine',
   'events.organizer_id': 'engine',
   'event_series.organizer_id': 'engine',
+  'posts.profile_id': 'engine', // an event round's / a kept shared round's feed post stays
   // the person's own things — deleted
   'approved_contacts.child_profile_id': 'goes',
   'approved_contacts.contact_profile_id': 'goes',
@@ -229,7 +236,6 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'post_likes.profile_id': 'goes',
   'post_tags.created_by_profile_id': 'goes',
   'post_tags.tagged_profile_id': 'goes',
-  'posts.profile_id': 'goes',
   'privacy_settings.profile_id': 'goes',
   'profile_transfers.profile_id': 'goes',
   'registrations.profile_id': 'goes',

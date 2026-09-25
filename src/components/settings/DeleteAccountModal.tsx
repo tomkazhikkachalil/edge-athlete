@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { COPY } from '@/lib/copy';
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -245,36 +246,34 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
             <div className="space-y-6">
               <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <h3 className="font-semibold text-red-900 dark:text-red-200 mb-2">
-                  ⚠️ Your account will be permanently deleted in 30 days
+                  ⚠️ {COPY.ACCOUNT.DELETE_TITLE}
                 </h3>
                 <p className="text-red-800 dark:text-red-200 text-sm">
-                  Your account is hidden immediately and permanently deleted after 30 days —
-                  profile, posts, stats, connections, and all other content. Sign back in
-                  during those 30 days to restore it; after that, deletion cannot be undone.
+                  {COPY.ACCOUNT.DELETE_BODY}
                 </p>
               </div>
 
               <div>
                 <h4 className="font-semibold text-primary mb-3">
-                  The following will be permanently deleted:
+                  {COPY.ACCOUNT.DELETE_GOES_TITLE}
                 </h4>
                 <div className="space-y-2">
-                  {[
-                    { icon: 'fa-user', text: 'Your profile and personal information' },
-                    { icon: 'fa-images', text: 'All posts, photos, and videos you\'ve shared' },
-                    { icon: 'fa-comment', text: 'All your comments and likes' },
-                    { icon: 'fa-user-friends', text: 'Your followers and following connections' },
-                    { icon: 'fa-chart-line', text: 'All performance stats, rounds, and achievements' },
-                    { icon: 'fa-bell', text: 'Your notifications and activity history' },
-                    { icon: 'fa-bookmark', text: 'Your saved posts and bookmarks' },
-                    { icon: 'fa-chart-line', text: 'All sport-specific data (rounds, games, etc.)' },
-                  ].map((item, index) => (
+                  {COPY.ACCOUNT.DELETE_GOES.map((text, index) => (
                     <div key={index} className="flex items-center gap-3 text-secondary">
-                      <i className={`fas ${item.icon} text-red-600 dark:text-red-400 w-5 text-center`}></i>
-                      <span className="text-sm">{item.text}</span>
+                      <i className="fas fa-times text-red-600 dark:text-red-400 w-5 text-center" aria-hidden="true"></i>
+                      <span className="text-sm">{text}</span>
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Departed accounts (Sep 24 2026): what outlives the account. */}
+              <div className="bg-surface-muted border border-border rounded-lg p-4" data-delete-stays="">
+                <h4 className="font-semibold text-primary mb-2">
+                  <i className="fas fa-trophy text-brand-fg mr-2" aria-hidden="true"></i>
+                  {COPY.ACCOUNT.DELETE_STAYS_TITLE}
+                </h4>
+                <p className="text-sm text-secondary">{COPY.ACCOUNT.DELETE_STAYS}</p>
               </div>
 
               <div className="bg-surface-muted border border-border rounded-lg p-4">
@@ -300,8 +299,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                   Final Confirmation Required
                 </h3>
                 <p className="text-red-800 dark:text-red-200 text-sm">
-                  This is your last chance to back out. Once you confirm, your account and all
-                  associated data will be permanently deleted within 24 hours.
+                  This is your last chance to back out. {COPY.ACCOUNT.DELETE_FINAL}
                 </p>
               </div>
 

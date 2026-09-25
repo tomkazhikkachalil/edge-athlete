@@ -10,7 +10,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // v2 (Wave 3): the closing paragraph branches per signature method.
-export const CONSENT_POLICY_VERSION = 'minors-consent-v2';
+// v3 (departed accounts, Sep 24 2026 — Tom): withdrawal still deletes the
+// profile and its content, and results recorded WITH other players stay in
+// those records under the name "Athlete", so no one else's results change.
+// A guardian who signed v2 keeps v2's promise (full erasure): the deletion
+// engine reads each child's signed `policy_version` (account-departure.ts
+// MASKED_CONSENT_VERSIONS). The v2 text stays below, for the record.
+export const CONSENT_POLICY_VERSION = 'minors-consent-v3';
 
 export type ConsentState =
   | 'none'            // nothing submitted
@@ -59,6 +65,27 @@ export function parseConsentMethod(value: unknown): ConsentMethod | null {
 
 /** Guardian-facing consent statement, minus the method-specific closing. */
 export const CONSENT_STATEMENT_CORE = `Edge Athlete Parental Consent — ${CONSENT_POLICY_VERSION}
+
+I confirm that I am the parent or legal guardian of the athlete named on
+this profile, and I consent to Edge Athlete collecting and displaying the
+information I choose to add to their profile (name, date of birth, sport
+statistics, photos and videos) for the purpose of operating their athlete
+profile.
+
+I understand that:
+- The profile starts private, and nothing is visible to others until I
+  approve it.
+- I control the profile's privacy, what gets posted, and who can contact
+  my athlete, and I can change these at any time.
+- I may withdraw this consent at any time from my account settings, which
+  permanently deletes the profile and its content. Results my athlete
+  recorded with other players (a shared round, an event, a club or league
+  competition) stay part of those records under the name "Athlete", so no
+  one else's results change.`;
+
+/** The v2 core as guardians signed it until Sep 24 2026 (kept for the
+ *  record — a v2 signature is honoured with full erasure). */
+export const CONSENT_STATEMENT_CORE_V2 = `Edge Athlete Parental Consent — minors-consent-v2
 
 I confirm that I am the parent or legal guardian of the athlete named on
 this profile, and I consent to Edge Athlete collecting and displaying the

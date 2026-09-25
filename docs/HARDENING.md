@@ -166,6 +166,18 @@ this sweep covers the rest by reading.
 
 ### B5. Personal data with a shelf life (program 2, D — Sep 11 2026)
 
+- **Departed accounts** (`profiles.departed_at`, mig 238, Sep 24 2026): an
+  account purged with results other people depend on stays as a name-only
+  tombstone — auth user deleted, every personal column stripped
+  (`src/lib/account-departure.ts`'s KEEP / SET / NULL lists, pinned against
+  the live column set), `<id>@departed.invalid`, handle released, private,
+  `deletion_requested_at` cleared. 238 dropped `profiles_id_fkey`, so a
+  profile no longer dies with its auth user. Sweep: run
+  `database/tests/diagnostics/verify-238-departed-profiles.sql` — the
+  ORPHANS row (a non-departed profile with no auth user = a delete from the
+  Supabase dashboard; purge it through the engine, never leave it) and the
+  STRIPPED row must both read 0.
+
 - **Org-site form submissions** (`org_site_form_submissions`, mig 187) hold
   a visitor's name, email, optional phone, an age GROUP (never a date of
   birth) and a message. Service-role only (posture A); read in the console's

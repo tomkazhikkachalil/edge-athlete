@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const [consentQ, supervisedQ, pendingQ, transferQ, pendingCommentQ, followReqQ] = await Promise.all([
       admin
         .from('consent_records')
-        .select('profile_id, action')
+        .select('profile_id, action, policy_version')
         .in('profile_id', ids)
         .order('created_at', { ascending: false }),
       admin
@@ -123,12 +123,21 @@ export async function GET(request: NextRequest) {
       )
     );
 
+    // Departed accounts (Sep 24 2026): the consent version each guardian
+    // SIGNED decides what withdrawal keeps (v2 erases everything; v3 keeps
+    // results with other players under "Athlete") — the page says which.
+    const signedVersion = new Map<string, string>();
+    for (const r of (consentQ.data ?? []) as Array<{ profile_id: string; action: string; policy_version: string | null }>) {
+      if (r.action === 'granted' && r.policy_version && !signedVersion.has(r.profile_id)) signedVersion.set(r.profile_id, r.policy_version);
+    }
+
     return NextResponse.json({
       policy,
       readOnly,
       athletes: athletes.map((a, i) => ({
         ...a,
         ...summaries[a.id],
+        consentVersion: signedVersion.get(a.id) ?? null,
         statsCard: statsCards[i],
         deviations: deviationFields(
           a as unknown as Parameters<typeof deviationFields>[0],

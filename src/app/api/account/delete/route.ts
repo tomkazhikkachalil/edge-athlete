@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
+import { findSoleAuthority, soleAuthorityMessage } from '@/lib/account-sole-authority';
 import { formatDisplayName } from '@/lib/formatters';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
@@ -128,6 +129,21 @@ export async function DELETE(request: NextRequest) {
           reportRouteError('[Account Deletion] guardian audit insert failed:', auditError);
         }
       }
+    }
+
+    // 5b. The backup-account guard (departed accounts, Sep 24 2026): the
+    // ONLY person able to run an unfinished event, a club or a league names
+    // a co-organizer / co-owner first, so it keeps going without them (Tom:
+    // "there always needs to be two accounts"). Refused before anything
+    // changes; a read failure refuses too (a guard must never wave through).
+    try {
+      const blockers = await findSoleAuthority(supabaseAdmin, userId);
+      if (blockers.length > 0) {
+        return NextResponse.json({ error: soleAuthorityMessage(blockers), soleAuthority: blockers }, { status: 409 });
+      }
+    } catch (guardError) {
+      reportRouteError('[Account Deletion] sole-authority check failed:', guardError);
+      return NextResponse.json({ error: 'Could not check what you run — try again.' }, { status: 500 });
     }
 
     // 6. PARK, don't destroy (Wave 1e, migration 128): the account is

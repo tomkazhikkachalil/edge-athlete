@@ -19,6 +19,10 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim() || '';
+    // 238: a departed tombstone is never offered as a person (the clubs and
+    // leagues owner pickers use this search); the main dashboard asks for
+    // them explicitly and marks them.
+    const includeDeparted = searchParams.get('includeDeparted') === '1';
 
     // Suggest from the first keystroke like every other search in the app.
     // Deliberately NOT folded onto searchPeople: this one also matches email
@@ -31,12 +35,14 @@ export async function GET(request: NextRequest) {
     }
 
     const pattern = `%${sanitizeForFilter(q)}%`;
-    const { data: users, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, email, first_name, last_name, full_name, handle, user_type, visibility, created_at, onboarded_at')
+      .select('id, email, first_name, last_name, full_name, handle, user_type, visibility, created_at, onboarded_at, departed_at')
       .or(`email.ilike.${pattern},full_name.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},handle.ilike.${pattern}`)  // hardening-ok: sanitizeForFilter above
       .order('created_at', { ascending: false })
       .limit(20);
+    if (!includeDeparted) query = query.is('departed_at', null);
+    const { data: users, error } = await query;
 
     if (error) {
       reportRouteError('GET /api/admin/users error:', error);

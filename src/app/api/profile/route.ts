@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, requireProfileRole, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { COPY } from '@/lib/copy';
 import {
   IDENTITY_FIELDS,
   diffIdentityFields,
@@ -55,6 +56,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
       }
       return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+    }
+
+    // 238: a departed account is no longer on Edge Athlete — its results
+    // stay with the orgs and events, the profile does not.
+    if ((profile as { departed_at?: string | null }).departed_at) {
+      return NextResponse.json({ error: COPY.ACCOUNT.DEPARTED_PAGE, departed: true }, { status: 404 });
     }
 
     // Fetch season highlights

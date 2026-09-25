@@ -10,6 +10,7 @@ import {
   type UrgentRow,
 } from '@/lib/urgent-email';
 import { reportRouteError } from '@/lib/observability/report';
+import { isDepartedEmail } from '@/lib/account-departure';
 
 export const maxDuration = 60;
 
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
           [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || '',
         // Missing prefs row = never opted out (the column defaults true).
         urgentEnabled: pref ? pref.urgent_email_enabled !== false : true,
-        synthetic: !!p.email && (isSyntheticEmail(p.email) || isStubEmail(p.email)),
+        synthetic: !!p.email && (isSyntheticEmail(p.email) || isStubEmail(p.email) || isDepartedEmail(p.email)),
       });
     }
 

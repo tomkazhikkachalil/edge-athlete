@@ -101,6 +101,7 @@ the history, the emails, retention — is written once and applies to all three.
 - A reopen must clear `resolution_code` — the CHECK allows a code only on resolved / closed.
 - `LargerWindow` must hold no dirty input — the user's thread + reply box expand inline.
 - `set-state-in-effect` shapes every loader: define it inside the effect, publish it on a ref (the consent page's shape).
+- Departed accounts (238): a ticket FILED by someone who left keeps its history, but the engine clears its `reporter_email` at departure (no one to mail); a report AGAINST someone who left still resolves — the target is a tombstone row whose name renders in full. The mailers refuse `@departed.invalid` beside `@minors.invalid` / `@stubs.invalid`.
 
 ## Spec 2 — Reporting and enforcement (migration 223)
 

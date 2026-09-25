@@ -17,6 +17,8 @@ const STATUS_TONE: Record<string, string> = {
 interface Props {
   view: SportEventViewPayload;
   hostName: string;
+  /** 238: the host left Edge Athlete — the name stands as text, no link. */
+  hostDeparted?: boolean;
   control: JoinControl;
   busy: boolean;
   actions: React.ComponentProps<typeof EventJoinButton> extends infer P ? Omit<P, 'control' | 'busy'> : never;
@@ -26,7 +28,7 @@ interface Props {
   todayKey?: string | null;
 }
 
-export default function EventHeader({ view, hostName, control, busy, actions, organizerControls, todayKey = null }: Props) {
+export default function EventHeader({ view, hostName, hostDeparted = false, control, busy, actions, organizerControls, todayKey = null }: Props) {
   const { event, rounds, counts } = view;
   const line = headerRoundLine(rounds, todayKey);
   return (
@@ -42,7 +44,9 @@ export default function EventHeader({ view, hostName, control, busy, actions, or
           </div>
           <h1 className="mt-2 text-xl sm:text-2xl font-bold text-primary break-words">{event.name}</h1>
           <p className="mt-1 text-sm text-secondary">
-            Hosted by <Link href={`/athlete/${event.host_profile_id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium">{hostName}</Link>
+            Hosted by {hostDeparted
+              ? <span className="font-medium text-primary" data-event-host-departed="">{hostName}</span>
+              : <Link href={`/athlete/${event.host_profile_id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium">{hostName}</Link>}
           </p>
           {line.primary && <p className="mt-2 text-sm text-secondary" data-event-round-line="">{line.primary}</p>}
           {line.secondary && <p className="text-sm text-tertiary" data-event-round-next="">{line.secondary}</p>}
