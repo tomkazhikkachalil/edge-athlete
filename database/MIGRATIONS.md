@@ -96,7 +96,12 @@ otherwise contradicted this file): write idempotent SQL (`IF NOT EXISTS`,
 `DROP ... IF EXISTS` before `CREATE` for functions); never modify an existing
 migration file — add a new number; use `(select auth.uid())` (not bare
 `auth.uid()`) in RLS policies for performance; SECURITY DEFINER functions set
-`search_path = ''` and fully qualify table names.
+`search_path = ''` and fully qualify table names. **Every foreign key ships
+with an index whose leading columns are its columns** (migration 239, Sep 25
+2026): without one, deleting the referenced row makes the RI trigger scan the
+whole child table. `src/lib/__tests__/fk-index-coverage.test.ts` fails the
+gate on an FK added without it; `database/tests/diagnostics/verify-239-fk-
+indexes.sql` is the same rule against a live database.
 
 ## Provenance — every live table and column is named by a numbered file
 

@@ -84,3 +84,73 @@ export function profileForeignKeys(): Map<string, FkAction> {
   for (const { key, action } of byName.values()) out.set(key, action);
   return out;
 }
+
+// ── Every foreign key and every index (the FK-coverage rule, migration 239) ──
+
+/** Split a column list on top-level commas: `a, lower(b), c DESC` → 3 items. */
+function splitCols(list: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of list) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  // a plain column is its first word ("c DESC", "c text_pattern_ops"); an expression stays as written
+  return out.map(c => (/^"?[a-z_][a-z0-9_]*"?(\s|$)/i.test(c) ? c.split(/\s+/)[0].replace(/"/g, '') : c));
+}
+
+export interface ForeignKey { table: string; name: string; columns: string[]; ref: string }
+
+/** Every foreign key in schema public, at the chain's head. */
+export function foreignKeys(): ForeignKey[] {
+  const base = baselineText();
+  const byName = new Map<string, ForeignKey>();
+  const re = /ALTER TABLE (?:public\.)?(\w+)\s+ADD CONSTRAINT (\w+)\s+FOREIGN KEY \(([^)]+)\)\s+REFERENCES (?:public\.)?(\w+)/g;
+  const add = (hit: RegExpMatchArray) => byName.set(hit[2], { table: hit[1], name: hit[2], columns: splitCols(hit[3]), ref: hit[4] });
+  for (const hit of base.matchAll(re)) add(hit);
+  for (const m of migrationsAbove(baselineHead(base))) {
+    const sql = sqlOnly(m.text);
+    const events: Array<{ at: number; apply: () => void }> = [];
+    for (const d of sql.matchAll(/DROP CONSTRAINT (?:IF EXISTS )?(\w+)/g)) events.push({ at: d.index ?? 0, apply: () => byName.delete(d[1]) });
+    for (const a of sql.matchAll(re)) events.push({ at: a.index ?? 0, apply: () => add(a) });
+    for (const t of sql.matchAll(/DROP TABLE (?:IF EXISTS )?(?:public\.)?(\w+)/g)) {
+      events.push({ at: t.index ?? 0, apply: () => { for (const [k, fk] of byName) if (fk.table === t[1]) byName.delete(k); } });
+    }
+    for (const e of events.sort((x, y) => x.at - y.at)) e.apply();
+  }
+  return [...byName.values()];
+}
+
+/** table → the column lists of its indexes (btree / any method, partial or
+ *  not — the catalog check counts any index whose LEADING columns match),
+ *  including the indexes behind PRIMARY KEY and UNIQUE constraints. */
+export function indexColumnLists(): Map<string, string[][]> {
+  const base = baselineText();
+  const byName = new Map<string, { table: string; cols: string[] }>();
+  const idxRe = /CREATE (?:UNIQUE )?INDEX (?:CONCURRENTLY )?(?:IF NOT EXISTS )?(\w+)\s+ON (?:ONLY )?(?:public\.)?(\w+)\s*(?:USING \w+\s*)?\(((?:[^()]|\([^()]*\))*)\)/g;
+  const conRe = /ALTER TABLE (?:ONLY )?(?:public\.)?(\w+)\s+ADD CONSTRAINT (\w+)\s+(?:PRIMARY KEY|UNIQUE(?: NULLS NOT DISTINCT)?)\s*\(([^)]+)\)/g;
+  const scan = (sql: string, events: Array<{ at: number; apply: () => void }>) => {
+    for (const h of sql.matchAll(idxRe)) events.push({ at: h.index ?? 0, apply: () => byName.set(h[1], { table: h[2], cols: splitCols(h[3]) }) });
+    for (const h of sql.matchAll(conRe)) events.push({ at: h.index ?? 0, apply: () => byName.set(h[2], { table: h[1], cols: splitCols(h[3]) }) });
+    for (const d of sql.matchAll(/DROP INDEX (?:CONCURRENTLY )?(?:IF EXISTS )?(?:public\.)?(\w+)/g)) events.push({ at: d.index ?? 0, apply: () => byName.delete(d[1]) });
+    for (const d of sql.matchAll(/DROP CONSTRAINT (?:IF EXISTS )?(\w+)/g)) events.push({ at: d.index ?? 0, apply: () => byName.delete(d[1]) });
+  };
+  const baseEvents: Array<{ at: number; apply: () => void }> = [];
+  scan(base, baseEvents);
+  for (const e of baseEvents) e.apply();
+  for (const m of migrationsAbove(baselineHead(base))) {
+    const events: Array<{ at: number; apply: () => void }> = [];
+    scan(sqlOnly(m.text), events);
+    for (const e of events.sort((x, y) => x.at - y.at)) e.apply();
+  }
+  const out = new Map<string, string[][]>();
+  for (const { table, cols } of byName.values()) {
+    if (!out.has(table)) out.set(table, []);
+    out.get(table)!.push(cols);
+  }
+  return out;
+}

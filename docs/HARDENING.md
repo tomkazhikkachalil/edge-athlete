@@ -62,6 +62,13 @@ index on a now-large table must use `CREATE INDEX CONCURRENTLY` (outside a txn)
 — as the `NNN_name.indexes.sql` twin (`database/MIGRATIONS.md`, "Large-table
 indexes"). The baselines themselves index inline: their tables hold 3–36 rows.
 
+**Foreign-key coverage (migration 239, Sep 25 2026):** every foreign key in
+`public` has an index whose leading columns are its columns. Before 239, 83
+did not (50 onto `profiles`); one profile DELETE on staging cost 756 ms with a
+full child-table scan per RI trigger (13.9 s under load) and 111 ms after. The
+rule is a unit test (`fk-index-coverage.test.ts`); the sweep query is row 1 of
+`database/tests/diagnostics/verify-239-fk-indexes.sql` (expect 0).
+
 ### B2. Query-cost review (efficiency)
 For each hot surface, count awaited DB round-trips per request and check for the
 recurring anti-patterns:
