@@ -1,5 +1,6 @@
 'use client';
 
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useState, useCallback } from 'react';
 import { useToast } from '@/components/Toast';
 
@@ -12,7 +13,7 @@ import { useToast } from '@/components/Toast';
  */
 export function useDeleteRound(groupPostId: string, onDone?: () => void) {
   const [deleting, setDeleting] = useState(false);
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
 
   const deleteRound = useCallback(async () => {
     setDeleting(true);
@@ -24,6 +25,9 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to delete round');
       }
+      // Results-kept (241): a round anyone scored comes back HIDDEN, not deleted — say so.
+      const body = await response.json().catch(() => ({}));
+      if (body && body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
       onDone?.();
       return true;
     } catch (err) {
@@ -33,7 +37,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void) {
     } finally {
       setDeleting(false);
     }
-  }, [groupPostId, onDone, showError]);
+  }, [groupPostId, onDone, showError, showSuccess]);
 
   return { deleteRound, deleting };
 }

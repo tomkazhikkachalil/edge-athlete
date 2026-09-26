@@ -285,7 +285,13 @@ export async function cleanupEvent(apiA: APIRequestContext, eventId: string | nu
     } else if (view.event.status === 'open') {
       await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
     }
-    await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
+    const del = await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
+    // Results-kept (241): a PLAYED event is on the record — the app refuses its delete
+    // (409). A test's event is still torn down: the service role deletes it.
+    if (del && del.status() === 409) {
+      const { error } = await adminClient().from('sport_events').delete().eq('id', eventId);
+      if (error) console.warn(`[e2e] cleanupEvent(${eventId}) service delete failed: ${error.message}`);
+    }
   } catch {
     // best-effort
   }

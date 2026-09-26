@@ -1,5 +1,7 @@
 'use client';
 
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { COPY } from '@/lib/copy';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -43,6 +45,8 @@ interface GolfRound {
   slope_rating: number | null;
   notes: string | null;
   is_complete: boolean;
+  /** Results-kept (241): hidden from the owner's profile — still counts toward stats and the handicap. */
+  profile_hidden_at?: string | null;
   course_info: import('@/types/group-posts').EmbeddedCourseInfo | null;
   golf_holes: GolfHole[];
 }
@@ -201,23 +205,29 @@ export default function GolfRoundDetailPage() {
     }
   };
 
+  // Results-kept round (241, Tom: "hide only, no delete"): a round is hidden
+  // from the profile — it stays on the record and keeps counting. The owner can
+  // show it again from here or Settings → Privacy.
   const handleDelete = async () => {
     if (deleting) return;
     setDeleting(true);
     try {
-      const response = await fetch(`/api/golf/rounds/${roundId}`, { method: 'DELETE' });
+      const hidden = !round?.profile_hidden_at;
+      const response = hidden
+        ? await fetch(`/api/golf/rounds/${roundId}`, { method: 'DELETE' })
+        : await fetch('/api/results/visibility', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'golf_round', id: roundId, hidden: false }) });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json();
-        showError('Delete failed', data.error || 'Could not delete round.');
-        setDeleting(false);
-        setShowDeleteConfirm(false);
+        showError(hidden ? 'Could not hide it' : 'Could not show it', data.error || 'Please try again.');
         return;
       }
-      showSuccess('Round deleted');
-      router.push('/athlete');
+      setRound(r => (r ? { ...r, profile_hidden_at: hidden ? new Date().toISOString() : null } : r));
+      if (hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else showSuccess('Back on your profile');
     } catch (e) {
-      console.error('Failed to delete round:', e);
-      showError('Delete failed', 'Could not delete round. Please try again.');
+      console.error('Failed to change the round:', e);
+      showError('Something went wrong', 'Please try again.');
+    } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
     }
@@ -297,11 +307,13 @@ export default function GolfRoundDetailPage() {
                   Edit
                 </button>
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-red-300 dark:border-red-700 rounded-md text-sm font-medium text-red-700 dark:text-red-300 bg-surface hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  onClick={() => (round.profile_hidden_at ? void handleDelete() : setShowDeleteConfirm(true))}
+                  disabled={deleting}
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-border-strong rounded-md text-sm font-medium text-secondary bg-surface hover:bg-surface-muted transition-colors disabled:opacity-60"
+                  data-round-visibility={round.profile_hidden_at ? 'hidden' : 'shown'}
                 >
-                  <i className="fas fa-trash mr-1"></i>
-                  Delete
+                  <i className={`fas ${round.profile_hidden_at ? 'fa-eye' : 'fa-eye-slash'} mr-1`}></i>
+                  {round.profile_hidden_at ? 'Show on profile' : 'Hide'}
                 </button>
               </div>
             )}
@@ -337,6 +349,11 @@ export default function GolfRoundDetailPage() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
             <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-1 break-words">{round.course}</h1>
+              {isOwner && round.profile_hidden_at && (
+                <p className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2.5 py-1 text-xs font-medium text-secondary mb-1" data-round-hidden="">
+                  <i className="fas fa-eye-slash" aria-hidden="true"></i> Hidden from your profile — still counts toward your stats
+                </p>
+              )}
               {round.course_location && (
                 <p className="text-sm text-muted mb-1">{round.course_location}</p>
               )}
@@ -604,10 +621,10 @@ export default function GolfRoundDetailPage() {
 
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title="Delete this round?"
-        message="The round and its hole-by-hole scores will be permanently deleted. Any post that shared this round will remain, but its scorecard will no longer appear."
-        confirmText={deleting ? 'Deleting…' : 'Delete round'}
-        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        title={COPY.FORMS.HIDE_RESULT_TITLE}
+        message={COPY.FORMS.HIDE_RESULT_CONFIRM}
+        confirmText={deleting ? 'Hiding…' : COPY.FORMS.HIDE_RESULT_ACTION}
+        confirmButtonClass="bg-brand hover:bg-brand-hover text-white"
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
       />

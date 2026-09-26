@@ -1,9 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
 import { deletePerformancesBySource } from '@/lib/performance/write-server';
+import { setResultHidden } from '@/lib/results/hide-server';
 
 export type RoundDeleteResult =
   | { status: 'deleted' }
+  /** Results-kept (241): the round had scores — the creator's post and mirror are hidden, nothing is deleted. */
+  | { status: 'hidden' }
   | { status: 'not_found' }
   | { status: 'forbidden' }
   | { status: 'error'; message: string };
@@ -76,4 +79,40 @@ export async function deleteRoundCascade(
   if (!count) return { status: 'not_found' };
 
   return { status: 'deleted' };
+}
+
+/**
+ * Results-kept round (241, Tom: "hide only, no delete"): what a creator's
+ * "delete round" does. A round NOBODY has scored is deleted for real (no data
+ * — an invitation that never happened). A round with ANY score — the
+ * creator's own included — or an event round is HIDDEN instead: the round's
+ * post and the creator's own mirror leave the creator's profile; every
+ * score, every partner's mirror, the handicap and the dataset stay.
+ */
+export async function deleteOrHideRound(admin: SupabaseClient, groupPostId: string, requesterId: string): Promise<RoundDeleteResult> {
+  const { data: round, error } = await admin.from('group_posts').select('id, creator_id, post_id, sport_event_round_id').eq('id', groupPostId).maybeSingle();
+  if (error) {
+    console.error('[ROUND-DELETE] fetch failed:', error);
+    return { status: 'error', message: 'Could not load the round' };
+  }
+  if (!round) return { status: 'not_found' };
+  if (round.creator_id !== requesterId) return { status: 'forbidden' };
+
+  const { data: parts } = await admin.from('group_post_participants').select('id').eq('group_post_id', groupPostId);
+  const ids = ((parts ?? []) as { id: string }[]).map(p => p.id);
+  const { data: scored } = ids.length > 0
+    ? await admin.from('golf_participant_scores').select('id, holes_completed, total_score').in('participant_id', ids)
+    : { data: [] as { id: string; holes_completed: number | null; total_score: number | null }[] };
+  const { count: mirrors } = await admin.from('golf_rounds').select('id', { count: 'exact', head: true }).eq('group_post_id', groupPostId);
+  const hasScores = ((scored ?? []) as { holes_completed: number | null; total_score: number | null }[]).some(s => (s.holes_completed ?? 0) > 0 || s.total_score != null);
+
+  if (!hasScores && (mirrors ?? 0) === 0 && !round.sport_event_round_id) return deleteRoundCascade(admin, groupPostId, requesterId);
+
+  if (round.post_id) {
+    const hid = await setResultHidden(admin, { kind: 'post', id: round.post_id as string }, true, requesterId);
+    if (!hid.ok && hid.status !== 404) return { status: 'error', message: hid.error };
+  }
+  const { data: own } = await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId).eq('profile_id', requesterId);
+  for (const r of (own ?? []) as { id: string }[]) await setResultHidden(admin, { kind: 'golf_round', id: r.id }, true, requesterId);
+  return { status: 'hidden' };
 }

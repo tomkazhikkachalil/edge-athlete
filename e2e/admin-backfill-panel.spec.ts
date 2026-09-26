@@ -1,3 +1,4 @@
+import { purgePost } from './helpers/results';
 import { test, expect } from '@playwright/test';
 import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
 
@@ -59,7 +60,7 @@ test('admin dashboard: the performance backfill panel dry-runs all four sources 
     const { data: restored } = await admin.from('athlete_performances').select('metrics').eq('natural_key', key).maybeSingle();
     expect(restored?.metrics).toEqual({ goals: 1 });
   } finally {
-    if (postId) await qa.delete(`/api/posts?postId=${postId}`).catch(() => {});
+    await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await ctx.close();
     await qa.dispose();
     await deleteQaUser(adminUser.id);

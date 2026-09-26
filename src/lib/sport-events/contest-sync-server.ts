@@ -70,7 +70,7 @@ export async function syncSportEventContest(admin: Admin, event: SportEventRow, 
       if (e?.profile_id) participantOf.set(e.profile_id, p.id);
     }
 
-    // The mirrored golf round per player (an opted-out player has none — they still count).
+    // The mirrored golf round per player (241: an opted-out player's is mirrored too, hidden from their profile).
     const golfRoundOf = new Map<string, string>();
     if (round.group_post_id) {
       const { data: gr } = await admin.from('golf_rounds').select('id, profile_id').eq('group_post_id', round.group_post_id);

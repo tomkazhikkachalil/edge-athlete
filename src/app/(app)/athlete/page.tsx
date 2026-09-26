@@ -1,5 +1,6 @@
 'use client';
 
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
@@ -1113,7 +1114,10 @@ export default function AthleteProfilePage() {
               window.history.replaceState(null, '', '/athlete');
             }
             if (user?.id) loadAthleteData(user.id, true);
-            showSuccess('Success', 'Post deleted successfully');
+            // Results-kept (241): a result comes back hidden, not deleted.
+            const body = await response.json().catch(() => ({}));
+            if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+            else showSuccess('Success', 'Post deleted successfully');
           } catch (e) {
             console.error('Failed to delete post:', e);
             showError('Error', 'Failed to delete post');

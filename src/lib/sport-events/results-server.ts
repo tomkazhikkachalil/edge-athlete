@@ -6,7 +6,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { mirrorCompletedRound } from '@/lib/golf/round-mirror';
 import { EVENT_COLUMNS } from './access-server';
 import { readRounds } from './lifecycle-server';
-import { removeMirrorFor } from './opt-out';
 import { applyStatOptOut } from './stat-results-server';
 import { isStatShape, shapeOf, type SportEventRow } from './types';
 
@@ -14,9 +13,11 @@ import { isStatShape, shapeOf, type SportEventRow } from './types';
 type Admin = SupabaseClient<any, 'public', any>;
 
 /**
- * A participant flipped hide_from_profile after the event completed:
- * true → their mirror rows go; false → the round is re-mirrored (the
- * mirror skips everyone still hidden and rebuilds the rest idempotently).
+ * A participant flipped hide_from_profile after the event completed.
+ * Results-kept round (241): the result is HIDDEN from their profile, never
+ * removed — true → their mirrors are stamped hidden (the re-mirror stamps
+ * them); false → the stamps are cleared. The handicap, the leaderboards, the
+ * org's contest and the dataset keep it either way.
  */
 export async function applyProfileOptOut(admin: Admin, eventId: string, profileId: string, hidden: boolean): Promise<void> {
   const { data: ev } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', eventId).maybeSingle();
@@ -27,7 +28,11 @@ export async function applyProfileOptOut(admin: Admin, eventId: string, profileI
   if (event && isStatShape(shape)) { await applyStatOptOut(admin, event, rounds, profileId, hidden); return; }
   for (const round of rounds) {
     if (!round.group_post_id) continue;
-    if (hidden) await removeMirrorFor(admin, round.group_post_id, profileId);
-    else await mirrorCompletedRound(admin, round.group_post_id);
+    if (!hidden) {
+      const { error } = await admin.from('golf_rounds').update({ profile_hidden_at: null }).eq('group_post_id', round.group_post_id).eq('profile_id', profileId);
+      if (error) console.error('[sport-events opt-out] unhide failed:', error.message);
+    }
+    // Idempotent: (re)writes every mirror and stamps the still-hidden ones.
+    await mirrorCompletedRound(admin, round.group_post_id);
   }
 }

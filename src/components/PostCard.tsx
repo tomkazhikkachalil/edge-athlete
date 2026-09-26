@@ -25,6 +25,7 @@ import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-c
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
+import { anyScoreRecorded, isResultPost } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
@@ -408,6 +409,12 @@ function PostCard({
     setShowDeleteConfirm(true);
   };
 
+  // Results-kept round (241): a round anyone has scored, an event post or a stat
+  // line is HIDDEN from the profile by the server, never deleted — say so here.
+  const hidesInstead = post.group_scorecard
+    ? anyScoreRecorded(post.group_scorecard.participants) || !!post.sport_event_round_id
+    : isResultPost({ sport_event_round_id: post.sport_event_round_id ?? null, stats_data: post.stats_data });
+
   const handleDeleteConfirm = () => {
     if (onDelete) {
       onDelete(post.id);
@@ -630,9 +637,11 @@ function PostCard({
                 <button
                   onClick={handleDeleteClick}
                   className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
-                  title="Delete post"
+                  title={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : 'Delete post'}
+                  aria-label={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : 'Delete post'}
+                  data-post-delete={hidesInstead ? 'hide' : 'delete'}
                 >
-                  <i className="fas fa-trash text-sm"></i>
+                  <i className={`fas ${hidesInstead ? 'fa-eye-slash' : 'fa-trash'} text-sm`}></i>
                 </button>
               )}
             </div>
@@ -644,6 +653,7 @@ function PostCard({
               onTogglePin={handleTogglePin}
               onEdit={() => onEdit?.(post.id)}
               onDelete={onDelete ? handleDeleteClick : undefined}
+              deleteLabel={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : undefined}
             />
           )}
           {/* Spec 2: every signed-in NON-owner gets a menu — Report opens the
@@ -1024,7 +1034,7 @@ function PostCard({
           copy says so — including partners' scores when they have any. */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title={post.group_scorecard ? COPY.FORMS.DELETE_ROUND_TITLE : 'Delete Post'}
+        title={hidesInstead ? COPY.FORMS.HIDE_RESULT_TITLE : post.group_scorecard ? COPY.FORMS.DELETE_ROUND_TITLE : 'Delete Post'}
         message={
           post.group_scorecard
             ? (() => {
@@ -1032,13 +1042,14 @@ function PostCard({
                   post.group_scorecard.participants,
                   post.group_scorecard.group_post.creator_id
                 );
-                return partners > 0
-                  ? COPY.FORMS.DELETE_ROUND_CONFIRM_PARTNERS(partners)
-                  : COPY.FORMS.DELETE_ROUND_CONFIRM;
+                if (!hidesInstead) return COPY.FORMS.DELETE_ROUND_CONFIRM;
+                return partners > 0 ? COPY.FORMS.HIDE_ROUND_CONFIRM_PARTNERS(partners) : COPY.FORMS.HIDE_RESULT_CONFIRM;
               })()
-            : 'Are you sure you want to permanently delete this post? This action cannot be undone.'
+            : hidesInstead
+              ? COPY.FORMS.HIDE_RESULT_CONFIRM
+              : 'Are you sure you want to permanently delete this post? This action cannot be undone.'
         }
-        confirmText={post.group_scorecard ? COPY.FORMS.DELETE_ROUND_ACTION : 'Delete'}
+        confirmText={hidesInstead ? COPY.FORMS.HIDE_RESULT_ACTION : post.group_scorecard ? COPY.FORMS.DELETE_ROUND_ACTION : 'Delete'}
         cancelText="Cancel"
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         onConfirm={handleDeleteConfirm}

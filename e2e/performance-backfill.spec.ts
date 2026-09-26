@@ -1,3 +1,4 @@
+import { purgePost } from './helpers/results';
 import { test, expect, request as pwRequest } from '@playwright/test';
 import {
   adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody, E2E_BASE_URL,
@@ -80,7 +81,7 @@ test('performance backfill: admin gate, contract, and an idempotent live run ove
     expect(restored).toMatchObject({ metrics: { goals: 1, assists: 2 }, provenance: 'self_reported' });
     expect(Number(restored?.headline)).toBe(3);
   } finally {
-    if (postId) await qa.delete(`/api/posts?postId=${postId}`).catch(() => {});
+    await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await adminApi.dispose();
     await qa.dispose();
     await deleteQaUser(adminUser.id);

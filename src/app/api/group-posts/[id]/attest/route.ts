@@ -52,6 +52,24 @@ export async function POST(
       );
     }
 
+    // Results-kept round (241, Tom: "I don't want users to remove stats if they
+    // played bad"): declining pulls a player off the leaderboard and out of the
+    // mirror, so it is refused on an EVENT round (the event's own withdraw
+    // applies) and once the player has recorded any score (hide it instead).
+    if (status === 'declined') {
+      const admin = getSupabaseAdmin();
+      const [{ data: gp }, { data: sc }] = await Promise.all([
+        admin.from('group_posts').select('sport_event_round_id').eq('id', id).maybeSingle(),
+        admin.from('golf_participant_scores').select('holes_completed, total_score').eq('participant_id', participant.id).maybeSingle(),
+      ]);
+      if (gp?.sport_event_round_id) {
+        return NextResponse.json({ error: 'This round belongs to an event — withdraw from the event instead.' }, { status: 409 });
+      }
+      if (sc && ((sc.holes_completed ?? 0) > 0 || sc.total_score != null)) {
+        return NextResponse.json({ error: 'You already have scores on this round, so it stays on the record. You can hide it from your profile.' }, { status: 409 });
+      }
+    }
+
     // Update participant status
     const updates: Record<string, unknown> = {
       status,

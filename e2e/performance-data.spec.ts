@@ -1,3 +1,4 @@
+import { purgeGolfRound, purgePost } from './helpers/results';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -59,11 +60,14 @@ test('performance rows follow a stat-line post and a solo golf round through cre
     });
     expect(Number(line?.headline)).toBe(3);
 
+    // Results-kept (241): "delete" on a stat line HIDES it from the profile — the dataset row stays.
     const postKey = `post:${postId}`;
     const gone = await api.delete(`/api/posts?postId=${postId}`);
     expect(gone.ok(), await readErrorBody(gone)).toBe(true);
-    postId = '';
-    await rowFor(postKey, false);
+    expect((await gone.json()).hidden).toBe(true);
+    await rowFor(postKey, true);
+    const { data: hiddenPost } = await admin.from('posts').select('status').eq('id', postId).single();
+    expect(hiddenPost?.status).toBe('profile_hidden');
 
     // ── A solo golf round: create (bogey golf) → edit (par golf) → delete ──
     const holesData = Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: 4, score: 5 }));
@@ -109,17 +113,20 @@ test('performance rows follow a stat-line post and a solo golf round through cre
     expect((edited?.metrics as Record<string, number>).gross).toBe(72);
     expect(Number(edited?.headline)).toBe(72);
 
+    // Results-kept (241): "delete" on a round HIDES it — it stays in the dataset (and the handicap).
     const del = await api.delete(`/api/golf/rounds/${roundId}`);
     expect(del.ok(), await readErrorBody(del)).toBe(true);
-    const roundKey = `golf_round:${roundId}`;
-    roundId = '';
-    await rowFor(roundKey, false);
-    // The round's feed post is its own delete (the round outlives no post).
+    expect((await del.json()).hidden).toBe(true);
+    await rowFor(`golf_round:${roundId}`, true);
+    const { data: hiddenRound } = await admin.from('golf_rounds').select('profile_hidden_at').eq('id', roundId).single();
+    expect(hiddenRound?.profile_hidden_at).toBeTruthy();
+    // The round's feed post only REFERENCES the round (posts.round_id) — it is not a result; it still deletes.
     const postGone = await api.delete(`/api/posts?postId=${golfPost.id}`);
     expect(postGone.ok(), await readErrorBody(postGone)).toBe(true);
+    expect((await postGone.json()).hidden).toBeUndefined();
   } finally {
-    if (postId) await api.delete(`/api/posts?postId=${postId}`).catch(() => {});
-    if (roundId) await api.delete(`/api/golf/rounds/${roundId}`).catch(() => {});
+    await purgePost(postId);
+    await purgeGolfRound(roundId);
     await api.dispose();
   }
 });

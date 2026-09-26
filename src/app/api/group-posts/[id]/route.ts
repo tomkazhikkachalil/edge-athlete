@@ -1,8 +1,9 @@
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
+import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -260,11 +261,14 @@ export async function DELETE(
     if (!isUuid(id)) {
       return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
     }
-    const result = await deleteRoundCascade(getSupabaseAdmin(), id, user.id);
+    // Results-kept (241): a round with any score is HIDDEN, never deleted; an unplayed one deletes.
+    const result = await deleteOrHideRound(getSupabaseAdmin(), id, user.id);
 
     switch (result.status) {
       case 'deleted':
         return NextResponse.json({ message: 'Round deleted successfully' });
+      case 'hidden':
+        return NextResponse.json({ hidden: true, message: HIDDEN_NOTICE });
       case 'not_found':
         return NextResponse.json({ error: 'Round not found' }, { status: 404 });
       case 'forbidden':

@@ -71,6 +71,8 @@ export const RATE_LIMITS = {
   'account-delete': { max: 5, windowSeconds: 900, keyBy: 'user', message: ATTEMPTS_MESSAGE },
   upload: { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Results-kept (241): hide / show a result on your own profile — cheap and reversible, not unbounded.
+  'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },
   like: { max: 120, windowSeconds: 600, keyBy: 'user' },
   follow: { max: 60, windowSeconds: 3600, keyBy: 'user' },
