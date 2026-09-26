@@ -119,3 +119,31 @@ describe('the cut and the invite (phase 2)', () => {
     expect(planJoin('invite', ctx({ actorRole: 'organizer', cutDecided: false }))).toMatchObject({ ok: true });
   });
 });
+
+// Authority PR 2 (Sep 25 2026): inviting the event's backup — a co-organizer.
+describe('the co-organizer invite (Authority PR 2)', () => {
+  it('only the host invites a co-organizer; a co-organizer cannot mint a peer', () => {
+    const asCo = { role: 'co_organizer' as const, playing: true };
+    expect(planJoin('invite', ctx({ actorRole: 'organizer', inviteAs: asCo }))).toMatchObject({ ok: true, next: { role: 'co_organizer', status: 'invited', playing: true } });
+    expect(planJoin('invite', ctx({ actorRole: 'co_organizer', inviteAs: asCo }))).toMatchObject({ ok: false, status: 403 });
+  });
+  it('a co-organizer who does not play may be invited while live (no seat)', () => {
+    const live = { status: 'live' as const, joinMode: 'invite' as const, capacity: null };
+    expect(planJoin('invite', ctx({ event: live, actorRole: 'organizer', inviteAs: { role: 'co_organizer', playing: false } }))).toMatchObject({ ok: true, next: { role: 'co_organizer', playing: false } });
+    expect(planJoin('invite', ctx({ event: live, actorRole: 'organizer', inviteAs: { role: 'co_organizer', playing: true } }))).toMatchObject({ ok: false, status: 409 });
+  });
+  it('someone already in is promoted from the roster, not re-invited', () => {
+    expect(planJoin('invite', ctx({ actorRole: 'organizer', inviteAs: { role: 'co_organizer', playing: true }, row: row({ status: 'accepted' }) }))).toMatchObject({ ok: false, status: 409 });
+  });
+  it('an accept that takes no seat is never waitlisted, even when full', () => {
+    const seated = [row(), row()];
+    const invited = row({ status: 'invited', playing: false, role: 'co_organizer' });
+    const plan = planJoin('accept', ctx({ event: { status: 'open', joinMode: 'invite', capacity: 2 }, row: invited, rows: [...seated, invited] }));
+    expect(plan).toMatchObject({ ok: true, next: { status: 'accepted', accepted: true } });
+  });
+  it('only the host removes a co-organizer', () => {
+    const co = row({ role: 'co_organizer' });
+    expect(planJoin('remove', ctx({ actorRole: 'co_organizer', row: co, rows: [co] }))).toMatchObject({ ok: false, status: 403 });
+    expect(planJoin('remove', ctx({ actorRole: 'organizer', row: co, rows: [co] }))).toMatchObject({ ok: true, next: { status: 'removed' } });
+  });
+});

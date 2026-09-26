@@ -16,6 +16,8 @@ interface Props {
   onOpenInvite: () => void;
   onInviteHandle: (handle: string) => Promise<void>;
   onDecide: (pid: string, action: 'approve' | 'reject' | 'remove' | 'promote') => void;
+  /** Authority PR 2: the backup roles — the host names co-organizers and hands the event over; a co-organizer steps down. */
+  onRoleAction?: (pid: string, action: 'make_co_organizer' | 'make_participant' | 'step_down' | 'make_host', name: string) => void;
   /** Phase 2: the organizer moves a waitlisted player to a 1-based place in the queue. */
   onWaitlistMove?: (pid: string, position: number) => void;
   onHideToggle: (pid: string, hidden: boolean) => void;
@@ -66,7 +68,7 @@ function IndexField({ p, onChange }: { p: ParticipantView; onChange: (index: num
   );
 }
 
-export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onRecorderToggle, onOpenFlights, onWaitlistMove, api }: Props) {
+export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onRoleAction, onHideToggle, onIndexOverride, onRecorderToggle, onOpenFlights, onWaitlistMove, api }: Props) {
   const [picked, setPicked] = useState<ParticipantView | null>(null);
   const { event, participants, viewer, counts } = view;
   const canManage = viewer.can_manage;
@@ -107,11 +109,25 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
     );
   };
 
+  const isHost = viewer.profile_id === event.host_profile_id;
   const organizerRowActions = (p: ParticipantView) => {
     if (!canManage || p.role === 'organizer') return null;
-    if (event.status === 'completed' || event.status === 'cancelled') return null;
+    if (event.status === 'cancelled') return null;
+    // Authority PR 2: the host alone changes who can run the event.
+    const roleButtons = isHost && onRoleAction && p.status === 'accepted' && !p.departed ? (
+      p.role === 'co_organizer' ? (
+        <>
+          <button type="button" onClick={() => onRoleAction(p.id, 'make_host', p.name)} disabled={busy} className={BTN} data-event-role-action="make_host" aria-label={`Make ${p.name} the host`}>Make host</button>
+          <button type="button" onClick={() => onRoleAction(p.id, 'make_participant', p.name)} disabled={busy} className={BTN} data-event-role-action="make_participant" aria-label={`Make ${p.name} a player`}>Make player</button>
+        </>
+      ) : (
+        <button type="button" onClick={() => onRoleAction(p.id, 'make_co_organizer', p.name)} disabled={busy} className={BTN} data-event-role-action="make_co_organizer" aria-label={`Make ${p.name} a co-organizer`}>Make co-organizer</button>
+      )
+    ) : null;
+    if (event.status === 'completed') return roleButtons;
     return (
       <>
+        {roleButtons}
         {net && p.status === 'accepted' && p.playing && <IndexField p={p} onChange={i => onIndexOverride(p.id, i)} />}
         {onRecorderToggle && p.status === 'accepted' && (
           <label className="text-xs text-secondary inline-flex items-center gap-2 min-h-[44px]">
@@ -119,10 +135,17 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
             Recorder
           </label>
         )}
-        <button type="button" onClick={() => onDecide(p.id, 'remove')} disabled={busy} className={BTN} aria-label={`Remove ${p.name}`}>Remove</button>
+        {(p.role !== 'co_organizer' || isHost) && (
+          <button type="button" onClick={() => onDecide(p.id, 'remove')} disabled={busy} className={BTN} aria-label={`Remove ${p.name}`}>Remove</button>
+        )}
       </>
     );
   };
+
+  const stepDown = (p: ParticipantView) =>
+    p.profile_id === viewer.profile_id && p.role === 'co_organizer' && p.status === 'accepted' && onRoleAction && event.status !== 'cancelled' ? (
+      <button type="button" onClick={() => onRoleAction(p.id, 'step_down', p.name)} disabled={busy} className={BTN} data-event-role-action="step_down">Step down</button>
+    ) : null;
 
   const selfToggle = (p: ParticipantView) =>
     p.profile_id === viewer.profile_id && p.playing && p.hide_from_profile !== null ? (
@@ -160,9 +183,9 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
       )}
 
       <Section title={`Playing (${playing.length})`} empty="Nobody has accepted yet.">
-        {playing.map(p => row(p, <>{selfToggle(p)}{organizerRowActions(p)}</>))}
+        {playing.map(p => row(p, <>{selfToggle(p)}{stepDown(p)}{organizerRowActions(p)}</>))}
       </Section>
-      {organizing.length > 0 && <Section title="Organizing">{organizing.map(p => row(p, organizerRowActions(p)))}</Section>}
+      {organizing.length > 0 && <Section title="Organizing">{organizing.map(p => row(p, <>{stepDown(p)}{organizerRowActions(p)}</>))}</Section>}
       {requested.length > 0 && (
         <Section title={`Requests (${requested.length})`}>
           {requested.map(p => row(p, canManage ? (

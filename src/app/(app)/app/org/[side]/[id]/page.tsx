@@ -39,6 +39,7 @@ import HierarchySection from '@/components/orgs/console/HierarchySection';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
 import { POOL_LETTERS } from '@/lib/competitions/pools';
+import BackupBanner from '@/components/authority/BackupBanner';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -174,7 +175,7 @@ export default function OrgConsolePage() {
   const [viewerIsOwner, setViewerIsOwner] = useState(false);
   const [seasons, setSeasons] = useState<SeasonRow[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
-  const [counts, setCounts] = useState<{ managers: number; rosterAthletes: number }>({
+  const [counts, setCounts] = useState<{ managers: number; rosterAthletes: number; backup?: 'ok' | 'none' | 'pending' | 'n/a' }>({
     managers: 0,
     rosterAthletes: 0,
   });
@@ -4323,6 +4324,13 @@ export default function OrgConsolePage() {
           </div>
         </div>
 
+        {/* Authority PR 2: the backup warning — owners only (they alone change roles); never dismissible. */}
+        {viewerIsOwner && (
+          <div className="mb-6">
+            <BackupBanner state={counts.backup} subject="org" actHref={`/${side}/${orgId}?window=members`} />
+          </div>
+        )}
+
         <OrgSetupChecklist
           storageKey={`org-checklist:${side}:${orgId}`}
           variant={golfFirst ? 'golf' : 'default'}
@@ -4331,6 +4339,7 @@ export default function OrgConsolePage() {
             hasDivisions,
             hasTeams: teams.length > 0,
             managerCount: counts.managers,
+            backup: counts.backup,
             rosterAthleteCount: counts.rosterAthletes,
             // C5 (golf variant) — all derived from rows already fetched.
             hasSite: !!site,

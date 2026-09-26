@@ -54,6 +54,8 @@ export interface JoinContext {
   rows: ParticipantSnapshot[];
   /** Phase 2: the cut has been made — no new players (a late joiner would rank below it by the rule). */
   cutDecided?: boolean;
+  /** Authority PR 2: an invite AS a co-organizer (the host's backup), playing or not. */
+  inviteAs?: { role: 'participant' | 'co_organizer'; playing: boolean };
 }
 
 export type JoinPlan =
@@ -100,7 +102,18 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
   switch (action) {
     case 'invite': {
       if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can invite.' };
-      if (event.status === 'live') return { ok: false, status: 409, error: 'The event is live — add players from the round.' };
+      const asCoOrganizer = ctx.inviteAs?.role === 'co_organizer';
+      // A co-organizer is the host's backup — only the host names one (a
+      // co-organizer does not mint peers, the org rule for managers).
+      if (asCoOrganizer && actorRole !== 'organizer') return { ok: false, status: 403, error: 'Only the host can add a co-organizer.' };
+      // A backup who does not play takes no seat, so one may be added while live.
+      const seatless = asCoOrganizer && ctx.inviteAs?.playing === false;
+      if (event.status === 'live' && !seatless) return { ok: false, status: 409, error: 'The event is live — add players from the round.' };
+      if (asCoOrganizer) {
+        if (row && (row.status === 'invited' || row.status === 'requested')) return { ok: false, status: 409, error: 'Already invited.' };
+        if (row && row.status === 'accepted' && row.role !== 'follower') return { ok: false, status: 409, error: 'Already in the event — make them a co-organizer from the roster.' };
+        return { ok: true, create: !row, next: { role: 'co_organizer', status: 'invited', playing: ctx.inviteAs?.playing !== false, waitlistPosition: null }, promote: [] };
+      }
       if (ctx.cutDecided) return { ok: false, status: 409, error: 'The cut has been made — no new players.' };
       // A follower may be invited to play; a player already in any live state may not be invited twice.
       if (row && row.role !== 'follower' && (row.status === 'accepted' || row.status === 'invited' || row.status === 'waitlisted' || row.status === 'requested')) return { ok: false, status: 409, error: 'Already invited.' };
@@ -128,6 +141,8 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
     case 'accept': {
       if (!row || row.status !== 'invited') return { ok: false, status: 409, error: 'No invitation to accept.' };
       if (event.status !== 'open' && event.status !== 'live' && event.status !== 'draft') return { ok: false, status: 409, error: 'The event is not open.' };
+      // Someone who does not play takes no seat — never waitlisted.
+      if (!row.playing) return { ok: true, create: false, next: { status: 'accepted', waitlistPosition: null, accepted: true, responded: true }, promote: [] };
       const seat = seatOrWaitlist(ctx, others);
       return { ok: true, create: false, next: { ...seat, accepted: seat.status === 'accepted', responded: true }, promote: [] };
     }
@@ -151,6 +166,7 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
       if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can remove a player.' };
       if (!row) return { ok: false, status: 409, error: 'Not a participant.' };
       if (row.role === 'organizer') return { ok: false, status: 403, error: 'The organizer cannot be removed.' };
+      if (row.role === 'co_organizer' && actorRole !== 'organizer') return { ok: false, status: 403, error: 'Only the host can remove a co-organizer.' };
       const freed = row.status === 'accepted' && row.playing ? 1 : 0;
       return { ok: true, create: false, next: { status: 'removed', waitlistPosition: null }, promote: freed ? planWaitlistPromotion(others, event.capacity, freeSeats(others, event.capacity)) : [] };
     }

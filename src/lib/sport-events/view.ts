@@ -13,6 +13,7 @@ import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipan
 import { shapeOf } from './types';
 import type { GameConfig, SportEventShape } from './types';
 import { pairFieldsOf, type OrgKind } from '@/lib/orgs/org-ref';
+import type { BackupState } from '@/lib/authority/backup';
 
 export type ProfileForView = MaskableProfile & { id: string; handle?: string | null; avatar_url?: string | null };
 
@@ -88,6 +89,8 @@ export interface ViewerView {
   waitlist_ahead: number | null;
   /** Phase 4: the viewer is a named recorder (an organizer always may record). */
   recorder: boolean;
+  /** Authority PR 2: does someone else hold the keys? For organizers only (null otherwise). */
+  backup?: BackupState | null;
 }
 
 export function projectEvent(row: SportEventRow, access: SportEventAccess): EventView {

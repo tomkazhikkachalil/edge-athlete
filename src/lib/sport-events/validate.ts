@@ -344,7 +344,7 @@ export function parseEventPatch(body: unknown): Parsed<EventPatchInput> {
 }
 
 /** The invite body: profile ids and / or handles, at most 50 a call. */
-export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; handles: string[]; recorder: boolean }> {
+export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; handles: string[]; recorder: boolean; role: 'participant' | 'co_organizer'; playing: boolean }> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
   const ids = body.profile_ids === undefined ? [] : body.profile_ids;
   const handles = body.handles === undefined ? [] : body.handles;
@@ -353,7 +353,10 @@ export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; h
   if (ids.length + handles.length === 0) return { ok: false, error: 'Nobody to invite' };
   if (ids.length + handles.length > 50) return { ok: false, error: 'At most 50 invites a call' };
   if (body.recorder !== undefined && typeof body.recorder !== 'boolean') return { ok: false, error: 'recorder must be true or false' };
-  return { ok: true, value: { profileIds: [...new Set(ids as string[])], handles: [...new Set((handles as string[]).map(h => h.toLowerCase()))], recorder: body.recorder === true } };
+  // Authority PR 2: invite a BACKUP — a co-organizer (the host's call), playing or not.
+  if (body.role !== undefined && body.role !== 'participant' && body.role !== 'co_organizer') return { ok: false, error: 'role must be participant or co_organizer' };
+  if (body.playing !== undefined && typeof body.playing !== 'boolean') return { ok: false, error: 'playing must be true or false' };
+  return { ok: true, value: { profileIds: [...new Set(ids as string[])], handles: [...new Set((handles as string[]).map(h => h.toLowerCase()))], recorder: body.recorder === true, role: body.role === 'co_organizer' ? 'co_organizer' : 'participant', playing: body.playing !== false } };
 }
 
 export interface ParticipantPatchInput {

@@ -25,6 +25,21 @@ export interface OrgChecklistInput {
   memberCount?: number;
   hasGolfLeague?: boolean;
   hasNotice?: boolean;
+  /** Authority PR 2: does a second active owner or manager hold the keys?
+   *  (Tom: a co-owner or a manager counts; staff do not.) Absent → the old
+   *  count stands in (pre-240 consoles). */
+  backup?: 'ok' | 'none' | 'pending' | 'n/a';
+}
+
+/** The backup step — shared by both variants, never optional. */
+function backupStep(input: OrgChecklistInput): ChecklistStep {
+  return {
+    key: 'backup',
+    done: input.backup !== undefined ? input.backup === 'ok' : input.managerCount >= 2,
+    label: 'Add a backup — a co-owner or manager',
+    hint: 'Someone else who can run it if you can’t. Make a member a manager or co-owner from the members list.',
+    href: '#membership',
+  };
 }
 
 export type ChecklistVariant = 'default' | 'golf';
@@ -96,6 +111,7 @@ export function buildOrgChecklistSteps(
         hint: 'A notice on your site and a bell to every member.',
         href: '#website',
       },
+      backupStep(input),
     ];
   }
   return [
@@ -120,12 +136,7 @@ export function buildOrgChecklistSteps(
       hint: 'Teams persist across seasons; enter them into this season’s divisions.',
       href: '#teams',
     },
-    {
-      key: 'managers',
-      done: input.managerCount >= 2,
-      label: 'Invite a co-manager',
-      hint: 'Promote a member from the members list on your public page.',
-    },
+    backupStep(input),
     {
       key: 'roster',
       done: input.rosterAthleteCount > 0,

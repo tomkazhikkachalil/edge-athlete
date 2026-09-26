@@ -353,6 +353,11 @@ export default function EventCreateWizard() {
             ))}
           </dl>
           <p className="text-xs text-muted">Publish opens the event: invited players can accept and it appears in your feed. Save draft keeps it to yourself for now.</p>
+          {/* Authority PR 2 (Tom): every event needs a backup — a warning, never a block. */}
+          <p className="text-xs text-amber-800 dark:text-amber-200" data-event-wizard-backup-hint="">
+            <i className="fas fa-user-shield mr-1" aria-hidden="true"></i>
+            Every event needs a backup. After you save it, add a co-organizer from the Players tab — they can run it if you can’t.
+          </p>
         </div>
       )}
 

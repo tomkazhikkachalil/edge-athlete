@@ -5,7 +5,10 @@
 // are the ONLY person able to run something other people depend on —
 //   * an unfinished sport event (draft · open · live) where nobody else is
 //     the host or an accepted organizer / co-organizer, or
-//   * a club or league where nobody else is an owner.
+//   * a club or league where nobody else is an active owner or manager
+//     (Authority PR 2 — Tom: a co-owner OR a manager is the backup).
+// A backup must HOLD authority: a limited / suspended / banned or departed
+// account is no backup (moderation/state.ts holdsAuthority).
 // The account-delete route answers 409 with the list (the guardian check's
 // shape), so the person names a backup first. A finished event needs no
 // one: its results stand on their own.
@@ -16,6 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import { readAuthorityHolders } from '@/lib/authority/holders-server';
 
 export interface SoleAuthorityBlocker {
   kind: 'event' | OrgKind;
@@ -31,29 +35,30 @@ export interface EventAuthorityInput {
 }
 
 /** Unfinished events where no one but `userId` can run them. */
-export function soleEventBlockers(userId: string, input: EventAuthorityInput): SoleAuthorityBlocker[] {
+export function soleEventBlockers(userId: string, input: EventAuthorityInput, holds: (profileId: string) => boolean = () => true): SoleAuthorityBlocker[] {
   const others = new Map<string, number>();
   for (const r of input.organizerRows) {
-    if (r.profile_id === userId || r.status !== 'accepted') continue;
+    if (r.profile_id === userId || r.status !== 'accepted' || !holds(r.profile_id)) continue;
     if (r.role !== 'organizer' && r.role !== 'co_organizer') continue;
     others.set(r.sport_event_id, (others.get(r.sport_event_id) ?? 0) + 1);
   }
   return input.events
     .filter(e => (UNFINISHED_EVENT_STATUSES as readonly string[]).includes(e.status))
-    .filter(e => (e.host_profile_id !== userId ? 1 : 0) + (others.get(e.id) ?? 0) === 0)
+    .filter(e => (e.host_profile_id !== userId && holds(e.host_profile_id) ? 1 : 0) + (others.get(e.id) ?? 0) === 0)
     .map(e => ({ kind: 'event' as const, id: e.id, name: e.name?.trim() || 'Untitled event' }));
 }
 
 export interface OrgAuthorityInput {
   orgs: Array<{ id: string; name: string | null; kind: string }>;
+  /** The active owner AND manager rows of those orgs. */
   ownerRows: Array<{ org_id: string; profile_id: string }>;
 }
 
-/** Clubs and leagues where `userId` is the only owner. */
-export function soleOrgBlockers(userId: string, input: OrgAuthorityInput): SoleAuthorityBlocker[] {
+/** Clubs and leagues where nobody but `userId` is an active owner or manager. */
+export function soleOrgBlockers(userId: string, input: OrgAuthorityInput, holds: (profileId: string) => boolean = () => true): SoleAuthorityBlocker[] {
   const others = new Map<string, number>();
   for (const r of input.ownerRows) {
-    if (r.profile_id === userId) continue;
+    if (r.profile_id === userId || !holds(r.profile_id)) continue;
     others.set(r.org_id, (others.get(r.org_id) ?? 0) + 1);
   }
   return input.orgs
@@ -68,7 +73,7 @@ export function soleOrgBlockers(userId: string, input: OrgAuthorityInput): SoleA
 export function soleAuthorityMessage(blockers: SoleAuthorityBlocker[]): string {
   const names = blockers.map(b => b.name);
   const list = names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  return `You're the only one who can run ${list}. Add a co-organizer or co-owner first, so it keeps going without you.`;
+  return `You're the only one who can run ${list}. Add a co-organizer, co-owner or manager first, so it keeps going without you.`;
 }
 
 type Admin = SupabaseClient;
@@ -90,22 +95,27 @@ export async function findSoleAuthority(admin: Admin, userId: string): Promise<S
       admin.from('sport_event_participants').select('sport_event_id, profile_id, role, status').in('sport_event_id', eventIds).in('role', ['organizer', 'co_organizer']),
     ]);
     if (evErr || orgRowErr) throw new Error(`sole-authority event detail read: ${(evErr ?? orgRowErr)!.message}`);
-    blockers = soleEventBlockers(userId, { events: (events ?? []) as EventAuthorityInput['events'], organizerRows: (organizerRows ?? []) as EventAuthorityInput['organizerRows'] });
+    const evs = (events ?? []) as EventAuthorityInput['events'];
+    const orgRows = (organizerRows ?? []) as EventAuthorityInput['organizerRows'];
+    const holders = await readAuthorityHolders(admin, [...evs.map(e => e.host_profile_id), ...orgRows.map(r => r.profile_id)]);
+    blockers = soleEventBlockers(userId, { events: evs, organizerRows: orgRows }, id => holders.get(id) === true);
   }
 
-  // Orgs: the ones the person owns.
+  // Orgs: the ones the person runs (an active owner or manager).
   const { data: owned, error: ownErr } = await admin
     .from('memberships').select('org_id')
-    .eq('profile_id', userId).eq('role', 'owner').eq('kind', 'follow').eq('scope_type', 'org');
+    .eq('profile_id', userId).in('role', ['owner', 'manager']).eq('status', 'active').eq('kind', 'follow').eq('scope_type', 'org');
   if (ownErr) throw new Error(`sole-authority owner read: ${ownErr.message}`);
   const orgIds = [...new Set((owned ?? []).map(r => r.org_id as string).filter(Boolean))];
   if (orgIds.length > 0) {
     const [{ data: orgs, error: orgsErr }, { data: ownerRows, error: ownersErr }] = await Promise.all([
       admin.from('organizations').select('id, name, kind').in('id', orgIds),
-      admin.from('memberships').select('org_id, profile_id').in('org_id', orgIds).eq('role', 'owner').eq('kind', 'follow').eq('scope_type', 'org'),
+      admin.from('memberships').select('org_id, profile_id').in('org_id', orgIds).in('role', ['owner', 'manager']).eq('status', 'active').eq('kind', 'follow').eq('scope_type', 'org'),
     ]);
     if (orgsErr || ownersErr) throw new Error(`sole-authority org read: ${(orgsErr ?? ownersErr)!.message}`);
-    blockers = blockers.concat(soleOrgBlockers(userId, { orgs: (orgs ?? []) as OrgAuthorityInput['orgs'], ownerRows: (ownerRows ?? []) as OrgAuthorityInput['ownerRows'] }));
+    const rows = (ownerRows ?? []) as OrgAuthorityInput['ownerRows'];
+    const holders = await readAuthorityHolders(admin, rows.map(r => r.profile_id));
+    blockers = blockers.concat(soleOrgBlockers(userId, { orgs: (orgs ?? []) as OrgAuthorityInput['orgs'], ownerRows: rows }, id => holders.get(id) === true));
   }
   return blockers;
 }

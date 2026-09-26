@@ -40,6 +40,15 @@ export function mayWrite(p: ModerationFacts | null | undefined, now: Date = new 
   return effectiveState(p, now) === 'active';
 }
 
+/** Authority (240): may this account RUN a club, league or event right now?
+ *  Tom's rule: a limited, suspended or banned account loses its org and event
+ *  authority; a departed tombstone holds none. An expired suspension is
+ *  active again (effectiveState). */
+export function holdsAuthority(p: (ModerationFacts & { departed_at?: string | null }) | null | undefined, now: Date = new Date()): boolean {
+  if (p?.departed_at) return false;
+  return effectiveState(p, now) === 'active';
+}
+
 /** The words a refused write answers with. */
 export function writeRefusalMessage(state: ModerationState, until: string | null | undefined): string {
   switch (state) {

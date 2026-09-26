@@ -19,6 +19,7 @@ import { readFormatConfig } from './format-config';
 import { readRounds, syncRoundRoster } from './lifecycle-server';
 import { notifyDecision, notifyRequest } from './notify';
 import type { SportEventParticipantRow, SportEventRow } from './types';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -162,7 +163,27 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
 
   if (written && plan.next.accepted) {
     await snapshotAtAccept(admin, written);
-    if (event.status === 'live') await syncRoundRoster(admin, event.id, written.profile_id, 'add');
+    // A non-playing row (a co-organizer who only runs the event) never joins a round's scorecard.
+    if (event.status === 'live' && written.playing) await syncRoundRoster(admin, event.id, written.profile_id, 'add');
+    // Authority PR 2: an accepted co-organizer IS the event's backup.
+    if (written.role === 'co_organizer') {
+      await recordAuthority(admin, {
+        subject: { type: 'sport_event', id: event.id },
+        actor: { kind: 'member', profileId: actorProfileId },
+        action: 'co_organizer_added',
+        targetProfileId: written.profile_id,
+        detail: { participant_id: written.id, via: action },
+      });
+    }
+  }
+  if (row && row.role === 'co_organizer' && (action === 'remove' || action === 'withdraw')) {
+    await recordAuthority(admin, {
+      subject: { type: 'sport_event', id: event.id },
+      actor: { kind: 'member', profileId: actorProfileId },
+      action: 'co_organizer_removed',
+      targetProfileId: row.profile_id,
+      detail: { participant_id: row.id, via: action },
+    });
   }
   if (row && event.status === 'live' && (action === 'withdraw' || action === 'remove') && row.status === 'accepted' && row.playing) {
     await syncRoundRoster(admin, event.id, row.profile_id, 'drop');

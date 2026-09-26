@@ -92,7 +92,11 @@ describe('parseEventPatch', () => {
 describe('parseInviteBody / parseParticipantPatch / parseListScope', () => {
   it('invites: ids and handles, deduped, lower-cased handles, 50 max', () => {
     const id = '11111111-1111-4111-8111-111111111111';
-    expect(parseInviteBody({ profile_ids: [id, id], handles: ['Sam_K', 'sam_k'] })).toEqual({ ok: true, value: { profileIds: [id], handles: ['sam_k'], recorder: false } });
+    expect(parseInviteBody({ profile_ids: [id, id], handles: ['Sam_K', 'sam_k'] })).toEqual({ ok: true, value: { profileIds: [id], handles: ['sam_k'], recorder: false, role: 'participant', playing: true } });
+    // Authority PR 2: inviting the event's backup — a co-organizer, playing or not.
+    expect(parseInviteBody({ profile_ids: [id], role: 'co_organizer', playing: false })).toMatchObject({ ok: true, value: { role: 'co_organizer', playing: false } });
+    expect(parseInviteBody({ profile_ids: [id], role: 'organizer' })).toMatchObject({ ok: false });
+    expect(parseInviteBody({ profile_ids: [id], playing: 'no' })).toMatchObject({ ok: false });
     expect(parseInviteBody({ profile_ids: [id], recorder: true })).toMatchObject({ ok: true, value: { recorder: true } });
     expect(parseInviteBody({ profile_ids: [id], recorder: 'yes' })).toMatchObject({ ok: false });
     expect(parseInviteBody({})).toMatchObject({ ok: false, error: 'Nobody to invite' });

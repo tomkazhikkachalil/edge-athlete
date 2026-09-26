@@ -12,6 +12,7 @@ import { notifyInvites } from '@/lib/sport-events/notify';
 import type { SportEventParticipantRow } from '@/lib/sport-events/types';
 import { parseInviteBody } from '@/lib/sport-events/validate';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordCoOrganizerInvited } from '@/lib/sport-events/roles-server';
 
 /**
  * POST — invite players by profile id and / or handle (organizers, draft /
@@ -39,7 +40,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const read = await readSportEventAccess(admin, id, actor.profileId, null);
     if (!read) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (!read.access.canManage) return NextResponse.json({ error: 'Only an organizer can invite.' }, { status: 403 });
-    if (read.event.status !== 'draft' && read.event.status !== 'open') return NextResponse.json({ error: 'The event is not taking invites.' }, { status: 409 });
+    // Authority PR 2: a co-organizer who does not play takes no seat, so the host may add one while live.
+    const inviteAs = { role: parsed.value.role, playing: parsed.value.playing };
+    const seatlessBackup = inviteAs.role === 'co_organizer' && !inviteAs.playing;
+    // Only the host names a co-organizer — refused up front, not skipped per person.
+    if (inviteAs.role === 'co_organizer' && read.event.host_profile_id !== actor.profileId) return NextResponse.json({ error: 'Only the host can add a co-organizer.' }, { status: 403 });
+    if (read.event.status !== 'draft' && read.event.status !== 'open' && !(seatlessBackup && read.event.status === 'live')) return NextResponse.json({ error: 'The event is not taking invites.' }, { status: 409 });
 
     const skipped = { unknown: 0, blocked: 0, supervised: 0, existing: 0 };
     const candidates = new Set<string>(parsed.value.profileIds);
@@ -72,10 +78,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const now = new Date().toISOString();
     for (const pid of allowed) {
       const row = rows.find(r => r.profile_id === pid) ?? null;
-      const plan = planJoin('invite', { event: { status: read.event.status, joinMode: read.event.join_mode, capacity: read.event.capacity }, actorRole: read.access.role, row: row ? toSnapshot(row) : null, rows: snapshots });
+      const plan = planJoin('invite', { event: { status: read.event.status, joinMode: read.event.join_mode, capacity: read.event.capacity }, actorRole: read.access.role, row: row ? toSnapshot(row) : null, rows: snapshots, inviteAs });
       if (!plan.ok) { skipped.existing += 1; continue; }
       // Phase 4: "Invite as recorder" — the row carries the flag from the invite; a recorder who does not play flips playing off later.
-      const patch = { role: plan.next.role ?? 'participant', status: 'invited', playing: true, waitlist_position: null, invited_by: actor.profileId, ...(parsed.value.recorder ? { recorder: true } : {}) };
+      const patch = { role: plan.next.role ?? 'participant', status: 'invited', playing: plan.next.playing ?? true, waitlist_position: null, invited_by: actor.profileId, ...(parsed.value.recorder ? { recorder: true } : {}) };
       const result = plan.create
         ? await admin.from('sport_event_participants').insert({ sport_event_id: id, profile_id: pid, ...patch }).select(PARTICIPANT_COLUMNS).single()
         : await admin.from('sport_event_participants').update({ ...patch, responded_at: null, accepted_at: null, updated_at: now }).eq('id', (row as SportEventParticipantRow).id).select(PARTICIPANT_COLUMNS).single();
@@ -84,6 +90,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         continue;
       }
       invited.push(pid);
+      if (patch.role === 'co_organizer') await recordCoOrganizerInvited(admin, id, actor.profileId, pid, patch.playing);
     }
 
     await notifyInvites({ admin, eventId: id, eventName: read.event.name, actorProfileId: actor.profileId }, invited);

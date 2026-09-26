@@ -210,7 +210,8 @@ describe('structureAggregateGET', () => {
     });
     const res = await structureAggregateGET(admin, SCOPE, { includeCounts: true });
     const body = await res.json();
-    expect(body.counts).toEqual({ managers: 0, rosterAthletes: 0 });
+    // Authority PR 2: the backup state rides along — no owner / manager rows → none.
+    expect(body.counts).toEqual({ managers: 0, rosterAthletes: 0, backup: 'none' });
     const membershipCalls = calls.filter(c => c.table === 'memberships');
     expect(membershipCalls[0].filters).toMatchObject({
       org_id: 'org-1',
@@ -226,5 +227,7 @@ describe('structureAggregateGET', () => {
       scope_type: 'org',
       status: ['active', 'placed'],
     });
+    // The third read is the backup's: active owners and managers only (staff never count).
+    expect(membershipCalls[2].filters).toMatchObject({ org_id: 'org-1', kind: 'follow', scope_type: 'org', role: ['owner', 'manager'] });
   });
 });
