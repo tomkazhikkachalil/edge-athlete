@@ -1,5 +1,22 @@
 # Development Log
 
+## September 26, 2026 — Results kept PR 1: migration 241 and the one official predicate (merges ALONE; 241 runs on prod before PR 2)
+
+**Why (Tom):** the untag rule, which he widened this session. Official results are never removed by their player. Casual results are hide only, never deleted: *"I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."* A wrong person on an official result keeps the data: support moves it to the right person and both are told. The audit found ten ways a person could make a result disappear, and none knew official from casual. The event opt-out deleted the mirror, handicap entry and dataset row. The event HOST's round delete wiped every player's. A stat post's delete took its dataset row, even an org's `club_recorded` line.
+
+**241 (`database/migrations/241_results_kept.sql`, twin `verify-241-results-kept.sql`):**
+- `posts.status` gains `'profile_hidden'` (+ `profile_hidden_at`). It is a STATUS so every published-only reader skips it unchanged, and it is distinct from moderation's `hidden`.
+- `golf_rounds.profile_hidden_at` (+ a partial index). The handicap, WHS, the leaderboards and the dataset keep reading hidden rounds.
+- `authority_audit` gains `result_hidden`, `result_unhidden`, `result_reassigned`, `result_corrected` and `official_tag_removed`.
+- The resolution code `result_corrected`.
+- No new FKs. **Staging:** the twin was run before (the expected CHECK FAILED rows) and after (8/8 OK); `check:schema` OK at head 241. Not yet on prod.
+
+**The predicate (`src/lib/results/`):** `official.ts isOfficialOrigin` is pure. A result is official when there is an org host, a competition, a linked contest (211 round / 220 match / 181 `contest_id`), or stored provenance `club_recorded` / `league_verified` / `sanctioned`. `origin-server.ts resolveResultOrigin` walks a post, a golf round, a group post, a stat line or an event through every link the schema has, and FAILS CLOSED (a read error counts as official). `AUTHORITY_ACTIONS` and the resolution codes are now pinned against 241, and `words.ts` names the new actions.
+
+**Proof:** `results-official.test.ts` covers the predicate matrix, the link walk over a table-driven mock (org event, contest, league contest, provenance, athlete-hosted, casual, each post link) and fail-closed. `npm run verify` green (3823).
+
+**241 ran on prod (Sep 26 2026, Tom, the SQL editor):** `241 APPLIED | 1 | 2 | 1 | 1 | 241`. `check:schema:prod` OK; Ledger OK at head 241. The baseline is regenerated from prod in this PR (`000_rebuild.sql`, ledger head 241, self-check OK; dump `2026-09-26-2-schema.json`).
+
 ## September 25, 2026 — Authority PR 5: report an org or event, recover one, soft-deleted news, the prune window, the owner's Activity, the docs (zero DDL; needs 240; stacked on PR 4)
 
 **Why:** Tom's decision 4 — anyone can report an org, its site or an event; an audit log; news soft delete; revision history a vandal can't prune. And the front door of decision 3: someone who has lost the running of a club, league or event can ask the team for it back, even signed out.

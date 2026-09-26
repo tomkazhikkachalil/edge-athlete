@@ -39,6 +39,11 @@ export const AUTHORITY_ACTION_WORDS: Record<AuthorityAction, string> = {
   event_details_changed: 'Changed the event details',
   event_cancelled: 'Cancelled the event',
   event_deleted: 'Deleted the event',
+  result_hidden: 'Hid an official result from their profile',
+  result_unhidden: 'Showed an official result on their profile again',
+  result_reassigned: 'Moved a result to the right person',
+  result_corrected: 'Corrected a result',
+  official_tag_removed: 'Took someone off an official result',
 };
 
 export function actionWords(action: string): string {

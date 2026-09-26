@@ -39,6 +39,8 @@ export const RESOLUTION_CODES = [
   'declined',
   // Authority (240): the Edge Athlete team gave someone back the running of an org or event.
   'access_restored',
+  // 241: support moved a result to the right person or corrected it.
+  'result_corrected',
 ] as const;
 export type ResolutionCode = (typeof RESOLUTION_CODES)[number];
 
@@ -163,6 +165,7 @@ export const RESOLUTION_CODE_LABELS: Record<ResolutionCode, string> = {
   feature_shipped: 'Feature shipped',
   declined: 'Declined',
   access_restored: 'Access restored',
+  result_corrected: 'Result corrected',
 };
 
 /** The label for a ticket's reason, whichever list it came from. */

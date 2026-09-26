@@ -15,8 +15,9 @@ const MIGRATION = fs.readFileSync(path.join(ROOT, 'database/migrations/240_autho
 const SQL = MIGRATION.replace(/--[^\n]*/g, '');
 
 describe('240 and the vocabulary', () => {
-  it('AUTHORITY_ACTIONS is exactly the CHECK list', () => {
-    const block = /authority_audit_action_check CHECK \(action IN \(([\s\S]*?)\)\)/.exec(SQL);
+  it('AUTHORITY_ACTIONS is exactly the LATEST CHECK list (241 re-adds it with the result actions)', () => {
+    const latest = fs.readFileSync(path.join(ROOT, 'database/migrations/241_results_kept.sql'), 'utf8').replace(/--[^\n]*/g, '');
+    const block = /authority_audit_action_check CHECK \(action IN \(([\s\S]*?)\)\)/.exec(latest);
     expect(block, 'the action CHECK').toBeTruthy();
     const inFile = [...block![1].matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
     expect([...inFile].sort()).toEqual([...AUTHORITY_ACTIONS].sort());

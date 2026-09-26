@@ -1,7 +1,7 @@
 // ── Authority — the vocabulary (migration 240, Sep 25 2026) ─────────────────
 // Zero imports on purpose: client components (the owner's Activity log) and
 // server code share it. AUTHORITY_ACTIONS is 240's CHECK list — pinned equal
-// by src/lib/__tests__/authority-audit.test.ts, so a value the database would
+// by src/lib/__tests__/authority-audit.test.ts (against the LATEST CHECK — 241 re-adds it), so a value the database would
 // refuse never compiles into a writer.
 
 export const AUTHORITY_SUBJECTS = ['org', 'sport_event'] as const;
@@ -19,6 +19,9 @@ export const AUTHORITY_ACTIONS = [
   'recovery_link_minted', 'recovery_link_redeemed',
   'co_organizer_invited', 'co_organizer_added', 'co_organizer_removed', 'host_transferred',
   'event_details_changed', 'event_cancelled', 'event_deleted',
+  // 241 (results are never lost): a player hides / unhides an official result; support
+  // reassigns or corrects one on a ticket; an org takes a person off an official result.
+  'result_hidden', 'result_unhidden', 'result_reassigned', 'result_corrected', 'official_tag_removed',
 ] as const;
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];
 
