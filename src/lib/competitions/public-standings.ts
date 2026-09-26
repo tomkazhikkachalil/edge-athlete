@@ -9,6 +9,7 @@
 // VIEWER-INDEPENDENT is the contract: nothing here may branch on a
 // session, so one cached entry serves everyone (authed or not).
 
+import { orderStandingRows } from './standings-order';
 import { entryDisplayName } from './entries';
 import { BRACKET_COLUMNS, bracketColumnsFromContests, type BracketColumnView, type BracketContestRow } from './bracket-draw';
 import { readBracketRows, readMeetRows } from './standings';
@@ -262,7 +263,7 @@ export async function fetchPublicStandings(
   }
 
   const rowsByCompetition = new Map<string, PublicStandingRow[]>();
-  for (const r of standingsRes.data ?? []) {
+  for (const r of orderStandingRows(standingsRes.data ?? [])) {
     if (omittedEntries.has(r.entry_id)) continue;
     if (!rowsByCompetition.has(r.competition_id)) rowsByCompetition.set(r.competition_id, []);
     const handle = entryHandle.get(r.entry_id);
