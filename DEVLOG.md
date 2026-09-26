@@ -1,5 +1,22 @@
 # Development Log
 
+## September 26, 2026 — Storage sweep: stop deleting org assets (PR 0 of the teams & divisions program; zero DDL)
+
+**Found while planning the teams program:** the weekly storage sweep (`/api/cron/storage-sweep`, a real delete since Aug 1) keeps a file only if a registered URL column references it (`URL_SOURCE_COLUMNS`). Several writers store a BARE storage path instead, or were never registered, so their files looked orphaned once past the 48-hour grace period:
+- `org_sites.logo_path` (`org-logos/…`)
+- everything under `org-media/{siteId}/…`: hero, contact, sponsor and page images, and document PDFs, referenced from jsonb config and revision snapshots
+- `contest_media.storage_path` (`contest-media/…`)
+- `sport_event_media.media_url` / `thumbnail_url` (216), a URL column that was simply never registered: a live event's photos were swept unless the completion mirror had already copied them into `post_media`
+
+**Checked read-only on production:** all 3 org logos are gone from storage (eagle-creek-golf-club, eagle-creek-golf-club-2, the-ottawa-open), and `org-logos/` is empty. `org_sites.logo_path` still names them, so those sites show no logo. Storage deletes are not in the database backups: **the logos must be re-uploaded.**
+
+**The fix:**
+- **The cron is report-only again:** `vercel.json` calls it with `?dryRun=1`. The real delete comes back only after a dashboard dry run lists no live path.
+- **`PROTECTED_PREFIXES`** (`org-logos/`, `org-media/`, `contest-media/`, `team-logos/`, the last for this program's team logos): `isSweepable` never deletes under them, however old and unreferenced. Their own owners delete them (logo replace, the media DELETE routes).
+- **`sport_event_media` joins `URL_SOURCE_COLUMNS`.**
+- **The guard:** `storage-sweep.test.ts` reads every `.upload(` in `src` and requires each writer to be classified: kept by a scanned URL column, by a protected prefix, or living in an unswept bucket (`consent-evidence`). A new bare-path writer fails the gate until it says how its files survive.
+- `docs/HARDENING.md` carries the rule.
+
 ## September 26, 2026 — Gaps round: the prod probe (main dd08f2e9; test-only follow-up)
 
 **The probe** (after #935–#938 merged and production served `dd08f2e9`) covered 10 spec files on desktop, mobile and webkit-mobile:
