@@ -1,5 +1,31 @@
 # Development Log
 
+## September 26, 2026 — Results kept PR 3: official results are locked, and a person taken off one is told (zero DDL; needs 241; stacked on PR 2)
+
+**Why (Tom):** self-untag is fine *except from official events*; a wrong tag goes through support; *"Make sure individuals know if they've been untagged from an official result. This is to ensure that both sides stay accountable and there is not funny business."*
+
+**The locks (409 `official: true`, `OFFICIAL_RESULT_REFUSAL`: "you can hide it from your profile — and if it isn't you, report it"):**
+- `DELETE /api/tags`, both branches (self-untag by post, and a tag row by the tagged person, their guardian or the creator), refuses an official post before any write.
+- `PATCH /api/golf/rounds/[id]` refuses an official round before the body is read, so a player never rewrites an org's record.
+- `PUT /api/posts taggedProfiles` refuses a tag change on an official post. On EVERY post it keeps self-untag markers (`status='removed'` rows are no longer erased by an edit) and never re-tags someone who untagged themselves. Before this, re-listing a person silently brought back a tag they had removed.
+
+Guardians meet the same doors (acting-as). Hiding stays allowed (PR 2), logged against the event on an official result. The Tagged tab shows the refusal's words.
+
+**The bells (`src/lib/results/notify-server.ts tellOfficialChange`):** an `authority_notice` to the athlete ("<Org> removed you from an official record … reply to support if this looks wrong"), plus `official_tag_removed` in the org's authority log with the acting staff member. It fires when:
+- org staff delete an athlete's stat line (`statLineDELETE`);
+- org staff untag them from competition media (`contestMediaTagDELETE`, now only on a real flip);
+- a manager removes their competition entry (`competition-server entryDELETE`).
+The routes pass the staff member. Dispute raise, withdraw and resolve change a status, never a person's values, so they are not belled.
+
+**Flagged to Tom (a default, not a decision):** a person may still remove a PHOTO tag from official competition media themselves. That is their likeness, and guardians keep the photo-consent exit. The official lock is for results.
+
+**Proof:** `results-official-lock.test.ts` checks that each lock comes before the door's first write, that the marker is kept and the edit refused, that the photo exception is explicit, and that the three org writers bell through the helper with the actor passed. `npm run verify` green (3846). **Staging:** `results-official-lock.spec.ts` covers a club event B plays:
+- B's PATCH of the mirror → 409;
+- B's self-untag from the round's post → 409, and the tag stays;
+- B's hide → 200, with the dataset row kept and `result_hidden` logged against the event;
+- the club removing B's competition entry → B's bell and `official_tag_removed` with the owner as actor.
+Regressions passed: `tagged` (casual self-untag unchanged), `contest-media`, `results-hide`.
+
 ## September 26, 2026 — Results kept PR 2: hide, never delete — a person controls how their profile looks; the record stays (zero DDL; needs 241; stacked on PR 1)
 
 **Why (Tom):** *"Hide only, no delete. I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."* On an official result, the opt-out hides it from the profile only.

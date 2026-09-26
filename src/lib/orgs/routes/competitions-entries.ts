@@ -82,7 +82,7 @@ export async function competitionsEntriesRouteDELETE(request: NextRequest, kind:
     const admin = getSupabaseAdmin();
     const gate = await requireCompetitionManager(admin, user, kind, id);
     if (!gate.ok) return gate.response;
-    return await entryDELETE(admin, entryId, { side: kind, orgId: id });
+    return await entryDELETE(admin, entryId, { side: kind, orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[COMPETITIONS] ${kind} entries DELETE error:`, error);

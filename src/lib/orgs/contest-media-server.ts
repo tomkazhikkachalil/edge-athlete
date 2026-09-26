@@ -23,6 +23,7 @@
 // mediaAvailable:false, uploads answer a friendly error.
 
 import { NextResponse } from 'next/server';
+import { tellOfficialChange } from '@/lib/results/notify-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/competitions/validate';
 import { signMediaToken } from '@/lib/media/token';
@@ -449,7 +450,9 @@ export async function contestMediaTagDELETE(
   admin: Admin,
   mediaId: string,
   profileId: string,
-  scope: CompetitionScope | null
+  scope: CompetitionScope | null,
+  /** Results-kept (241): the staff member untagging — the athlete is told and it is logged. */
+  actorProfileId: string | null = null
 ): Promise<NextResponse> {
   const { data: media, error: readError } = await admin
     .from('contest_media')
@@ -464,14 +467,22 @@ export async function contestMediaTagDELETE(
   if (!loaded) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const access = await resolveCompetitionAccess(admin, loaded.comp, scope);
   if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const { error } = await admin
+  const { data: flipped, error } = await admin
     .from('contest_media_tags')
     .update({ status: 'removed' })
     .eq('media_id', mediaId)
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .neq('status', 'removed')
+    .select('media_id');
   if (error) {
     console.error(`${TAG} untag error:`, error);
     return NextResponse.json({ error: 'Failed to untag' }, { status: 500 });
+  }
+  // Results-kept (241, Tom): a person the org untags from official competition media is told.
+  const orgId = (loaded.comp as { org_id?: string | null }).org_id ?? scope?.orgId ?? null;
+  if ((flipped ?? []).length > 0 && orgId) {
+    const { data: org } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle();
+    await tellOfficialChange(admin, { profileId, orgId, actorProfileId, action: 'official_tag_removed', what: `a photo tag in ${(loaded.comp as { name?: string }).name ?? 'a competition'}`, orgName: (org as { name?: string } | null)?.name ?? null, actionUrl: '/athlete?tab=tagged' });
   }
   await revalidateOrgSiteForCompetition(admin, loaded.comp.id);
   return NextResponse.json({ success: true });

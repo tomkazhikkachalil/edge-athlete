@@ -1,5 +1,7 @@
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { setResultHidden } from '@/lib/results/hide-server';
+import { resolveResultOrigin } from '@/lib/results/origin-server';
+import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
@@ -99,6 +101,11 @@ export async function PATCH(
     }
     if (round.profile_id !== user.id) {
       return NextResponse.json({ error: 'Only the round owner can edit it' }, { status: 403 });
+    }
+    // Results-kept round (241): an OFFICIAL round (an org event, a league, an org-recorded
+    // score) is the org's record — its player never rewrites it; support corrects it.
+    if ((await resolveResultOrigin(supabase, { kind: 'golf_round', id: roundId })).official) {
+      return NextResponse.json({ error: OFFICIAL_RESULT_REFUSAL, official: true }, { status: 409 });
     }
 
     const body = await request.json();

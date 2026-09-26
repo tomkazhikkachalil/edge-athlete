@@ -78,7 +78,7 @@ export async function competitionsOneMediaTagsRouteDELETE(request: NextRequest, 
     return await contestMediaTagDELETE(ctx.admin, mediaId, profileId, {
       side: kind,
       orgId: ctx.id,
-    });
+    }, ctx.user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[CONTEST MEDIA] ${kind} tags DELETE error:`, error);

@@ -82,7 +82,7 @@ export async function competitionsOneStatLinesRouteDELETE(request: NextRequest, 
     if (!lineId || !UUID_RE.test(lineId)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    return await statLineDELETE(ctx.admin, lineId, { side: kind, orgId: ctx.id });
+    return await statLineDELETE(ctx.admin, lineId, { side: kind, orgId: ctx.id }, ctx.user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[STAT LINES] ${kind} DELETE error:`, error);

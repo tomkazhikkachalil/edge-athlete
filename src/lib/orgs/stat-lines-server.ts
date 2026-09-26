@@ -32,6 +32,7 @@ import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
 import { fromContestStatLine, type ContestStatLineOrigin } from '@/lib/performance/map';
 import { naturalKey, type PerformanceRow } from '@/lib/performance/types';
 import { deletePerformancesByKeys, upsertPerformances } from '@/lib/performance/write-server';
+import { tellOfficialChange } from '@/lib/results/notify-server';
 import { isMissingTableError, type StatLinesUpsertInput } from '@/lib/competitions/validate';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
@@ -433,11 +434,13 @@ export async function statLinesUpsertPOST(
 export async function statLineDELETE(
   admin: Admin,
   lineId: string,
-  scope: CompetitionScope | null
+  scope: CompetitionScope | null,
+  /** Results-kept (241): the staff member deleting it — the athlete is told who (by org) and it is logged. */
+  actorProfileId: string | null = null
 ): Promise<NextResponse> {
   const { data: line, error: readError } = await admin
     .from('contest_stat_lines')
-    .select('id, team_id, provenance, contest:contest_id (competition:competition_id (id, name, sport_key, format, status, org_id, org:organizations(kind)))')
+    .select('id, team_id, provenance, profile_id, contest:contest_id (competition:competition_id (id, name, sport_key, format, status, org_id, org:organizations(kind)))')
     .eq('id', lineId)
     .maybeSingle();
   if (readError && isMissingTableError(readError.code)) {
@@ -469,6 +472,15 @@ export async function statLineDELETE(
   }
   // Data foundation F4: the line's performance row dies with it.
   await deletePerformancesByKeys(admin, [naturalKey.contestStatLine(lineId)]);
+  // Results-kept (241, Tom): a person taken off an official record is told, and it is logged.
+  const athlete = (line as { profile_id?: string | null }).profile_id ?? null;
+  if (athlete) {
+    const orgId = (comp as { org_id?: string | null }).org_id ?? scope?.orgId ?? null;
+    if (orgId) {
+      const { data: org } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle();
+      await tellOfficialChange(admin, { profileId: athlete, orgId, actorProfileId, action: 'official_tag_removed', what: `your stat line in ${(comp as { name?: string }).name ?? 'a competition'}`, orgName: (org as { name?: string } | null)?.name ?? null, actionUrl: '/athlete?tab=stats' });
+    }
+  }
   await revalidateOrgSiteForCompetition(admin, comp.id);
   return NextResponse.json({ success: true });
 }
