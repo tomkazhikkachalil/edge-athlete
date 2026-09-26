@@ -61,6 +61,34 @@ export function parseFormFields(kind: FormKind, raw: Record<string, unknown>): F
 /** The honeypot: a field a person never sees; a filled one is a bot. */
 export const HONEYPOT_FIELD = 'website';
 
+// ── A resubmission is not a second message (gaps round, Sep 26 2026) ──────
+// A double-click, a Back-then-Submit or a flaky connection's retry sends the
+// SAME fields again. Within the window, an identical (kind, fields) pair on
+// the same site answers #sent- without a second row or a second bell. No
+// DDL and no render-time state (the page is ISR-cached): the route reads
+// the site's recent rows over the (site_id, created_at DESC) index.
+export const RESUBMIT_WINDOW_MS = 10 * 60_000;
+
+function canonicalFields(fields: unknown): string {
+  if (!fields || typeof fields !== 'object') return '';
+  const entries = Object.entries(fields as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify(entries);
+}
+
+export interface RecentSubmission {
+  kind: string;
+  fields: unknown;
+  created_at: string;
+}
+
+export function isDuplicateSubmission(kind: FormKind, fields: FormFields, recent: readonly RecentSubmission[], now: Date): boolean {
+  const key = canonicalFields(fields);
+  const since = now.getTime() - RESUBMIT_WINDOW_MS;
+  return recent.some(r => r.kind === kind && Date.parse(r.created_at) >= since && canonicalFields(r.fields) === key);
+}
+
 function secrets(): string[] {
   return [process.env.MEDIA_PROXY_SECRET, process.env.MEDIA_PROXY_SECRET_PREVIOUS].filter((s): s is string => !!s);
 }

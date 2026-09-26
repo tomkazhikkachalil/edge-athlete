@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { HONEYPOT_FIELD, formKindOf, parseFormFields, submissionSummary, verifyFormToken } from '@/lib/org-sites/forms';
+import { HONEYPOT_FIELD, RESUBMIT_WINDOW_MS, formKindOf, isDuplicateSubmission, parseFormFields, submissionSummary, verifyFormToken } from '@/lib/org-sites/forms';
 import { isFormWidgetKey } from '@/lib/site-builder/catalog';
 import { loadSnapshotByRevisionId } from '@/lib/org-sites/revisions-server';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
@@ -17,7 +17,8 @@ import { reportRouteError } from '@/lib/observability/report';
 // form-encoded (a native <form>). Order: the honeypot (a bot's success —
 // nothing stored), the per-IP bucket and the per-site day cap, the site
 // (live only) and the widget (a form widget on the PUBLISHED layout — home
-// or a page; unknown = 404), the form key, the fields, the insert, the notifications to
+// or a page; unknown = 404), the form key, the fields, the resubmission check
+// (the same fields within ten minutes = sent, nothing stored), the insert, the notifications to
 // the org's owner and managers, the owner's email when SMTP is configured.
 // Every outcome is a 303 back to the page the form sat on (the same-origin
 // Referer, else the site home) at #sent-<id> or #error-<id>.
@@ -102,6 +103,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const fields = parseFormFields(kind, raw);
   if (!fields) return to('error');
+
+  // A resubmission (a double-click, Back-then-Submit, a retry) is the same
+  // message: #sent-, no second row, no second bell. A failed read stores
+  // the message anyway — losing one is worse than a duplicate.
+  const now = new Date();
+  const { data: recent, error: recentError } = await admin
+    .from('org_site_form_submissions')
+    .select('kind, fields, created_at')
+    .eq('site_id', site.id)
+    .gte('created_at', new Date(now.getTime() - RESUBMIT_WINDOW_MS).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (recentError) reportRouteError(`${TAG} recent read error:`, recentError);
+  else if (isDuplicateSubmission(kind, fields, recent ?? [], now)) return to('sent');
 
   const { data: inserted, error } = await admin
     .from('org_site_form_submissions')
