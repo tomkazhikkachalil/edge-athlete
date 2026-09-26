@@ -169,7 +169,12 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to remove tag');
+      if (!response.ok) {
+        // Results-kept (241): an official result says why it stays (and how to report a wrong person).
+        const body = await response.json().catch(() => ({}));
+        if (body.official) { showError('This is an official result', typeof body.error === 'string' ? body.error : 'It stays on the record.'); return; }
+        throw new Error('Failed to remove tag');
+      }
       setItems(prev => prev.filter(item => item.id !== target.id));
       fetchSummary();
       onCountsChanged?.();

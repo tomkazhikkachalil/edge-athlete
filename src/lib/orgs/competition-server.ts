@@ -1,4 +1,5 @@
 import { AD_HOC_REFUSAL_COPY, adHocEntryRefusal, entryDisplayName } from '@/lib/competitions/entries';
+import { tellOfficialChange } from '@/lib/results/notify-server';
 import { bracketDraw, bracketFill, BRACKET_COLUMNS, SEEDS_REFUSAL_COPY, seedsRefusal } from '@/lib/competitions/bracket-draw';
 import { ADVANCE_KINDS, isAdvanceKind } from '@/lib/competitions/contest-outcome';
 import { readBracketRows } from '@/lib/competitions/standings';
@@ -640,7 +641,9 @@ export async function entryDecidePATCH(
 export async function entryDELETE(
   admin: Admin,
   entryId: string,
-  scope: CompetitionScope | null
+  scope: CompetitionScope | null,
+  /** Results-kept (241): the manager removing it — an athlete taken out of a competition is told. */
+  actorProfileId: string | null = null
 ): Promise<NextResponse> {
   if (scope) {
     // competition_entries has no org column — verify through the
@@ -665,7 +668,7 @@ export async function entryDELETE(
     .from('competition_entries')
     .delete()
     .eq('id', entryId)
-    .select('id, competition_id');
+    .select('id, competition_id, profile_id');
   if (error) {
     console.error(`${TAG} entry delete error:`, error);
     return NextResponse.json({ error: 'Failed to remove the entry' }, { status: 500 });
@@ -675,6 +678,16 @@ export async function entryDELETE(
   }
   await recomputeStandingsBestEffort(admin, deleted[0].competition_id as string);
   await revalidateOrgSiteForCompetition(admin, deleted[0].competition_id as string);
+  // Results-kept (241, Tom): an athlete taken out of an official competition is told, and it is logged.
+  const athlete = (deleted[0] as { profile_id?: string | null }).profile_id ?? null;
+  if (athlete) {
+    const { data: comp } = await admin.from('competitions').select('name, org_id').eq('id', deleted[0].competition_id as string).maybeSingle();
+    const orgId = (comp as { org_id?: string | null } | null)?.org_id ?? scope?.orgId ?? null;
+    if (orgId) {
+      const { data: org } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle();
+      await tellOfficialChange(admin, { profileId: athlete, orgId, actorProfileId, action: 'official_tag_removed', what: `your entry in ${(comp as { name?: string } | null)?.name ?? 'a competition'}`, orgName: (org as { name?: string } | null)?.name ?? null, actionUrl: '/athlete?tab=stats' });
+    }
+  }
   return NextResponse.json({ action: 'deleted' });
 }
 

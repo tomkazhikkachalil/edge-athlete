@@ -1,5 +1,7 @@
 import { HIDDEN_NOTICE, isResultPost, type PostResultFacts } from '@/lib/results/kinds';
 import { setResultHidden } from '@/lib/results/hide-server';
+import { resolveResultOrigin } from '@/lib/results/origin-server';
+import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { naturalKey } from '@/lib/performance/types';
 import { NextRequest, NextResponse } from 'next/server';
 import { applyRoundCounts, SPORT_EVENT_ROUND_LABEL_SELECT, sportEventIdsOf, sportEventLabelsByRound } from '@/lib/sport-events/feed';
@@ -1777,7 +1779,7 @@ export async function PUT(request: NextRequest) {
     // First, verify the post belongs to the authenticated user
     const { data: existingPost, error: fetchError } = await supabase
       .from('posts')
-      .select('profile_id, sport_key, status')
+      .select('profile_id, sport_key, status, tags')
       .eq('id', postId)
       .single();
 
@@ -1788,6 +1790,20 @@ export async function PUT(request: NextRequest) {
     // Ownership or guardianship of the post's profile (Round C parity)
     if (!(await sessionMayManagePostContent(user.id, existingPost.profile_id))) {
       return NextResponse.json({ error: 'Unauthorized to edit this post' }, { status: 403 });
+    }
+
+    // Results-kept round (241): a person who untagged THEMSELVES stays untagged —
+    // re-listing them never re-tags them (their marker is kept below) — and the
+    // people on an OFFICIAL result are corrected by Edge Athlete support only.
+    if (Array.isArray(taggedProfiles)) {
+      const { data: markers } = await supabase.from('post_tags').select('tagged_profile_id').eq('post_id', postId).eq('status', 'removed');
+      const removed = new Set(((markers ?? []) as { tagged_profile_id: string }[]).map(m => m.tagged_profile_id));
+      taggedProfiles = taggedProfiles.filter(id => !removed.has(id));
+      const before = new Set(Array.isArray(existingPost.tags) ? (existingPost.tags as string[]) : []);
+      const changed = taggedProfiles.length !== before.size || taggedProfiles.some(id => !before.has(id));
+      if (changed && (await resolveResultOrigin(supabase, { kind: 'post', id: postId })).official) {
+        return NextResponse.json({ error: OFFICIAL_RESULT_REFUSAL, official: true }, { status: 409 });
+      }
     }
 
     // Send-back resubmit (Wave 2, mig 129): saving an edit of a sent-back
@@ -1843,6 +1859,7 @@ export async function PUT(request: NextRequest) {
             .from('post_tags')
             .delete()
             .eq('post_id', postId)
+            .neq('status', 'removed') // 241: a self-untag marker is never erased by an edit
             .not('tagged_profile_id', 'in', `(${taggedProfiles.join(',')})`);
           await supabase
             .from('post_tags')
@@ -1853,7 +1870,7 @@ export async function PUT(request: NextRequest) {
               status: 'active',
             })), { onConflict: 'post_id,tagged_profile_id' });
         } else {
-          await supabase.from('post_tags').delete().eq('post_id', postId);
+          await supabase.from('post_tags').delete().eq('post_id', postId).neq('status', 'removed');
         }
       } catch (tagSyncError) {
         // Non-fatal: posts.tags (the read store) is already updated above.

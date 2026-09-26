@@ -1,3 +1,5 @@
+import { resolveResultOrigin } from '@/lib/results/origin-server';
+import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { NextRequest, NextResponse } from 'next/server';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
@@ -337,6 +339,11 @@ export async function DELETE(request: NextRequest) {
       if (!post) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
       }
+      // Results-kept round (241, Tom): self-untag is fine — except from an OFFICIAL
+      // result; a wrong person there is corrected by Edge Athlete support.
+      if ((await resolveResultOrigin(supabase, { kind: 'post', id: postId })).official) {
+        return NextResponse.json({ error: OFFICIAL_RESULT_REFUSAL, official: true }, { status: 409 });
+      }
       const { data: tagRow } = await supabase
         .from('post_tags')
         .select('id, status')
@@ -382,6 +389,10 @@ export async function DELETE(request: NextRequest) {
 
     if (fetchError || !tag) {
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 });
+    }
+    // Results-kept round (241): nobody removes a person from an OFFICIAL result here — support does.
+    if ((await resolveResultOrigin(supabase, { kind: 'post', id: tag.post_id })).official) {
+      return NextResponse.json({ error: OFFICIAL_RESULT_REFUSAL, official: true }, { status: 409 });
     }
 
     // The creator, the tagged person — or the tagged person's GUARDIAN
