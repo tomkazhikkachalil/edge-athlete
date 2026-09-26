@@ -12,6 +12,7 @@ import { newsDELETE, newsGET, newsPATCH } from '@/lib/org-sites/news-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // ── /api/{leagues,clubs}/[id]/site/news/[newsId] — one news post (phase 3 R3) ──────────
 
@@ -68,7 +69,17 @@ export async function siteNewsItemRouteDELETE(request: NextRequest, kind: OrgKin
     const admin = getSupabaseAdmin();
     const gate = await requireOrgManager(admin, user, kind, id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
-    return await newsDELETE(admin, kind, id, newsId);
+    const { data: doomed } = await admin.from('org_site_news').select('title, slug').eq('id', newsId).maybeSingle();
+    const res = await newsDELETE(admin, kind, id, newsId);
+    if (res.ok) {
+      await recordAuthority(admin, {
+        subject: { type: 'org', id },
+        actor: { kind: 'member', profileId: user.id },
+        action: 'news_deleted',
+        detail: { news_id: newsId, title: doomed?.title ?? null, slug: doomed?.slug ?? null },
+      });
+    }
+    return res;
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[ORG SITE NEWS] ${kind} page DELETE error:`, error);

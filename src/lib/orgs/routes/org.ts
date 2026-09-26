@@ -24,6 +24,7 @@ import { orgSitePath } from '@/lib/org-sites/urls';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // ── /api/{leagues,clubs}/[id] — the public org read + owner/manager edit ──────────
 // The GET needs no viewer gate — optional auth only resolves the viewer's
@@ -206,11 +207,31 @@ export async function orgRoutePATCH(request: NextRequest, kind: OrgKind, params:
         return NextResponse.json({ error: `Failed to update ${kind}` }, { status: 500 });
       }
       updated = row as Record<string, unknown>;
+      // Authority (240): the identity change, with before / after — the
+      // recovery panel restores a vandalised name or description from it.
+      const fields = Object.keys(updates);
+      const prior = loaded.org as unknown as Record<string, unknown>;
+      await recordAuthority(supabase, {
+        subject: { type: 'org', id },
+        actor: { kind: 'member', profileId: user.id },
+        action: 'identity_changed',
+        detail: {
+          fields,
+          before: Object.fromEntries(fields.map(f => [f, prior[f] ?? null])),
+          after: Object.fromEntries(fields.map(f => [f, (updated as Record<string, unknown>)[f] ?? null])),
+        },
+      });
     }
     if (listingChange) {
       const orgName = (updated?.name as string | undefined) ?? loaded.org.name;
       const applied = await applyListing(supabase, { side: kind, orgId: id, orgName, actorId: user.id, target: listingChange });
       if (applied instanceof NextResponse) return applied;
+      await recordAuthority(supabase, {
+        subject: { type: 'org', id },
+        actor: { kind: 'member', profileId: user.id },
+        action: 'listing_changed',
+        detail: { listing: listingChange },
+      });
     }
 
     // Program 11: the org site reads the league's visibility — a flip must

@@ -13,6 +13,7 @@ import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // ── /api/{leagues,clubs}/[id]/members — open join/leave + manager removal ────────────
 // The follow-route template: the actor is ALWAYS the session user (never a
@@ -178,6 +179,14 @@ export async function membersRoutePATCH(request: NextRequest, kind: OrgKind, par
       reportRouteError('[LEAGUE MEMBERS] role update error:', updateError);
       return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
     }
+
+    await recordAuthority(supabase, {
+      subject: { type: 'org', id },
+      actor: { kind: 'member', profileId: user.id },
+      action: role === 'manager' ? 'manager_added' : 'manager_removed',
+      targetProfileId: profileId,
+      detail: { from_role: targetRole, to_role: role },
+    });
 
     // Best-effort — never fails the role change.
     const { notifyOrgRole } = await import('@/lib/orgs/notify');

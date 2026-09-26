@@ -38,6 +38,7 @@ import { overlaySnapshot, parseSnapshot, type SnapshotAction, type ApplyContext 
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { NEUTRAL_ORG, type GalleryOrg } from '@/lib/site-builder/gallery';
 import type { SiteLayout } from '@/lib/site-builder/layout';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -306,7 +307,9 @@ export async function siteCreatePOST(
   side: OrgKind,
   orgId: string,
   orgName: string,
-  requestedSlug?: string | null
+  requestedSlug?: string | null,
+  /** 240: who created it, for the authority log (null = the system, e.g. the wizard). */
+  actorId: string | null = null
 ): Promise<NextResponse> {
   const { data: existing } = await admin
     .from('org_sites')
@@ -404,6 +407,12 @@ export async function siteCreatePOST(
     console.error(`${TAG} modules insert error:`, modulesError);
     return NextResponse.json({ error: 'Failed to create the site' }, { status: 500 });
   }
+  await recordAuthority(admin, {
+    subject: { type: 'org', id: orgId },
+    actor: actorId ? { kind: 'member', profileId: actorId } : { kind: 'system' },
+    action: 'site_created',
+    detail: { subdomain: (site as { subdomain?: string }).subdomain ?? null },
+  });
   return NextResponse.json({ site });
 }
 
@@ -441,6 +450,15 @@ export async function sitePATCH(
     }
     if (!updated || updated.length === 0) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    // Authority (240): a real state change is recorded (an idempotent repeat is not).
+    if ((input.action === 'publish') !== !!current.published_at) {
+      await recordAuthority(admin, {
+        subject: { type: 'org', id: orgId },
+        actor: userId ? { kind: 'member', profileId: userId } : { kind: 'system' },
+        action: input.action === 'publish' ? 'site_live' : 'site_offline',
+        detail: { subdomain: current.subdomain },
+      });
     }
     // P2-B: going live PROMOTES a dirty draft — preview-then-publish is the
     // moment a first-time manager means "this is what I saw". Offline leaves

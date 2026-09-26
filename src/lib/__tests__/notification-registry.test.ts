@@ -72,6 +72,8 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
     expect(bucket('system')).toEqual([
       'achievement',
       'athlete_added',
+      // Authority (mig 240): Edge Athlete support changed who runs a club, league or event.
+      'authority_notice',
       'calendar_alert',
       'club_update',
       'comment_approval_result',

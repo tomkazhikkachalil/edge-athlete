@@ -12,6 +12,7 @@ import { pageDELETE, pageGET, pagePATCH } from '@/lib/org-sites/pages-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // ── /api/{leagues,clubs}/[id]/site/pages/[pageId] — one page (phase 3 R3) ──────────
 
@@ -68,7 +69,16 @@ export async function sitePagesItemRouteDELETE(request: NextRequest, kind: OrgKi
     const admin = getSupabaseAdmin();
     const gate = await requireOrgManager(admin, user, kind, id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
-    return await pageDELETE(admin, kind, id, pageId, user.id);
+    const res = await pageDELETE(admin, kind, id, pageId, user.id);
+    if (res.ok) {
+      await recordAuthority(admin, {
+        subject: { type: 'org', id },
+        actor: { kind: 'member', profileId: user.id },
+        action: 'page_removed',
+        detail: { page_id: pageId },
+      });
+    }
+    return res;
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[ORG SITE PAGES] ${kind} page DELETE error:`, error);

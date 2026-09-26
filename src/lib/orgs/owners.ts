@@ -38,6 +38,7 @@ import {
 } from './members';
 import { readSupervisionState } from './org-creator-gate';
 import type { OrgKind } from './org-ref';
+import { recordAuthority } from '@/lib/authority/audit-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -167,6 +168,13 @@ export async function promoteToOwner(
   const { error: cacheError } = await recomputePrimaryOwner(admin, { side, orgId });
   if (cacheError) console.warn('[ORG OWNERS] cache recompute failed:', cacheError);
 
+  await recordAuthority(admin, {
+    subject: { type: 'org', id: orgId },
+    actor: { kind: 'member', profileId: user.id },
+    action: 'owner_added',
+    targetProfileId,
+    detail: { from_role: followRole, to_role: 'owner' },
+  });
   await notifyOwnerPromoted(admin, side, orgId, loaded.org.name, targetProfileId);
   return NextResponse.json({ action: 'promoted' });
 }
@@ -230,6 +238,13 @@ export async function stepDownAsOwner(
     return NextResponse.json({ error: 'Ownership changed — try again' }, { status: 409 });
   }
 
+  await recordAuthority(admin, {
+    subject: { type: 'org', id: orgId },
+    actor: { kind: 'member', profileId: user.id },
+    action: 'owner_stepped_down',
+    targetProfileId: user.id,
+    detail: { from_role: 'owner', to_role: 'manager' },
+  });
   // Quiet — a self-action (the withdraw-quiet precedent).
   return NextResponse.json({ action: 'stepped_down' });
 }

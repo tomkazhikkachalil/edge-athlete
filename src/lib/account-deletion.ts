@@ -32,6 +32,7 @@ import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
 import { orgRefOf } from './orgs/org-ref';
 import { departedProfilePatch, departureMode, type DepartureMode, type TiedCounts } from './account-departure';
+import { recordAuthority } from './authority/audit-server';
 
 /**
  * Parse any Supabase public-object URL into { bucket, path }. Returns null
@@ -378,6 +379,13 @@ async function eraseRoundsAndPosts(admin: Admin, userId: string, rounds: Rounds,
         const { error: rErr } = await admin.from('group_posts').update({ creator_id: heir.profile_id }).in('sport_event_round_id', mintedIds).eq('creator_id', userId);
         if (rErr) throw new Error(`Failed to hand over event rounds of ${ev.id}: ${rErr.message}`);
       }
+      await recordAuthority(admin, {
+        subject: { type: 'sport_event', id: ev.id as string },
+        actor: { kind: 'system' },
+        action: 'host_transferred',
+        targetProfileId: heir.profile_id as string,
+        detail: { from_profile_id: userId, to_profile_id: heir.profile_id, reason: 'account_erased' },
+      });
     }
   }
   // Sport data (golf_holes has no profile_id — cascades from golf_rounds).

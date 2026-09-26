@@ -134,6 +134,8 @@ export const NOTIFICATION_TYPE_META = {
   // Spec 2 (mig 223): the reported user's notice — a warning, a suspension,
   // a ban, an appeal's outcome — in plain words, never who reported.
   moderation_notice: { tab: 'system', icon: 'fa-gavel' },
+  // Authority (240): Edge Athlete support changed who can run a club, league or event.
+  authority_notice: { tab: 'system', icon: 'fa-user-shield' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
