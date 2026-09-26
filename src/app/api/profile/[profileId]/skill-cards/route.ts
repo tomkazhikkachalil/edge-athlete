@@ -72,7 +72,9 @@ export async function GET(
       }
     }
 
-    const skillCards = await buildSportSkillCards(profileId, supabase);
+    // The owner's view (self or guardian) counts their PRIVATE stat lines
+    // too — safe here because this answer is viewer-dependent and private.
+    const skillCards = await buildSportSkillCards(profileId, supabase, { includePrivate: isOwner });
 
     // Short private cache: the golf card recomputes the handicap from up to
     // 60 rounds per call, and a profile view often triggers a handful of

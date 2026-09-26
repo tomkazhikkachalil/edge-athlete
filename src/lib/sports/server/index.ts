@@ -15,6 +15,7 @@ import {
 } from './official-stats';
 import { statLineServerModule } from './stat-line';
 import { trackFieldServerModule } from './track-field';
+import type { StatsCardView } from './stat-line-posts';
 import type { ServerSportModule, SkillCardContribution, SportSkillCard, SportStatsCard } from './types';
 
 export type {
@@ -50,10 +51,11 @@ export function getServerSportModule(sportKey: SportKey | null): ServerSportModu
 export async function buildSportStatsCard(
   sportKey: SportKey | null,
   profileId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  view?: StatsCardView
 ): Promise<SportStatsCard | null> {
   const mod = getServerSportModule(sportKey);
-  return mod ? mod.buildStatsCard(profileId, supabase) : null;
+  return mod ? mod.buildStatsCard(profileId, supabase, view) : null;
 }
 
 // ── Skill cards ───────────────────────────────────────────────────────────────
@@ -104,11 +106,14 @@ export function assembleSkillCard(
 /**
  * One card per sport the athlete plays, in active-sports order (declared
  * sport first). Caller owns the privacy gate — this reads whatever the given
- * client can see. Sports with nothing to show contribute no card.
+ * client can see. Sports with nothing to show contribute no card. `view`
+ * defaults to the STRANGER's (public lines only); only a viewer-dependent
+ * route with a private cache passes the owner's.
  */
 export async function buildSportSkillCards(
   profileId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  view: StatsCardView = {}
 ): Promise<SportSkillCard[]> {
   // Same union as /api/profile/[id]/active-sports: declared label ∪ posted
   // sports ∪ intake-declared sport_settings rows (settings fetched here too,
@@ -172,7 +177,7 @@ export async function buildSportSkillCards(
       const mod = getServerSportModule(sportKey);
       const settings = settingsBySport.get(sportKey) ?? null;
       const contribution = mod?.buildSkillCard
-        ? await mod.buildSkillCard(profileId, supabase, { settings })
+        ? await mod.buildSkillCard(profileId, supabase, { settings, includePrivate: view.includePrivate })
         : null;
       // Phase 4: official tiles replace same-label tracked tiles
       // (verified beats tracked; provenance = the conservative minimum).

@@ -6,7 +6,9 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
 // hockey stat line (the performance writer mints its row); the rollups
 // route answers one event with the schema's tiles and a best; a stranger
 // to alpha's PRIVATE profile is refused; the Stats tab renders the rollup
-// section on alpha's own page at phone width. @mobile
+// section on alpha's own page at phone width. The line is PRIVATE: since the
+// gaps round (Sep 26 2026) the owner's sport card counts private lines too.
+// @mobile
 
 test('performance rollups: one stat line → one event, tiles and bests; a stranger is refused; the Stats tab renders it @mobile', async ({ page }) => {
   const alpha = loadQaUser('user.json');
@@ -16,11 +18,9 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
   let postId: string | null = null;
   try {
     const post = await alphaApi.post('/api/posts', {
-      // PUBLIC: the Stats tab's sport cards are built from public posts (the
-      // owner's private lines reach the rollups API, not the card — a product
-      // gap recorded in the DEVLOG). The stranger check below is the PROFILE's
-      // privacy (the QA profiles are private).
-      data: { caption: `Rollups hockey ${Date.now()}`, visibility: 'public', postType: 'ice_hockey', stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2026-02-10', stats: { goals: 2, assists: 1, shots: 6 } } },
+      // PRIVATE on purpose: the owner's card and rollups both count it. The
+      // stranger check below is the PROFILE's privacy (the QA profiles are private).
+      data: { caption: `Rollups hockey ${Date.now()}`, visibility: 'private', postType: 'ice_hockey', stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2026-02-10', stats: { goals: 2, assists: 1, shots: 6 } } },
     });
     expect(post.ok(), await readErrorBody(post)).toBe(true);
     postId = (await post.json()).post.id as string;
@@ -40,7 +40,18 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
     const season = rollups.seasons.find((s: { key: string }) => s.key === '2025-26');
     expect(season.tiles.find((t: { label: string }) => t.label === 'Goals').value).toBe('2');
     expect(season.bests.find((b: { key: string }) => b.key === 'shots')).toMatchObject({ value: 6, date: '2026-02-10' });
-    expect(rollups.trend.at(-1)).toMatchObject({ date: '2026-02-10', value: 3 }); // points = goals + assists
+    // Its OWN point (points = goals + assists) — not the last: another spec in
+    // the same run (contest-stat-lines) can leave alpha a later hockey line.
+    expect(rollups.trend).toContainEqual(expect.objectContaining({ date: '2026-02-10', value: 3 }));
+
+    // The owner's sport card counts the private line (skill-cards is the
+    // viewer-dependent, privately cached reader; /u/'s CDN payload never does).
+    const cardsRes = await alphaApi.get(`/api/profile/${alpha.id}/skill-cards`);
+    expect(cardsRes.status(), await readErrorBody(cardsRes)).toBe(200);
+    const hockey = ((await cardsRes.json()).skillCards as { sportKey: string; tiles: { label: string; value: string }[] }[]).find(c => c.sportKey === 'ice_hockey');
+    expect(hockey, 'the owner sees a hockey card built from a private line').toBeTruthy();
+    expect(Number(hockey!.tiles.find(t => t.label === 'Goals')?.value ?? 0)).toBeGreaterThanOrEqual(2);
+    expect((await bravoApi.get(`/api/profile/${alpha.id}/skill-cards`)).status()).toBe(403);
 
     // A stranger to a private profile.
     expect((await bravoApi.get(`/api/performance/rollups?profileId=${alpha.id}&sport=ice_hockey`)).status()).toBe(403);
@@ -53,7 +64,10 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
     await page.getByRole('button', { name: 'Full breakdown' }).click();
     const section = page.locator('[data-rollups]');
     await expect(section).toBeVisible({ timeout: 20_000 });
-    await expect(section.locator('[data-rollups-tile="Goals"]')).toContainText('2');
+    // At least its own two (a batch may add another spec's hockey line).
+    const goalsTile = section.locator('[data-rollups-tile="Goals"]');
+    await expect(goalsTile).toContainText(/\d/);
+    expect(Number((await goalsTile.innerText()).match(/\d+/)?.[0] ?? 0)).toBeGreaterThanOrEqual(2);
     await expect(section.locator('[data-rollups-bests]')).toContainText('Shots');
   } finally {
     await purgePost(postId); // results are never deleted by the app (241) — the service role tears down

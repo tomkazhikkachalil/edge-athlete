@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { getProfileRole, getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { readRollups } from '@/lib/performance/rollups-server';
 import { reportRouteError } from '@/lib/observability/report';
@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
       viewerId = null;
     }
     const admin = getSupabaseAdmin();
-    const isOwner = viewerId === profileId;
+    // Self or guardian — the skill-cards route's rule, so the two readers
+    // of the Stats tab agree (gaps round, Sep 26 2026).
+    const isOwner = viewerId === profileId || (!!viewerId && (await getProfileRole(viewerId, profileId)) === 'guardian');
     if (!isOwner) {
       const { data: prof } = await admin.from('profiles').select('visibility').eq('id', profileId).single();
       if (!prof) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });

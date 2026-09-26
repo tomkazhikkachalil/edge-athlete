@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { TRACK_EVENTS, formatRaceTime, isStatLineData } from '../stat-schemas';
+import { fetchStatLinePosts, type StatsCardView } from './stat-line-posts';
 import type {
   ServerSportModule,
   SkillCardContribution,
@@ -90,25 +91,17 @@ export function buildTrackSkillContribution(
 
 async function fetchRaceLines(
   profileId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  view?: StatsCardView
 ): Promise<Array<Record<string, number>>> {
-  const { data: posts } = await supabase
-    .from('posts')
-    .select('stats_data')
-    .eq('profile_id', profileId)
-    .eq('sport_key', 'track_field')
-    .eq('visibility', 'public')
-    .not('stats_data', 'is', null)
-    .limit(200);
-  return (posts || [])
-    .map(p => p.stats_data)
+  return (await fetchStatLinePosts(supabase, profileId, 'track_field', 200, view))
     .filter(isStatLineData)
     .map(line => line.stats);
 }
 
 export const trackFieldServerModule: ServerSportModule = {
-  async buildStatsCard(profileId, supabase): Promise<SportStatsCard | null> {
-    const lines = await fetchRaceLines(profileId, supabase);
+  async buildStatsCard(profileId, supabase, view): Promise<SportStatsCard | null> {
+    const lines = await fetchRaceLines(profileId, supabase, view);
     if (lines.length === 0) return null;
     const best = trackedPBs(lines);
     const pbTiles = TRACK_EVENTS.filter(e => best.has(e.key))
@@ -121,7 +114,7 @@ export const trackFieldServerModule: ServerSportModule = {
   },
 
   async buildSkillCard(profileId, supabase, ctx): Promise<SkillCardContribution | null> {
-    const lines = await fetchRaceLines(profileId, supabase);
+    const lines = await fetchRaceLines(profileId, supabase, { includePrivate: ctx.includePrivate });
     return buildTrackSkillContribution(trackedPBs(lines), enteredPBs(ctx.settings), lines.length);
   },
 };
