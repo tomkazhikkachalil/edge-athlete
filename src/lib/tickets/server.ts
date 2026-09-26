@@ -672,6 +672,11 @@ export async function pasteUserReply(admin: Admin, ticketId: string, actorId: st
 }
 
 export async function deleteTicket(admin: Admin, ticketId: string): Promise<boolean> {
+  // Authority (240): a recovery link must carry its ticket (org_claim_invites_recovery_shape),
+  // so the FK's SET NULL would refuse this delete — and a link whose ticket is gone should
+  // not stay redeemable anyway. Its links go first (pre-240: no column, nothing to do).
+  const { error: linkError } = await admin.from('org_claim_invites').delete().eq('ticket_id', ticketId);
+  if (linkError && !['42703', 'PGRST204'].includes(linkError.code ?? '')) console.error(`${TAG} recovery link delete failed:`, linkError.message);
   const { data, error } = await admin.from('tickets').delete().eq('id', ticketId).select('id');
   if (error) {
     if (isNotLive(error)) throw new TicketsNotLive();

@@ -20,8 +20,9 @@ export interface TransferHostInput {
   toProfileId: string;
   actor: AuthorityActor;
   ticketId?: string | null;
-  /** What the old host becomes: a co-organizer (default), or removed (the host left). */
-  oldHostRole?: 'co_organizer' | 'removed';
+  /** What the old host becomes: a co-organizer (default), removed (the host left), or a plain
+   *  participant (Authority PR 4 — the team re-hosted over them; they keep their place, not the authority). */
+  oldHostRole?: 'co_organizer' | 'removed' | 'participant';
   reason?: string;
 }
 
@@ -48,7 +49,9 @@ export async function transferHost(admin: SupabaseClient, input: TransferHostInp
   if (newErr) console.error('[sport-events host] new host row failed:', newErr.message);
   const oldPatch = input.oldHostRole === 'removed'
     ? { role: 'co_organizer', status: 'removed', waitlist_position: null, updated_at: now }
-    : { role: 'co_organizer', updated_at: now };
+    : input.oldHostRole === 'participant'
+      ? { role: 'participant', updated_at: now }
+      : { role: 'co_organizer', updated_at: now };
   const { error: oldErr } = await admin.from('sport_event_participants')
     .update(oldPatch).eq('sport_event_id', eventId).eq('profile_id', fromProfileId);
   if (oldErr) console.error('[sport-events host] old host row failed:', oldErr.message);

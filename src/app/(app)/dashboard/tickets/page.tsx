@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -81,7 +82,11 @@ export default function SupportQueuePage() {
           <i className="fas fa-life-ring mr-2 text-brand-fg"></i>
           Support queue
         </h1>
-        <p className="text-sm text-tertiary mb-6">Help requests, reports and suggestions — critical first, then oldest. Targets are guidance; nothing escalates on its own.</p>
+        <p className="text-sm text-tertiary mb-2">Help requests, reports and suggestions — critical first, then oldest. Targets are guidance; nothing escalates on its own.</p>
+        {/* Authority PR 4: the recovery panels (owner-only; the API decides). */}
+        <Link href="/dashboard/recovery" className="text-sm text-brand-fg hover:underline mb-6 inline-flex items-center gap-2 min-h-[44px]" data-recovery-door="">
+          <i className="fas fa-user-shield text-xs"></i> Recovery tools — clubs, leagues and events
+        </Link>
 
         {counts && (
           <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" aria-label="Open counts">

@@ -81,6 +81,9 @@ export const RATE_LIMITS = {
   // Support & Reporting (Spec 1): filing a ticket and replying on one.
   'ticket-create': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'ticket-reply': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Authority PR 4: the Edge Athlete team's recovery writes — deliberate,
+  // one ticket at a time; 60/h is a long recovery session, not a script.
+  'authority-admin': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Spec 2: muting is cheap and silent, but not unbounded.
   'mute': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // Athlete creation only. Household block-adds and apply-to-all used to

@@ -108,6 +108,8 @@ describe('one writer, and every authority writer calls it', () => {
     'src/lib/sport-events/host-transfer-server.ts',
     'src/lib/sport-events/roles-server.ts',
     'src/lib/sport-events/join-server.ts',
+    // PR 4: the Edge Athlete team's recovery tools (every act a platform row on its ticket).
+    'src/lib/authority/recovery-server.ts',
   ];
   it.each(AUDITED_WRITERS)('%s records through recordAuthority', file => {
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8');

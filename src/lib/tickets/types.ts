@@ -36,6 +36,8 @@ export const RESOLUTION_CODES = [
   'ban',
   'feature_shipped',
   'declined',
+  // Authority (240): the Edge Athlete team gave someone back the running of an org or event.
+  'access_restored',
 ] as const;
 export type ResolutionCode = (typeof RESOLUTION_CODES)[number];
 
@@ -156,6 +158,7 @@ export const RESOLUTION_CODE_LABELS: Record<ResolutionCode, string> = {
   ban: 'Account banned',
   feature_shipped: 'Feature shipped',
   declined: 'Declined',
+  access_restored: 'Access restored',
 };
 
 /** The label for a ticket's reason, whichever list it came from. */

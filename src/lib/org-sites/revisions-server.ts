@@ -25,6 +25,7 @@ import type { RevisionActionInput } from './validate';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { parsePublishStats, publishStats, type PublishStats } from '@/lib/site-builder/metrics';
 import { recordAuthority } from '@/lib/authority/audit-server';
+import { HELD_MESSAGE, readSiteHold } from '@/lib/authority/hold-server';
 
 /**
  * Draft / publish / revisions — Site Builder phase 2 (Sep 9 2026, mig 180).
@@ -530,7 +531,9 @@ export async function publishDraft(
   admin: Admin,
   site: SitePointers,
   userId: string | null,
-  label?: string
+  label?: string,
+  /** Authority PR 4: the support restore publishes WITHOUT pruning — history is never pushed out while a site is held. */
+  opts: { prune?: boolean } = {}
 ): Promise<PublishResult> {
   const rows = await loadRows(admin, site.id);
   if (!rows) return { status: 'not_found' };
@@ -622,7 +625,7 @@ export async function publishDraft(
     .eq('site_id', site.id)
     .not('published_at', 'is', null);
   const prune = selectRevisionsToPrune((history ?? []) as { id: string; label: string | null; published_at: string | null; created_at: string }[], [draft.id]);
-  if (prune.length > 0) await admin.from('org_site_revisions').delete().in('id', prune);
+  if (prune.length > 0 && opts.prune !== false) await admin.from('org_site_revisions').delete().in('id', prune);
 
   // The page AND the sitemap: a publish can change which subpages exist.
   revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
@@ -733,6 +736,8 @@ export async function revisionsPOST(
 
   switch (input.action) {
     case 'publish': {
+      // Authority (240): a held site's draft does not publish (the team restores it themselves).
+      if (await readSiteHold(admin, site.id)) return NextResponse.json({ error: HELD_MESSAGE, held: true }, { status: 409 });
       const result = await publishDraft(admin, site, userId, input.label);
       switch (result.status) {
         case 'published':

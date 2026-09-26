@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -228,6 +229,12 @@ export default function SupportTicketPage() {
                   <button type="button" disabled={busy} onClick={() => patch({ status: 'in_review' })} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive">
                     Reopen
                   </button>
+                )}
+                {/* Authority PR 4: act on the club, league or event this ticket is about — the ticket rides along. */}
+                {t.status !== 'closed' && t.type !== 'suggestion' && (
+                  <Link href={`/dashboard/recovery?ticket=${encodeURIComponent(t.numberLabel)}&q=${encodeURIComponent(t.numberLabel)}`} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive inline-flex items-center" data-ticket-recovery="">
+                    Open recovery tools
+                  </Link>
                 )}
               </div>
               {resolveOpen && open && (

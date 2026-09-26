@@ -135,6 +135,8 @@ export interface TransitionRequest {
   override?: boolean;
   /** The organizer's local date for the round's group_post (date-only); defaults to the round's scheduled_on. */
   today?: string | null;
+  /** Authority PR 4: the Edge Athlete team cancelling on a ticket (the audit row's actor). */
+  platformTicketId?: string | null;
 }
 
 /**
@@ -215,7 +217,8 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
     if (error) console.error('[sport-events] round status write failed:', error);
     await recordAuthority(admin, {
       subject: { type: 'sport_event', id: req.eventId },
-      actor: { kind: 'member', profileId: req.actorProfileId },
+      actor: req.platformTicketId ? { kind: 'platform', profileId: req.actorProfileId } : { kind: 'member', profileId: req.actorProfileId },
+      ticketId: req.platformTicketId ?? null,
       action: 'event_cancelled',
       detail: { status: from },
     });
