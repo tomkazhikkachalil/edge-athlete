@@ -58,6 +58,9 @@ export type GuardianNotificationType =
   // opened, answered, resolved — copied to the guardians (the parent is the
   // one with the email; My requests shows it to them too).
   | 'ticket_update'
+  // Teams & divisions (mig 242): a supervised athlete was added to, moved
+  // between, removed from or carried forward on a team roster.
+  | 'team_roster'
   // Spec 2 (mig 223): a decision against a supervised athlete — the guardians hear.
   | 'moderation_notice';
 
