@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { StatsCardView } from './stat-line-posts';
 import type { SportKey } from '../SportRegistry';
 import type { SettingsDisplayItem } from '../settings-schemas';
 
@@ -70,6 +71,9 @@ export interface SportSkillCard {
 /** That sport's `sport_settings.settings`, fetched once by the dispatcher. */
 export interface SkillCardContext {
   settings: Record<string, unknown> | null;
+  /** The owner's view (self or guardian): count private lines too. Only a
+   *  viewer-dependent route with a private cache sets it. */
+  includePrivate?: boolean;
 }
 
 /** The TRACKED parts a sport module contributes; the dispatcher assembles the
@@ -92,8 +96,9 @@ export interface SkillCardContribution {
  * never speculatively.
  */
 export interface ServerSportModule {
-  /** The public profile's stats card, or null when there's nothing to show. */
-  buildStatsCard(profileId: string, supabase: SupabaseClient): Promise<SportStatsCard | null>;
+  /** The sport's stats card, or null when there's nothing to show. Public
+   *  lines only unless `view.includePrivate` (the owner's view). */
+  buildStatsCard(profileId: string, supabase: SupabaseClient, view?: StatsCardView): Promise<SportStatsCard | null>;
   /** Tracked skill-card parts, or null when the sport has none to compute. */
   buildSkillCard?(
     profileId: string,

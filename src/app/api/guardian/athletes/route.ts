@@ -118,7 +118,8 @@ export async function GET(request: NextRequest) {
         buildSportStatsCard(
           resolveSportKey((a as unknown as { sport: string | null }).sport),
           a.id,
-          admin
+          admin,
+          { includePrivate: true } // a guardian sees what the athlete sees
         ).catch(() => null)
       )
     );

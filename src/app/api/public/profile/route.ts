@@ -208,6 +208,9 @@ export async function GET(request: NextRequest) {
     // recompute is the accepted cost, amortized by s-maxage. (The legacy
     // sportStats/sportSettings fields these superseded were removed
     // Aug 2026, one release after skillCards shipped.)
+    // The STRANGER's view, always: this payload is CDN-cached for everyone
+    // (never `includePrivate` — the owner's private lines ride the private
+    // /api/profile/[id]/skill-cards answer).
     const skillCards = await buildSportSkillCards(profile.id, supabase);
 
     // Org memberships (org connections round) — public data by the

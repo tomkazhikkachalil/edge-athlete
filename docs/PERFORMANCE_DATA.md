@@ -169,13 +169,18 @@ date in the sport's direction, provenance counts per season, and the hero
 number over the last ten events for a trend. `rollups-server.ts` reads
 newest first, disputed rows out, capped at 2 000 (`truncated` says when);
 a non-owner's view re-checks every `post`-origin row against the post's
-visibility in ≤ 200-id chunks (the first reader's rule). The gate is the
+visibility in ≤ 200-id chunks (the first reader's rule). The owner is the
+athlete OR their guardian (since Sep 26 2026, the skill-cards rule). The gate is the
 stat-lines route's (owner ‖ public ‖ accepted follower); the answer is
 `private, max-age=60` — viewer-dependent, never a shared cache.
 `SeasonRollups.tsx` renders it at the top of the stat-line Stats tab. The
-old card (`stat-line.ts buildStatsCard`) still reads the last 100 public
-posts of ONE source; retiring it for the rollups is the next step once
-the Stats tab has shown the rollups for a while.
+old card (`stat-line.ts buildStatsCard`) still reads the last 100 posts of
+ONE source (`stat-line-posts.ts fetchStatLinePosts`): public ones for a
+stranger, every one on the OWNER's view (self or guardian — the
+privately cached `/api/profile/[id]/skill-cards` and the guardian roster
+pass `includePrivate`; the CDN-cached `/u/` payload never does). Retiring
+it for the rollups is the next step once the Stats tab has shown the
+rollups for a while.
 
 ## Results are never lost (migration 241, Sep 26 2026)
 

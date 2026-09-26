@@ -3,29 +3,20 @@ import { getSportDefinition } from '../SportRegistry';
 import type { SportKey } from '../SportRegistry';
 import type { ServerSportModule, SportStatsCard } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchStatLinePosts, type StatsCardView } from './stat-line-posts';
 
 /**
  * The generic stats-card builder for every stat-line sport — aggregates
- * PUBLIC posts only (the public profile is the caller). Moved verbatim from
- * api/public/profile; already scales to any sport with a stat schema.
+ * PUBLIC posts, or every post on the owner's view (`fetchStatLinePosts`).
+ * Moved from api/public/profile; already scales to any sport with a stat
+ * schema.
  */
 export function statLineServerModule(sportKey: SportKey): ServerSportModule | null {
   const schema = getStatSchema(sportKey);
   if (!schema) return null;
   const mod: ServerSportModule = {
-    async buildStatsCard(profileId: string, supabase: SupabaseClient): Promise<SportStatsCard | null> {
-      const { data: statPosts } = await supabase
-        .from('posts')
-        .select('stats_data')
-        .eq('profile_id', profileId)
-        .eq('sport_key', sportKey)
-        .eq('visibility', 'public')
-        .not('stats_data', 'is', null)
-        .limit(100);
-
-      const lines = (statPosts || [])
-        .map(p => p.stats_data)
-        .filter(isStatLineData);
+    async buildStatsCard(profileId: string, supabase: SupabaseClient, view?: StatsCardView): Promise<SportStatsCard | null> {
+      const lines = (await fetchStatLinePosts(supabase, profileId, sportKey, 100, view)).filter(isStatLineData);
 
       if (lines.length === 0) return null;
 
@@ -53,9 +44,10 @@ export function statLineServerModule(sportKey: SportKey): ServerSportModule | nu
 
     // Stat-line sports have no computed headline metric — the level played is
     // self-reported and the dispatcher promotes it from settings. Tracked
-    // contribution = the public-post aggregates as tiles.
-    async buildSkillCard(profileId: string, supabase: SupabaseClient) {
-      const card = await mod.buildStatsCard(profileId, supabase);
+    // contribution = the post aggregates as tiles (the owner's view counts
+    // private lines too).
+    async buildSkillCard(profileId: string, supabase: SupabaseClient, ctx) {
+      const card = await mod.buildStatsCard(profileId, supabase, { includePrivate: ctx.includePrivate });
       return {
         tiles: (card?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
       };

@@ -1,5 +1,25 @@
 # Development Log
 
+## September 26, 2026 — Gaps round PR 2: the owner's Stats card counts their private stat lines (zero DDL; stacked on PR 1)
+
+**The gap** (recorded in Round 4): an athlete's PRIVATE stat lines reached `/api/performance/rollups`, but not the Stats tab's sport card. `stat-line.ts` and `track-field.ts` filtered `visibility = 'public'` whoever was looking. An athlete whose hockey lines were all private got no hockey card at all, and no sport chip, on their own profile.
+
+**The fix:**
+- **One reader.** `src/lib/sports/server/stat-line-posts.ts fetchStatLinePosts` serves both stat-line modules. A stranger's read is public only; the OWNER's view (`includePrivate`) counts every line.
+- **Threaded through** `SkillCardContext.includePrivate`, `buildStatsCard(…, view)`, `buildSportSkillCards(…, view)` and `buildSportStatsCard(…, view)`. The default is the stranger's view.
+- **Who asks for the owner's view:**
+  - `/api/profile/[id]/skill-cards` passes its existing `isOwner` (self or guardian). Its answer is `private, max-age=60`, so the owner's view never reaches a shared cache.
+  - The guardian roster passes it too: a guardian sees what the athlete sees.
+  - The CDN-cached `/api/public/profile` (`/u/`) never does, and now says so at the call.
+- **Rollups:** `/api/performance/rollups` counted only the athlete as the owner. It now uses the same self-or-guardian rule through `getProfileRole`, so the two readers of the Stats tab agree.
+
+**Proof:**
+- `stat-line-posts.test.ts`: the stranger's read carries the visibility filter; the owner's does not.
+- `performance-rollups.spec.ts` drops its workaround of posting a PUBLIC line. The line is PRIVATE now:
+  - the owner's skill-cards answer has the hockey card with its goals;
+  - a stranger gets a 403;
+  - the Stats tab's breakdown renders from the private line at phone width.
+
 ## September 26, 2026 — Gaps round PR 1: the gallery picker reads the draft (zero DDL)
 
 **The gap** (recorded Sep 22): a manager adds a member's round photo to the gallery, and the picker reads "Add to gallery" again. `set_gallery_pick` writes the DRAFT snapshot (the Site Builder rule), but `listMemberPhotoCandidates` worked out `picked` from the PUBLISHED module row. It was worse than "after a reload": `MemberPhotoPicker` re-reads right after the toggle, so the stale read undid the optimistic flip at once, and a second click sent `set` again instead of `remove`.
