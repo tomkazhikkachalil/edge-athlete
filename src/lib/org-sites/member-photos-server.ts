@@ -11,7 +11,8 @@ import { toProxyUrl } from '@/lib/media/proxy-url';
 
 import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { isPublicProfile, publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
-import { readGalleryPicks } from './member-photo-gate';
+import { readGalleryPicks, type GalleryPick } from './member-photo-gate';
+import { loadDraftSnapshotBySiteId } from './revisions-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -32,19 +33,30 @@ export interface MemberPhotoCandidate {
   picked: boolean;
 }
 
-export async function listMemberPhotoCandidates(
-  admin: Admin,
-  side: OrgKind,
-  orgId: string,
-  siteId: string
-): Promise<{ candidates: MemberPhotoCandidate[]; picks: number }> {
+/** The picks the MANAGER is working on: `set_gallery_pick` writes the
+ *  DRAFT snapshot, so the picker reads the draft; with no draft (never
+ *  edited, just published, pre-180) the published module row is the
+ *  truth. The public gallery keeps reading the published row — the live
+ *  site shows what is published. */
+export async function currentGalleryPicks(admin: Admin, siteId: string): Promise<GalleryPick[]> {
+  const draft = await loadDraftSnapshotBySiteId(admin, siteId);
+  if (draft) return readGalleryPicks(draft.modules.gallery?.config);
   const { data: mod } = await admin
     .from('org_site_modules')
     .select('config')
     .eq('site_id', siteId)
     .eq('module_key', 'gallery')
     .maybeSingle();
-  const picks = readGalleryPicks(mod?.config);
+  return readGalleryPicks(mod?.config);
+}
+
+export async function listMemberPhotoCandidates(
+  admin: Admin,
+  side: OrgKind,
+  orgId: string,
+  siteId: string
+): Promise<{ candidates: MemberPhotoCandidate[]; picks: number }> {
+  const picks = await currentGalleryPicks(admin, siteId);
   const picked = new Set(picks.map(p => p.mediaId));
 
   const { data: grants, error: grantsError } = await admin

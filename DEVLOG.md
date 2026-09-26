@@ -1,5 +1,13 @@
 # Development Log
 
+## September 26, 2026 — Gaps round PR 1: the gallery picker reads the draft (zero DDL)
+
+**The gap** (recorded Sep 22): a manager adds a member's round photo to the gallery, and the picker reads "Add to gallery" again. `set_gallery_pick` writes the DRAFT snapshot (the Site Builder rule), but `listMemberPhotoCandidates` worked out `picked` from the PUBLISHED module row. It was worse than "after a reload": `MemberPhotoPicker` re-reads right after the toggle, so the stale read undid the optimistic flip at once, and a second click sent `set` again instead of `remove`.
+
+**The fix:** `currentGalleryPicks(admin, siteId)` in `member-photos-server.ts` reads the draft (`loadDraftSnapshotBySiteId`) and falls back to the module row when there is none: never edited, just published, or pre-180. The public readers are unchanged. `evaluateMemberPhotos` with `requirePick` and `fetchMemberGalleryItems` keep reading the published row, so the live site shows what is published.
+
+**Proof:** `member-photos-server.test.ts`: draft picks win and the published row is never read; a draft with no gallery module has no picks; no draft falls back to the row. `club-photo-optin` / `league-photo-optin` now assert `picked` BEFORE publishing and again after a removal, with no publish in between. The console picker step reloads and still reads picked.
+
 ## September 26, 2026 — Maintenance pass: the full checklist on main 4105c1b8 (no code change)
 
 Run at Tom's request after the results-kept round closed (#928–#933).

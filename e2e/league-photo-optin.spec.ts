@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
-import { publishSite } from './helpers/org-site';
 
 // Program 12 — league round photos, part 1 (the twin of club-photo-optin):
 // the member opts in, the manager curates. "Share my round photos with
@@ -75,7 +74,7 @@ test('league photo opt-in: follow-row consent, supervised 403, candidates = publ
     res = await ownerApi.get(`/api/leagues/${leagueId}/site/photo-candidates`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
     type Cand = { mediaId: string; picked: boolean; url: string; courseName: string | null; authorName: string };
-    let list = (await res.json()).candidates as Cand[];
+    const list = (await res.json()).candidates as Cand[];
     expect(list.map(c => c.mediaId)).toEqual([pub.mediaId]);
     expect(list[0]).toMatchObject({ picked: false, courseName: `QA Links ${stamp}` });
     expect(list[0].url.startsWith('/api/media/')).toBe(true);
@@ -94,18 +93,14 @@ test('league photo opt-in: follow-row consent, supervised 403, candidates = publ
       return snapshot.modules?.gallery?.config?.picks ?? [];
     };
     expect((await readDraftPicks()).map(p => [p.mediaId, p.postId, p.profileId])).toEqual([[pub.mediaId, pub.postId, alpha.id]]);
-    // `picked` is read from the PUBLISHED projection (the module row), so
-    // the draft is promoted first — the console's picker toggles optimistically
-    // and re-reads the same way.
-    await publishSite(ownerApi, 'league', leagueId);
-    res = await ownerApi.get(`/api/leagues/${leagueId}/site/photo-candidates`);
-    list = (await res.json()).candidates as Cand[];
-    expect(list[0].picked).toBe(true);
+    // `picked` reads the DRAFT too (gaps round, Sep 26 2026 — it used to read
+    // the published row, so a pick read "Add to gallery" again until publish).
+    const pickedNow = async () => ((await (await ownerApi.get(`/api/leagues/${leagueId}/site/photo-candidates`)).json()).candidates as Cand[])[0].picked;
+    expect(await pickedNow()).toBe(true);
     res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'remove_gallery_pick', mediaId: pub.mediaId } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect(await readDraftPicks()).toEqual([]);
-    // …and promote the removal, or the console's picker (published projection) still reads "picked".
-    await publishSite(ownerApi, 'league', leagueId);
+    expect(await pickedNow()).toBe(false);
 
     // The member's league page at 375px: the switch reads "on".
     const memberCtx = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
@@ -140,6 +135,9 @@ test('league photo opt-in: follow-row consent, supervised 403, candidates = publ
       await expect(picker).toHaveAttribute('data-photo-candidates', '1', { timeout: 20_000 });
       await page.getByRole('button', { name: /^Add to gallery/ }).click();
       await expect(page.locator(`[data-candidate="${pub.mediaId}"]`)).toHaveAttribute('data-picked', '1', { timeout: 15_000 });
+      // …and it stays picked across a reload, unpublished (the picker reads the draft).
+      await page.reload();
+      await expect(page.locator(`[data-candidate="${pub.mediaId}"]`)).toHaveAttribute('data-picked', '1', { timeout: 20_000 });
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     } finally {
