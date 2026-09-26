@@ -19,6 +19,7 @@
   - the owner's skill-cards answer has the hockey card with its goals;
   - a stranger gets a 403;
   - the Stats tab's breakdown renders from the private line at phone width.
+  - The trend check finds ITS OWN point instead of the last one. In a batch, `contest-stat-lines` leaves the same QA user a hockey line dated today, which became the last point; the spec failed in the batch and passed alone. The Stats tab's Goals tile is read the same way: at least its own two.
 
 ## September 26, 2026 — Gaps round PR 1: the gallery picker reads the draft (zero DDL)
 
