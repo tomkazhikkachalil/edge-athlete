@@ -643,6 +643,13 @@ pinned:
 - **Moderation strips authority**: a limited, suspended, banned or departed account (`holdsAuthority`) is ceilinged at the four choke points — `getOrgRole`, `getOrgCapabilities`, `readSportEventAccess`, the scoring gate. A moderated organizer can still VIEW (`viewer.authority_paused` shows a notice) but cannot manage, delete, score others or record. Residual: a moderated round CREATOR's direct golf writes through RLS until support re-hosts.
 - **Recovery**: the team re-hosts, removes a co-organizer, cancels before the start or makes a live event private (`/dashboard/recovery/event/[id]`, docs/SUPPORT.md "Authority"). Anyone who can see an event and does not run it can report it (`?report=1`).
 
+## Results are never lost (migration 241, Sep 26 2026)
+
+- **The opt-out is a profile hide.** `hide_from_profile` no longer removes the mirror. `round-mirror.ts` mirrors the player and stamps the round `profile_hidden_at`; `stat-results-server.ts` keeps the line's post and hides it; the round's results post counts every line. The handicap, the leaderboards, the org's contest (which now names the hidden player's mirror) and the dataset keep the result.
+- **A played event is on the record**: its delete answers 409 (make it private instead). A round creator's delete removes only an UNPLAYED round (`deleteOrHideRound`); a scored or event round is hidden for the creator and every partner keeps theirs. An attest decline is refused on an event round and once the player has a score.
+- **An official event's result is locked** for its player: no untag, no tag edit, no score rewrite. Only a hide, logged (`result_hidden`).
+- **"This result isn't me"** (a player's button on the event page; report reason `wrong_person`): support moves, corrects or removes the result from the event recovery panel's Results section. Everyone involved is told. docs/SUPPORT.md has the tools.
+
 ## When a person leaves (Sep 24 2026, migration 238)
 
 Tom's rule: a result that is part of an event OUTLIVES the person, and no

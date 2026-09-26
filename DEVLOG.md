@@ -1,5 +1,15 @@
 # Development Log
 
+## September 26, 2026 — Results kept PR 5: the docs, convention 27 (zero DDL; stacked on PR 4)
+
+The round's reference, in the places a reader looks first:
+- `docs/PERFORMANCE_DATA.md` gets "Results are never lost": the hide writer, items vs metrics, the official predicate, support's corrections, and the delete allowlist.
+- `docs/EVENTS.md` gets the same section: the opt-out as a profile hide, a played event on the record, the official lock, and "This result isn't me".
+- `docs/SUPPORT.md` gets the report and the three tools as a table.
+- CLAUDE.md gets **convention 27**, and convention 25's forward note now points at 26 and 27.
+
+The sweep test the plan named for this PR shipped with PR 2 (`results-hide.test.ts`, the delete allowlist), where the doors it guards changed. `npm run verify` green.
+
 ## September 26, 2026 — Results kept PR 4: "This result isn't me" — support moves a result to the right person, corrects it, or removes a mistaken one (zero DDL; needs 241; stacked on PR 3)
 
 **Why (Tom):** *"They might have just tagged the wrong person, but the information could be correct. So it's important that the information not be lost. But the admin be able to tag the right person and correct any mistakes. Make sure individuals know if they've been untagged from an official result. This is to ensure that both sides stay accountable and there is not funny business."*
