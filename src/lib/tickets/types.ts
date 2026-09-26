@@ -79,6 +79,8 @@ export const REPORT_REASONS = [
   'impersonation',
   'self_harm',
   'minor_safety',
+  // Results-kept (241): "that isn't me" on an event's result — support moves it to the right person (the data is kept).
+  'wrong_person',
   'other',
 ] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -119,6 +121,7 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   impersonation: 'Impersonation',
   self_harm: 'Self-harm concern',
   minor_safety: 'Safety of a minor',
+  wrong_person: 'This result isn’t me',
   other: 'Something else',
 };
 

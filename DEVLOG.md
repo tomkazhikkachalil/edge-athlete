@@ -1,5 +1,30 @@
 # Development Log
 
+## September 26, 2026 — Results kept PR 4: "This result isn't me" — support moves a result to the right person, corrects it, or removes a mistaken one (zero DDL; needs 241; stacked on PR 3)
+
+**Why (Tom):** *"They might have just tagged the wrong person, but the information could be correct. So it's important that the information not be lost. But the admin be able to tag the right person and correct any mistakes. Make sure individuals know if they've been untagged from an official result. This is to ensure that both sides stay accountable and there is not funny business."*
+
+**The report:**
+- `wrong_person` ("This result isn't me") joins the report reasons (no DDL; `reason` has no CHECK). The sheet offers it only on an EVENT report.
+- The event page shows **This result isn't me** to a player who doesn't run the event, once it is live or completed, and opens the sheet pre-picked. The dirty check compares against the preset, so an untouched sheet closes quietly.
+- `resolveSportEvent` snapshots the reporter's own result as it was (`reporter_result`, rendered on the ticket).
+- Medium severity. No intake action (the event target), so the result stays put until support decides.
+
+**The tools** (`src/lib/results/correction-server.ts`, the event recovery panel's new **Results** section; owner-only `recover_authority`, on a ticket, platform audit, internal ticket step, `authority_notice` bells):
+- **Move a result** (`reassign_result`) to the RIGHT person, an existing account by id, @handle or email. It moves WHOLE: the event participant row (the index re-snapshotted for them), every round's card (`group_post_participants.profile_id`; the cards and groups key by row id), the mirrored `golf_rounds` and their dataset rows, and a stat event's lines, their posts and their dataset rows. Nothing is recomputed from scratch and nothing is lost. The org's contest DROPS the wrong person first (their contest row, result and org stat lines), then the round re-syncs and counts the right one. It refuses the host (hand the event over first), a deleted account, and a person already in the event (no silent merge). Both people are told, and so are the organizers. Audit: `result_reassigned` with from and to.
+- **Correct a score or stat** (`correct_card` through the one per-hole writer; `correct_line` through the stat schema's validator). The line keeps its `entered_by`, so its provenance rung doesn't change. The round re-mirrors and re-syncs. Audit: `result_corrected` with before and after. The player and organizers are told.
+- **Remove a mistaken result** (`remove_result`), the ONLY true removal, for a result nobody played (a test, a duplicate). It leaves the event (status removed), the mirror (`removeMirrorFor`, whose only caller is now this), the stat posts and the contest.
+- **If the right person isn't on Edge Athlete yet:** support leaves the result where it is and moves it once they join. The roster-import stub is tied to an org roster, so reusing it here was not worth the risk. Flagged to Tom.
+
+**Proof:** `results-correction.test.ts` covers the reason, severity and intake; the event-only offer and the pre-pick; the snapshot; every table the move touches, with no delete and the contest dropped before the re-sync; the refusals; and every act's platform audit on the ticket, ticket step, bells, re-sync and before/after. `npm run verify` green (3859). **Staging:** `results-wrong-person.spec.ts` covers a club event counted toward a league:
+- B's phone-width door (44 px, the reason pre-checked, no sideways scroll);
+- B's report with the snapshot at 108;
+- C (a platform owner) moves B's result to D: the same mirror id and score, the dataset row now D's, B off the org's contest, D on it at 108, both bells;
+- C corrects hole 1, and the mirror goes to 105;
+- C removes it, and the mirror is gone and the row removed;
+- three platform acts on the ticket and three internal steps.
+Regressions passed: admin-recovery, authority-reports, reporting-api, reporting-ui (a timing flake under load, green alone).
+
 ## September 26, 2026 — Results kept PR 3: official results are locked, and a person taken off one is told (zero DDL; needs 241; stacked on PR 2)
 
 **Why (Tom):** self-untag is fine *except from official events*; a wrong tag goes through support; *"Make sure individuals know if they've been untagged from an official result. This is to ensure that both sides stay accountable and there is not funny business."*

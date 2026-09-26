@@ -129,6 +129,7 @@ describe('the delete allowlist (a new deleting path fails the gate)', () => {
   });
   it('removeMirrorFor has no user-door caller', () => {
     const callers = walk(path.join(ROOT, 'src')).filter(f => !f.endsWith('opt-out.ts') && /removeMirrorFor\(/.test(code(path.relative(ROOT, f))));
-    expect(callers.map(f => path.relative(ROOT, f))).toEqual([]);
+    // PR 4: only support's mistaken-result removal (owner-only, on a ticket) calls it.
+    expect(callers.map(f => path.relative(ROOT, f))).toEqual(['src/lib/results/correction-server.ts']);
   });
 });

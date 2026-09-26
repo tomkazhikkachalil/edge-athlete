@@ -68,6 +68,7 @@ interface EventSnapshot {
   status: string;
   visibility: string;
   host: Person;
+  reporter_result?: { participant_id: string; status: string; rounds: Array<{ sequence: number; gross: number | null; holes: number | null; stats: Record<string, number> | null }> };
 }
 type Snapshot = PostSnapshot | CommentSnapshot | ProfileSnapshot | ThreadSnapshot | OrgSnapshot | EventSnapshot;
 const KINDS = new Set(['post', 'comment', 'profile', 'conversation', 'message', 'org', 'sport_event']);
@@ -155,6 +156,11 @@ export default function SnapshotView({ snapshot, targetId }: { snapshot: Record<
         <p className="text-sm text-primary font-medium">{s.name} <span className="text-xs text-muted">· {s.sport_key} · {s.status} · {s.visibility}</span></p>
         <p className="text-xs text-muted">Hosted by <Who p={s.host} /></p>
         {s.description && <p className="text-sm text-primary whitespace-pre-wrap">{s.description}</p>}
+        {s.reporter_result && (
+          <p className="text-xs text-secondary" data-snapshot-reporter-result="">
+            The reporter&apos;s result as recorded: {s.reporter_result.rounds.map(r => `R${r.sequence} ${r.gross != null ? `${r.gross} (${r.holes ?? '?'} holes)` : r.stats ? Object.entries(r.stats).map(([k, v]) => `${k} ${v}`).join(', ') : '—'}`).join(' · ') || 'no rounds'}
+          </p>
+        )}
         <a href={`/dashboard/recovery/event/${s.event_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
       </div>
     );
