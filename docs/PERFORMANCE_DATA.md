@@ -177,6 +177,16 @@ old card (`stat-line.ts buildStatsCard`) still reads the last 100 public
 posts of ONE source; retiring it for the rollups is the next step once
 the Stats tab has shown the rollups for a while.
 
+## Results are never lost (migration 241, Sep 26 2026)
+
+Tom: *"I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."*
+
+- **A person hides; nobody but support removes.** "Delete" on a golf round, a stat line, an event post or a scored shared round is a HIDE (`src/lib/results/hide-server.ts setResultHidden`, the one writer): `golf_rounds.profile_hidden_at`, or `posts.status = 'profile_hidden'`. It never touches this table, the handicap or the leaderboards. Ordinary posts (photos, notions, vitals) still delete. The event opt-out (`hide_from_profile`) is the same profile hide.
+- **Items vs metrics.** A hidden round leaves the round LISTS and its page for other viewers (the owner sees it, marked). Every AGGREGATE (handicap, stats, trends, skill cards, rollups over golf rows) and every row here keep counting it. Settings → Privacy lists what is hidden, with Show again (`/api/results/visibility`).
+- **Official results** (`src/lib/results/official.ts isOfficialOrigin`: a club / league host, an org competition, a linked contest, or provenance `club_recorded` and up; `origin-server.ts resolveResultOrigin` walks every link and fails CLOSED): their player cannot untag, re-tag or rewrite them (409, `OFFICIAL_RESULT_REFUSAL`), only hide them. An org taking a person off one (a stat-line delete, a media untag, an entry removal) bells that person and logs `official_tag_removed`.
+- **Corrections are support's** (`src/lib/results/correction-server.ts`, on a ticket, owner-only): move a result WHOLE to the right person (this table's `profile_id` moves with the mirror and the stat post; the org's contest drops the wrong person and re-syncs); correct a card or a line (before and after in the authority log; `entered_by` kept, so the rung stays); remove a mistaken result (the only removal of a played result).
+- **The delete allowlist** (`src/lib/__tests__/results-hide.test.ts`): only named writers may `.delete()` a `golf_rounds` or `athlete_performances` row — account erasure, an unplayed round, a failed round's rollback, support's removal, this table's own writer. A new deleting path fails the gate.
+
 ## Files
 
 - `database/migrations/194_athlete_performances.sql` — the table + check grid

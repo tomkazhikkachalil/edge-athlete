@@ -189,6 +189,16 @@ Tom: "Even if there isn't a contact, we need a way to recover and for users to m
 | The recovery link | minted in the org panel | `org_claim_invites.purpose = 'recovery'`: single use, 7 days, bound to ONE email and the ticket; it ADDS an owner (removes no one) even when the org has owners. The redeemer must be signed in with that email, and not deleted, supervised or moderated. Deleting the ticket deletes its links first (240's CHECK would refuse the SET NULL). |
 | The site hold | the panel's Pause | `org_sites.held_at` + `held_ticket_id`, offline in the same write; 240's CHECK refuses held-and-live from any path. While held: going live and publishing answer 409 `held: true`, the token preview is a 404. Release leaves it offline for the owners to take live. |
 
+## Results — "This result isn't me" and support's corrections (migration 241, Sep 26 2026)
+
+| What | Where | The rule |
+| --- | --- | --- |
+| The report | The event page's **This result isn't me** (a player who doesn't run it; live or completed) → the report sheet with `wrong_person` pre-picked (offered on event reports only) | A report on the EVENT (no strike, no intake action). The snapshot records the reporter's own result as it was (`reporter_result`). Medium. |
+| Move a result | Event recovery panel → **Results** → Move result (`reassign_result`) | To an EXISTING account (id, @handle, email). The whole result moves: the event row (index re-snapshotted), each round's card, the mirrors, the dataset rows, a stat event's lines and posts. The org's contest drops the wrong person, then re-syncs. Refuses the host, a deleted account, someone already in the event. Both people and the organizers are told. If the right person isn't on Edge Athlete yet, leave it and move it once they join. |
+| Correct | Results → Correct (`correct_card`: `hole=strokes, …`; `correct_line`: `stat=value, …`) | Through the one writers; the round re-mirrors and re-syncs; the authority log keeps before and after; the line keeps its author. |
+| Remove as mistaken | Results → Remove as mistaken (`remove_result`) | The only removal of a played result — for one nobody played. |
+| Resolve | the ticket | `result_corrected` (241). |
+
 ## Parked (the doc's own list, still open)
 
 - Inbound email parsing (Resend inbound + the `EA-####` subject) — when the paste box becomes a chore.
