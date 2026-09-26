@@ -61,9 +61,13 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
     await page.goto(`/athlete/${alpha.id}?tab=stats&sport=ice_hockey`);
     // The sport layer opens on a summary; the breakdown (and the rollups at
     // its top) is behind "Full breakdown".
-    await page.getByRole('button', { name: 'Full breakdown' }).click();
+    // A tap before hydration is swallowed (WebKit, prod probe Sep 26 2026:
+    // the card rendered, the button stayed) — tap until the section opens.
     const section = page.locator('[data-rollups]');
-    await expect(section).toBeVisible({ timeout: 20_000 });
+    await expect(async () => {
+      if (!(await section.isVisible())) await page.getByRole('button', { name: 'Full breakdown' }).click();
+      await expect(section).toBeVisible({ timeout: 4_000 });
+    }).toPass({ timeout: 30_000 });
     // At least its own two (a batch may add another spec's hockey line).
     const goalsTile = section.locator('[data-rollups-tile="Goals"]');
     await expect(goalsTile).toContainText(/\d/);

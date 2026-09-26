@@ -1,5 +1,17 @@
 # Development Log
 
+## September 26, 2026 — Gaps round: the prod probe (main dd08f2e9; test-only follow-up)
+
+**The probe** (after #935–#938 merged and production served `dd08f2e9`) covered 10 spec files on desktop, mobile and webkit-mobile:
+- club-photo-optin, league-photo-optin
+- org-app-gallery, org-site-member-photos, org-site-league-member-photos
+- performance-rollups, contest-stat-lines, guardian-console
+- competition-bracket-api, org-site-forms
+
+**Result: 29 passed, 1 flaky, 0 failed.** The flaky one was WebKit's first attempt at the rollups Stats tab. The page shows the hockey card built from the PRIVATE line, which is this round's fix, but the "Full breakdown" tap didn't expand, most likely because it landed before the page finished loading its scripts. The retry passed.
+
+The spec now taps until the section opens, inside `toPass`. It clicks only while the section is hidden, so a tap can never close it again.
+
 ## September 26, 2026 — Gaps round PR 4: a site-form resubmission is one message, and the forms spec survives a prod retry (zero DDL; stacked on PR 3)
 
 **What the record said** (Sep 25, probe 2): `org-site-forms` "saw two unread submissions where the public POST should have landed once". Tracing it found no double-insert and no double-count.
