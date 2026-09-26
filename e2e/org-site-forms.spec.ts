@@ -3,6 +3,7 @@ import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { settleBody } from './helpers/isr';
+import { runnerPublicIps } from './helpers/runner-ip';
 
 // Program 2, D1 (Sep 11 2026): two fixed forms as site widgets. A contact
 // form and an interest form on a live site → the public page carries the
@@ -33,8 +34,13 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
     const { error: probeError } = await admin.from('org_site_form_submissions').select('id').limit(1);
     test.skip(!!probeError, 'org_site_form_submissions missing — run migration 187');
     await resetRateBucket(admin, 'site-form-site', siteId);
-    // The per-IP bucket (5 / 10 min): the local server stamps the client as ::1 (or 127.0.0.1; 'unknown' without a forwarded header).
-    for (const ip of ['::1', '127.0.0.1', 'unknown']) await resetRateBucket(admin, 'site-form', ip);
+    // The per-IP bucket (5 / 10 min): the local server stamps the client as ::1 (or 127.0.0.1; 'unknown' without a forwarded header);
+    // a deployed target keys it on this runner's PUBLIC address — reset that too, or a retry meets its first attempt's hits.
+    const runnerIps = await runnerPublicIps();
+    const resetIpBuckets = async () => {
+      for (const ip of ['::1', '127.0.0.1', 'unknown', ...runnerIps]) await resetRateBucket(admin, 'site-form', ip);
+    };
+    await resetIpBuckets();
 
     // The two forms on the home layout, through the draft PUT.
     const canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { y: number; h: number }[] } };
@@ -100,6 +106,11 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
       const { data: rows2 } = await admin.from('org_site_form_submissions').select('kind, fields').eq('site_id', siteId).eq('kind', 'interest');
       expect(rows2).toHaveLength(1);
       expect(rows2![0].fields).toEqual({ name: `Kim ${stamp}`, email: 'kim@example.com', ageGroup: 'U12' });
+      // A resubmission (the same fields again — a double-click, Back-then-Submit) is "sent" and stores nothing new.
+      await resetIpBuckets(); // five posts above spent the per-IP budget
+      const again = await post(contactId, { name: `Sam ${stamp}`, email: 'sam@example.com', message: `Hello from the form ${stamp}` });
+      expect(again.headers().location).toMatch(new RegExp(`#sent-${contactId}$`));
+      expect((await admin.from('org_site_form_submissions').select('id').eq('site_id', siteId)).data).toHaveLength(2);
       // The owner heard, with a summary — never the message.
       const { data: notes } = await admin.from('notifications').select('type, title, message, action_url').eq('user_id', owner.id).eq('type', 'site_form_submission');
       expect(notes!.length).toBeGreaterThanOrEqual(2);

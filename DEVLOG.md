@@ -1,5 +1,34 @@
 # Development Log
 
+## September 26, 2026 — Gaps round PR 4: a site-form resubmission is one message, and the forms spec survives a prod retry (zero DDL; stacked on PR 3)
+
+**What the record said** (Sep 25, probe 2): `org-site-forms` "saw two unread submissions where the public POST should have landed once". Tracing it found no double-insert and no double-count.
+- The spec makes TWO real submissions (contact and interest) and expects the badge to read `2`.
+- The route inserts once per POST, and nothing after the insert can throw.
+- The inbox count is a head-count over one table.
+
+The prod-only failure is the per-IP `site-form` bucket (5 per 10 min):
+- One attempt spends exactly five hits: sent, bad email, no group, the wrong-widget 404 (the limiter runs before the widget check) and interest.
+- The spec reset only `::1` / `127.0.0.1` / `unknown`. On a deployment the key is the runner's PUBLIC address.
+- So the retry, inside ten minutes, met its first attempt's hits and failed on its first POST.
+
+**What was real:** a double-click, Back-then-Submit or a flaky retry stored the same message twice, and belled the owner twice.
+
+**The fix:**
+- `forms.ts isDuplicateSubmission` (pure): the same kind and the same fields on the same site within `RESUBMIT_WINDOW_MS` (10 min) is a resubmission. Field order doesn't matter, and an empty optional field equals an absent one.
+- The route reads the site's recent rows over the existing `(site_id, created_at DESC)` index and answers `#sent-` without a row or a bell. There is no DDL and no render-time state; the page stays ISR-cached.
+- A failed read stores the message anyway: losing one is worse than a duplicate.
+
+**The spec:**
+- `e2e/helpers/runner-ip.ts runnerPublicIps` looks up this runner's v4 and v6 addresses on a deployed target and returns none on localhost. The spec resets those buckets too.
+- A lookup that fails skips the reset rather than failing the spec.
+- A new step posts the contact message again: it is `#sent-` and the site still has two rows.
+
+**Proof:** `forms.test.ts`:
+- a duplicate within the window, with the keys reordered;
+- NOT a duplicate: a different message, a different kind, an old row or no rows;
+- an absent optional field equals an empty one.
+
 ## September 26, 2026 — Gaps round PR 3: stored standings read back in one order (zero DDL; stacked on PR 2)
 
 **The gap** (found Sep 23, D0-a): `competition-bracket-api.spec.ts` expects `[[e5, 3], [e3, 3]]` for the shared third place, and the order flipped between runs. The record put the fault in `computeBracketStandings`. It was not there: the compute already breaks ties by wins, then entry id (`bracket-draw.ts:163`). The order was lost on the way back. `competition_standings` has no position column, and the readers ordered by `rank` alone, so Postgres returned a shared rank in any order. A tied pair could flip between two page loads, on the console and on the public standings alike.

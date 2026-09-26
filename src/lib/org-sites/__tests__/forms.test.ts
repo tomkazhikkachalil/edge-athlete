@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { AGE_GROUPS, HONEYPOT_FIELD, formKindOf, parseFormFields, signFormToken, submissionSummary, verifyFormToken } from '../forms';
+import { AGE_GROUPS, HONEYPOT_FIELD, RESUBMIT_WINDOW_MS, formKindOf, isDuplicateSubmission, parseFormFields, signFormToken, submissionSummary, verifyFormToken } from '../forms';
 
 // Program 2, D (Sep 11 2026): the pure half of site forms — the kinds, the
 // field schemas (an age GROUP, never a DOB), the form key in the preview
@@ -60,5 +60,27 @@ describe('the inbox (D2)', () => {
     const cut = formPurgeCutoffs(new Date('2026-09-11T12:00:00.000Z'));
     expect(cut.archivedBefore).toBe('2025-09-11T12:00:00.000Z');
     expect(cut.openBefore).toBe('2024-09-11T12:00:00.000Z');
+  });
+});
+
+describe('a resubmission (gaps round, Sep 26 2026)', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const at = (minAgo: number) => new Date(now.getTime() - minAgo * 60_000).toISOString();
+  const sam = { name: 'Sam', email: 'sam@example.com', message: 'Hello' };
+
+  it('the same kind and fields within the window is a duplicate — key order does not matter', () => {
+    expect(isDuplicateSubmission('contact', sam, [{ kind: 'contact', fields: { message: 'Hello', email: 'sam@example.com', name: 'Sam' }, created_at: at(2) }], now)).toBe(true);
+  });
+
+  it('a different message, a different kind, or an old row is not', () => {
+    expect(isDuplicateSubmission('contact', sam, [{ kind: 'contact', fields: { ...sam, message: 'Hello again' }, created_at: at(1) }], now)).toBe(false);
+    expect(isDuplicateSubmission('contact', sam, [{ kind: 'interest', fields: sam, created_at: at(1) }], now)).toBe(false);
+    expect(isDuplicateSubmission('contact', sam, [{ kind: 'contact', fields: sam, created_at: at(RESUBMIT_WINDOW_MS / 60_000 + 1) }], now)).toBe(false);
+    expect(isDuplicateSubmission('contact', sam, [], now)).toBe(false);
+  });
+
+  it('an absent optional field equals an empty one', () => {
+    const kim = { name: 'Kim', email: 'kim@example.com', ageGroup: 'U12' as const };
+    expect(isDuplicateSubmission('interest', kim, [{ kind: 'interest', fields: { ...kim, phone: '' }, created_at: at(0) }], now)).toBe(true);
   });
 });
