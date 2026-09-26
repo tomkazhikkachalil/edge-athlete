@@ -210,6 +210,11 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   return (
     <div className="space-y-4" data-event-place="">
       <EventHeader view={view} hostName={host?.name ?? 'the host'} hostDeparted={host?.departed ?? false} control={control} busy={busy} actions={joinActions} organizerControls={organizerControls} todayKey={today()} />
+      {viewer.authority_paused && (
+        <p role="status" className="text-sm rounded-lg px-3 py-2 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100" data-event-authority-paused="">
+          Your account is restricted, so you can’t run this event right now. Your co-organizers still can — and you can reply to support under Settings → Support.
+        </p>
+      )}
       <BackupBanner
         state={viewer.backup}
         subject="event"

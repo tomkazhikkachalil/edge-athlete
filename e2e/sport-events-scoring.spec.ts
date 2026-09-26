@@ -19,6 +19,9 @@ type Scorecard = { scorecard: { participants: Array<{ participant: { id: string;
 type Conflict409 = { error: string; conflicts: Array<{ hole_number: number; current: { version: number; strokes: number } | null }>; written: number };
 
 test('sport events API: group-mate scoring · hole range · conflict · submit · finalize · complete', async () => {
+  // ~40 sequential API calls: 55–60 s on staging's free tier with or without
+  // the authority ceiling (measured Sep 25 2026) — at the 60 s default's edge.
+  test.setTimeout(180_000);
   const userA = loadQaUser('user.json');
   const userB = loadQaUser('user-b.json');
   const stamp = Date.now();

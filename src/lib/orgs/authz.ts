@@ -26,6 +26,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { ORG_ID, type OrgKind } from './org-ref';
+import { holdsAuthority } from '@/lib/moderation/state';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -67,13 +68,52 @@ export async function getOrgRole(
   orgId: string,
   profileId: string
 ): Promise<OrgRole | null> {
-  const { data } = await admin
-    .from('memberships')
-    .select('role')
-    .eq(ORG_ID, orgId)
-    .eq('profile_id', profileId)
-    .eq('scope_type', 'org');
-  return maxOrgRole((data ?? []).map(r => r.role as string));
+  const [{ data }, holds] = await Promise.all([
+    admin
+      .from('memberships')
+      .select('role')
+      .eq(ORG_ID, orgId)
+      .eq('profile_id', profileId)
+      .eq('scope_type', 'org'),
+    readActorHoldsAuthority(admin, profileId),
+  ]);
+  return roleCeiling(maxOrgRole((data ?? []).map(r => r.role as string)), holds);
+}
+
+// ── The moderation ceiling (Authority PR 3, Sep 25 2026) ────────────────────
+// Tom: a limited, suspended or banned account loses its org authority
+// automatically (a limited owner used to keep every power). The ceiling is
+// applied HERE — in the two reads every org gate goes through (getOrgRole,
+// getOrgCapabilities) — so no route is edited one by one. Membership is KEPT
+// (an owner who is limited is still a member: a private org stays visible to
+// them); only the power to run it is withheld until the account is active.
+
+/** An owner or manager who does not hold authority reads as a member. */
+export function roleCeiling(role: OrgRole | null, holds: boolean): OrgRole | null {
+  if (holds || role === null) return role;
+  return role === 'owner' || role === 'manager' ? 'member' : role;
+}
+
+/** The whole capability set under the ceiling: no ladder power, no staff grant. */
+export function authorityCeiling(caps: OrgCapabilities, holds: boolean): OrgCapabilities {
+  if (holds) return caps;
+  return { role: roleCeiling(caps.role, false), admin: false, sections: [], scoped: [] };
+}
+
+/** One PK read of the actor's moderation facts. A failed read is treated as
+ *  HOLDING authority (logged) — a transient error must not lock every owner
+ *  out of every org; the ceiling is a second line behind moderation itself. */
+export async function readActorHoldsAuthority(admin: Admin, profileId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('profiles')
+    .select('moderation_state, moderation_until, departed_at')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (error) {
+    console.error('[org authz] moderation read failed — treating as active:', error.message);
+    return true;
+  }
+  return holdsAuthority(data as { moderation_state?: string | null; moderation_until?: string | null; departed_at?: string | null } | null);
 }
 
 export function isOwnerOrManager(role: OrgRole | null): boolean {
@@ -281,17 +321,20 @@ export async function getOrgCapabilities(
   orgId: string,
   profileId: string
 ): Promise<OrgCapabilities> {
-  const { data, error } = await admin
-    .from('memberships')
-    .select('role, kind, scope_type, scope_id, sections, expires_at')
-    .eq(ORG_ID, orgId)
-    .eq('profile_id', profileId)
-    .in('kind', ['follow', 'staff']);
+  const [{ data, error }, holds] = await Promise.all([
+    admin
+      .from('memberships')
+      .select('role, kind, scope_type, scope_id, sections, expires_at')
+      .eq(ORG_ID, orgId)
+      .eq('profile_id', profileId)
+      .in('kind', ['follow', 'staff']),
+    readActorHoldsAuthority(admin, profileId),
+  ]);
   if (error) {
     const role = await getOrgRole(admin, side, orgId, profileId);
     return { ...NO_CAPABILITIES, role };
   }
-  return capabilitiesFromRows((data ?? []) as CapabilityRow[]);
+  return authorityCeiling(capabilitiesFromRows((data ?? []) as CapabilityRow[]), holds);
 }
 
 export type OrgAndRole =

@@ -7,6 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveSportEventAccess, type SportEventAccess } from './access';
 import type { SportEventParticipantRow, SportEventRow } from './types';
+import { readActorHoldsAuthority } from '@/lib/orgs/authz';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -32,9 +33,15 @@ export async function readSportEventAccess(admin: Admin, eventId: string, viewer
   }
   if (!event) return null;
   let participant: SportEventParticipantRow | null = null;
+  let viewerHoldsAuthority = true;
   if (viewerId) {
-    const { data } = await admin.from('sport_event_participants').select(PARTICIPANT_COLUMNS).eq('sport_event_id', eventId).eq('profile_id', viewerId).maybeSingle();
+    // Authority PR 3: the viewer's moderation facts ride beside their row (the ceiling).
+    const [{ data }, holds] = await Promise.all([
+      admin.from('sport_event_participants').select(PARTICIPANT_COLUMNS).eq('sport_event_id', eventId).eq('profile_id', viewerId).maybeSingle(),
+      readActorHoldsAuthority(admin, viewerId),
+    ]);
     participant = (data as SportEventParticipantRow | null) ?? null;
+    viewerHoldsAuthority = holds;
   }
   const row = event as SportEventRow;
   const access = resolveSportEventAccess({
@@ -42,6 +49,7 @@ export async function readSportEventAccess(admin: Admin, eventId: string, viewer
     viewerId,
     presentedToken,
     participant: participant ? { role: participant.role, status: participant.status } : null,
+    viewerHoldsAuthority,
   });
   if (!access) return null;
   return { event: row, participant, access };

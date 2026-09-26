@@ -12,7 +12,7 @@
 // paths (a roster edge gets its own gated creation flow in 0.3/0.10).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import { maxOrgRole, type OrgRole } from './authz';
+import { maxOrgRole, readActorHoldsAuthority, roleCeiling, type OrgRole } from './authz';
 import { ORG_ID, ORG_KIND_EMBED, ORG_KIND_EMBED_INNER, type OrgKindRow, type OrgRef, orgRefOf, pairFor, type OrgKind } from './org-ref';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { isStubEmail } from '@/lib/config/stubs-config';
@@ -563,7 +563,7 @@ export async function orgMemberPreview(
   viewerRole: string | null;
   viewerRoster: RosterStatus | null;
 }> {
-  const [countRes, membersRes, rosterRes, viewerRes] = await Promise.all([
+  const [countRes, membersRes, rosterRes, viewerRes, viewerHolds] = await Promise.all([
     admin
       .from('memberships')
       .select('profile_id', { count: 'exact', head: true })
@@ -592,6 +592,8 @@ export async function orgMemberPreview(
           .eq('profile_id', viewerId)
           .eq('scope_type', 'org')
       : Promise.resolve({ data: null }),
+    // Authority PR 3: the moderation ceiling — the page's menus match the gates.
+    viewerId ? readActorHoldsAuthority(admin, viewerId) : Promise.resolve(true),
   ]);
   // Phase 4 R4: consent answers on the roster rows — a SEPARATE
   // best-effort query so a pre-159 database (42703 on the column) degrades
@@ -665,7 +667,7 @@ export async function orgMemberPreview(
   return {
     count: countRes.count ?? 0,
     members,
-    viewerRole: maxOrgRole(viewerRows.map(r => r.role)),
+    viewerRole: roleCeiling(maxOrgRole(viewerRows.map(r => r.role)), viewerHolds),
     viewerRoster: pickRosterEdge(viewerEdges)?.status ?? null,
   };
 }

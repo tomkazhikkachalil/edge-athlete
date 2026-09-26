@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { holeRangeFor, scoringRight, type CardStatus, type ScoringRight } from './scoring-authz';
 import type { SportEventRole } from './types';
+import { readActorHoldsAuthority } from '@/lib/orgs/authz';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -26,6 +27,9 @@ export interface ScoringContext {
 export type ScoringResolution = { ok: true; ctx: ScoringContext } | { ok: false; status: 404 | 500; error: string };
 
 export async function resolveScoringRight(admin: Admin, viewerId: string, participantRowId: string): Promise<ScoringResolution> {
+  // Authority PR 3: the moderation read starts NOW and overlaps the gate's
+  // other reads (a serial await added a round trip to every score write).
+  const holdsP = readActorHoldsAuthority(admin, viewerId);
   const { data: p, error } = await admin
     .from('group_post_participants')
     .select('id, profile_id, status, group_post_id, group_post:group_post_id (id, creator_id, sport_event_round_id, golf_data:golf_scorecard_data (hole_data, holes_played))')
@@ -69,7 +73,11 @@ export async function resolveScoringRight(admin: Admin, viewerId: string, partic
   }
 
   const range = holeRangeFor({ eventRound, derivedStartingHole: startingHoleNumber(golfData?.hole_data ?? null, golfData?.holes_played ?? null), holesPlayed: golfData?.holes_played ?? null });
-  const right = scoringRight({ viewerId, ownerProfileId: p.profile_id, roundCreatorId: gp.creator_id, eventRole: event?.viewer_role ?? null, sameGroup: event?.same_group ?? false, card: { status: card.status }, recorder: event?.recorder ?? false, selfEntry: event?.self_entry ?? true });
+  // Authority PR 3: the moderation ceiling — a limited / suspended / banned
+  // viewer scores only their OWN card: no organizer, creator or recorder power.
+  const holds = await holdsP;
+  const ceiledRole = !holds && (event?.viewer_role === 'organizer' || event?.viewer_role === 'co_organizer') ? 'participant' : event?.viewer_role ?? null;
+  const right = scoringRight({ viewerId, ownerProfileId: p.profile_id, roundCreatorId: holds ? gp.creator_id : '' /* no one: a moderated creator holds no creator right */, eventRole: ceiledRole, sameGroup: event?.same_group ?? false, card: { status: card.status }, recorder: holds ? event?.recorder ?? false : false, selfEntry: event?.self_entry ?? true });
   return {
     ok: true,
     ctx: {

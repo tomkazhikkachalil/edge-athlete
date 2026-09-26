@@ -10,6 +10,8 @@ import {
   NO_CAPABILITIES,
   ORG_SECTIONS,
   roleAllows,
+  roleCeiling,
+  authorityCeiling,
   visibleSections,
   type OrgCapabilities,
   type OrgIntent,
@@ -63,14 +65,14 @@ describe('getOrgRole (rows-first since 0.8)', () => {
     });
     const role = await getOrgRole(admin, 'league', 'org-1', 'me');
     expect(role).toBe('owner');
-    expect(queried).toEqual(['memberships']);
+    expect(queried).toEqual(['memberships', 'profiles']); // Authority PR 3: the moderation read rides in parallel
   });
 
   it('zero rows + column match → null (the soak fallback is GONE — the cache grants nothing)', async () => {
     const { admin, queried } = mockAdmin({ memberships: { data: [], error: null } });
     const role = await getOrgRole(admin, 'league', 'org-1', 'me');
     expect(role).toBeNull();
-    expect(queried).toEqual(['memberships']);
+    expect(queried).toEqual(['memberships', 'profiles']); // Authority PR 3: the moderation read rides in parallel
   });
 
   it('a stale cache can NEVER resurrect a stepped-down owner', async () => {
@@ -88,12 +90,37 @@ describe('getOrgRole (rows-first since 0.8)', () => {
     });
     const role = await getOrgRole(admin, 'club', 'org-1', 'me');
     expect(role).toBe('manager');
-    expect(queried).toEqual(['memberships']);
+    expect(queried).toEqual(['memberships', 'profiles']); // Authority PR 3: the moderation read rides in parallel
   });
 
   it('returns null for a non-member (and for a null owner column)', async () => {
     const { admin } = mockAdmin({});
     expect(await getOrgRole(admin, 'league', 'org-1', 'me')).toBeNull();
+  });
+});
+
+// Authority PR 3 (Sep 25 2026): moderation strips org authority — Tom's rule.
+describe('the moderation ceiling', () => {
+  it('a limited, suspended or banned owner reads as a member; an active one stays owner', async () => {
+    for (const moderation_state of ['limited', 'banned']) {
+      const { admin } = mockAdmin({ memberships: { data: [{ role: 'owner' }], error: null }, profiles: { data: { moderation_state }, error: null } });
+      expect(await getOrgRole(admin, 'club', 'org-1', 'me'), moderation_state).toBe('member');
+    }
+    const { admin: suspended } = mockAdmin({ memberships: { data: [{ role: 'manager' }], error: null }, profiles: { data: { moderation_state: 'suspended', moderation_until: '2999-01-01T00:00:00Z' }, error: null } });
+    expect(await getOrgRole(suspended, 'club', 'org-1', 'me')).toBe('member');
+    const { admin: active } = mockAdmin({ memberships: { data: [{ role: 'owner' }], error: null }, profiles: { data: { moderation_state: 'active' }, error: null } });
+    expect(await getOrgRole(active, 'club', 'org-1', 'me')).toBe('owner');
+  });
+  it('a failed moderation read never locks an owner out (treated as active)', async () => {
+    const { admin } = mockAdmin({ memberships: { data: [{ role: 'owner' }], error: null }, profiles: { data: null, error: { code: '500' } } });
+    expect(await getOrgRole(admin, 'club', 'org-1', 'me')).toBe('owner');
+  });
+  it('roleCeiling / authorityCeiling: no ladder power, no staff grant', () => {
+    expect(roleCeiling('owner', false)).toBe('member');
+    expect(roleCeiling('member', false)).toBe('member');
+    expect(roleCeiling(null, false)).toBeNull();
+    expect(roleCeiling('owner', true)).toBe('owner');
+    expect(authorityCeiling({ role: 'manager', admin: true, sections: ['website'] as never, scoped: [] }, false)).toEqual({ role: 'member', admin: false, sections: [], scoped: [] });
   });
 });
 
@@ -272,7 +299,7 @@ describe('getOrgAndRole', () => {
     });
     const out = await getOrgAndRole(admin, 'league', 'org-1', 'owner-1');
     expect(out).toEqual({ status: 'found', org: ORG, role: null });
-    expect(queried).toEqual(['organizations', 'memberships']);
+    expect(queried).toEqual(['organizations', 'memberships', 'profiles']);
   });
 
   it('not_found: missing row', async () => {

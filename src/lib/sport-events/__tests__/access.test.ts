@@ -50,3 +50,21 @@ describe('managing needs an accepted row (Authority PR 2)', () => {
     expect(run('requested')?.canManage).toBe(false);
   });
 });
+
+// Authority PR 3 (Sep 25 2026): moderation strips event authority — Tom's
+// rule. A limited / suspended / banned organizer still SEES the event but
+// cannot run it; the role reads as a participant so every organizer branch drops.
+describe('the moderation ceiling (Authority PR 3)', () => {
+  it('a moderated host keeps viewing but cannot manage or delete', () => {
+    const a = resolveSportEventAccess({ event: base(), viewerId: 'host', presentedToken: null, participant: p('organizer', 'accepted'), viewerHoldsAuthority: false });
+    expect(a).toMatchObject({ canView: true, canManage: false, canDelete: false, role: 'participant', authorityPaused: true });
+  });
+  it('a moderated co-organizer of a private event is still admitted, as a participant', () => {
+    const a = resolveSportEventAccess({ event: base({ visibility: 'private' }), viewerId: 'c', presentedToken: null, participant: p('co_organizer', 'accepted'), viewerHoldsAuthority: false });
+    expect(a).toMatchObject({ canManage: false, role: 'participant', authorityPaused: true });
+  });
+  it('an active organizer is untouched; a moderated plain player has nothing to pause', () => {
+    expect(resolveSportEventAccess({ event: base(), viewerId: 'host', presentedToken: null, participant: null })).toMatchObject({ canManage: true, canDelete: true, authorityPaused: false });
+    expect(resolveSportEventAccess({ event: base({ visibility: 'public' }), viewerId: 'x', presentedToken: null, participant: p('participant', 'accepted'), viewerHoldsAuthority: false })).toMatchObject({ canManage: false, authorityPaused: false });
+  });
+});
