@@ -136,6 +136,9 @@ export const NOTIFICATION_TYPE_META = {
   moderation_notice: { tab: 'system', icon: 'fa-gavel' },
   // Authority (240): Edge Athlete support changed who can run a club, league or event.
   authority_notice: { tab: 'system', icon: 'fa-user-shield' },
+  // Teams & divisions (242): you were added to, moved between, removed from or
+  // carried forward on a team roster (a supervised athlete's guardians get a copy).
+  team_roster: { tab: null, icon: 'fa-people-group' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */

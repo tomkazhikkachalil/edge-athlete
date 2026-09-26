@@ -1,5 +1,43 @@
 # Development Log
 
+## September 26, 2026 — Teams & divisions PR 1: migration 242 and the switch predicate (no behaviour change; stacked on PR 0)
+
+**Why (Tom, Sep 26):**
+- "We run teams" / "We run competitions" become real switches: each turns its part of the product on or off, editable later, and off hides, never deletes.
+- Managers put existing members on teams.
+- Teams get pages, a sport, colours and a logo.
+- Coaches get a focused console.
+- Divisions get pages and standings.
+- Rollover can carry a roster forward.
+
+The audit behind the plan found:
+- Nothing read the switches.
+- A team's event sides lived only inside `format_config` jsonb, which can't be indexed, and the contest door never wrote them.
+- Team roster rows from the CSV import had no season, and every team roster reader ignored the season.
+
+**242, the program's only DDL (`database/migrations/242_teams_divisions.sql` + `verify-242-teams-divisions.sql`):**
+1. **`teams`** gains `sport_key`, `primary_color` / `secondary_color` (lower-case `#rrggbb`) and `logo_path` (`team-logos/{teamId}/{file}`; the sweep protects the prefix since PR 0). The sport is backfilled from the team's entered divisions when they agree, else the org's sport.
+2. **`sport_event_teams(sport_event_id, side, team_id)`:** one row per side, with an index on the team. RLS is on with no policies, and anon / authenticated are revoked. It is backfilled from `side_team_ids` and from the contest door's games.
+3. **`memberships`:**
+   - An index for the team roster read.
+   - Season-less team rows are backfilled to the team's newest entered season, else the org's newest season.
+   - A `NOT VALID` CHECK makes every new team roster write carry a season.
+4. **The switch backfill,** so nobody loses what they see when PR 2 starts gating:
+   - teams on wherever teams exist;
+   - competitions on wherever competitions exist, or the org's sport is golf;
+   - an org with seasons and both switches off gets its kind's switch.
+5. **`notifications`:** `team_roster`.
+
+**Code:**
+- `src/lib/orgs/switches.ts` has zero imports: `OrgSwitches`, `switchAllows`, `switchesOf` (a failed read shows, never hides), `sectionAllowed`, `widgetAllowed` and `gateModules`.
+- One widget map serves the site AND the in-app page, because one composition renders both:
+  - seasons and divisions show under either switch;
+  - `schedule` stays on, since calendar events aren't competitions.
+- `switches.test.ts` holds that every console section and every widget key is classified exactly once.
+- `team_roster` is registered in the notification registry and in the guardian types.
+
+**Staging:** 242 applied (`242 APPLIED | 4 | 4 | 1 | 1 | 1 | 1 | 242`), every twin row reads OK, and `check:schema` passes with ledger head 242. **Production:** Tom runs it in the SQL editor. No code names the new columns before then.
+
 ## September 26, 2026 — Storage sweep: stop deleting org assets (PR 0 of the teams & divisions program; zero DDL)
 
 **Found while planning the teams program:** the weekly storage sweep (`/api/cron/storage-sweep`, a real delete since Aug 1) keeps a file only if a registered URL column references it (`URL_SOURCE_COLUMNS`). Several writers store a BARE storage path instead, or were never registered, so their files looked orphaned once past the 48-hour grace period:
