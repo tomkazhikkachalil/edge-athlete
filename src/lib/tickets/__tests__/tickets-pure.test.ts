@@ -45,7 +45,8 @@ describe('the ticket vocabulary ↔ migration 222', () => {
 
   it('the resolution codes, subtypes and targets equal their LATEST CHECKs (240 re-adds them)', () => {
     const sql240 = fs.readFileSync(path.join(process.cwd(), 'database/migrations/240_authority.sql'), 'utf8');
-    expect(checkValues(sql240, 'tickets_resolution_code_check')).toEqual([...RESOLUTION_CODES]);
+    const sql241 = fs.readFileSync(path.join(process.cwd(), 'database/migrations/241_results_kept.sql'), 'utf8');
+    expect(checkValues(sql241, 'tickets_resolution_code_check')).toEqual([...RESOLUTION_CODES]);
     // 240 re-adds these two with org + sport_event (a report of a club, league, site or event).
     expect(checkValues(sql240, 'tickets_subtype_check')).toEqual([...TICKET_SUBTYPES]);
     expect(checkValues(sql240, 'tickets_target_type_check')).toEqual([...TICKET_TARGET_TYPES]);
