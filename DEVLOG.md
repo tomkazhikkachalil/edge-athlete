@@ -1,5 +1,11 @@
 # Development Log
 
+## September 26, 2026 — Results kept: the prod probe, and the specs that still deleted a played event (test only; zero DDL)
+
+**The probe** (main 1d09b00e deployed; 241 on prod) ran 20 spec files on desktop, mobile and webkit-mobile: **33 passed, 1 failed**. The failure was `sport-events-scoring`, which still asserted that a COMPLETED event deletes. PR 2 made that a 409 by design (a played event stays on the record), and the spec was not in PR 2's updated set. It now expects the 409 and tears down through `cleanupEvent`. It passed on prod on its own after the change.
+
+**The same class, quietly:** seven specs cleaned up with a direct `.delete(...).catch(() => null)`. On a completed event that now leaves the event behind for the rest of the run. They now call `cleanupEvent`, which falls back to the service role on the 409: sports-nav, scorecard, notifications, groups, group-card, feed and page. A staging sample passed.
+
 ## September 26, 2026 — Results kept PR 5: the docs, convention 27 (zero DDL; stacked on PR 4)
 
 The round's reference, in the places a reader looks first:

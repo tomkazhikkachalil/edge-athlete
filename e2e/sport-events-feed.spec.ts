@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -67,7 +68,7 @@ test('feed: the announce card and the event chip, announced → live', async ({ 
     for (const id of [eventId, tourneyId]) {
       if (!id) continue;
       await api.post(`/api/sport-events/${id}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-      await api.delete(`/api/sport-events/${id}`).catch(() => null);
+      await cleanupEvent(api, id); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await api.dispose();
   }
@@ -137,7 +138,7 @@ test('feed: a match round — the format on the announce card, the results card 
     await expect(results.locator('[data-event-match-line]')).toContainText('conceded');
     await expect(page.locator(`[data-event-announce-card="${eventId}"]`)).toHaveCount(0);
   } finally {
-    if (eventId) await api.delete(`/api/sport-events/${eventId}`).catch(() => null);
+    if (eventId) await cleanupEvent(api, eventId); // 241: a played event's delete is refused — the helper falls back to the service role
     await api.dispose();
     await apiB.dispose();
   }

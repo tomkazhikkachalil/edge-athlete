@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
@@ -53,7 +54,7 @@ test('sports nav: redirect, subnav, drawer, events list, leaderboards @mobile', 
   } finally {
     if (eventId) {
       await api.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-      await api.delete(`/api/sport-events/${eventId}`).catch(() => null);
+      await cleanupEvent(api, eventId); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await api.dispose();
   }

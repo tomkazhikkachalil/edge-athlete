@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -119,14 +120,11 @@ test('sport events API: group-mate scoring · hole range · conflict · submit �
     const completed = await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed' } });
     expect(completed.ok(), await readErrorBody(completed)).toBe(true);
     expect(((await completed.json()) as View).event.status).toBe('completed');
+    // Results-kept (241): a PLAYED event stays on the record — its delete is refused.
     const del = await apiA.delete(`/api/sport-events/${eventId}`);
-    expect(del.ok(), await readErrorBody(del)).toBe(true);
-    eventId = null;
+    expect(del.status(), await readErrorBody(del)).toBe(409);
   } finally {
-    if (eventId) {
-      await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
-    }
+    await cleanupEvent(apiA, eventId);
     await apiA.dispose();
     await apiB.dispose();
   }
