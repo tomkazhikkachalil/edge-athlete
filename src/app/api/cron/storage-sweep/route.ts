@@ -12,14 +12,18 @@ export const maxDuration = 60;
  * Auth: Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`. Fail-closed
  * when CRON_SECRET is unset (same pattern as notification-digest).
  *
- * THIS DELETES FOR REAL. The vercel.json entry calls it with no `dryRun` param
- * (Aug 1 2026, after a reviewed manual run). Add `?dryRun=1` back to return to
- * report-only. What stands between this and data loss:
+ * REPORT-ONLY since Sep 26 2026: the vercel.json entry carries `?dryRun=1`
+ * again. From Aug 1 it deleted for real, and because bare-path uploads (org
+ * logos, org-media/, contest-media/) were invisible to the reference scan it
+ * deleted every org logo on production. PROTECTED_PREFIXES closes that; the
+ * real delete returns only after a dashboard dry run lists no protected or
+ * live path. What stands between this and data loss:
  *   - the 48h grace window (uploads land before the row referencing them)
  *   - a full reference scan over URL_SOURCE_COLUMNS; if any part of that scan
  *     fails the sweep throws and deletes NOTHING, which is the intended
  *     failure mode — an incomplete reference set makes live files look orphaned
  *   - SWEEP_BUCKETS, which excludes consent-evidence
+ *   - PROTECTED_PREFIXES, the bare-path writers (never swept)
  * Adding a column that stores a storage URL means adding it to
  * URL_SOURCE_COLUMNS in the same change, or this will delete those files.
  */
