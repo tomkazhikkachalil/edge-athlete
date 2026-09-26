@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { apiAs, E2E_BASE_URL, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -79,7 +80,7 @@ test('event page: invite → accept on the players tab, publish, the stranger sc
   } finally {
     for (const id of ids) {
       await apiA.post(`/api/sport-events/${id}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${id}`).catch(() => null);
+      await cleanupEvent(apiA, id); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await apiA.dispose();
   }

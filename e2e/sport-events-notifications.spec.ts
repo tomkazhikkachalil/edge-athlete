@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -60,7 +61,7 @@ test('notifications: accept an invitation and a join request from the action row
   } finally {
     for (const id of ids) {
       await apiA.post(`/api/sport-events/${id}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${id}`).catch(() => null);
+      await cleanupEvent(apiA, id); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await apiA.dispose();
     await apiB.dispose();
@@ -135,7 +136,7 @@ test('notifications: the match bells — set on the draw, won / lost at completi
     const won = { data: bellsA.data![0] };
     expect(won.data).toMatchObject({ title: `You beat Edge Bravo · conceded in QA Bell Match ${stamp}`, metadata: expect.objectContaining({ kind: 'won' }) });
   } finally {
-    if (eventId) await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
+    if (eventId) await cleanupEvent(apiA, eventId); // 241: a played event's delete is refused — the helper falls back to the service role
     await apiA.dispose();
     await apiB.dispose();
   }

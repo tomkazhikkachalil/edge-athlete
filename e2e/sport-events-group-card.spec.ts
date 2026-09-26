@@ -1,3 +1,4 @@
+import { cleanupEvent } from './helpers/sport-events';
 import { test, expect } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -73,7 +74,7 @@ test('group card: two columns, score, offline queue, reconnect, a partner\'s hol
   } finally {
     if (eventId) {
       await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
+      await cleanupEvent(apiA, eventId); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await apiA.dispose();
     await apiB.dispose();

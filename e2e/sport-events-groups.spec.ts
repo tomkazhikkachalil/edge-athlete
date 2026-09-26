@@ -65,7 +65,7 @@ test('groups editor: add, assign, reorder, tee time, save; hidden from a player 
   } finally {
     if (eventId) {
       await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
+      await cleanupEvent(apiA, eventId); // 241: a played event's delete is refused — the helper falls back to the service role
     }
     await apiA.dispose();
     await apiB.dispose();
