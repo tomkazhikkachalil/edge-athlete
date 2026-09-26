@@ -181,7 +181,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const read = await readSportEventAccess(admin, id, actor.profileId, null);
     if (!read) return NOT_FOUND();
     if (!read.access.canDelete) return NextResponse.json({ error: 'Only the host can delete this event.' }, { status: 403 });
-    if (!['draft', 'cancelled', 'completed'].includes(read.event.status)) return NextResponse.json({ error: 'Cancel the event before deleting it.' }, { status: 409 });
+    // Results-kept round (241): an event that was played is on the record — it can be made
+    // private, never deleted (deleting it unlinked its rounds from their results).
+    if (read.event.status === 'completed') return NextResponse.json({ error: 'This event has results, so it stays on the record. You can make it private instead.', results: true }, { status: 409 });
+    if (!['draft', 'cancelled'].includes(read.event.status)) return NextResponse.json({ error: 'Cancel the event before deleting it.' }, { status: 409 });
     const { error: deleteError } = await admin.from('sport_events').delete().eq('id', id);
     if (deleteError) {
       reportRouteError('[api/sport-events/[id]] delete failed:', deleteError);

@@ -1,3 +1,6 @@
+import { HIDDEN_NOTICE, isResultPost, type PostResultFacts } from '@/lib/results/kinds';
+import { setResultHidden } from '@/lib/results/hide-server';
+import { naturalKey } from '@/lib/performance/types';
 import { NextRequest, NextResponse } from 'next/server';
 import { applyRoundCounts, SPORT_EVENT_ROUND_LABEL_SELECT, sportEventIdsOf, sportEventLabelsByRound } from '@/lib/sport-events/feed';
 import { applyMatchResults } from '@/lib/sport-events/feed-server';
@@ -12,7 +15,7 @@ import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/gol
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
-import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
+import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
 import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
 import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
@@ -1892,7 +1895,7 @@ export async function DELETE(request: NextRequest) {
     // First, verify the post belongs to the authenticated user
     const { data: post, error: fetchError } = await supabase
       .from('posts')
-      .select('profile_id, group_post_id')
+      .select('profile_id, group_post_id, sport_event_round_id, stats_data')
       .eq('id', postId)
       .single();
 
@@ -1917,15 +1920,28 @@ export async function DELETE(request: NextRequest) {
       // post's owner by construction. The session user was already verified
       // above (owner or guardian), so pass the owner id: a guardian deleting
       // their athlete's round must not trip the creator check.
-      const roundResult = await deleteRoundCascade(supabase, post.group_post_id, post.profile_id);
+      // Results-kept (241): a round with any score is hidden, never deleted.
+      const roundResult = await deleteOrHideRound(supabase, post.group_post_id, post.profile_id);
       if (roundResult.status === 'deleted') {
         return NextResponse.json({ success: true, message: 'Round deleted successfully' });
+      }
+      if (roundResult.status === 'hidden') {
+        return NextResponse.json({ success: true, hidden: true, message: HIDDEN_NOTICE });
       }
       if (roundResult.status === 'error') {
         return NextResponse.json({ error: roundResult.message }, { status: 500 }); // hardening-ok: crafted strings, see round-delete-server.ts
       }
       // not_found / forbidden → legacy orphan or mismatched creator: the
       // caller still owns THIS post, so plain post deletion proceeds.
+    }
+
+    // Results-kept (241): a RESULT post (an event post, a stat line — its dataset
+    // row is keyed by the post) is hidden from the profile, never deleted.
+    const { count: perfRows } = await supabase.from('athlete_performances').select('id', { count: 'exact', head: true }).eq('natural_key', naturalKey.post(postId));
+    if (isResultPost(post as PostResultFacts, (perfRows ?? 0) > 0)) {
+      const hid = await setResultHidden(supabase, { kind: 'post', id: postId }, true, post.profile_id);
+      if (!hid.ok) return NextResponse.json({ error: hid.error }, { status: hid.status });
+      return NextResponse.json({ success: true, hidden: true, message: HIDDEN_NOTICE });
     }
 
     const result = await deletePostCascade(supabase, postId);

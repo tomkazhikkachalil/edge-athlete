@@ -123,6 +123,16 @@ export const COPY = {
     DELETE_ROUND_CONFIRM_PARTNERS: (n: number) =>
       `The round, its scorecard, and its post will be permanently deleted — including scores entered by ${n} playing partner${n === 1 ? '' : 's'}. This cannot be undone.`,
     DELETE_ROUND_ACTION: 'Delete Round',
+    // Results-kept round (241, Tom: "hide only, no delete"): a round anyone
+    // scored, an event post or a stat line is HIDDEN from your profile — it
+    // stays on the record and keeps counting. Only an unplayed round deletes.
+    HIDE_RESULT_TITLE: 'Hide from your profile?',
+    HIDE_RESULT_CONFIRM:
+      'It leaves your profile and the feed, but stays on the record — it still counts toward your stats and handicap. You can show it again under Settings → Privacy.',
+    HIDE_ROUND_CONFIRM_PARTNERS: (n: number) =>
+      `It leaves your profile and the feed, but stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again under Settings → Privacy.`,
+    HIDE_RESULT_ACTION: 'Hide',
+    HIDE_RESULT_LABEL: 'Hide from profile',
   },
 
   // Error Messages

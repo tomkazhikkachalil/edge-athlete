@@ -1872,6 +1872,7 @@ export async function fetchPublicPlayerPage(
           .select('id, date, course, course_id, tee, holes, gross_score, created_at')
           .eq('profile_id', p.id)
           .eq('is_complete', true)
+          .is('profile_hidden_at', null) // 241: a round its owner hid is never listed publicly
           .gte('date', since)
           .order('date', { ascending: false })
           .limit(40);

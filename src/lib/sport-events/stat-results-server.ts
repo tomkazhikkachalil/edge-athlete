@@ -69,7 +69,9 @@ export async function mirrorStatRound(admin: Admin, event: SportEventRow, round:
     const createdBy = event.created_by_user_id && event.created_by_user_id !== event.host_profile_id ? event.created_by_user_id : null;
 
     for (const line of lines) {
-      if (hidden.has(line.profile_id) || !lineHasStats(line.stats)) {
+      // Results-kept (241): a hidden player's line is mirrored like everyone's and its post
+      // is hidden from THEIR profile (below); only a line with no stats has nothing to mirror.
+      if (!lineHasStats(line.stats)) {
         await unmirrorLine(admin, line.id);
         continue;
       }
@@ -84,6 +86,9 @@ export async function mirrorStatRound(admin: Admin, event: SportEventRow, round:
         if (error || !inserted) { console.error('[sport-events stat results] post insert failed:', error); continue; }
         postId = inserted.id as string;
       }
+      if (hidden.has(line.profile_id)) {
+        await admin.from('posts').update({ status: 'profile_hidden', profile_hidden_at: new Date().toISOString() }).eq('id', postId).eq('status', 'published');
+      }
       const { data: post } = await admin.from('posts').select(POST_SELECT).eq('id', postId).maybeSingle();
       if (!post) continue;
       const perf = fromStatLinePost(post as { id: string; profile_id: string; sport_key: string; stats_data: unknown; status: string; created_at: string });
@@ -96,7 +101,8 @@ export async function mirrorStatRound(admin: Admin, event: SportEventRow, round:
     // The round's ONE post → the results (the score, the sides, the top lines) + the feed bump.
     const { data: roundPost } = await admin.from('posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
     if (roundPost?.id) {
-      const results = resultsPostData(event, round, shape, lines.filter(l => !hidden.has(l.profile_id)), game);
+      // The round's results are the event's record (the leaderboard): every line counts, hidden or not.
+      const results = resultsPostData(event, round, shape, lines, game);
       const { error } = await admin.from('posts').update({ stats_data: results, created_at: new Date().toISOString() }).eq('id', roundPost.id);
       if (error) console.error('[sport-events stat results] round post flip failed:', error);
     }
@@ -105,12 +111,18 @@ export async function mirrorStatRound(admin: Admin, event: SportEventRow, round:
   }
 }
 
-/** The opt-out on a stat event: hidden → every mirrored line of this profile goes; shown → every completed round re-mirrors. */
+/** The opt-out on a stat event (241): hidden → this profile's mirrored line posts are hidden from their profile; shown → shown again. Never removed. */
 export async function applyStatOptOut(admin: Admin, event: SportEventRow, rounds: ReadonlyArray<SportEventRoundRow>, profileId: string, hidden: boolean): Promise<void> {
   for (const round of rounds) {
     if (round.status !== 'completed') continue;
-    if (!hidden) { await mirrorStatRound(admin, event, round); continue; }
-    const { data: lines } = await admin.from('sport_event_stat_lines').select('id').eq('sport_event_round_id', round.id).eq('profile_id', profileId);
-    for (const l of (lines ?? []) as Array<{ id: string }>) await unmirrorLine(admin, l.id);
+    if (!hidden) {
+      const { data: lines } = await admin.from('sport_event_stat_lines').select('id').eq('sport_event_round_id', round.id).eq('profile_id', profileId);
+      for (const l of (lines ?? []) as Array<{ id: string }>) {
+        const post = await findMirroredPost(admin, l.id);
+        if (post) await admin.from('posts').update({ status: 'published', profile_hidden_at: null }).eq('id', post.id).eq('status', 'profile_hidden');
+      }
+    }
+    // Idempotent: (re)writes every line and hides the still-hidden player's posts.
+    await mirrorStatRound(admin, event, round);
   }
 }

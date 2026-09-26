@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
+import HiddenResults from '@/components/settings/HiddenResults';
 import MessagingSettings from '@/components/settings/MessagingSettings';
 import NotificationSettings from '@/components/settings/NotificationSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
@@ -188,7 +189,13 @@ export default function SettingsPage() {
             {activeTab === 'account' && (
               <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
             )}
-            {activeTab === 'privacy' && <PrivacySettings />}
+            {activeTab === 'privacy' && (
+              <>
+                <PrivacySettings />
+                {/* Results-kept (241): what you hid from your profile, and the way back. */}
+                <HiddenResults />
+              </>
+            )}
             {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'routines' && <WorkoutRoutinesSettings />}
             {activeTab === 'messaging' && <MessagingSettings />}

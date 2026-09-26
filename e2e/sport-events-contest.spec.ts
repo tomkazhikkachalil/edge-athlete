@@ -18,6 +18,8 @@ import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, 
  * link can no longer be removed. Self-skips before 211.
  */
 test('sport events API: counts toward — mint one contest per round, refuse by name, unlink, the engine guard', async () => {
+  // ~50 s on staging's free tier (Sep 26 2026) — at the 60 s default's edge; a budget like its siblings.
+  test.setTimeout(180_000);
   const s = await openEventSession();
   const admin = adminClient();
   const probe = await admin.from('contests').select('sport_event_round_id').limit(1);
@@ -75,7 +77,7 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     // PR 9: the results. B joins and opts out of their profile; round 1 goes live (the
     // contest reads in_progress), both score, the round completes with the override →
     // the contest is completed with club_recorded results from the EVENT's board, B's
-    // roundRef.roundId null (no golf round for an opted-out player) yet counted, the
+    // round mirrored but hidden from B's profile (241 — it was removed before) and counted, the
     // live round stamped with the contest, and the link can no longer be removed.
     const { participantId: rowBEvent, hostRowId } = await inviteAndAccept(s, eventId);
     expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${rowBEvent}`, { data: { hide_from_profile: true } })).ok()).toBe(true);
@@ -97,8 +99,11 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     expect((resA.payload as { gross: number; roundRef: { roundId: string | null; groupPostId: string } }).gross).toBe(72);
     expect((resA.payload as { roundRef: { roundId: string | null } }).roundRef.roundId).toBeTruthy();
     expect((resB.payload as { gross: number }).gross).toBe(90);
-    expect((resB.payload as { roundRef: { roundId: string | null; groupPostId: string } }).roundRef).toEqual({ roundId: null, groupPostId: gp });
-    expect((await admin.from('golf_rounds').select('id', { count: 'exact', head: true }).eq('group_post_id', gp).eq('profile_id', s.userB.id)).count).toBe(0);
+    // Results-kept (241): B's opt-out HIDES the mirror from B's profile — the round is mirrored, so the org's row names it.
+    expect((resB.payload as { roundRef: { roundId: string | null; groupPostId: string } }).roundRef.groupPostId).toBe(gp);
+    expect((resB.payload as { roundRef: { roundId: string | null } }).roundRef.roundId).toBeTruthy();
+    const { data: bRound } = await admin.from('golf_rounds').select('profile_hidden_at').eq('group_post_id', gp).eq('profile_id', s.userB.id).single();
+    expect(bRound?.profile_hidden_at, 'hidden from B’s profile, still on the record').toBeTruthy();
     expect((await admin.from('contests').select('status').eq('id', contests![0].id).single()).data!.status).toBe('completed');
     expect((await admin.from('group_posts').select('contest_id').eq('id', gp).single()).data!.contest_id).toBe(contests![0].id);
     const contestRes = await s.apiA.get(`/api/contests/${contests![0].id}`);

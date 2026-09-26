@@ -1,3 +1,4 @@
+import { purgePost } from './helpers/results';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
@@ -104,7 +105,7 @@ test('scout search: performance filters — since, verified only, a headline flo
       await scoutCtx.close();
     }
   } finally {
-    if (postId) await api.delete(`/api/posts?postId=${postId}`).catch(() => {});
+    await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await admin.from('athlete_performances').delete().eq('natural_key', verifiedKey);
     await api.patch(`/api/profile/${alpha.id}/recruiting`, { data: { status: 'closed', school: '' } }).catch(() => {});
     await admin.from('profiles').update({ visibility: prior!.visibility as string, sport: (prior!.sport as string | null) ?? null }).eq('id', alpha.id);

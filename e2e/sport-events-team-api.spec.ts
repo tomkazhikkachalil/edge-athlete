@@ -199,14 +199,15 @@ test('team events API: completion mirrors the lines, the results post, the bell,
     const bell = await admin.from('notifications').select('action_url, message').eq('user_id', s.userB.id).eq('type', 'sport_event_results').contains('metadata', { sport_event_id: eventId }).limit(1).maybeSingle();
     expect(bell.data?.action_url).toContain('tab=stats');
 
-    // B's opt-out removes the post and the row; the opt back in restores them.
+    // Results-kept (241): B's opt-out HIDES the line's post from B's profile — the post and its
+    // dataset row stay; the opt back in shows it again.
+    const statusOf = async () => ((await admin.from('posts').select('status').eq('id', bPosts[0].id as string).single()).data?.status as string | undefined);
     expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${bRow}`, { data: { hide_from_profile: true } })).ok()).toBe(true);
-    await expect.poll(async () => (await postsFor(bLine)).length, { timeout: 20_000 }).toBe(0);
-    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${bPosts[0].id as string}`)).data).toHaveLength(0);
+    await expect.poll(statusOf, { timeout: 20_000 }).toBe('profile_hidden');
+    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${bPosts[0].id as string}`)).data).toHaveLength(1);
     expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${bRow}`, { data: { hide_from_profile: false } })).ok()).toBe(true);
-    await expect.poll(async () => (await postsFor(bLine)).length, { timeout: 20_000 }).toBe(1);
-    const again = await postsFor(bLine);
-    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${again[0].id as string}`)).data).toHaveLength(1);
+    await expect.poll(statusOf, { timeout: 20_000 }).toBe('published');
+    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${bPosts[0].id as string}`)).data).toHaveLength(1);
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await s.dispose();

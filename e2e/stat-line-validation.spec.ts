@@ -1,3 +1,4 @@
+import { purgePost } from './helpers/results';
 import { test, expect } from '@playwright/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
@@ -46,7 +47,7 @@ test('stat line: the posts route rejects an unknown stat / a range miss with a 4
     const blobId = (await blob.json()).post.id as string;
     await api.delete(`/api/posts?postId=${blobId}`);
   } finally {
-    if (postId) await api.delete(`/api/posts?postId=${postId}`).catch(() => {});
+    await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await api.dispose();
   }
 });

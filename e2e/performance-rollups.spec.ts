@@ -1,3 +1,4 @@
+import { purgePost } from './helpers/results';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -55,7 +56,7 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
     await expect(section.locator('[data-rollups-tile="Goals"]')).toContainText('2');
     await expect(section.locator('[data-rollups-bests]')).toContainText('Shots');
   } finally {
-    if (postId) await alphaApi.delete(`/api/posts?postId=${postId}`).catch(() => null);
+    await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await alphaApi.dispose();
     await bravoApi.dispose();
   }

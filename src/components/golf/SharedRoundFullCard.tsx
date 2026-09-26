@@ -11,6 +11,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useDeleteRound } from '@/hooks/useDeleteRound';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
+import { anyScoreRecorded } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
 import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
@@ -1162,15 +1163,16 @@ export default function SharedRoundFullCard({
       {/* Delete Round confirmation */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title={COPY.FORMS.DELETE_ROUND_TITLE}
+        title={anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_TITLE : COPY.FORMS.DELETE_ROUND_TITLE}
         message={
-          countPartnersWithScores(participants, group_post.creator_id) > 0
-            ? COPY.FORMS.DELETE_ROUND_CONFIRM_PARTNERS(
-                countPartnersWithScores(participants, group_post.creator_id)
-              )
-            : COPY.FORMS.DELETE_ROUND_CONFIRM
+          /* Results-kept (241): a round anyone scored is hidden from the creator's profile, never deleted. */
+          !anyScoreRecorded(participants)
+            ? COPY.FORMS.DELETE_ROUND_CONFIRM
+            : countPartnersWithScores(participants, group_post.creator_id) > 0
+              ? COPY.FORMS.HIDE_ROUND_CONFIRM_PARTNERS(countPartnersWithScores(participants, group_post.creator_id))
+              : COPY.FORMS.HIDE_RESULT_CONFIRM
         }
-        confirmText={COPY.FORMS.DELETE_ROUND_ACTION}
+        confirmText={anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_ACTION : COPY.FORMS.DELETE_ROUND_ACTION}
         onConfirm={() => {
           setShowDeleteConfirm(false);
           deleteRound();

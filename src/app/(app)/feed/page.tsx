@@ -1,5 +1,6 @@
 'use client';
 
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -452,7 +453,10 @@ export default function FeedPage() {
 
       // Remove post from local state
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-      showSuccess('Success', 'Post deleted successfully');
+      // Results-kept (241): a result comes back hidden, not deleted.
+      const body = await response.json().catch(() => ({}));
+      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else showSuccess('Success', 'Post deleted successfully');
     } catch (e) {
       console.error('Failed to delete post:', e);
       showError('Error', 'Failed to delete post');

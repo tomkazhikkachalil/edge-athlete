@@ -1,9 +1,10 @@
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { setResultHidden } from '@/lib/results/hide-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-import { naturalKey } from '@/lib/performance/types';
-import { deletePerformancesByKeys, syncGolfRoundPerformance } from '@/lib/performance/write-server';
+import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/golf/rounds/[roundId] ────────────────────────────────────────────
@@ -28,7 +29,7 @@ export async function GET(
         id, profile_id, date, course, course_location, tee, holes, round_type,
         par, gross_score, total_putts, fir_percentage, gir_percentage,
         weather, temperature, wind, course_rating, slope_rating, notes,
-        is_complete, created_at,
+        is_complete, created_at, profile_hidden_at,
         course_info:golf_courses (
           id, name, city, region, lat, lng, description, description_attribution,
           architect, year_built, course_type, website
@@ -52,7 +53,8 @@ export async function GET(
     const isOwner = round.profile_id === user.id;
     if (!isOwner) {
       const { canView } = await canViewProfile(round.profile_id, user.id);
-      if (!canView) {
+      // Results-kept (241): a round its owner hid is theirs to see — the same 404 for everyone else.
+      if (!canView || round.profile_hidden_at) {
         // 404, not 403 — don't confirm a hidden round's existence
         return NextResponse.json({ error: 'Round not found' }, { status: 404 });
       }
@@ -268,8 +270,9 @@ export async function PATCH(
 }
 
 // ── DELETE /api/golf/rounds/[roundId] ─────────────────────────────────────────
-// Owner-only. golf_holes cascade; posts.round_id is ON DELETE SET NULL, so
-// any post that referenced this round survives without its scorecard.
+// Owner-only. Results-kept round (241, Tom: "hide only, no delete"): the round
+// is HIDDEN from the owner's profile — it keeps counting toward the handicap,
+// the stats and the dataset. Only Edge Athlete support removes a round.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ roundId: string }> }
@@ -296,19 +299,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Only the round owner can delete it' }, { status: 403 });
     }
 
-    const { error: deleteError } = await supabase
-      .from('golf_rounds')
-      .delete()
-      .eq('id', roundId);
-
-    if (deleteError) {
-      reportRouteError('DELETE /api/golf/rounds/[id] error:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete round' }, { status: 500 });
-    }
-    // Data foundation F4: the round's performance row dies with it.
-    await deletePerformancesByKeys(supabase, [naturalKey.golfRound(roundId)]);
-
-    return NextResponse.json({ success: true });
+    const hid = await setResultHidden(supabase, { kind: 'golf_round', id: roundId }, true, user.id);
+    if (!hid.ok) return NextResponse.json({ error: hid.error }, { status: hid.status });
+    return NextResponse.json({ success: true, hidden: true, message: HIDDEN_NOTICE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('DELETE /api/golf/rounds/[id] error:', error);

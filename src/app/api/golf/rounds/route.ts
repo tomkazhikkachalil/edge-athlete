@@ -54,10 +54,13 @@ export async function GET(request: NextRequest) {
       .select(
         `id, date, course, course_location, tee, holes, round_type, par,
          gross_score, total_putts, fir_percentage, gir_percentage,
-         is_complete, created_at`,
+         is_complete, created_at, profile_hidden_at`,
         firstPage ? { count: 'exact' } : {}
       )
       .eq('profile_id', profileId);
+    // Results-kept (241): a round its owner hid is not LISTED for anyone else (it
+    // still counts in every aggregate — handicap, stats, trends). The owner sees it, marked.
+    if (profileId !== user.id) query = query.is('profile_hidden_at', null);
 
     if (holesFilter === '9' || holesFilter === '18') {
       query = query.eq('holes', parseInt(holesFilter, 10));

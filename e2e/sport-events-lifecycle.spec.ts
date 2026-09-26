@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { cleanupEvent } from './helpers/sport-events';
 
 /**
  * Events program, PR 5 — the API lifecycle to live and through completion:
@@ -7,7 +8,7 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
  * round is minted, B's scorecard GET carries the event context and the
  * group), B withdraws while live (the round row goes declined), completing
  * is refused until the cards are final, the override completes, the
- * completed event deletes and the round stays the players' round.
+ * completed event is on the record (241: its delete is refused).
  */
 type View = {
   event: { id: string; status: string; opened_at: string | null; went_live_at: string | null; completed_at: string | null };
@@ -104,20 +105,16 @@ test('sport events API: open → live → complete', async () => {
     const cardDone = (await (await apiA.get(`/api/group-posts/${groupPostId}/scorecard`)).json()) as typeof scorecard;
     expect(cardDone.scorecard.group_post.status).toBe('completed');
 
-    // A completed event deletes; the minted round detaches (203 SET NULL) and
-    // stays the players' round — the QA teardown deletes it with A.
+    // Results-kept (241): a PLAYED event stays on the record — its delete is refused and
+    // the round keeps its link to the event.
     const del = await apiA.delete(`/api/sport-events/${eventId}`);
-    expect(del.ok(), await readErrorBody(del)).toBe(true);
-    eventId = null;
+    expect(del.status(), await readErrorBody(del)).toBe(409);
     const after = await apiA.get(`/api/group-posts/${groupPostId}/scorecard`);
     expect(after.status()).toBe(200);
-    expect(((await after.json()) as { scorecard: { sport_event: unknown; group_post: { sport_event_round_id: string | null } } }).scorecard).toMatchObject({ sport_event: null, group_post: { sport_event_round_id: null } });
+    expect(((await after.json()) as { scorecard: { group_post: { sport_event_round_id: string | null } } }).scorecard.group_post.sport_event_round_id).toBeTruthy();
   } finally {
     // Best-effort cleanup only — an assertion here would mask the real failure.
-    if (eventId) {
-      await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-      await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
-    }
+    await cleanupEvent(apiA, eventId);
     await apiA.dispose();
     await apiB.dispose();
   }

@@ -7,10 +7,11 @@
  * for a league — the org recorded it from its own event, never
  * self_reported), and `roundRef` names the mirrored golf round when the
  * player has one. Tom's rule: an opted-out player (hide_from_profile)
- * STILL counts for the org — their row carries `roundRef.roundId: null`
- * (no golf_rounds row exists for them) and `groupPostId` set, so the org's
- * standings count them while the profile, the handicap and the dataset
- * never see it (the performance overlay skips a null roundId).
+ * STILL counts for the org. Since the results-kept round (241) the opt-out
+ * only hides the mirror from THEIR profile — the round is mirrored, so the
+ * row names it and the handicap and the dataset keep it (with the org's
+ * provenance). `roundRef.roundId` is null only when no mirror exists (a card
+ * with no score).
  */
 import type { GolfResultPayload } from '@/lib/competitions/golf-league';
 import type { ResultProvenance } from '@/lib/orgs/provenance';

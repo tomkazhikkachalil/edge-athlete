@@ -1,5 +1,29 @@
 # Development Log
 
+## September 26, 2026 — Results kept PR 2: hide, never delete — a person controls how their profile looks; the record stays (zero DDL; needs 241; stacked on PR 1)
+
+**Why (Tom):** *"Hide only, no delete. I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."* On an official result, the opt-out hides it from the profile only.
+
+**The one writer:** `src/lib/results/hide-server.ts setResultHidden` stamps a round (`golf_rounds.profile_hidden_at`) or a result post (status `profile_hidden`). It never touches the handicap, the leaderboards or `athlete_performances` (pinned). It is idempotent and refuses to show a post a moderator hid. An official result's hide or show is logged against its event (`result_hidden` / `result_unhidden`). `src/lib/results/kinds.ts isResultPost` is pure: a round card, an event post, a stat line, or anything with a dataset row is a result. A post that only references a personal round is not; the round hides on its own.
+
+**The doors:**
+- `DELETE /api/golf/rounds/[id]` hides the round.
+- `DELETE /api/posts` hides a result post; an ordinary post (photo, notion, vitals) still deletes.
+- A round creator's delete (`deleteOrHideRound`) deletes an UNPLAYED round only. A round anyone scored, the creator included, or an event round hides the creator's post and their own mirror, and every partner's score and mirror stay. Before this, the event host's delete wiped every player's round, handicap entry and dataset row.
+- A played event can no longer be deleted (409, "make it private instead").
+- An attest decline is refused on an event round, and once the player has any score.
+- **The opt-out** (`hide_from_profile`) is a profile hide everywhere. The golf mirror now mirrors the opted-out player and stamps the round hidden; it used to remove it. The stat mirror keeps the line's post and hides it. The round's results post counts every line. The org's contest row now names the hidden player's mirror, so their dataset row carries the org's provenance.
+
+**Who sees a hidden round:** the owner, marked. The rounds list, the single round and the org site's player page skip it for everyone else. **Aggregates count everything**: handicap, stats, trends, skill cards and the dataset. That draws Tom's line: items are the profile's choice, metrics are the athlete's record.
+
+**UI (375 px):**
+- On a result, "Delete" becomes **"Hide from profile"** (the post card's trash and owner menu, both shared-round confirms, the golf round page). The copy says it still counts and where to show it again.
+- An unplayed round keeps its delete.
+- The round page shows "Hidden from your profile" with **Show on profile**.
+- **Settings → Privacy** lists "Hidden from your profile" with **Show again** (`GET/PATCH /api/results/visibility`, owner or guardian through the post matrix, the `result-visibility` bucket).
+
+**Proof:** `results-hide.test.ts` covers the result-kind matrix, the writer touching nothing but the stamps, each door, the opt-out in both mirrors, the reader split (the handicap and dataset readers never filter), and a delete allowlist: only named writers delete a round or a dataset row. `npm run verify` green (3837). **Staging:** `results-hide.spec.ts` @mobile (desktop, mobile, webkit-mobile) shows a stat line and a round each hidden with the dataset row kept and invisible to another viewer. The owner still sees them, a plain post still deletes, and Show again works at 390 px. **Updated to the new rule:** `sport-events-results`, `sport-events-team-api` and `sport-events-contest` (opt-out = hide; the hidden mirror is named by the org's row), `sport-events-lifecycle` (a played event's delete answers 409), and `performance-data` (a delete hides and the row stays). Five specs that tidied stat posts through the app now purge through the service role (`e2e/helpers/results.ts`), and `cleanupEvent` falls back to a service delete on the 409. `sport-events-contest` gets a 180 s budget (~50 s on staging). Regressions passed: `round-delete` (unplayed rounds still delete), `tagged`, `stat-line-validation`, `performance-rollups`. `scout-search-performance` fails locally only at its scout signup (staging refuses the `example.com` address), unrelated.
+
 ## September 26, 2026 — Results kept PR 1: migration 241 and the one official predicate (merges ALONE; 241 runs on prod before PR 2)
 
 **Why (Tom):** the untag rule, which he widened this session. Official results are never removed by their player. Casual results are hide only, never deleted: *"I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."* A wrong person on an official result keeps the data: support moves it to the right person and both are told. The audit found ten ways a person could make a result disappear, and none knew official from casual. The event opt-out deleted the mirror, handicap entry and dataset row. The event HOST's round delete wiped every player's. A stat post's delete took its dataset row, even an org's `club_recorded` line.

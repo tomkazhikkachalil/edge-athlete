@@ -1,5 +1,6 @@
 'use client';
 
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
 import PostDetailModal from './PostDetailModal';
@@ -323,7 +324,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       // Refresh counts
       fetchCountsRef.current();
 
-      showSuccess('Success', 'Post deleted successfully');
+      // Results-kept (241): a result comes back hidden, not deleted.
+      const body = await response.json().catch(() => ({}));
+      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }
