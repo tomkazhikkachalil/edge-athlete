@@ -167,7 +167,8 @@ test('org site revisions: draft → preview → publish → history → restore 
       await page.getByText('History', { exact: true }).click();
       await expect(page.getByRole('list', { name: 'Version history' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Restore' }).first()).toBeVisible();
-      await expect(page.getByText('B (old)')).toBeVisible();
+      // Scoped to the history list: the owner's Activity card (Authority PR 5) names the label too.
+      await expect(page.getByRole('list', { name: 'Version history' }).getByText('B (old)')).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, 'console: no horizontal overflow at 375px').toBeLessThanOrEqual(1);
       // Publish changes from the console → the line goes clean, the page shows D.

@@ -396,6 +396,10 @@ report of why this section exists.
   BEFORE triggers; not projecting `kind` is what keeps an UPDATE from moving a
   row across kinds, so no CHECK OPTION.
 
+## An append-only audit table carries NO foreign keys (migration 240, Sep 25 2026)
+
+`authority_audit` (like `org_staff_audit`, 178) is append-only: its trigger runs `forbid_mutation()` on UPDATE and DELETE. An FK with `ON DELETE SET NULL` is an UPDATE of the audit row, so the trigger REFUSES it — an FK to `profiles` would fail the deletion engine's profile delete (the 056 lesson), and an FK to `tickets` would fail `delete_ticket`. So an append-only table names people and tickets by bare uuid, and `authority-audit.test.ts` pins that its CREATE TABLE has no `REFERENCES`. The FKs 240 DOES add (`org_sites.held_ticket_id`, `org_claim_invites.ticket_id`, `org_site_news.deleted_by`) each have their leading index — the 239 coverage test holds every FK to it. A CHECK that forbids the NULL an FK's SET NULL would write (`org_claim_invites_recovery_shape`: a recovery token needs its ticket) makes the parent's delete fail too: the app deletes the children first (`deleteTicket`).
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

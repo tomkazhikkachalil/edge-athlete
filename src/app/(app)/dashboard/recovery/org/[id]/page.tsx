@@ -22,6 +22,7 @@ interface Panel {
   people: { rowId: string; kind: string; role: string; status: string | null; sections: string[] | null; person: Person | null; profileId: string }[];
   site: { id: string; subdomain: string; published_at: string | null; held_at: string | null; custom_domain: string | null } | null;
   revisions: { id: string; label: string | null; created_at: string; published_at: string }[];
+  deletedNews: { id: string; title: string; slug: string; deleted_at: string }[];
   recoveryLinks: { id: string; expires_at: string; consumed_at: string | null; created_at: string }[];
   log: { id: string; action: string; actorKind: string; actorName: string | null; targetName: string | null; detail: Record<string, unknown>; createdAt: string }[];
   tickets: { id: string; number: string; status: string; type: string }[];
@@ -255,6 +256,24 @@ function OrgRecovery() {
                 </>
               )}
             </RecoverySection>
+
+            {panel.deletedNews.length > 0 && (
+              <RecoverySection title="Recently deleted news">
+                <ul className="divide-y divide-border" data-recovery-deleted-news="">
+                  {panel.deletedNews.map(n => (
+                    <li key={n.id} className="py-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="text-sm text-primary flex-1 break-words">{n.title} <span className="text-xs text-muted">· deleted {when(n.deleted_at)}</span></span>
+                      <button type="button" disabled={off} className={actButton} data-recovery-act="restore_news" onClick={() => act.ask({
+                        title: 'Restore this post?',
+                        message: `“${n.title}” comes back exactly as it was.`,
+                        confirmText: 'Restore',
+                        body: { action: 'restore_news', news: n.id },
+                      })}>Restore</button>
+                    </li>
+                  ))}
+                </ul>
+              </RecoverySection>
+            )}
 
             <RecoverySection title="Activity">
               {panel.log.length === 0 ? (

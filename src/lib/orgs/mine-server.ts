@@ -70,6 +70,7 @@ export async function newsMineGET(user: SessionUser, side: OrgKind, params: Prom
         .select(fields)
         .eq('site_id', site.id)
         .not('published_at', 'is', null)
+        .is('deleted_at', null)
         .order('published_at', { ascending: false })
         .limit(50);
     let { data, error } = await read('id, slug, title, body, published_at, audience');

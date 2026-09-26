@@ -32,6 +32,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const t = data as Pick<TicketRow, 'id' | 'type' | 'target_type' | 'target_id' | 'target_profile_id' | 'content_snapshot'> | null;
     if (!t) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
     if (t.type !== 'report') return NextResponse.json({ error: 'Only a report has actions.' }, { status: 409, headers: NO_STORE });
+    // Authority (240): a club, league or event is acted on through the recovery panel (owner-only, on this ticket).
+    if (t.target_type === 'org' || t.target_type === 'sport_event') return NextResponse.json({ error: 'Use the recovery panel for a club, league or event.' }, { status: 409, headers: NO_STORE });
 
     const conversationId = t.target_type === 'conversation' ? t.target_id : t.target_type === 'message' ? ((t.content_snapshot?.conversation_id as string | undefined) ?? null) : null;
     const contentKind = t.target_type === 'post' ? 'post' : t.target_type === 'comment' ? 'comment' : null;

@@ -232,7 +232,9 @@ export default function SupportTicketPage() {
                 )}
                 {/* Authority PR 4: act on the club, league or event this ticket is about — the ticket rides along. */}
                 {t.status !== 'closed' && t.type !== 'suggestion' && (
-                  <Link href={`/dashboard/recovery?ticket=${encodeURIComponent(t.numberLabel)}&q=${encodeURIComponent(t.numberLabel)}`} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive inline-flex items-center" data-ticket-recovery="">
+                  <Link href={t.target_id && (t.target_type === 'org' || t.target_type === 'sport_event')
+                    ? `/dashboard/recovery/${t.target_type === 'org' ? 'org' : 'event'}/${t.target_id}?ticket=${encodeURIComponent(t.numberLabel)}`
+                    : `/dashboard/recovery?ticket=${encodeURIComponent(t.numberLabel)}&q=${encodeURIComponent(t.numberLabel)}`} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive inline-flex items-center" data-ticket-recovery="">
                     Open recovery tools
                   </Link>
                 )}

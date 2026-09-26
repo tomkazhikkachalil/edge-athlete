@@ -9,6 +9,7 @@ import { TICKET_LIMITS, TICKET_TARGET_TYPES, TICKET_TYPES, isReasonForType, type
 import { formatTicketNumber } from '@/lib/tickets/number';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
+import { recoveryTicketFields } from '@/lib/authority/recovery-server';
 
 /**
  * /api/tickets — a user's own tickets (Support & Reporting, Spec 1).
@@ -38,12 +39,15 @@ const CreateBody = z
     target: z.object({ type: z.enum(TICKET_TARGET_TYPES), id: uuid }).optional(),
     // Spec 3: a screenshot from POST /api/tickets/attachment — re-asserted below to be THIS user's.
     attachment_url: optionalText(600),
+    // Authority (240): the recovery request names the club, league or event in words (a link, a domain, a name).
+    reference: optionalText(500),
   })
   .refine(b => isReasonForType(b.type, b.reason), { path: ['reason'], message: 'Pick a reason from the list.' })
   .refine(b => b.type === 'report' || !b.target, { path: ['target'], message: 'Only a report names a target.' })
-  .refine(b => !!b.target || !!b.description, { path: ['description'], message: 'Tell us what happened.' });
+  .refine(b => !!b.target || !!b.description, { path: ['description'], message: 'Tell us what happened.' })
+  .refine(b => !b.reference || (b.type === 'help' && b.reason === 'recovery'), { path: ['reference'], message: 'Only a recovery request names a club, league or event.' });
 
-const SUBTYPE_FOR_TARGET: Record<TicketTargetType, TicketSubtype> = { post: 'post', comment: 'comment', profile: 'profile', conversation: 'dm', message: 'dm' };
+const SUBTYPE_FOR_TARGET: Record<TicketTargetType, TicketSubtype> = { post: 'post', comment: 'comment', profile: 'profile', conversation: 'dm', message: 'dm', org: 'org', sport_event: 'sport_event' };
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,12 +75,19 @@ export async function POST(request: NextRequest) {
       if (!resolved) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
       target = { type: resolved.type, id: resolved.id, profileId: resolved.profileId, isMinor: resolved.isMinor, snapshot: resolved.snapshot, conversationId: resolved.conversationId };
     }
+    // Authority (240): the recovery request — the same 201 whatever the reference matches (existence is never disclosed).
+    let description = body.description ?? '';
+    if (body.type === 'help' && body.reason === 'recovery') {
+      const fields = await recoveryTicketFields(admin, body.reference, description);
+      description = fields.description;
+      target = fields.target;
+    }
     const ticket = await createTicket(admin, {
       type: body.type,
       subtype: body.type === 'report' ? (target ? SUBTYPE_FOR_TARGET[target.type as TicketTargetType] : 'incident') : null,
       reason: body.reason,
       subject: body.subject ?? null,
-      description: body.description ?? '',
+      description,
       contact_ok: body.contact_ok,
       submitter,
       target,

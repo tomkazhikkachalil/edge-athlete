@@ -12,6 +12,7 @@ import { runDeletionPurge } from '@/lib/account-park';
 import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runTicketAnonymize } from '@/lib/tickets/server';
+import { purgeDeletedNews } from '@/lib/org-sites/news-server';
 import { runModerationLift } from '@/lib/moderation/server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
@@ -159,6 +160,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] ticket anonymize phase failed:', e);
     summary.tickets = { ok: false };
+  }
+
+  // Authority (240): soft-deleted news older than the 30-day restore window goes for good.
+  try {
+    summary.deletedNews = await purgeDeletedNews(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] deleted news purge phase failed:', e);
+    summary.deletedNews = { ok: false };
   }
 
   // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the

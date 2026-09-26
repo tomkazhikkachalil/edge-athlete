@@ -536,6 +536,7 @@ export async function fetchPublishedSitesForSitemap(
       .select('site_id, slug')
       .in('site_id', siteIds)
       .not('published_at', 'is', null)
+      .is('deleted_at', null)
       .limit(5000),
     // Teams key by ORG, not site — one batch, bounded.
     orgIds.length
@@ -787,6 +788,7 @@ export async function fetchPublicNewsList(
       .select(fields)
       .eq('site_id', siteId)
       .not('published_at', 'is', null)
+      .is('deleted_at', null)
       .order('published_at', { ascending: false })
       .limit(50);
   // Program 3, D4 (189): the pin column steps down like the audience did.
@@ -1032,6 +1034,7 @@ export async function fetchPublicNewsPost(
       .eq('site_id', siteId)
       .eq('slug', newsSlug)
       .not('published_at', 'is', null)
+      .is('deleted_at', null)
       .maybeSingle();
   let { data, error } = await read('slug, title, body, published_at, audience');
   if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));

@@ -580,6 +580,9 @@ export interface PrunableRevision {
 
 export const REVISION_KEEP = 50;
 export const LABELLED_REVISION_KEEP = 200;
+/** Authority (240): a published version younger than this is never pruned and does not
+ *  count toward the quotas — a burst of publishes (a vandal's) cannot push history out. */
+export const REVISION_PRUNE_MIN_AGE_DAYS = 30;
 
 /** Which PUBLISHED revisions to delete: keep the newest `keep`, every
  *  labelled one (backstop `keepLabelled`), and anything in `protectIds`
@@ -588,11 +591,15 @@ export function selectRevisionsToPrune(
   rows: PrunableRevision[],
   protectIds: readonly string[],
   keep = REVISION_KEEP,
-  keepLabelled = LABELLED_REVISION_KEEP
+  keepLabelled = LABELLED_REVISION_KEEP,
+  now: Date = new Date()
 ): string[] {
   const protect = new Set(protectIds);
+  const youngest = now.getTime() - REVISION_PRUNE_MIN_AGE_DAYS * 86_400_000;
   const published = rows
     .filter(r => r.published_at)
+    // The window: anything published in the last 30 days is kept outright and uncounted.
+    .filter(r => Date.parse(r.published_at as string) < youngest)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
   const prune: string[] = [];
   let unlabelledKept = 0;
