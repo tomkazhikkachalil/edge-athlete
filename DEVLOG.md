@@ -1,5 +1,13 @@
 # Development Log
 
+## September 26, 2026 — Gaps round PR 3: stored standings read back in one order (zero DDL; stacked on PR 2)
+
+**The gap** (found Sep 23, D0-a): `competition-bracket-api.spec.ts` expects `[[e5, 3], [e3, 3]]` for the shared third place, and the order flipped between runs. The record put the fault in `computeBracketStandings`. It was not there: the compute already breaks ties by wins, then entry id (`bracket-draw.ts:163`). The order was lost on the way back. `competition_standings` has no position column, and the readers ordered by `rank` alone, so Postgres returned a shared rank in any order. A tied pair could flip between two page loads, on the console and on the public standings alike.
+
+**The fix:** `src/lib/competitions/standings-order.ts orderStandingRows` is the one read order: rank, then `stats.w` descending, then entry id. That is the bracket compute's own tiebreak, and a fixture or leaderboard tie falls through to the entry id, their compute's last key too. It applies at the two readers that list a TABLE: the competition detail GET (`competition-server.ts`) and the public standings (`public-standings.ts`). The readers that key rows into a map (`golf-league-*`, the org-site team record) don't depend on order and are unchanged. The ranks themselves are never touched.
+
+**Proof:** `standings-order.test.ts` feeds the spec's five rows in three orders and gets one answer. An equal-wins tie falls through to the id, an unranked row sorts last, and the input is not mutated. The e2e expectation is unchanged; it is now what every read returns.
+
 ## September 26, 2026 — Gaps round PR 2: the owner's Stats card counts their private stat lines (zero DDL; stacked on PR 1)
 
 **The gap** (recorded in Round 4): an athlete's PRIVATE stat lines reached `/api/performance/rollups`, but not the Stats tab's sport card. `stat-line.ts` and `track-field.ts` filtered `visibility = 'public'` whoever was looking. An athlete whose hockey lines were all private got no hockey card at all, and no sport chip, on their own profile.

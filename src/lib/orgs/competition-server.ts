@@ -5,6 +5,7 @@ import { ADVANCE_KINDS, isAdvanceKind } from '@/lib/competitions/contest-outcome
 import { readBracketRows } from '@/lib/competitions/standings';
 import type { BracketGenerateInput, SeedsPutInput } from '@/lib/competitions/validate';
 import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
+import { orderStandingRows } from '@/lib/competitions/standings-order';
 // ── Competition CRUD — the shared core (phase 2, round 1) ───────────────────
 // The structure-server pattern applied to migration 151: the
 // /api/admin/competitions* routes and the /api/{side}s/[id]/competitions*
@@ -921,7 +922,7 @@ export async function competitionDetailGET(
       // Phase 2b: an event round's contest (null otherwise; absent pre-211 reads as null too).
       sport_event: eventLinks.get(c.id) ?? null,
     })),
-    standings: (standingRows ?? []).map(r => ({
+    standings: orderStandingRows(standingRows ?? []).map(r => ({
       ...r,
       entrant_name: entryName.get(r.entry_id) ?? 'Entrant',
     })),
