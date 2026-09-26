@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-26T15:13:11.095794+00:00 from server 17.4 by
+-- Generated 2026-09-26T18:01:47.461904+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 240.
+-- public.schema_dump() (migration 227). Ledger head at generation: 241.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4561,7 +4561,8 @@ CREATE TABLE IF NOT EXISTS public.golf_rounds (
   slope_rating integer,
   round_type text DEFAULT 'outdoor'::text,
   group_post_id uuid,
-  course_id uuid
+  course_id uuid,
+  profile_hidden_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_scorecard_data (
@@ -5136,7 +5137,8 @@ CREATE TABLE IF NOT EXISTS public.posts (
   contest_id uuid,
   sport_event_round_id uuid,
   hidden_at timestamp with time zone,
-  hidden_ticket_id uuid
+  hidden_ticket_id uuid,
+  profile_hidden_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.privacy_settings (
@@ -6779,7 +6781,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'authority_audit_action_check' AND conrelid = 'public.authority_audit'::regclass) THEN
-    ALTER TABLE public.authority_audit ADD CONSTRAINT authority_audit_action_check CHECK ((action = ANY (ARRAY['org_created'::text, 'owner_added'::text, 'owner_removed'::text, 'owner_stepped_down'::text, 'owner_claimed'::text, 'manager_added'::text, 'manager_removed'::text, 'staff_granted'::text, 'staff_changed'::text, 'staff_revoked'::text, 'identity_changed'::text, 'listing_changed'::text, 'site_created'::text, 'site_live'::text, 'site_offline'::text, 'site_held'::text, 'site_released'::text, 'site_published'::text, 'revision_restored'::text, 'revision_labelled'::text, 'domain_added'::text, 'domain_removed'::text, 'news_deleted'::text, 'news_restored'::text, 'page_removed'::text, 'recovery_link_minted'::text, 'recovery_link_redeemed'::text, 'co_organizer_invited'::text, 'co_organizer_added'::text, 'co_organizer_removed'::text, 'host_transferred'::text, 'event_details_changed'::text, 'event_cancelled'::text, 'event_deleted'::text])));
+    ALTER TABLE public.authority_audit ADD CONSTRAINT authority_audit_action_check CHECK ((action = ANY (ARRAY['org_created'::text, 'owner_added'::text, 'owner_removed'::text, 'owner_stepped_down'::text, 'owner_claimed'::text, 'manager_added'::text, 'manager_removed'::text, 'staff_granted'::text, 'staff_changed'::text, 'staff_revoked'::text, 'identity_changed'::text, 'listing_changed'::text, 'site_created'::text, 'site_live'::text, 'site_offline'::text, 'site_held'::text, 'site_released'::text, 'site_published'::text, 'revision_restored'::text, 'revision_labelled'::text, 'domain_added'::text, 'domain_removed'::text, 'news_deleted'::text, 'news_restored'::text, 'page_removed'::text, 'recovery_link_minted'::text, 'recovery_link_redeemed'::text, 'co_organizer_invited'::text, 'co_organizer_added'::text, 'co_organizer_removed'::text, 'host_transferred'::text, 'event_details_changed'::text, 'event_cancelled'::text, 'event_deleted'::text, 'result_hidden'::text, 'result_unhidden'::text, 'result_reassigned'::text, 'result_corrected'::text, 'official_tag_removed'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7459,7 +7461,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_status_check' AND conrelid = 'public.posts'::regclass) THEN
-    ALTER TABLE public.posts ADD CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text, 'hidden'::text])));
+    ALTER TABLE public.posts ADD CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text, 'hidden'::text, 'profile_hidden'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7909,7 +7911,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_resolution_code_check' AND conrelid = 'public.tickets'::regclass) THEN
-    ALTER TABLE public.tickets ADD CONSTRAINT tickets_resolution_code_check CHECK (((resolution_code IS NULL) OR (resolution_code = ANY (ARRAY['no_action'::text, 'content_removed'::text, 'warning'::text, 'suspension'::text, 'ban'::text, 'feature_shipped'::text, 'declined'::text, 'access_restored'::text]))));
+    ALTER TABLE public.tickets ADD CONSTRAINT tickets_resolution_code_check CHECK (((resolution_code IS NULL) OR (resolution_code = ANY (ARRAY['no_action'::text, 'content_removed'::text, 'warning'::text, 'suspension'::text, 'ban'::text, 'feature_shipped'::text, 'declined'::text, 'access_restored'::text, 'result_corrected'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9582,6 +9584,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_trgm ON public.golf_rounds USI
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_date ON public.golf_rounds USING btree (date DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_golf_rounds_group_mirror ON public.golf_rounds USING btree (group_post_id, profile_id);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_profile_date ON public.golf_rounds USING btree (profile_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_golf_rounds_profile_hidden ON public.golf_rounds USING btree (profile_id) WHERE (profile_hidden_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_profile_id ON public.golf_rounds USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_golf_scorecard_data_course_id ON public.golf_scorecard_data USING btree (course_id);
 CREATE INDEX IF NOT EXISTS idx_golf_scorecard_group ON public.golf_scorecard_data USING btree (group_post_id);
@@ -15832,6 +15835,7 @@ COMMENT ON COLUMN public.golf_rounds.course_rating IS 'USGA Course Rating (diffi
 COMMENT ON COLUMN public.golf_rounds.slope_rating IS 'USGA Slope Rating (relative difficulty, 55-155)';
 COMMENT ON COLUMN public.golf_rounds.round_type IS 'Type of round: outdoor (default) or indoor (simulator/range)';
 COMMENT ON COLUMN public.golf_rounds.group_post_id IS 'Set on rounds mirrored from a completed group round (one per participant). NULL for batch-entered solo rounds.';
+COMMENT ON COLUMN public.golf_rounds.profile_hidden_at IS 'Hidden from the owner''s profile (241). Still counts: handicap, WHS, leaderboards, the dataset.';
 COMMENT ON TABLE public.golf_scorecard_data IS 'Golf-specific data for group posts of type golf_round';
 COMMENT ON COLUMN public.golf_scorecard_data.round_type IS 'outdoor (on course) or indoor (simulator/range)';
 COMMENT ON COLUMN public.golf_scorecard_data.holes_played IS 'Number of holes played (supports any count 1-18)';
@@ -15898,6 +15902,7 @@ COMMENT ON COLUMN public.posts.contest_id IS 'The contest this post''s round was
 COMMENT ON COLUMN public.posts.sport_event_round_id IS 'The sport event round this post is the feed card of (203): minted at Open (announced), attached to the group_post at go-live (live), the score-led card at completion (results). ONE writer: rounds-server.ts.';
 COMMENT ON COLUMN public.posts.hidden_at IS 'Hidden by moderation (223): status = ''hidden'' is what hides it (every published-only reader); this records when.';
 COMMENT ON COLUMN public.posts.hidden_ticket_id IS 'The ticket that hid it (223); unhide restores published.';
+COMMENT ON COLUMN public.posts.profile_hidden_at IS 'The owner hid this result from their profile (241): status = ''profile_hidden''. The dataset row stays; unhide restores published.';
 COMMENT ON COLUMN public.profile_transfers.age_preset_prompt IS 'Wave 4 rider on the eligible_notified row: pending = a guardian older-preset differed at crossing time; applied/kept = guardian decision; none = no differing preset at crossing. NULL = row predates Wave 4 — never prompt retroactively.';
 COMMENT ON COLUMN public.profile_transfers.handover_prompted_at IS 'Handover-moment stamp (migration 138): set once by the sweep when a supervised athlete reaches adulthood with the transfer still parked at eligible_notified. Dedup only — never a state.';
 COMMENT ON COLUMN public.profiles.first_name IS 'User''s first/given name';
@@ -16375,7 +16380,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (237, '237_org_side_tables_drop.sql', 'rebuild-000'),
   (238, '238_departed_profiles.sql', 'rebuild-000'),
   (239, '239_fk_indexes.sql', 'rebuild-000'),
-  (240, '240_authority.sql', 'rebuild-000')
+  (240, '240_authority.sql', 'rebuild-000'),
+  (241, '241_results_kept.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16384,12 +16390,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 119 | 110 | 173 | 240
+-- Expected: 000 REBUILT | 119 | 110 | 173 | 241
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_119,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_240;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_241;
 

@@ -15,6 +15,8 @@
 
 **Proof:** `results-official.test.ts` covers the predicate matrix, the link walk over a table-driven mock (org event, contest, league contest, provenance, athlete-hosted, casual, each post link) and fail-closed. `npm run verify` green (3823).
 
+**241 ran on prod (Sep 26 2026, Tom, the SQL editor):** `241 APPLIED | 1 | 2 | 1 | 1 | 241`. `check:schema:prod` OK; Ledger OK at head 241. The baseline is regenerated from prod in this PR (`000_rebuild.sql`, ledger head 241, self-check OK; dump `2026-09-26-2-schema.json`).
+
 ## September 25, 2026 — Authority PR 5: report an org or event, recover one, soft-deleted news, the prune window, the owner's Activity, the docs (zero DDL; needs 240; stacked on PR 4)
 
 **Why:** Tom's decision 4 — anyone can report an org, its site or an event; an audit log; news soft delete; revision history a vandal can't prune. And the front door of decision 3: someone who has lost the running of a club, league or event can ask the team for it back, even signed out.
