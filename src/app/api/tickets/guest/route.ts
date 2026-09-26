@@ -7,6 +7,7 @@ import { createTicket, TicketsNotLive } from '@/lib/tickets/server';
 import { formatTicketNumber } from '@/lib/tickets/number';
 import { HELP_CATEGORIES, TICKET_LIMITS } from '@/lib/tickets/types';
 import { reportRouteError } from '@/lib/observability/report';
+import { recoveryTicketFields } from '@/lib/authority/recovery-server';
 
 /**
  * POST /api/tickets/guest — the Help Center's SIGNED-OUT request (Support &
@@ -23,6 +24,8 @@ const Body = z.object({
   reason: z.enum(HELP_CATEGORIES),
   subject: optionalText(TICKET_LIMITS.subject),
   description: boundedText(TICKET_LIMITS.description),
+  // Authority (240): someone locked out of their account can still ask to recover a club, league or event.
+  reference: optionalText(500),
   [HONEYPOT_FIELD]: z.string().optional(),
 });
 
@@ -40,13 +43,17 @@ export async function POST(request: NextRequest) {
     const limited = await enforceRateLimit(request, 'contact');
     if (limited) return limited;
 
-    const ticket = await createTicket(getSupabaseAdmin(), {
+    const admin = getSupabaseAdmin();
+    // The same 201 whatever the reference matches (existence is never disclosed).
+    const recovery = b.reason === 'recovery' ? await recoveryTicketFields(admin, b.reference, b.description) : null;
+    const ticket = await createTicket(admin, {
       type: 'help',
       reason: b.reason,
       subject: b.subject ?? null,
-      description: b.description,
+      description: recovery?.description ?? b.description,
       submitter: null,
       guestEmail: b.email,
+      target: recovery?.target ?? null,
     });
     return NextResponse.json({ ok: true, number: formatTicketNumber(ticket.number) }, { status: 201, headers: NO_STORE });
   } catch (error) {

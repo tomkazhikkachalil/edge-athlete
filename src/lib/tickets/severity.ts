@@ -27,7 +27,8 @@ const HIGH_REASONS: ReadonlySet<string> = new Set([
 
 export function severityFor(input: SeverityInput): TicketSeverity {
   if (input.type === 'suggestion') return 'low';
-  if (input.type === 'help') return 'medium';
+  // Authority (240): someone who has lost the running of a club, league or event (or is watching it misused) — high.
+  if (input.type === 'help') return input.reason === 'recovery' ? 'high' : 'medium';
   if (input.targetIsMinor || CRITICAL_REASONS.has(input.reason)) return 'critical';
   if (HIGH_REASONS.has(input.reason)) return 'high';
   return 'medium';

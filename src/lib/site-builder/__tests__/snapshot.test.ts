@@ -335,6 +335,7 @@ describe('applySiteAction', () => {
 });
 
 describe('selectRevisionsToPrune', () => {
+  const LATER = new Date('2027-06-01T00:00:00Z'); // every fixture is past the 30-day window
   const row = (i: number, label: string | null = null, published = true) => ({
     id: `r${i}`,
     label,
@@ -343,7 +344,7 @@ describe('selectRevisionsToPrune', () => {
   });
   it('keeps the newest N unlabelled, every labelled one, the protected ids, and the draft', () => {
     const rows = [...Array.from({ length: 60 }, (_, i) => row(i)), row(99, 'Launch'), row(100, null, false)];
-    const prune = selectRevisionsToPrune(rows, ['r5'], 50);
+    const prune = selectRevisionsToPrune(rows, ['r5'], 50, 200, LATER);
     expect(prune).toHaveLength(60 - 50 - 1);
     expect(prune).not.toContain('r5');
     expect(prune).not.toContain('r99');
@@ -354,7 +355,17 @@ describe('selectRevisionsToPrune', () => {
   });
   it('labelled revisions are capped by the backstop', () => {
     const rows = Array.from({ length: 210 }, (_, i) => row(i, `L${i}`));
-    expect(selectRevisionsToPrune(rows, [], 50, 200)).toHaveLength(10);
+    expect(selectRevisionsToPrune(rows, [], 50, 200, LATER)).toHaveLength(10);
+  });
+  it('Authority (240): nothing published in the last 30 days is pruned or counted — a publish burst cannot push history out', () => {
+    const now = new Date('2026-09-25T00:00:00Z');
+    const day = (d: string) => ({ published_at: `${d}T00:00:00Z`, created_at: `${d}T00:00:00Z` });
+    const old = Array.from({ length: 5 }, (_, i) => ({ id: `old${i}`, label: null, ...day(`2026-0${i + 1}-01`) }));
+    const burst = Array.from({ length: 300 }, (_, i) => ({ id: `new${i}`, label: null, ...day('2026-09-20') }));
+    // 300 fresh publishes and a keep of 3: only the OLD ones compete for the quota.
+    const prune = selectRevisionsToPrune([...old, ...burst], [], 3, 200, now);
+    expect(prune.sort()).toEqual(['old0', 'old1']);
+    expect(prune.some(id => id.startsWith('new'))).toBe(false);
   });
 });
 

@@ -1042,9 +1042,12 @@ export const NewsPatchSchema = z
     audience: z.enum(['public', 'members']).optional(),
     // Program 3, D4 (189): pinned to the top of the news page and the home's pinned-first sort.
     pinned: z.boolean().optional(),
+    // Authority (240): put a soft-deleted post back (alone — nothing else rides with it).
+    restore: z.literal(true).optional(),
   })
+  .refine(o => !o.restore || (o.title === undefined && o.body === undefined && o.publish === undefined && o.audience === undefined && o.pinned === undefined), 'A restore changes nothing else')
   .refine(
-    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined,
+    o => o.restore === true || o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined,
     'Nothing to update'
   );
 export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;

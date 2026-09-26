@@ -337,6 +337,9 @@ export async function readOrgPanel(admin: Admin, orgId: string) {
     admin.from('org_claim_invites').select('id, expires_at, consumed_at, created_at, purpose').eq(ORG_ID, orgId).eq('purpose', 'recovery').order('created_at', { ascending: false }).limit(10),
   ]);
   const people = await readPeople(admin, rows.map(r => r.profile_id));
+  const deletedNews = site
+    ? (((await admin.from('org_site_news').select('id, title, slug, deleted_at').eq('site_id', site.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(30)).data ?? []) as { id: string; title: string; slug: string; deleted_at: string }[])
+    : [];
   const revisions = site
     ? (((await admin.from('org_site_revisions').select('id, label, created_at, published_at').eq('site_id', site.id).not('published_at', 'is', null).order('created_at', { ascending: false }).limit(30)).data ?? []) as { id: string; label: string | null; created_at: string; published_at: string }[])
     : [];
@@ -345,6 +348,7 @@ export async function readOrgPanel(admin: Admin, orgId: string) {
     people: rows.map(r => ({ rowId: r.id, kind: r.kind, role: r.role, status: r.status, sections: r.sections, person: people.get(r.profile_id) ?? null, profileId: r.profile_id })),
     site,
     revisions,
+    deletedNews,
     recoveryLinks: ((links.data ?? []) as { id: string; expires_at: string; consumed_at: string | null; created_at: string }[]),
     log,
     tickets,
@@ -528,7 +532,8 @@ export type SiteAction =
   | { action: 'release' }
   | { action: 'delist' }
   | { action: 'restore_revision'; revisionId: string }
-  | { action: 'restore_identity'; auditId: string };
+  | { action: 'restore_identity'; auditId: string }
+  | { action: 'restore_news'; newsId: string };
 
 export async function siteAction(admin: Admin, ctx: RecoveryContext, orgId: string, input: SiteAction): Promise<Result> {
   const org = await readOrg(admin, orgId);
@@ -564,6 +569,17 @@ export async function siteAction(admin: Admin, ctx: RecoveryContext, orgId: stri
 
   const site = await readSite(admin, org.id);
   if (!site) return { ok: false, status: 404, error: 'This organization has no site.' };
+
+  if (input.action === 'restore_news') {
+    const { data } = await admin.from('org_site_news').update({ deleted_at: null, deleted_by: null }).eq('id', input.newsId).eq('site_id', site.id).not('deleted_at', 'is', null).select('title, slug');
+    const back = ((data ?? []) as { title: string; slug: string }[])[0];
+    if (!back) return { ok: false, status: 404, error: 'No such deleted post.' };
+    purgeSite(site.subdomain);
+    await audit(admin, ctx, { type: 'org', id: org.id }, 'news_restored', null, { news_id: input.newsId, title: back.title, slug: back.slug });
+    await ticketAction(admin, ctx, 'news_restored', `Restored the news post “${back.title}”`);
+    await bell(admin, await managers(), `A news post on ${org.name} was restored`, `Edge Athlete support put back “${back.title}”.`, orgHref(org));
+    return { ok: true };
+  }
 
   if (input.action === 'hold') {
     if (site.held_at) return { ok: false, status: 409, error: 'The site is already paused.' };
@@ -722,4 +738,34 @@ export async function makeEventPrivate(admin: Admin, ctx: RecoveryContext, event
   await ticketAction(admin, ctx, 'event_made_private', `${event.name} is now private`);
   await bell(admin, await eventRecipients(admin, event), `${event.name} is now private`, `Edge Athlete support made ${event.name} private while a report is reviewed.`, eventHref(event.id));
   return { ok: true };
+}
+
+// ── The recovery request's reference (Authority PR 5) ──────────────────────
+
+/**
+ * What a "Recover a club, league or event" request points at: a pasted link,
+ * a custom domain, an id or a name — resolved to ONE org or event, else
+ * nothing. The caller answers the same 201 whatever this finds, so the form
+ * never discloses whether something exists; the team sees the target on the
+ * ticket (or searches the words themselves).
+ */
+export async function resolveRecoveryReference(admin: Admin, raw: string | null | undefined): Promise<{ type: 'org' | 'sport_event'; id: string } | null> {
+  const text = (raw ?? '').trim().slice(0, 500);
+  if (!text || parseRecoveryQuery(text).kind === 'ticket') return null;
+  try {
+    const { hits } = await searchRecovery(admin, text);
+    if (hits.length !== 1) return null;
+    return { type: hits[0].subject, id: hits[0].id };
+  } catch (e) {
+    console.error(`${TAG} reference resolve failed:`, e);
+    return null;
+  }
+}
+
+/** The recovery request's ticket fields: the words keep the reference (the team reads it either way); the target is set only on ONE match. */
+export async function recoveryTicketFields(admin: Admin, reference: string | null | undefined, description: string): Promise<{ description: string; target: { type: 'org' | 'sport_event'; id: string; profileId: null; isMinor: false; snapshot: null } | null }> {
+  const ref = (reference ?? '').trim().slice(0, 500);
+  const words = ref ? `Club, league or event: ${ref}\n\n${description}` : description;
+  const found = ref ? await resolveRecoveryReference(admin, ref) : null;
+  return { description: words, target: found ? { type: found.type, id: found.id, profileId: null, isMinor: false, snapshot: null } : null };
 }

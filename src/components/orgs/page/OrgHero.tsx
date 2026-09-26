@@ -51,6 +51,8 @@ interface OrgHeroProps {
   onJoinOrLeave: () => void;
   onEdit: () => void;
   onShareJoinLink: () => void;
+  /** Authority (240): a signed-in visitor who does not run it can report the club / league (and its site). */
+  onReport?: () => void;
 }
 
 const PILL = 'px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors';
@@ -74,6 +76,7 @@ export default function OrgHero({
   onJoinOrLeave,
   onEdit,
   onShareJoinLink,
+  onReport,
 }: OrgHeroProps) {
   const copy = SIDE_COPY[side];
   const wide = useIsDesktop('(min-width: 640px)');
@@ -140,6 +143,11 @@ export default function OrgHero({
         Public site →
       </Link>
     ) : null;
+  const reportControl = onReport ? (
+    <button type="button" onClick={onReport} className={`${linkClass} inline-flex min-h-[40px] items-center gap-1`} data-org-report="">
+      <i className="fas fa-flag text-xs" aria-hidden="true"></i> Report
+    </button>
+  ) : null;
 
   return (
     <div className="ea-bubble ea-pop-in overflow-hidden" data-org-hero={heroImage ? 'photo' : 'band'}>
@@ -216,6 +224,7 @@ export default function OrgHero({
               {joinControl}
               {items.length > 0 && <OrgManageMenu items={items} triggerClassName={PILL} />}
               {publicSiteLink}
+              {reportControl}
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -233,6 +242,7 @@ export default function OrgHero({
                 </button>
               )}
               {publicSiteLink}
+              {reportControl}
             </div>
           )}
         </div>

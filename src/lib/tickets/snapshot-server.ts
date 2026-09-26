@@ -20,6 +20,9 @@ import { canViewProfile } from '@/lib/privacy';
 import { canViewSharedPost } from '@/lib/reposts';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import type { TicketTargetType } from './types';
+import { getOrgRole } from '@/lib/orgs/authz';
+import type { OrgKind } from '@/lib/orgs/org-ref';
+import { readSportEventAccess } from '@/lib/sport-events/access-server';
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 const TAG = '[tickets snapshot]';
@@ -67,6 +70,10 @@ export async function resolveTarget(admin: Admin, viewerId: string, target: { ty
         return await resolveConversation(admin, viewerId, target.id, null);
       case 'message':
         return await resolveMessage(admin, viewerId, target.id);
+      case 'org':
+        return await resolveOrg(admin, viewerId, target.id);
+      case 'sport_event':
+        return await resolveSportEvent(admin, viewerId, target.id);
       default:
         return null;
     }
@@ -254,4 +261,68 @@ async function resolveMessage(admin: Admin, viewerId: string, messageId: string)
   // A message names its sender as the reported user even in a group thread.
   const sender = await readPerson(admin, m.sender_id);
   return { ...resolved, profileId: m.sender_id, isMinor: sender?.supervision_state === 'supervised' };
+}
+
+// ── Authority (240): a club, league or its site; a sport event ─────────────
+// The thing is reported, never a person: `profileId` is NULL, so an org or
+// event report never counts toward anyone's strikes and never limits an
+// account at intake. The reporter's OWN org or event is not reportable here
+// (a 404 like any refusal) — its owners use the recovery request instead.
+
+const SNAPSHOT_TEXT_MAX = 500;
+const clip = (t: string | null | undefined) => (t ? (t.length > SNAPSHOT_TEXT_MAX ? `${t.slice(0, SNAPSHOT_TEXT_MAX)}…` : t) : null);
+
+async function resolveOrg(admin: Admin, viewerId: string, orgId: string): Promise<ResolvedTarget | null> {
+  const { data } = await admin.from('organizations').select('id, kind, name, description, visibility, city, region, country').eq('id', orgId).maybeSingle();
+  const org = data as { id: string; kind: OrgKind; name: string; description: string | null; visibility: string | null; city: string | null; region: string | null; country: string | null } | null;
+  if (!org) return null;
+  const role = await getOrgRole(admin, org.kind, org.id, viewerId);
+  if (role === 'owner' || role === 'manager') return null; // your own: the recovery request, not a report
+  if (org.visibility === 'private' && !role) return null; // a private org a stranger cannot see
+  const { data: siteRow } = await admin.from('org_sites').select('subdomain, published_at, published_revision_id, custom_domain').eq('org_id', org.id).maybeSingle();
+  const site = siteRow as { subdomain: string; published_at: string | null; published_revision_id?: string | null; custom_domain: string | null } | null;
+  return {
+    type: 'org',
+    id: org.id,
+    profileId: null,
+    isMinor: false,
+    conversationId: null,
+    snapshot: {
+      kind: 'org',
+      org_id: org.id,
+      org_kind: org.kind,
+      name: org.name,
+      description: clip(org.description),
+      visibility: org.visibility ?? 'public',
+      location: [org.city, org.region, org.country].filter(Boolean).join(', ') || null,
+      // The "restore to before" pointer: the version that was live when it was reported.
+      site: site ? { subdomain: site.subdomain, live: !!site.published_at, published_revision_id: site.published_revision_id ?? null, custom_domain: site.custom_domain ?? null } : null,
+      captured_at: new Date().toISOString(),
+    },
+  };
+}
+
+async function resolveSportEvent(admin: Admin, viewerId: string, eventId: string): Promise<ResolvedTarget | null> {
+  const read = await readSportEventAccess(admin, eventId, viewerId, null);
+  if (!read) return null; // not visible to the reporter
+  if (read.event.host_profile_id === viewerId || read.access.canManage) return null; // your own
+  const host = await readPerson(admin, read.event.host_profile_id);
+  return {
+    type: 'sport_event',
+    id: read.event.id,
+    profileId: null,
+    isMinor: false,
+    conversationId: null,
+    snapshot: {
+      kind: 'sport_event',
+      event_id: read.event.id,
+      name: read.event.name,
+      description: clip(read.event.description),
+      sport_key: read.event.sport_key,
+      status: read.event.status,
+      visibility: read.event.visibility,
+      host: person(host),
+      captured_at: new Date().toISOString(),
+    },
+  };
 }

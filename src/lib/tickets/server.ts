@@ -123,6 +123,9 @@ export interface CreateTicketInput {
 
 export const MERGE_WINDOW_DAYS = 7;
 
+/** Authority (240): the targets no automatic intake ever acts on (the thing is an org or an event, not a person's content). */
+export const NO_INTAKE_TARGETS: ReadonlySet<string> = new Set(['org', 'sport_event']);
+
 /** An OPEN, unmerged report on the same item within the window — the row a duplicate merges into. */
 async function findOpenTicketFor(admin: Admin, targetType: string, targetId: string, now = new Date()): Promise<{ id: string; number: number; severity: TicketSeverity; report_count: number } | null> {
   const since = new Date(now.getTime() - MERGE_WINDOW_DAYS * 86_400_000).toISOString();
@@ -195,7 +198,8 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
 
   // Spec 2: a Critical report acts on the interaction at intake (hide / freeze); the
   // account is limited only on repeat incidents (Tom's rule).
-  if (input.type === 'report' && input.target?.id && input.target.type) {
+  // Authority (240): an org or event report is never acted on at intake — the team decides in the recovery panel.
+  if (input.type === 'report' && input.target?.id && input.target.type && !NO_INTAKE_TARGETS.has(input.target.type)) {
     const { applyIntake } = await import('@/lib/moderation/server');
     await applyIntake(admin, { id: ticket.id, severity }, { type: input.target.type, id: input.target.id, profileId: input.target.profileId, conversationId: input.target.conversationId ?? null }, input.submitter?.id ?? null);
   }

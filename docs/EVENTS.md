@@ -636,6 +636,13 @@ pinned:
 **Parked, named:** the per-photo guardian bell and realtime as a wake-up for the stat poll (Tom, Sep 17); countback on a Stableford tie; a relay standings table of its own; a zone on golf rounds; `competition_id` for stroke / game events (they keep 211's contest rows).
 
 
+## Backups, the moderation ceiling, recovery (Authority round, Sep 25 2026, migration 240)
+
+- **Co-organizers are the event's backup** (Tom: "there always needs to be two accounts" — as a WARNING, never a block). The host invites a co-organizer (`POST …/participants {role: 'co_organizer', playing}`; "Also plays" off = no seat); until one accepts, the event page shows the non-dismissible `BackupBanner` (`viewer.backup` none · pending · ok). `roles.ts planRoleChange` is the matrix: only the HOST makes or unmakes a co-organizer or hands the event over (`make_host` to an accepted co-organizer who holds authority; the old host stays a co-organizer); a co-organizer steps down only themself and never mints a peer; only an ACCEPTED co-organizer manages.
+- **`transferHost` is THE one host writer** (`host-transfer-server.ts`): a compare-and-set on `host_profile_id`, the two rows swapped, the rounds' `group_posts.creator_id` and the event's own posts moved, one `host_transferred` audit row. The host's handover, the deletion engine (a departed host hands to an accepted co-organizer) and Edge Athlete support (old host → participant) all call it.
+- **Moderation strips authority**: a limited, suspended, banned or departed account (`holdsAuthority`) is ceilinged at the four choke points — `getOrgRole`, `getOrgCapabilities`, `readSportEventAccess`, the scoring gate. A moderated organizer can still VIEW (`viewer.authority_paused` shows a notice) but cannot manage, delete, score others or record. Residual: a moderated round CREATOR's direct golf writes through RLS until support re-hosts.
+- **Recovery**: the team re-hosts, removes a co-organizer, cancels before the start or makes a live event private (`/dashboard/recovery/event/[id]`, docs/SUPPORT.md "Authority"). Anyone who can see an event and does not run it can report it (`?report=1`).
+
 ## When a person leaves (Sep 24 2026, migration 238)
 
 Tom's rule: a result that is part of an event OUTLIVES the person, and no

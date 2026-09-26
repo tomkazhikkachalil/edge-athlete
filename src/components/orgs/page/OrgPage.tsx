@@ -11,7 +11,8 @@ import { formatDisplayName } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
 import { Building2, Trophy } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
+import ReportSheet from '@/components/tickets/ReportSheet';
 import { useTheme } from '@/lib/use-theme';
 import OrgHero from './OrgHero';
 import OrgGlanceGrid from './OrgGlanceGrid';
@@ -41,6 +42,8 @@ export default function OrgPage({ side }: { side: OrgKind }) {
   const { theme } = useTheme();
   const { user, viewerProfile, loading, notFound, data, busy, refresh, actions, dialogs } =
     useOrgPage(side, orgId);
+  // Authority (240): the report sheet — and `?report=1`, the public site footer's "Report this site".
+  const [reportOpen, setReportOpen] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('report') === '1');
   const {
     toggleMembership,
     promoteOwner,
@@ -171,7 +174,11 @@ export default function OrgPage({ side }: { side: OrgKind }) {
           onJoinOrLeave={() => (viewerRole ? setConfirmLeave(true) : void toggleMembership())}
           onEdit={() => setEditOpen(true)}
           onShareJoinLink={() => void shareJoinLink()}
+          onReport={user && !canManage ? () => setReportOpen(true) : undefined}
         />
+        {reportOpen && user && !canManage && (
+          <ReportSheet target={{ type: 'org', id: org.id, profileId: null, noun: side }} onClose={() => setReportOpen(false)} />
+        )}
 
         {/* Registration banner (phase 5 R3): the family-facing state of
             the season workflow — CTA while a window is open, then the

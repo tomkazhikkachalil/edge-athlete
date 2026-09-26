@@ -12,7 +12,7 @@ import {
   parseThemeTokens,
 } from '@/lib/org-sites/validate';
 import { utcToday } from '@/lib/competitions/golf-weeks';
-import { siteBasePath } from '@/lib/org-sites/urls';
+import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
 import { effectiveSpec, fontFaceCss, fontHref, themeAttrs } from '@/lib/org-sites/theme';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicPageLink } from '@/lib/org-sites/public-data';
@@ -190,6 +190,13 @@ export default function SiteShell({
           <Link href="/" className="text-brand-fg">
             Edge Athlete
           </Link>
+          {/* Authority (240): anyone can report a site. An ABSOLUTE link to the app's org page
+              (?report=1 opens the sheet) — it works on a custom domain, and it is static, so the
+              page stays viewer-independent. */}
+          {' · '}
+          <a href={`${appBaseUrl()}/${site.side}/${site.orgId}?report=1`} rel="nofollow" className="text-muted underline" data-site-report="">
+            Report this site
+          </a>
         </div>
         {/* Program 2, E: the first-party page-view pixel — a plain <img> on
             purpose (never the optimizer: the route is no-store and counts

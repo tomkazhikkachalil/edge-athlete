@@ -37,17 +37,18 @@ describe('the ticket vocabulary ↔ migration 222', () => {
 
   it('every union equals the CHECK it stands for', () => {
     expect(checkValues(sql, 'tickets_type_check')).toEqual([...TICKET_TYPES]);
-    expect(checkValues(sql, 'tickets_subtype_check')).toEqual([...TICKET_SUBTYPES]);
     expect(checkValues(sql, 'tickets_severity_check')).toEqual([...TICKET_SEVERITIES]);
     expect(checkValues(sql, 'tickets_status_check')).toEqual([...TICKET_STATUSES]);
-    expect(checkValues(sql, 'tickets_target_type_check')).toEqual([...TICKET_TARGET_TYPES]);
     expect(checkValues(sql, 'tickets_suggestion_tag_check')).toEqual([...SUGGESTION_TAGS]);
     expect(checkValues(sql, 'ticket_events_kind_check')).toEqual([...TICKET_EVENT_KINDS]);
   });
 
-  it('the resolution codes equal their LATEST CHECK (240 re-adds it with access_restored)', () => {
+  it('the resolution codes, subtypes and targets equal their LATEST CHECKs (240 re-adds them)', () => {
     const sql240 = fs.readFileSync(path.join(process.cwd(), 'database/migrations/240_authority.sql'), 'utf8');
     expect(checkValues(sql240, 'tickets_resolution_code_check')).toEqual([...RESOLUTION_CODES]);
+    // 240 re-adds these two with org + sport_event (a report of a club, league, site or event).
+    expect(checkValues(sql240, 'tickets_subtype_check')).toEqual([...TICKET_SUBTYPES]);
+    expect(checkValues(sql240, 'tickets_target_type_check')).toEqual([...TICKET_TARGET_TYPES]);
   });
 
   it('the reason lists are disjoint from nothing but validated per type', () => {

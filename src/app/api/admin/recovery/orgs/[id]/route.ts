@@ -30,6 +30,7 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delist'), ...common }),
   z.object({ action: z.literal('restore_revision'), revision: Id, ...common }),
   z.object({ action: z.literal('restore_identity'), audit: Id, ...common }),
+  z.object({ action: z.literal('restore_news'), news: Id, ...common }),
 ]);
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       case 'recovery_link': result = await mintRecoveryLink(admin, ctx, id, body.email, request.nextUrl.origin); break;
       case 'restore_revision': result = await siteAction(admin, ctx, id, { action: 'restore_revision', revisionId: body.revision }); break;
       case 'restore_identity': result = await siteAction(admin, ctx, id, { action: 'restore_identity', auditId: body.audit }); break;
+      case 'restore_news': result = await siteAction(admin, ctx, id, { action: 'restore_news', newsId: body.news }); break;
       default: result = await siteAction(admin, ctx, id, { action: body.action }); break;
     }
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status, headers: NO_STORE });

@@ -35,6 +35,7 @@ import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
 import SiteInboxCard from '@/components/orgs/SiteInboxCard';
 import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
+import OrgActivityCard from '@/components/orgs/OrgActivityCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -375,6 +376,8 @@ export default function OrgConsolePage() {
     { id: string; slug: string; title: string; published_at: string | null; audience?: 'public' | 'members' }[]
   >([]);
   const [newsTitle, setNewsTitle] = useState('');
+  // Authority (240): soft-deleted posts, restorable for 30 days.
+  const [siteNewsDeleted, setSiteNewsDeleted] = useState<{ id: string; slug: string; title: string; deleted_at: string }[]>([]);
   // Phase 6b A1: venues & courses — the org's PROPERTY (141); a golf link
   // is a catalog course pick, split server-side into club/course.
   const [venues, setVenues] = useState<
@@ -626,6 +629,7 @@ export default function OrgConsolePage() {
         if (newsRes.ok) {
           const newsBody = await newsRes.json();
           if (!cancelled) setSiteNews(newsBody.posts ?? []);
+          if (!cancelled) setSiteNewsDeleted(newsBody.deleted ?? []);
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -4254,6 +4258,26 @@ export default function OrgConsolePage() {
                     Add post
                   </button>
                 </div>
+                {siteNewsDeleted.length > 0 && (
+                  <div className="pt-2 space-y-1.5" data-news-deleted="">
+                    <p className="text-sm font-medium text-primary">Recently deleted</p>
+                    <p className="text-xs text-muted">Deleted posts can be put back for 30 days.</p>
+                    {siteNewsDeleted.map(n => (
+                      <div key={n.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-sm text-secondary min-w-0 truncate">{n.title}</span>
+                        <span className="text-xs text-muted">deleted {new Date(n.deleted_at).toLocaleDateString()}</span>
+                        <button
+                          type="button"
+                          onClick={() => void act(`/api/${plural}/${orgId}/site/news/${n.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ restore: true }) }, 'Restored — the post is back as it was', 'Failed to restore the post', 'Website')}
+                          className="text-sm text-brand-fg font-medium min-h-[44px]"
+                          data-news-restore={n.id}
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -4360,6 +4384,9 @@ export default function OrgConsolePage() {
           .map(key => (
             <Fragment key={key}>{sectionNodes[key]}</Fragment>
           ))}
+
+        {/* Authority PR 5: the owner's Activity — who changed who runs this (owners only; the API decides). */}
+        {viewerIsOwner && validSide && <OrgActivityCard plural={plural as 'leagues' | 'clubs'} orgId={orgId} onRestored={refresh} />}
       </main>
 
       <ConfirmModal

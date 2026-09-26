@@ -6,6 +6,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
+import type { OrgKind } from '@/lib/orgs/org-ref';
 import { REPORT_REASONS, REPORT_REASON_LABELS, TICKET_LIMITS, type ReportReason, type TicketTargetType } from '@/lib/tickets/types';
 
 /**
@@ -24,7 +25,7 @@ export interface ReportTarget {
   /** The reported person — Block / Mute act on them. Null when unknown (a group thread). */
   profileId: string | null;
   /** The words the header uses: "Report this post". */
-  noun: 'post' | 'comment' | 'profile' | 'conversation' | 'message';
+  noun: 'post' | 'comment' | 'profile' | 'conversation' | 'message' | OrgKind | 'event';
 }
 
 interface Props {

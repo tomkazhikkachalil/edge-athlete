@@ -8,7 +8,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { NewsPatchSchema } from '@/lib/org-sites/validate';
-import { newsDELETE, newsGET, newsPATCH } from '@/lib/org-sites/news-server';
+import { newsDELETE, newsGET, newsPATCH, newsRESTORE } from '@/lib/org-sites/news-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
@@ -49,6 +49,20 @@ export async function siteNewsItemRoutePATCH(request: NextRequest, kind: OrgKind
 
     const parsed = await parseBody(request, NewsPatchSchema);
     if (!parsed.success) return parsed.response;
+    if (parsed.data.restore) {
+      // Authority (240): a deleted post comes back as it was.
+      const res = await newsRESTORE(admin, kind, id, newsId);
+      if (res.ok) {
+        const { data: back } = await admin.from('org_site_news').select('title, slug').eq('id', newsId).maybeSingle();
+        await recordAuthority(admin, {
+          subject: { type: 'org', id },
+          actor: { kind: 'member', profileId: user.id },
+          action: 'news_restored',
+          detail: { news_id: newsId, title: back?.title ?? null, slug: back?.slug ?? null },
+        });
+      }
+      return res;
+    }
     return await newsPATCH(admin, kind, id, newsId, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
@@ -70,7 +84,7 @@ export async function siteNewsItemRouteDELETE(request: NextRequest, kind: OrgKin
     const gate = await requireOrgManager(admin, user, kind, id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     const { data: doomed } = await admin.from('org_site_news').select('title, slug').eq('id', newsId).maybeSingle();
-    const res = await newsDELETE(admin, kind, id, newsId);
+    const res = await newsDELETE(admin, kind, id, newsId, user.id);
     if (res.ok) {
       await recordAuthority(admin, {
         subject: { type: 'org', id },

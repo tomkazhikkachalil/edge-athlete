@@ -7,6 +7,7 @@ import AppHeader from '@/components/AppHeader';
 import HelpVideo from '@/components/help/HelpVideo';
 import GuestRequestForm from '@/components/help/GuestRequestForm';
 import SuggestForm from '@/components/help/SuggestForm';
+import RecoverForm from '@/components/help/RecoverForm';
 import { SubmitRequest, MyRequests } from '@/components/settings/SupportSettings';
 import { COPY } from '@/lib/copy';
 import { HELP_TOPICS, HELP_TOPIC_LABELS, type HelpTopic, type PublicHelpArticle } from '@/lib/help/types';
@@ -20,7 +21,7 @@ import { HELP_TOPICS, HELP_TOPIC_LABELS, type HelpTopic, type PublicHelpArticle 
 // request (the bells' link points at Settings → Support, which hosts the
 // same components; both work).
 
-type Section = 'videos' | 'articles' | 'request' | 'suggest' | 'contact' | 'mine';
+type Section = 'videos' | 'articles' | 'request' | 'recover' | 'suggest' | 'contact' | 'mine';
 
 export default function HelpCenterPage() {
   const { user, initialAuthCheckComplete } = useAuth();
@@ -63,6 +64,7 @@ export default function HelpCenterPage() {
     { id: 'videos', label: 'How-to videos' },
     { id: 'articles', label: 'Articles' },
     { id: 'request', label: 'Submit a request' },
+    { id: 'recover', label: 'Recover a club or event' },
     ...(user ? [{ id: 'suggest' as const, label: 'Suggest a feature' }, { id: 'mine' as const, label: 'My requests' }] : []),
     { id: 'contact', label: 'Contact' },
   ];
@@ -149,6 +151,20 @@ export default function HelpCenterPage() {
               <GuestRequestForm />
             </>
           )}
+        </section>
+
+        {/* Authority (240): recover a club, league or event — signed in or out. */}
+        <section id="recover" className="mb-10 scroll-mt-24" aria-labelledby="help-recover">
+          <h2 id="help-recover" className="text-lg font-semibold text-primary mb-1">Recover a club, league or event</h2>
+          <p className="text-sm text-tertiary mb-2">
+            Lost the account that runs it, the person who ran it is gone, or someone is misusing it? Tell us — even if you can’t reach anyone who runs it now.
+          </p>
+          <ul className="text-sm text-tertiary mb-4 list-disc pl-5 space-y-1" data-recover-process="">
+            <li>The Edge Athlete team checks who you are before changing anything. A request on its own never hands anything over.</li>
+            <li>We can add you as an owner, remove someone misusing it, pause its website, or put back an earlier version.</li>
+            <li>Every change is recorded, and the people who run it are told it came from Edge Athlete support.</li>
+          </ul>
+          {initialAuthCheckComplete && <RecoverForm signedIn={!!user} onCreated={() => setListKey(k => k + 1)} />}
         </section>
 
         {/* Spec 4: Suggest a feature (signed in — the email is the account's) */}

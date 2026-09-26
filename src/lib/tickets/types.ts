@@ -15,7 +15,8 @@ export const TICKET_TYPES = ['help', 'report', 'suggestion'] as const;
 export type TicketType = (typeof TICKET_TYPES)[number];
 
 /** A report's subtype — where it was filed from. Every other type carries none. */
-export const TICKET_SUBTYPES = ['post', 'comment', 'profile', 'dm', 'incident'] as const;
+// Authority (240): an org (club / league / its site) and a sport event can be reported too.
+export const TICKET_SUBTYPES = ['post', 'comment', 'profile', 'dm', 'incident', 'org', 'sport_event'] as const;
 export type TicketSubtype = (typeof TICKET_SUBTYPES)[number];
 
 export const TICKET_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
@@ -25,7 +26,7 @@ export const TICKET_STATUSES = ['new', 'in_review', 'waiting_on_user', 'resolved
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 /** The reported thing. `conversation` = a DM thread; `message` = one DM. */
-export const TICKET_TARGET_TYPES = ['post', 'comment', 'profile', 'conversation', 'message'] as const;
+export const TICKET_TARGET_TYPES = ['post', 'comment', 'profile', 'conversation', 'message', 'org', 'sport_event'] as const;
 export type TicketTargetType = (typeof TICKET_TARGET_TYPES)[number];
 
 export const RESOLUTION_CODES = [
@@ -86,6 +87,8 @@ export const HELP_CATEGORIES = [
   'events',
   'organizations',
   'privacy_reporting',
+  // Authority (240): "Recover a club, league or event" — the team's recovery door. Severity high.
+  'recovery',
   'other',
 ] as const;
 export type HelpCategory = (typeof HELP_CATEGORIES)[number];
@@ -123,6 +126,7 @@ export const HELP_CATEGORY_LABELS: Record<HelpCategory, string> = {
   events: 'Events and tournaments',
   organizations: 'Clubs and leagues',
   privacy_reporting: 'Privacy and reporting',
+  recovery: 'Recover a club, league or event',
   other: 'Something else',
 };
 

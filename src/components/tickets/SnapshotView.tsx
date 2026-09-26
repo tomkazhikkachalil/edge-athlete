@@ -48,8 +48,29 @@ interface ThreadSnapshot {
   subject: Person;
   messages: Array<{ id: string; sender: string; type: string; content: string | null; media_url: string | null; deleted: boolean; created_at: string; focus: boolean }>;
 }
-type Snapshot = PostSnapshot | CommentSnapshot | ProfileSnapshot | ThreadSnapshot;
-const KINDS = new Set(['post', 'comment', 'profile', 'conversation', 'message']);
+// Authority (240): the thing reported is an org (club / league / its site) or a sport event.
+interface OrgSnapshot {
+  kind: 'org';
+  org_id: string;
+  org_kind: string;
+  name: string;
+  description: string | null;
+  visibility: string;
+  location: string | null;
+  site: { subdomain: string; live: boolean; published_revision_id: string | null; custom_domain: string | null } | null;
+}
+interface EventSnapshot {
+  kind: 'sport_event';
+  event_id: string;
+  name: string;
+  description: string | null;
+  sport_key: string;
+  status: string;
+  visibility: string;
+  host: Person;
+}
+type Snapshot = PostSnapshot | CommentSnapshot | ProfileSnapshot | ThreadSnapshot | OrgSnapshot | EventSnapshot;
+const KINDS = new Set(['post', 'comment', 'profile', 'conversation', 'message', 'org', 'sport_event']);
 
 function Who({ p }: { p: Person }) {
   if (!p) return <span className="text-muted">Unknown</span>;
@@ -113,6 +134,28 @@ export default function SnapshotView({ snapshot, targetId }: { snapshot: Record<
             <p className="text-xs text-muted">{[s.sport, s.location].filter(Boolean).join(' · ')}</p>
           </>
         )}
+      </div>
+    );
+  }
+
+  if (s.kind === 'org') {
+    return (
+      <div className="space-y-1" data-snapshot-kind="org">
+        <p className="text-sm text-primary font-medium">{s.name} <span className="text-xs text-muted">· {s.org_kind} · {s.visibility}{s.location ? ` · ${s.location}` : ''}</span></p>
+        {s.description && <p className="text-sm text-primary whitespace-pre-wrap">{s.description}</p>}
+        {s.site && <p className="text-xs text-muted">Site /org/{s.site.subdomain}{s.site.custom_domain ? ` · ${s.site.custom_domain}` : ''} · {s.site.live ? 'live' : 'offline'} when reported{s.site.published_revision_id ? ' — the version live then is in its history' : ''}</p>}
+        <a href={`/dashboard/recovery/org/${s.org_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
+      </div>
+    );
+  }
+
+  if (s.kind === 'sport_event') {
+    return (
+      <div className="space-y-1" data-snapshot-kind="sport_event">
+        <p className="text-sm text-primary font-medium">{s.name} <span className="text-xs text-muted">· {s.sport_key} · {s.status} · {s.visibility}</span></p>
+        <p className="text-xs text-muted">Hosted by <Who p={s.host} /></p>
+        {s.description && <p className="text-sm text-primary whitespace-pre-wrap">{s.description}</p>}
+        <a href={`/dashboard/recovery/event/${s.event_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
       </div>
     );
   }

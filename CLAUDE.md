@@ -1208,6 +1208,8 @@ const { canView } = await response.json();
    `docs/PERFORMANCE_DATA.md` are the references; read DEVLOG Sep 24 2026
    (Departed accounts PR 1–2) first.
 
+26. **Every club, league and event has a backup and a way back; authority is audited, ceilinged by moderation, and recoverable by the Edge Athlete team (Authority round, Sep 25 2026, #923–#927, mig 240 the ONLY DDL)** — Tom's decisions: a backup is a WARNING, never a block (`authority/BackupBanner.tsx`, non-dismissible: an org needs 2+ active, unmoderated, non-departed OWNERS or MANAGERS — staff never count, `backup.ts orgBackupStatus`; an event an ACCEPTED co-organizer, `eventBackupStatus`); account deletion's 409 guard stays. **ONE audit writer**: `authority/audit-server.ts recordAuthority` (never throws; `AUTHORITY_ACTIONS` ≡ 240's CHECK; the detail is an allowlist, no email / phone / token; a PLATFORM act must carry its ticket — 240's CHECK) into `authority_audit`, append-only with NO foreign keys (MIGRATIONS.md); every module that changes who runs an org or event, or its public face, calls it (`AUDITED_WRITERS`, pinned). **The moderation ceiling** lives at four choke points only — `getOrgRole`, `getOrgCapabilities` (`roleCeiling` / `authorityCeiling`: an owner or manager reads as a MEMBER), `readSportEventAccess` and the scoring gate — each reading `holdsAuthority` IN PARALLEL with its own reads (a serial read cost every score write a round trip). **Events:** co-organizers through `roles.ts planRoleChange`; `host-transfer-server.ts transferHost` is THE one host writer. **Recovery is the team's, on a ticket** (`requireModerator` intent `recover_authority`, owner-only, NOT in `MODERATOR_INTENTS`): `authority/recovery.ts` (pure rules) + `recovery-server.ts` (every write: an open ticket, the `authority-admin` bucket, a platform audit row, an internal ticket step, an `authority_notice` bell naming "Edge Athlete support"); the recovery LINK (`org_claim_invites.purpose 'recovery'`, email-bound, 7 days, ADDS an owner); the site HOLD (`org_sites.held_at`, 240's CHECK held ⇒ unpublished; going live / publishing 409, preview 404); a support restore publishes WITHOUT pruning. **Reports of an org or event** name the thing, never a person (`profileId` null, `NO_INTAKE_TARGETS`); the recovery request is Help reason `recovery` (high), signed in or out, the same 201 whatever the reference matches. **News deletes are soft** (`deleted_at`; every reader names it — a sweep test; the daily cron purges after 30 days); revisions younger than 30 days are never pruned nor counted; the owner's **Activity** (`/api/{leagues,clubs}/[id]/authority-log`, owners only) reads through `authority/projection.ts` — never the admin, the ticket or the team's note. `docs/SUPPORT.md` "Authority" and `docs/EVENTS.md` "Backups…" are the references; read DEVLOG Sep 25 2026 (Authority PR 1–5) first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1294,6 +1296,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** September 2026 (Departed accounts) — this file is the single source of truth for project
+**Last Updated:** September 2026 (Authority round) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.
