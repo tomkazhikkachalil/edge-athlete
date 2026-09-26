@@ -1,5 +1,19 @@
 # Development Log
 
+## September 26, 2026 — Maintenance pass: the full checklist on main 4105c1b8 (no code change)
+
+Run at Tom's request after the results-kept round closed (#928–#933).
+
+| Check | Result |
+| --- | --- |
+| Working tree | clean, in step with `origin/main` (4105c1b8) |
+| `npm run verify` | typecheck, lint (0 warnings), 405 test files / 3859 tests, build (203 static pages), `check:syntax` (201 client chunks within the iOS 15 / Safari 15 floor) — all green |
+| `check:schema` (staging) | OK; ledger head 241, every file run |
+| `check:schema:prod` | OK; ledger head 241, every file run |
+| Vercel production | `/api/health` ok, serving 4105c1b8 (main's head) |
+
+Nothing needed fixing; this entry is the record.
+
 ## September 26, 2026 — Results kept: the prod probe, and the specs that still deleted a played event (test only; zero DDL)
 
 **The probe** (main 1d09b00e deployed; 241 on prod) ran 20 spec files on desktop, mobile and webkit-mobile: **33 passed, 1 failed**. The failure was `sport-events-scoring`, which still asserted that a COMPLETED event deletes. PR 2 made that a 409 by design (a played event stays on the record), and the spec was not in PR 2's updated set. It now expects the 409 and tears down through `cleanupEvent`. It passed on prod on its own after the change.
