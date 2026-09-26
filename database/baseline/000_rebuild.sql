@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-25T05:04:29.828597+00:00 from server 17.4 by
+-- Generated 2026-09-25T13:30:48.935904+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 238.
+-- public.schema_dump() (migration 227). Ledger head at generation: 239.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -9367,14 +9367,23 @@ DO $$ BEGIN
 END $$;
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_affiliations_decided_by_profile_id ON public.affiliations USING btree (decided_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_parent ON public.affiliations USING btree (parent_org_id);
+CREATE INDEX IF NOT EXISTS idx_affiliations_requested_by_profile_id ON public.affiliations USING btree (requested_by_profile_id);
+CREATE INDEX IF NOT EXISTS idx_approved_contacts_contact_profile_id ON public.approved_contacts USING btree (contact_profile_id);
+CREATE INDEX IF NOT EXISTS idx_approved_contacts_decided_by ON public.approved_contacts USING btree (decided_by);
 CREATE INDEX IF NOT EXISTS idx_achievements_profile_date ON public.athlete_achievements USING btree (profile_id, achieved_on DESC);
+CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_consumed_by ON public.athlete_claim_invites USING btree (consumed_by);
+CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_created_by ON public.athlete_claim_invites USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_org ON public.athlete_claim_invites USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_profile ON public.athlete_claim_invites USING btree (profile_id) WHERE (consumed_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_team_id ON public.athlete_claim_invites USING btree (team_id);
 CREATE INDEX IF NOT EXISTS idx_equipment_category ON public.athlete_equipment USING btree (category);
 CREATE INDEX IF NOT EXISTS idx_equipment_profile ON public.athlete_equipment USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_equipment_sport ON public.athlete_equipment USING btree (sport_key);
 CREATE INDEX IF NOT EXISTS idx_equipment_status ON public.athlete_equipment USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_athlete_performances_contest_id ON public.athlete_performances USING btree (contest_id);
+CREATE INDEX IF NOT EXISTS idx_athlete_performances_entered_by ON public.athlete_performances USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_headline ON public.athlete_performances USING btree (sport_key, headline) WHERE (headline IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_metrics ON public.athlete_performances USING gin (metrics jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_profile ON public.athlete_performances USING btree (profile_id, sport_key, occurred_on DESC);
@@ -9390,11 +9399,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_name_uniq ON public.compet
 CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_profile_uniq ON public.competition_entries USING btree (competition_id, profile_id) WHERE (profile_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_source_ref_uniq ON public.competition_entries USING btree (competition_id, source_ref) WHERE (source_ref IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_team_uniq ON public.competition_entries USING btree (competition_id, team_id) WHERE (team_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_competition_entries_affiliation_team_id ON public.competition_entries USING btree (affiliation_team_id);
 CREATE INDEX IF NOT EXISTS idx_competition_entries_competition ON public.competition_entries USING btree (competition_id);
 CREATE INDEX IF NOT EXISTS idx_competition_entries_profile ON public.competition_entries USING btree (profile_id) WHERE (profile_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competition_entries_seed ON public.competition_entries USING btree (competition_id, seed) WHERE (seed IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competition_entries_team ON public.competition_entries USING btree (team_id) WHERE (team_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competition_entry_members_profile ON public.competition_entry_members USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_competition_standings_entry_id ON public.competition_standings USING btree (entry_id);
 CREATE INDEX IF NOT EXISTS idx_competition_standings_rank ON public.competition_standings USING btree (competition_id, rank);
 CREATE INDEX IF NOT EXISTS idx_competitions_division ON public.competitions USING btree (division_id) WHERE (division_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competitions_org ON public.competitions USING btree (org_id);
@@ -9402,38 +9413,55 @@ CREATE INDEX IF NOT EXISTS idx_competitions_season ON public.competitions USING 
 CREATE INDEX IF NOT EXISTS idx_connection_suggestions_dismissed ON public.connection_suggestions USING btree (profile_id, dismissed) WHERE (dismissed = true);
 CREATE INDEX IF NOT EXISTS idx_connection_suggestions_profile ON public.connection_suggestions USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_connection_suggestions_suggested_profile_id ON public.connection_suggestions USING btree (suggested_profile_id);
+CREATE INDEX IF NOT EXISTS idx_consent_records_guardian_user_id ON public.consent_records USING btree (guardian_user_id);
 CREATE INDEX IF NOT EXISTS idx_consent_records_profile ON public.consent_records USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON public.contact_messages USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contest_media_contest ON public.contest_media USING btree (contest_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contest_media_uploaded_by ON public.contest_media USING btree (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_contest_media_tags_media ON public.contest_media_tags USING btree (media_id);
 CREATE INDEX IF NOT EXISTS idx_contest_media_tags_profile ON public.contest_media_tags USING btree (profile_id, status);
+CREATE INDEX IF NOT EXISTS idx_contest_media_tags_tagged_by ON public.contest_media_tags USING btree (tagged_by);
 CREATE UNIQUE INDEX IF NOT EXISTS contest_participants_side_uniq ON public.contest_participants USING btree (contest_id, side) WHERE (side IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_contest_participants_contest ON public.contest_participants USING btree (contest_id);
 CREATE INDEX IF NOT EXISTS idx_contest_participants_entry ON public.contest_participants USING btree (entry_id);
+CREATE INDEX IF NOT EXISTS idx_contest_results_confirmed_by ON public.contest_results USING btree (confirmed_by);
 CREATE INDEX IF NOT EXISTS idx_contest_results_contest ON public.contest_results USING btree (contest_id);
+CREATE INDEX IF NOT EXISTS idx_contest_results_disputed_by ON public.contest_results USING btree (disputed_by);
+CREATE INDEX IF NOT EXISTS idx_contest_results_entered_by ON public.contest_results USING btree (entered_by);
+CREATE INDEX IF NOT EXISTS idx_contest_results_resolved_by ON public.contest_results USING btree (resolved_by);
 CREATE INDEX IF NOT EXISTS idx_contest_stat_lines_contest ON public.contest_stat_lines USING btree (contest_id);
+CREATE INDEX IF NOT EXISTS idx_contest_stat_lines_entered_by ON public.contest_stat_lines USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_contest_stat_lines_profile ON public.contest_stat_lines USING btree (profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contest_stat_lines_team_id ON public.contest_stat_lines USING btree (team_id);
 CREATE UNIQUE INDEX IF NOT EXISTS contests_sport_event_match_uniq ON public.contests USING btree (sport_event_match_id) WHERE (sport_event_match_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS contests_sport_event_round_uniq ON public.contests USING btree (sport_event_round_id) WHERE (sport_event_round_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS contests_stage_slot_uniq ON public.contests USING btree (competition_id, stage, slot) WHERE (stage IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_contests_competition ON public.contests USING btree (competition_id);
 CREATE INDEX IF NOT EXISTS idx_contests_event ON public.contests USING btree (event_id) WHERE (event_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_contests_facility_id_venue_id ON public.contests USING btree (facility_id, venue_id);
 CREATE INDEX IF NOT EXISTS idx_contests_play_window ON public.contests USING btree (play_from, play_to) WHERE (play_from IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_contests_scheduled ON public.contests USING btree (scheduled_at) WHERE (scheduled_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_contests_venue_id ON public.contests USING btree (venue_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_held ON public.conversation_participants USING btree (profile_id) WHERE (held_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_cp_conversation ON public.conversation_participants USING btree (conversation_id);
 CREATE INDEX IF NOT EXISTS idx_cp_profile_active ON public.conversation_participants USING btree (profile_id) WHERE (left_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_conversations_created_by ON public.conversations USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_conversations_frozen_ticket_id ON public.conversations USING btree (frozen_ticket_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_updated ON public.conversations USING btree (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_divisions_org ON public.divisions USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_divisions_season ON public.divisions USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_carpool_claims_offer ON public.event_carpool_claims USING btree (offer_id);
+CREATE INDEX IF NOT EXISTS idx_event_carpool_claims_rider_profile_id ON public.event_carpool_claims USING btree (rider_profile_id);
 CREATE INDEX IF NOT EXISTS idx_carpool_offers_event ON public.event_carpool_offers USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_carpool_offers_driver_profile_id ON public.event_carpool_offers USING btree (driver_profile_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_guests_email_unique ON public.event_guests USING btree (event_id, invited_email) WHERE (invited_email IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_event_guests_profile ON public.event_guests USING btree (profile_id, status) WHERE (profile_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_guests_profile_unique ON public.event_guests USING btree (event_id, profile_id) WHERE (profile_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_event_series_horizon ON public.event_series USING btree (generated_until) WHERE (ends = 'never'::text);
+CREATE INDEX IF NOT EXISTS idx_event_series_organizer_id ON public.event_series USING btree (organizer_id);
 CREATE INDEX IF NOT EXISTS idx_events_division_starts ON public.events USING btree (division_id, starts_at) WHERE (division_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_facility_id ON public.events USING btree (facility_id) WHERE (facility_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_events_facility_id_venue_id ON public.events USING btree (facility_id, venue_id);
 CREATE INDEX IF NOT EXISTS idx_events_org ON public.events USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_organizer ON public.events USING btree (organizer_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_routine_id ON public.events USING btree (routine_id) WHERE (routine_id IS NOT NULL);
@@ -9448,6 +9476,7 @@ CREATE INDEX IF NOT EXISTS idx_follows_follower_status ON public.follows USING b
 CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows USING btree (following_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
 CREATE INDEX IF NOT EXISTS idx_follows_status ON public.follows USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name gin_trgm_ops);
@@ -9461,6 +9490,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_courses_search ON public.golf_courses USING 
 CREATE INDEX IF NOT EXISTS idx_golf_hole_scores_participant ON public.golf_hole_scores USING btree (golf_participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree (round_id, hole_number);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round_id ON public.golf_holes USING btree (round_id);
+CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_finalized_by ON public.golf_participant_scores USING btree (finalized_by);
 CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_participant ON public.golf_participant_scores USING btree (participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_scores_entered_by ON public.golf_participant_scores USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_id ON public.golf_rounds USING btree (course_id);
@@ -9490,19 +9520,31 @@ CREATE INDEX IF NOT EXISTS idx_group_posts_post ON public.group_posts USING btre
 CREATE UNIQUE INDEX IF NOT EXISTS idx_group_posts_sport_event_round ON public.group_posts USING btree (sport_event_round_id) WHERE (sport_event_round_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_group_posts_status ON public.group_posts USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_group_posts_type ON public.group_posts USING btree (type);
+CREATE INDEX IF NOT EXISTS idx_guardian_invites_created_by ON public.guardian_invites USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_guardian_invites_email ON public.guardian_invites USING btree (invited_email) WHERE (consumed_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_guardian_invites_pending_profile_id ON public.guardian_invites USING btree (pending_profile_id);
+CREATE INDEX IF NOT EXISTS idx_guardian_invites_profile_id ON public.guardian_invites USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_handle_history_profile_id ON public.handle_history USING btree (profile_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_help_articles_created_by ON public.help_articles USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_help_articles_public ON public.help_articles USING btree (topic, sort_order, title) WHERE published;
+CREATE INDEX IF NOT EXISTS idx_help_articles_updated_by ON public.help_articles USING btree (updated_by);
+CREATE INDEX IF NOT EXISTS idx_memberships_granted_by ON public.memberships USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_memberships_org ON public.memberships USING btree (org_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_photo_consent_by ON public.memberships USING btree (photo_consent_by);
 CREATE INDEX IF NOT EXISTS idx_memberships_profile ON public.memberships USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_season ON public.memberships USING btree (season_id) WHERE (season_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON public.message_reactions USING btree (message_id);
+CREATE INDEX IF NOT EXISTS idx_message_reactions_profile_id ON public.message_reactions USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_message_reports_conversation_id ON public.message_reports USING btree (conversation_id);
+CREATE INDEX IF NOT EXISTS idx_message_reports_message_id ON public.message_reports USING btree (message_id);
 CREATE INDEX IF NOT EXISTS idx_message_reports_reported_profile ON public.message_reports USING btree (reported_profile_id);
 CREATE INDEX IF NOT EXISTS idx_message_reports_reporter ON public.message_reports USING btree (reporter_id);
 CREATE INDEX IF NOT EXISTS idx_message_reports_status_created ON public.message_reports USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON public.messages USING btree (conversation_id, created_at DESC) WHERE (deleted_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_messages_parent ON public.messages USING btree (parent_message_id) WHERE (parent_message_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON public.messages USING btree (sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_shared_post_id ON public.messages USING btree (shared_post_id);
+CREATE INDEX IF NOT EXISTS idx_messages_shared_profile_id ON public.messages USING btree (shared_profile_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_action_status ON public.notifications USING btree (action_status) WHERE (action_status IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_notifications_actor_id ON public.notifications USING btree (actor_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_follow_id ON public.notifications USING btree (follow_id);
@@ -9513,8 +9555,14 @@ CREATE INDEX IF NOT EXISTS idx_notifications_urgent_unmailed ON public.notificat
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications USING btree (user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications USING btree (user_id, is_read, created_at DESC) WHERE (is_read = false);
+CREATE INDEX IF NOT EXISTS idx_org_claim_invites_consumed_by ON public.org_claim_invites USING btree (consumed_by);
+CREATE INDEX IF NOT EXISTS idx_org_claim_invites_created_by ON public.org_claim_invites USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_org_claim_invites_org ON public.org_claim_invites USING btree (org_id) WHERE (consumed_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_org_join_requests_profile_id ON public.org_join_requests USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS org_join_requests_org_idx ON public.org_join_requests USING btree (org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_org_requests_created_org_id ON public.org_requests USING btree (created_org_id);
+CREATE INDEX IF NOT EXISTS idx_org_requests_place_id ON public.org_requests USING btree (place_id);
+CREATE INDEX IF NOT EXISTS idx_org_requests_reviewed_by ON public.org_requests USING btree (reviewed_by);
 CREATE INDEX IF NOT EXISTS idx_org_requests_status ON public.org_requests USING btree (kind, status, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS org_requests_one_pending ON public.org_requests USING btree (requester_profile_id) WHERE (status = 'pending'::text);
 CREATE INDEX IF NOT EXISTS idx_org_site_form_submissions_site_created ON public.org_site_form_submissions USING btree (site_id, created_at DESC);
@@ -9523,13 +9571,20 @@ CREATE INDEX IF NOT EXISTS idx_org_site_modules_site ON public.org_site_modules 
 CREATE INDEX IF NOT EXISTS idx_org_site_news_feed ON public.org_site_news USING btree (site_id, published_at DESC);
 CREATE INDEX IF NOT EXISTS org_site_news_site_pinned_idx ON public.org_site_news USING btree (site_id, pinned_at DESC NULLS LAST, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_site_pages_site ON public.org_site_pages USING btree (site_id);
+CREATE INDEX IF NOT EXISTS idx_org_site_revisions_created_by ON public.org_site_revisions USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_org_site_revisions_published_by ON public.org_site_revisions USING btree (published_by);
 CREATE INDEX IF NOT EXISTS idx_org_site_revisions_site_created ON public.org_site_revisions USING btree (site_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_site_stats_daily_site_day ON public.org_site_stats_daily USING btree (site_id, day DESC);
+CREATE INDEX IF NOT EXISTS idx_org_sites_draft_revision_id ON public.org_sites USING btree (draft_revision_id);
 CREATE INDEX IF NOT EXISTS idx_org_sites_org ON public.org_sites USING btree (org_id);
+CREATE INDEX IF NOT EXISTS idx_org_sites_published_revision_id ON public.org_sites USING btree (published_revision_id);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_custom_domain_uniq ON public.org_sites USING btree (custom_domain) WHERE (custom_domain IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_subdomain_lower_uniq ON public.org_sites USING btree (lower(subdomain));
 CREATE INDEX IF NOT EXISTS idx_org_staff_audit_org ON public.org_staff_audit USING btree (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_org_staff_invites_consumed_by ON public.org_staff_invites USING btree (consumed_by);
+CREATE INDEX IF NOT EXISTS idx_org_staff_invites_created_by ON public.org_staff_invites USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_org_staff_invites_org ON public.org_staff_invites USING btree (org_id) WHERE ((consumed_at IS NULL) AND (revoked_at IS NULL));
+CREATE INDEX IF NOT EXISTS idx_org_staff_invites_season_id ON public.org_staff_invites USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_country_region ON public.organizations USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_organizations_kind ON public.organizations USING btree (kind);
 CREATE INDEX IF NOT EXISTS idx_organizations_lat ON public.organizations USING btree (lat);
@@ -9539,6 +9594,7 @@ CREATE INDEX IF NOT EXISTS idx_organizations_place ON public.organizations USING
 CREATE INDEX IF NOT EXISTS idx_organizations_search ON public.organizations USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS organizations_listing_idx ON public.organizations USING btree (listing_status) WHERE (listing_status <> 'listed'::text);
 CREATE INDEX IF NOT EXISTS organizations_pending_idx ON public.organizations USING btree (created_at) WHERE (approved_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_pending_profiles_promoted_profile_id ON public.pending_profiles USING btree (promoted_profile_id);
 CREATE INDEX IF NOT EXISTS idx_pending_profiles_state ON public.pending_profiles USING btree (state, expires_at);
 CREATE INDEX IF NOT EXISTS idx_performances_profile_id ON public.performances USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_place_aliases_norm ON public.place_aliases USING btree (alias_norm text_pattern_ops);
@@ -9549,9 +9605,11 @@ CREATE INDEX IF NOT EXISTS idx_places_name_norm ON public.places USING btree (se
 CREATE INDEX IF NOT EXISTS idx_places_name_trgm ON public.places USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_places_population ON public.places USING btree (population DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_places_search ON public.places USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS idx_platform_admins_granted_by ON public.platform_admins USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_comments_created_by ON public.post_comments USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON public.post_comments USING btree (post_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_comments_post_created ON public.post_comments USING btree (post_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_comments_hidden_ticket_id ON public.post_comments USING btree (hidden_ticket_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_is_pinned ON public.post_comments USING btree (post_id) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_post_comments_parent_comment_id ON public.post_comments USING btree (parent_comment_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_pending_nudge ON public.post_comments USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL));
@@ -9577,6 +9635,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_created_at_id_desc ON public.posts USING bt
 CREATE INDEX IF NOT EXISTS idx_posts_created_by ON public.posts USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_event_id ON public.posts USING btree (event_id) WHERE (event_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_group_post_id ON public.posts USING btree (group_post_id);
+CREATE INDEX IF NOT EXISTS idx_posts_hidden_ticket_id ON public.posts USING btree (hidden_ticket_id);
 CREATE INDEX IF NOT EXISTS idx_posts_pending_nudge ON public.posts USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_posts_pinned ON public.posts USING btree (profile_id, pinned_at DESC) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_posts_profile_created ON public.posts USING btree (profile_id, created_at DESC);
@@ -9592,11 +9651,13 @@ CREATE INDEX IF NOT EXISTS idx_posts_status_pending ON public.posts USING btree 
 CREATE INDEX IF NOT EXISTS idx_posts_tags_gin ON public.posts USING gin (tags);
 CREATE INDEX IF NOT EXISTS idx_posts_visibility_created ON public.posts USING btree (visibility, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_privacy_settings_profile ON public.privacy_settings USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_profile_access_granted_by ON public.profile_access USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_profile_access_guardians ON public.profile_access USING btree (profile_id) WHERE (role = 'guardian'::text);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_access_one_self_role ON public.profile_access USING btree (profile_id) WHERE (role = ANY (ARRAY['owner'::text, 'supervised'::text]));
 CREATE INDEX IF NOT EXISTS idx_profile_access_profile_role ON public.profile_access USING btree (profile_id, role);
 CREATE INDEX IF NOT EXISTS idx_profile_access_audit_profile ON public.profile_access_audit USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_profile_transfers_cron ON public.profile_transfers USING btree (state) WHERE (state = ANY (ARRAY['cooling_off'::text, 'executing'::text, 'requested'::text, 'credentials_pending'::text, 'dual_confirm'::text]));
+CREATE INDEX IF NOT EXISTS idx_profile_transfers_initiator_user_id ON public.profile_transfers USING btree (initiator_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_transfers_one_active ON public.profile_transfers USING btree (profile_id) WHERE (state <> ALL (ARRAY['completed'::text, 'cancelled'::text, 'expired'::text, 'aborted'::text]));
 CREATE INDEX IF NOT EXISTS idx_profiles_country_region ON public.profiles USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_profiles_deletion_requested ON public.profiles USING btree (deletion_requested_at) WHERE (deletion_requested_at IS NOT NULL);
@@ -9612,6 +9673,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_last_name_prefix ON public.profiles USIN
 CREATE INDEX IF NOT EXISTS idx_profiles_last_name_trgm ON public.profiles USING gin (lower(last_name) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_lat ON public.profiles USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_profiles_moderation ON public.profiles USING btree (moderation_state) WHERE (moderation_state <> 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_profiles_moderation_ticket_id ON public.profiles USING btree (moderation_ticket_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_place ON public.profiles USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_recruiting_open ON public.profiles USING btree (recruiting_status) WHERE (recruiting_status <> 'closed'::text);
 CREATE INDEX IF NOT EXISTS idx_profiles_search ON public.profiles USING gin (search_vector);
@@ -9619,10 +9681,17 @@ CREATE INDEX IF NOT EXISTS idx_profiles_supervised ON public.profiles USING btre
 CREATE INDEX IF NOT EXISTS idx_profiles_visibility ON public.profiles USING btree (visibility);
 CREATE INDEX IF NOT EXISTS idx_programs_season ON public.programs USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_reg_windows_season ON public.registration_windows USING btree (season_id);
+CREATE INDEX IF NOT EXISTS idx_registration_windows_created_by ON public.registration_windows USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_registration_windows_division_id ON public.registration_windows USING btree (division_id);
 CREATE INDEX IF NOT EXISTS idx_registration_windows_org ON public.registration_windows USING btree (org_id);
+CREATE INDEX IF NOT EXISTS idx_registration_windows_program_id ON public.registration_windows USING btree (program_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_division_id ON public.registrations USING btree (division_id);
 CREATE INDEX IF NOT EXISTS idx_registrations_org ON public.registrations USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_registrations_profile ON public.registrations USING btree (profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_registrations_program_id ON public.registrations USING btree (program_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_released_by ON public.registrations USING btree (released_by);
 CREATE INDEX IF NOT EXISTS idx_registrations_season ON public.registrations USING btree (season_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_submitted_by ON public.registrations USING btree (submitted_by);
 CREATE INDEX IF NOT EXISTS idx_reserved_handles_lower ON public.reserved_handles USING btree (lower(handle));
 CREATE INDEX IF NOT EXISTS idx_risk_signals_unacked ON public.risk_signals USING btree (profile_id, created_at DESC) WHERE (acknowledged_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_safety_audit_profile ON public.safety_settings_audit USING btree (profile_id, created_at DESC);
@@ -9634,24 +9703,31 @@ CREATE INDEX IF NOT EXISTS idx_scout_shortlists_athlete ON public.scout_shortlis
 CREATE INDEX IF NOT EXISTS idx_search_documents_country_region ON public.search_documents USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_search_documents_lat ON public.search_documents USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_search_documents_owner ON public.search_documents USING btree (owner_id) WHERE (owner_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_search_documents_place_id ON public.search_documents USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_search_documents_type ON public.search_documents USING btree (entity_type);
 CREATE INDEX IF NOT EXISTS idx_search_documents_vector ON public.search_documents USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS idx_season_highlights_season ON public.season_highlights USING btree (profile_id, season);
 CREATE INDEX IF NOT EXISTS idx_season_highlights_sport ON public.season_highlights USING btree (profile_id, sport_key);
 CREATE INDEX IF NOT EXISTS idx_seasons_org ON public.seasons USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_group_members_group_position ON public.sport_event_group_members USING btree (group_id, "position");
+CREATE INDEX IF NOT EXISTS idx_sport_event_group_members_participant_id ON public.sport_event_group_members USING btree (participant_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_groups_round_sequence ON public.sport_event_groups USING btree (sport_event_round_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_sport_event_matches_round ON public.sport_event_matches USING btree (sport_event_round_id);
+CREATE INDEX IF NOT EXISTS idx_sport_event_media_created_by_user_id ON public.sport_event_media USING btree (created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_media_event ON public.sport_event_media USING btree (sport_event_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sport_event_media_round ON public.sport_event_media USING btree (sport_event_round_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_media_uploader ON public.sport_event_media USING btree (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_sport_event_participants_event_status ON public.sport_event_participants USING btree (sport_event_id, status);
+CREATE INDEX IF NOT EXISTS idx_sport_event_participants_invited_by ON public.sport_event_participants USING btree (invited_by);
 CREATE INDEX IF NOT EXISTS idx_sport_event_participants_profile_created ON public.sport_event_participants USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sport_event_rounds_course ON public.sport_event_rounds USING btree (course_id) WHERE (course_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_sport_event_rounds_event_sequence ON public.sport_event_rounds USING btree (sport_event_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_sport_event_stat_lines_entered_by ON public.sport_event_stat_lines USING btree (entered_by);
+CREATE INDEX IF NOT EXISTS idx_sport_event_stat_lines_participant_id ON public.sport_event_stat_lines USING btree (participant_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_stat_lines_profile ON public.sport_event_stat_lines USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sport_event_stat_lines_round ON public.sport_event_stat_lines USING btree (sport_event_round_id);
 CREATE INDEX IF NOT EXISTS idx_sport_events_competition ON public.sport_events USING btree (competition_id) WHERE (competition_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_sport_events_created_by_user_id ON public.sport_events USING btree (created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_sport_events_host_created ON public.sport_events USING btree (host_profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sport_events_org ON public.sport_events USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_sport_events_status_starts ON public.sport_events USING btree (status, starts_on);
@@ -9662,7 +9738,10 @@ CREATE INDEX IF NOT EXISTS idx_sport_settings_sport ON public.sport_settings USI
 CREATE INDEX IF NOT EXISTS idx_sports_active ON public.sports USING btree (profile_id, active);
 CREATE INDEX IF NOT EXISTS idx_team_entries_division ON public.team_entries USING btree (division_id);
 CREATE INDEX IF NOT EXISTS idx_teams_org ON public.teams USING btree (org_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_events_actor_profile_id ON public.ticket_events USING btree (actor_profile_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket ON public.ticket_events USING btree (ticket_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_tickets_assignee_profile_id ON public.tickets USING btree (assignee_profile_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_merged_into_id ON public.tickets USING btree (merged_into_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_queue ON public.tickets USING btree (status, severity, created_at);
 CREATE INDEX IF NOT EXISTS idx_tickets_reporter ON public.tickets USING btree (reporter_profile_id, created_at DESC) WHERE (reporter_profile_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_tickets_retention ON public.tickets USING btree (closed_at) WHERE ((closed_at IS NOT NULL) AND (anonymized_at IS NULL));
@@ -9671,10 +9750,12 @@ CREATE INDEX IF NOT EXISTS idx_tickets_target_profile ON public.tickets USING bt
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks USING btree (blocked_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks USING btree (blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_media_presets_profile ON public.user_media_presets USING btree (profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_mutes_muted_id ON public.user_mutes USING btree (muted_id);
 CREATE INDEX IF NOT EXISTS idx_user_mutes_muter ON public.user_mutes USING btree (muter_id);
 CREATE INDEX IF NOT EXISTS idx_venues_golf_club_id ON public.venues USING btree (golf_club_id) WHERE (golf_club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_golf_course_id ON public.venues USING btree (golf_course_id) WHERE (golf_course_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_org ON public.venues USING btree (org_id) WHERE (org_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_venues_place_id ON public.venues USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON public.waitlist USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile ON public.workout_exercises USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_session ON public.workout_exercises USING btree (session_id, "position");
@@ -9683,6 +9764,7 @@ CREATE INDEX IF NOT EXISTS idx_workout_routine_exercises_routine ON public.worko
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_routines_profile_name ON public.workout_routines USING btree (profile_id, lower(name));
 CREATE INDEX IF NOT EXISTS idx_workout_routines_profile_updated ON public.workout_routines USING btree (profile_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_active ON public.workout_sessions USING btree (profile_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_post_id ON public.workout_sessions USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_profile_started ON public.workout_sessions USING btree (profile_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_sets_exercise ON public.workout_sets USING btree (exercise_id, set_number);
 CREATE INDEX IF NOT EXISTS idx_workout_sets_profile ON public.workout_sets USING btree (profile_id);
@@ -16197,7 +16279,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (235, '235_org_drop.sql', 'rebuild-000'),
   (236, '236_org_side_tables.sql', 'rebuild-000'),
   (237, '237_org_side_tables_drop.sql', 'rebuild-000'),
-  (238, '238_departed_profiles.sql', 'rebuild-000')
+  (238, '238_departed_profiles.sql', 'rebuild-000'),
+  (239, '239_fk_indexes.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16206,12 +16289,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 118 | 110 | 173 | 238
+-- Expected: 000 REBUILT | 118 | 110 | 173 | 239
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_118,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_238;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_239;
 
