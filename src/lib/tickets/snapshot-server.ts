@@ -307,6 +307,13 @@ async function resolveSportEvent(admin: Admin, viewerId: string, eventId: string
   if (!read) return null; // not visible to the reporter
   if (read.event.host_profile_id === viewerId || read.access.canManage) return null; // your own
   const host = await readPerson(admin, read.event.host_profile_id);
+  // Results-kept (241): a player reporting "this result isn't me" — the snapshot keeps the result AS IT WAS.
+  let reporterResult: Record<string, unknown> | null = null;
+  if (read.participant) {
+    const { readEventResults } = await import('@/lib/results/correction-server');
+    const own = (await readEventResults(admin, read.event.id)).find(r => r.profileId === viewerId);
+    if (own) reporterResult = { participant_id: own.participantId, status: own.status, rounds: own.rounds.map(r => ({ sequence: r.sequence, gross: r.gross, holes: r.holes, stats: r.stats })) };
+  }
   return {
     type: 'sport_event',
     id: read.event.id,
@@ -322,6 +329,7 @@ async function resolveSportEvent(admin: Admin, viewerId: string, eventId: string
       status: read.event.status,
       visibility: read.event.visibility,
       host: person(host),
+      ...(reporterResult ? { reporter_result: reporterResult } : {}),
       captured_at: new Date().toISOString(),
     },
   };

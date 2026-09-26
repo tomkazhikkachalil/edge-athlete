@@ -56,7 +56,7 @@ describe('the ticket vocabulary ↔ migration 222', () => {
     expect(isReasonForType('report', 'minor_safety')).toBe(true);
     expect(isReasonForType('help', 'minor_safety')).toBe(false);
     expect(isReasonForType('suggestion', 'stats')).toBe(true);
-    expect(REPORT_REASONS).toHaveLength(8);
+    expect(REPORT_REASONS).toHaveLength(9); // 241 added wrong_person
     expect(HELP_CATEGORIES).toContain('other');
     expect(SUGGESTION_AREAS).toContain('other');
     expect(reasonLabel('report', 'minor_safety')).toBe('Safety of a minor');

@@ -74,6 +74,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const [inviteAsCo, setInviteAsCo] = useState(false);
   // Authority (240): report the event (a visitor who does not run it); `?report=1` opens it.
   const [reportOpen, setReportOpen] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('report') === '1');
+  const [reportWrongPerson, setReportWrongPerson] = useState(false);
   const [flightsOpen, setFlightsOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [countsTowardOpen, setCountsTowardOpen] = useState(false);
@@ -221,7 +222,15 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
         </div>
       )}
       {reportOpen && user && !viewer.can_manage && viewer.profile_id !== event.host_profile_id && (
-        <ReportSheet target={{ type: 'sport_event', id: event.id, profileId: null, noun: 'event' }} onClose={() => setReportOpen(false)} />
+        <ReportSheet target={{ type: 'sport_event', id: event.id, profileId: null, noun: 'event' }} initialReason={reportWrongPerson ? 'wrong_person' : undefined} onClose={() => { setReportOpen(false); setReportWrongPerson(false); }} />
+      )}
+      {/* Results-kept (241): a player whose result here isn't theirs asks support — the data is kept and moved to the right person. */}
+      {user && viewer.participant_id && !viewer.can_manage && viewer.profile_id !== event.host_profile_id && (event.status === 'live' || event.status === 'completed') && (
+        <div className="flex justify-end -mt-2">
+          <button type="button" onClick={() => { setReportWrongPerson(true); setReportOpen(true); }} className="text-sm text-tertiary hover:text-primary inline-flex items-center gap-1 min-h-[44px] px-2" data-event-wrong-person="">
+            <i className="fas fa-user-slash text-xs" aria-hidden="true"></i> This result isn’t me
+          </button>
+        </div>
       )}
       {viewer.authority_paused && (
         <p role="status" className="text-sm rounded-lg px-3 py-2 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100" data-event-authority-paused="">

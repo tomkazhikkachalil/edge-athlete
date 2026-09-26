@@ -33,6 +33,8 @@ interface Props {
   onClose: () => void;
   /** After a successful submit — the caller may re-fetch or toast. */
   onSubmitted?: (result: { number: string; severity: string }) => void;
+  /** Results-kept (241): open with a reason picked (the event page's "This result isn't me"). */
+  initialReason?: ReportReason;
 }
 
 const HINTS: Record<ReportReason, string> = {
@@ -43,11 +45,14 @@ const HINTS: Record<ReportReason, string> = {
   impersonation: 'Pretending to be someone they are not',
   self_harm: 'Someone may be at risk of hurting themselves',
   minor_safety: 'A child or teen may be in danger',
+  wrong_person: 'A result here is recorded under my name, but it isn’t mine',
   other: "Doesn't fit the reasons above",
 };
 
-export default function ReportSheet({ target, onClose, onSubmitted }: Props) {
-  const [reason, setReason] = useState<ReportReason | ''>('');
+export default function ReportSheet({ target, onClose, onSubmitted, initialReason }: Props) {
+  const [reason, setReason] = useState<ReportReason | ''>(initialReason ?? '');
+  // "This result isn't me" is about an EVENT's result — only an event report offers it.
+  const reasons = REPORT_REASONS.filter(r => r !== 'wrong_person' || target.type === 'sport_event');
   const [details, setDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +62,7 @@ export default function ReportSheet({ target, onClose, onSubmitted }: Props) {
   const [acting, setActing] = useState<'block' | 'mute' | null>(null);
 
   useBodyScrollLock(true);
-  const isDirty = useCallback(() => !done && (details.trim().length > 0 || reason !== ''), [done, details, reason]);
+  const isDirty = useCallback(() => !done && (details.trim().length > 0 || reason !== (initialReason ?? '')), [done, details, reason, initialReason]);
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   useEffect(() => {
@@ -162,7 +167,7 @@ export default function ReportSheet({ target, onClose, onSubmitted }: Props) {
           <div className="px-5 py-4 space-y-4">
             <fieldset className="space-y-1" data-report-reasons="">
               <legend className="text-sm font-medium text-primary mb-2">Why are you reporting this?</legend>
-              {REPORT_REASONS.map(r => (
+              {reasons.map(r => (
                 <label key={r} className={`flex items-start gap-3 rounded-lg px-3 py-2 cursor-pointer ea-interactive ${reason === r ? 'bg-brand-soft' : ''}`}>
                   <input type="radio" name="report-reason" value={r} checked={reason === r} onChange={() => setReason(r)} className="mt-1" />
                   <span>
