@@ -1,5 +1,21 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, L5: the gallery lightbox (zero DDL)
+
+**What:** the public gallery's photos open large, still with no script.
+- Each thumbnail links to `#photo-N`. Its overlay (`.site-lightbox`, globals.css) shows while it is the URL's `:target`: fixed and dark, so opening one never scrolls the page.
+- The overlay carries the photo at up to 75vh, its caption, the competition and date, the masked tags, and Previous / Close / Next as plain links, 44 px targets. Close returns to `#gallery-grid`.
+- The large images are `loading="lazy"` inside hidden overlays, so nothing extra downloads until a photo is opened. Every byte still comes through the gate-checked streamer.
+- Videos keep their inline player.
+
+**Specs:**
+- `org-site-gallery` gains the lightbox: open at 1280 and at 375 px (it fills the phone), close.
+- Two member-photo specs scope their thumbnail assertion to `#gallery-grid`: the lightbox holds a hidden copy of the same image, which a bare `img[src=…]` now also matches.
+
+**Proof:** `npm run verify` green; org-site-gallery, member-photos (club + league) and org-app-gallery green on staging.
+
+**The look phase so far:** L1–L5 (#963–#967). L6 (the game-day gallery designs) waits for G2's widgets, as planned.
+
 ## September 27, 2026 — Sports-team website program, L4: notice tones and the site's own 404 (zero DDL)
 
 **Notice tones:**

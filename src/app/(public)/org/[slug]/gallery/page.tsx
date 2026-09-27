@@ -53,10 +53,20 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
   if (isMembersOnly(site, 'gallery')) return <MembersOnlyPage site={site} title={moduleLabel('gallery', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The gallery'} />;
   const items = await getCachedGallery(slug, site.side, site.orgId);
 
+  // L5 (Sep 27 2026): a CSS-only lightbox — each photo links to `#photo-N`;
+  // its overlay shows while it is the :target (globals.css .site-lightbox),
+  // with previous / next / close as plain links. No script (the public tree
+  // ships none); the large images are lazy inside hidden overlays, so nothing
+  // extra loads until one is opened. Videos keep their inline player.
+  const photos = items.filter(i => i.mediaType === 'image');
+  const photoIndex = new Map(photos.map((p, i) => [p.id, i] as const));
+  const caption = (item: (typeof items)[number]) => [item.competitionName, galleryDate(item.date)].filter(Boolean).join(' · ');
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">Gallery</h1>
       <section
+        id="gallery-grid"
         aria-label="Gallery"
         className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
       >
@@ -67,13 +77,15 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
             {items.map(item => (
               <li key={item.id}>
                 {item.mediaType === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- gate-checked streamer bytes; not an optimizable public asset
-                  <img
-                    src={item.url}
-                    alt={item.caption ?? `${item.competitionName} photo`}
-                    loading="lazy"
-                    className="aspect-square w-full object-cover rounded-lg border border-border"
-                  />
+                  <a href={`#photo-${photoIndex.get(item.id)! + 1}`} className="block" aria-label={`Open ${item.caption ?? `${item.competitionName} photo`}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- gate-checked streamer bytes; not an optimizable public asset */}
+                    <img
+                      src={item.url}
+                      alt={item.caption ?? `${item.competitionName} photo`}
+                      loading="lazy"
+                      className="aspect-square w-full object-cover rounded-lg border border-border hover:opacity-90 transition-opacity"
+                    />
+                  </a>
                 ) : (
                   <video
                     src={item.url}
@@ -82,9 +94,7 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
                     className="aspect-square w-full object-cover rounded-lg border border-border"
                   />
                 )}
-                <p className="mt-1 text-xs text-muted truncate">
-                  {[item.competitionName, galleryDate(item.date)].filter(Boolean).join(' · ')}
-                </p>
+                <p className="mt-1 text-xs text-muted truncate">{caption(item)}</p>
                 {item.tagLabels.length > 0 && (
                   <p className="text-xs text-tertiary truncate">{item.tagLabels.join(', ')}</p>
                 )}
@@ -93,6 +103,31 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
           </ul>
         )}
       </section>
+      {photos.map((item, i) => {
+        const n = i + 1;
+        const prev = i > 0 ? `#photo-${n - 1}` : null;
+        const next = i < photos.length - 1 ? `#photo-${n + 1}` : null;
+        const nav = 'inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/15 px-4 text-sm font-semibold text-white hover:bg-white/25';
+        return (
+          <div key={item.id} id={`photo-${n}`} className="site-lightbox" role="dialog" aria-label={`Photo ${n} of ${photos.length}`} data-site-lightbox={n}>
+            <a href="#gallery-grid" className="absolute inset-0" aria-label="Close" tabIndex={-1} />
+            <figure className="relative z-10 flex max-h-full w-full max-w-5xl flex-col items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- gate-checked streamer bytes; not an optimizable public asset */}
+              <img src={item.url} alt={item.caption ?? `${item.competitionName} photo`} loading="lazy" className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain" />
+              <figcaption className="text-center text-sm text-white/90">
+                {item.caption ? <span className="block font-medium text-white">{item.caption}</span> : null}
+                {caption(item)}
+                {item.tagLabels.length > 0 ? <span className="block text-white/75">{item.tagLabels.join(', ')}</span> : null}
+              </figcaption>
+              <div className="flex items-center gap-3">
+                {prev ? <a href={prev} className={nav}>← Previous</a> : null}
+                <a href="#gallery-grid" className={nav} data-site-lightbox-close="">Close</a>
+                {next ? <a href={next} className={nav}>Next →</a> : null}
+              </div>
+            </figure>
+          </div>
+        );
+      })}
     </div>
   );
 }
