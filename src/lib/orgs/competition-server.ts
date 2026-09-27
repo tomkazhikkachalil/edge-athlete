@@ -1,3 +1,4 @@
+import { currentTeamRowsForProfiles } from '@/lib/teams/roster-server';
 import { AD_HOC_REFUSAL_COPY, adHocEntryRefusal, entryDisplayName } from '@/lib/competitions/entries';
 import { tellOfficialChange } from '@/lib/results/notify-server';
 import { bracketDraw, bracketFill, BRACKET_COLUMNS, SEEDS_REFUSAL_COPY, seedsRefusal } from '@/lib/competitions/bracket-draw';
@@ -523,9 +524,10 @@ export async function entryAddPOST(
     if (refusal) return NextResponse.json({ error: AD_HOC_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     // A relay team's affiliation: the ONE team every leg sits on (their team-scope roster rows); else unattached until the organizer sets it.
     if (comp.format === 'meet' && members.length > 0) {
-      const { data: teamRows } = await admin.from('memberships').select('profile_id, scope_id').eq(ORG_ID, orgIdOf(comp) as string).eq('kind', 'roster').eq('scope_type', 'team').in('status', ['active', 'placed']).in('profile_id', members).not('scope_id', 'is', null);
+      // The teams they are on NOW (teams & divisions, PR 4 — a past season's team never affiliates).
+      const teamRows = await currentTeamRowsForProfiles(admin, orgIdOf(comp) as string, members);
       const teamsOf = new Map<string, string[]>();
-      for (const r of (teamRows ?? []) as Array<{ profile_id: string; scope_id: string }>) teamsOf.set(r.profile_id, [...(teamsOf.get(r.profile_id) ?? []), r.scope_id]);
+      for (const r of teamRows) teamsOf.set(r.profile_id, [...(teamsOf.get(r.profile_id) ?? []), r.scope_id]);
       affiliationTeamId = commonTeam(members.map(m => teamsOf.get(m) ?? []));
     }
   } else {
@@ -1700,21 +1702,14 @@ export async function resultsUpsertPOST(
 
 // ── The meet (track 2 PR 7) ──────────────────────────────────────────────────
 
-/** The athlete's TEAM-scope roster row under this org (the newest active / placed one) — the affiliation a meet snapshots at entry. */
+/** The athlete's CURRENT team under this org (the newest current spot) — the
+ *  affiliation a meet snapshots at entry. The one reader (teams & divisions,
+ *  PR 4): a past season's team never wins because its row is newer. Rows
+ *  order by joined_at (140) — memberships have no created_at (the meet API
+ *  probe found that 42703). */
 async function athleteAffiliationTeamId(admin: Admin, orgId: string, profileId: string): Promise<string | null> {
-  const { data } = await admin
-    .from('memberships')
-    .select('scope_id, joined_at')
-    .eq(ORG_ID, orgId)
-    .eq('profile_id', profileId)
-    .eq('kind', 'roster')
-    .eq('scope_type', 'team')
-    .in('status', ['active', 'placed'])
-    .not('scope_id', 'is', null)
-    .order('joined_at', { ascending: false }) // memberships carry joined_at (140), never created_at — the meet API probe found the silent 42703
-    .limit(1)
-    .maybeSingle();
-  return (data?.scope_id as string | null) ?? null;
+  const [newest] = await currentTeamRowsForProfiles(admin, orgId, [profileId]);
+  return newest?.scope_id ?? null;
 }
 
 /** PATCH an athlete entry's affiliation (a meet's roll-up key): a team of THIS org, or null = unattached. Recomputes the standings. */

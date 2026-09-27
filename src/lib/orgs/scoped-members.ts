@@ -11,6 +11,7 @@
 // a team-scope row expands UP — the team, the divisions the team is
 // entered in, and the owning org.
 
+import { keepCurrent } from '@/lib/teams/roster-server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { type OrgKindRow, pairFieldsOf } from './org-ref';
@@ -52,9 +53,9 @@ export async function viewerScopeSet(
   admin: Admin,
   profileId: string
 ): Promise<ViewerScopeSet> {
-  const { data, error } = await admin
+  const { data: raw, error } = await admin
     .from('memberships')
-    .select('scope_type, scope_id')
+    .select('scope_type, scope_id, status, season_id')
     .eq('profile_id', profileId)
     .in('scope_type', ['division', 'team'])
     .eq('kind', 'roster')
@@ -63,9 +64,12 @@ export async function viewerScopeSet(
     if (isMissingTableError(error.code)) return { ...EMPTY, scopeOrg: new Map() };
     throw error;
   }
+  // Teams & divisions (PR 4): this season's spots place events; a past
+  // season's team no longer puts its calendar on your calendar.
+  const data = await keepCurrent(admin, (raw ?? []) as { scope_type: string; scope_id: string | null; status: string; season_id: string | null }[]);
   const ownDivisionIds = new Set<string>();
   const teamIds = new Set<string>();
-  for (const row of data ?? []) {
+  for (const row of data) {
     if (!row.scope_id) continue;
     if (row.scope_type === 'division') ownDivisionIds.add(row.scope_id as string);
     if (row.scope_type === 'team') teamIds.add(row.scope_id as string);
@@ -126,17 +130,28 @@ export async function scopedMembershipExists(
   if (profileIds.length === 0) return false;
   const { data, error } = await admin
     .from('memberships')
-    .select('id')
+    .select('kind, status, season_id')
     .eq('scope_type', scopeType)
     .eq('scope_id', scopeId)
     .in('profile_id', profileIds)
-    .limit(1)
-    .maybeSingle();
+    .limit(50);
   if (error) {
     if (isMissingTableError(error.code)) return false;
     return false;
   }
-  return !!data;
+  return (await currentScopedRows(admin, (data ?? []) as ScopedRow[])).length > 0;
+}
+
+type ScopedRow = { kind: string; status: string; season_id: string | null; profile_id?: string };
+
+/** Roster ∪ staff by design (calendar detail, RSVP, the team bell) — but a
+ *  ROSTER row counts only while it is current (teams & divisions, PR 4: a
+ *  past season's player stops seeing and hearing the team's events). Staff
+ *  rows are unchanged (their own expiry governs them). */
+async function currentScopedRows<T extends ScopedRow>(admin: Admin, rows: readonly T[]): Promise<T[]> {
+  const roster = rows.filter(r => r.kind === 'roster');
+  const keptRoster = new Set(await keepCurrent(admin, roster));
+  return rows.filter(r => r.kind !== 'roster' || keptRoster.has(r));
 }
 
 /** Distinct member profile ids at one sub-org scope — the scoped
@@ -148,14 +163,15 @@ export async function scopedMemberProfileIds(
 ): Promise<{ profileIds: string[]; error: PostgrestError | null }> {
   const { data, error } = await admin
     .from('memberships')
-    .select('profile_id')
+    .select('profile_id, kind, status, season_id')
     .eq('scope_type', scopeType)
     .eq('scope_id', scopeId);
   if (error) {
     if (isMissingTableError(error.code)) return { profileIds: [], error: null };
     return { profileIds: [], error };
   }
-  return { profileIds: [...new Set((data ?? []).map(r => r.profile_id as string))], error: null };
+  const rows = await currentScopedRows(admin, (data ?? []) as (ScopedRow & { profile_id: string })[]);
+  return { profileIds: [...new Set(rows.map(r => r.profile_id))], error: null };
 }
 
 /** The divisions a team is entered in (any season) — the parent scopes a

@@ -32,6 +32,7 @@
 // the routes (requireProfileRole 'manage_privacy'); this core trusts
 // actingFor only when the route vouches for it.
 
+import { endCurrentTeamSpots } from '@/lib/teams/roster-server';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
@@ -399,6 +400,15 @@ export async function rosterDelete(
   if (error || !deleted) {
     console.error('[ROSTER] delete error:', error);
     return NextResponse.json({ error: 'Failed to update the roster' }, { status: 500 });
+  }
+
+  // Teams & divisions (PR 4): off the org roster = off its teams. A team spot
+  // comes FROM the roster, so once no accepted roster edge remains (a season
+  // placement can still hold one) their current team spots end too; a past
+  // season's row stays as history.
+  const remaining = await membershipEdges(admin, { side, orgId }, target);
+  if (!remaining.error && !remaining.rosterEdges.some(e => e.status === 'active' || e.status === 'placed')) {
+    await endCurrentTeamSpots(admin, { side, orgId }, target);
   }
 
   const action = rosterDeleteOutcome({ isSelf, status: rosterStatus });

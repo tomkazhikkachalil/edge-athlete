@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickRosterSeason } from '../roster';
+import { isCurrentTeamRow, pickRosterSeason, planTeamAdd } from '../roster';
 
 // A team roster row names its season (242). The pick is the backfill's rule.
 
@@ -18,5 +18,32 @@ describe('pickRosterSeason', () => {
   it('no live season at all → null (the caller refuses)', () => {
     expect(pickRosterSeason([s('gone', '2027-01-01T00:00:00Z', '2027-02-01T00:00:00Z')], new Set(['gone']))).toBeNull();
     expect(pickRosterSeason([], new Set())).toBeNull();
+  });
+});
+
+
+describe('isCurrentTeamRow', () => {
+  const archived = new Set(['old']);
+  it('a live season or a legacy season-less row counts; an archived season does not', () => {
+    expect(isCurrentTeamRow({ status: 'active', season_id: 'new' }, archived)).toBe(true);
+    expect(isCurrentTeamRow({ status: 'active', season_id: null }, archived)).toBe(true);
+    expect(isCurrentTeamRow({ status: 'active', season_id: 'old' }, archived)).toBe(false);
+  });
+  it('only active / placed count', () => {
+    expect(isCurrentTeamRow({ status: 'placed', season_id: 'new' }, archived)).toBe(true);
+    expect(isCurrentTeamRow({ status: 'pending', season_id: 'new' }, archived)).toBe(false);
+    expect(isCurrentTeamRow({ status: 'released', season_id: 'new' }, archived)).toBe(false);
+  });
+});
+
+describe('planTeamAdd', () => {
+  it('a member on the roster may go on a team', () => {
+    expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: ['active'] })).toBe('ok');
+    expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: ['released', 'placed'] })).toBe('ok');
+  });
+  it('a non-member is refused; a member off the roster (or only offered) needs the roster first', () => {
+    expect(planTeamAdd({ followRole: null, orgRosterStatuses: ['active'] })).toBe('not_member');
+    expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: [] })).toBe('needs_org_roster');
+    expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: ['pending'] })).toBe('needs_org_roster');
   });
 });

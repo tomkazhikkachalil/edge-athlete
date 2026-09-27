@@ -35,6 +35,7 @@ import { sortWeeks, utcToday, weekState, type GolfWeekState } from '@/lib/compet
 import { buildGolfLeaderBoards, type GolfLeaderInputRow } from '@/lib/competitions/golf-leaders';
 import { LISTING_NOT_KNOWN, isListed, listingFromRow, readListingMap } from '@/lib/orgs/listing';
 import { ALL_ON, switchesOf, widgetAllowed, type OrgSwitches } from '@/lib/orgs/switches';
+import { keepCurrent } from '@/lib/teams/roster-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -283,13 +284,13 @@ export async function fetchPublicTeamPage(
     admin.from('team_entries').select('division_id').eq('team_id', teamId),
     admin
       .from('memberships')
-      .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state, departed_at)')
+      .select('joined_at, status, season_id, profile_id, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state, departed_at)')
       .eq(ORG_ID, orgId)
       .eq('kind', 'roster')
-      .eq('status', 'active')
+      .in('status', ['active', 'placed'])
       .eq('scope_type', 'team')
       .eq('scope_id', teamId)
-      .limit(100),
+      .limit(200),
     admin
       .from('events')
       .select(TEAM_EVENT_FIELDS)
@@ -357,13 +358,18 @@ export async function fetchPublicTeamPage(
     })
     .sort((a, b) => a.competitionName.localeCompare(b.competitionName));
 
-  const rosterRows = (rosterRes.data ?? []) as unknown as Array<{
-    profile: MaskableProfile | null;
-  }>;
+  // The team NOW (teams & divisions, PR 4): the current season's players —
+  // last season's keep their history row but leave the page — once each.
+  const rosterRows = await keepCurrent(
+    admin,
+    (rosterRes.data ?? []) as unknown as Array<{ status: string; season_id: string | null; profile_id: string; profile: MaskableProfile | null }>
+  );
+  const seenPlayers = new Set<string>();
   const roster = rosterRows
-    .filter(r => r.profile)
+    .filter(r => r.profile && !seenPlayers.has(r.profile_id) && seenPlayers.add(r.profile_id))
     .map(r => ({ name: publicDisplayName(r.profile!) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 100);
 
   const divisionLabels = (divisions ?? []).map(d => {
     const season = seasonLabel.get(d.season_id);

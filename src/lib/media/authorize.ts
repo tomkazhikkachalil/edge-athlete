@@ -283,6 +283,9 @@ async function authorizeContestMedia(
   }
 
   // Active roster member of a participating team (teammates see the album).
+  // ANY season on purpose (teams & divisions, PR 4): the album belongs to a
+  // contest the team played — last season's player keeps it, like the
+  // contest place itself (contest-view resolveContestAccess).
   if (teamIds.length) {
     const { data: rosterRow } = await admin
       .from('memberships')

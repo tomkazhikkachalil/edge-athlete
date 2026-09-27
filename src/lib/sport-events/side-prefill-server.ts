@@ -9,7 +9,7 @@
  * (`splitSides`); the host keeps their row (playing only as a member).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+import { currentTeamRosterRows } from '@/lib/teams/roster-server';
 import { splitSides } from './game';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,10 +17,11 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[side-prefill]';
 
-/** A team's roster under the org: the team-scope roster rows, active or placed. */
+/** A team's roster under the org, NOW (the one reader: current season only —
+ *  last season's players never pre-fill this season's game). */
 export async function teamRosterMembers(admin: Admin, orgId: string, teamId: string): Promise<string[]> {
-  const { data } = await admin.from('memberships').select('profile_id').eq(ORG_ID, orgId).eq('kind', 'roster').eq('scope_type', 'team').eq('scope_id', teamId).in('status', ['active', 'placed']);
-  return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
+  const rows = await currentTeamRosterRows(admin, [teamId], { orgId });
+  return [...new Set(rows.map(r => r.profile_id))];
 }
 
 export interface PrefillInput {

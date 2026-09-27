@@ -25,6 +25,7 @@ function mockAdmin(results: Partial<Record<string, { data?: unknown; error?: { c
           return chain;
         },
         limit: () => chain,
+        not: () => chain,
         select: () => chain,
         maybeSingle: async () => result,
         then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
@@ -49,7 +50,7 @@ describe('viewerScopeSet', () => {
 
   it('team row expands to entered divisions + owning org, with scopeOrg map', async () => {
     const { admin } = mockAdmin({
-      memberships: { data: [{ scope_type: 'team', scope_id: 'team-1' }] },
+      memberships: { data: [{ scope_type: 'team', scope_id: 'team-1', status: 'active', season_id: null }] },
       team_entries: { data: [{ division_id: 'div-1' }] },
       teams: { data: [{ id: 'team-1', org_id: 'lg-1', org: { kind: 'league' } }] },
       divisions: { data: [{ id: 'div-1', org_id: 'lg-1', org: { kind: 'league' } }] },
@@ -65,7 +66,7 @@ describe('viewerScopeSet', () => {
 
   it('division row (club side) carries its own scope + owning club', async () => {
     const { admin } = mockAdmin({
-      memberships: { data: [{ scope_type: 'division', scope_id: 'div-2' }] },
+      memberships: { data: [{ scope_type: 'division', scope_id: 'div-2', status: 'active', season_id: null }] },
       divisions: { data: [{ id: 'div-2', org_id: 'cl-1', org: { kind: 'club' } }] },
     });
     const set = await viewerScopeSet(admin, 'p1');
@@ -96,7 +97,7 @@ describe('viewerScopeSet', () => {
 
 describe('scopedMembershipExists', () => {
   it('filters by exact scope and the given profiles', async () => {
-    const { admin, calls } = mockAdmin({ memberships: { data: { id: 'row' } } });
+    const { admin, calls } = mockAdmin({ memberships: { data: [{ kind: 'roster', status: 'active', season_id: null }] } });
     expect(await scopedMembershipExists(admin, 'team', 'team-1', ['a', 'b'])).toBe(true);
     expect(calls[0].filters).toMatchObject({
       scope_type: 'team',
@@ -123,5 +124,25 @@ describe('scopedMemberProfileIds', () => {
     expect(error).toBeNull();
     expect(profileIds).toEqual(['a', 'b']);
     expect(calls[0].filters).toMatchObject({ scope_type: 'division', scope_id: 'div-1' });
+  });
+});
+
+describe('the current season (teams & divisions, PR 4)', () => {
+  it("a roster row in an ARCHIVED season no longer counts; a staff row always does", async () => {
+    const past = mockAdmin({
+      memberships: { data: [{ kind: 'roster', status: 'active', season_id: 's-old', profile_id: 'a' }, { kind: 'staff', status: 'active', season_id: 's-old', profile_id: 'coach' }] },
+      seasons: { data: [{ id: 's-old' }] },
+    });
+    expect((await scopedMemberProfileIds(past.admin, 'team', 'team-1')).profileIds).toEqual(['coach']);
+    const onlyPast = mockAdmin({ memberships: { data: [{ kind: 'roster', status: 'active', season_id: 's-old' }] }, seasons: { data: [{ id: 's-old' }] } });
+    expect(await scopedMembershipExists(onlyPast.admin, 'team', 'team-1', ['a'])).toBe(false);
+  });
+
+  it("viewerScopeSet drops last season's team", async () => {
+    const { admin } = mockAdmin({
+      memberships: { data: [{ scope_type: 'team', scope_id: 'team-old', status: 'active', season_id: 's-old' }] },
+      seasons: { data: [{ id: 's-old' }] },
+    });
+    expect((await viewerScopeSet(admin, 'p1')).teamIds).toEqual([]);
   });
 });

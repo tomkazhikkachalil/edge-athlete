@@ -1,5 +1,52 @@
 # Development Log
 
+## September 26, 2026 — Teams & divisions PR 4: the team roster core — one writer, one current-season reader (zero DDL; stacked on PR 3)
+
+**Why (Tom):** a manager puts EXISTING members on teams, moves them and takes them off. Every team roster row names its season (242), so last season's players stop counting. Until now a team roster came only from the CSV import (new stub athletes) or a registration placement, and every reader ignored the season.
+
+**The pieces (`src/lib/teams/`):**
+- **`roster.ts` (pure):**
+  - `isCurrentTeamRow`: active or placed, and the season is live (or a legacy season-less row).
+  - `planTeamAdd`: a MEMBER already on the org ROSTER (active or placed), else `not_member` / `needs_org_roster`, with the copy in `TEAM_ADD_REFUSAL`.
+  - `pickRosterSeason`, from the hotfix.
+- **`roster-server.ts`, THE ONE WRITER:**
+  - `addToTeam` (in `resolveTeamSeason`'s season; 23505 = `already_on_team`).
+  - `moveBetweenTeams` (ONE update of the current row's team; its season is kept).
+  - `removeFromTeam` (the current row goes; a past season's row stays as history).
+  - `endCurrentTeamSpots`.
+  - Every team is pinned to the org it is written under.
+- **`roster-server.ts`, THE ONE READER:** `currentTeamRosterRows` / `currentTeamRosterProfileIds` / `currentTeamRowsForProfiles`, plus `keepCurrent` for a reader that keeps its own embed.
+- **The sanctioned twins,** named in the header: the CSV import (now on `resolveTeamSeason`) and registration placement (its own season).
+- **`notify.ts`:** `team_roster` bells (added / moved / removed / carried). The player hears; a supervised player's guardians get a copy naming the child. It never throws.
+- **Minors reach a team only through the org roster.** That is the guardian-approved offer (convention 10), so no team row is ever pending and no team add skips a guardian.
+
+**The routes:** `/api/{leagues,clubs}/[id]/teams/[teamId]/roster`, GET (roster + `?candidates=1`), POST, PATCH (move) and DELETE. One handler module (`orgs/routes/team-roster.ts`) plus two shims.
+- The gate is `manage_teams` at the TEAM's scope (an org-wide Teams grant, or a grant on the team or its division), and a move is checked on both teams.
+- Bucket `org-structure`. The answer is `private, no-store`.
+- Refusals by name: 400 `not_member` / `needs_org_roster` / `no_season`, 409 `already_on_team`, 404 `not_on_team`.
+
+**The readers moved onto the current season:**
+- Event sides (`teamRosterMembers`).
+- The public team page (deduped, still 100).
+- Stat attribution (`rosterByTeam`).
+- A meet's relay common team, and an athlete's affiliation (the newest CURRENT team wins).
+- The calendar audience (`viewerScopeSet`).
+- The team-event detail / RSVP / bells (`scopedMembershipExists` / `scopedMemberProfileIds`): roster ∪ staff by design, but a roster row counts only while current.
+
+**Deliberately any season:** the contest place and the teammate album (`media/authorize.ts`). Both belong to a contest the team played, so last season's player keeps them.
+
+**Leaving the org roster** (`rosterDelete`) ends the person's current team spots once no accepted roster edge remains (a season placement can still hold one).
+
+**Tests:**
+- Unit: `roster.test.ts`; `roster-server.test.ts` over a PostgREST double (the insert names the season; foreign / archived team, `needs_org_roster`, `not_member`, `no_season` and duplicate refusals write nothing; last season's row leaves the read; a move is one update keeping the season; remove deletes only the current row); `notify.test.ts`.
+- e2e `team-roster-api.spec.ts`:
+  - a member gets a 403; `needs_org_roster` and `not_member` are refused by name;
+  - an add names the season, and a second add is a 409;
+  - GET shows the roster and the candidates;
+  - move and remove work, and A's three bells arrive;
+  - a supervised child is added, and the guardian's bell names them.
+- `npm run verify` green. The staging e2e run waits for staging to recover.
+
 ## September 26, 2026 — Teams & divisions PR 3: the switches gate the public site and the in-app org page (zero DDL; stacked on PR 2)
 
 **Why:** PR 2 made the switches gate the console. The org's public site and its in-app page must agree, or a club that switched teams off would still show teams to everyone.
