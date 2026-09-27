@@ -316,7 +316,8 @@ export default function OrgStartWizard({
           ...(side === 'league' ? { sportKey } : {}),
           description: description.trim() || undefined,
           place,
-          capabilities: { operatesCompetitions, operatesTeams },
+          // A team entered in the structure step means the org runs teams.
+          capabilities: { operatesCompetitions, operatesTeams: operatesTeams || (hasStructure && teams.length > 0) },
           ...(hasStructure
             ? {
                 structure: {
@@ -916,7 +917,10 @@ export default function OrgStartWizard({
                 <button
                   type="button"
                   onClick={() => {
+                    // Teams & divisions (242): saying you run divisions or
+                    // teams turns the teams switch on (it gates the console).
                     setExpandStructure(true);
+                    setOperatesTeams(true);
                     setStep('structure');
                   }}
                   className="text-xs text-brand-fg mt-1"

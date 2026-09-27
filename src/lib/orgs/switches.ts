@@ -54,6 +54,7 @@ export const CONSOLE_SECTION_SWITCH: Readonly<Record<string, SwitchRule>> = {
   external: 'always',
   venues: 'always',
   hierarchy: 'always',
+  settings: 'always',
 };
 
 /** Every widget key — the public site's modules (≡ web widgets), the content

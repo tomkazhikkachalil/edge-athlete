@@ -62,11 +62,11 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
       .eq('name', name);
     expect(rows).toHaveLength(1);
     expect(rows![0].status).toBe('pending');
-    // v2: /club/start starts as a golf club — competitions on, teams off — and
-    // the structure expander does not flip a capability (the identity step's
-    // checkboxes, shown on the full path only, do).
+    // v2: /club/start starts as a golf club — competitions on — and "We run
+    // divisions or teams" turns teams on (teams & divisions, Sep 26 2026: the
+    // switches gate the console now).
     expect(rows![0].operates_competitions).toBe(true);
-    expect(rows![0].operates_teams).toBe(false);
+    expect(rows![0].operates_teams).toBe(true);
     const draft = rows![0].structure_draft as { divisions: { sportKey: string }[] };
     const sports = new Set(draft.divisions.map(d => d.sportKey));
     expect(sports).toEqual(new Set(['ice_hockey', 'soccer']));

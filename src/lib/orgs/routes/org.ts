@@ -184,12 +184,21 @@ export async function orgRoutePATCH(request: NextRequest, kind: OrgKind, params:
     // Program 11: the membership settings (177).
     if (parsed.data.visibility !== undefined) updates.visibility = parsed.data.visibility;
     if (parsed.data.joinPolicy !== undefined) updates.join_policy = parsed.data.joinPolicy;
+    // The switches (teams & divisions, 242): off hides, never deletes.
+    if (parsed.data.operatesTeams !== undefined) updates.operates_teams = parsed.data.operatesTeams;
+    if (parsed.data.operatesCompetitions !== undefined) updates.operates_competitions = parsed.data.operatesCompetitions;
     // Onboarding v2 R1 (179): the directory listing has its own path (the
     // request row + the admin bell) — applied after the column updates.
     const listingChange = parsed.data.listing;
     if (Object.keys(updates).length === 0 && !listingChange) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
+
+    // The audit's before for the switches (getOrgAndRole reads id / name / owner only).
+    const switchesTouched = 'operates_teams' in updates || 'operates_competitions' in updates;
+    const priorSwitches = switchesTouched
+      ? ((await supabase.from('organizations').select('operates_teams, operates_competitions').eq('id', id).maybeSingle()).data as Record<string, unknown> | null)
+      : null;
 
     let updated: Record<string, unknown> | null = null;
     if (Object.keys(updates).length > 0) {
@@ -210,7 +219,7 @@ export async function orgRoutePATCH(request: NextRequest, kind: OrgKind, params:
       // Authority (240): the identity change, with before / after — the
       // recovery panel restores a vandalised name or description from it.
       const fields = Object.keys(updates);
-      const prior = loaded.org as unknown as Record<string, unknown>;
+      const prior = { ...(loaded.org as unknown as Record<string, unknown>), ...(priorSwitches ?? {}) };
       await recordAuthority(supabase, {
         subject: { type: 'org', id },
         actor: { kind: 'member', profileId: user.id },

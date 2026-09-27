@@ -64,11 +64,13 @@ function forgetQaOrgs(ids: readonly string[]): void {
 
 export async function createQaOrg(admin: SupabaseClient, kind: QaOrgKind, fields: QaOrgFields): Promise<{ id: string }> {
   if (kind === 'league' && !fields.sport_key) throw new Error('createQaOrg: a league needs a sport_key');
-  // The sides' capability defaults (mig 142) — organizations' are false / false.
+  // Both switches ON (teams & divisions, 242 — they gate the console, the org
+  // page and the site now): a fixture org shows everything; a spec that
+  // tests the gating passes the switch it turns off in `fields`.
   const row = {
     kind,
-    operates_competitions: kind === 'league',
-    operates_teams: kind === 'club',
+    operates_competitions: true,
+    operates_teams: true,
     ...fields,
   };
   const { data, error } = await admin.from('organizations').insert(row).select('id').single();

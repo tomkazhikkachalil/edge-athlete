@@ -54,9 +54,11 @@ export type OrgCreateInput = LeagueCreateInput | ClubCreateInput;
 
 /** The owner (or a manager) edits with this via /api/{leagues,clubs}/[id].
  *  sport_key is deliberately ABSENT (immutable in v1). `place: null` clears
- *  the location; omitting `place` leaves it untouched. The 142 capability
- *  flags are ALSO absent on purpose — read-only v1; zod's strip drops a
- *  client-sent flag. */
+ *  the location; omitting `place` leaves it untouched. The two switches
+ *  ("We run teams" / "We run competitions", 142 → gating since 242) are
+ *  editable here (teams & divisions program, Sep 26 2026): off HIDES that
+ *  part of the product and never deletes it; both off is allowed here (a
+ *  purely social club) — only the creation wizard asks for one. */
 export const OrgUpdateSchema = z.object({
   name: boundedText(120).optional(),
   description: optionalText(2000),
@@ -66,6 +68,8 @@ export const OrgUpdateSchema = z.object({
   joinPolicy: z.enum(['open', 'approval']).optional(),
   // Onboarding v2 R1 (179): the directory listing — ask (pending) or link only.
   listing: z.enum(['pending', 'unlisted']).optional(),
+  operatesTeams: z.boolean().optional(),
+  operatesCompetitions: z.boolean().optional(),
 });
 export type OrgUpdateInput = z.infer<typeof OrgUpdateSchema>;
 

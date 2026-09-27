@@ -45,6 +45,7 @@ export interface PendingRequestRow {
   operates_competitions: boolean | null;
   operates_teams: boolean | null;
   site_draft?: unknown;
+  structure_draft?: unknown;
 }
 
 export interface ProvisionResult {
@@ -117,6 +118,18 @@ export async function provisionPendingOrg(
       // R2 (179): a link-only creation files its row as 'unlisted' — link
       // it too, or a later "ask to be listed" cannot find its own row.
       .in('status', ['pending', 'unlisted']);
+
+    // Teams & divisions (Sep 26 2026): the wizard's season, divisions and
+    // teams are built NOW, not at approval — a link-only request is never
+    // approved, so it used to lose them. Best-effort like the rest of this
+    // file (the org holds the owner's work; a failure is logged, never a
+    // rollback); approval skips its replay once the org has a season.
+    const { planStructureReplay, replayStructure } = await import('./wizard-replay');
+    const plan = planStructureReplay(row.structure_draft, side, side === 'league' ? (row.sport_key ?? null) : null);
+    if (plan) {
+      const replayed = await replayStructure(admin, { side, orgId }, plan);
+      if (!replayed.ok) console.warn(`${TAG} structure replay failed at`, replayed.step, replayed.status);
+    }
 
     // The OPTIONAL home course → a venue linked to the catalog row (169).
     let venueId: string | null = null;

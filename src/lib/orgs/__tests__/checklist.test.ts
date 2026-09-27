@@ -50,3 +50,21 @@ describe('buildOrgChecklistSteps (phase 7 C5)', () => {
     expect(backup({}).optional).toBeUndefined();
   });
 });
+
+describe('the switches (teams & divisions, 242)', () => {
+  const base = { hasSeasonWithDates: false, hasDivisions: false, hasTeams: false, managerCount: 1, rosterAthleteCount: 0 };
+  it('teams off drops the teams step; both off drops seasons and divisions too', () => {
+    const keys = (sw: { teams: boolean; competitions: boolean }) => buildOrgChecklistSteps({ ...base, switches: sw }).map(s => s.key);
+    expect(keys({ teams: false, competitions: true })).toEqual(['season', 'divisions', 'backup', 'roster']);
+    expect(keys({ teams: false, competitions: false })).toEqual(['backup', 'roster']);
+    expect(keys({ teams: true, competitions: true })).toEqual(['season', 'divisions', 'teams', 'backup', 'roster']);
+  });
+  it('a golf club with competitions off is never asked to create a league', () => {
+    const keys = buildOrgChecklistSteps({ ...base, switches: { teams: false, competitions: false } }, 'golf').map(s => s.key);
+    expect(keys).not.toContain('league');
+    expect(keys).toContain('site');
+  });
+  it('no switches = today', () => {
+    expect(buildOrgChecklistSteps(base).map(s => s.key)).toEqual(['season', 'divisions', 'teams', 'backup', 'roster']);
+  });
+});

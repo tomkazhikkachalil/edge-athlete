@@ -9,7 +9,7 @@ import { MODULE_KEYS } from '@/lib/org-sites/validate';
 
 describe('every section and widget is classified', () => {
   it('each console section and view has exactly one rule', () => {
-    expect(Object.keys(CONSOLE_SECTION_SWITCH).sort()).toEqual([...ORG_SECTIONS, 'hierarchy'].sort());
+    expect(Object.keys(CONSOLE_SECTION_SWITCH).sort()).toEqual([...ORG_SECTIONS, 'hierarchy', 'settings'].sort());
   });
   it('each widget key (web ≡ modules, content, app-only) has exactly one rule', () => {
     expect(Object.keys(WIDGET_SWITCH).sort()).toEqual([...new Set(WIDGET_KEYS)].sort());

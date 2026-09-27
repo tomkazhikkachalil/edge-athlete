@@ -5,7 +5,7 @@ import {
   notifyOrgJoin, notifyOrgRole, notifyOrgRequestResult, notifyOrgRosterOffer, notifyOrgRosterResult,
   notifyOrgRosterRemoved, notifyOrgJoinRequest, notifyOrgJoinDecision, orgNotifyTypes,
 } from '../notify';
-import { createOrgWithOwner, ORG_CAPABILITY_DEFAULTS } from '../create';
+import { capabilityDefaultsFor, createOrgWithOwner, ORG_CAPABILITY_DEFAULTS } from '../create';
 
 // Round 5 step E: the league / club library pairs fold into one module each.
 // These pins say what the KIND decides — and that nothing else differs.
@@ -143,3 +143,17 @@ describe.each(ORG_KINDS)('createOrgWithOwner — %s', kind => {
   });
 });
 
+
+describe('capabilityDefaultsFor (teams & divisions, 242)', () => {
+  it('a golf club runs competitions, not teams; every other org keeps its kind default', () => {
+    expect(capabilityDefaultsFor('club', 'golf')).toEqual({ operatesCompetitions: true, operatesTeams: false });
+    expect(capabilityDefaultsFor('club', 'ice_hockey')).toEqual(ORG_CAPABILITY_DEFAULTS.club);
+    expect(capabilityDefaultsFor('club', null)).toEqual(ORG_CAPABILITY_DEFAULTS.club);
+    expect(capabilityDefaultsFor('league', 'golf')).toEqual(ORG_CAPABILITY_DEFAULTS.league);
+  });
+  it('an admin-created golf club is written with competitions on', async () => {
+    const { admin, calls } = orgAdmin();
+    await createOrgWithOwner(admin, { kind: 'club', name: 'QA', description: null, sportKey: 'golf', ownerProfileId: OWNER, placeColumns: {} });
+    expect(calls[0].payload).toMatchObject({ operates_competitions: true, operates_teams: false });
+  });
+});

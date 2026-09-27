@@ -37,6 +37,8 @@ import SiteInboxCard from '@/components/orgs/SiteInboxCard';
 import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import OrgActivityCard from '@/components/orgs/OrgActivityCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
+import SettingsSection from '@/components/orgs/console/SettingsSection';
+import { ALL_ON, sectionAllowed, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
 import { POOL_LETTERS } from '@/lib/competitions/pools';
@@ -99,11 +101,13 @@ interface CompetitionEntryRow {
  *  site, the courses and the leagues (a golf club's console is a site
  *  builder first). Every key appears exactly once per variant (pinned). */
 /** 'hierarchy' (org staff program, round 5) is a console VIEW, not a grant
- *  section — every console entrant sees it; it never appears in a grant. */
-export type ConsoleSectionKey = OrgSection | 'hierarchy';
+ *  section — every console entrant sees it; it never appears in a grant.
+ *  'settings' (teams & divisions, Sep 26 2026) is the switches — owners and
+ *  managers only (manage_org). */
+export type ConsoleSectionKey = OrgSection | 'hierarchy' | 'settings';
 export const CONSOLE_SECTION_ORDER: Record<'default' | 'golf', readonly ConsoleSectionKey[]> = {
-  default: ['roster', 'hierarchy', 'membership', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website'],
-  golf: ['website', 'venues', 'competitions', 'hierarchy', 'roster', 'membership', 'seasons', 'teams', 'registrations', 'external'],
+  default: ['roster', 'hierarchy', 'membership', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website', 'settings'],
+  golf: ['website', 'venues', 'competitions', 'hierarchy', 'roster', 'membership', 'seasons', 'teams', 'registrations', 'external', 'settings'],
 };
 
 interface CompetitionRow {
@@ -424,6 +428,9 @@ export default function OrgConsolePage() {
   const [joinRequests, setJoinRequests] = useState<{ id: string; name: string; handle: string | null; createdAt: string }[]>([]);
   const [joinBusy, setJoinBusy] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
+  // Teams & divisions (242): the switches gate the sections; Settings edits them.
+  const [switches, setSwitches] = useState<OrgSwitches>(ALL_ON);
+  const [viewerManagesOrg, setViewerManagesOrg] = useState(false);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -444,6 +451,7 @@ export default function OrgConsolePage() {
         if (orgRes.ok) {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
+          if (!cancelled) setSwitches(switchesOf(data.league ?? data.club));
           if (!cancelled) setListing(data.listing === 'unlisted' || data.listing === 'pending' ? data.listing : 'listed');
           if (!cancelled) {
             setOrgVisibility(data.visibility === 'private' ? 'private' : 'public');
@@ -472,11 +480,12 @@ export default function OrgConsolePage() {
         // status is the fallback for a database/deploy without the route.
         let capsDecided = false;
         if (capsRes.ok) {
-          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[]; isOwner?: boolean };
+          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[]; isOwner?: boolean; role?: string | null; admin?: boolean };
           if (cancelled) return;
           capsDecided = true;
           setVisibleKeys(caps.visibleSections ?? []);
           setViewerIsOwner(caps.isOwner === true);
+          setViewerManagesOrg(caps.role === 'owner' || caps.role === 'manager' || caps.admin === true);
           setAuthorized(caps.canEnterConsole === true);
           if (caps.canEnterConsole !== true) return;
         }
@@ -1289,6 +1298,20 @@ export default function OrgConsolePage() {
   // (phase 7 C5: golf-first — Website and Venues on top). A pure hoist of
   // the JSX that used to sit inline in <main>; every closure is unchanged.
   const sectionNodes: Record<ConsoleSectionKey, ReactNode> = {
+    settings: (
+      <SettingsSection
+        side={side as OrgKind}
+        orgId={orgId}
+        switches={switches}
+        teamCount={teams.length}
+        competitionCount={competitions.length}
+        onSaved={next => {
+          setSwitches(next);
+          showSuccess('What you run', 'Saved');
+        }}
+        onError={message => showError('What you run', message)}
+      />
+    ),
     hierarchy: (
       <HierarchySection
         side={side as OrgKind}
@@ -4362,6 +4385,7 @@ export default function OrgConsolePage() {
             hasSeasonWithDates,
             hasDivisions,
             hasTeams: teams.length > 0,
+            switches,
             managerCount: counts.managers,
             backup: counts.backup,
             rosterAthleteCount: counts.rosterAthletes,
@@ -4380,7 +4404,8 @@ export default function OrgConsolePage() {
         />
 
         {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default']
-          .filter(key => key === 'hierarchy' || !visibleKeys || visibleKeys.includes(key))
+          .filter(key => (key === 'settings' ? viewerManagesOrg : key === 'hierarchy' || !visibleKeys || visibleKeys.includes(key)))
+          .filter(key => sectionAllowed(switches, key))
           .map(key => (
             <Fragment key={key}>{sectionNodes[key]}</Fragment>
           ))}
