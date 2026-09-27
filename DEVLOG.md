@@ -1,5 +1,15 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions: the program's production probe (main f5e3ff96; no code change)
+
+**The probe** ran after #954 merged and production served `f5e3ff96` (all twelve PRs, #940–#954). It covered 21 spec files on desktop, mobile and webkit-mobile: **38 passed, 0 failed, 0 flaky.**
+- The program's own specs: org-switches-console / -site, team-roster-api / -console, team-identity, team-schedule-public, team-page, division-page, coach-scope, rollover-carry.
+- Their neighbours: season-rollover, the three org request specs, org-structure, roster-import, org-page-glance, sport-events-team-sides, org-hierarchy, event-scopes, org-site.
+- The four QA users were deleted in teardown, and no org was left behind.
+- `check:schema:prod`: OK, ledger head 242.
+
+**The program is complete and proven on production.** Parked (recorded in `docs/TEAMS.md`): the console Seasons-section extraction, the calendar's full event form for coaches, division pages in the sitemap.
+
 ## September 27, 2026 — Teams & divisions PR 11: rollover carries a roster when the manager says so; the program's docs and convention 28 (zero DDL)
 
 **Why (Tom):** at rollover the manager chooses, team by team, whether to carry the roster forward; carried players are told, and so are a minor's guardians. Until now rosters always started empty.
