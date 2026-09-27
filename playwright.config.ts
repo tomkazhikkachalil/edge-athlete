@@ -2,11 +2,13 @@ import { defineConfig } from '@playwright/test';
 import { E2E_BASE_URL, bypassHeaders } from './e2e/helpers/qa-user';
 
 /**
- * Smoke suite — runs against a real Supabase backend (there is no staging
- * project; global setup creates a disposable private-visibility QA user and
- * teardown always deletes it). Locally the env comes from .env.local (loaded
- * by the helpers for setup, and by next itself for the server); in CI the
- * `smoke` job injects repo secrets and skips green when they are absent.
+ * The e2e suite — runs against a real Supabase backend: STAGING by default
+ * (.env.local), production only through `npm run test:e2e:prod`. Global setup
+ * creates disposable private-visibility QA users and teardown always deletes
+ * them. Locally the env comes from .env.local (loaded by the helpers for
+ * setup, and by next itself for the server); in CI the `smoke` job injects
+ * repo secrets, skips green when they are absent, and runs only the tests
+ * tagged `{ tag: '@smoke' }` (`npm run test:e2e:smoke` — see ci.yml).
  *
  * Target: localhost by default; set E2E_BASE_URL to smoke a real deployment
  * (the local server is then not started). Either way the DATA side is the

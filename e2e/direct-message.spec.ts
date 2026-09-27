@@ -6,7 +6,7 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 // other through the UI), then B reads and replies in the real UI, and A sees
 // the reply. Privacy does not block DMs (messaging_permission defaults to
 // 'everyone').
-test('direct message: A sends via API, B reads and replies in UI, A sees reply', async ({ page }) => {
+test('direct message: A sends via API, B reads and replies in UI, A sees reply', { tag: '@smoke' }, async ({ page }) => {
   const userB = loadQaUser('user-b.json');
   const stamp = Date.now();
 
@@ -36,7 +36,19 @@ test('direct message: A sends via API, B reads and replies in UI, A sees reply',
     await pageB.goto(`/messages?c=${conversationId}`);
     await expect(pageB.getByText(`qa-dm-${stamp}`).first()).toBeVisible({ timeout: 15_000 });
     await pageB.getByPlaceholder('Message…').fill(`qa-reply-${stamp}`);
+    // Wait for the send to LAND before leaving the page. The thread only
+    // renders a message after the POST answers, and until then the reply's
+    // text sits in the (disabled) textarea — which getByText matches, so
+    // asserting on the text alone passed at once and the navigation below
+    // aborted the in-flight send (the route reads its body after the write
+    // gate and the rate-limit round trips). The textarea clears on success.
+    const sent = pageB.waitForResponse(
+      (r) => r.url().includes(`/api/messages/${conversationId}/messages`) && r.request().method() === 'POST',
+    );
     await pageB.getByRole('button', { name: 'Send message' }).click();
+    const sendRes = await sent;
+    expect(sendRes.ok(), await readErrorBody(sendRes)).toBe(true);
+    await expect(pageB.getByPlaceholder('Message…')).toHaveValue('');
     await expect(pageB.getByText(`qa-reply-${stamp}`).first()).toBeVisible({ timeout: 15_000 });
 
     // B also received a notification for A's message (title copy is the DB
@@ -48,9 +60,8 @@ test('direct message: A sends via API, B reads and replies in UI, A sees reply',
     await ctxB.close();
   }
 
-  // A sees B's reply in the UI. B's send renders optimistically, so B's
-  // assertion can pass before the server write lands — poll with reloads
-  // instead of trusting a single page load.
+  // A sees B's reply in the UI — poll with reloads rather than trusting a
+  // single page load (the thread read is not realtime-ordered with B's write).
   await page.goto(`/messages?c=${conversationId}`);
   await expect(async () => {
     await page.reload();

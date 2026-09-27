@@ -60,7 +60,7 @@ jobs:
       - name: Hardening guardrails
         run: bash scripts/hardening-guardrails.sh
 
-  # Playwright smoke suite against the STAGING Supabase project (Round 2,
+  # Playwright SMOKE against the STAGING Supabase project (Round 2,
   # Sep 21 2026 — the three secrets below must be STAGING's; the suite
   # refuses the production project without E2E_ALLOW_PROD=1, so prod
   # secrets here fail the job by design): global setup creates disposable
@@ -68,13 +68,30 @@ jobs:
   # orphans from killed runs. Skips green until the three secrets are configured in the
   # repo settings (job-level `if:` cannot read the secrets context, hence
   # the gate step).
+  #
+  # SMOKE = the tests tagged `{ tag: '@smoke' }` (`npm run test:e2e:smoke`,
+  # ~20 tests: health, login, posting, media, golf, follow, DM, profile, the
+  # public org site, the phone surfaces on both engines) — NOT the whole
+  # suite. Until Sep 27 2026 this job ran all ~440 tests: 2–3 h per run on
+  # the free-tier staging instance, red on every run for days (rate-limit
+  # 429s, 503/504s, timeouts), and with no time limit a hung run held the
+  # concurrency slot for up to GitHub's 6 h default. The full suite runs
+  # locally and as the prod probe (`npm run test:e2e:prod`); a new core flow
+  # earns the tag only if it is fast and staging-safe (no email, no catalog
+  # data).
   smoke:
     runs-on: ubuntu-latest
+    # A hung run fails at the ceiling instead of blocking the slot for hours:
+    # a healthy run is ~3 min build + ~5 min of tests.
+    timeout-minutes: 25
     # ONE smoke run at a time across the whole repo: every run builds the app
     # (the public pages prerender against the STAGING database) and drives
-    # the e2e suite against it, and six PRs re-running at once knocked the
-    # free-tier staging instance over on Sep 22 2026 (522s, then a drained
-    # Disk IO budget). Queued runs wait; none is cancelled.
+    # e2e against it, and six PRs re-running at once knocked the free-tier
+    # staging instance over on Sep 22 2026 (522s, then a drained Disk IO
+    # budget). NOTE: GitHub keeps only ONE queued run per group — a newer
+    # queued run CANCELS the older queued one (cancel-in-progress only
+    # protects the RUNNING one), so under a burst of pushes only the latest
+    # commit gets a smoke run. That is acceptable only because a run is short.
     concurrency:
       group: smoke-staging
       cancel-in-progress: false
@@ -120,7 +137,7 @@ jobs:
 
       - name: Run smoke suite
         if: steps.gate.outputs.run == 'true'
-        run: npx playwright test
+        run: npm run test:e2e:smoke
 
       - name: Upload report on failure
         if: failure() && steps.gate.outputs.run == 'true'

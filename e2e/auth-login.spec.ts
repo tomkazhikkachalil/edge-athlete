@@ -7,7 +7,7 @@ import type { QaUser } from './helpers/qa-user';
 // specs start from the minted storageState for speed).
 test.use({ storageState: 'e2e/.auth/anon.json' });
 
-test('UI login with email/password reaches the authenticated app', async ({ page }) => {
+test('UI login with email/password reaches the authenticated app', { tag: '@smoke' }, async ({ page }) => {
   const user: QaUser = JSON.parse(
     readFileSync(join(process.cwd(), 'e2e', '.auth', 'user.json'), 'utf8')
   );

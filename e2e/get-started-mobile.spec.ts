@@ -20,7 +20,7 @@ const STUBBED_STEPS = {
   hasCompetitive: false,
 };
 
-test('@mobile the first-run checklist is usable at phone width', async ({ page }) => {
+test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.route('**/api/profile/getting-started', route =>
     route.fulfill({ json: STUBBED_STEPS })

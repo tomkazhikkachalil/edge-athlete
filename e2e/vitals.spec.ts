@@ -5,7 +5,7 @@ import { apiAs, loadQaUser, readErrorBody, adminClient } from './helpers/qa-user
 // lower-is-better) + a manual workout via APIs, then assert the hero tiles,
 // PB spotlight, progress chart, metric history, month-grouped log, and the
 // visitor's read-only view.
-test('vitals: seed → hero → PBs → chart → log → visitor', async ({ page, browser }) => {
+test('vitals: seed → hero → PBs → chart → log → visitor', { tag: '@smoke' }, async ({ page, browser }) => {
   test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
   const stamp = Date.now();

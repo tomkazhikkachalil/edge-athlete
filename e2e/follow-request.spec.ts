@@ -5,7 +5,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // profile (reached by direct URL — athlete search is public-only, so private
 // users are invisible to it; FollowButton renders on PrivateProfileView),
 // B approves on the Fan Requests tab, A sees the acceptance notification.
-test('follow request: A requests, B approves, A is notified', async ({ page, browser }) => {
+test('follow request: A requests, B approves, A is notified', { tag: '@smoke' }, async ({ page, browser }) => {
   const userB = loadQaUser('user-b.json');
 
   // A sends the request from B's (private) profile.
@@ -45,7 +45,7 @@ test('follow request: A requests, B approves, A is notified', async ({ page, bro
 // Runs AFTER the private test (workers: 1): A unfollowed nobody — the
 // accepted A→B follow from above is deleted here first so the click is a
 // fresh follow, not an unfollow toggle.
-test('public profile: one-click follow, no request modal', async ({ page, browser }) => {
+test('public profile: one-click follow, no request modal', { tag: '@smoke' }, async ({ page, browser }) => {
   const userA = loadQaUser('user.json');
   const userB = loadQaUser('user-b.json');
   await adminClient().from('follows').delete().eq('follower_id', userA.id).eq('following_id', userB.id);

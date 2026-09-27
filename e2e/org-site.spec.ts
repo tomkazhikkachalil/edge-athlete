@@ -13,7 +13,7 @@ import { settleBody, settleStatus } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 
-test('org site: create → publish → anon shell; unpublish → 404; member 403; 375px', async ({
+test('org site: create → publish → anon shell; unpublish → 404; member 403; 375px', { tag: '@smoke' }, async ({
   browser,
 }) => {
   test.setTimeout(180_000);
