@@ -1,5 +1,24 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions leftovers 2: the calendar's own event form works for coaches (zero DDL)
+
+The second parked item. PR 10 let a coach schedule their team's events, but only from the console: the calendar's event form offered only orgs the person OWNS or MANAGES, and its division / team picker read `structure-options`, which is gated to org-wide schedulers.
+
+**One answer for the form:**
+- `GET /api/calendar/schedulable-scopes` (`calendar/schedulable-server.ts`) lists every org the person belongs to or holds a grant in (bounded to 50), with its capabilities (`getOrgCapabilities`, the moderation ceiling included) and its live structure (divisions of live seasons, active teams and their entries).
+- It folds them through the pure `calendar/schedulable.ts schedulableScopes`: the WHOLE org for owners and managers, and exactly the divisions and teams `scheduleScopeAllows` admits. That is the same rule the event routes enforce (`canScheduleForScope`), so the form never offers what the write would refuse. An org with nothing to offer is not listed.
+- The answer is `private, no-store`.
+
+**The form** (`EventFormModal.tsx`):
+- It reads that endpoint (once, lazily, as before). The division / team options ride the same answer, so the per-org `structure-options` fetch is gone (the endpoint stays for other readers).
+- For an org where the person is only a coach, "Whole organization" is not offered, and choosing the org starts on their first division or team.
+
+**Tests:**
+- Unit: `schedulable.test.ts` (an owner gets everything; a team coach gets only their team, never the whole org; a division's scheduler gets the division and its teams; a plain member or a non-scheduling grant gets nothing).
+- e2e: `coach-scope.spec.ts` now also drives the calendar's own form at 390 px. The club is offered, the coach's team is preselected, there is no "Whole organization" and no sibling team, and Create event lands with `team_id`.
+- Regressions `event-scopes` and `org-calendar` pass.
+
+**Found in passing (pre-existing, not this change):** `dropdown-visibility`'s "golf course picker in the composer" fails on staging, and fails the same way on unchanged main. It is recorded, not fixed.
 ## September 27, 2026 — Teams & divisions leftovers 1: division pages join the sitemaps (zero DDL)
 
 The first of the three items parked by the teams & divisions program. `fetchPublishedSitesForSitemap` reads each listed org's divisions in LIVE seasons (an archived season's divisions are history; bounded, and degrades to none).
