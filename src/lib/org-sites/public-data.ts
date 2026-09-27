@@ -23,7 +23,6 @@ import { ORG_ID, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf, type OrgKind }
 import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
-import { type OrgEvent } from '@/lib/calendar/org-events-server';
 import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
 import { CATALOG_ROW_COLUMNS, rowToCourse, type CatalogRow } from '@/lib/golf/course-catalog';
 import { parseStoredHoleGeometry } from '@/lib/golf/hole-svg';
@@ -36,6 +35,9 @@ import { buildGolfLeaderBoards, type GolfLeaderInputRow } from '@/lib/competitio
 import { LISTING_NOT_KNOWN, isListed, listingFromRow, readListingMap } from '@/lib/orgs/listing';
 import { ALL_ON, switchesOf, widgetAllowed, type OrgSwitches } from '@/lib/orgs/switches';
 import { keepCurrent } from '@/lib/teams/roster-server';
+import { appBaseUrl } from './urls';
+import { fetchTeamSchedule, type TeamSchedule } from '@/lib/teams/schedule-server';
+import { teamLogoUrl } from '@/lib/teams/logo-url';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -254,14 +256,22 @@ export interface PublicTeamRecord {
 }
 
 export interface PublicTeamPage {
-  team: { id: string; name: string; divisionLabels: string[] };
+  team: {
+    id: string;
+    name: string;
+    divisionLabels: string[];
+    // Teams & divisions PR 6/7: the team's identity (its colours dress the page).
+    sportKey: string | null;
+    logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
+  };
   roster: { name: string }[]; // masked, nothing else — NO ids, NO media
-  events: OrgEvent[];
+  /** PR 7: calendar events + the team's contests + the games it plays a side
+   *  of — each once; results read from the team's side ("W 3–2"). */
+  schedule: TeamSchedule;
   records: PublicTeamRecord[];
 }
-
-const TEAM_EVENT_FIELDS =
-  'id, title, description, location, starts_at, ends_at, all_day, timezone, category, venue_id, facility_id';
 
 /** One team of THIS org (the org-column filter is the security line — a
  *  foreign teamId under this slug must 404 indistinguishably), or null. */
@@ -269,18 +279,21 @@ export async function fetchPublicTeamPage(
   admin: Admin,
   side: OrgKind,
   orgId: string,
-  teamId: string
+  teamId: string,
+  /** The site's base path (siteBasePath — '' on a custom domain): this org's
+   *  contests link to the site's own schedule page. */
+  basePath = ''
 ): Promise<PublicTeamPage | null> {
   const { data: team, error } = await admin
     .from('teams')
-    .select('id, name, display_name')
+    .select('id, name, display_name, sport_key, primary_color, secondary_color, logo_path')
     .eq('id', teamId)
     .eq(ORG_ID, orgId)
     .eq('status', 'active')
     .maybeSingle();
   if (degraded('team', error) || !team) return null;
 
-  const [entriesRes, rosterRes, eventsRes, compEntriesRes] = await Promise.all([
+  const [entriesRes, rosterRes, schedule, compEntriesRes] = await Promise.all([
     admin.from('team_entries').select('division_id').eq('team_id', teamId),
     admin
       .from('memberships')
@@ -291,14 +304,17 @@ export async function fetchPublicTeamPage(
       .eq('scope_type', 'team')
       .eq('scope_id', teamId)
       .limit(200),
-    admin
-      .from('events')
-      .select(TEAM_EVENT_FIELDS)
-      .eq('team_id', teamId)
-      .eq('status', 'active')
-      .gte('starts_at', new Date().toISOString())
-      .order('starts_at', { ascending: true })
-      .limit(10),
+    fetchTeamSchedule(admin, {
+      orgId,
+      teamId,
+      mode: 'public',
+      links: {
+        // This org's contests have the site's own place; another org's (a league
+        // the club's team plays in) and every live event live in the app.
+        contest: (contestId, competitionOrgId) => (competitionOrgId === orgId ? `${basePath}/schedule/${contestId}` : `${appBaseUrl()}/event/${contestId}`),
+        event: eventId => `${appBaseUrl()}/events/${eventId}`,
+      },
+    }),
     admin
       .from('competition_entries')
       .select('id, competition_id')
@@ -381,9 +397,13 @@ export async function fetchPublicTeamPage(
       id: team.id as string,
       name: (team.display_name || team.name) as string,
       divisionLabels,
+      sportKey: (team.sport_key as string | null) ?? null,
+      logoUrl: teamLogoUrl(team.id as string, team.logo_path as string | null),
+      primaryColor: (team.primary_color as string | null) ?? null,
+      secondaryColor: (team.secondary_color as string | null) ?? null,
     },
     roster,
-    events: (eventsRes.data ?? []) as unknown as OrgEvent[],
+    schedule,
     records,
   };
 }

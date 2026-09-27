@@ -162,6 +162,9 @@ export async function POST(request: NextRequest) {
       const { data: roundIds } = await admin.from('sport_event_rounds').select('id, starts_at').eq('sport_event_id', row.id).order('sequence', { ascending: true });
       const prefill = await prefillSidesFromTeams(admin, { eventId: row.id, hostProfileId: actor.profileId, rounds: (roundIds ?? []) as Array<{ id: string; starts_at: string | null }>, sides: [home, away], groupName: 'The game' });
       if ('error' in prefill) reportRouteError('[api/sport-events] side prefill failed:', prefill.error);
+      // Teams & divisions PR 7: the teams' schedules find this game by index.
+      const { linkEventTeams } = await import('@/lib/sport-events/team-links-server');
+      await linkEventTeams(admin, row.id, [{ side: 1, teamId: sideTeams[0].id }, { side: 2, teamId: sideTeams[1].id }]);
     }
 
     // Phase 2b: one contest per round on the chosen competition (best-effort — the

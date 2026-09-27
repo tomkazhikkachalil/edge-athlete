@@ -1,5 +1,42 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 7: a team's whole schedule and results; the public team page wears the team (zero DDL; uses 242's link table)
+
+**Why (Tom):** a team's page shows its full schedule and results: calendar events, competition games and events it plays. Until now the public team page listed only calendar events scoped to the team, and a contest's calendar mirror is scoped to its division or org, never the team. So a team's actual games never appeared.
+
+**The link table's one writer:** `src/lib/sport-events/team-links-server.ts linkEventTeams` fills `sport_event_teams` (242; nothing wrote it before). It is called by the event create route (the wizard's two team picks) and by the contest → event door (the fixture's TEAM entries: home = 1, away = 2). It is best-effort: the event is the deliverable.
+
+**The merge (pure, `src/lib/teams/schedule.ts`):** calendar events + the team's contests + the games it plays a side of, each game ONCE.
+- A calendar row that mirrors a contest (`contests.event_id`) and an event round linked to a contest (`sport_event_round_id`) fold into the contest.
+- Cancelled items leave. Upcoming reads soonest-first, results newest-first.
+- `teamResultLine` reads a fixture or bracket from the TEAM's side ("W 3–2" for an away win; the house scoreline is home-first). `gameResultLine` does the same for a game event.
+- A contest reads in its calendar mirror's zone. The items carry names and hrefs only (a test serialises them).
+
+**The reads (`schedule-server.ts fetchTeamSchedule`):**
+- The team's and its divisions' calendar events.
+- Its approved entries' fixture / bracket contests, including ANOTHER org's competition (a club's team in a league), when that org runs competitions and, in public mode, the competition and org are public.
+- Its `sport_event_teams` games, with the opponent from the other side's team or the event's side names.
+- Masked names throughout. It never throws. Its `member` mode (the team's own org's private competitions and hosted events) is for the in-app page in PR 8.
+
+**The public team page** (`/org/[slug]/teams/[teamId]` and the vanity twin):
+- **Upcoming** and **Results** come from the merge, through the server-safe `src/components/teams/TeamScheduleList.tsx` (PR 8 reuses it).
+- Links: this org's contests go to the site's own schedule place; another org's contests and every live event go to the app.
+- The header shows the team's logo and sport.
+- With colours set, the page wears them: a re-scoped `.org-scope` with the team's accent, readable text through `teamLook`, so every brand token follows. Without colours, the site's accent stays.
+- The cached reader's key now carries the base path, which shapes the contest links.
+
+**Found on the first run:** React's server render separates adjacent text nodes with `<!-- -->`, so "W 3–2" and "vs Comets" were not single strings in the HTML. The list now renders each as one template string.
+
+**Tests:**
+- `schedule.test.ts`: results from each side, W/L/T, each game once, the order, the zone borrowed from the mirror, no ids in the output.
+- `sport-events-team-sides.spec.ts` asserts the two link rows.
+- New `team-schedule-public.spec.ts` @mobile:
+  - Blazers' page shows the practice, "W 3–2", "vs Comets" and its own colours;
+  - Comets' page reads "L 2–3" in the site's colours;
+  - a private competition's game never shows;
+  - no sideways scroll at 390 px.
+- `org-site.spec.ts` (the team page's record, the masked roster, the 404s) still passes. `npm run verify` green.
+
 ## September 27, 2026 — Teams & divisions PR 6: a team's identity — rename, sport, colours, logo (zero DDL; uses 242's columns)
 
 **Why (Tom):** a team has its own identity (sport, colours, logo, a rename), and its page wears the team's colours, falling back to the club's.
