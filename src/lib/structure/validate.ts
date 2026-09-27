@@ -56,11 +56,29 @@ export const TeamCreateSchema = z.object({
 export type TeamCreateInput = z.infer<typeof TeamCreateSchema>;
 
 /** Archive/unarchive — teams persist; the console never hard-deletes as
- *  its primary affordance (delete stays for admin mistake-cleanup). */
-export const TeamPatchSchema = z.object({
-  id: uuid,
-  status: z.enum(['active', 'archived']),
-});
+ *  its primary affordance (delete stays for admin mistake-cleanup).
+ *  Teams & divisions PR 6 (242): the team's IDENTITY too — a rename, the
+ *  shown name, its sport (checked against FEATURE_SPORTS in the handler, the
+ *  113 convention), two colours (lower-cased `#rrggbb` — 242's CHECK). null
+ *  clears an optional field; an absent key leaves it. The logo has its own
+ *  upload route. At least one change is required. */
+const TeamColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'A colour is a hex value like #7c3aed')
+  .transform(v => v.toLowerCase());
+export const TeamPatchSchema = z
+  .object({
+    id: uuid,
+    status: z.enum(['active', 'archived']).optional(),
+    name: boundedText(80).optional(),
+    displayName: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? null : v), z.string().trim().max(80).nullable()).optional(),
+    sportKey: z.string().trim().min(1).max(40).nullable().optional(),
+    primaryColor: TeamColorSchema.nullable().optional(),
+    secondaryColor: TeamColorSchema.nullable().optional(),
+  })
+  .refine(v => Object.keys(v).some(k => k !== 'id' && (v as Record<string, unknown>)[k] !== undefined), {
+    message: 'Nothing to change',
+  });
 export type TeamPatchInput = z.infer<typeof TeamPatchSchema>;
 
 /** The PAIR (Tom's amendment): season derives through the division. */

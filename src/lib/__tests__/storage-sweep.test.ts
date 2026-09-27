@@ -156,6 +156,8 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   'src/lib/org-sites/logo-server.ts': { marker: 'ORG_LOGO_PREFIX', keep: { kind: 'protected', prefix: 'org-logos/' } },
   'src/lib/org-sites/pages-server.ts': { marker: 'ORG_MEDIA_PREFIX', keep: { kind: 'protected', prefix: 'org-media/' } },
   'src/lib/orgs/contest-media-server.ts': { marker: 'contest-media/', keep: { kind: 'protected', prefix: 'contest-media/' } },
+  // Teams & divisions PR 6: teams.logo_path is a bare path (242's CHECK).
+  'src/lib/teams/logo-server.ts': { marker: 'TEAM_LOGO_PREFIX', keep: { kind: 'protected', prefix: 'team-logos/' } },
 };
 
 function sourceFiles(dir: string): string[] {

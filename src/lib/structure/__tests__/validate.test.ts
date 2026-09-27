@@ -65,3 +65,24 @@ describe('team + entry schemas', () => {
     expect(EntryCreateSchema.safeParse({ teamId: ID }).success).toBe(false);
   });
 });
+
+describe('TeamPatchSchema — the team identity (teams & divisions PR 6)', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  it('takes a rename, a shown name, a sport and colours (lower-cased)', () => {
+    const r = TeamPatchSchema.safeParse({ id, name: 'Comets', displayName: 'The Comets', sportKey: 'ice_hockey', primaryColor: '#7C3AED', secondaryColor: '#FFFFFF' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toMatchObject({ primaryColor: '#7c3aed', secondaryColor: '#ffffff', displayName: 'The Comets' });
+  });
+  it('an empty shown name clears it; null clears a colour or the sport', () => {
+    const r = TeamPatchSchema.safeParse({ id, displayName: '  ', primaryColor: null, sportKey: null });
+    expect(r.success && r.data).toMatchObject({ displayName: null, primaryColor: null, sportKey: null });
+  });
+  it('refuses a colour that is not #rrggbb, and a PATCH that changes nothing', () => {
+    expect(TeamPatchSchema.safeParse({ id, primaryColor: 'purple' }).success).toBe(false);
+    expect(TeamPatchSchema.safeParse({ id, primaryColor: '#abc' }).success).toBe(false);
+    expect(TeamPatchSchema.safeParse({ id }).success).toBe(false);
+  });
+  it('status alone still archives / restores (today’s console)', () => {
+    expect(TeamPatchSchema.safeParse({ id, status: 'archived' }).success).toBe(true);
+  });
+});

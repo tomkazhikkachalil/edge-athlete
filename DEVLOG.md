@@ -1,5 +1,38 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 6: a team's identity — rename, sport, colours, logo (zero DDL; uses 242's columns)
+
+**Why (Tom):** a team has its own identity (sport, colours, logo, a rename), and its page wears the team's colours, falling back to the club's.
+
+**The PATCH:** `TeamPatchSchema` (`structure/validate.ts`) takes a rename, the shown name (empty clears), the sport, and two colours (`#rrggbb`, lower-cased to 242's CHECK; null clears), beside today's archive / restore. A PATCH that changes nothing is refused.
+- `teamPATCH` checks the sport against `FEATURE_SPORTS` (the 113 convention: `validate.ts` stays registry-free) and writes only what was sent. A taken name is 409 "Another team already has that name".
+- The console gate is unchanged: `manage_teams` at the team's scope. The structure GET now carries the identity columns.
+
+**The logo:**
+- `src/lib/teams/logo-server.ts` follows the org-logo recipe: 10 MB, the shared image allowlist (no SVG), rollback on a failed row write, best-effort removal of the old file.
+- The path is `team-logos/{teamId}/{file}`: the prefix 242's CHECK names and PR 0's `PROTECTED_PREFIXES` keeps from the sweep. The sweep test classifies the new writer; it failed until it was classified, as designed.
+- Routes: `/api/{leagues,clubs}/[id]/teams/[teamId]/logo` POST / DELETE (one handler module plus two shims, `manage_teams` at team scope, the `upload` bucket).
+- The anonymous streamer `/api/media/team-logo/[teamId]` is a copy of the org-logo streamer. It resolves the team's own path and hard-asserts `team-logos/{teamId}/`; it is allowlisted in the route audit.
+- `logo-url.ts` holds the pure, client-safe `teamLogoUrl`.
+
+**The look:** `src/lib/teams/brand.ts teamLook(team, orgBrand)` is pure and returns the org page's accent shape.
+- The team's colours win. Each text colour is made readable on its surface through `readableOn` (≥ 4.5:1); one colour alone deepens itself for the strong end.
+- No colours → the club's accent; no club accent → the app palette. The logo falls back the same way.
+- The team page (PR 7 / 8) renders it.
+
+**The console:** each active team has **Edit** (`TeamIdentityForm.tsx`): name, shown name, sport, two colour pickers with hex fields and Clear, and logo upload / change / remove.
+- One Save sends only what changed. Closing with unsaved edits asks first (`useDirtyClose` + `ConfirmModal`, the house rule).
+- The team row shows the logo, or a colour swatch, and "Shown as …".
+- The edit form's label is "Name", so the console's "Team name" (the add field the specs read) stays unique.
+
+**Tests:**
+- Unit: `validate.test.ts` (lower-casing, clearing, bad colours, nothing to change) and `brand.test.ts` (team over club over palette; readable text colours; logo fallback; a foreign path is no logo).
+- e2e `team-identity.spec.ts` @mobile (390 px):
+  - refusals by name: member 403, a taken name 409, a bad colour and an unknown sport 400;
+  - a console rename / sport / colours save lands in the DB;
+  - a logo uploads under `team-logos/{id}/`, streams anonymously as PNG, a member gets 403, and removal 404s the streamer.
+- Staging with the regressions: 6 passed. `npm run verify` green.
+
 ## September 27, 2026 — Teams & divisions PR 5: the console's team roster panel; the Teams section is its own component (zero DDL)
 
 **The PRs 0–4 production run first** (main e1d072ed, #947 / #943 / #944 / #946 merged; #942's baseline at 242 merged after):
