@@ -1,5 +1,13 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions leftovers 1: division pages join the sitemaps (zero DDL)
+
+The first of the three items parked by the teams & divisions program. `fetchPublishedSitesForSitemap` reads each listed org's divisions in LIVE seasons (an archived season's divisions are history; bounded, and degrades to none).
+- `SitemapSiteEntry.divisionIds` is filled only when the site's Divisions module is enabled, which already folds in the switches (either one) and a private org (Divisions is members-only, so a private org lists none).
+- Both the main `/sitemap.xml` and the per-site sitemap emit `/divisions/{id}`.
+
+**Proof:** `division-page.spec.ts` checks the site's sitemap lists the U13 page and not a foreign league's division. `org-site.spec.ts` (the sitemap's other entries) still passes: 7 passed on staging. `npm run verify` green. `docs/TEAMS.md`'s parked list loses the item.
+
 ## September 27, 2026 — Teams & divisions: the program's production probe (main f5e3ff96; no code change)
 
 **The probe** ran after #954 merged and production served `f5e3ff96` (all twelve PRs, #940–#954). It covered 21 spec files on desktop, mobile and webkit-mobile: **38 passed, 0 failed, 0 flaky.**

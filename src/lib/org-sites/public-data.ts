@@ -490,6 +490,7 @@ export interface SitemapSiteEntry {
   moduleKeys: string[]; // enabled subpage modules (news/standings/schedule/teams/gallery/courses)
   pageSlugs: string[]; // public custom pages
   teamIds: string[]; // active teams, only when the teams module is enabled
+  divisionIds: string[]; // teams & divisions: the live seasons' divisions, only when the divisions module is enabled
   newsSlugs: string[]; // published posts, only when the news module is enabled
   courseIds: string[]; // S2: linked catalog courses, only when the courses module is enabled
   playerHandles: string[]; // P2: public players, only when the standings module is enabled
@@ -589,6 +590,25 @@ export async function fetchPublishedSitesForSitemap(
   for (const n of newsRes.data ?? []) {
     if (!newsBySite.has(n.site_id)) newsBySite.set(n.site_id, []);
     newsBySite.get(n.site_id)!.push(n.slug as string);
+  }
+
+  // Teams & divisions (parked item): division pages — the divisions of each
+  // org's LIVE seasons (an archived season's divisions are history), bounded.
+  const divisionsByOrg = new Map<string, string[]>();
+  if (orgIds.length) {
+    const { data: divisionRows, error: divisionError } = await admin
+      .from('divisions')
+      .select('id, org_id, season:seasons(archived_at)')
+      .in(ORG_ID, orgIds)
+      .limit(3000);
+    if (!degraded('sitemap divisions', divisionError)) {
+      for (const d of (divisionRows ?? []) as unknown as { id: string; org_id: string; season: { archived_at: string | null } | { archived_at: string | null }[] | null }[]) {
+        const season = Array.isArray(d.season) ? d.season[0] : d.season;
+        if (season?.archived_at) continue;
+        if (!divisionsByOrg.has(d.org_id)) divisionsByOrg.set(d.org_id, []);
+        divisionsByOrg.get(d.org_id)!.push(d.id);
+      }
+    }
   }
 
   const teamsByOrg = new Map<string, string[]>();
@@ -696,6 +716,7 @@ export async function fetchPublishedSitesForSitemap(
       pageSlugs: pagesBySite.get(s.id) ?? [],
       // Team pages 404 when the module is off — gate like requireSiteModule.
       teamIds: moduleKeys.includes('teams') ? (teamsByOrg.get(orgKey) ?? []) : [],
+      divisionIds: moduleKeys.includes('divisions') && s.ref ? (divisionsByOrg.get(s.ref.orgId) ?? []) : [],
       newsSlugs: moduleKeys.includes('news') ? (newsBySite.get(s.id) ?? []) : [],
       courseIds: moduleKeys.includes('courses') ? (coursesByOrg.get(orgKey) ?? []) : [],
       playerHandles: moduleKeys.includes('standings') ? (playersByOrg.get(orgKey) ?? []) : [],

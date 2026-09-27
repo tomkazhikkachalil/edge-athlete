@@ -66,6 +66,9 @@ test('division page: public and in-app, the result home-first; editable by its m
     const html = await settleBody(anon.request, `${base}/divisions/${u13}`, `Comets ${stamp} 2–3 Blazers ${stamp}`);
     expect(html).toContain(`/teams/${blazers}`);
     await settleStatus(anon.request, `${base}/divisions/${foreign!.id}`, 404);
+    // The site's sitemap lists the division page (a live season's division).
+    const sitemap = await settleBody(anon.request, `${base}/sitemap.xml`, `/divisions/${u13}`);
+    expect(sitemap).not.toContain(`/divisions/${foreign!.id}`);
     const page = await anon.newPage();
     await page.goto(`${base}/divisions/${u13}`);
     await expect(page.locator(`[data-division-page="${u13}"]`)).toBeVisible({ timeout: 20_000 });

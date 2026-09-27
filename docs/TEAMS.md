@@ -74,7 +74,7 @@ migration 242). DEVLOG Sep 26–27 has the round-by-round record.
 | In-app team page | `/{club,league}/[id]/teams/[teamId]` (`?tab=roster\|schedule\|results\|standings`) | the org's rules; "Manage team" for `manage_teams` |
 | In-app division page | `/{club,league}/[id]/divisions/[divisionId]` | the org's rules; "Edit division" for `manage_structure` |
 | Public team page | `/org/[slug]/teams/[teamId]` + vanity twin | the Teams module (and switch) |
-| Public division page | `/org/[slug]/divisions/[divisionId]` + vanity twin | the Divisions module (and either switch) |
+| Public division page | `/org/[slug]/divisions/[divisionId]` + vanity twin (in both sitemaps) | the Divisions module (and either switch) |
 
 APIs (one handler module each, `src/lib/orgs/routes/`, with league + club shims):
 `team-roster.ts` (`…/teams/[teamId]/roster` GET/POST/PATCH/DELETE), `team-logo.ts`
@@ -103,4 +103,3 @@ Every roster bell to a supervised athlete copies their guardians, naming the chi
 - The console's Seasons section as its own component (it shares state with the
   rollover, the structure import and competitions).
 - The calendar's full event form for coaches (the coach's door is the console).
-- Division pages in the sitemap.
