@@ -41,6 +41,7 @@ import SettingsSection from '@/components/orgs/console/SettingsSection';
 import TeamsSection from '@/components/orgs/console/TeamsSection';
 import DivisionEditForm from '@/components/orgs/console/DivisionEditForm';
 import ScopedConsole, { type ScopedGrantView } from '@/components/orgs/console/ScopedConsole';
+import RolloverCarryPicker from '@/components/orgs/console/RolloverCarryPicker';
 import { ALL_ON, sectionAllowed, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -222,6 +223,8 @@ export default function OrgConsolePage() {
   const [rolloverLabel, setRolloverLabel] = useState('');
   const [rolloverStarts, setRolloverStarts] = useState('');
   const [rolloverEnds, setRolloverEnds] = useState('');
+  // PR 11: the teams whose rosters carry into the new season (default none).
+  const [rolloverCarry, setRolloverCarry] = useState<string[]>([]);
   const [divisionName, setDivisionName] = useState('');
   const [divisionSport, setDivisionSport] = useState('golf');
   const [divisionAge, setDivisionAge] = useState('');
@@ -1540,6 +1543,7 @@ export default function OrgConsolePage() {
                           type="button"
                           onClick={() => {
                             setRolloverSeasonId(prev => (prev === season.id ? null : season.id));
+                            setRolloverCarry([]);
                             setRolloverLabel('');
                             setRolloverStarts('');
                             setRolloverEnds('');
@@ -1645,8 +1649,8 @@ export default function OrgConsolePage() {
                     <div className="mt-3 border-t border-border-subtle pt-3">
                       <p className="text-xs text-muted mb-2">
                         Clones this season&apos;s divisions and programs, re-enters the same
-                        teams, and archives this season. Rosters start empty; registration
-                        opens when you say so.
+                        teams, and archives this season. Rosters start empty unless you carry a
+                        team forward below; registration opens when you say so.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <input
@@ -1688,6 +1692,7 @@ export default function OrgConsolePage() {
                                   label,
                                   ...(rolloverStarts ? { startsOn: rolloverStarts } : {}),
                                   ...(rolloverEnds ? { endsOn: rolloverEnds } : {}),
+                                  carryRosterTeamIds: rolloverCarry,
                                 }),
                               },
                               `Rolled forward to ${label}`,
@@ -1699,6 +1704,16 @@ export default function OrgConsolePage() {
                           Roll forward
                         </button>
                       </div>
+                      <RolloverCarryPicker
+                        side={side as OrgKind}
+                        orgId={orgId}
+                        teams={[...new Set(season.divisions.flatMap(d => d.entries.map(e => e.team_id)))]
+                          .map(id => teams.find(t => t.id === id))
+                          .filter((t): t is TeamRow => !!t && t.status === 'active')
+                          .map(t => ({ id: t.id, name: t.name }))}
+                        selected={rolloverCarry}
+                        onChange={setRolloverCarry}
+                      />
                     </div>
                   )}
 

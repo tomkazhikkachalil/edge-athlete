@@ -16,12 +16,20 @@
 //    window is the registrar's deliberate act — the checklist nags).
 //  * Season-scoped staff-grant expiry belongs to the future staff-role
 //    arc; nothing to expire today.
+//  * Teams & divisions PR 11 — CARRY-FORWARD: the manager may choose, team
+//    by team, to carry a roster into the new season (`carryRosterTeamIds`).
+//    Each carried team's current players get a spot in the NEW season
+//    (the old rows stay as last season's history); the insert is inside
+//    the compensation (the season FK cascades it away on a failure); each
+//    carried player is told — a supervised player's guardians get a copy.
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError, type RolloverInput } from '@/lib/structure/validate';
 
 import { ORG_ID, pairFor, type OrgKind } from './org-ref';
+import { planCarry } from '@/lib/teams/roster';
+import { notifyTeamRoster } from '@/lib/teams/notify';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -207,6 +215,56 @@ export async function seasonRolloverPOST(
     }
   }
 
+  // PR 11: carry the chosen teams' rosters into the new season.
+  let rosterRowsCarried = 0;
+  let carried: { profileId: string; teamId: string }[] = [];
+  let carriedTeamName = new Map<string, string>();
+  if (input.carryRosterTeamIds.length > 0) {
+    const { data: carryTeams, error: carryTeamsError } = await admin
+      .from('teams')
+      .select('id, name, display_name')
+      .in('id', input.carryRosterTeamIds)
+      .eq(ORG_ID, orgId)
+      .eq('status', 'active');
+    if (carryTeamsError) return fail('carry teams read', carryTeamsError);
+    carriedTeamName = new Map(((carryTeams ?? []) as { id: string; name: string; display_name: string | null }[]).map(t => [t.id, t.display_name || t.name]));
+    if (carriedTeamName.size > 0) {
+      const { data: spotRows, error: spotsError } = await admin
+        .from('memberships')
+        .select('profile_id, scope_id, season_id, status')
+        .eq(ORG_ID, orgId)
+        .eq('kind', 'roster')
+        .eq('scope_type', 'team')
+        .in('scope_id', [...carriedTeamName.keys()])
+        .limit(5000);
+      if (spotsError) return fail('carry roster read', spotsError);
+      carried = planCarry((spotRows ?? []) as { profile_id: string; scope_id: string; season_id: string | null; status: string }[], {
+        teamIds: [...carriedTeamName.keys()],
+        closingSeasonId: oldSeason.id as string,
+      });
+      if (carried.length > 0) {
+        const { data: inserted, error: carryError } = await admin
+          .from('memberships')
+          .upsert(
+            carried.map(c => ({
+              ...pairFor({ side, orgId }),
+              profile_id: c.profileId,
+              kind: 'roster',
+              role: 'member',
+              status: 'active',
+              scope_type: 'team',
+              scope_id: c.teamId,
+              season_id: newSeason.id,
+            })),
+            { onConflict: 'org_id,profile_id,kind,scope_type,scope_id,season_id', ignoreDuplicates: true }
+          )
+          .select('id');
+        if (carryError) return fail('roster carry', carryError);
+        rosterRowsCarried = (inserted ?? []).length;
+      }
+    }
+  }
+
   // The close-out act — both best-effort: the clone already succeeded.
   let archivedOld = false;
   const { error: archiveError } = await admin
@@ -230,12 +288,26 @@ export async function seasonRolloverPOST(
   // and write the trail. Best-effort, 42703-safe (pre-178 columns).
   const staffExpired = await expireSeasonStaff(admin, side, orgId, oldSeason.id, actorId);
 
+  // PR 11: each carried player is told (never throws; guardians copied).
+  if (carried.length > 0 && actorId) {
+    const { data: orgRow } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle();
+    const orgName = (orgRow as { name?: string } | null)?.name ?? 'your organization';
+    for (let i = 0; i < carried.length; i += 25) {
+      await Promise.all(
+        carried.slice(i, i + 25).map(c =>
+          notifyTeamRoster(admin, { side, orgId, orgName, profileId: c.profileId, actorId, notice: { kind: 'carried', teamName: carriedTeamName.get(c.teamId) ?? 'your team', seasonLabel: newSeason.label as string } })
+        )
+      );
+    }
+  }
+
   return NextResponse.json({
     season: newSeason,
     cloned: {
       divisions: divisionMap.size,
       programs: programsCloned,
       teamEntries: entriesCloned,
+      rosterRowsCarried,
     },
     archivedOld,
     staffExpired,

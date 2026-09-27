@@ -127,13 +127,15 @@ src/app/
 │   ├── athlete/[id]/        #   Profile pages by user ID
 │   ├── u/[username]/        #   Public profile pages by username
 │   ├── live/[groupPostId]/  #   A live round as a PLACE (see Navigation Conventions)
-│   ├── league|club/[id]/    #   Org pages (+ /standings — anonymous SSR twins)
+│   ├── league|club/[id]/    #   Org pages (+ /standings — anonymous SSR twins;
+│   │                        #   /teams/[teamId] and /divisions/[divisionId], conv. 28)
 │   ├── app/                 #   Signed-in tools: profile, followers, notifications,
 │   │                        #   sport/[sport_key], org/[side]/[id] (the org console)
 │   └── dashboard/           #   Admin dashboard
 ├── (public)/                # PUBLIC ORG SITES — its own root layout: NO headers()/
 │   │                        # providers/theme/Font Awesome; light-only; ISR+CDN
 │   ├── org/[slug]/          #   Site home + standings|schedule|teams(+/[teamId])
+│   │                        #   + divisions(+/[divisionId])
 │   │                        #   + [pageSlug] custom pages + card.png (og image)
 │   └── sitemap.ts           #   /sitemap.xml (force-dynamic — LOAD-BEARING)
 ├── robots.ts                # /robots.txt (must stay at the ROOT — see below)
@@ -1211,6 +1213,8 @@ const { canView } = await response.json();
 
 27. **Results are never lost: a person controls how their profile LOOKS; only Edge Athlete support makes a recorded result leave the backend (Results-kept round — the untag rule, Sep 26 2026, #928–#932, mig 241 the ONLY DDL)** — Tom: *"any data metrics recorded will go towards understanding what the athlete's athletic score is"*. "Delete" on a result (a golf round, a stat line, an event post, a scored shared round) is a HIDE through ONE writer, `src/lib/results/hide-server.ts setResultHidden` (`golf_rounds.profile_hidden_at`; `posts.status 'profile_hidden'` — a status, so every published-only reader skips it; distinct from moderation's `hidden`) that never touches the handicap, the leaderboards or `athlete_performances`; ordinary posts still delete; `src/lib/results/kinds.ts isResultPost` decides. The event opt-out is the same profile hide (the mirror is written and stamped, never removed). Hidden rounds leave LISTS for other viewers; AGGREGATES and the dataset count everything. **Official** = `official.ts isOfficialOrigin` (org host · competition · linked contest · provenance `club_recorded`+), walked by `origin-server.ts resolveResultOrigin` (FAILS CLOSED): no untag, no tag edit, no score rewrite by the player (409 `OFFICIAL_RESULT_REFUSAL`); an org taking a person off an official record bells them (`notify-server.ts tellOfficialChange`). A played event is never deleted; a scored decline is refused; a round creator's delete removes only an unplayed round (`deleteOrHideRound`). **Wrong person** = report reason `wrong_person` (event-only) → support's `correction-server.ts` (move WHOLE to the right account, contest dropped then re-synced; correct with before/after; remove a mistaken result — the only true removal), everyone told. A sweep test allowlists every `.delete()` on `golf_rounds` / `athlete_performances`. Photo tags stay the person's to remove (likeness). `docs/PERFORMANCE_DATA.md` "Results are never lost" is the reference; read DEVLOG Sep 26 2026 (Results kept PR 1–5) first.
 
+28. **A team is a thing with a page, a roster that names its season, and an identity; the switches hide, never delete (Teams & divisions program, Sep 26–27 2026, #940–#954, mig 242 the ONLY DDL)** — Tom's decisions: "We run teams" / "We run competitions" (`organizations.operates_teams / operates_competitions`) GATE the console sections, the org page's tiles and the site's widgets and pages through ONE classifier, `src/lib/orgs/switches.ts` (zero imports; every console section and widget key classified exactly once — pinned; a failed read reads ON); the owner flips them in the console's "What you run" (`manage_org`, audited `identity_changed`). A team roster spot is a `memberships` row (`kind roster`, scope `team`) that **always names its season** (242's CHECK): ONE writer `src/lib/teams/roster-server.ts` (add / move / remove; the CSV import, registration placement and the rollover carry are the sanctioned twins), ONE current-season reader (`currentTeamRosterRows`, `keepCurrent`) that event sides, stat attribution, meet affiliation, the calendar audience and the team pages read — the contest place and the teammate album stay any-season on purpose. A team add needs a MEMBER already on the ORG roster (`planTeamAdd`) — a minor only through the guardian-approved offer; no team spot is ever pending. `team_roster` bells copy a supervised athlete's guardians. A team has a sport, two colours and a logo (`team-logos/`, protected from the storage sweep — PR 0 found the sweep deleting every bare-path upload, org logos included: a new bare-path writer is classified in `storage-sweep.test.ts` or the gate fails); `teams/brand.ts teamLook` is the one look (the team's, readable; else the club's). A team's schedule is ONE merge (`teams/schedule.ts`: calendar + contests + `sport_event_teams` games, each once, results from the team's side "W 3–2"; a division's home-first); `sport_event_teams` has one writer (`linkEventTeams`). Pages: `/{club,league}/[id]/teams/[teamId]` (`?tab=`), `/{club,league}/[id]/divisions/[divisionId]`, and the public `/org/[slug]/teams|divisions/[id]` + twins; the in-app reads (`orgs/routes/teams.ts`) answer `private, no-store` and a private org's outsider a 404. A coach (every grant on a team or division) lands on `ScopedConsole` (`authz.consoleLanding`), and `authz.scheduleScopeAllows` → `calendar/scope-authz-server.ts canScheduleForScope` lets them schedule their scope (org-level events stay owner / manager). Rollover carries a roster only for the teams the manager ticks (`planCarry`; default none). `docs/TEAMS.md` is the reference; read DEVLOG Sep 26–27 2026 (Teams & divisions PR 0–11) first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1270,6 +1274,8 @@ addition below as a promise to keep it true.
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
+- `docs/TEAMS.md` — teams & divisions (convention 28): the switches, the roster
+  writer and reader, the pages, the coach view, the rollover carry.
 - `docs/LAUNCH_RUNBOOK.md` — the pre-launch ops checklist (DNS/email, Supabase
   auth email, OAuth enablement, device walkthrough). Console actions, not code.
 - `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
@@ -1297,6 +1303,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** September 2026 (Results-kept round) — this file is the single source of truth for project
+**Last Updated:** September 2026 (Teams & divisions program) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.

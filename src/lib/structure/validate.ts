@@ -116,6 +116,10 @@ export const RolloverSchema = z
     label: boundedText(60),
     startsOn: isoDate.optional(),
     endsOn: isoDate.optional(),
+    /** Teams & divisions PR 11: the teams whose rosters carry into the new
+     *  season (the manager's per-team choice; default none — rosters start
+     *  empty, the phase-5.5 rule). */
+    carryRosterTeamIds: z.array(uuid).max(200).default([]),
   })
   .superRefine((val, ctx) => {
     if (val.startsOn && val.endsOn && val.endsOn < val.startsOn) {

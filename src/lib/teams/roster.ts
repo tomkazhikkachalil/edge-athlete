@@ -49,3 +49,26 @@ export const TEAM_ADD_REFUSAL: Record<Exclude<TeamAddPlan, 'ok'>, string> = {
   not_member: 'They need to join first — only members can be put on a team',
   needs_org_roster: 'Add them to your roster first — a team spot comes from the roster (a guardian approves a minor’s)',
 };
+
+/** Rollover carry-forward (PR 11): which spots move into the new season —
+ *  each (player, team) ONCE, for the teams the manager chose, from the
+ *  closing season's current rows (active / placed; a legacy season-less row
+ *  counts as current). Pure. */
+export function planCarry(
+  rows: readonly { profile_id: string; scope_id: string; season_id: string | null; status: string }[],
+  input: { teamIds: readonly string[]; closingSeasonId: string }
+): { profileId: string; teamId: string }[] {
+  const chosen = new Set(input.teamIds);
+  const seen = new Set<string>();
+  const out: { profileId: string; teamId: string }[] = [];
+  for (const r of rows) {
+    if (!chosen.has(r.scope_id)) continue;
+    if (!(CURRENT_TEAM_STATUSES as readonly string[]).includes(r.status)) continue;
+    if (r.season_id !== null && r.season_id !== input.closingSeasonId) continue;
+    const key = `${r.profile_id}:${r.scope_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ profileId: r.profile_id, teamId: r.scope_id });
+  }
+  return out;
+}
