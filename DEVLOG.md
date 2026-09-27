@@ -168,7 +168,14 @@ The audit behind the plan found:
 - `switches.test.ts` holds that every console section and every widget key is classified exactly once.
 - `team_roster` is registered in the notification registry and in the guardian types.
 
-**Staging:** 242 applied (`242 APPLIED | 4 | 4 | 1 | 1 | 1 | 1 | 242`), every twin row reads OK, and `check:schema` passes with ledger head 242. **Production:** Tom runs it in the SQL editor. No code names the new columns before then.
+**Staging:** 242 applied (`242 APPLIED | 4 | 4 | 1 | 1 | 1 | 1 | 242`), every twin row reads OK, and `check:schema` passes with ledger head 242.
+
+**Production (Sep 26):** Tom ran it in the SQL editor: `242 APPLIED | 4 | 4 | 1 | 1 | 1 | 1 | 242`.
+- The editor's two warnings were expected:
+  - "Destructive" is the drop-and-re-add constraint pairs plus the duplicate-row DELETE. A read-only preview found 0 season-less team roster rows on prod, so the DELETE touched nothing.
+  - `_m242` is an `ON COMMIT DROP` temp table, outside `public` and unreachable by the API.
+- `check:schema:prod` OK, ledger head 242.
+- The baseline was regenerated from prod at 242 (`000_rebuild.sql`, 120 tables), and its self-check passed.
 
 ## September 26, 2026 — Storage sweep: stop deleting org assets (PR 0 of the teams & divisions program; zero DDL)
 
