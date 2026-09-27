@@ -27,7 +27,13 @@ export default function DivisionsList({
           {shown.map(d => (
             <li key={`${d.seasonLabel}-${d.divisionName}`} className={variant === 'grid' ? 'rounded-lg border border-border bg-canvas px-3 py-2 flex flex-col gap-0.5' : 'py-2 flex justify-between gap-3'}>
               <span className="text-sm font-medium text-primary">
-                {d.divisionName}
+                {d.id ? (
+                  <Link href={`${basePath}/divisions/${d.id}`} className="hover:underline">
+                    {d.divisionName}
+                  </Link>
+                ) : (
+                  d.divisionName
+                )}
                 {d.seasonLabel ? <span className="font-normal text-muted"> · {d.seasonLabel}</span> : null}
               </span>
               <span className="text-xs text-tertiary shrink-0">
@@ -50,7 +56,15 @@ export default function DivisionsList({
           aria-label={d.divisionName}
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary">{d.divisionName}</h2>
+          <h2 className="text-lg font-semibold text-primary">
+            {d.id ? (
+              <Link href={`${basePath}/divisions/${d.id}`} className="hover:underline">
+                {d.divisionName}
+              </Link>
+            ) : (
+              d.divisionName
+            )}
+          </h2>
           <p className="text-xs text-tertiary">
             {[d.seasonLabel, d.ageBand, d.tier].filter(Boolean).join(' · ')}
           </p>

@@ -47,6 +47,26 @@ export const DivisionCreateSchema = z.object({
 });
 export type DivisionCreateInput = z.infer<typeof DivisionCreateSchema>;
 
+/** Teams & divisions PR 9: a division is editable — its name, age band,
+ *  stream, tier and capacity (the sport and the season stay: moving a
+ *  division across seasons or sports re-homes every entry). An empty
+ *  optional field clears it (null); an absent key leaves it. */
+const clearable = (max: number) =>
+  z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? null : v), z.string().trim().max(max).nullable()).optional();
+export const DivisionPatchSchema = z
+  .object({
+    id: uuid,
+    name: boundedText(80).optional(),
+    ageBand: clearable(30),
+    genderStream: clearable(30),
+    tier: clearable(30),
+    capacityEstimate: z.number().int().min(1).max(10000).nullable().optional(),
+  })
+  .refine(v => Object.keys(v).some(k => k !== 'id' && (v as Record<string, unknown>)[k] !== undefined), {
+    message: 'Nothing to change',
+  });
+export type DivisionPatchInput = z.infer<typeof DivisionPatchSchema>;
+
 export const TeamCreateSchema = z.object({
   side: OrgKindSchema,
   orgId: uuid,

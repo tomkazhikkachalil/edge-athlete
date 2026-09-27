@@ -14,7 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID } from '@/lib/orgs/org-ref';
 import { switchesOf } from '@/lib/orgs/switches';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
-import { deriveContestOutcome } from '@/lib/competitions/contest-outcome';
+import { deriveContestOutcome, type ContestOutcome } from '@/lib/competitions/contest-outcome';
 import { entryDisplayName } from '@/lib/competitions/entries';
 import { mergeTeamSchedule, type CalendarInput, type ContestInput, type EventInput, type TeamScheduleItem } from './schedule';
 
@@ -104,50 +104,14 @@ async function readContests(admin: Admin, input: { orgId: string; teamId: string
   const myEntryByContest = new Map(mine.map(p => [p.contest_id, p.entry_id]));
   const contestIds = [...myEntryByContest.keys()];
   if (contestIds.length === 0) return [];
-  const [contestsRes, partsRes] = await Promise.all([
-    admin.from('contests').select('id, competition_id, event_id, scheduled_at, round, status, play_from, sport_event_round_id, stage, slot').in('id', contestIds).limit(300),
-    admin.from('contest_participants').select('id, contest_id, entry_id, side, start_position').in('contest_id', contestIds).limit(1000),
-  ]);
-  const contestRows = (logged('contests', contestsRes) ?? []) as {
-    id: string; competition_id: string; event_id: string | null; scheduled_at: string | null; round: string | null; status: string; play_from: string | null; sport_event_round_id: string | null; stage: number | null; slot: number | null;
-  }[];
-  const parts = (logged('participants', partsRes) ?? []) as { id: string; contest_id: string; entry_id: string; side: 'home' | 'away' | null; start_position: number | null }[];
-  const allEntryIds = [...new Set(parts.map(p => p.entry_id))];
-  const [entriesRes, resultsRes] = await Promise.all([
-    admin.from('competition_entries').select('id, team_id, profile_id, name').in('id', allEntryIds),
-    admin.from('contest_results').select('participant_id, score, payload').in('participant_id', parts.map(p => p.id)),
-  ]);
-  const entries = (logged('entry names', entriesRes) ?? []) as { id: string; team_id: string | null; profile_id: string | null; name: string | null }[];
-  const teamIds = [...new Set(entries.map(e => e.team_id).filter((v): v is string => !!v))];
-  const profileIds = [...new Set(entries.map(e => e.profile_id).filter((v): v is string => !!v))];
-  const [teamsRes, profilesRes] = await Promise.all([
-    teamIds.length ? admin.from('teams').select('id, name, display_name').in('id', teamIds) : Promise.resolve({ data: [], error: null }),
-    profileIds.length ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at').in('id', profileIds) : Promise.resolve({ data: [], error: null }),
-  ]);
-  const teamName = new Map(((logged('team names', teamsRes) ?? []) as { id: string; name: string; display_name: string | null }[]).map(t => [t.id, t.display_name || t.name]));
-  const personName = new Map(((logged('people', profilesRes) ?? []) as (MaskableProfile & { id: string })[]).map(p => [p.id, publicDisplayName(p)]));
-  const entryName = new Map(entries.map(e => [e.id, entryDisplayName(e, e.team_id ? teamName.get(e.team_id) : null, e.profile_id ? personName.get(e.profile_id) : null)]));
-  const resultByParticipant = new Map(((logged('results', resultsRes) ?? []) as { participant_id: string; score: number | null; payload: Record<string, unknown> | null }[]).map(r => [r.participant_id, r]));
-
+  const { data: contestsData, error: contestsError } = await admin.from('contests').select(CONTEST_FIELDS).in('id', contestIds).limit(300);
+  const contestRows = (logged('contests', { data: contestsData, error: contestsError }) ?? []) as ContestRow[];
+  const outcomes = await resolveOutcomes(admin, contestRows, allowed);
   return contestRows.flatMap(c => {
     const comp = allowed.get(c.competition_id);
     const myEntryId = myEntryByContest.get(c.id);
-    if (!comp || !myEntryId) return [];
-    const outcome = deriveContestOutcome({
-      format: comp.format,
-      sportKey: comp.sport_key,
-      scoringRule: comp.scoring_rule,
-      status: c.status,
-      stage: c.stage,
-      slot: c.slot,
-      roundName: c.round,
-      participants: parts
-        .filter(p => p.contest_id === c.id)
-        .map(p => {
-          const r = resultByParticipant.get(p.id);
-          return { participantId: p.id, entryId: p.entry_id, side: p.side, startPosition: p.start_position, name: entryName.get(p.entry_id) ?? 'Entrant', score: r?.score === null || r?.score === undefined ? null : Number(r.score), payload: r?.payload ?? null };
-        }),
-    });
+    const outcome = outcomes.get(c.id);
+    if (!comp || !myEntryId || !outcome) return [];
     return [{
       id: c.id,
       competitionName: comp.name,
@@ -162,6 +126,62 @@ async function readContests(admin: Admin, input: { orgId: string; teamId: string
       href: input.links.contest(c.id, comp.org_id),
     }];
   });
+}
+
+export const CONTEST_FIELDS = 'id, competition_id, event_id, scheduled_at, round, status, play_from, sport_event_round_id, stage, slot';
+export interface ContestRow {
+  id: string; competition_id: string; event_id: string | null; scheduled_at: string | null; round: string | null; status: string; play_from: string | null; sport_event_round_id: string | null; stage: number | null; slot: number | null;
+}
+export interface CompetitionRow {
+  id: string; name: string; org_id: string; visibility: string; status: string; format: string; sport_key: string; scoring_rule: string | null;
+}
+
+/** Each contest's outcome (sides, names masked, scores) — the ONE rule
+ *  (deriveContestOutcome). Shared by the team and the division readers. */
+export async function resolveOutcomes(admin: Admin, contestRows: readonly ContestRow[], compById: ReadonlyMap<string, CompetitionRow>): Promise<Map<string, ContestOutcome>> {
+  const out = new Map<string, ContestOutcome>();
+  if (contestRows.length === 0) return out;
+  const partsRes = await admin.from('contest_participants').select('id, contest_id, entry_id, side, start_position').in('contest_id', contestRows.map(c => c.id)).limit(1000);
+  const parts = (logged('participants', partsRes) ?? []) as { id: string; contest_id: string; entry_id: string; side: 'home' | 'away' | null; start_position: number | null }[];
+  const allEntryIds = [...new Set(parts.map(p => p.entry_id))];
+  const [entriesRes, resultsRes] = await Promise.all([
+    allEntryIds.length ? admin.from('competition_entries').select('id, team_id, profile_id, name').in('id', allEntryIds) : Promise.resolve({ data: [], error: null }),
+    parts.length ? admin.from('contest_results').select('participant_id, score, payload').in('participant_id', parts.map(p => p.id)) : Promise.resolve({ data: [], error: null }),
+  ]);
+  const entries = (logged('entry names', entriesRes) ?? []) as { id: string; team_id: string | null; profile_id: string | null; name: string | null }[];
+  const teamIds = [...new Set(entries.map(e => e.team_id).filter((v): v is string => !!v))];
+  const profileIds = [...new Set(entries.map(e => e.profile_id).filter((v): v is string => !!v))];
+  const [teamsRes, profilesRes] = await Promise.all([
+    teamIds.length ? admin.from('teams').select('id, name, display_name').in('id', teamIds) : Promise.resolve({ data: [], error: null }),
+    profileIds.length ? admin.from('profiles').select('id, first_name, last_name, full_name, visibility, email, supervision_state, departed_at').in('id', profileIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  const teamName = new Map(((logged('team names', teamsRes) ?? []) as { id: string; name: string; display_name: string | null }[]).map(t => [t.id, t.display_name || t.name]));
+  const personName = new Map(((logged('people', profilesRes) ?? []) as (MaskableProfile & { id: string })[]).map(p => [p.id, publicDisplayName(p)]));
+  const entryName = new Map(entries.map(e => [e.id, entryDisplayName(e, e.team_id ? teamName.get(e.team_id) : null, e.profile_id ? personName.get(e.profile_id) : null)]));
+  const resultByParticipant = new Map(((logged('results', resultsRes) ?? []) as { participant_id: string; score: number | null; payload: Record<string, unknown> | null }[]).map(r => [r.participant_id, r]));
+  for (const c of contestRows) {
+    const comp = compById.get(c.competition_id);
+    if (!comp) continue;
+    out.set(
+      c.id,
+      deriveContestOutcome({
+        format: comp.format,
+        sportKey: comp.sport_key,
+        scoringRule: comp.scoring_rule,
+        status: c.status,
+        stage: c.stage,
+        slot: c.slot,
+        roundName: c.round,
+        participants: parts
+          .filter(p => p.contest_id === c.id)
+          .map(p => {
+            const r = resultByParticipant.get(p.id);
+            return { participantId: p.id, entryId: p.entry_id, side: p.side, startPosition: p.start_position, name: entryName.get(p.entry_id) ?? 'Entrant', score: r?.score === null || r?.score === undefined ? null : Number(r.score), payload: r?.payload ?? null };
+          }),
+      })
+    );
+  }
+  return out;
 }
 
 // ── Sport events: the games the team plays a side of (sport_event_teams) ────

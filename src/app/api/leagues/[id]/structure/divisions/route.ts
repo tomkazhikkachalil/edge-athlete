@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { structureDivisionsRoutePOST, structureDivisionsRouteDELETE } from '@/lib/orgs/routes/structure-divisions';
+import { structureDivisionsRoutePOST, structureDivisionsRouteDELETE, structureDivisionsRoutePATCH } from '@/lib/orgs/routes/structure-divisions';
 
 // ── /api/leagues/[id]/structure/divisions — a shim (Round 5 E-2) ──
 // The body is src/lib/orgs/routes/structure-divisions.ts, one handler for both kinds;
@@ -11,4 +11,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return structureDivisionsRouteDELETE(request, 'league', await params);
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return structureDivisionsRoutePATCH(request, 'league', await params);
 }

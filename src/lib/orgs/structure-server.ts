@@ -24,6 +24,7 @@ import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
   type DivisionCreateInput,
+  type DivisionPatchInput,
   type EntryCreateInput,
   type SeasonCreateInput,
   type TeamCreateInput,
@@ -290,6 +291,26 @@ export async function divisionCreatePOST(
     if (cacheError) console.warn(`${TAG} sport cache refresh failed:`, cacheError.message);
   }
   return NextResponse.json({ division });
+}
+
+/** PR 9: edit a division of THIS org (the org column is the scope line — a
+ *  foreign division reads as not found). A name another division of the
+ *  same season has → 409 (145's unique). */
+export async function divisionPATCH(admin: Admin, input: DivisionPatchInput, scope: StructureScope): Promise<NextResponse> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.ageBand !== undefined) patch.age_band = input.ageBand;
+  if (input.genderStream !== undefined) patch.gender_stream = input.genderStream;
+  if (input.tier !== undefined) patch.tier = input.tier;
+  if (input.capacityEstimate !== undefined) patch.capacity_estimate = input.capacityEstimate;
+  const { data: updated, error } = await admin.from('divisions').update(patch).eq('id', input.id).eq(ORG_ID, scope.orgId).select('id');
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Another division in this season already has that name' }, { status: 409 });
+    console.error(`${TAG} division patch error:`, error);
+    return NextResponse.json({ error: 'Failed to update division' }, { status: 500 });
+  }
+  if (!updated || updated.length === 0) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
+  return NextResponse.json({ action: 'updated' });
 }
 
 export async function divisionDELETE(

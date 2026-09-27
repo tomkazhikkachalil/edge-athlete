@@ -29,7 +29,7 @@ type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = { roster: 'Roster', schedule: 'Schedule', results: 'Results', standings: 'Standings' };
 
 interface TeamView {
-  team: { id: string; name: string; sportKey: string | null; divisionLabels: string[] };
+  team: { id: string; name: string; sportKey: string | null; divisionLabels: string[]; divisions?: { id: string; label: string }[] };
   org: { id: string; name: string };
   look: TeamLook;
   roster: { name: string; supervised: boolean }[];
@@ -148,7 +148,20 @@ export default function TeamPage({ side }: { side: OrgKind }) {
           )}
           <div className="min-w-0 grow">
             <h1 className="text-2xl font-bold text-primary break-words">{team.name}</h1>
-            {(sportLabel || team.divisionLabels.length > 0) && <p className="mt-1 text-sm text-tertiary">{[sportLabel, ...team.divisionLabels].filter(Boolean).join(' · ')}</p>}
+            {(sportLabel || team.divisionLabels.length > 0) && (
+              <p className="mt-1 text-sm text-tertiary">
+                {sportLabel}
+                {/* PR 9: each division is a door to its page. */}
+                {(team.divisions ?? []).map((d, i) => (
+                  <span key={d.id}>
+                    {sportLabel || i > 0 ? ' · ' : ''}
+                    <Link href={`/${side}/${org.id}/divisions/${d.id}`} className="hover:underline" data-team-division={d.id}>
+                      {d.label}
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
           {canManage && (
             <Link href={`/app/org/${side}/${org.id}#teams`} className="shrink-0 min-h-[44px] inline-flex items-center px-3 rounded-lg border border-border-strong text-sm font-medium text-secondary hover:bg-surface-sunken">

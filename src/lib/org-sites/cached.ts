@@ -1,3 +1,4 @@
+import { fetchDivisionView, type DivisionView } from '@/lib/teams/division-server';
 import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
@@ -162,6 +163,13 @@ export const getCachedTeamPage = (
   // domain's base is '').
   perSlug(['org-site-team', slug, teamId, basePath], slug, () =>
     fetchPublicTeamPage(getSupabaseAdmin(), side, orgId, teamId, basePath)
+  );
+
+/** PR 9: one division's public page. Every varying input is in the key
+ *  (the divisionId and the base path that shapes the contest links). */
+export const getCachedDivisionPage = (slug: string, side: OrgKind, orgId: string, divisionId: string, basePath: string): Promise<DivisionView | null> =>
+  perSlug(['org-site-division', slug, divisionId, basePath], slug, () =>
+    fetchDivisionView(getSupabaseAdmin(), { side, orgId, divisionId, mode: 'public', links: { contest: id => `${basePath}/schedule/${id}` } })
   );
 
 /** The sitemap's enumerator — its own tag ('org-sitemap', purged by

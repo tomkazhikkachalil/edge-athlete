@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput } from '../schedule';
+import { divisionSchedule, gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput } from '../schedule';
 import type { ContestOutcome } from '@/lib/competitions/contest-outcome';
 
 // Teams & divisions PR 7: a team's schedule from three sources, each game once.
@@ -70,5 +70,29 @@ describe('mergeTeamSchedule', () => {
   it('the items carry names and hrefs — never an entry id, a profile id or an email', () => {
     const json = JSON.stringify(out);
     expect(json).not.toMatch(/"me"|"them"|@|profile/);
+  });
+});
+
+
+describe('divisionSchedule', () => {
+  const played: ContestOutcome = { kind: 'fixture', complete: true, home: side('h', 'Comets', 2), away: side('a', 'Blazers', 3), winnerEntryId: 'a', tie: false, scoreline: '2–3' };
+  const next: ContestOutcome = { kind: 'fixture', complete: false, home: side('h', 'Rockets', null), away: side('a', 'Comets', null), winnerEntryId: null, tie: false, scoreline: null };
+  const out = divisionSchedule({
+    contests: [
+      { id: 'c1', competitionName: 'U13 League', round: 'Week 1', scheduledAt: '2026-09-20T18:00:00Z', playFrom: null, status: 'completed', eventId: 'mirror', outcome: played, href: null },
+      { id: 'c2', competitionName: 'U13 League', round: 'Week 2', scheduledAt: '2026-10-04T18:00:00Z', playFrom: null, status: 'scheduled', eventId: null, outcome: next, href: null },
+      { id: 'c3', competitionName: 'U13 League', round: null, scheduledAt: null, playFrom: null, status: 'canceled', eventId: null, outcome: next, href: null },
+    ],
+    calendar: [
+      { id: 'mirror', title: 'Mirror', starts_at: '2026-09-20T18:00:00Z', all_day: false, timezone: 'America/Toronto', location: null, status: 'active', href: null },
+      { id: 'clinic', title: 'Skills clinic', starts_at: '2026-10-01T17:00:00Z', all_day: false, timezone: 'America/Toronto', location: 'Rink 1', status: 'active', href: null },
+    ],
+  });
+  it('a played game reads home-first with the score; an upcoming one as a pairing; the mirror folds in; cancelled leaves', () => {
+    expect(out.results.map(i => i.title)).toEqual(['Comets 2–3 Blazers']);
+    expect(out.upcoming.map(i => i.title)).toEqual(['Skills clinic', 'Rockets vs Comets']);
+    expect(out.upcoming[1].location).toBe('U13 League · Week 2');
+    expect(out.results[0].timezone).toBe('America/Toronto');
+    expect(out.results.every(i => i.result === null)).toBe(true);
   });
 });
