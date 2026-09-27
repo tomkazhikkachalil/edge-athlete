@@ -1,5 +1,20 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions leftovers 3: the console's Seasons section is its own component (zero DDL, no behaviour change)
+
+The third parked item, and the last. The console page carried the Seasons section inline: about 440 lines of JSX, 21 pieces of state and three helpers, in a 4,350-line file.
+
+**The extraction** (`src/components/orgs/console/SeasonsSection.tsx`, PR 5's `TeamsSection` shape):
+- It covers the season form, each season's divisions (add / View / Edit / delete, entering a team), the structure CSV import (preview first) and the roll forward with its per-team roster carry.
+- The markup and every label moved byte for byte, so every spec that drives the section reads it unchanged.
+- The section's state and its helpers (`createSeason`, `createDivision`, `runStructureImport`) moved with it; nothing else in the page read them. It keeps its own copy of the structure `act` (TeamsSection's).
+- The page passes `side`, `orgId`, `seasons`, `teams`, `golfFirst`, its refresh and toasts, and `onConfirmDelete`. The season and division deletes stay on the page's one `ConfirmModal`, which owns every destructive confirm in the console.
+- The page drops from 4,353 to 3,807 lines.
+
+**Tests:** `npm run verify` green. On staging: org-structure, season-rollover, rollover-carry, division-page, org-hierarchy and structure-import.
+
+**The program's parked list is empty** (`docs/TEAMS.md`).
+
 ## September 27, 2026 — Teams & divisions leftovers 2: the calendar's own event form works for coaches (zero DDL)
 
 The second parked item. PR 10 let a coach schedule their team's events, but only from the console: the calendar's event form offered only orgs the person OWNS or MANAGES, and its division / team picker read `structure-options`, which is gated to org-wide schedulers.

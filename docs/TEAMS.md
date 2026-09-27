@@ -67,10 +67,10 @@ migration 242). DEVLOG Sep 26–27 has the round-by-round record.
 |---|---|---|
 | Console: What you run | `/app/org/{side}/{id}` (`SettingsSection`) | owners, managers, admins |
 | Console: team rows — Edit, Roster, Import roster | `TeamsSection` → `TeamIdentityForm`, `TeamRosterPanel` | `manage_teams` at the team's scope |
-| Console: division rows — View, Edit | `DivisionEditForm` | `manage_structure` at the division's scope |
+| Console: division rows — View, Edit | `SeasonsSection` → `DivisionEditForm` | `manage_structure` at the division's scope |
 | Console: the coach's focused view | `ScopedConsole` (+ `ScopedEventForm`) | `consoleLanding` = scoped |
 | Calendar: the event form's Organization picker | `EventFormModal` ← `/api/calendar/schedulable-scopes` | the whole org for owners / managers; a coach's own scopes (`schedulableScopes`) |
-| Console: Roll forward — carry per team | `RolloverCarryPicker` | `manage_structure` |
+| Console: Roll forward — carry per team | `SeasonsSection` → `RolloverCarryPicker` | `manage_structure` |
 | Org page: Teams tile + window | `?window=teams` (`OrgTeams.tsx`) | the teams switch; a private org's teams are for members |
 | In-app team page | `/{club,league}/[id]/teams/[teamId]` (`?tab=roster\|schedule\|results\|standings`) | the org's rules; "Manage team" for `manage_teams` |
 | In-app division page | `/{club,league}/[id]/divisions/[divisionId]` | the org's rules; "Edit division" for `manage_structure` |
@@ -101,5 +101,5 @@ Every roster bell to a supervised athlete copies their guardians, naming the chi
 
 ## Parked
 
-- The console's Seasons section as its own component (it shares state with the
-  rollover, the structure import and competitions).
+Nothing. The three leftovers (division pages in the sitemaps, the calendar form for
+coaches, the Seasons section as a component) landed Sep 27 — DEVLOG "leftovers 1–3".
