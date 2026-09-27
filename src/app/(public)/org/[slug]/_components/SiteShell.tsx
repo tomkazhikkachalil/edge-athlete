@@ -4,7 +4,6 @@ import { orgLogoUrl } from '@/lib/media/org-site-media';
 import {
   MODULE_SUBPAGE_KEYS,
   moduleLabel,
-  noticeActive,
   parseContact,
   parseFooterConfig,
   parseHeroConfig,
@@ -17,6 +16,7 @@ import { effectiveSpec, fontFaceCss, fontHref, themeAttrs } from '@/lib/org-site
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicPageLink } from '@/lib/org-sites/public-data';
 import { navEntries } from '@/lib/org-sites/nav';
+import { activeBanner, type BannerNotice } from '@/lib/org-sites/banner';
 
 // ── The site shell (phase 3 R1, nav in R2; extracted in Site Builder P2-B) ──
 // The header (bar or band), the nav strip of ENABLED subpage modules + public
@@ -30,10 +30,14 @@ import { navEntries } from '@/lib/org-sites/nav';
 export default function SiteShell({
   site,
   pages,
+  notices = [],
   children,
 }: {
   site: PublicSite;
   pages: PublicPageLink[];
+  /** P0-2: announcements sent "on the site until …" (newest first) — the
+   *  band is derived from them at render, never copied into hero_config. */
+  notices?: readonly BannerNotice[];
   children: React.ReactNode;
 }) {
   // B1: nav follows the modules' sort_order (set_nav mirrors the list
@@ -53,6 +57,7 @@ export default function SiteShell({
   // the data attributes all come from one helper the editor canvas shares.
   const tokens = parseThemeTokens(site.theme_token_set);
   const hero = parseHeroConfig(site.hero_config);
+  const banner = activeBanner(hero, notices, utcToday());
   // Program 2, C: the manager's footer — a line, up to six links, the
   // contact card's socials when asked; "Powered by Edge Athlete" stays.
   const footer = parseFooterConfig(site.footer_config);
@@ -146,14 +151,15 @@ export default function SiteShell({
       </header>
       {/* S1: the notice ("Cart path only until Friday") — every page
           carries it, no dismiss (ISR renders it the same for everyone),
-          until its end date. Boundary reads ≤300s stale, like the rest. */}
-      {noticeActive(hero, utcToday()) && (
+          until its end date. Boundary reads ≤300s stale, like the rest.
+          P0-2: an active announcement beats the standing hero notice. */}
+      {banner && (
         <aside
           role="status"
           aria-label="Notice"
           className="bg-amber-50 border-b border-amber-200 text-amber-900"
         >
-          <p className="max-w-4xl mx-auto px-4 py-2 text-sm">{hero.notice}</p>
+          <p className="max-w-4xl mx-auto px-4 py-2 text-sm">{banner}</p>
         </aside>
       )}
       <main id="main" className="flex-1">{children}</main>

@@ -1,5 +1,30 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, P0: three site defects (zero DDL)
+
+**Program:** Tom asked for org websites that look like a professional sports-team site and that one person can run end to end. Plan: `~/.claude/plans/let-s-keep-designing-the-hidden-orbit.md`. His decisions: all four pillars (pro look, one home for managers, a newsroom, game-day content); Announce merges into news; one-click recap drafts; a live scoreboard on the public site. The order is P0 defects → look → one home → newsroom (migration 243, the program's only DDL) → announce merge → game-day → recaps → live → docs.
+
+**P0-1 — Publish lost unsaved news edits.**
+- In `SiteBlockEditor`, Publish/Unpublish sent `{publish}` alone and then bumped `reloadKey`. The refetch replaced the form with the server copy, so a title or paragraph typed but not yet saved was silently discarded.
+- Fix: the toggle now carries the unsaved title and body in the SAME PATCH (both schemas already accepted them together) and adopts the response. `reloadKey` is gone.
+- Pure helper: `org-sites/news-edit.ts` (`visibilityPatch`, `snapshotAfter`). A clean toggle never rewrites content.
+
+**P0-2 — Publishing wiped an announcement's site banner.**
+- `announce-server.ts mirrorSiteNotice` copied the title into the LIVE `org_sites.hero_config`. That column is the published projection, and publish mirrors the draft's hero over it, so publishing any draft made before the announcement erased the band.
+- Fix: announce no longer writes `org_sites`. The band is derived at render by `org-sites/banner.ts activeBanner` (pure, zero imports) from the announcement rows `fetchPublicNotices` already reads. A time-bound announcement beats the standing hero notice.
+- `SiteShell` takes `notices`: the published layout passes `getCachedNotices`, and both draft previews read them raw.
+- Announce purges the site tag AFTER its rows are inserted, so no render can cache a page between the two.
+- Sweep test `site-row-writers.test.ts`: only six modules may write `org_sites` (publish/restore, create/live, logo, domain, pending-org provisioning, support recovery). It also fails on stale entries.
+
+**P0-3 — Website-only staff got a 403 on Announce.**
+- The form lives in the console's Website section, but `/api/{clubs,leagues}/[id]/announce` asked for `manage_membership`. It now asks for `manage_site`; owners and managers pass either way.
+- The editor's photo-block note pointed at "the console's page editor", which now redirects back to the editor. The copy says what to do instead.
+
+**Proof:**
+- `npm run verify` green: 3951 tests (+13 new: banner, news-edit, the writer sweep).
+- On staging from a local production build: `org-site-news-publish-edits` (new; mobile + webkit-mobile, overflow check at 390 px), `org-announce` (extended with the wipe scenario — a draft edit before the announcement, publish, band still present — and a website-only staff grant announcing), `org-announce-archive`, `golf-season-wrap`, `org-site-news-display`, `org-site` @smoke — all green.
+- **Both new assertions FAIL on the old code** (run against a build of `main`): "the band survives the publish" and the unsaved title. So the wipe was real, not theoretical.
+
 ## September 27, 2026 — CI smoke is a smoke again: a tagged subset with a time limit; the DM spec's false pass (CI + tests only)
 
 **Found at session start:** the `smoke` job had not produced a useful signal for days.

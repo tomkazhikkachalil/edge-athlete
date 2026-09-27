@@ -178,7 +178,7 @@ export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldPro
                 <p className="text-xs text-tertiary">Links need a label and an https:// address to show.</p>
               </div>
             )}
-            {b.type === 'image' && <p className="text-xs text-tertiary">A photo block — edit it in the console’s page editor.</p>}
+            {b.type === 'image' && <p className="text-xs text-tertiary">A photo block — remove it here, or add an Image section to show a photo.</p>}
           </div>
         );
       })}

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { fetchPublicPages } from '@/lib/org-sites/public-data';
+import { fetchPublicNotices, fetchPublicPages } from '@/lib/org-sites/public-data';
 import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
 import { seedLayout } from '@/lib/site-builder/seeds';
@@ -49,13 +49,14 @@ export default async function OrgSitePreview({
   // leaders' golf fallback), which it had drifted from.
   // P3-C: the DRAFT's stored grid (getDraftSiteBySlug), else the projection.
   const layout = site.layout ?? seedLayout(site);
-  const [data, pages] = await Promise.all([
+  const [data, pages, notices] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicPages(admin, site.id),
+    fetchPublicNotices(admin, site.side, site.orgId, site.orgName),
   ]);
 
   return (
-    <SiteShell site={site} pages={pages}>
+    <SiteShell site={site} pages={pages} notices={notices}>
       <div className="bg-amber-100 border-b border-amber-300">
         <p className="max-w-4xl mx-auto px-4 py-2 text-sm font-medium text-amber-900">
           Draft preview — not public. This link expires; publish from the console

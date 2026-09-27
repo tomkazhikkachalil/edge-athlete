@@ -11,6 +11,7 @@ import {
   resetRateBucket,
 } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
+import { publishSite } from './helpers/org-site';
 
 // Golf sites, part 6 (phase 6e S6): announce to members. A manager's
 // notice bells every member (the org's own league_update / club_update
@@ -18,6 +19,12 @@ import { settleBody } from './helpers/isr';
 // the title can mirror to the site's notice band until a day, the
 // sender is not self-belled, a member is refused, and the bucket caps
 // it at a few a day. No table: the rows are the record.
+//
+// Sports-team website program, P0 (Sep 27 2026): the band is derived from
+// the rows at render — publishing a draft made BEFORE the announcement no
+// longer wipes it (announce used to copy the title into the live
+// hero_config, which the publish then overwrote); and a website-only staff
+// grant can announce (the form lives in the Website section).
 
 
 test('announce: members belled (not the sender), guardian copy, site notice, member 403, daily cap; console at 375px', async ({
@@ -63,6 +70,11 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
     res = await ownerApi.post(`/api/leagues/${leagueId}/announce`, { data: { title: '', message: 'y' } });
     expect(res.status()).toBe(400);
 
+    // P0-2: a draft edit made BEFORE the announcement (the wipe scenario).
+    const drafted = `Drafted before ${stamp}`;
+    res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'set_hero', headline: drafted } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+
     const nextYear = `${new Date().getUTCFullYear() + 1}-06-30`;
     const title = `Rain-out ${stamp}`;
     res = await ownerApi.post(`/api/leagues/${leagueId}/announce`, {
@@ -96,6 +108,12 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
     const home = await settleBody(anonCtx.request, sitePath, title, true, 12);
     expect(home).toContain(title);
     expect(home).toContain('role="status"');
+
+    // P0-2: publishing the OLDER draft keeps the band (it used to wipe it).
+    await publishSite(ownerApi, 'league', leagueId, 'After the announcement');
+    const published = await settleBody(anonCtx.request, sitePath, drafted, true, 12);
+    expect(published, 'the band survives the publish').toContain(title);
+    expect(published).toContain('role="status"');
 
     // The console form at 375px sends one more, then the daily cap bites.
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
@@ -136,6 +154,18 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
     }
     res = await ownerApi.post(`/api/leagues/${leagueId}/announce`, { data: { title: 'Cap 6', message: 'x' } });
     expect(res.status()).toBe(429);
+
+    // P0-3: a website-only staff grant can announce (was a 403 — the route
+    // asked for manage_membership while the form sits in the Website section).
+    await resetRateBucket(admin, 'org-announce', alpha.id);
+    const { error: grantError } = await admin.from('memberships').insert({
+      org_id: leagueId, profile_id: alpha.id, kind: 'staff', role: 'staff', status: 'active',
+      scope_type: 'org', sections: ['website'], granted_by: owner.id, granted_at: new Date().toISOString(),
+    });
+    expect(grantError).toBeNull();
+    res = await alphaApi.post(`/api/leagues/${leagueId}/announce`, { data: { title: `From the website staff ${stamp}`, message: 'x' } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    announcementIds.push((await res.json()).announcementId);
   } finally {
     await ownerApi.dispose();
     await alphaApi.dispose();
@@ -144,6 +174,7 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
       await admin.from('notifications').delete().contains('metadata', { announcement_id: id });
     }
     await resetRateBucket(admin, 'org-announce', owner.id);
+    await resetRateBucket(admin, 'org-announce', alpha.id);
     await admin.from('org_sites').delete().eq('org_id', leagueId);
     await deleteQaOrgs(admin, [leagueId]);
     if (childId) await deleteQaUser(childId);
