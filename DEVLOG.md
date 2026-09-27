@@ -1,5 +1,33 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 11: rollover carries a roster when the manager says so; the program's docs and convention 28 (zero DDL)
+
+**Why (Tom):** at rollover the manager chooses, team by team, whether to carry the roster forward; carried players are told, and so are a minor's guardians. Until now rosters always started empty.
+
+**The rollover:**
+- `RolloverSchema` takes `carryRosterTeamIds` (default none, so today's empty-roster rule stands unless the manager ticks a team).
+- `seasonRolloverPOST`, after the divisions, programs and team entries are cloned:
+  - reads the chosen active teams of THIS org and their team roster rows;
+  - `planCarry` (pure, `teams/roster.ts`) picks each (player, team) once from the closing season's current rows (active / placed; a legacy season-less row counts);
+  - inserts them into the NEW season.
+- The old rows stay as last season's history. The insert is inside the compensation (the season FK cascades it away if a later step fails).
+- After the close-out, each carried player gets a `team_roster` "carried" bell ("You are on Blazers again for 2027-28…"), and a supervised player's guardians a copy naming the child. The response adds `cloned.rosterRowsCarried`.
+- **The console:** the Roll forward form gains `RolloverCarryPicker.tsx`: one box per team entered in the closing season, "carry roster forward (N players)" with the current count from `/api/{plural}/[id]/teams`, default off, and Select all. Opening the form for a season resets the choice.
+
+**The docs:**
+- `docs/TEAMS.md` is the program's reference: Tom's decisions, 242's data, the one-place rules, the writers and readers, every surface and its gate, the refusals by name, minors, and what was parked.
+- CLAUDE.md gets **convention 28**, the route tree's new team and division pages, and the docs index.
+
+**Tests:**
+- Unit: `roster.test.ts` (`planCarry`: the chosen teams' current players once; other teams, other seasons and released rows stay behind).
+- e2e `rollover-carry.spec.ts` @mobile:
+  - the console offers "Blazers — carry roster forward (2 players)", unticked;
+  - carrying Blazers moves A and the child into the new season, while Comets starts empty and last season's three rows stay;
+  - A's "carried" bell arrives, and the guardian's names Robin; C gets none.
+- `season-rollover` (the default still carries nothing) and `org-structure` pass: 4 passed on staging. `npm run verify` green.
+
+**The program is complete** (PRs 0–11, #940–#954; migration 242 its only DDL): the storage sweep fix, 242, the switches (console, site, org page), the team roster core and console panel, team identity, team schedules and results, the in-app team page and Teams tile, editable divisions and division pages, the coach view, and the rollover carry. Parked, recorded in `docs/TEAMS.md`: the Seasons-section extraction, the calendar's full form for coaches, division pages in the sitemap.
+
 ## September 27, 2026 — Teams & divisions PR 10: the coach view (zero DDL)
 
 **Why (Tom):** a staff grant scoped to a team or a division gets a focused console, and its scope actually passes the actions it should. Until now a coach entered the full console, saw org-wide sections whose writes refused them, and could not put an event on their own team's calendar (owner / manager only).

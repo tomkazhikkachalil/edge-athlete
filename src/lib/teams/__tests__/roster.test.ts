@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCurrentTeamRow, pickRosterSeason, planTeamAdd } from '../roster';
+import { isCurrentTeamRow, pickRosterSeason, planCarry, planTeamAdd } from '../roster';
 
 // A team roster row names its season (242). The pick is the backfill's rule.
 
@@ -45,5 +45,26 @@ describe('planTeamAdd', () => {
     expect(planTeamAdd({ followRole: null, orgRosterStatuses: ['active'] })).toBe('not_member');
     expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: [] })).toBe('needs_org_roster');
     expect(planTeamAdd({ followRole: 'member', orgRosterStatuses: ['pending'] })).toBe('needs_org_roster');
+  });
+});
+
+describe('planCarry', () => {
+  const row = (profile_id: string, scope_id: string, season_id: string | null, status = 'active') => ({ profile_id, scope_id, season_id, status });
+  it("the chosen teams' current players, each once; other teams, other seasons and released rows stay behind", () => {
+    const rows = [
+      row('a', 'blazers', 's-old'),
+      row('a', 'blazers', null), // a legacy twin of the same spot
+      row('b', 'blazers', 's-old', 'placed'),
+      row('c', 'blazers', 's-older'),
+      row('d', 'blazers', 's-old', 'released'),
+      row('e', 'comets', 's-old'),
+    ];
+    expect(planCarry(rows, { teamIds: ['blazers'], closingSeasonId: 's-old' })).toEqual([
+      { profileId: 'a', teamId: 'blazers' },
+      { profileId: 'b', teamId: 'blazers' },
+    ]);
+  });
+  it('no team chosen carries nothing', () => {
+    expect(planCarry([row('a', 'blazers', 's-old')], { teamIds: [], closingSeasonId: 's-old' })).toEqual([]);
   });
 });
