@@ -102,7 +102,8 @@ test('league member photos on the site: gallery tile + streamer; revoke → 404;
     const page = await anon.newPage();
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(galleryUrl);
-    await expect(page.locator(`img[src="${streamer}"]`)).toBeVisible({ timeout: 20_000 });
+    // L5: the grid's thumbnail (the lightbox holds a hidden copy of the same image).
+    await expect(page.locator(`#gallery-grid img[src="${streamer}"]`)).toBeVisible({ timeout: 20_000 });
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
   } finally {

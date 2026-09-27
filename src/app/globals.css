@@ -787,6 +787,23 @@ body {
   display: none;
 }
 
+/* L5 — the gallery's CSS-only lightbox: an overlay per photo, shown while
+ * it is the URL's :target (the thumbnails link to #photo-N; Close links back
+ * to the grid). Fixed, so opening one never scrolls the page. */
+.org-scope .site-lightbox {
+  display: none;
+}
+.org-scope .site-lightbox:target {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.88);
+}
+
 /* Site Builder P3-C — the public grid. Mobile-first: two columns in READING
  * order (the DOM order GridRenderer emits), full or half spans from the
  * catalog; from 48rem the explicit placement takes over through the custom

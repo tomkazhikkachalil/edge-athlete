@@ -15,7 +15,7 @@ import {
 // the gate per request, so a consent revoke stops the bytes immediately
 // even while a stale ISR document still links them. Supervised athletes
 // are never labeled on the page, consented photo or not.
-test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375px', async ({
+test('org-site gallery: consent gate, the lightbox, streamer revoke, minor never labeled; 375px', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -220,7 +220,16 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
           timeout: 20_000,
         });
         const streamerPath = `/api/media/contest-media/${mediaId}`;
-        await expect(page.locator(`img[src="${streamerPath}"]`)).toBeVisible();
+        await expect(page.locator(`img[src="${streamerPath}"]`).first()).toBeVisible();
+        // L5 (Sep 27 2026): the CSS-only lightbox — the photo opens large on
+        // its #photo-1 target (no script), Close returns to the grid.
+        const lightbox = page.locator('[data-site-lightbox="1"]');
+        await expect(lightbox).toBeHidden();
+        await page.locator('#gallery-grid a[href="#photo-1"]').click();
+        await expect(lightbox).toBeVisible();
+        await expect(lightbox.locator(`img[src="${streamerPath}"]`)).toBeVisible();
+        await lightbox.locator('[data-site-lightbox-close]').click();
+        await expect(lightbox).toBeHidden();
         const html = await page.content();
         expect(html).toContain(`House League ${stamp}`);
         if (childId) {
@@ -245,6 +254,13 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
         await expect(page.getByRole('heading', { name: 'Gallery' })).toBeVisible();
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+        // L5 at phone width: the overlay opens full-screen and closes again.
+        await page.locator('#gallery-grid a[href="#photo-1"]').click();
+        await expect(lightbox).toBeVisible();
+        const box = await lightbox.boundingBox();
+        expect(box?.width, 'the lightbox fills the phone').toBeGreaterThanOrEqual(370);
+        await lightbox.locator('[data-site-lightbox-close]').click();
+        await expect(lightbox).toBeHidden();
       } finally {
         await anonCtx.close();
       }
