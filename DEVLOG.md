@@ -23,6 +23,7 @@
   - The three request specs now expect teams on after the expander.
   - New `org-switches-console.spec.ts` @mobile: a member gets a 403; the owner turns teams off, the Teams section leaves while the team row is untouched, a reload keeps it hidden, on brings it back, and Activity records both.
 - `npm run verify` green (3887 tests).
+- **Found by the first staging batch:** the switch only moved once the PATCH answered, so a tap looked dead ("Clicking the checkbox did not change its state" on both phone engines). It is optimistic now (Key Conventions 6): it moves on the tap, and a failed save puts it back.
 - **Staging e2e is pending:** the free-tier staging project ran out of its Disk IO budget tonight (`select 1` takes 16 s, and PostgREST's schema-cache query overruns the API role's 8 s `statement_timeout`, so every request answers `PGRST002`). Production is unaffected (`/api/health` ok). The specs run once staging recovers.
 ## September 26, 2026 — e2e fixtures: every team roster row names its season (test only; follows 242)
 

@@ -30,9 +30,14 @@ function plural(n: number, one: string, many: string): string {
 
 export default function SettingsSection({ side, orgId, switches, teamCount, competitionCount, onSaved, onError }: Props) {
   const [saving, setSaving] = useState<keyof OrgSwitches | null>(null);
+  // Optimistic (Key Conventions 6): the switch moves on the tap; a failed
+  // save puts it back. `pending` holds the tapped value until the parent's
+  // `switches` catches up (onSaved) or the save fails.
+  const [pending, setPending] = useState<Partial<OrgSwitches>>({});
 
   const save = async (key: keyof OrgSwitches, value: boolean) => {
     setSaving(key);
+    setPending(p => ({ ...p, [key]: value }));
     try {
       const res = await fetch(`/api/${ORG_ROUTE_FAMILY[side]}/${orgId}`, {
         method: 'PATCH',
@@ -49,6 +54,11 @@ export default function SettingsSection({ side, orgId, switches, teamCount, comp
       onError('Could not save the setting');
     } finally {
       setSaving(null);
+      setPending(p => {
+        const next = { ...p };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -81,7 +91,7 @@ export default function SettingsSection({ side, orgId, switches, teamCount, comp
       </p>
       <ul className="space-y-3">
         {rows.map(row => {
-          const on = switches[row.key];
+          const on = pending[row.key] ?? switches[row.key];
           return (
             <li key={row.key} className="rounded-lg border border-border p-3">
               <label className="flex min-h-[44px] items-center justify-between gap-3 cursor-pointer">
