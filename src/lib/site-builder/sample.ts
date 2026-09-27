@@ -421,7 +421,15 @@ export function sampleHomeData(sportKey: string | null | undefined, side: OrgKin
   const year = now.getUTCFullYear();
   const orgName = `${SAMPLE_SENTINEL} ${side === 'club' ? 'Club' : 'League'}`;
   const f = facility(sport);
-  const teams: PublicTeam[] = TEAMS.map((name, i) => ({ id: `sample:team-${i + 1}`, name, divisionLabels: [i < 2 ? `U13 A · ${year} Fall` : `U11 A · ${year} Fall`] }));
+  // L2: sample teams carry colours so the Crests layout shows what it does.
+  const TEAM_COLORS = ['#1d4ed8', '#b91c1c', '#047857', '#7c2d12', '#6d28d9', '#0f766e'];
+  const teams: PublicTeam[] = TEAMS.map((name, i) => ({
+    id: `sample:team-${i + 1}`,
+    name,
+    divisionLabels: [i < 2 ? `U13 A · ${year} Fall` : `U11 A · ${year} Fall`],
+    color: TEAM_COLORS[i % TEAM_COLORS.length],
+    ink: TEAM_COLORS[i % TEAM_COLORS.length],
+  }));
   const staff: PublicStaffRow[] = [
     { name: PEOPLE[0], role: 'owner' },
     { name: PEOPLE[1], role: 'manager' },

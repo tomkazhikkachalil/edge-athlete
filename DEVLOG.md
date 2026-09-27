@@ -1,5 +1,20 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, L2: team crests and colours on the site (zero DDL)
+
+**What:** the public site now wears each team's identity (242's `logo_path`, `primary_color`, `secondary_color`, set in the console's team editor since the teams program).
+- `fetchPublicTeams` selects them. `PublicTeam` gains `logoUrl` (the team's OWN crest through `teamLogoUrl` — never the club's fallback, so a tile without one draws initials instead of a repeated club logo), `color` and `ink` (through `teamLook`: the hex re-validated, the ink readable on the light page). All three are optional, so sample data and every older caller keep compiling.
+- `TeamCrest.tsx` (server-safe): the logo through the tokenless streamer, else the initials inside a ring in the team's colour (the site accent when it has none). The inline style only ever carries a validated `#rrggbb`. `lib/teams/initials.ts teamInitials` is pure and tested: age and tier tokens are skipped, so "U13 Blazers" reads "B".
+- The teams section's new **Crests** layout (`display.ts` teams variant, APPENDED — the first option is still today's look): a card per team with a colour bar, the crest, the name and the division.
+- The header's Teams dropdown and the phone menu draw a small crest beside each name (`nav-groups.ts` carries the identity through).
+- Sample data: the sample teams carry colours, so a manager previewing Crests sees what it does.
+
+**Proof:**
+- `npm run verify` green (3961).
+- New `org-site-team-crests.spec.ts` @mobile (Chromium + WebKit): the Crests layout set through the draft PUT (the generated schema admits it), published; the colour bar reads the team's `#1d4ed8`, the initials read "KR" and "B", the menu shows the crest, no overflow at 390 px.
+- Green alongside it: org-site-display (×3), pro-header (×3), sample-data (×3), team-page (×2).
+- A screenshot pass at 1280 px.
+
 ## September 27, 2026 — Sports-team website program, L1: the sports header, a wide column, a Teams menu, a phone menu (zero DDL)
 
 **What changed on the public site:**

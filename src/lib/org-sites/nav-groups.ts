@@ -9,12 +9,24 @@ export interface NavTeamInput {
   name: string;
   /** "U13 A · 2026 Winter" — the first one is the team's division label. */
   divisionLabels: readonly string[];
+  /** L2: the crest the dropdown draws beside the name (optional). */
+  logoUrl?: string | null;
+  color?: string | null;
+  ink?: string | null;
+}
+
+export interface NavTeam {
+  id: string;
+  name: string;
+  logoUrl?: string | null;
+  color?: string | null;
+  ink?: string | null;
 }
 
 export interface NavTeamGroup {
   /** null = teams without a division (one plain list when nobody has one). */
   label: string | null;
-  teams: { id: string; name: string }[];
+  teams: NavTeam[];
 }
 
 export const NAV_TEAMS_CAP = 24;
@@ -34,7 +46,13 @@ export function groupTeamsForNav(
       byLabel.set(label, group);
       groups.push(group);
     }
-    group.teams.push({ id: t.id, name: t.name });
+    group.teams.push({
+      id: t.id,
+      name: t.name,
+      ...(t.logoUrl ? { logoUrl: t.logoUrl } : {}),
+      ...(t.color ? { color: t.color } : {}),
+      ...(t.ink ? { ink: t.ink } : {}),
+    });
   }
   // Teams without a division read last, under their own heading, unless
   // they are the only group (then the heading is dropped).
