@@ -814,15 +814,20 @@ describe('SEO + footer (program 2, C)', () => {
     expect(parseSeoConfig({ imagePath: `org-media/${SITE}/rules.pdf` }).imagePath).toBeNull();
     expect(parseSeoConfig(null)).toEqual({ title: null, description: null, imagePath: null });
     const f = parseFooterConfig({ text: ' Est. 1962 ', links: [{ label: 'Rules', url: 'https://example.com/rules' }, { label: 'Bad', url: 'http://example.com' }, { label: '', url: 'https://example.com' }, 'junk'], showSocials: true });
-    expect(f).toEqual({ text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com/rules' }], showSocials: true });
+    expect(f).toEqual({ text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com/rules' }], showSocials: true, sponsorBar: 'off' });
     expect(parseFooterConfig({ links: Array.from({ length: 9 }, (_, i) => ({ label: `L${i}`, url: `https://example.com/${i}` })) }).links).toHaveLength(6);
-    expect(parseFooterConfig(undefined)).toEqual({ text: null, links: [], showSocials: false });
+    expect(parseFooterConfig(undefined)).toEqual({ text: null, links: [], showSocials: false, sponsorBar: 'off' });
+    // L3: the sponsor strip's place parses; junk is off.
+    expect(parseFooterConfig({ sponsorBar: 'header' }).sponsorBar).toBe('header');
+    expect(parseFooterConfig({ sponsorBar: 'sideways' }).sponsorBar).toBe('off');
   });
   it('set_seo / set_footer / set_theme iconPath pass the patch schema with their bounds', () => {
     expect(SitePatchSchema.safeParse({ action: 'set_seo', title: 'T', description: 'D', imagePath: `org-media/${SITE}/a.jpg` }).success).toBe(true);
     expect(SitePatchSchema.safeParse({ action: 'set_seo', title: 'x'.repeat(61) }).success).toBe(false);
     expect(SitePatchSchema.safeParse({ action: 'set_seo', imagePath: 'nope.jpg' }).success).toBe(false);
     expect(SitePatchSchema.safeParse({ action: 'set_footer', text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com' }], showSocials: true }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_footer', sponsorBar: 'footer' }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_footer', sponsorBar: 'sideways' }).success).toBe(false);
     expect(SitePatchSchema.safeParse({ action: 'set_footer', links: [{ label: 'Bad', url: 'http://example.com' }] }).success).toBe(false);
     expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, iconPath: `org-media/${SITE}/icon.png` }).success).toBe(true);
     expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, iconPath: null }).success).toBe(true);

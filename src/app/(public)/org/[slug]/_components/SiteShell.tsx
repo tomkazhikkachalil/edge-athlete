@@ -8,8 +8,14 @@ import {
   parseFooterConfig,
   parseHeroConfig,
   parseNavConfig,
+  parseSponsors,
   parseThemeTokens,
+  SOCIAL_NETWORKS,
+  type SocialNetwork,
 } from '@/lib/org-sites/validate';
+import { tierRank } from '@/lib/site-builder/display';
+import SocialIcon from './SocialIcon';
+import SponsorsList from './SponsorsList';
 import { utcToday } from '@/lib/competitions/golf-weeks';
 import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
 import { effectiveSpec, fontFaceCss, fontHref, themeAttrs } from '@/lib/org-sites/theme';
@@ -67,7 +73,23 @@ export default function SiteShell({
   // Program 2, C: the manager's footer — a line, up to six links, the
   // contact card's socials when asked; "Powered by Edge Athlete" stays.
   const footer = parseFooterConfig(site.footer_config);
-  const socials = footer.showSocials ? Object.entries(parseContact(site.contact_config).social ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]) : [];
+  // L3: the socials in the house order, as [network, url] — icons, not words.
+  const socialLinks = (social: Partial<Record<string, string>> | undefined): [SocialNetwork, string][] =>
+    SOCIAL_NETWORKS.flatMap(n => (typeof social?.[n] === 'string' && social[n] ? [[n, social[n] as string] as [SocialNetwork, string]] : []));
+  const socials = footer.showSocials ? socialLinks(parseContact(site.contact_config).social) : [];
+  // L3: the sponsor strip — the Sponsors module's list (when it is on), top tier first.
+  const sponsorsModule = site.modules.find(m => m.module_key === 'sponsors' && m.enabled);
+  const barSponsors = footer.sponsorBar !== 'off' && sponsorsModule ? [...parseSponsors(sponsorsModule.config)].sort((a, b) => tierRank(a.tier) - tierRank(b.tier)) : [];
+  const sponsorBar = barSponsors.length > 0 && (
+    <section aria-label="Our sponsors" className="border-y border-border bg-surface" data-site-sponsor-bar={footer.sponsorBar}>
+      <div className="site-container px-4 py-3 flex items-center gap-4">
+        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-tertiary">Sponsors</p>
+        <div className="min-w-0 flex-1">
+          <SponsorsList sponsors={barSponsors} siteId={site.id} variant="row" logoSize="sm" />
+        </div>
+      </div>
+    </section>
+  );
   const hasFooterContent = !!footer.text || footer.links.length > 0 || socials.length > 0;
   const brandName = tokens.wordmark ?? site.orgName;
   const attrs = themeAttrs(site);
@@ -107,7 +129,7 @@ export default function SiteShell({
 
   // The pro header's utility strip: how to reach the club, and its socials.
   const contact = parseContact(site.contact_config);
-  const stripSocials = Object.entries(contact.social ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]);
+  const stripSocials = socialLinks(contact.social);
   const stripContact = [contact.phone, contact.email].filter((v): v is string => typeof v === 'string' && !!v);
 
   const logo = (size: number) =>
@@ -146,11 +168,11 @@ export default function SiteShell({
                   ))}
                 </span>
                 {stripSocials.length > 0 && (
-                  <ul className="flex flex-wrap gap-x-3" aria-label="Social links">
+                  <ul className="flex flex-wrap items-center gap-x-3" aria-label="Social links">
                     {stripSocials.map(([network, url]) => (
                       <li key={network}>
-                        <a href={url} rel="noopener nofollow" className="capitalize text-white/90 hover:text-white">
-                          {network}
+                        <a href={url} rel="noopener nofollow" className="inline-flex text-white/90 hover:text-white">
+                          <SocialIcon network={network} size={16} />
                         </a>
                       </li>
                     ))}
@@ -199,6 +221,7 @@ export default function SiteShell({
           {hasNav && <SiteNavInline links={links} tone={tone} />}
         </header>
       )}
+      {footer.sponsorBar === 'header' && sponsorBar}
       {/* S1: the notice ("Cart path only until Friday") — every page
           carries it, no dismiss (ISR renders it the same for everyone),
           until its end date. Boundary reads ≤300s stale, like the rest.
@@ -213,6 +236,7 @@ export default function SiteShell({
         </aside>
       )}
       <main id="main" className="flex-1">{children}</main>
+      {footer.sponsorBar === 'footer' && sponsorBar}
       <footer className="border-t border-border" data-site-footer="">
         {hasFooterContent && (
           <div className="site-container px-4 pt-6 pb-2 space-y-2 text-sm text-secondary">
@@ -229,11 +253,11 @@ export default function SiteShell({
               </ul>
             )}
             {socials.length > 0 && (
-              <ul className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Social links">
+              <ul className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Social links">
                 {socials.map(([network, url]) => (
                   <li key={network}>
-                    <a href={url} rel="noopener nofollow" className="text-brand-fg hover:underline capitalize">
-                      {network}
+                    <a href={url} rel="noopener nofollow" className="inline-flex rounded-full p-1.5 text-brand-fg hover:bg-brand-soft">
+                      <SocialIcon network={network} size={20} />
                     </a>
                   </li>
                 ))}

@@ -1,5 +1,21 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, L3: social icons and a sponsor bar (zero DDL)
+
+**What:**
+- **Social icons.** `SocialIcon.tsx` draws simple inline-SVG glyphs for the four networks a site can link (Instagram, Facebook, X, YouTube). The public tree loads no icon font, the glyphs are `currentColor`, and the name rides an sr-only label (`labelled={false}` where the name is already visible).
+  - The footer's socials and the pro header's strip are icons now.
+  - The contact card shows the icon beside its visible label.
+- **The sponsor bar**, a manager setting in the editor's Settings: "Sponsor bar — Off · Above the footer · Under the header".
+  - It lives on `footer_config.sponsorBar` (mig 186's jsonb — no DDL), in the snapshot like the rest of the footer, and is ABSENT when off, so a footer without a bar equals today's.
+  - It renders the Sponsors module's list (only while that module is on), top tier first (`tierRank`), through `SponsorsList`'s existing one-row layout.
+  - Every page shows it: it sits in the shell.
+
+**Proof:**
+- `npm run verify` green (3961; the footer parse, the schema and the reducer pins extended).
+- New `org-site-footer-chrome.spec.ts`: placed from the editor's Settings; Gold before Partner on the home AND the news page; the footer's Instagram link is an icon with its name; the sponsor link keeps its URL; moved under the header, it renders before `<main>`; no overflow at 390 px.
+- Green alongside it: org-site-seo ×2, sponsors-display, display-content, identity, pro-header ×3.
+
 ## September 27, 2026 — Sports-team website program, L2: team crests and colours on the site (zero DDL)
 
 **What:** the public site now wears each team's identity (242's `logo_path`, `primary_color`, `secondary_color`, set in the console's team editor since the teams program).
