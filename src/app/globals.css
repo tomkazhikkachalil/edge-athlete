@@ -764,6 +764,29 @@ body {
   font-family: var(--org-heading-font);
 }
 
+/* Sports-team website program, L1 — the page column. The ONE place the
+ * site's column is decided (it sets max-width on purpose; no caller pairs it
+ * with max-w-*): 56rem is today's max-w-4xl, 76rem the wide sports layout.
+ * The data attribute comes from the re-validated token set (themeAttrs). */
+.org-scope .site-container {
+  max-width: 56rem;
+  margin-inline: auto;
+}
+.org-scope[data-width='wide'] .site-container {
+  max-width: 76rem;
+}
+/* L1 — CSS-only menus (the public tree ships no client script): a native
+ * <details> is the phone menu and the Teams dropdown; the marker goes, the
+ * summary is the button. Links inside are plain <a> — the shell lives in a
+ * persistent layout, so a client-side navigation would leave it open. */
+.org-scope .site-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.org-scope .site-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
 /* Site Builder P3-C — the public grid. Mobile-first: two columns in READING
  * order (the DOM order GridRenderer emits), full or half spans from the
  * catalog; from 48rem the explicit placement takes over through the custom

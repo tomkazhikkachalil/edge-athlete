@@ -448,7 +448,8 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
       // 375px: standings subpage and team page stay inside the viewport.
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`${base}/standings`);
-      await expect(page.getByText(`Blazers ${stamp}`).first()).toBeVisible({ timeout: 15_000 });
+      // L1: the header's Teams menu names the team too (closed) — read the page body.
+      await expect(page.locator('main').getByText(`Blazers ${stamp}`).first()).toBeVisible({ timeout: 15_000 });
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
         'standings: no horizontal overflow at 375px'

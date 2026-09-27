@@ -55,7 +55,7 @@ export default async function OrgSiteSchedulePage({ params }: PageParams) {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       {/* R4: SportsEvent structured data (capped; no people); S4 adds the rounds. */}
       {jsonLd.length > 0 && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />

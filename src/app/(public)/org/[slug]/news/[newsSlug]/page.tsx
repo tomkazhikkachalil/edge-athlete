@@ -57,7 +57,7 @@ export default async function OrgSiteNewsPostPage({ params }: PageParams) {
   if (!post) notFound();
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-primary">{post.title}</h1>
         <p className="mt-1 text-xs text-muted">

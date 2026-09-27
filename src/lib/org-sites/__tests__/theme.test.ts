@@ -45,7 +45,7 @@ describe('heading faces', () => {
 
 describe('themeAttrs — what a themed root wears', () => {
   it('a default-themed site sets no style (the stylesheet’s violet stays) and the plain attributes', () => {
-    expect(themeAttrs({ template_id: 'classic', theme_token_set: {} })).toEqual({ 'data-typeface': 'sans', 'data-surface': 'plain', 'data-template': 'classic' });
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: {} })).toEqual({ 'data-typeface': 'sans', 'data-surface': 'plain', 'data-template': 'classic', 'data-width': 'standard' });
   });
   it('an accent sets both vars; a heading face sets the property + the attribute; junk is dropped', () => {
     const a = themeAttrs({ template_id: 'bold', theme_token_set: { accent: '#0B3D91', typeface: 'lora', surface: 'tinted' } });
@@ -53,6 +53,9 @@ describe('themeAttrs — what a themed root wears', () => {
     expect(a['data-typeface']).toBe('lora');
     expect(a['data-surface']).toBe('tinted');
     expect(a['data-template']).toBe('bold');
+    // L1: the page column rides the token, else the template's (standard).
+    expect(a['data-width']).toBe('standard');
+    expect(themeAttrs({ template_id: 'bold', theme_token_set: { width: 'wide' } })['data-width']).toBe('wide');
     expect(a['data-heading-font']).toBe('');
     const junk = themeAttrs({ template_id: 'x', theme_token_set: { accent: 'url(javascript:1)', typeface: 'comic' } });
     expect(junk.style).toBeUndefined();

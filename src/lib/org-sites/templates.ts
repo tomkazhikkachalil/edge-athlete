@@ -19,8 +19,9 @@ export interface TemplateSpec {
   id: TemplateId;
   name: string;
   description: string;
-  /** Header shape: the classic white bar + nav strip, or one dark band. */
-  header: 'bar' | 'band';
+  /** Header shape: the classic white bar + nav strip, one dark band, or the
+   *  two-tier sports header (L1 — only ever a token or a gallery entry). */
+  header: 'bar' | 'band' | 'pro';
   /** Home hero: a rounded gradient card, or a full-bleed gradient. */
   hero: 'card' | 'bleed';
   /** Home sections: a single stack, or a two-column grid at ≥ sm. */
@@ -28,6 +29,8 @@ export interface TemplateSpec {
   /** Home teams: name chips, or a tile grid. */
   teams: 'chips' | 'tiles';
   density: 'comfortable' | 'compact';
+  /** The page column (L1): 56rem, or 76rem for a wide sports layout. */
+  width: 'standard' | 'wide';
 }
 
 const SPECS: Record<TemplateId, TemplateSpec> = {
@@ -40,6 +43,7 @@ const SPECS: Record<TemplateId, TemplateSpec> = {
     sections: 'stack',
     teams: 'chips',
     density: 'comfortable',
+    width: 'standard',
   },
   bold: {
     id: 'bold',
@@ -50,6 +54,7 @@ const SPECS: Record<TemplateId, TemplateSpec> = {
     sections: 'grid',
     teams: 'tiles',
     density: 'compact',
+    width: 'standard',
   },
 };
 

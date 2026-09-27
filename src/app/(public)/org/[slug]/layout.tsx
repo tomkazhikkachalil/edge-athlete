@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getCachedNotices, getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
+import { getCachedNotices, getCachedPages, getCachedSite, getCachedTeams } from '@/lib/org-sites/cached';
+import { navTeamsVisible } from '@/lib/org-sites/private';
 import { siteHead } from '@/lib/org-sites/metadata';
 import type { Metadata } from 'next';
 import SiteShell from './_components/SiteShell';
@@ -46,12 +47,14 @@ export default async function OrgSiteLayout({
   if (!site) notFound();
   // R3: public custom pages join the nav after the module links. P0-2: the
   // announcements sent "on the site until …" feed the notice band.
-  const [pages, notices] = await Promise.all([
+  // L1: the header's Teams dropdown — only when the teams page is public.
+  const [pages, notices, navTeams] = await Promise.all([
     getCachedPages(slug, site.id),
     getCachedNotices(slug, site.side, site.orgId, site.orgName),
+    navTeamsVisible(site) ? getCachedTeams(slug, site.side, site.orgId) : Promise.resolve([]),
   ]);
   return (
-    <SiteShell site={site} pages={pages} notices={notices}>
+    <SiteShell site={site} pages={pages} notices={notices} navTeams={navTeams}>
       {children}
     </SiteShell>
   );

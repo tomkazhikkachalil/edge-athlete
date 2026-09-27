@@ -61,7 +61,7 @@ export default async function OrgSiteDivisionPage({ params }: PageParams) {
   const withRows = standings.filter(c => c.rows.length > 0 || c.golf);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6" data-division-page={division.id}>
+    <div className="site-container px-4 py-8 space-y-6" data-division-page={division.id}>
       <header>
         <Link href={`${base}/divisions`} className="text-sm font-medium text-brand-fg hover:underline">
           ← All divisions

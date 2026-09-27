@@ -42,6 +42,7 @@ export function effectiveSpec(site: ThemeSource): TemplateSpec {
     hero: t.hero ?? spec.hero,
     density: t.density ?? spec.density,
     teams: t.teams ?? spec.teams,
+    width: t.width ?? spec.width,
   };
 }
 
@@ -107,6 +108,7 @@ export interface ThemeAttrs {
   'data-typeface': ThemeTypeface;
   'data-surface': string;
   'data-template': string;
+  'data-width': 'standard' | 'wide';
   'data-heading-font'?: '';
 }
 
@@ -130,6 +132,8 @@ export function themeAttrs(site: ThemeSource): ThemeAttrs {
     'data-typeface': tokens.typeface,
     'data-surface': tokens.surface,
     'data-template': templateSpec(site.template_id).id,
+    // L1: the page column — `.site-container` reads it (globals.css).
+    'data-width': tokens.width ?? templateSpec(site.template_id).width,
     ...(font ? { 'data-heading-font': '' as const } : {}),
   };
 }

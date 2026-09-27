@@ -446,6 +446,7 @@ describe('parseThemeTokens', () => {
       hero: null,
       density: null,
       teams: null,
+      width: null,
     });
     expect(parseThemeTokens('garbage')).toMatchObject({ accent: null, typeface: 'sans' });
     const parsed = parseThemeTokens({
@@ -466,7 +467,13 @@ describe('parseThemeTokens', () => {
       hero: null,
       density: null,
       teams: null,
+      width: null,
     });
+  });
+
+  it('L1: the pro header and the page width parse; junk falls to null', () => {
+    expect(parseThemeTokens({ header: 'pro', width: 'wide' })).toMatchObject({ header: 'pro', width: 'wide' });
+    expect(parseThemeTokens({ header: 'mega', width: 'huge' })).toMatchObject({ header: null, width: null });
   });
 
   it('phase 7: heading faces and the design overrides parse per key, junk falls to null', () => {

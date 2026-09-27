@@ -13,6 +13,16 @@ export function isMembersOnly(site: { visibility: 'public' | 'private' }, module
   return site.visibility === 'private' && (MEMBERS_ONLY_MODULE_KEYS as readonly string[]).includes(moduleKey);
 }
 
+/** L1 (Sep 27 2026): may the header list the club's teams? Only when the
+ *  teams page itself is public — the module is on and it is not a private
+ *  club's members-only module (the same gate as /teams). */
+export function navTeamsVisible(site: {
+  visibility: 'public' | 'private';
+  modules: readonly { module_key: string; enabled: boolean }[];
+}): boolean {
+  return site.modules.some(m => m.module_key === 'teams' && m.enabled) && !isMembersOnly(site, 'teams');
+}
+
 /** Sitemap: a private club's crawlable sub-URLs — the public modules only. */
 export function publicSubpageKeys(visibility: 'public' | 'private', keys: string[]): string[] {
   return visibility === 'private' ? keys.filter(k => !(MEMBERS_ONLY_MODULE_KEYS as readonly string[]).includes(k)) : keys;

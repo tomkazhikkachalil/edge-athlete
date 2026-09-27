@@ -46,7 +46,7 @@ export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
   const items = await getCachedLeaders(slug, site.side, site.orgId, site.sportKey);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">
         {moduleLabel('leaders', parseNavConfig(site.nav_config), site.side, site.sportKey)}
       </h1>

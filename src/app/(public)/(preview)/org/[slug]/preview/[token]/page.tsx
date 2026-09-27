@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { fetchPublicNotices, fetchPublicPages } from '@/lib/org-sites/public-data';
+import { fetchPublicNotices, fetchPublicPages, fetchPublicTeams } from '@/lib/org-sites/public-data';
 import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
 import { seedLayout } from '@/lib/site-builder/seeds';
 import { rawSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 import GridRenderer from '@/app/(public)/org/[slug]/_components/GridRenderer';
+import { navTeamsVisible } from '@/lib/org-sites/private';
 import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
 
 // ── /org/[slug]/preview/[token] — the draft preview ─────────────────────────
@@ -49,16 +50,17 @@ export default async function OrgSitePreview({
   // leaders' golf fallback), which it had drifted from.
   // P3-C: the DRAFT's stored grid (getDraftSiteBySlug), else the projection.
   const layout = site.layout ?? seedLayout(site);
-  const [data, pages, notices] = await Promise.all([
+  const [data, pages, notices, navTeams] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicPages(admin, site.id),
     fetchPublicNotices(admin, site.side, site.orgId, site.orgName),
+    navTeamsVisible(site) ? fetchPublicTeams(admin, site.side, site.orgId) : Promise.resolve([]),
   ]);
 
   return (
-    <SiteShell site={site} pages={pages} notices={notices}>
+    <SiteShell site={site} pages={pages} notices={notices} navTeams={navTeams}>
       <div className="bg-amber-100 border-b border-amber-300">
-        <p className="max-w-4xl mx-auto px-4 py-2 text-sm font-medium text-amber-900">
+        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900">
           Draft preview — not public. This link expires; publish from the console
           to go live.
         </p>

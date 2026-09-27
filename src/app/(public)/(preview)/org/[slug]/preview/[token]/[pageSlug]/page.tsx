@@ -5,10 +5,11 @@ import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
 import { loadDraftSnapshotBySiteId, loadRows, rowsSnapshot } from '@/lib/org-sites/revisions-server';
 import { rawSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
-import { fetchPublicNotices } from '@/lib/org-sites/public-data';
+import { fetchPublicNotices, fetchPublicTeams } from '@/lib/org-sites/public-data';
 import { isValidPageSlug } from '@/lib/org-sites/validate';
 import { orderedPages, parsePageLayout } from '@/lib/site-builder/pages';
 import GridRenderer from '@/app/(public)/org/[slug]/_components/GridRenderer';
+import { navTeamsVisible } from '@/lib/org-sites/private';
 import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
 
 // ── /org/[slug]/preview/[token]/[pageSlug] — the draft preview of a PAGE ────
@@ -41,16 +42,17 @@ export default async function OrgSitePagePreview({ params }: { params: Promise<{
   const layout = page ? parsePageLayout(page.layout) : null;
   if (!page || !layout) notFound();
 
-  const [data, notices] = await Promise.all([
+  const [data, notices, navTeams] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicNotices(admin, site.side, site.orgId, site.orgName),
+    navTeamsVisible(site) ? fetchPublicTeams(admin, site.side, site.orgId) : Promise.resolve([]),
   ]);
   const links = pages.filter(p => p.visibility === 'public').map(p => ({ id: p.id, slug: p.slug, title: p.title, inNav: p.inNav, createdAt: p.createdAt }));
 
   return (
-    <SiteShell site={site} pages={links} notices={notices}>
+    <SiteShell site={site} pages={links} notices={notices} navTeams={navTeams}>
       <div className="bg-amber-100 border-b border-amber-300">
-        <p className="max-w-4xl mx-auto px-4 py-2 text-sm font-medium text-amber-900">
+        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900">
           Draft preview of “{page.title}” — not public. This link expires; publish from the editor or the console to go live.
         </p>
       </div>

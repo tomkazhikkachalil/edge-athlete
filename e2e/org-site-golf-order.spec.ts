@@ -111,7 +111,9 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`/org/${slug}`);
     // P3-C: an empty standings section never renders publicly — the nav link is the landmark.
-    await expect(page.getByRole('link', { name: 'Season standings' })).toBeVisible({ timeout: 20_000 });
+    // L1 (Sep 27 2026): at phone width the links live in the header's Menu.
+    await page.locator('[data-site-menu] > summary').click({ timeout: 20_000 });
+    await expect(page.getByRole('navigation', { name: 'Site menu' }).getByRole('link', { name: 'Season standings' })).toBeVisible();
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
 

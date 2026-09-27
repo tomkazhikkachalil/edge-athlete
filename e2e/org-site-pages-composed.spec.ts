@@ -105,7 +105,10 @@ test('org site pages composed: layout renders publicly, header order and hide, p
       expect(html).toContain(`<h1`);
       // The header: About before Standings; Hidden nowhere.
       const homeHtml = await settleBody(anon.request, base, `About ${stamp}`);
-      const navHtml = homeHtml.slice(homeHtml.indexOf('aria-label="Site navigation"'), homeHtml.indexOf('</nav>'));
+      // L1: the phone menu is a second <nav> earlier in the header — slice to
+      // the </nav> that closes the Site navigation, not the first in the page.
+      const navStart = homeHtml.indexOf('aria-label="Site navigation"');
+      const navHtml = homeHtml.slice(navStart, homeHtml.indexOf('</nav>', navStart));
       expect(navHtml.indexOf(`About ${stamp}`)).toBeGreaterThan(-1);
       expect(navHtml.indexOf(`About ${stamp}`)).toBeLessThan(navHtml.indexOf('>Standings<'));
       expect(navHtml).not.toContain(`Hidden ${stamp}`);
@@ -149,7 +152,8 @@ test('org site pages composed: layout renders publicly, header order and hide, p
       }
       await publishSite(ownerApi, 'league', leagueId, 'Reordered');
       const reordered = await settleBody(anon.request, base, `About ${stamp}`);
-      const nav2 = reordered.slice(reordered.indexOf('aria-label="Site navigation"'), reordered.indexOf('</nav>'));
+      const nav2Start = reordered.indexOf('aria-label="Site navigation"');
+      const nav2 = reordered.slice(nav2Start, reordered.indexOf('</nav>', nav2Start));
       expect(nav2.indexOf('>Standings<')).toBeGreaterThan(-1);
       expect(nav2.indexOf('>Standings<')).toBeLessThan(nav2.indexOf(`About ${stamp}`));
 

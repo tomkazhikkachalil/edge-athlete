@@ -66,7 +66,7 @@ export default async function OrgSiteWeekPage({ params }: PageParams) {
   const base = siteBasePath(site);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-primary">This week</h1>
         <p className="mt-1 text-sm text-tertiary">{`Live play at ${site.orgName} · as of ${asOfLabel(hub.asOf)}`}</p>
