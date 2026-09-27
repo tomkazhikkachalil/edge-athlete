@@ -11,7 +11,8 @@ import { settleStatus } from './helpers/isr';
 // serve and the tile is back. Nothing is deleted. @mobile
 
 test('org switches: the public site and the org page follow them; on again brings everything back @mobile', async ({ browser }) => {
-  test.setTimeout(240_000);
+  // Eight settles of freshly revalidated ISR pages: a slow instance needs the room (staging, Sep 26 2026 — WebKit passed, Chromium ran out at 240 s).
+  test.setTimeout(480_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
   const probe = await admin.from('teams').select('sport_key').limit(1);

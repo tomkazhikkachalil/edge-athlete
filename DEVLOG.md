@@ -26,7 +26,7 @@ Off hides; nothing is deleted. The module rows are never written, so turning a s
   - teams off → `/teams` 404 while `/standings` serves;
   - competitions off → `/standings` 404, and the org page has no Standings tile;
   - both on → both serve, the tile is back, and the module rows were never touched.
-- `npm run verify` green. The staging e2e run waits for staging to recover (see PR 2).
+- `npm run verify` green. On the first staging batch the spec passed on WebKit, and on Chromium ran out of its 240 s over eight ISR settles on the slow instance; it has 480 s now.
 
 ## September 26, 2026 — Teams & divisions PR 2: the switches gate the console; the wizard's "We run divisions or teams" means it (zero DDL; needs 242)
 
