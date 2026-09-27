@@ -1,5 +1,22 @@
 # Development Log
 
+## September 27, 2026 — Leftovers prod probe; the per-site sitemap never served on Vercel (fix: force-dynamic)
+
+**The probe** ran after #956–#958 merged and production served `7b102827`: division-page, coach-scope, event-scopes, org-calendar, org-structure, season-rollover, rollover-carry, org-hierarchy, structure-import and org-switches-console. **13 passed, 2 failed.** Both failures were division-page (mobile and webkit-mobile), at the new sitemap assertion.
+
+**What it found, older than #956:**
+- Production answers **404 for every org's `/{slug}/sitemap.xml`**, the real ones included (Eagle Creek: `x-matched-path: /[slug]/[pageSlug]`). Its twins `robots.txt`, `schedule.ics`, `favicon.svg` and `card.png` route correctly.
+- **Why:** Next reads a route folder named `sitemap.xml` as a METADATA route. Under a dynamic segment the build prerendered it ONCE for a placeholder slug (`● /-/sitemap.xml`, 5-minute ISR) and recorded no route for the rest. On Vercel every real slug then fell through to the custom-page route.
+- `next start` still resolves the handler, so local e2e (the staging runs) never saw it. It has been broken since phase 6b's per-site sitemap. The custom-domain `/sitemap.xml` rewrite lands on the same route.
+
+**The fix:**
+- Both per-site sitemap routes declare `export const dynamic = 'force-dynamic'`, the same load-bearing line the root `sitemap.ts` carries. Segment config is read per file, so the vanity twin (a re-export) declares it too.
+- The build now lists the route as `ƒ` and prerenders nothing. The response's own `s-maxage=3600` is what the CDN caches.
+- Proven on the branch's Vercel preview: `/{slug}/sitemap.xml` now matches `/[slug]/sitemap.xml`, and an unknown slug gets the handler's own plain-text Not Found.
+- **Pinned:** `org-sites/__tests__/sitemap-routes.test.ts` walks `src/app` for every `sitemap.xml` route folder and requires the line in each file; it fails without the fix.
+
+**The lesson:** a route folder whose name matches a metadata convention (`sitemap.xml`, `robots.txt`, `icon`, `opengraph-image`…) takes Next's metadata path. Only a Vercel deployment shows how it routes. Check `x-matched-path` on a preview, not the local manifest: the old manifest listed the dynamic route while production misrouted.
+
 ## September 27, 2026 — Teams & divisions leftovers 3: the console's Seasons section is its own component (zero DDL, no behaviour change)
 
 The third parked item, and the last. The console page carried the Seasons section inline: about 440 lines of JSX, 21 pieces of state and three helpers, in a 4,350-line file.
