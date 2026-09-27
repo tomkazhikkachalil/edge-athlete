@@ -1315,6 +1315,8 @@ export async function fetchPublicGolfRounds(
 // teams walk in reverse: season → division → entry → active team.
 
 export interface PublicDivision {
+  /** PR 9: the division page's id (absent on sample data — no link then). */
+  id?: string;
   seasonLabel: string;
   divisionName: string;
   ageBand: string | null;
@@ -1373,6 +1375,7 @@ export async function fetchPublicDivisions(
   const seasonLabel = new Map(seasons.map(s => [s.id as string, s.label as string]));
 
   return divisions.map(d => ({
+    id: d.id as string,
     seasonLabel: seasonLabel.get(d.season_id as string) ?? '',
     divisionName: d.name as string,
     ageBand: (d.age_band ?? null) as string | null,

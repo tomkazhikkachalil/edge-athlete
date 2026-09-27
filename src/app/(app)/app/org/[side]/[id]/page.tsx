@@ -39,6 +39,7 @@ import OrgActivityCard from '@/components/orgs/OrgActivityCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import SettingsSection from '@/components/orgs/console/SettingsSection';
 import TeamsSection from '@/components/orgs/console/TeamsSection';
+import DivisionEditForm from '@/components/orgs/console/DivisionEditForm';
 import { ALL_ON, sectionAllowed, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -66,6 +67,7 @@ interface DivisionRow {
   age_band: string | null;
   gender_stream: string | null;
   tier: string | null;
+  capacity_estimate?: number | null;
   entries: EntryRow[];
 }
 
@@ -422,6 +424,8 @@ export default function OrgConsolePage() {
   const [memberCount, setMemberCount] = useState(0);
   // Teams & divisions (242): the switches gate the sections; Settings edits them.
   const [switches, setSwitches] = useState<OrgSwitches>(ALL_ON);
+  // PR 9: the division open for editing.
+  const [editDivisionId, setEditDivisionId] = useState<string | null>(null);
   const [viewerManagesOrg, setViewerManagesOrg] = useState(false);
 
   useEffect(() => {
@@ -1772,15 +1776,42 @@ export default function OrgConsolePage() {
                                     ].filter(Boolean).join(' · ')}
                                   </p>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmTarget({ kind: 'division', id: division.id, label: division.name })}
-                                  aria-label={`Delete ${division.name}`}
-                                  className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
-                                >
-                                  <i className="fas fa-trash" aria-hidden="true"></i>
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Link href={`/${side}/${orgId}/divisions/${division.id}`} className="px-2 py-1 text-xs rounded-md text-brand-fg hover:underline">
+                                    View
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    aria-expanded={editDivisionId === division.id}
+                                    aria-label={`Edit ${division.name}`}
+                                    onClick={() => setEditDivisionId(editDivisionId === division.id ? null : division.id)}
+                                    className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmTarget({ kind: 'division', id: division.id, label: division.name })}
+                                    aria-label={`Delete ${division.name}`}
+                                    className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
+                                  >
+                                    <i className="fas fa-trash" aria-hidden="true"></i>
+                                  </button>
+                                </div>
                               </div>
+                              {editDivisionId === division.id && (
+                                <DivisionEditForm
+                                  side={side as OrgKind}
+                                  orgId={orgId}
+                                  division={division}
+                                  onSaved={message => {
+                                    showSuccess('Structure', message);
+                                    refresh();
+                                  }}
+                                  onError={message => showError('Structure', message)}
+                                  onClose={() => setEditDivisionId(null)}
+                                />
+                              )}
                               <div className="mt-1 flex flex-wrap items-center gap-1">
                                 {division.entries.map(entry => (
                                   <span

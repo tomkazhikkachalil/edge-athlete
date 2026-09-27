@@ -7,8 +7,8 @@ import { type OrgKind, ORG_LABEL } from '@/lib/orgs/org-ref';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { DivisionCreateSchema } from '@/lib/structure/validate';
-import { requireOrgManager, divisionCreatePOST, divisionDELETE } from '@/lib/orgs/structure-server';
+import { DivisionCreateSchema, DivisionPatchSchema } from '@/lib/structure/validate';
+import { requireOrgManager, divisionCreatePOST, divisionDELETE, divisionPATCH } from '@/lib/orgs/structure-server';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -68,6 +68,34 @@ export async function structureDivisionsRouteDELETE(request: NextRequest, kind: 
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ORG STRUCTURE] divisions DELETE error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/** PATCH { id, name?, ageBand?, genderStream?, tier?, capacityEstimate? } —
+ *  teams & divisions PR 9. The scope is the division (a coach's division
+ *  grant edits their own division); the body names it, so parse first. */
+export async function structureDivisionsRoutePATCH(request: NextRequest, kind: OrgKind, params: { id: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-structure', { userId: user.id });
+    if (limited) return limited;
+    const { id } = params;
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: `${ORG_LABEL[kind]} not found` }, { status: 404 });
+    }
+    const admin = getSupabaseAdmin();
+    const parsed = await parseBody(request, DivisionPatchSchema);
+    if (!parsed.success) return parsed.response;
+    const gate = await requireOrgManager(admin, user, kind, id, {
+      intent: 'manage_structure',
+      scope: { type: 'division', id: parsed.data.id },
+    });
+    if (!gate.ok) return gate.response;
+    return await divisionPATCH(admin, parsed.data, { side: kind, orgId: id });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError('[ORG STRUCTURE] divisions PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -19,6 +19,7 @@ import { capabilityAllows, getOrgCapabilities, hasAnyCapability } from '@/lib/or
 import { divisionIdsForTeam } from '@/lib/orgs/scoped-members';
 import { currentTeamRosterProfileIds, currentTeamRosterRows } from '@/lib/teams/roster-server';
 import { fetchTeamSchedule, readTeamForPage, readTeamRecords } from '@/lib/teams/schedule-server';
+import { fetchDivisionView } from '@/lib/teams/division-server';
 import { teamLogoUrl } from '@/lib/teams/logo-url';
 import { teamLook } from '@/lib/teams/brand';
 import { readSiteBrandRow } from '@/lib/org-sites/revalidate';
@@ -35,8 +36,8 @@ async function viewerGate(admin: Admin, kind: OrgKind, orgId: string, viewerId: 
   if (!org) return { error: NextResponse.json({ error: `${ORG_LABEL[kind]} not found` }, { status: 404 }) };
   const [access, caps] = await Promise.all([readOrgAccess(admin, kind, orgId), viewerId ? getOrgCapabilities(admin, kind, orgId, viewerId) : Promise.resolve(null)]);
   const isMember = !!caps && (caps.role !== null || hasAnyCapability(caps));
-  const teamsOn = switchesOf(org as { operates_teams?: boolean }).teams;
-  return { org: org as { id: string; name: string }, caps, isMember, teamsOn, privateOutsider: access.visibility === 'private' && !isMember };
+  const switches = switchesOf(org as { operates_teams?: boolean; operates_competitions?: boolean });
+  return { org: org as { id: string; name: string }, caps, isMember, teamsOn: switches.teams, divisionsOn: switches.teams || switches.competitions, privateOutsider: access.visibility === 'private' && !isMember };
 }
 
 export async function teamsListRouteGET(request: NextRequest, kind: OrgKind, params: { id: string }) {
@@ -98,7 +99,7 @@ export async function teamRouteGET(request: NextRequest, kind: OrgKind, params: 
       currentTeamRosterRows(admin, [team.id], { orgId: params.id }),
       fetchTeamSchedule(admin, { orgId: params.id, teamId: team.id, mode, links: { contest: id => `/event/${id}`, event: id => `/events/${id}` } }),
       readTeamRecords(admin, { orgId: params.id, teamId: team.id, mode }),
-      admin.from('team_entries').select('division:divisions(name, season:seasons(label, archived_at))').eq('team_id', team.id),
+      admin.from('team_entries').select('division:divisions(id, name, season:seasons(label, archived_at))').eq('team_id', team.id),
     ]);
     const profileIds = [...new Set(rows.map(r => r.profile_id))];
     const { data: profiles } = profileIds.length
@@ -108,13 +109,15 @@ export async function teamRouteGET(request: NextRequest, kind: OrgKind, params: 
     const roster = ((profiles ?? []) as (MaskableProfile & { id: string })[])
       .map(p => ({ name: canManage ? formatDisplayName(p.first_name, null, p.last_name, p.full_name) : publicDisplayName(p), supervised: p.supervision_state === 'supervised' }))
       .sort((a, b) => a.name.localeCompare(b.name));
-    type DivisionJoin = { division: { name: string; season: { label: string; archived_at: string | null } | null } | null };
-    const divisionLabels = ((divisionsRes.data ?? []) as unknown as DivisionJoin[])
-      .flatMap(e => (e.division && !e.division.season?.archived_at ? [e.division.season ? `${e.division.name} · ${e.division.season.label}` : e.division.name] : []));
+    type DivisionJoin = { division: { id: string; name: string; season: { label: string; archived_at: string | null } | null } | null };
+    // PR 9: each current division is a door to its page.
+    const divisions = ((divisionsRes.data ?? []) as unknown as DivisionJoin[])
+      .flatMap(e => (e.division && !e.division.season?.archived_at ? [{ id: e.division.id, label: e.division.season ? `${e.division.name} · ${e.division.season.label}` : e.division.name }] : []));
+    const divisionLabels = divisions.map(d => d.label);
 
     return NextResponse.json(
       {
-        team: { id: team.id, name: team.display_name || team.name, sportKey: team.sport_key, divisionLabels },
+        team: { id: team.id, name: team.display_name || team.name, sportKey: team.sport_key, divisionLabels, divisions },
         org: { id: gate.org.id, name: gate.org.name },
         look: teamLook(team, buildOrgBrand(brandRow)),
         roster: canManage || gate.isMember ? roster : roster.map(r => ({ name: r.name, supervised: false })),
@@ -128,6 +131,35 @@ export async function teamRouteGET(request: NextRequest, kind: OrgKind, params: 
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[TEAMS] ${kind} team error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/** GET /api/{leagues,clubs}/[id]/divisions/[divisionId] — one division's
+ *  in-app page (PR 9). The org's rules: a private org's division is for its
+ *  members; with both switches off there are no divisions to show. */
+export async function divisionRouteGET(request: NextRequest, kind: OrgKind, params: { id: string; divisionId: string }) {
+  try {
+    if (!UUID_RE.test(params.id)) return NextResponse.json({ error: `${ORG_LABEL[kind]} not found` }, { status: 404 });
+    if (!UUID_RE.test(params.divisionId)) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
+    const { user } = await getServerAuth(request);
+    const admin = getSupabaseAdmin();
+    const gate = await viewerGate(admin, kind, params.id, user?.id ?? null);
+    if ('error' in gate) return gate.error;
+    if (!gate.divisionsOn || gate.privateOutsider) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
+    const view = await fetchDivisionView(admin, {
+      side: kind,
+      orgId: params.id,
+      divisionId: params.divisionId,
+      mode: gate.isMember ? 'member' : 'public',
+      links: { contest: id => `/event/${id}` },
+    });
+    if (!view) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
+    const canManage = !!gate.caps && capabilityAllows(gate.caps, 'manage_structure', { type: 'division', id: params.divisionId });
+    return NextResponse.json({ ...view, org: { id: gate.org.id, name: gate.org.name }, canManage }, { headers: NO_STORE });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[TEAMS] ${kind} division error:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

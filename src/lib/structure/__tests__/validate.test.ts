@@ -5,6 +5,7 @@ import {
   SeasonCreateSchema,
   TeamCreateSchema,
   TeamPatchSchema,
+  DivisionPatchSchema,
 } from '../validate';
 
 const ID = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
@@ -84,5 +85,19 @@ describe('TeamPatchSchema — the team identity (teams & divisions PR 6)', () =>
   });
   it('status alone still archives / restores (today’s console)', () => {
     expect(TeamPatchSchema.safeParse({ id, status: 'archived' }).success).toBe(true);
+  });
+});
+
+describe('DivisionPatchSchema (teams & divisions PR 9)', () => {
+  const id = '22222222-2222-4222-8222-222222222222';
+  it('takes a rename and the optional fields; an empty one clears', () => {
+    const r = DivisionPatchSchema.safeParse({ id, name: 'U13 A', ageBand: ' ', tier: 'AA', capacityEstimate: 8 });
+    expect(r.success && r.data).toMatchObject({ name: 'U13 A', ageBand: null, tier: 'AA', capacityEstimate: 8 });
+  });
+  it('refuses nothing to change, a bad capacity, and never takes a sport or a season', () => {
+    expect(DivisionPatchSchema.safeParse({ id }).success).toBe(false);
+    expect(DivisionPatchSchema.safeParse({ id, capacityEstimate: 0 }).success).toBe(false);
+    const r = DivisionPatchSchema.safeParse({ id, name: 'X', sportKey: 'golf', seasonId: id });
+    expect(r.success && 'sportKey' in r.data).toBe(false);
   });
 });

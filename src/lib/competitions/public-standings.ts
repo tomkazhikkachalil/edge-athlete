@@ -114,6 +114,9 @@ export async function fetchPublicStandings(
      *  state, so the CDN-cached API, the SSR twin and the site modules stay
      *  viewer-independent. */
     membersView?: boolean;
+    /** Teams & divisions PR 9: only the competitions pinned to this
+     *  division (a division page's standings). */
+    divisionId?: string;
   } = {}
 ): Promise<PublicStandingsPayload | null> {
   const full = await admin.from('organizations').select('id, name, operates_competitions').eq('id', orgId).maybeSingle();
@@ -133,14 +136,14 @@ export async function fetchPublicStandings(
     return { orgName: org.name as string, competitions: [] };
   }
 
-  const { data: competitions, error } = await admin
+  let compQuery = admin
     .from('competitions')
     .select('id, name, season_id, sport_key, format, scoring_rule, status, entrant_type')
     .eq(ORG_ID, orgId)
     .eq('visibility', 'public')
-    .in('status', ['active', 'completed'])
-    .order('created_at', { ascending: false })
-    .limit(20);
+    .in('status', ['active', 'completed']);
+  if (opts.divisionId) compQuery = compQuery.eq('division_id', opts.divisionId);
+  const { data: competitions, error } = await compQuery.order('created_at', { ascending: false }).limit(20);
   if (error || !competitions || competitions.length === 0) {
     return { orgName: org.name as string, competitions: [] };
   }

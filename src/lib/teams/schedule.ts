@@ -175,3 +175,64 @@ export function mergeTeamSchedule(input: {
   const results = items.filter(i => i.state === 'final').sort((a, b) => at(b) - at(a) || a.key.localeCompare(b.key));
   return { upcoming, results };
 }
+
+// ── A DIVISION's schedule (PR 9) — the same items, no single side ───────────
+// A division page lists its games as "Comets 2–3 Blazers" (home first, the
+// house scoreline) — there is no one team to read a W/L from. The same
+// folding: a calendar row mirroring a contest folds into it; cancelled
+// items leave.
+
+export interface DivisionContestInput {
+  id: string;
+  competitionName: string;
+  round: string | null;
+  scheduledAt: string | null;
+  playFrom: string | null;
+  status: string;
+  eventId: string | null;
+  outcome: ContestOutcome;
+  href: string | null;
+}
+
+function pairing(outcome: ContestOutcome): { title: string | null; score: string | null } {
+  if (outcome.kind !== 'fixture' && outcome.kind !== 'bracket') return { title: null, score: null };
+  const home = outcome.home?.name ?? null;
+  const away = outcome.away?.name ?? null;
+  if (!home || !away) return { title: home ?? away, score: null };
+  const scored = outcome.home?.score !== null && outcome.home?.score !== undefined && outcome.away?.score !== null && outcome.away?.score !== undefined;
+  return { title: `${home} vs ${away}`, score: scored ? `${home} ${outcome.home!.score}–${outcome.away!.score} ${away}` : null };
+}
+
+export function divisionSchedule(input: { calendar: readonly CalendarInput[]; contests: readonly DivisionContestInput[] }): { upcoming: TeamScheduleItem[]; results: TeamScheduleItem[] } {
+  const mirrored = new Set(input.contests.map(c => c.eventId).filter((v): v is string => !!v));
+  const zoneOfCalendar = new Map(input.calendar.map(e => [e.id, e.timezone]));
+  const items: TeamScheduleItem[] = [];
+  for (const c of input.contests) {
+    const state = contestState(c.status);
+    if (!state) continue;
+    const pair = pairing(c.outcome);
+    const label = c.round ? `${c.competitionName} · ${c.round}` : c.competitionName;
+    items.push({
+      kind: 'contest',
+      key: `contest:${c.id}`,
+      when: c.scheduledAt ?? c.playFrom,
+      allDay: !c.scheduledAt && !!c.playFrom,
+      timezone: (c.eventId ? zoneOfCalendar.get(c.eventId) : null) ?? null,
+      title: state === 'final' && pair.score ? pair.score : (pair.title ?? label),
+      opponent: null,
+      location: pair.title ? label : null,
+      href: c.href,
+      state,
+      result: null,
+    });
+  }
+  for (const e of input.calendar) {
+    if (e.status !== 'active' || mirrored.has(e.id)) continue;
+    items.push({ kind: 'calendar', key: `calendar:${e.id}`, when: e.starts_at, allDay: e.all_day, timezone: e.timezone, title: e.title, opponent: null, location: e.location, href: e.href, state: 'upcoming', result: null });
+  }
+  const at = (i: TeamScheduleItem) => (i.when ? Date.parse(i.when.length === 10 ? `${i.when}T12:00:00Z` : i.when) : Number.POSITIVE_INFINITY);
+  return {
+    upcoming: items.filter(i => i.state !== 'final').sort((a, b) => at(a) - at(b) || a.key.localeCompare(b.key)),
+    results: items.filter(i => i.state === 'final').sort((a, b) => at(b) - at(a) || a.key.localeCompare(b.key)),
+  };
+}

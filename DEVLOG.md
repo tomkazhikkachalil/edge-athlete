@@ -1,5 +1,45 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 9: divisions are editable and have pages (zero DDL)
+
+**Why (Tom):** editable divisions, and division pages with standings (convention: the public site and the app both).
+
+**Editing:**
+- `DivisionPatchSchema` (`structure/validate.ts`) takes the name, age band, stream, tier and expected-teams count; an empty optional field clears it. The sport and the season are deliberately absent, because moving either re-homes every entry.
+- `divisionPATCH` pins the division to the org (a foreign id is 404) and answers a same-season name clash with 409 (145's unique).
+- `PATCH /api/{leagues,clubs}/[id]/structure/divisions` is `manage_structure` at the DIVISION's scope, so a coach's division grant edits their own division.
+- **The console:** each division row gains **View** (its in-app page) and **Edit**. `DivisionEditForm.tsx` sends only what changed and asks before discarding unsaved edits. Its field is "Name", so the add form's "Division name" stays unique.
+- **Deferred from the plan:** the full Seasons-section extraction into its own component. That section shares state with rollover, the structure import and competitions, so moving it wholesale was more risk than PR 9 needed; the editor is its own component instead.
+
+**The reads:**
+- `src/lib/teams/division-server.ts fetchDivisionView`:
+  - the division, pinned to its org, with its season;
+  - the teams entered (identity);
+  - the standings of the competitions pinned to it (`fetchPublicStandings` gains `divisionId`);
+  - its schedule, through the pure `divisionSchedule` (`teams/schedule.ts`): division calendar events plus those competitions' contests.
+- Played games read home-first, "Comets 2–3 Blazers" (a division has no single side to read a W/L from); a calendar mirror folds into its contest.
+- The team reader's contest code became the shared `resolveOutcomes` (`schedule-server.ts`), one place for sides, masked names and scores, used by both readers.
+
+**The pages:**
+- **Public:** `/org/[slug]/divisions/[divisionId]` and the vanity twin, with `revalidate` and `generateStaticParams` (the (public) iron rules).
+  - The Divisions module gates it; a private org gets the members-only panel.
+  - `getCachedDivisionPage` keys on the division and the base path.
+  - The divisions list and widget now link each division (sample data has no id, so no link).
+- **In-app:** `/{club,league}/[id]/divisions/[divisionId]` (`DivisionPage.tsx`), reached from the team page's division line (each division there is a link now) and from the console's View.
+  - Its read is `GET /api/{leagues,clubs}/[id]/divisions/[divisionId]` (in `routes/teams.ts`, `private, no-store`).
+  - A private org's outsider or both switches off gets 404; a member reads member mode.
+  - "Edit division" appears for anyone who runs it.
+
+**Tests:**
+- Unit: `validate.test.ts` (clearing, nothing to change, no sport or season) and `schedule.test.ts` (home-first results, the mirror folds, cancelled leaves).
+- e2e `division-page.spec.ts` @mobile:
+  - the public list links to the page, which shows "Comets 2–3 Blazers" and links the teams; a foreign division 404s;
+  - in the app, team page → division line → division page (teams, the result, Edit division);
+  - PATCH: member 403, taken name 409, foreign 404;
+  - the console editor renames and sets the tier;
+  - no sideways scroll at 390 px.
+- Regressions `org-structure`, `team-page` and `team-schedule-public`: 7 passed on staging. `npm run verify` green.
+
 ## September 27, 2026 — Teams & divisions PR 8: the in-app team page and the org page's Teams tile (zero DDL)
 
 **Why (Tom):** every team gets its own page in the app (roster, schedule, results, standings), reachable from the org page.
