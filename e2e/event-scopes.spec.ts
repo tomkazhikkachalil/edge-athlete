@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Event scope polymorphism (0.9, mig 146): a TEAM-scoped event reaches only
@@ -113,6 +113,7 @@ test('event scopes: team event merges for team members only; org page lists it',
           kind: 'roster',
           scope_type: 'team',
           scope_id: teamId,
+          season_id: await rosterSeasonId(admin, leagueId),
         });
       expect(scopedRow.error, scopedRow.error?.message).toBeNull();
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import {
   adminClient,
   apiAs,
@@ -76,6 +76,7 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
         status: 'active',
         scope_type: 'team',
         scope_id: awayTeam!.id,
+        season_id: await rosterSeasonId(admin, clubId),
       },
     ]);
     const { data: comp } = await admin
@@ -181,6 +182,7 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
             status: 'active',
             scope_type: 'team',
             scope_id: awayTeam!.id,
+            season_id: await rosterSeasonId(admin, clubId),
           },
         ]);
       }

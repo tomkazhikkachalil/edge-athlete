@@ -1,5 +1,19 @@
 # Development Log
 
+## September 26, 2026 — e2e fixtures: every team roster row names its season (test only; follows 242)
+
+**Found by the teams stack's first staging batch:** migration 242's CHECK (every team roster row names its season) refused the fixture rows that TEN specs insert with the service role. Those specs fail on production too, since 242 ran there:
+- competition-relay-api, competition-meet-api, competition-meet-page
+- contest-media, contest-stat-lines
+- event-scopes, org-site-gallery, sanction-chain
+- stat-lines-import, sport-events-team-sides
+
+**The fix:**
+- `e2e/helpers/org.ts rosterSeasonId(admin, orgId)` returns the org's newest live season, or makes one. Every fixture team row now carries it (or the spec's own season). The org's teardown cascades it.
+- `roster-import.spec.ts` waits for the RESULT (the claim link, 45 s), never the name. The textarea still holds the name while the import runs, and on a slow instance the old 5 s check failed. The org teardown then deleted the org under the server's still-running import (the `memberships_org_id_fkey` line in the log was that race, not a bug).
+
+**Proof:** team-sides, contest-stat-lines, roster-import, stat-lines-import, meet-api and event-scopes all passed on staging (7 tests).
+
 ## September 26, 2026 — Hotfix: the roster import stamps the team roster's season (242 refused it; zero DDL)
 
 **Found while mapping the team-roster readers for PR 4:**

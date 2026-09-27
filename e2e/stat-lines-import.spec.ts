@@ -45,10 +45,10 @@ test('stat-line import: dry-run, ambiguous + off-roster + unknown-game rows erro
     // the home team; the owner on the away team.
     const mem = await admin.from('memberships').insert([
       { org_id: leagueId, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active', scope_type: 'org', scope_id: null },
-      { org_id: leagueId, profile_id: owner.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: awayId },
-      { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
-      { org_id: leagueId, profile_id: jose1.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
-      { org_id: leagueId, profile_id: jose2.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId },
+      { org_id: leagueId, profile_id: owner.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: awayId, season_id: season!.id },
+      { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId, season_id: season!.id },
+      { org_id: leagueId, profile_id: jose1.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId, season_id: season!.id },
+      { org_id: leagueId, profile_id: jose2.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: homeId, season_id: season!.id },
     ]);
     expect(mem.error, mem.error?.message).toBeNull();
     // The names the importer will see (full_name, else first + last).

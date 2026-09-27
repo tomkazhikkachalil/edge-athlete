@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 type View = { event: { id: string; status: string; game?: { side_names: [string, string]; side_team_ids?: [string, string] } | null }; participants: Array<{ id: string; profile_id: string; status: string; playing: boolean; role: string }>; groups: Array<{ sport_event_round_id: string; members: Array<{ participant_id: string; side?: 1 | 2 | null }> }> };
@@ -29,9 +29,10 @@ test('team sides: two org teams picked in the wizard → the rosters become the 
     const { data: teams } = await admin.from('teams').insert([{ org_id: leagueId, name: `Reds ${stamp}` }, { org_id: leagueId, name: `Blues ${stamp}` }]).select('id, name');
     const reds = teams!.find(t => (t.name as string).startsWith('Reds'))!.id as string;
     const blues = teams!.find(t => (t.name as string).startsWith('Blues'))!.id as string;
+    const rosterSeason = await rosterSeasonId(admin, leagueId); // 242: a team roster row names its season
     const roster = (profileId: string, teamId: string) => [
       { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId },
+      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId, season_id: rosterSeason },
     ];
     const { error: memberError } = await admin.from('memberships').insert([
       { org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },

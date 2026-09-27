@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contest media (phase 4, round 3): org-side library + roster-scoped
@@ -56,6 +56,7 @@ test('contest media: upload, roster tag, athlete surface, tombstone, proxy gate'
         status: 'active',
         scope_type: 'team',
         scope_id: homeTeam!.id,
+        season_id: await rosterSeasonId(admin, leagueId),
       },
       {
         org_id: clubId,
@@ -64,6 +65,7 @@ test('contest media: upload, roster tag, athlete surface, tombstone, proxy gate'
         status: 'active',
         scope_type: 'team',
         scope_id: awayTeam!.id,
+        season_id: await rosterSeasonId(admin, clubId),
       },
     ]);
     const { data: comp } = await admin

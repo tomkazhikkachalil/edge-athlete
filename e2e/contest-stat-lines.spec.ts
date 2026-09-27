@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Contest stat lines (phase 4, round 1): per-athlete stats on a fixture
@@ -63,6 +63,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
         status: 'active',
         scope_type: 'team',
         scope_id: homeTeamId,
+        season_id: await rosterSeasonId(admin, leagueId),
       },
       {
         org_id: clubId,
@@ -71,6 +72,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
         status: 'active',
         scope_type: 'team',
         scope_id: awayTeamId,
+        season_id: await rosterSeasonId(admin, clubId),
       },
     ]);
 

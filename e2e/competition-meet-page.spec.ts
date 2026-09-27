@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 /**
@@ -26,9 +26,10 @@ test('meet surfaces: add an event → enter marks → the placed line and the te
     const { data: teams } = await admin.from('teams').insert([{ org_id: leagueId, name: `Red ${stamp}` }, { org_id: leagueId, name: `Blue ${stamp}` }]).select('id, name');
     const red = teams!.find(t => (t.name as string).startsWith('Red'))!.id as string;
     const blue = teams!.find(t => (t.name as string).startsWith('Blue'))!.id as string;
+    const rosterSeason = await rosterSeasonId(admin, leagueId); // 242: a team roster row names its season
     const roster = (profileId: string, teamId: string) => [
       { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId },
+      { org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId, season_id: rosterSeason },
     ];
     await admin.from('memberships').insert([{ org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null }, ...roster(athleteA.id, red), ...roster(athleteC.id, blue)]);
     const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: '2026' }).select().single();
