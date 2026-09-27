@@ -59,6 +59,10 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   { table: 'athlete_equipment', columns: ['image_url'] },
   // Support & Reporting, Spec 3: a support request's screenshot (uploads/{user}/tickets/…).
   { table: 'tickets', columns: ['attachment_url'] },
+  // Events phase 4 (216): live event media, uploads-bucket URLs. Missing here
+  // until Sep 26 2026 — a live event's photos older than the grace period were
+  // swept unless the completion mirror had already copied them into post_media.
+  { table: 'sport_event_media', columns: ['media_url', 'thumbnail_url'] },
   // athlete_badges (icon_url) is gone: never held a row, dropped by
   // migration 199 (Sep 2026). A scan of a missing table would 42P01 and
   // the sweep rethrows on purpose — so the entry left BEFORE the drop.
@@ -112,9 +116,27 @@ export function collectSetMediaPaths(mediaValues: unknown[]): string[] {
 }
 
 /**
- * Decide whether a file may be swept: unreferenced AND older than the grace
- * period. Missing/unparseable created_at is treated as NOT sweepable —
- * age is the only guard against deleting an in-flight upload.
+ * Prefixes the sweep NEVER deletes under (Sep 26 2026). These writers store a
+ * BARE storage path — never a public URL — in a column or inside jsonb config
+ * (org_sites.logo_path; hero / contact / sponsors / page bodies and revision
+ * snapshots under org-media/; contest_media.storage_path; teams.logo_path),
+ * so URL_SOURCE_COLUMNS can never see them and every such file looked
+ * orphaned: the weekly cron deleted every org logo on production. Their own
+ * owners delete them (logo replace, the media DELETE routes). A new writer
+ * that stores a bare path adds its prefix here in the same PR —
+ * storage-sweep.test.ts reads every uploads writer and fails otherwise.
+ */
+export const PROTECTED_PREFIXES = ['org-logos/', 'org-media/', 'contest-media/', 'team-logos/'] as const;
+
+export function isProtectedPath(path: string): boolean {
+  return PROTECTED_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+
+/**
+ * Decide whether a file may be swept: not under a protected prefix,
+ * unreferenced AND older than the grace period. Missing/unparseable
+ * created_at is treated as NOT sweepable — age is the only guard against
+ * deleting an in-flight upload.
  */
 export function isSweepable(
   file: StorageFile,
@@ -122,6 +144,7 @@ export function isSweepable(
   nowMs: number,
   graceMs: number = GRACE_MS
 ): boolean {
+  if (isProtectedPath(file.path)) return false;
   if (referencedPaths.has(file.path)) return false;
   if (!file.createdAt) return false;
   const created = Date.parse(file.createdAt);

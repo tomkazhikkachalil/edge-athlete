@@ -334,6 +334,13 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   Storage decision are Tom's; the restore drill runs when staging exists.
 - Vercel WAF rule for search GETs (DEVLOG #183, still owed).
 - Resend DNS/SPF/DKIM/DMARC — every app email 550s today (`LAUNCH_RUNBOOK.md`).
+  The four records are LIVE and correct (checked Sep 26 2026); what's left is Resend's Verify.
+- **The storage sweep (Sep 26 2026):** a writer that stores a BARE storage path
+  (not a public URL) is invisible to the sweep's reference scan. Its prefix goes
+  in `PROTECTED_PREFIXES` (`src/lib/storage-sweep.ts`) in the same PR, and
+  `storage-sweep.test.ts` fails on any unclassified `.upload(`. The miss cost
+  every org logo on production. The cron is report-only (`?dryRun=1`) until a
+  dashboard dry run lists no live path.
 - ~~`reminders` cron "unscheduled"~~ — **stale note, corrected Aug 2026:** it
   is invoked every 10 minutes by Supabase **pg_cron** (migration 059:85-92),
   with `/api/cron/daily` as the idempotent safety net; `vercel.json` holds only
