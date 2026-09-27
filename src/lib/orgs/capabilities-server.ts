@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getOrgAndCapabilities, hasAnyCapability, visibleSections } from './authz';
+import { consoleLanding, getOrgAndCapabilities, hasAnyCapability, visibleSections } from './authz';
 import type { OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -40,5 +40,7 @@ export async function capabilitiesGET(
     scoped: caps.scoped,
     canEnterConsole: hasAnyCapability(caps),
     visibleSections: visibleSections(caps),
+    // Teams & divisions PR 10: 'scoped' = a coach's focused console.
+    landing: consoleLanding(caps)?.kind ?? null,
   });
 }

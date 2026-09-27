@@ -40,6 +40,7 @@ import HierarchySection from '@/components/orgs/console/HierarchySection';
 import SettingsSection from '@/components/orgs/console/SettingsSection';
 import TeamsSection from '@/components/orgs/console/TeamsSection';
 import DivisionEditForm from '@/components/orgs/console/DivisionEditForm';
+import ScopedConsole, { type ScopedGrantView } from '@/components/orgs/console/ScopedConsole';
 import { ALL_ON, sectionAllowed, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -426,6 +427,8 @@ export default function OrgConsolePage() {
   const [switches, setSwitches] = useState<OrgSwitches>(ALL_ON);
   // PR 9: the division open for editing.
   const [editDivisionId, setEditDivisionId] = useState<string | null>(null);
+  // PR 10: a coach (every grant on a team or division) gets the focused console.
+  const [scopedGrants, setScopedGrants] = useState<ScopedGrantView[] | null>(null);
   const [viewerManagesOrg, setViewerManagesOrg] = useState(false);
 
   useEffect(() => {
@@ -476,9 +479,10 @@ export default function OrgConsolePage() {
         // status is the fallback for a database/deploy without the route.
         let capsDecided = false;
         if (capsRes.ok) {
-          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[]; isOwner?: boolean; role?: string | null; admin?: boolean };
+          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[]; isOwner?: boolean; role?: string | null; admin?: boolean; landing?: 'full' | 'scoped' | null; scoped?: ScopedGrantView[] };
           if (cancelled) return;
           capsDecided = true;
+          setScopedGrants(caps.landing === 'scoped' ? (caps.scoped ?? []) : null);
           setVisibleKeys(caps.visibleSections ?? []);
           setViewerIsOwner(caps.isOwner === true);
           setViewerManagesOrg(caps.role === 'owner' || caps.role === 'manager' || caps.admin === true);
@@ -4234,6 +4238,22 @@ export default function OrgConsolePage() {
           </div>
         )}
 
+        {scopedGrants ? (
+          <ScopedConsole
+            side={side as OrgKind}
+            orgId={orgId}
+            orgName={orgName}
+            grants={scopedGrants}
+            teams={teams}
+            divisions={seasons.flatMap(season =>
+              season.divisions.map(d => ({ ...d, season_label: season.label, team_ids: d.entries.map(e => e.team_id) }))
+            )}
+            onChanged={refresh}
+            onSuccess={showSuccess}
+            onError={showError}
+          />
+        ) : (
+        <>
         <OrgSetupChecklist
           storageKey={`org-checklist:${side}:${orgId}`}
           variant={golfFirst ? 'golf' : 'default'}
@@ -4265,6 +4285,8 @@ export default function OrgConsolePage() {
           .map(key => (
             <Fragment key={key}>{sectionNodes[key]}</Fragment>
           ))}
+        </>
+        )}
 
         {/* Authority PR 5: the owner's Activity — who changed who runs this (owners only; the API decides). */}
         {viewerIsOwner && validSide && <OrgActivityCard plural={plural as 'leagues' | 'clubs'} orgId={orgId} onRestored={refresh} />}

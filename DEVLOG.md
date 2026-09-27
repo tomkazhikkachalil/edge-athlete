@@ -1,5 +1,36 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 10: the coach view (zero DDL)
+
+**Why (Tom):** a staff grant scoped to a team or a division gets a focused console, and its scope actually passes the actions it should. Until now a coach entered the full console, saw org-wide sections whose writes refused them, and could not put an event on their own team's calendar (owner / manager only).
+
+**The rules (pure, `src/lib/orgs/authz.ts`):**
+- `consoleLanding(caps)`: `full` for the ladder, an admin, or any org-wide section; `scoped` when every grant is on a team or a division; `null` for no entry. The capabilities GET now returns `landing`.
+- `scheduleScopeAllows(caps, scope)`: an event on a TEAM's or DIVISION's calendar is allowed for the scheduling grant (Competitions) or the grant that runs the scope (Teams for a team, Seasons for a division), at that scope or a parent division. The ladder and admins always.
+
+**The calendar gate (one rule, both routes):** `src/lib/calendar/scope-authz-server.ts canScheduleForScope` replaces the owner / manager-only check in the event create and edit routes.
+- An ORG-level event stays owner / manager, unchanged.
+- A team or division event also admits the staff who run it. A team's parent divisions are resolved, so a division grant covers its teams.
+- A failed read refuses.
+
+**The focused console** (`ScopedConsole.tsx`): a coach's landing replaces the checklist and the org-wide sections.
+- "What you run", plus the note that season-tied access ends at rollover.
+- One card per division they run: Edit division (PR 9's form) and Add an event.
+- One card per team they run (a team grant, or a team entered in a division they run): Roster (PR 5's panel; moves only between teams they run), Edit team (PR 6's form), Add an event, and the team page.
+- Each control shows only when the grant carries the section the server checks, and the server decides again.
+- **Add an event** is the small `ScopedEventForm.tsx`: title, date, start / end, kind, where. It POSTs the calendar's own route with the team or division scope.
+- The calendar's full event form still offers only orgs the person owns or manages. Widening it for coaches was a larger change than this needed; the coach's door is the console.
+
+**The invite:** `StaffInviteModal` preselects the section that runs the scope (Teams for a team, Seasons & divisions for a division); an untouched list follows a scope change. The dirty check compares against the preset, so an untouched invite closes quietly.
+
+**Tests:**
+- Unit: `authz.test.ts` (landing for each kind of viewer; a team coach schedules their team and not a sibling; a division's Competitions grant covers its teams).
+- e2e `coach-scope.spec.ts` @mobile (390 px):
+  - a team grant lands `scoped`; the focused console shows that team only, and no org-wide Teams section;
+  - the coach adds a rostered member and puts a practice on the team's calendar;
+  - the sibling team's roster, the sibling's calendar and an org-level event all answer 403.
+- Regressions `org-hierarchy` (the preset joins the invite), `event-scopes`, `org-calendar` and `team-roster-console`: 8 passed on staging. `npm run verify` green.
+
 ## September 27, 2026 — Teams & divisions PR 9: divisions are editable and have pages (zero DDL)
 
 **Why (Tom):** editable divisions, and division pages with standings (convention: the public site and the app both).

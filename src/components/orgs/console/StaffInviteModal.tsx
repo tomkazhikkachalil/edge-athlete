@@ -38,7 +38,11 @@ export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, i
   const plural = ORG_ROUTE_FAMILY[side];
   const [email, setEmail] = useState('');
   const [admin, setAdmin] = useState(false);
-  const [sections, setSections] = useState<OrgSection[]>([]);
+  // Teams & divisions PR 10: a coach's grant starts with the section that
+  // runs the scope — Teams for a team, Seasons & divisions for a division.
+  const presetFor = (type: string | undefined): OrgSection[] => (type === 'team' ? ['teams'] : type === 'division' ? ['seasons'] : []);
+  const initialSections = presetFor(initialScope?.type);
+  const [sections, setSections] = useState<OrgSection[]>(initialSections);
   const [scopeKey, setScopeKey] = useState<string>(initialScope ? `${initialScope.type}:${initialScope.id}` : 'org');
   const [seasonId, setSeasonId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -46,7 +50,8 @@ export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, i
   const [result, setResult] = useState<{ inviteUrl: string; emailSent: boolean; belled: boolean; summary: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const isDirty = () => !result && (email.trim() !== '' || sections.length > 0 || admin);
+  const sameSections = (a: OrgSection[], b: OrgSection[]) => a.length === b.length && a.every(x => b.includes(x));
+  const isDirty = () => !result && (email.trim() !== '' || !sameSections(sections, initialSections) || admin);
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   useEffect(() => {
@@ -166,6 +171,9 @@ export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, i
                 onChange={e => {
                   setScopeKey(e.target.value);
                   if (e.target.value !== 'org') setAdmin(false);
+                  // An untouched section list follows the scope's preset.
+                  const nextType = e.target.value === 'org' ? undefined : e.target.value.split(':')[0];
+                  setSections(cur => (cur.length === 0 || sameSections(cur, presetFor(scopeKey === 'org' ? undefined : scopeKey.split(':')[0])) ? presetFor(nextType) : cur));
                 }}
                 className="w-full max-w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface text-primary"
               >

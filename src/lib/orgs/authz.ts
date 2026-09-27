@@ -311,6 +311,28 @@ export function capabilityAllows(caps: OrgCapabilities, intent: OrgIntent, scope
   });
 }
 
+/** Teams & divisions PR 10 — where the console opens for this person:
+ *  'full' for the ladder (owner / manager), an admin, or anyone with an
+ *  org-wide section; 'scoped' when every grant they hold is on a team or a
+ *  division (a coach) — the focused console of just those; null = no entry. */
+export type ConsoleLanding = { kind: 'full' } | { kind: 'scoped'; scopes: ScopedGrant[] } | null;
+export function consoleLanding(caps: OrgCapabilities): ConsoleLanding {
+  if (isOwnerOrManager(caps.role) || caps.admin || caps.sections.length > 0) return { kind: 'full' };
+  if (caps.scoped.length > 0) return { kind: 'scoped', scopes: caps.scoped };
+  return null;
+}
+
+/** May this person put an event on a TEAM's or a DIVISION's calendar? The
+ *  scheduling grant (Competitions) or the grant that runs the scope itself —
+ *  Teams for a team (a coach schedules their practices), Seasons for a
+ *  division — at that scope or a parent division. The ladder and admins
+ *  always may. An ORG-level event stays owner / manager (the calendar
+ *  routes' own rule). */
+export function scheduleScopeAllows(caps: OrgCapabilities, scope: IntentScope): boolean {
+  if (capabilityAllows(caps, 'schedule_events', scope)) return true;
+  return capabilityAllows(caps, scope.type === 'team' ? 'manage_teams' : 'manage_structure', scope);
+}
+
 /** The profile's capabilities for one org: one read over their follow +
  *  staff rows. 42703-safe: on a pre-178 database (no `sections` column) it
  *  falls back to the ladder alone, so every existing gate keeps its exact
