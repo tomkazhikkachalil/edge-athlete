@@ -150,9 +150,10 @@ export async function POST(request: NextRequest) {
         }
       | null = null;
     if (validated.ok && hasEventScope(validated.event)) {
-      // Scope linkage (119/146): only the OWNING org's owner/manager may
-      // attach it — division/team events resolve to their org first.
-      const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
+      // Scope linkage (119/146): the OWNING org's owner/manager may attach
+      // it — division/team events resolve to their org first; since teams &
+      // divisions PR 10 the staff who run a team or division may schedule it.
+      const { canScheduleForScope, SCHEDULE_REFUSAL } = await import('@/lib/calendar/scope-authz-server');
       const admin0 = getSupabaseAdmin();
       const scope = await resolveEventScope(admin0, validated.event);
       if (!scope) {
@@ -166,12 +167,8 @@ export async function POST(request: NextRequest) {
       if (!org) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
-      const role = await getOrgRole(admin0, scope.side, scope.orgId, user.id);
-      if (!isOwnerOrManager(role)) {
-        return NextResponse.json(
-          { error: 'Only the organization\'s owner or managers can schedule its events' },
-          { status: 403 }
-        );
+      if (!(await canScheduleForScope(admin0, scope, user.id))) {
+        return NextResponse.json({ error: SCHEDULE_REFUSAL }, { status: 403 });
       }
       orgContext = {
         side: scope.side,

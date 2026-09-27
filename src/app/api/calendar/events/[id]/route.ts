@@ -244,8 +244,9 @@ export async function PATCH(
     // Scope linkage (119/146): whenever the FINAL value carries a scope,
     // the editor must be the OWNING org's owner/manager — covers attach,
     // keep, and re-home; division/team scopes resolve to their org first.
+    // Teams & divisions PR 10: the staff who run a team or division too.
     if (hasEventScope(validated.event)) {
-      const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
+      const { canScheduleForScope, SCHEDULE_REFUSAL } = await import('@/lib/calendar/scope-authz-server');
       const scope = await resolveEventScope(admin, validated.event);
       if (!scope) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
@@ -258,12 +259,8 @@ export async function PATCH(
       if (!org) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
-      const role = await getOrgRole(admin, scope.side, scope.orgId, user.id);
-      if (!isOwnerOrManager(role)) {
-        return NextResponse.json(
-          { error: "Only the organization's owner or managers can schedule its events" },
-          { status: 403 }
-        );
+      if (!(await canScheduleForScope(admin, scope, user.id))) {
+        return NextResponse.json({ error: SCHEDULE_REFUSAL }, { status: 403 });
       }
     }
 

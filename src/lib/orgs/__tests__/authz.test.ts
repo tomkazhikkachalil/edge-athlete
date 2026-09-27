@@ -15,8 +15,7 @@ import {
   visibleSections,
   type OrgCapabilities,
   type OrgIntent,
-  type OrgRole,
-} from '../authz';
+  type OrgRole, consoleLanding, scheduleScopeAllows } from '../authz';
 
 type Admin = Parameters<typeof getOrgRole>[0];
 
@@ -321,5 +320,28 @@ describe('getOrgAndRole', () => {
       status: 'error',
       error: failure,
     });
+  });
+});
+
+describe('the coach view (teams & divisions PR 10)', () => {
+  const coach = { role: 'member' as const, admin: false, sections: [], scoped: [{ scopeType: 'team' as const, scopeId: 't1', sections: ['teams' as const] }] };
+  const convener = { role: null, admin: false, sections: [], scoped: [{ scopeType: 'division' as const, scopeId: 'd1', sections: ['seasons' as const] }] };
+
+  it('consoleLanding: the ladder, admins and org-wide grants get the full console; scoped-only grants the focused one; nobody else enters', () => {
+    expect(consoleLanding({ role: 'manager', admin: false, sections: [], scoped: [] })).toEqual({ kind: 'full' });
+    expect(consoleLanding({ role: null, admin: true, sections: [], scoped: [] })).toEqual({ kind: 'full' });
+    expect(consoleLanding({ role: null, admin: false, sections: ['roster'], scoped: coach.scoped })).toEqual({ kind: 'full' });
+    expect(consoleLanding(coach)).toEqual({ kind: 'scoped', scopes: coach.scoped });
+    expect(consoleLanding({ role: 'member', admin: false, sections: [], scoped: [] })).toBeNull();
+  });
+
+  it('scheduleScopeAllows: a team coach schedules their team (and not a sibling); a division grant covers its teams', () => {
+    expect(scheduleScopeAllows(coach, { type: 'team', id: 't1' })).toBe(true);
+    expect(scheduleScopeAllows(coach, { type: 'team', id: 't2' })).toBe(false);
+    expect(scheduleScopeAllows(convener, { type: 'division', id: 'd1' })).toBe(true);
+    // A Seasons grant on a division runs the division, not its teams' rosters — but a Competitions one schedules them.
+    const scheduler = { ...convener, scoped: [{ scopeType: 'division' as const, scopeId: 'd1', sections: ['competitions' as const] }] };
+    expect(scheduleScopeAllows(scheduler, { type: 'team', id: 't9', parentDivisionIds: ['d1'] })).toBe(true);
+    expect(scheduleScopeAllows({ role: 'owner', admin: false, sections: [], scoped: [] }, { type: 'team', id: 'any' })).toBe(true);
   });
 });
