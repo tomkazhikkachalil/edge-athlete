@@ -1,5 +1,41 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 8: the in-app team page and the org page's Teams tile (zero DDL)
+
+**Why (Tom):** every team gets its own page in the app (roster, schedule, results, standings), reachable from the org page.
+
+**The reads** (`src/lib/orgs/routes/teams.ts`, one handler module plus shims):
+- `GET /api/{leagues,clubs}/[id]/teams` lists the org's active teams (identity plus the current roster count).
+- `GET …/teams/[teamId]` is one team's page: current-season roster, `fetchTeamSchedule` and the new `readTeamRecords` (`schedule-server.ts`, with the schedule's gates), `teamLook` over the club's brand, and whether the viewer may manage THIS team (`manage_teams` at its scope).
+- **The org's rules decide:**
+  - A private org's teams are for its members; an outsider gets an empty list and a 404, like a missing team.
+  - A switched-off Teams part reads empty / 404.
+  - A member reads member mode (the team's own org's private competitions); an outsider reads public mode.
+  - A manager sees full names; everyone else the public mask.
+- Both answers are viewer-dependent, so `private, no-store` (the edge-cache trap).
+
+**The tile:** the catalog's `teams` widget gains an app surface: bubble `teams`, priority 35 (after Standings), PINNED (it shows whenever the org runs teams; the switch gates it, like Photos).
+- `OrgTeams.tsx`: the face reads "N teams · first". The window lists each team with its logo or colours and "N players", each a door to its page.
+- `?window=teams` deep-links it.
+- The recorded registry order, the composition interleave tests, the pinned-surfaces test and the e2e helper's window keys all name it now (eleven windows).
+
+**The page:** `/{club,league}/[id]/teams/[teamId]`, nested under the org route family (no new root slugs), is the shared `src/components/teams/TeamPage.tsx`.
+- A back link to the org, then the header: logo or colour mark, sport, divisions, and "Manage team" (the console's Teams section) for anyone who runs it.
+- Four tabs: Roster (with the Minor chip), Schedule and Results (PR 7's `TeamScheduleList`), Standings. `?tab=` deep-links each; a tab switch updates the URL in place.
+- It wears the team's colours inside the org page's own scope (`org-app-scope`, the dark-theme text colour chosen the same way).
+- A missing or hidden team is a "Team not found" screen with the way back.
+- 375 px: the tabs scroll inside their own strip.
+
+**Tests:**
+- Unit: the layout, composition and registry tests are updated for the pinned Teams tile.
+- e2e `team-page.spec.ts` @mobile:
+  - tile → window ("1 player") → the team page in the team's colours with "Manage team";
+  - Results shows "W 3–2" from a PRIVATE club fixture (member mode); Roster, Standings, and the `?tab=` deep link;
+  - a private club's outsider gets `[]` and a 404, while the owner still sees the private game;
+  - teams off gives an empty list and a 404;
+  - no sideways scroll at 390 px.
+- Regressions `org-page-glance`, `org-switches-site` and `org-app-gallery`: 8 passed on staging. `npm run verify` green.
+
 ## September 27, 2026 — Teams & divisions PR 7: a team's whole schedule and results; the public team page wears the team (zero DDL; uses 242's link table)
 
 **Why (Tom):** a team's page shows its full schedule and results: calendar events, competition games and events it plays. Until now the public team page listed only calendar events scoped to the team, and a contest's calendar mirror is scoped to its division or org, never the team. So a team's actual games never appeared.

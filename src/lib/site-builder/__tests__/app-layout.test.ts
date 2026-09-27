@@ -8,6 +8,8 @@ const RECORDED = [
   { key: 'members', bubbleKey: 'members', span: 'sm' },
   { key: 'week', bubbleKey: 'week', span: 'md' },
   { key: 'standings', bubbleKey: 'standings', span: 'md' },
+  // Teams & divisions PR 8: the Teams tile (priority 35, pinned).
+  { key: 'teams', bubbleKey: 'teams', span: 'sm' },
   { key: 'schedule', bubbleKey: 'events', span: 'sm' },
   { key: 'news', bubbleKey: 'news', span: 'sm' },
   { key: 'announcements', bubbleKey: 'announcements', span: 'sm' },
@@ -20,7 +22,7 @@ const RECORDED = [
 
 // e2e/helpers/org-page.ts OrgWindowKey — the ten windows the grid hosts.
 const HELPER_WINDOW_KEYS = [
-  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos',
+  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos', 'teams',
 ];
 
 describe('deriveAppLayout', () => {
@@ -66,7 +68,7 @@ describe('deriveAppLayout', () => {
     expect(slots.filter(s => s.ownsWindow).map(s => s.key)).toEqual(['posts']);
   });
 
-  it('APP_WINDOW_KEYS is the e2e helper’s ten window keys', () => {
+  it('APP_WINDOW_KEYS is the e2e helper’s eleven window keys', () => {
     expect([...APP_WINDOW_KEYS].sort()).toEqual([...HELPER_WINDOW_KEYS].sort());
     expect(isOrgWindowKey('photos')).toBe(true);
     expect(isOrgWindowKey('posts')).toBe(false);

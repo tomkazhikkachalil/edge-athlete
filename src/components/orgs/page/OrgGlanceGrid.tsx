@@ -12,6 +12,7 @@ import {
   Link2,
   Megaphone,
   Newspaper,
+  Shield,
   Trophy,
   Users,
   type LucideIcon,
@@ -36,6 +37,7 @@ import OrgContentTile from './OrgContentTile';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
+import { pickTeams, TeamsWindow } from './OrgTeams';
 import { SIDE_COPY } from './side-copy';
 import type { OrgPageController } from './useOrgPage';
 import type { MemberRow } from './types';
@@ -253,6 +255,9 @@ export default function OrgGlanceGrid({
   // R4: the gallery — a public org's for everyone, a private org's for
   // members (the route decides; a 403 reads as nothing here).
   const photos = useOrgRead(`${base}/gallery`, pickPhotos, true, reloadKey);
+  // Teams & divisions PR 8: the org's teams (the route applies the org's rules
+  // and the Teams switch; the tile itself is gated by deriveAppLayout).
+  const teams = useOrgRead(switches.teams ? `${base}/teams` : null, pickTeams, switches.teams, reloadKey);
 
   // A window's mutations (roles, roster, affiliations) change the faces —
   // refetch them when it closes, the same refetch-on-success discipline.
@@ -408,6 +413,15 @@ export default function OrgGlanceGrid({
               : <PhotosEmptyFace read={photos} canManage={canManage} consolePath={consolePath} />,
           }
         : null,
+    teams: () =>
+      teams && show(teams.count)
+        ? {
+            key: 'teams', icon: Shield, label: 'Teams', open: true,
+            face: teams.count > 0
+              ? <Face big={teams.count} sub={teams.count === 1 ? (teams.first ?? 'team') : `teams · ${teams.first ?? ''}`} />
+              : <Face big={0} sub="teams">{emptyLink('Add a team inside →', '#teams')}</Face>,
+          }
+        : null,
     affiliations: () => {
       const affCount = (affiliations?.count ?? 0) + (chain?.count ?? 0);
       const affManager = !!affiliations?.manager || !!chain?.manager;
@@ -469,6 +483,8 @@ export default function OrgGlanceGrid({
         return <OrgRecentActivity side={side} orgId={orgId} bare />;
       case 'photos':
         return photos ? <PhotosWindow read={photos} /> : null;
+      case 'teams':
+        return teams ? <TeamsWindow side={side} orgId={orgId} read={teams} /> : null;
       case 'affiliations':
         return (
           <div className="space-y-6">
