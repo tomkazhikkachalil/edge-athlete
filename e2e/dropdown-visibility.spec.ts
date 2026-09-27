@@ -133,48 +133,74 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
   });
 
   test('golf course picker in the composer', async ({ page }) => {
-    for (const viewport of [WIDE, NARROW]) {
-      await page.setViewportSize(viewport);
-      await page.goto('/feed');
-      await page.getByRole('button', { name: /what's on your mind/i }).click();
+    // The spec types ONE letter, so the catalog must hold a course with a
+    // word starting with it. Production's does (the OSM import); staging was
+    // built from the schema alone and held only QA fixtures, none with an
+    // "a" word — the list never opened (Sep 27 2026). Seed our own, named so
+    // "a" finds it, and remove it after; the seed/qa- external id is the
+    // staging sweep's course rule if a crashed run leaves it behind.
+    const admin = adminClient();
+    const stamp = Date.now();
+    const { data: seeded, error: seedError } = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'seed',
+        external_id: `qa-dropdown-${stamp}`,
+        name: `Alder QA Dropdown Links ${stamp}`,
+        total_par: 36,
+        holes_count: 9,
+        section_kind: 'nine',
+        hole_data: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: 4, yardage: { white: 350 }, handicap: i + 1 })),
+      })
+      .select('id')
+      .single();
+    expect(seedError).toBeNull();
+    try {
+      for (const viewport of [WIDE, NARROW]) {
+        await page.setViewportSize(viewport);
+        await page.goto('/feed');
+        await page.getByRole('button', { name: /what's on your mind/i }).click();
 
-      // The sport selector is a z-[60] overlay ON TOP of the composer, so an
-      // unscoped /golf/i can resolve to a covered element underneath.
-      await page.getByRole('button', { name: /general post/i }).click();
-      const sportSelector = page.locator('div[class*="z-[60]"]');
-      await sportSelector.getByPlaceholder('Search sports...').fill('golf');
-      await sportSelector.getByRole('button', { name: /golf/i }).first().click();
+        // The sport selector is a z-[60] overlay ON TOP of the composer, so an
+        // unscoped /golf/i can resolve to a covered element underneath.
+        await page.getByRole('button', { name: /general post/i }).click();
+        const sportSelector = page.locator('div[class*="z-[60]"]');
+        await sportSelector.getByPlaceholder('Search sports...').fill('golf');
+        await sportSelector.getByRole('button', { name: /golf/i }).first().click();
 
-      const course = page.getByPlaceholder(/search for a golf course/i);
-      await expect(course).toBeVisible();
-      await course.click();
-      await course.fill('a');
+        const course = page.getByPlaceholder(/search for a golf course/i);
+        await expect(course).toBeVisible();
+        await course.click();
+        await course.fill('a');
 
-      const list = 'div.absolute.max-h-60.overflow-y-auto';
-      await expect(page.locator(`${list} button`).first()).toBeVisible({ timeout: 10_000 });
-      await assertSuggestionsUsable(page, {
-        listSelector: list,
-        rowSelector: 'button',
-        label: `golf course @ ${viewport.width}px`,
-      });
+        const list = 'div.absolute.max-h-60.overflow-y-auto';
+        await expect(page.locator(`${list} button`).first()).toBeVisible({ timeout: 10_000 });
+        await assertSuggestionsUsable(page, {
+          listSelector: list,
+          rowSelector: 'button',
+          label: `golf course @ ${viewport.width}px`,
+        });
 
-      // The composer must still scroll while the dropdown is open. This is the
-      // regression from #157: a `fixed inset-0` click-catcher chained scroll to
-      // a body-scroll-locked document and froze the whole modal.
-      const scrolls = await page.evaluate(() => {
-        const sc = [...document.querySelectorAll('div')].find(
-          d => d.scrollHeight > d.clientHeight + 40 && /overflow-y-auto/.test(d.className)
-        );
-        if (!sc) return null;
-        const start = sc.scrollTop;
-        sc.scrollTop = start + 120;
-        const moved = sc.scrollTop !== start;
-        sc.scrollTop = start;
-        return moved;
-      });
-      expect(scrolls, `composer stopped scrolling with the course dropdown open @ ${viewport.width}px`).toBe(true);
+        // The composer must still scroll while the dropdown is open. This is the
+        // regression from #157: a `fixed inset-0` click-catcher chained scroll to
+        // a body-scroll-locked document and froze the whole modal.
+        const scrolls = await page.evaluate(() => {
+          const sc = [...document.querySelectorAll('div')].find(
+            d => d.scrollHeight > d.clientHeight + 40 && /overflow-y-auto/.test(d.className)
+          );
+          if (!sc) return null;
+          const start = sc.scrollTop;
+          sc.scrollTop = start + 120;
+          const moved = sc.scrollTop !== start;
+          sc.scrollTop = start;
+          return moved;
+        });
+        expect(scrolls, `composer stopped scrolling with the course dropdown open @ ${viewport.width}px`).toBe(true);
 
-      await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+      }
+    } finally {
+      await admin.from('golf_courses').delete().eq('id', seeded!.id);
     }
   });
 });
