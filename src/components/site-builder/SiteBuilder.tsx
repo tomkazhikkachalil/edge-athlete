@@ -786,6 +786,12 @@ function Editor({
                   setSettingsOpen(false);
                 }}
                 onDirtyChange={reportSettingsDirty}
+                onSiteChanged={() => refreshSite()}
+                onFlush={async () => {
+                  const settled = await draft.flush();
+                  return settled.status === 'saved' || settled.status === 'idle';
+                }}
+                onReload={onReload}
                 showError={showError}
                 showSuccess={showSuccess}
               />
@@ -871,6 +877,12 @@ function Editor({
                     setSettingsOpen(false);
                   }}
                   onDirtyChange={reportSettingsDirty}
+                  onSiteChanged={() => refreshSite()}
+                  onFlush={async () => {
+                    const settled = await draft.flush();
+                    return settled.status === 'saved' || settled.status === 'idle';
+                  }}
+                  onReload={onReload}
                   showError={showError}
                   showSuccess={showSuccess}
                 />

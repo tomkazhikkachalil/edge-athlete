@@ -14,6 +14,9 @@ import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { applyOrder, displayOrder, displayString, instanceDisplay, orderItems } from '@/lib/site-builder/display';
 import ReorderList from './ReorderList';
 import SponsorsField, { readSponsorDrafts, sponsorsPayload, type SponsorDraft } from './SponsorsField';
+import DocumentsField from './DocumentsField';
+import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
+import { documentsPayload, readDocumentDrafts, type DocumentDraft } from '@/lib/site-builder/documents-draft';
 import type { ContentPreview } from '@/lib/site-builder/content-preview';
 import { CONTACT_FIELD_LABELS, contactRenderOrder, type ContactFieldKey } from '@/lib/site-builder/display';
 import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib/site-builder/embeds';
@@ -79,10 +82,12 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
   const displayFields = fields.filter((f): f is Extract<FieldSpec, { kind: 'display' }> => f.kind === 'display');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' | 'display' | 'sponsors' }> => f.scope === 'content' && f.kind !== 'sponsors');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' | 'display' | 'sponsors' | 'documents' }> => f.scope === 'content' && f.kind !== 'sponsors' && f.kind !== 'documents');
   // Program 3, D2: the sponsors list — a content editor of its own, saved
   // whole through set_sponsors with the panel's "Save content".
   const sponsorsField = fields.find((f): f is Extract<FieldSpec, { kind: 'sponsors' }> => f.kind === 'sponsors') ?? null;
+  // H1: the documents list — saved whole through set_documents, like sponsors.
+  const documentsField = fields.find((f): f is Extract<FieldSpec, { kind: 'documents' }> => f.kind === 'documents') ?? null;
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -137,6 +142,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   // id}, so switching tiles reseeds; a save writes exactly what is typed.
   const [content, setContent] = useState<Record<string, string>>(seed);
   const [sponsors, setSponsors] = useState<SponsorDraft[]>(() => (sponsorsField ? readSponsorDrafts(contentConfigFor(site, key)) : []));
+  const [documents, setDocuments] = useState<DocumentDraft[]>(() => (documentsField ? readDocumentDrafts(contentConfigFor(site, key)) : []));
   // H3: the contact card's field order (the reorder control; saved with the card).
   const storedOrder = () => {
     const raw = contentConfigFor(site, key).order;
@@ -209,7 +215,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   };
   const sponsorsDirty = !!sponsorsField && JSON.stringify(sponsorsPayload(sponsors)) !== JSON.stringify(sponsorsPayload(readSponsorDrafts(contentConfigFor(site, key))));
   const orderDirty = key === 'contact' && JSON.stringify(contactOrder) !== JSON.stringify(storedOrder());
-  const dirty = sponsorsDirty || orderDirty || contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
+  const documentsDirty = !!documentsField && JSON.stringify(documentsPayload(documents)) !== JSON.stringify(documentsPayload(readDocumentDrafts(contentConfigFor(site, key))));
+  const dirty = sponsorsDirty || documentsDirty || orderDirty || contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -222,6 +229,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       const payload: Record<string, unknown> = { action };
       // D2: the sponsors list is the whole payload.
       if (sponsorsField) payload.sponsors = sponsorsPayload(sponsors);
+      // H1: so is the documents list.
+      if (documentsField) payload.documents = documentsPayload(documents);
       // Whole-object replace: every field the console's form used to send is
       // on this panel now (P10-C parity), so nothing is carried over blind.
       // 'address' → its non-empty lines (≤ 3); 'social.x' → nested.
@@ -302,6 +311,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       case 'number':
       case 'display':
       case 'sponsors':
+      case 'documents':
       case 'choice':
         return null; // query, display, the sponsors list and content choices render in their own fieldsets
       default: {
@@ -505,7 +515,21 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         </fieldset>
       )}
 
-      {(contentFields.length > 0 || sponsorsField) && (
+      {/* H1 (Sep 27 2026): the gallery's member-photo picks live on its panel
+          now (one home) — each pick is a draft write the editor adopts. */}
+      {key === 'gallery' && (
+        <fieldset className="space-y-2 border-t border-border pt-4" data-sb-gallery-picks="">
+          <legend className="text-xs font-medium text-secondary">Photos</legend>
+          <MemberPhotoPicker
+            side={plural === 'leagues' ? 'league' : 'club'}
+            orgId={orgId}
+            onError={message => showError('Website', message)}
+            onChanged={rev => void onContentSaved(rev)}
+          />
+        </fieldset>
+      )}
+
+      {(contentFields.length > 0 || sponsorsField || documentsField) && (
         <fieldset className="space-y-3 border-t border-border pt-4">
           <legend className="text-xs font-medium text-secondary">Content</legend>
           {sponsorsField && (
@@ -513,6 +537,13 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
               <p className={LABEL}>{sponsorsField.label}</p>
               <SponsorsField idBase={`sb-${widget.id}-sponsor`} siteId={site.id} plural={plural} orgId={orgId} sponsors={sponsors} onChange={updateSponsors} showError={showError} onUploaded={trackUpload} onRemoved={reclaim} />
               {sponsorsField.help && <p className="mt-1 text-xs text-tertiary">{sponsorsField.help}</p>}
+            </div>
+          )}
+          {documentsField && (
+            <div>
+              <p className={LABEL}>{documentsField.label}</p>
+              <DocumentsField idBase={`sb-${widget.id}-document`} plural={plural} orgId={orgId} documents={documents} onChange={setDocuments} showError={showError} onUploaded={trackUpload} onRemoved={reclaim} />
+              {documentsField.help && <p className="mt-1 text-xs text-tertiary">{documentsField.help}</p>}
             </div>
           )}
           {contentFields.map(f =>

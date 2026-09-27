@@ -23,10 +23,14 @@ export default function MemberPhotoPicker({
   side,
   orgId,
   onError,
+  onChanged,
 }: {
   side: OrgKind;
   orgId: string;
   onError: (message: string) => void;
+  /** H1 (Sep 27 2026): a pick is a DRAFT write that bumps the draft's rev —
+   *  the site editor adopts it (and re-reads) so its autosave never 409s. */
+  onChanged?: (rev: number | null) => void;
 }) {
   const plural = ORG_ROUTE_FAMILY[side];
   const [items, setItems] = useState<Candidate[] | null>(null);
@@ -68,12 +72,13 @@ export default function MemberPhotoPicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: c.picked ? 'remove_gallery_pick' : 'set_gallery_pick', mediaId: c.mediaId }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as { error?: string; draft?: { rev?: number } | null };
       if (!res.ok) {
         onError(body.error || 'Failed to update the gallery');
         return;
       }
       setItems(list => (list ?? []).map(x => (x.mediaId === c.mediaId ? { ...x, picked: !c.picked } : x)));
+      onChanged?.(typeof body.draft?.rev === 'number' ? body.draft.rev : null);
       void load();
     } catch {
       onError('Failed to update the gallery');
