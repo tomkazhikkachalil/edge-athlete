@@ -62,7 +62,7 @@ export function parseRosterImport(text: string): RosterImportParse {
 
 // ── Orchestration (PR-B) ────────────────────────────────────────────────────
 
-import { pickRosterSeason, type SeasonCandidate } from '@/lib/teams/roster';
+import { resolveTeamSeason } from '@/lib/teams/roster-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
@@ -114,16 +114,7 @@ export async function importRoster(
   // without — every import onto a team failed from the moment 242 ran until
   // this). The team's newest live entered season, else the org's newest live
   // one; none → refused BEFORE any stub account is made.
-  const [{ data: seasons }, { data: entries }] = await Promise.all([
-    admin.from('seasons').select('id, archived_at, created_at').eq(ORG_ID, input.orgId),
-    admin.from('team_entries').select('division:divisions(season_id)').eq('team_id', input.teamId),
-  ]);
-  const teamSeasonIds = new Set(
-    ((entries ?? []) as { division: { season_id: string } | { season_id: string }[] | null }[])
-      .flatMap(e => (Array.isArray(e.division) ? e.division : e.division ? [e.division] : []))
-      .map(d => d.season_id)
-  );
-  const seasonId = pickRosterSeason((seasons ?? []) as SeasonCandidate[], teamSeasonIds);
+  const seasonId = await resolveTeamSeason(admin, input.orgId, input.teamId);
   if (!seasonId) return { ok: false, reason: 'no_season' };
 
   const report: ImportReportRow[] = [];

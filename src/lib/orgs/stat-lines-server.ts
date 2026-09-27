@@ -25,6 +25,7 @@
 // friendly error. Pre-157 databases degrade: reads answer empty with
 // linesAvailable:false, writes answer a friendly error.
 
+import { currentTeamRosterProfileIds } from '@/lib/teams/roster-server';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
@@ -94,27 +95,14 @@ export async function resolveCompetitionAccess(
   return clubTeamIds.size > 0 ? { authority: 'participant', clubTeamIds } : null;
 }
 
-/** ACTIVE-ROSTER profile ids per team — THE attribution edge. */
+/** CURRENT-ROSTER profile ids per team — THE attribution edge. The one
+ *  reader (teams & divisions, PR 4): this season's players only, so a player
+ *  who left a team last season is never credited with its stat line. */
 export async function rosterByTeam(
   admin: Admin,
   teamIds: string[]
 ): Promise<Map<string, Set<string>>> {
-  const map = new Map<string, Set<string>>();
-  if (teamIds.length === 0) return map;
-  const { data } = await admin
-    .from('memberships')
-    .select('profile_id, scope_id')
-    .eq('kind', 'roster')
-    .eq('status', 'active')
-    .eq('scope_type', 'team')
-    .in('scope_id', teamIds)
-    .limit(1000);
-  for (const row of data ?? []) {
-    const teamId = row.scope_id as string;
-    if (!map.has(teamId)) map.set(teamId, new Set());
-    map.get(teamId)!.add(row.profile_id as string);
-  }
-  return map;
+  return currentTeamRosterProfileIds(admin, teamIds);
 }
 
 /** Everything the player-stats surface needs for one competition, in one
