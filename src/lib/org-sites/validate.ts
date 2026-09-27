@@ -248,6 +248,10 @@ export const SEO_TITLE_MAX = 60;
 export const SEO_DESCRIPTION_MAX = 160;
 export const FOOTER_TEXT_MAX = 200;
 export const FOOTER_LINKS_MAX = 6;
+/** L3 (Sep 27 2026): where the sponsors' logos run as a site-wide strip —
+ *  nowhere (today), above the footer, or under the header. */
+export const FOOTER_SPONSOR_BARS = ['off', 'footer', 'header'] as const;
+export type FooterSponsorBar = (typeof FOOTER_SPONSOR_BARS)[number];
 export const FOOTER_LINK_LABEL_MAX = 40;
 
 /** Program 2, B (Sep 11 2026): a custom page's place in the header rides
@@ -804,6 +808,7 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     text: optionalTrimmed(FOOTER_TEXT_MAX),
     links: z.array(z.object({ label: boundedTrimmed(FOOTER_LINK_LABEL_MAX), url: httpsUrl })).max(FOOTER_LINKS_MAX).optional(),
     showSocials: z.boolean().optional(),
+    sponsorBar: z.enum(FOOTER_SPONSOR_BARS).optional(),
   }),
   z.object({
     action: z.literal('set_sponsors'),
@@ -1135,6 +1140,8 @@ export interface FooterConfig {
   links: { label: string; url: string }[];
   /** Render the contact card's social links in the footer. */
   showSocials: boolean;
+  /** L3: the site-wide sponsor strip — 'off' unless the manager places it. */
+  sponsorBar: FooterSponsorBar;
 }
 
 export function parseSeoConfig(raw: unknown): SeoConfig {
@@ -1162,5 +1169,6 @@ export function parseFooterConfig(raw: unknown): FooterConfig {
     text: typeof r.text === 'string' && r.text.trim() ? r.text.trim().slice(0, FOOTER_TEXT_MAX) : null,
     links,
     showSocials: r.showSocials === true,
+    sponsorBar: typeof r.sponsorBar === 'string' && (FOOTER_SPONSOR_BARS as readonly string[]).includes(r.sponsorBar) ? (r.sponsorBar as FooterSponsorBar) : 'off',
   };
 }

@@ -473,6 +473,9 @@ describe('seo + footer + icon (program 2, C)', () => {
     expect(footer.footer).toEqual({ text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com' }], showSocials: true });
     expect(footer.seo).toEqual(seo.seo); // untouched
     expect(applySiteAction(footer, patch({ action: 'set_footer', showSocials: false }), ctx)).not.toHaveProperty('footer');
+    // L3: the sponsor strip rides the footer; 'off' is absence (today's footer).
+    expect(applySiteAction(s, patch({ action: 'set_footer', sponsorBar: 'header' }), ctx).footer).toEqual({ sponsorBar: 'header' });
+    expect(applySiteAction(s, patch({ action: 'set_footer', sponsorBar: 'off' }), ctx)).not.toHaveProperty('footer');
     const withIcon = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', iconPath: `org-media/${SITE2}/icon.png` }), ctx);
     expect(withIcon.theme.iconPath).toBe(`org-media/${SITE2}/icon.png`);
     const kept = applySiteAction(withIcon, patch({ action: 'set_theme', accent: '#0f766e' }), ctx);

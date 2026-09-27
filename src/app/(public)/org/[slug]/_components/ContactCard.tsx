@@ -6,6 +6,7 @@ import {
   type PublicContact,
 } from '@/lib/org-sites/validate';
 import { contactRenderOrder, type ContactFieldKey } from '@/lib/site-builder/display';
+import SocialIcon from './SocialIcon';
 
 // The contact card (phase 3 R3; the golf club's fields in 6e S1). Program
 // 3, D1b: `variant` — stacked (today), one line of links (`inline`), or
@@ -62,7 +63,13 @@ export default function ContactCard({ contact, variant = 'card', showSocials = t
         <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Social links">
           {socials.map(n => (
             <li key={n} className="text-sm">
-              {link(contact.social![n]!, SOCIAL_LABELS[n])}
+              {link(
+                contact.social![n]!,
+                <span className="inline-flex items-center gap-1.5">
+                  <SocialIcon network={n} size={16} labelled={false} />
+                  {SOCIAL_LABELS[n]}
+                </span>
+              )}
             </li>
           ))}
         </ul>

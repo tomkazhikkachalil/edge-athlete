@@ -9,6 +9,7 @@ import {
   FOOTER_LINKS_MAX,
   FOOTER_LINK_LABEL_MAX,
   FOOTER_TEXT_MAX,
+  type FooterSponsorBar,
   SEO_DESCRIPTION_MAX,
   SEO_TITLE_MAX,
   parseFooterConfig,
@@ -54,6 +55,7 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
   const [text, setText] = useState(footer0.text ?? '');
   const [links, setLinks] = useState<FooterLink[]>(footer0.links);
   const [showSocials, setShowSocials] = useState(footer0.showSocials);
+  const [sponsorBar, setSponsorBar] = useState<FooterSponsorBar>(footer0.sponsorBar);
   const [iconPath, setIconPath] = useState<string | null>(icon0);
   const [saving, setSaving] = useState(false);
 
@@ -65,6 +67,7 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
     text.trim() !== (footer0.text ?? '') ||
     JSON.stringify(cleanLinks) !== JSON.stringify(footer0.links) ||
     showSocials !== footer0.showSocials ||
+    sponsorBar !== footer0.sponsorBar ||
     iconPath !== icon0;
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -82,7 +85,7 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
     setSaving(true);
     try {
       await patch({ action: 'set_seo', ...(title.trim() ? { title: title.trim() } : {}), ...(description.trim() ? { description: description.trim() } : {}), ...(imagePath ? { imagePath } : {}) });
-      await patch({ action: 'set_footer', ...(text.trim() ? { text: text.trim() } : {}), links: cleanLinks, showSocials });
+      await patch({ action: 'set_footer', ...(text.trim() ? { text: text.trim() } : {}), links: cleanLinks, showSocials, sponsorBar });
       if (iconPath !== icon0) {
         // The icon rides the theme token set: send the tokens as they are
         // (the design keys carry over on the server) plus the icon.
@@ -163,6 +166,18 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           Show social links
         </label>
         <p className="text-xs text-tertiary">The links from your contact card. “Powered by Edge Athlete” stays on every site.</p>
+        {/* L3: the sponsors' logos as a strip on every page (the Sponsors section's list, by tier). */}
+        <div>
+          <label className={LABEL} htmlFor="sb-sponsor-bar">
+            Sponsor bar
+          </label>
+          <select id="sb-sponsor-bar" value={sponsorBar} onChange={e => setSponsorBar(e.target.value as FooterSponsorBar)} className={INPUT} data-sb-sponsor-bar="">
+            <option value="off">Off</option>
+            <option value="footer">Above the footer</option>
+            <option value="header">Under the header</option>
+          </select>
+          <p className="mt-1 text-xs text-tertiary">Your sponsors’ logos on every page, top tier first. Edit them in the Sponsors section.</p>
+        </div>
       </fieldset>
 
       <fieldset className="space-y-3 border-t border-border pt-4">

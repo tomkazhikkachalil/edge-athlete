@@ -500,6 +500,8 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
         ...(input.text ? { text: input.text } : {}),
         ...(input.links && input.links.length ? { links: input.links } : {}),
         ...(input.showSocials ? { showSocials: true } : {}),
+        // L3: absent when off (a footer without a bar equals today's).
+        ...(input.sponsorBar && input.sponsorBar !== 'off' ? { sponsorBar: input.sponsorBar } : {}),
       });
     case 'remove_page': {
       if (!s.pages?.[input.pageId]) return s;
