@@ -302,7 +302,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       case 'number':
       case 'display':
       case 'sponsors':
-        return null; // query, display and the sponsors list render in their own fieldsets
+      case 'choice':
+        return null; // query, display, the sponsors list and content choices render in their own fieldsets
       default: {
         const value = str(config, f.name);
         return (
@@ -536,7 +537,21 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
               <label className={LABEL} htmlFor={`sb-${widget.id}-${f.name}`}>
                 {f.label}
               </label>
-              {f.kind === 'textarea' ? (
+              {f.kind === 'choice' ? (
+                <select
+                  id={`sb-${widget.id}-${f.name}`}
+                  value={content[f.name] || f.options[0]![0]}
+                  onChange={e => patchContent(f.name, e.target.value === f.options[0]![0] ? '' : e.target.value)}
+                  className={INPUT}
+                  data-sb-content={f.name}
+                >
+                  {f.options.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              ) : f.kind === 'textarea' ? (
                 <textarea
                   id={`sb-${widget.id}-${f.name}`}
                   rows={3}

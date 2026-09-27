@@ -15,6 +15,16 @@
 export interface BannerHero {
   notice?: string;
   noticeUntil?: string;
+  /** L4: the standing notice's tone (absent = 'warning') and "More" link. */
+  noticeTone?: 'info' | 'alert';
+  noticeHref?: string;
+}
+
+export interface Banner {
+  text: string;
+  tone: 'warning' | 'info' | 'alert';
+  /** An https link (validated by parseHeroConfig), or null. */
+  href: string | null;
 }
 
 export interface BannerNotice {
@@ -23,11 +33,13 @@ export interface BannerNotice {
   noticeUntil: string | null;
 }
 
-/** The band's text today, or null. `notices` newest first (the reader's order). */
-export function activeBanner(hero: BannerHero, notices: readonly BannerNotice[], today: string): string | null {
+/** The band today, or null. `notices` newest first (the reader's order). An
+ *  announcement speaks in today's amber and links to nothing; the standing
+ *  notice carries the manager's tone and link (L4). */
+export function activeBanner(hero: BannerHero, notices: readonly BannerNotice[], today: string): Banner | null {
   const announced = notices.find(n => !!n.title && !!n.noticeUntil && today <= n.noticeUntil);
-  if (announced) return announced.title;
+  if (announced) return { text: announced.title, tone: 'warning', href: null };
   if (!hero.notice) return null;
   if (hero.noticeUntil && today > hero.noticeUntil) return null;
-  return hero.notice;
+  return { text: hero.notice, tone: hero.noticeTone ?? 'warning', href: hero.noticeHref ?? null };
 }
