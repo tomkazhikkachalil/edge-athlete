@@ -1,5 +1,35 @@
 # Development Log
 
+## September 27, 2026 — Teams & divisions PR 5: the console's team roster panel; the Teams section is its own component (zero DDL)
+
+**The PRs 0–4 production run first** (main e1d072ed, #947 / #943 / #944 / #946 merged; #942's baseline at 242 merged after):
+- 20 spec files on desktop, mobile and webkit-mobile: **42 passed, 1 flaky, 0 failed**.
+- The flaky one was `competition-relay-api`'s first attempt, the first spec after the deploy, which hit its 150 s timeout cold and passed on the retry.
+- Covered: the switches (console, site, org page), the team roster API, the wizard request specs, the console structure, the roster import, the ten repaired fixture specs, the org calendar and the guardian console.
+
+**Why PR 5:** PR 4 shipped the team roster API, but a manager had no screen for it. The console listed teams, not who is on them.
+
+**The extraction:** the Teams section moved out of the 4,400-line console page into `src/components/orgs/console/TeamsSection.tsx`.
+- It takes the team add, archive / restore, and the per-team roster import with its claim links, plus their state and helpers. The page keeps `act` for its other sections.
+- The JSX was lifted byte for byte, so every label the specs read is unchanged ("Team name", "Add team", "Import roster", "Roster import lines", "Claim link for …", "Archive" / "Restore"), and `org-structure` and `roster-import` pass untouched.
+
+**The roster panel** (`TeamRosterPanel.tsx`) opens inline on each ACTIVE team's new "Roster" toggle (`aria-expanded`), and reads `GET …/teams/[teamId]/roster?candidates=1`.
+- **Who is on the team now,** A–Z, with a Minor chip:
+  - **Move** is a select of the other active teams.
+  - **Remove** goes through the house `ConfirmModal`: "Take {name} off {team}? Past results stay on the record."
+- **Add a member:** a name filter over the candidates (`src/lib/teams/roster-view.ts filterCandidates`: roster members can be added now; the rest need the invite).
+  - A member already on the org roster gets "Add".
+  - One who isn't gets "Not on your roster yet" and "Invite to roster", the existing org roster offer (a minor's guardian approves). The row then says the add opens once they accept.
+- **After any change:** the panel re-reads, a toast confirms, and refusals show the server's own words. A move re-mounts the panel, because both teams changed.
+- The load reports errors through a ref, so a parent's fresh callback never re-runs the fetch.
+- **Phone width:** one column, 44 px targets, the filter full width.
+
+**Tests:**
+- Unit: `roster-view.test.ts` (the split, a case-insensitive filter, A–Z, no mutation).
+- e2e: `team-roster-console.spec.ts` @mobile (390 px, Chromium and WebKit): add from the candidates; invite a non-rostered member (the pending offer in the DB); move to the other team; remove with the confirm. No sideways scroll.
+- Regressions: `org-structure`, `roster-import` and `org-switches-console` pass on staging (6 passed).
+- `npm run verify` green.
+
 ## September 26, 2026 — Teams & divisions PR 4: the team roster core — one writer, one current-season reader (zero DDL; stacked on PR 3)
 
 **Why (Tom):** a manager puts EXISTING members on teams, moves them and takes them off. Every team roster row names its season (242), so last season's players stop counting. Until now a team roster came only from the CSV import (new stub athletes) or a registration placement, and every reader ignored the season.

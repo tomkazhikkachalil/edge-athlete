@@ -38,6 +38,7 @@ import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import OrgActivityCard from '@/components/orgs/OrgActivityCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import SettingsSection from '@/components/orgs/console/SettingsSection';
+import TeamsSection from '@/components/orgs/console/TeamsSection';
 import { ALL_ON, sectionAllowed, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -223,15 +224,6 @@ export default function OrgConsolePage() {
   const [divisionAge, setDivisionAge] = useState('');
   const [divisionGender, setDivisionGender] = useState('');
   const [divisionTier, setDivisionTier] = useState('');
-  const [teamName, setTeamName] = useState('');
-  // Roster import (R3): per-team inline expander, the divisionSeasonId
-  // toggle precedent (never a modal — 375px).
-  const [importTeamId, setImportTeamId] = useState<string | null>(null);
-  const [importText, setImportText] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importReport, setImportReport] = useState<
-    { name: string; claimUrl: string | null; emailSent: boolean; error?: string }[] | null
-  >(null);
   // Competitions (phase 2). Fixture (team) and leaderboard (athlete)
   // formats — the entrant type is derived server-side from the format.
   const [competitions, setCompetitions] = useState<CompetitionRow[]>([]);
@@ -883,51 +875,6 @@ export default function OrgConsolePage() {
       setDivisionAge('');
       setDivisionGender('');
       setDivisionTier('');
-    }
-  };
-
-  const createTeam = async () => {
-    if (!teamName.trim()) {
-      showError('Structure', 'A team name is required');
-      return;
-    }
-    const ok = await act(
-      `${base}/teams`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ side, orgId, name: teamName.trim() }),
-      },
-      'Team created',
-      'Failed to create team'
-    );
-    if (ok) setTeamName('');
-  };
-
-  const runImport = async (teamId: string) => {
-    if (!importText.trim() || importing) return;
-    setImporting(true);
-    setImportReport(null);
-    try {
-      const response = await fetch(`/api/${plural}/${orgId}/roster-import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, text: importText }),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        showError('Roster import', body.error || 'Import failed');
-        return;
-      }
-      setImportReport(body.report ?? []);
-      setImportText('');
-      showSuccess('Roster import', `${(body.report ?? []).filter((r: { error?: string }) => !r.error).length} athletes imported`);
-      refresh();
-    } catch (e) {
-      console.error('Roster import failed:', e);
-      showError('Roster import', 'Import failed');
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -1899,138 +1846,16 @@ export default function OrgConsolePage() {
     ),
     teams: (
       <>
-        {/* Teams — archive/restore only; teams persist (no manager delete). */}
-        <section
-        id="teams"
-          aria-label="Teams"
-          className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
-        >
-          <h2 className="text-lg font-semibold text-primary mb-4">Teams</h2>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <input
-              type="text"
-              value={teamName}
-              maxLength={80}
-              onChange={e => setTeamName(e.target.value)}
-              placeholder="Team name (e.g., Blazers U13 A)"
-              aria-label="Team name"
-              className="grow basis-48 min-w-0 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => void createTeam()}
-              className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
-            >
-              Add team
-            </button>
-          </div>
-          {teams.length === 0 ? (
-            <p className="text-sm text-tertiary">No teams yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {teams.map(team => (
-                <li key={team.id} className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg hover:bg-surface-muted">
-                  <div className="min-w-0 grow basis-40">
-                    <p className="font-medium text-primary">{team.name}</p>
-                    {team.status === 'archived' && <p className="text-xs text-muted">Archived</p>}
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    {team.status === 'active' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImportTeamId(importTeamId === team.id ? null : team.id);
-                          setImportReport(null);
-                        }}
-                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                      >
-                        {importTeamId === team.id ? 'Close import' : 'Import roster'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void act(
-                          `${base}/teams`,
-                          {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              id: team.id,
-                              status: team.status === 'active' ? 'archived' : 'active',
-                            }),
-                          },
-                          team.status === 'active' ? 'Team archived' : 'Team restored',
-                          'Failed to update team'
-                        )
-                      }
-                      className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                    >
-                      {team.status === 'active' ? 'Archive' : 'Restore'}
-                    </button>
-                  </div>
-                  {importTeamId === team.id && (
-                    <div className="w-full mt-2 border-t border-border-subtle pt-3 space-y-2">
-                      <textarea
-                        value={importText}
-                        onChange={e => setImportText(e.target.value)}
-                        rows={4}
-                        aria-label="Roster import lines"
-                        placeholder={'One athlete per line:\nFirst Last, email@example.com (email optional)'}
-                        className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
-                      />
-                      <button
-                        type="button"
-                        disabled={importing || !importText.trim()}
-                        onClick={() => void runImport(team.id)}
-                        className="px-4 py-2 text-sm min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
-                      >
-                        {importing ? 'Importing…' : 'Import'}
-                      </button>
-                      {importReport && (
-                        <ul className="space-y-1.5">
-                          {importReport.map((r, i) => (
-                            <li key={`${r.name}-${i}`} className="text-xs">
-                              <span className="font-medium text-primary">{r.name}</span>{' '}
-                              {r.error ? (
-                                <span className="text-red-600">failed ({r.error})</span>
-                              ) : (
-                                <>
-                                  {r.emailSent ? (
-                                    <span className="text-emerald-600">emailed</span>
-                                  ) : (
-                                    <span className="text-muted">link only</span>
-                                  )}
-                                  {r.claimUrl && (
-                                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                                      <input
-                                        readOnly
-                                        value={r.claimUrl}
-                                        aria-label={`Claim link for ${r.name}`}
-                                        className="grow basis-48 min-w-0 px-2 py-1 border border-border rounded-md text-[11px] text-muted"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => void navigator.clipboard.writeText(r.claimUrl!)}
-                                        className="px-2 py-1 min-h-[32px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
-                                      >
-                                        Copy
-                                      </button>
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Teams & divisions PR 5: the section is its own component (archive /
+            restore, the roster import, and each team's roster panel). */}
+        <TeamsSection
+          side={side as OrgKind}
+          orgId={orgId}
+          teams={teams}
+          onChanged={refresh}
+          onSuccess={showSuccess}
+          onError={showError}
+        />
       </>
     ),
     competitions: (
