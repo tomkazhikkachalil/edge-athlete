@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
+import { getCachedNotices, getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
 import { siteHead } from '@/lib/org-sites/metadata';
 import type { Metadata } from 'next';
 import SiteShell from './_components/SiteShell';
@@ -44,10 +44,14 @@ export default async function OrgSiteLayout({
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) notFound();
-  // R3: public custom pages join the nav after the module links.
-  const pages = await getCachedPages(slug, site.id);
+  // R3: public custom pages join the nav after the module links. P0-2: the
+  // announcements sent "on the site until …" feed the notice band.
+  const [pages, notices] = await Promise.all([
+    getCachedPages(slug, site.id),
+    getCachedNotices(slug, site.side, site.orgId, site.orgName),
+  ]);
   return (
-    <SiteShell site={site} pages={pages}>
+    <SiteShell site={site} pages={pages} notices={notices}>
       {children}
     </SiteShell>
   );

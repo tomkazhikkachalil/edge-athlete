@@ -12,6 +12,9 @@ import { reportRouteError } from '@/lib/observability/report';
 // A manager's notice bells every member (guardians of supervised members
 // too) and can mirror to the site's notice band. Manager-gated; the
 // org-announce bucket (a few a day — this is a megaphone, not a chat).
+// P0-3 (Sep 27 2026): gated on manage_site — the form lives in the Website
+// section, so a website-only staff grant saw it and got a 403 under the
+// old manage_membership intent (owners and managers pass either way).
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +29,7 @@ export async function POST(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_membership' });
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     const parsed = await parseBody(request, OrgAnnounceSchema);
     if (!parsed.success) return parsed.response;

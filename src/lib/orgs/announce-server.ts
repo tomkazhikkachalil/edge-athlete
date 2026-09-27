@@ -2,8 +2,10 @@
 // orgAnnouncePOST: every member of the org (roster + follow — the org's
 // audience) gets the bell, chunked; a supervised member's guardians ALSO
 // hear (the org-event notify precedent — a safety behaviour, never
-// flag-gated; nothing here relaxes a rail); optionally the title becomes
-// the site's notice band (S1's hero_config, purged) until a date. Best-
+// flag-gated; nothing here relaxes a rail); optionally the title shows in
+// the site's notice band until a date — derived at READ time from these
+// rows (org-sites/banner.ts activeBanner, P0-2 Sep 27 2026), never copied
+// into hero_config, so a publish can no longer wipe it. Best-
 // effort where the charter says so, but the member insert itself is the
 // deliverable — a failed insert is a 500, not a silent success.
 
@@ -16,7 +18,6 @@ import { ORG_ID, type OrgKind } from './org-ref';
 import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
-import { parseHeroConfig } from '@/lib/org-sites/validate';
 import { announcementType, buildAnnouncementRows, siteNoticeMetadata, type OrgAnnounceInput } from './announce';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -47,11 +48,10 @@ export async function orgAnnouncePOST(
   }
   const announcementId = randomUUID();
 
-  // N3: the site mirror runs BEFORE the insert so every row carries the
-  // truth — `site_notice` is stamped only when the band actually took
-  // the title (it used to run after, so a stamp would have been a
-  // promise). A missing site is a no-op.
-  const siteNotice = input.siteNoticeUntil ? await mirrorSiteNotice(admin, side, orgId, input.title, input.siteNoticeUntil) : false;
+  // `site_notice` is stamped only when the org HAS a site (the band reads
+  // these rows at render — banner.ts). A missing site is a no-op.
+  const noticeSite = input.siteNoticeUntil ? await siteForNotice(admin, orgId) : null;
+  const siteNotice = !!noticeSite;
 
   const ctx = {
     side,
@@ -72,6 +72,10 @@ export async function orgAnnouncePOST(
       return NextResponse.json({ error: 'Failed to send the announcement' }, { status: 500 });
     }
   }
+
+  // The band + the News page's Notices read the rows just written: purge
+  // AFTER the insert, so no render between the two can cache a page without it.
+  if (noticeSite) revalidateTag(`org-site:${noticeSite.subdomain}`, { expire: 0 });
 
   // Guardians of supervised members hear too (best-effort fan-out).
   let guardians = 0;
@@ -117,30 +121,15 @@ export async function orgAnnouncePOST(
   return NextResponse.json({ ok: true, announcementId, sent: rows.length, guardians, siteNotice });
 }
 
-/** Mirror to the site's notice band (S1); true only when the band took
- *  it. A missing site or a failed write is false (never throws). The tag
- *  purge also refreshes the site's News page "Notices" (N3). */
-async function mirrorSiteNotice(admin: Admin, side: OrgKind, orgId: string, title: string, until: string): Promise<boolean> {
+/** The org's site for the notice band — null when it has none (or the read
+ *  fails; never throws). Announce never WRITES org_sites: the band is derived
+ *  from the notification rows at render (P0-2). */
+async function siteForNotice(admin: Admin, orgId: string): Promise<{ id: string; subdomain: string } | null> {
   try {
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain, hero_config')
-      .eq(ORG_ID, orgId)
-      .maybeSingle();
-    if (!site) return false;
-    const hero = parseHeroConfig(site.hero_config);
-    const hero_config = {
-      ...((site.hero_config as Record<string, unknown> | null) ?? {}),
-      ...(hero.headline ? { headline: hero.headline } : {}),
-      notice: title.slice(0, 200),
-      noticeUntil: until,
-    };
-    const { error } = await admin.from('org_sites').update({ hero_config }).eq('id', site.id);
-    if (error) return false;
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return true;
+    const { data: site } = await admin.from('org_sites').select('id, subdomain').eq(ORG_ID, orgId).maybeSingle();
+    return (site as { id: string; subdomain: string } | null) ?? null;
   } catch (e) {
-    console.error(`${TAG} site notice failed:`, e);
-    return false;
+    console.error(`${TAG} site read failed:`, e);
+    return null;
   }
 }

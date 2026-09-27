@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { validateFiles } from '@/lib/media/validation';
 import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
+import { snapshotAfter, visibilityPatch } from '@/lib/org-sites/news-edit';
 import {
   PAGE_BODY_MAX_BLOCKS,
   parsePageBody,
@@ -93,7 +94,6 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
   const [blocks, setBlocks] = useState<PageBlock[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState('');
   const [saving, setSaving] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
 
   const base = `/api/${plural}/${orgId}/site/${mode === 'page' ? 'pages' : 'news'}/${pageId}`;
   const dirty = JSON.stringify({ title, blocks }) !== savedSnapshot;
@@ -135,7 +135,7 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
     return () => {
       cancelled = true;
     };
-  }, [validSide, base, mode, user?.id, reloadKey]);
+  }, [validSide, base, mode, user?.id]);
 
   // Refresh/close with unsaved edits → the native prompt (the
   // useDirtyClose beforeunload recipe; in-app nav is not guarded).
@@ -264,23 +264,28 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
     }
   };
 
+  // P0-1 (Sep 27 2026): the toggle carries any unsaved title + body in the
+  // same PATCH and adopts the response — it used to refetch the row, which
+  // replaced the form with the server copy and lost the unsaved edits.
   const setPageVisibility = async (next: 'public' | 'draft') => {
+    const edits = { dirty, title, blocks };
     try {
       const res = await fetch(base, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          mode === 'page' ? { visibility: next } : { publish: next === 'public' }
-        ),
+        body: JSON.stringify(visibilityPatch(mode, next, edits)),
       });
       const body = await res.json();
       if (!res.ok) {
         showError('Website', body.error || 'Failed to update visibility');
         return;
       }
+      const row = (body.page ?? body.post) as { slug?: string } | undefined;
+      if (row?.slug) setSlug(row.slug);
+      if (edits.dirty) setTitle(edits.title.trim());
+      setSavedSnapshot(prev => snapshotAfter(edits, prev));
       setVisibility(next);
       showSuccess('Website', next === 'public' ? copy.publishedToast : copy.draftToast);
-      setReloadKey(k => k + 1);
     } catch {
       showError('Website', 'Failed to update visibility');
     }
