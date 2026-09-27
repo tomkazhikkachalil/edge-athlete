@@ -1,5 +1,25 @@
 # Development Log
 
+## September 27, 2026 — The composer's golf course picker spec seeds its own course; the staging sweep clears QA courses (test + script only)
+
+**Found:** `dropdown-visibility`'s "golf course picker in the composer" failed on staging, the same way on unchanged main.
+
+**Why:**
+- Staging's course catalog was 42 leftover QA fixtures ("QA Sync Nine …", "QA Weeks Nine …") and nothing else. None has a word starting with "a".
+- The spec types ONE letter, so `search_golf_courses('a')` correctly returned nothing (the prefix query `a:*`) and the list never opened.
+- Production's catalog (the OSM import) answers the same request with 20 courses in about 3 s, so the product is fine. Staging was built from the schema baseline and never got the catalog data.
+
+**The spec:**
+- It seeds `Alder QA Dropdown Links <stamp>` (`external_source 'seed'`, `external_id 'qa-dropdown-<stamp>'`, the golf specs' fixture shape) and deletes it in `finally`.
+- It still types "a", so the one-letter path is what it tests on both environments.
+- Proven on production: passed, and the seeded row is gone afterwards.
+
+**The leftovers:**
+- Every golf spec deletes its course in `finally`; the 42 came from runs killed during staging's outages. Production holds none.
+- `scripts/staging-sweep.mjs` gains a fourth, staging-only class: `seed` + `qa-%` older than 24 h. Every FK onto `golf_courses` is SET NULL, so the delete never cascades.
+- The dry run counted exactly the 42.
+- **Not yet applied:** staging's database stopped accepting connections, as did its API (PGRST002). The apply and the staging run of the spec wait for a staging restart.
+
 ## September 27, 2026 — Leftovers prod probe; the per-site sitemap never served on Vercel (fix: force-dynamic)
 
 **The probe** ran after #956–#958 merged and production served `7b102827`: division-page, coach-scope, event-scopes, org-calendar, org-structure, season-rollover, rollover-carry, org-hierarchy, structure-import and org-switches-console. **13 passed, 2 failed.** Both failures were division-page (mobile and webkit-mobile), at the new sitemap assertion.

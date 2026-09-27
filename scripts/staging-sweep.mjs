@@ -6,7 +6,9 @@
 // Same three classes, same rules as e2e/helpers/qa-sweep-rules.ts — the org
 // name regex here is that module's SQL twin and a unit test pins the two
 // equal — and the same order: orgs first (their cascades take the bulk), then
-// the shadow users no live holder protects, then the QA users.
+// the shadow users no live holder protects, then the QA users. A fourth,
+// staging-only class (Sep 27 2026): the golf specs' QA fixture courses —
+// production held none; only staging's crashed runs left them.
 //
 //   node scripts/staging-sweep.mjs            # dry run — prints the counts
 //   node scripts/staging-sweep.mjs --apply    # deletes, 200 orgs per statement
@@ -53,9 +55,16 @@ const STALE_SHADOWS = `SELECT p.id FROM public.profiles p WHERE p.email ~ '@(stu
 const DEPARTED_EMAIL_LIKE = '%@departed.invalid';
 const STALE_TOMBSTONES = `SELECT id FROM public.profiles WHERE email LIKE '${DEPARTED_EMAIL_LIKE}' AND full_name ~ '${QA_ORG_NAME_SQL}' AND departed_at <= ${CUTOFF_SQL}`;
 
-const counts = await sql(`SELECT (SELECT count(*) FROM (${STALE_ORGS}) o) AS orgs, (SELECT count(*) FROM (${STALE_SHADOWS}) s) AS shadows, (SELECT count(*) FROM (${STALE_USERS}) u) AS users, (SELECT count(*) FROM (${STALE_TOMBSTONES}) t) AS tombstones`);
-const { orgs, shadows, users, tombstones } = counts[0];
-console.log(`staging-sweep: stale QA orgs ${orgs} · shadow users ${shadows} · QA users ${users} · tombstones ${tombstones}${APPLY ? '' : ' (dry run — pass --apply to delete)'}`);
+// QA fixture courses (Sep 27 2026): every golf spec seeds a catalog row as
+// external_source 'seed' + external_id 'qa-…' and deletes it in `finally`;
+// a run killed mid-way (staging's outages) leaves it — 42 of them were the
+// WHOLE staging catalog, which hid the composer's one-letter search. Every
+// FK onto golf_courses is SET NULL, so the delete never cascades.
+const STALE_COURSES = `SELECT id FROM public.golf_courses WHERE external_source = 'seed' AND external_id LIKE 'qa-%' AND created_at <= ${CUTOFF_SQL}`;
+
+const counts = await sql(`SELECT (SELECT count(*) FROM (${STALE_ORGS}) o) AS orgs, (SELECT count(*) FROM (${STALE_SHADOWS}) s) AS shadows, (SELECT count(*) FROM (${STALE_USERS}) u) AS users, (SELECT count(*) FROM (${STALE_TOMBSTONES}) t) AS tombstones, (SELECT count(*) FROM (${STALE_COURSES}) c) AS courses`);
+const { orgs, shadows, users, tombstones, courses } = counts[0];
+console.log(`staging-sweep: stale QA orgs ${orgs} · shadow users ${shadows} · QA users ${users} · tombstones ${tombstones} · QA courses ${courses}${APPLY ? '' : ' (dry run — pass --apply to delete)'}`);
 if (!APPLY) process.exit(0);
 
 // 1. orgs, 200 per statement — the cascades take sites, competitions, entries, results, memberships
@@ -81,4 +90,6 @@ const PROFILE_SWEEP = (who) => `
 const s = await sql(PROFILE_SWEEP(STALE_SHADOWS)); console.log(`staging-sweep: shadow users deleted ${s[0].n}`);
 const u = await sql(PROFILE_SWEEP(STALE_USERS)); console.log(`staging-sweep: QA users deleted ${u[0].n}`);
 const t = await sql(PROFILE_SWEEP(STALE_TOMBSTONES)); console.log(`staging-sweep: QA tombstones deleted ${t[0].n}`);
+const c = await sql(`DELETE FROM public.golf_courses WHERE id IN (${STALE_COURSES}); SELECT count(*) AS n FROM (${STALE_COURSES}) c`);
+console.log(`staging-sweep: QA courses left ${c[0].n}`);
 console.log('staging-sweep: done.');
