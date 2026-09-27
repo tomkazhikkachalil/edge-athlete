@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { NavTeamGroup } from '@/lib/org-sites/nav-groups';
+import TeamCrest from './TeamCrest';
 
 // ── The site's navigation (sports-team website program, L1, Sep 27 2026) ──
 // Two renders of ONE link list, both server-safe and script-free:
@@ -47,8 +48,9 @@ function TeamGroups({ teams, linkClass }: { teams: SiteNavTeams; linkClass: stri
           <ul>
             {g.teams.map(t => (
               <li key={t.id}>
-                <a href={`${teams.teamHrefPrefix}${t.id}`} className={linkClass}>
-                  {t.name}
+                <a href={`${teams.teamHrefPrefix}${t.id}`} className={`${linkClass} flex items-center gap-2`}>
+                  <TeamCrest name={t.name} logoUrl={t.logoUrl} color={t.color} ink={t.ink} size={22} />
+                  <span className="min-w-0 truncate">{t.name}</span>
                 </a>
               </li>
             ))}

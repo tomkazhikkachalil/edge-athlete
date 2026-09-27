@@ -144,7 +144,7 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
           <TeamsList
             teams={arranged}
             basePath={siteBasePath(site)}
-            variant={variant === 'chips' || variant === 'tiles' || variant === 'list' ? variant : spec.teams}
+            variant={variant === 'chips' || variant === 'tiles' || variant === 'list' || variant === 'crests' ? variant : spec.teams}
             click={click === 'none' ? 'none' : 'detail'}
           />
           <Link

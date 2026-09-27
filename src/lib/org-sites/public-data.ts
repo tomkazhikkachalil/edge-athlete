@@ -38,6 +38,7 @@ import { keepCurrent } from '@/lib/teams/roster-server';
 import { appBaseUrl } from './urls';
 import { fetchTeamSchedule, type TeamSchedule } from '@/lib/teams/schedule-server';
 import { teamLogoUrl } from '@/lib/teams/logo-url';
+import { teamLook } from '@/lib/teams/brand';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -60,6 +61,13 @@ export interface PublicTeam {
   id: string;
   name: string;
   divisionLabels: string[]; // "U13 A · 2026 Winter"
+  /** L2 (Sep 27 2026): the team's OWN crest (never the club's fallback —
+   *  a tile without one draws the initials), through the tokenless streamer. */
+  logoUrl?: string | null;
+  /** L2: the team's colour (re-validated hex) and a text colour readable on
+   *  the light page — null = the site's accent. */
+  color?: string | null;
+  ink?: string | null;
 }
 
 export async function fetchPublicTeams(
@@ -69,7 +77,7 @@ export async function fetchPublicTeams(
 ): Promise<PublicTeam[]> {
   const { data: teams, error } = await admin
     .from('teams')
-    .select('id, name, display_name')
+    .select('id, name, display_name, logo_path, primary_color, secondary_color')
     .eq(ORG_ID, orgId)
     .eq('status', 'active')
     .order('name', { ascending: true })
@@ -109,7 +117,20 @@ export async function fetchPublicTeams(
     id: t.id as string,
     name: (t.display_name || t.name) as string,
     divisionLabels: labelsByTeam.get(t.id) ?? [],
+    ...teamIdentity(t as { id: string; logo_path?: string | null; primary_color?: string | null; secondary_color?: string | null }),
   }));
+}
+
+/** L2: a team's public crest + colour from its identity columns (242) —
+ *  the logo through `teamLogoUrl` (its own prefix only), the colours through
+ *  `teamLook` (hex re-validated, the ink readable on the light page). */
+function teamIdentity(t: { id: string; logo_path?: string | null; primary_color?: string | null; secondary_color?: string | null }): Pick<PublicTeam, 'logoUrl' | 'color' | 'ink'> {
+  const look = teamLook(t, null);
+  return {
+    logoUrl: teamLogoUrl(t.id, t.logo_path),
+    color: look.source === 'team' ? look.accent?.fill ?? null : null,
+    ink: look.source === 'team' ? look.accent?.fgLight ?? null : null,
+  };
 }
 
 // ── Staff (owner/manager names ONLY — Tom's adopted phase-3 decision) ───────

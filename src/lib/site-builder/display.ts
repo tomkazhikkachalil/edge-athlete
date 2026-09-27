@@ -137,6 +137,8 @@ const DECLARED: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
       ['chips', 'Name chips'],
       ['tiles', 'Tiles'],
       ['list', 'List with divisions'],
+      // L2 (Sep 27 2026): appended — the first option stays today's look.
+      ['crests', 'Crests'],
     ]),
     choice('sort', 'Order', [
       ['default', 'As entered'],
