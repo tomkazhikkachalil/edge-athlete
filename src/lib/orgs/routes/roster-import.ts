@@ -75,6 +75,9 @@ export async function rosterImportRoutePOST(request: NextRequest, kind: OrgKind,
       appUrl,
     });
     if (!result.ok) {
+      if (result.reason === 'no_season') {
+        return NextResponse.json({ error: 'Start a season first — a team roster belongs to a season' }, { status: 400 });
+      }
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
     return NextResponse.json({ ok: true, report: result.report, lineErrors: errors });
