@@ -69,6 +69,7 @@ migration 242). DEVLOG Sep 26–27 has the round-by-round record.
 | Console: team rows — Edit, Roster, Import roster | `TeamsSection` → `TeamIdentityForm`, `TeamRosterPanel` | `manage_teams` at the team's scope |
 | Console: division rows — View, Edit | `DivisionEditForm` | `manage_structure` at the division's scope |
 | Console: the coach's focused view | `ScopedConsole` (+ `ScopedEventForm`) | `consoleLanding` = scoped |
+| Calendar: the event form's Organization picker | `EventFormModal` ← `/api/calendar/schedulable-scopes` | the whole org for owners / managers; a coach's own scopes (`schedulableScopes`) |
 | Console: Roll forward — carry per team | `RolloverCarryPicker` | `manage_structure` |
 | Org page: Teams tile + window | `?window=teams` (`OrgTeams.tsx`) | the teams switch; a private org's teams are for members |
 | In-app team page | `/{club,league}/[id]/teams/[teamId]` (`?tab=roster\|schedule\|results\|standings`) | the org's rules; "Manage team" for `manage_teams` |
@@ -102,4 +103,3 @@ Every roster bell to a supervised athlete copies their guardians, naming the chi
 
 - The console's Seasons section as its own component (it shares state with the
   rollover, the structure import and competitions).
-- The calendar's full event form for coaches (the coach's door is the console).

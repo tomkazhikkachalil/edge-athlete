@@ -200,9 +200,19 @@ export default function EventFormModal({
   // call) so it stays out of the set-state-in-effect warning list. null =
   // not yet loaded; [] = loaded, none (picker hides itself).
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
-  // Orgs the user can schedule for (owner/manager only) — same lazy pattern
-  // as routines; the picker hides itself entirely when there are none.
-  interface ManagedOrg { kind: OrgKind; id: string; name: string; role: string }
+  // Orgs the user can schedule for — same lazy pattern as routines; the
+  // picker hides itself entirely when there are none. Teams & divisions
+  // leftovers 2: /api/calendar/schedulable-scopes answers, per org, whether
+  // the WHOLE org is theirs (owners / managers) and exactly the divisions and
+  // teams they may schedule (a coach's own team) — the event routes' rule.
+  interface ManagedOrg {
+    kind: OrgKind;
+    id: string;
+    name: string;
+    wholeOrg: boolean;
+    divisions: { id: string; name: string }[];
+    teams: { id: string; name: string }[];
+  }
   const { user: authUser } = useAuth();
   const [managedOrgs, setManagedOrgs] = useState<ManagedOrg[] | null>(null);
   useEffect(() => {
@@ -266,13 +276,10 @@ export default function EventFormModal({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/profile/${authUser.id}/organizations`);
+        const res = await fetch('/api/calendar/schedulable-scopes', { credentials: 'include', cache: 'no-store' });
         if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        if (!cancelled) {
-          const all = (data.organizations ?? []) as ManagedOrg[];
-          setManagedOrgs(all.filter(o => o.role === 'owner' || o.role === 'manager'));
-        }
+        const data = (await res.json()) as { orgs?: ManagedOrg[] };
+        if (!cancelled) setManagedOrgs(data.orgs ?? []);
       } catch {
         if (!cancelled) setManagedOrgs([]);
       }
@@ -280,37 +287,18 @@ export default function EventFormModal({
     return () => { cancelled = true; };
   }, [isOpen, moreOpen, managedOrgs, authUser?.id]);
 
-  // Sub-org scope options (0.9) for the SELECTED org — lazy per org, same
-  // cancellable-IIFE pattern. Empty divisions+teams = the select hides
-  // itself (the "naturally empty" v1: only orgs with structure show it).
+  // Sub-org scope options (0.9) for the SELECTED org — they ride the same
+  // schedulable-scopes answer (leftovers 2), so no per-org fetch.
   interface ScopeOptions { divisions: { id: string; name: string }[]; teams: { id: string; name: string }[] }
-  const [scopeOptions, setScopeOptions] = useState<Record<string, ScopeOptions>>({});
+  const scopeOptions: Record<string, ScopeOptions> = Object.fromEntries(
+    (managedOrgs ?? []).map(o => [`${o.kind}:${o.id}`, { divisions: o.divisions, teams: o.teams }])
+  );
   const selectedOrgKey = form.leagueId
     ? `league:${form.leagueId}`
     : form.clubId
       ? `club:${form.clubId}`
       : null;
-  useEffect(() => {
-    if (!isOpen || !moreOpen || !selectedOrgKey || selectedOrgKey in scopeOptions) return;
-    const [kind, id] = selectedOrgKey.split(':');
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/${kind}s/${id}/structure-options`, { credentials: 'include' });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        if (!cancelled) {
-          setScopeOptions(prev => ({
-            ...prev,
-            [selectedOrgKey]: { divisions: data.divisions ?? [], teams: data.teams ?? [] },
-          }));
-        }
-      } catch {
-        if (!cancelled) setScopeOptions(prev => ({ ...prev, [selectedOrgKey]: { divisions: [], teams: [] } }));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [isOpen, moreOpen, selectedOrgKey, scopeOptions]);
+  const selectedOrg = (managedOrgs ?? []).find(o => `${o.kind}:${o.id}` === selectedOrgKey) ?? null;
 
   // Seeding the form is state synchronisation — done during render so the
   // previous values never paint for a frame.
@@ -928,6 +916,14 @@ export default function EventFormModal({
                         const [kind, id] = v.split(':');
                         set('leagueId', kind === 'league' ? id : null);
                         set('clubId', kind === 'club' ? id : null);
+                        // A coach can't schedule the whole org — start on
+                        // their first division / team (leftovers 2).
+                        const org = (managedOrgs ?? []).find(o => o.kind === kind && o.id === id);
+                        if (org && !org.wholeOrg) {
+                          if (org.teams[0] && org.divisions.length === 0) set('teamId', org.teams[0].id);
+                          else if (org.divisions[0]) set('divisionId', org.divisions[0].id);
+                          else if (org.teams[0]) set('teamId', org.teams[0].id);
+                        }
                       }
                     }}
                     className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
@@ -974,7 +970,7 @@ export default function EventFormModal({
                           }}
                           className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                         >
-                          <option value="">Whole organization</option>
+                          {selectedOrg?.wholeOrg !== false && <option value="">Whole organization</option>}
                           {scopeOptions[selectedOrgKey].divisions.length > 0 && (
                             <optgroup label="Divisions">
                               {scopeOptions[selectedOrgKey].divisions.map(d => (

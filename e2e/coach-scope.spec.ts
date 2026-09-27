@@ -66,6 +66,23 @@ test('coach view: a team grant lands on a focused console that runs its roster a
     const { data: events } = await admin.from('events').select('team_id, category').eq('title', `Coach practice ${stamp}`);
     expect(events).toEqual([{ team_id: blazers, category: 'practice' }]);
 
+    // The calendar's own event form (leftovers 2): the club is offered, the
+    // coach's team is the only scope — no "Whole organization".
+    const sched = await (await coachApi.get('/api/calendar/schedulable-scopes')).json();
+    const mine = (sched.orgs as { id: string; wholeOrg: boolean; teams: { id: string }[] }[]).find(o => o.id === club.id);
+    expect(mine).toMatchObject({ wholeOrg: false, teams: [{ id: blazers }] });
+    await page.goto('/calendar?new=1');
+    await expect(page.getByRole('heading', { name: 'New event' })).toBeVisible({ timeout: 20_000 });
+    await page.locator('#ev-title').fill(`Calendar practice ${stamp}`);
+    await page.getByRole('button', { name: /More options/ }).click();
+    await page.locator('#ev-org').selectOption(`club:${club.id}`);
+    const scopeSelect = page.locator('#ev-org-scope');
+    await expect(scopeSelect).toHaveValue(`team:${blazers}`);
+    await expect(scopeSelect.locator('option', { hasText: 'Whole organization' })).toHaveCount(0);
+    await expect(scopeSelect.locator('option', { hasText: `Comets ${stamp}` })).toHaveCount(0);
+    await page.locator('button[type="submit"]', { hasText: 'Create event' }).click();
+    await expect.poll(async () => (await admin.from('events').select('team_id').eq('title', `Calendar practice ${stamp}`)).data, { timeout: 20_000 }).toEqual([{ team_id: blazers }]);
+
     // Nothing beyond the grant.
     let res = await coachApi.post(`/api/clubs/${club.id}/teams/${comets}/roster`, { data: { profileId: player.id } });
     expect(res.status(), await readErrorBody(res)).toBe(403);
@@ -76,7 +93,7 @@ test('coach view: a team grant lands on a focused console that runs its roster a
     res = await coachApi.post('/api/calendar/events', { data: event({ club_id: club.id }) });
     expect(res.status(), await readErrorBody(res)).toBe(403);
   } finally {
-    await admin.from('events').delete().in('title', [`Coach practice ${stamp}`, `Not mine ${stamp}`]);
+    await admin.from('events').delete().in('title', [`Coach practice ${stamp}`, `Calendar practice ${stamp}`, `Not mine ${stamp}`]);
     await ctx.close();
     await coachApi.dispose();
     await deleteQaOrgs(admin, [club.id]);
