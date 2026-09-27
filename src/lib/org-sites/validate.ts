@@ -167,11 +167,15 @@ export type ThemeSurface = (typeof THEME_SURFACES)[number];
 export const WORDMARK_MAX = 40;
 /** Phase 7 — the template's render decisions, now tokens too. Absent = the
  *  template's (effectiveSpec); a token overrides it. */
-export const THEME_HEADERS = ['bar', 'band'] as const;
+// Sports-team website program, L1 (Sep 27 2026): 'pro' — a two-tier
+// sports header (a thin accent strip over a large logo band); `width` —
+// the page column, standard (56rem, today's) or wide (76rem).
+export const THEME_HEADERS = ['bar', 'band', 'pro'] as const;
 export const THEME_HEROES = ['card', 'bleed'] as const;
 export const THEME_DENSITIES = ['comfortable', 'compact'] as const;
 export const THEME_TEAMS = ['chips', 'tiles'] as const;
-export const THEME_DESIGN_KEYS = ['header', 'hero', 'density', 'teams'] as const;
+export const THEME_WIDTHS = ['standard', 'wide'] as const;
+export const THEME_DESIGN_KEYS = ['header', 'hero', 'density', 'teams', 'width'] as const;
 
 export interface ThemeTokens {
   /** Program 2, C (Sep 11 2026): the chosen site icon — an org-media/{siteId}/ image; null = the logo, else the generated favicon. */
@@ -188,6 +192,7 @@ export interface ThemeTokens {
   hero: (typeof THEME_HEROES)[number] | null;
   density: (typeof THEME_DENSITIES)[number] | null;
   teams: (typeof THEME_TEAMS)[number] | null;
+  width: (typeof THEME_WIDTHS)[number] | null;
 }
 
 /** Defensive render-side parse of the whole token set — every key is
@@ -217,6 +222,7 @@ export function parseThemeTokens(themeTokenSet: unknown): ThemeTokens {
     hero: pick(THEME_HEROES, raw.hero),
     density: pick(THEME_DENSITIES, raw.density),
     teams: pick(THEME_TEAMS, raw.teams),
+    width: pick(THEME_WIDTHS, raw.width),
   };
 }
 
@@ -740,6 +746,7 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     hero: z.enum(THEME_HEROES).nullable().optional(),
     density: z.enum(THEME_DENSITIES).nullable().optional(),
     teams: z.enum(THEME_TEAMS).nullable().optional(),
+    width: z.enum(THEME_WIDTHS).nullable().optional(),
   }),
   z.object({
     action: z.literal('set_template'),

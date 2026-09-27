@@ -96,7 +96,7 @@ export default async function OrgSitePlayerPage({ params }: PageParams) {
   const base = siteBasePath(site);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-primary">{player.name}</h1>
         <p className="mt-1 text-sm text-tertiary">{`Member of ${site.orgName}`}</p>

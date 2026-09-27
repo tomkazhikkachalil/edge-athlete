@@ -9,7 +9,9 @@ import {
   ACCENT_MAX_LUMINANCE,
   HEX_COLOR_RE,
   THEME_DENSITIES,
+  THEME_DESIGN_KEYS,
   THEME_HEADERS,
+  THEME_WIDTHS,
   THEME_HEROES,
   THEME_SURFACES,
   THEME_TEAMS,
@@ -85,12 +87,13 @@ export function accentVerdict(hex: string): { ok: boolean; ratio: number | null;
   return { ok: true, ratio, message: `${ratio.toFixed(1)}:1 with white text — readable.` };
 }
 
-type DesignKey = 'header' | 'hero' | 'density' | 'teams';
+type DesignKey = (typeof THEME_DESIGN_KEYS)[number];
 const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names: Record<string, string> }[] = [
-  { key: 'header', label: 'Header', options: THEME_HEADERS, names: { bar: 'White bar', band: 'Colour band' } },
+  { key: 'header', label: 'Header', options: THEME_HEADERS, names: { bar: 'White bar', band: 'Colour band', pro: 'Sports header' } },
   { key: 'hero', label: 'Welcome', options: THEME_HEROES, names: { card: 'Card', bleed: 'Full width' } },
   { key: 'density', label: 'Spacing', options: THEME_DENSITIES, names: { comfortable: 'Comfortable', compact: 'Compact' } },
   { key: 'teams', label: 'Teams', options: THEME_TEAMS, names: { chips: 'Name chips', tiles: 'Tiles' } },
+  { key: 'width', label: 'Page width', options: THEME_WIDTHS, names: { standard: 'Standard', wide: 'Wide' } },
 ];
 
 export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, showSuccess, variant = 'aside' }: ThemePanelProps) {
@@ -124,7 +127,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
     // "Apply the seed": the template's decisions show through (its design
     // overrides go; colours, face and wordmark stay) — the server does the same.
     const next = { ...draft.tokens };
-    for (const k of ['header', 'hero', 'density', 'teams']) delete next[k];
+    for (const k of THEME_DESIGN_KEYS) delete next[k];
     onChange({ templateId, tokens: next });
   };
 

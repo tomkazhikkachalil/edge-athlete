@@ -47,7 +47,7 @@ export default function GridRenderer({ site, layout, data, heading }: { site: Pu
   const hero = ordered.find(w => w.key === HERO_KEY);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="site-container px-4 py-8">
       {/* R5 a11y: the visible h1 lives in the hero — without one the outline
           must still open at level 1; a PAGE opens with its title. */}
       {heading ? <h1 className="mb-6 text-2xl font-bold text-primary">{heading}</h1> : !hero && <h1 className="sr-only">{site.orgName}</h1>}

@@ -39,7 +39,7 @@ export default async function OrgSiteMembersPage({ params }: PageParams) {
   const stats = await getCachedMemberStats(slug, site.side, site.orgId);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">{label}</h1>
       <MembersTable stats={stats} basePath={siteBasePath(site)} detailed />
     </div>

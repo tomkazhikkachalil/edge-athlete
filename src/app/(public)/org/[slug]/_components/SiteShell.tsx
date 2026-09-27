@@ -17,6 +17,8 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicPageLink } from '@/lib/org-sites/public-data';
 import { navEntries } from '@/lib/org-sites/nav';
 import { activeBanner, type BannerNotice } from '@/lib/org-sites/banner';
+import { groupTeamsForNav, type NavTeamInput } from '@/lib/org-sites/nav-groups';
+import { SiteMenu, SiteNavInline, type SiteNavLink } from './SiteNav';
 
 // ── The site shell (phase 3 R1, nav in R2; extracted in Site Builder P2-B) ──
 // The header (bar or band), the nav strip of ENABLED subpage modules + public
@@ -31,6 +33,7 @@ export default function SiteShell({
   site,
   pages,
   notices = [],
+  navTeams = [],
   children,
 }: {
   site: PublicSite;
@@ -38,6 +41,9 @@ export default function SiteShell({
   /** P0-2: announcements sent "on the site until …" (newest first) — the
    *  band is derived from them at render, never copied into hero_config. */
   notices?: readonly BannerNotice[];
+  /** L1: the teams the header's Teams dropdown lists — the caller passes them
+   *  only when the teams page is public (module on, not members-only). */
+  navTeams?: readonly NavTeamInput[];
   children: React.ReactNode;
 }) {
   // B1: nav follows the modules' sort_order (set_nav mirrors the list
@@ -72,10 +78,44 @@ export default function SiteShell({
   // token overrides it — 'bar' is the R1 markup, 'band' is one strong-
   // accent band with the nav inside it.
   const spec = effectiveSpec(site);
-  const band = spec.header === 'band';
-  const navLinkClass = band
-    ? 'text-sm font-medium text-white/90'
-    : 'text-sm font-medium text-secondary';
+  const tone = spec.header;
+  const band = tone === 'band';
+  const pro = tone === 'pro';
+  const base = siteBasePath(site);
+
+  // L1: ONE link list rendered twice — the md+ row (SiteNavInline) and the
+  // phone menu (SiteMenu). Same order as ever: Home, then the entries.
+  const groupedTeams = groupTeamsForNav(navTeams);
+  const links: SiteNavLink[] = [{ key: 'home', href: base || '/', label: 'Home' }];
+  for (const entry of entries) {
+    if (entry.kind === 'module') {
+      links.push({
+        key: `m:${entry.key}`,
+        href: `${base}/${entry.key}`,
+        label: moduleLabel(entry.key, nav, site.side, site.sportKey),
+        ...(entry.key === 'teams' && groupedTeams.groups.length > 0
+          ? { teams: { ...groupedTeams, allHref: `${base}/teams`, teamHrefPrefix: `${base}/teams/` } }
+          : {}),
+      });
+      // P4: a golf org's "This week" hub rides the standings module.
+      if (site.sportKey === 'golf' && entry.key === 'standings') links.push({ key: 'week', href: `${base}/week`, label: 'This week' });
+    } else {
+      links.push({ key: `p:${entry.slug}`, href: `${base}/${entry.slug}`, label: entry.title });
+    }
+  }
+  const hasNav = entries.length > 0;
+
+  // The pro header's utility strip: how to reach the club, and its socials.
+  const contact = parseContact(site.contact_config);
+  const stripSocials = Object.entries(contact.social ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]);
+  const stripContact = [contact.phone, contact.email].filter((v): v is string => typeof v === 'string' && !!v);
+
+  const logo = (size: number) =>
+    site.logo_path ? (
+      // Streamed through the tokenless org-logo proxy; /api/media/*
+      // is never optimizer-eligible, so unoptimized is mandatory.
+      <Image src={orgLogoUrl(site.id, site.logo_path)!} alt="" width={size} height={size} unoptimized className="rounded shrink-0" />
+    ) : null;
 
   return (
     <div className="org-scope min-h-screen flex flex-col bg-canvas" {...attrs}>
@@ -93,62 +133,72 @@ export default function SiteShell({
       >
         Skip to content
       </a>
-      <header
-        className={band ? 'text-white' : 'bg-surface border-b border-border'}
-        style={band ? { backgroundColor: 'var(--org-accent-strong)' } : undefined}
-      >
-        <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={`${siteBasePath(site)}`} className="min-w-0 flex items-center gap-3">
-            {site.logo_path ? (
-              // Streamed through the tokenless org-logo proxy; /api/media/*
-              // is never optimizer-eligible, so unoptimized is mandatory.
-              <Image
-                src={orgLogoUrl(site.id, site.logo_path)!}
-                alt=""
-                width={40}
-                height={40}
-                unoptimized
-                className="rounded shrink-0"
-              />
-            ) : null}
-            {/* block, not inline — truncate's ellipsis only works on a
-                block box, and an inline span's nowrap overflows 375px. */}
-            <span
-              className={`block min-w-0 text-xl font-bold truncate ${band ? 'text-white' : 'text-primary'}`}
-            >
-              {brandName}
-            </span>
-          </Link>
-        </div>
-        {entries.length > 0 && (
-          <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
-              <Link href={`${siteBasePath(site)}`} className={navLinkClass}>
-                Home
-              </Link>
-              {entries.map(entry =>
-                entry.kind === 'module' ? (
-                  <span key={`m:${entry.key}`} className="contents">
-                    <Link href={`${siteBasePath(site)}/${entry.key}`} className={navLinkClass}>
-                      {moduleLabel(entry.key, nav, site.side, site.sportKey)}
-                    </Link>
-                    {/* P4: a golf org's "This week" hub rides the standings module. */}
-                    {site.sportKey === 'golf' && entry.key === 'standings' && (
-                      <Link href={`${siteBasePath(site)}/week`} className={navLinkClass}>
-                        This week
-                      </Link>
-                    )}
-                  </span>
-                ) : (
-                  <Link key={`p:${entry.slug}`} href={`${siteBasePath(site)}/${entry.slug}`} className={navLinkClass}>
-                    {entry.title}
-                  </Link>
-                )
-              )}
-            </div>
-          </nav>
-        )}
-      </header>
+      {pro ? (
+        // L1: the sports header — a thin accent strip (contact + socials),
+        // then a large logo band with the menu, an accent rule underneath.
+        <header data-site-header="pro" className="bg-surface border-b-4" style={{ borderColor: 'var(--org-accent)' }}>
+          <div className="text-white" style={{ backgroundColor: 'var(--org-accent-strong)' }}>
+            {stripContact.length > 0 || stripSocials.length > 0 ? (
+              <div className="site-container px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
+                <span className="flex flex-wrap gap-x-4 gap-y-0.5">
+                  {stripContact.map(v => (
+                    <span key={v} className="truncate">{v}</span>
+                  ))}
+                </span>
+                {stripSocials.length > 0 && (
+                  <ul className="flex flex-wrap gap-x-3" aria-label="Social links">
+                    {stripSocials.map(([network, url]) => (
+                      <li key={network}>
+                        <a href={url} rel="noopener nofollow" className="capitalize text-white/90 hover:text-white">
+                          {network}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <div className="h-1.5" />
+            )}
+          </div>
+          <div className="site-container px-4 py-4 flex items-center justify-between gap-3">
+            <Link href={`${base}`} className="min-w-0 flex items-center gap-3">
+              {logo(56)}
+              {/* The site's heading face when it picked one (the var is set by
+                  themeAttrs from the re-validated tokens; else the body face). */}
+              <span
+                className="block min-w-0 text-2xl sm:text-3xl font-extrabold uppercase tracking-wide truncate text-primary"
+                style={{ fontFamily: 'var(--org-heading-font, inherit)' }}
+                data-site-wordmark=""
+              >
+                {brandName}
+              </span>
+            </Link>
+            {hasNav && <SiteMenu links={links} tone={tone} />}
+          </div>
+          {hasNav && <SiteNavInline links={links} tone={tone} />}
+        </header>
+      ) : (
+        <header
+          className={band ? 'text-white' : 'bg-surface border-b border-border'}
+          style={band ? { backgroundColor: 'var(--org-accent-strong)' } : undefined}
+        >
+          <div className="site-container px-4 py-4 flex items-center justify-between gap-2">
+            <Link href={`${base}`} className="min-w-0 flex items-center gap-3">
+              {logo(40)}
+              {/* block, not inline — truncate's ellipsis only works on a
+                  block box, and an inline span's nowrap overflows 375px. */}
+              <span
+                className={`block min-w-0 text-xl font-bold truncate ${band ? 'text-white' : 'text-primary'}`}
+              >
+                {brandName}
+              </span>
+            </Link>
+            {hasNav && <SiteMenu links={links} tone={tone} />}
+          </div>
+          {hasNav && <SiteNavInline links={links} tone={tone} />}
+        </header>
+      )}
       {/* S1: the notice ("Cart path only until Friday") — every page
           carries it, no dismiss (ISR renders it the same for everyone),
           until its end date. Boundary reads ≤300s stale, like the rest.
@@ -159,13 +209,13 @@ export default function SiteShell({
           aria-label="Notice"
           className="bg-amber-50 border-b border-amber-200 text-amber-900"
         >
-          <p className="max-w-4xl mx-auto px-4 py-2 text-sm">{banner}</p>
+          <p className="site-container px-4 py-2 text-sm">{banner}</p>
         </aside>
       )}
       <main id="main" className="flex-1">{children}</main>
       <footer className="border-t border-border" data-site-footer="">
         {hasFooterContent && (
-          <div className="max-w-4xl mx-auto px-4 pt-6 pb-2 space-y-2 text-sm text-secondary">
+          <div className="site-container px-4 pt-6 pb-2 space-y-2 text-sm text-secondary">
             {footer.text && <p className="text-primary">{footer.text}</p>}
             {footer.links.length > 0 && (
               <ul className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Footer links">
@@ -191,7 +241,7 @@ export default function SiteShell({
             )}
           </div>
         )}
-        <div className="max-w-4xl mx-auto px-4 py-4 text-xs text-muted">
+        <div className="site-container px-4 py-4 text-xs text-muted">
           Powered by{' '}
           <Link href="/" className="text-brand-fg">
             Edge Athlete

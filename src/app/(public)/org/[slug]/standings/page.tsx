@@ -50,7 +50,7 @@ export default async function OrgSiteStandingsPage({ params }: PageParams) {
   const withRows = payload?.competitions.filter(c => c.rows.length > 0 || c.golf) ?? [];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">
         {moduleLabel('standings', parseNavConfig(site.nav_config), site.side, site.sportKey)}
       </h1>

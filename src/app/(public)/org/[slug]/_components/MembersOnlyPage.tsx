@@ -5,7 +5,7 @@ import MembersOnlyPanel from './MembersOnlyPanel';
  *  heading the nav promised, then the panel. */
 export default function MembersOnlyPage({ site, title, what }: { site: PublicSite; title: string; what: string }) {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">{title}</h1>
       <MembersOnlyPanel site={site} what={what} />
     </div>

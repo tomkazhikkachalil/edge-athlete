@@ -1,5 +1,26 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, L1: the sports header, a wide column, a Teams menu, a phone menu (zero DDL)
+
+**What changed on the public site:**
+- **The sports header** (`header: 'pro'`, a theme token): a thin strip in the club's strong accent carrying the phone, email and socials from the contact card (an accent rule when there are none), then a large logo band with the name in capitals in the site's heading face, uppercase nav links and an accent rule beneath. It is offered in the editor's Theme panel as "Sports header". Classic and bold keep their shapes.
+- **Page width** (`width: standard | wide`, a theme token; `set_template` clears it with the other design keys): `.site-container` (globals.css) is now the ONE place the column is decided. It is 56rem (today's `max-w-4xl`) or 76rem, read from `data-width` stamped by `themeAttrs`, and it replaced `max-w-4xl mx-auto` across the site tree (23 files; the directory pages are outside the site shell and unchanged).
+- **A Teams dropdown**: when the club's teams page is public (`private.ts navTeamsVisible`: module on, not a private club's members-only module), the header lists the teams grouped by division (`nav-groups.ts groupTeamsForNav`, pure, capped at 24, "All teams"). The layout reads them through the cached teams reader; the previews read raw.
+- **A phone menu for EVERY header shape**: below md the link row used to wrap into several lines. It is now a native `<details>` "Menu" with Teams nested (`SiteNav.tsx`: `SiteNavInline` for md and up keeps the "Site navigation" landmark, `SiteMenu` is the phone `<nav aria-label="Site menu">`). There is no script — the public tree still ships none. Links inside the dropdown and the menu are plain `<a>` because the shell lives in a persistent layout: a client-side navigation would leave an open panel open.
+
+**Specs:**
+- New `org-site-pro-header.spec.ts`: desktop, strip + band, a 1216 px column, the dropdown reaching a team page; and `@mobile` on Chromium AND WebKit **with JavaScript disabled**: Menu → Teams → a team in two taps, closed on the next page, no overflow at 390 px.
+- Three specs held assumptions the new header changes, fixed at the spec:
+  - `org-site-golf-order`: the nav link at 375 px is found through the Menu now.
+  - `org-site-pages-composed`: the nav slice ended at the FIRST `</nav>`, which is now the phone menu's; it ends at the one closing "Site navigation".
+  - `org-site` modules: `getByText(team).first()` matched the closed Teams menu; it reads `<main>`.
+- Unit: `nav-groups.test.ts`, `navTeamsVisible`, the token parse (pro, width) and `data-width`.
+
+**Proof:**
+- `npm run verify` green (3958).
+- On staging from a local build: the new spec (3/3); the header-sensitive set — golf-order, pages-composed, org-site ×5, template, brand, editor ×2, sections (both phone engines), club-private-gates, seo ×2; and a wider public batch — team-schedule-public, division-page, team-identity, org-switches-site, org-vanity-path, org-site-modules, players, league/club public items, register, display, sample-data (23 passed).
+- A screenshot pass at 1280 and 390 px.
+
 ## September 27, 2026 — Sports-team website program, P0: three site defects (zero DDL)
 
 **Program:** Tom asked for org websites that look like a professional sports-team site and that one person can run end to end. Plan: `~/.claude/plans/let-s-keep-designing-the-hidden-orbit.md`. His decisions: all four pillars (pro look, one home for managers, a newsroom, game-day content); Announce merges into news; one-click recap drafts; a live scoreboard on the public site. The order is P0 defects → look → one home → newsroom (migration 243, the program's only DDL) → announce merge → game-day → recaps → live → docs.

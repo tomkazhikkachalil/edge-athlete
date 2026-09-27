@@ -74,7 +74,7 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
   const sportLabel = team.sportKey && isSportEnabled(team.sportKey as SportKey) ? getSportDefinition(team.sportKey as SportKey).display_name : null;
 
   return (
-    <div className={`max-w-4xl mx-auto px-4 py-8 space-y-6${teamStyle ? ' org-scope' : ''}`} style={teamStyle} data-team-colours={teamStyle ? 'team' : 'site'}>
+    <div className={`site-container px-4 py-8 space-y-6${teamStyle ? ' org-scope' : ''}`} style={teamStyle} data-team-colours={teamStyle ? 'team' : 'site'}>
       {/* R4: SportsTeam structured data — the team and its org only,
           never the roster (no Person in JSON-LD, ever). */}
       <script

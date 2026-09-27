@@ -61,7 +61,7 @@ export default async function OrgSiteContestPage({ params }: PageParams) {
   const jsonLd = buildContestJsonLd(site, view);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="site-container px-4 py-8">
       {jsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       )}

@@ -40,7 +40,7 @@ export default async function OrgSiteDocumentsPage({ params }: PageParams) {
   const documents = parseDocuments(site.modules.find(m => m.module_key === 'documents')?.config);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="site-container px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-primary">Documents</h1>
       {documents.length === 0 ? (
         <p className="text-sm text-tertiary">No documents yet.</p>
