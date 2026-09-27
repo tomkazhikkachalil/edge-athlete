@@ -62,6 +62,7 @@ export function parseRosterImport(text: string): RosterImportParse {
 
 // ── Orchestration (PR-B) ────────────────────────────────────────────────────
 
+import { pickRosterSeason, type SeasonCandidate } from '@/lib/teams/roster';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
@@ -97,7 +98,7 @@ export async function importRoster(
     createdBy: string;
     appUrl: string;
   }
-): Promise<{ ok: true; report: ImportReportRow[] } | { ok: false; reason: 'team_not_found' }> {
+): Promise<{ ok: true; report: ImportReportRow[] } | { ok: false; reason: 'team_not_found' | 'no_season' }> {
   // Scope pin ONCE: the team must be this org's and active (a foreign or
   // archived team is indistinguishable from missing — structure-server
   // convention).
@@ -108,6 +109,22 @@ export async function importRoster(
     .eq(ORG_ID, input.orgId)
     .maybeSingle();
   if (!team || team.status !== 'active') return { ok: false, reason: 'team_not_found' };
+
+  // Migration 242: a team roster row names its SEASON (the CHECK refuses one
+  // without — every import onto a team failed from the moment 242 ran until
+  // this). The team's newest live entered season, else the org's newest live
+  // one; none → refused BEFORE any stub account is made.
+  const [{ data: seasons }, { data: entries }] = await Promise.all([
+    admin.from('seasons').select('id, archived_at, created_at').eq(ORG_ID, input.orgId),
+    admin.from('team_entries').select('division:divisions(season_id)').eq('team_id', input.teamId),
+  ]);
+  const teamSeasonIds = new Set(
+    ((entries ?? []) as { division: { season_id: string } | { season_id: string }[] | null }[])
+      .flatMap(e => (Array.isArray(e.division) ? e.division : e.division ? [e.division] : []))
+      .map(d => d.season_id)
+  );
+  const seasonId = pickRosterSeason((seasons ?? []) as SeasonCandidate[], teamSeasonIds);
+  if (!seasonId) return { ok: false, reason: 'no_season' };
 
   const report: ImportReportRow[] = [];
   for (const row of input.rows) {
@@ -147,9 +164,9 @@ export async function importRoster(
       // THREE membership rows. PGRST102: batch inserts need HOMOGENEOUS
       // keys — every row carries the same key set with explicit values.
       const { error: memberError } = await admin.from('memberships').insert([
-        { ...pairFor(input), profile_id: profileId, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId },
+        { ...pairFor(input), profile_id: profileId, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
+        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
+        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId, season_id: seasonId },
       ]);
       if (memberError) {
         console.error('[ROSTER IMPORT] membership insert failed:', memberError);

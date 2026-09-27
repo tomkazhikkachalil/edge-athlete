@@ -29,6 +29,9 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
     .select()
     .single();
   const teamId = team!.id as string;
+  // A team roster belongs to a SEASON (242) — the import stamps the org's live one.
+  const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `Import ${stamp}` }).select('id').single();
+  const seasonId = season!.id as string;
 
   const stubIds: string[] = [];
   try {
@@ -74,14 +77,14 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
       expect(access).toEqual([{ role: 'supervised', user_id: stub.id }]);
       const { data: rows } = await admin
         .from('memberships')
-        .select('kind, status, scope_type, scope_id')
+        .select('kind, status, scope_type, scope_id, season_id')
         .eq('org_id', leagueId)
         .eq('profile_id', stub.id)
         .order('kind');
       expect(rows).toEqual([
-        { kind: 'follow', status: 'active', scope_type: 'org', scope_id: null },
-        { kind: 'roster', status: 'active', scope_type: 'org', scope_id: null },
-        { kind: 'roster', status: 'active', scope_type: 'team', scope_id: teamId },
+        { kind: 'follow', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
+        { kind: 'roster', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
+        { kind: 'roster', status: 'active', scope_type: 'team', scope_id: teamId, season_id: seasonId },
       ]);
       const { data: invites } = await admin
         .from('athlete_claim_invites')

@@ -1,5 +1,23 @@
 # Development Log
 
+## September 26, 2026 — Hotfix: the roster import stamps the team roster's season (242 refused it; zero DDL)
+
+**Found while mapping the team-roster readers for PR 4:**
+- `importRoster` (`src/lib/orgs/roster-import.ts`) wrote the TEAM roster row with no `season_id`.
+- Migration 242 (run on prod earlier today) added `memberships_team_roster_season_check`, which refuses exactly that on every new write.
+- **From the moment 242 ran, every console "Import roster" failed.** Each line came back as a `membership` error, and the compensation deleted the stub account it had just made. No data was lost, but no import could succeed.
+
+**The fix:**
+- The import picks the season the way 242's backfill did: the newest LIVE season the team is entered in, else the org's newest live season.
+  - That is `pickRosterSeason` in `src/lib/teams/roster.ts`, the first piece of the team roster module PR 4 builds on.
+- Only the team row carries it. The two org rows send `season_id: null` explicitly, so the batch keeps the identical keys PGRST102 requires.
+- An org with no live season is refused with **400 "Start a season first — a team roster belongs to a season"** BEFORE any stub account is created.
+
+**Tests:**
+- `teams/__tests__/roster.test.ts`: an entered season wins; else the org's newest live one; an archived season never; none gives null.
+- `roster-import.spec.ts` now creates a season and checks the team row carries it. `org-site.spec.ts` already had one.
+- `npm run verify` green. The staging e2e run waits for staging to recover.
+
 ## September 26, 2026 — Teams & divisions PR 1: migration 242 and the switch predicate (no behaviour change; stacked on PR 0)
 
 **Why (Tom, Sep 26):**
