@@ -78,6 +78,18 @@ export async function createQaOrg(admin: SupabaseClient, kind: QaOrgKind, fields
   return { id };
 }
 
+/** A LIVE season of this org for a team roster fixture — migration 242's
+ *  CHECK: every team roster row names its season. The newest live season,
+ *  else a fresh one (its label unique per org). The spec's org teardown
+ *  cascades it. */
+export async function rosterSeasonId(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data: live } = await admin.from('seasons').select('id').eq('org_id', orgId).is('archived_at', null).order('created_at', { ascending: false }).limit(1);
+  if (live && live.length > 0) return live[0].id as string;
+  const { data, error } = await admin.from('seasons').insert({ org_id: orgId, label: `QA roster ${Date.now()}` }).select('id').single();
+  expect(error, error?.message).toBeNull();
+  return data!.id as string;
+}
+
 /** Delete orgs by id through the one table (the cascades take memberships,
  *  competitions, entries, results, sites, staff rows, affiliations). Error-
  *  checked and idempotent: an id already gone is fine (a spec's `finally` and

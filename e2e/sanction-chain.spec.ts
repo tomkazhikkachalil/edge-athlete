@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The sanctioning chain (phase 6 R3, mig 167): league↔league edges via
@@ -104,6 +104,7 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
           status: 'active',
           scope_type: 'team',
           scope_id: awayTeam!.id,
+          season_id: await rosterSeasonId(admin, cId),
         },
       ]);
       const { data: comp } = await admin

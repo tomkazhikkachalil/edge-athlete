@@ -46,8 +46,10 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
         .getByLabel('Roster import lines')
         .fill('Rory Marchand\nMaya Chen, maya.chen@example.com');
       await page.getByRole('button', { name: 'Import', exact: true }).click();
-      await expect(page.getByText('Rory Marchand')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByLabel('Claim link for Rory Marchand')).toBeVisible();
+      // Wait for the RESULT (the claim link), never the name — the textarea
+      // still holds "Rory Marchand" while the import runs, and a slow instance
+      // takes longer than a default expect (staging, Sep 26 2026).
+      await expect(page.getByLabel('Claim link for Rory Marchand')).toBeVisible({ timeout: 45_000 });
       await expect(page.getByLabel('Claim link for Maya Chen')).toBeVisible();
 
       // 375px: the expander + result list stay usable.

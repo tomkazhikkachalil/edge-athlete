@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 type Detail = { standings: Array<{ entry_id: string; rank: number; points: number | null; entrant_name: string }> };
@@ -32,7 +32,8 @@ test('relays: relay teams as entries, marks by kind, no personal record, the rol
     const red = teams!.find(t => (t.name as string).startsWith('Red'))!.id as string;
     const blue = teams!.find(t => (t.name as string).startsWith('Blue'))!.id as string;
     const roster = (profileId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
-    const onTeam = (profileId: string, teamId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
+    const rosterSeason = await rosterSeasonId(admin, leagueId); // 242: a team roster row names its season
+    const onTeam = (profileId: string, teamId: string) => ({ org_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId, season_id: rosterSeason });
     const { error: memberError } = await admin.from('memberships').insert([
       { org_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       roster(athleteA.id), roster(athleteC.id), roster(athleteD.id),
