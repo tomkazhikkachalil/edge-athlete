@@ -10,7 +10,7 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 const stamp = () => Date.now();
 
-test('a started round is live (not a feed post) until it completes', async () => {
+test('a started round is live (not a feed post) until it completes', { tag: '@smoke' }, async () => {
   const userA = loadQaUser('user.json');
   const apiA = await apiAs('state.json');
   let groupPostId: string | null = null;

@@ -10,7 +10,7 @@ import { cleanupEvent, createEvent, goLive, openEventSession } from './helpers/s
  * scorer's screen; the drawer still lists everything; signed out there is
  * no bar. Tagged @mobile on Chromium and WebKit.
  */
-test('tab bar: five places, the active one, tappable, hidden where a screen owns its bottom edge @mobile', async ({ page, browser }) => {
+test('tab bar: five places, the active one, tappable, hidden where a screen owns its bottom edge @mobile', { tag: '@smoke' }, async ({ page, browser }) => {
   const s = await openEventSession();
   let eventId: string | null = null;
   try {
@@ -75,7 +75,7 @@ test('tab bar: five places, the active one, tappable, hidden where a screen owns
   }
 });
 
-test('tab bar: absent on a large screen — the header keeps the places', async ({ page }) => {
+test('tab bar: absent on a large screen — the header keeps the places', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/feed');
   await expect(page.getByRole('navigation', { name: 'Main' }).or(page.locator('header'))).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-tab-bar]')).toBeHidden();

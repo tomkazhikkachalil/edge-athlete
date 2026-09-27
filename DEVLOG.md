@@ -1,5 +1,29 @@
 # Development Log
 
+## September 27, 2026 — CI smoke is a smoke again: a tagged subset with a time limit; the DM spec's false pass (CI + tests only)
+
+**Found at session start:** the `smoke` job had not produced a useful signal for days.
+- It ran the WHOLE e2e suite (~440 tests, three projects) against the free-tier staging instance. The last completed run: **2.9 h, 379 passed, 38 failed**. The failures were mostly capacity: 50 rate-limit 429s, 57 server 503/504s and 19 test timeouts, plus the known staging classes (email signup, the empty course catalog). Every completed smoke run since Sep 25 was red.
+- It had no `timeout-minutes`, so GitHub's 6 h default applied. A run for #956 hung in "Run smoke suite" from 18:05 UTC and held the `smoke-staging` slot, the "zombie trap" earlier entries describe.
+- The workflow comment said "Queued runs wait; none is cancelled". That was wrong: GitHub keeps ONE queued run per concurrency group, and a newer one cancels the older. With the slot held, every smoke run on `main` today was cancelled without running.
+
+**The change:**
+- The job runs `npm run test:e2e:smoke` (`playwright test --grep @smoke`). Tests opt in with Playwright's `{ tag: '@smoke' }` option, so titles are unchanged and the projects' `@mobile` grep still applies (both filters must match).
+- The subset is 21 tests in 14 files, each fast and staging-safe: health, landing, login, posting, a logged golf round, a live round's lifecycle, the media proxy, follow (request + one-click), DMs, Vitals, the public org site (with its 375 px check), and on the phone projects (Chromium AND WebKit) the camera attach, the first-run checklist, golf quick entry and the tab bar.
+- `timeout-minutes: 25` on the job, and the concurrency comment now says what GitHub actually does.
+- The full suite stays where it is actually run: locally in batches, and as the prod probe (`npm run test:e2e:prod`).
+
+**`direct-message` was a false pass, broken since Sep 20:**
+- B's "the reply is visible" assertion matched the message TEXTAREA. It still holds the text while the send is in flight (disabled); the thread renders a message only after the POST answers. The assertion passed at once, and the spec navigated B away mid-send.
+- The send route reads its body AFTER `requireActiveWriter` and the rate-limit RPC (Sep 20), so the navigation aborted the request (`POST /api/messages/[id]/messages error: Error: aborted`). The reply never landed and A's poll timed out. It failed identically locally against staging.
+- Not a product bug: the UI never showed the message as sent. The spec now waits for the POST to answer 2xx and for the textarea to clear before asserting and leaving.
+
+**Proof:** the smoke subset against staging from a local production build: **21 passed in 3.9 min** (retries on, none used). `direct-message` passed on its own first. `npm run verify` green.
+
+**Folded in from earlier today:**
+- The leftovers prod-probe re-run after #959 went **15 passed, 0 failed** over the ten files; rollover-carry on webkit-mobile covered its pending staging re-run. Live org sitemaps answer 200 through `/[slug]/sitemap.xml`.
+- The staging QA-course sweep (#960) **was applied** after the staging restart: 42 courses removed, the catalog now empty, and `dropdown-visibility` 4/4 on staging.
+
 ## September 27, 2026 — The composer's golf course picker spec seeds its own course; the staging sweep clears QA courses (test + script only)
 
 **Found:** `dropdown-visibility`'s "golf course picker in the composer" failed on staging, the same way on unchanged main.

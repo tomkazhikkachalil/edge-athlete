@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Anonymous context — the landing page is the signed-out surface.
 test.use({ storageState: 'e2e/.auth/anon.json' });
 
-test('landing page renders login and signup affordances', async ({ page }) => {
+test('landing page renders login and signup affordances', { tag: '@smoke' }, async ({ page }) => {
   const pageErrors: Error[] = [];
   page.on('pageerror', err => pageErrors.push(err));
 

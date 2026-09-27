@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 // no editor between the camera's hand-back and the tile. Headless cannot run
 // a camera, but CaptureInputs' capture inputs are the camera's hand-back
 // minus the camera. Library picks keep the editor-first flow (asserted too).
-test('a camera photo attaches as a tile at once; Edit is one tap away @mobile', async ({ page }) => {
+test('a camera photo attaches as a tile at once; Edit is one tap away @mobile', { tag: '@smoke' }, async ({ page }) => {
   test.setTimeout(120_000);
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
 

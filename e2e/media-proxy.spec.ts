@@ -6,7 +6,7 @@ import { apiAs, loadQaUser, readErrorBody, adminClient, E2E_BASE_URL } from './h
 // PR1 media proxy: a post's media is served through /api/media/<token>, the
 // bytes are re-authorized live, and a private post's media is 404 to anyone
 // without access — while a public post's media is 200 to anyone (incl. anon).
-test('media proxy: post media authorized at the byte layer', async () => {
+test('media proxy: post media authorized at the byte layer', { tag: '@smoke' }, async () => {
   test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
   const png = readFileSync(path.join(__dirname, 'fixtures', 'photo.png'));

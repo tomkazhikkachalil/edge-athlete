@@ -320,6 +320,10 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   `auth`/`rest` stay DOWN with no load, the fix is **Restart project** in
   the Supabase dashboard (the management-API restart is not available to
   the agent). Run e2e in batches with health waits; never three loads at once.
+  **CI smoke is a tagged subset (Sep 27 2026):** `npm run test:e2e:smoke`
+  (`{ tag: '@smoke' }`, ~20 tests, ~4 min) with `timeout-minutes: 25`, never
+  the whole suite. The full suite on this tier took 2–3 h and failed on
+  capacity alone.
 - **Observability (Round 1, Sep 21 2026, #858–#861) — DONE:** every API
   route's catch-and-500 reaches Sentry through `reportRouteError`
   (`src/lib/observability/report.ts`, `area:api`); the daily cron reports

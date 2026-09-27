@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 // Authenticated via the minted storageState (playwright.config.ts default).
-test('create a text post from the feed composer and see it render', async ({ page }) => {
+test('create a text post from the feed composer and see it render', { tag: '@smoke' }, async ({ page }) => {
   // Against a real deployment this spec has to survive a cold serverless
   // function on top of the round trip; the default 60s left no headroom once
   // two 15s waits and a reload were in play.

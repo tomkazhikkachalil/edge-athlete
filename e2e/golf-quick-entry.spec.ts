@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 // form as a live round, one-pass score entry, publishes once — no Individual/
 // Shared fork anymore (the old "Individual Round" toggle and its separate
 // scorecard form were retired by the flow unification).
-test('log an already-played round and see the scorecard post', async ({ page }) => {
+test('log an already-played round and see the scorecard post', { tag: '@smoke' }, async ({ page }) => {
   const courseName = `QA Smoke Course ${Date.now()}`;
 
   await page.goto('/feed');
@@ -88,7 +88,7 @@ test('shared golf round: the creator is on the scorecard before any partner', as
 // there lands back in the grid. Asserted at 375px — the tightest mainstream
 // phone — because the mobile project's 390px viewport leaves ~15px of slack
 // in exactly the header row this button lives in.
-test('@mobile Quick entry opens the stepper and writes back to the grid', async ({ page }) => {
+test('@mobile Quick entry opens the stepper and writes back to the grid', { tag: '@smoke' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/feed');
   await page.getByRole('button', { name: /what's on your mind/i }).click();
