@@ -155,10 +155,13 @@ export const getCachedTeamPage = (
   slug: string,
   side: OrgKind,
   orgId: string,
-  teamId: string
+  teamId: string,
+  basePath = ''
 ): Promise<PublicTeamPage | null> =>
-  perSlug(['org-site-team', slug, teamId], slug, () =>
-    fetchPublicTeamPage(getSupabaseAdmin(), side, orgId, teamId)
+  // basePath is in the key: it shapes the schedule's contest links (a custom
+  // domain's base is '').
+  perSlug(['org-site-team', slug, teamId, basePath], slug, () =>
+    fetchPublicTeamPage(getSupabaseAdmin(), side, orgId, teamId, basePath)
   );
 
 /** The sitemap's enumerator — its own tag ('org-sitemap', purged by

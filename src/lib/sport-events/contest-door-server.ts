@@ -17,6 +17,7 @@
  * status flows back through `syncContestStatus`, the result through
  * `syncGameContest` / `syncMatchContests`.
  */
+import { linkEventTeams } from './team-links-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
@@ -199,6 +200,9 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
     if (linked === 'already_linked') return refuse('already_linked', 409);
     return NextResponse.json({ error: 'Running a game as an event needs migration 211.', reason: 'needs_migration' }, { status: 409 });
   }
+  // Teams & divisions PR 7: the fixture's TEAM entries → the event's sides
+  // (home = 1, away = 2; an athlete or ad-hoc entry has no team to link).
+  await linkEventTeams(admin, row.id, [{ side: 1, teamId: home.team_id }, { side: 2, teamId: away.team_id }]);
   const opened = await applyTransition(admin, { eventId: row.id, to: 'open', actorProfileId: userId });
   if (!opened.ok) console.error(`${TAG} publish failed:`, opened.reason, opened.error);
   await revalidateOrgSiteForCompetition(admin, comp.id);

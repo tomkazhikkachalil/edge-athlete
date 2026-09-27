@@ -76,6 +76,9 @@ test('team sides: two org teams picked in the wizard → the rosters become the 
     const view = (await (await page.request.get(`/api/sport-events/${eventId}`)).json()) as View;
     expect(view.event.status).toBe('open');
     expect(view.event.game?.side_team_ids).toEqual([reds, blues]);
+    // Teams & divisions PR 7: the link rows each team's schedule reads (sport_event_teams).
+    const { data: links } = await admin.from('sport_event_teams').select('side, team_id').eq('sport_event_id', eventId).order('side');
+    expect(links).toEqual([{ side: 1, team_id: reds }, { side: 2, team_id: blues }]);
     const idOf = (profileId: string) => view.participants.find(p => p.profile_id === profileId)!;
     expect(idOf(b.id)).toMatchObject({ status: 'accepted', playing: true, role: 'participant' });
     expect(idOf(c.id)).toMatchObject({ status: 'accepted', playing: true, role: 'participant' });

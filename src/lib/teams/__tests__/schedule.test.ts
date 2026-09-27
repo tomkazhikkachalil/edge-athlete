@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput } from '../schedule';
+import type { ContestOutcome } from '@/lib/competitions/contest-outcome';
+
+// Teams & divisions PR 7: a team's schedule from three sources, each game once.
+
+const side = (entryId: string, name: string, score: number | null) => ({ participantId: `p-${entryId}`, entryId, name, score });
+const fixture = (home: ReturnType<typeof side>, away: ReturnType<typeof side>, winner: string | null, tie = false): ContestOutcome => ({
+  kind: 'fixture', complete: true, home, away, winnerEntryId: winner, tie, scoreline: `${home.score}–${away.score}`,
+});
+const contest = (over: Partial<ContestInput>): ContestInput => ({
+  id: 'c1', competitionName: 'House League', round: null, scheduledAt: '2026-10-03T18:00:00Z', playFrom: null, status: 'scheduled',
+  eventId: null, sportEventRoundId: null, myEntryId: 'me', outcome: { kind: 'unscored', complete: false }, href: '/event/c1', ...over,
+});
+
+describe('teamResultLine', () => {
+  it("reads the score from the team's side — away wins read W with its own score first", () => {
+    expect(teamResultLine(fixture(side('them', 'Comets', 2), side('me', 'Blazers', 3), 'me'), 'me')).toEqual({ outcome: 'W', score: '3–2' });
+    expect(teamResultLine(fixture(side('me', 'Blazers', 1), side('them', 'Comets', 4), 'them'), 'me')).toEqual({ outcome: 'L', score: '1–4' });
+    expect(teamResultLine(fixture(side('me', 'Blazers', 2), side('them', 'Comets', 2), null, true), 'me')).toEqual({ outcome: 'T', score: '2–2' });
+  });
+  it('unscored, a leaderboard, or an entry not in the fixture → no result', () => {
+    expect(teamResultLine(fixture(side('me', 'B', null), side('them', 'C', 1), null), 'me')).toBeNull();
+    expect(teamResultLine({ kind: 'unscored', complete: false }, 'me')).toBeNull();
+    expect(teamResultLine(fixture(side('x', 'X', 1), side('y', 'Y', 0), 'x'), 'me')).toBeNull();
+  });
+});
+
+describe('gameResultLine', () => {
+  it("side 2's view flips the score; a level game is a T; no score is null", () => {
+    expect(gameResultLine(2, 1, 4)).toEqual({ outcome: 'W', score: '4–1' });
+    expect(gameResultLine(1, 3, 3)).toEqual({ outcome: 'T', score: '3–3' });
+    expect(gameResultLine(1, null, 2)).toBeNull();
+  });
+});
+
+describe('mergeTeamSchedule', () => {
+  const played = contest({ id: 'c-played', status: 'completed', scheduledAt: '2026-09-20T18:00:00Z', eventId: 'cal-mirror', sportEventRoundId: 'round-linked', outcome: fixture(side('me', 'Blazers', 3), side('them', 'Comets', 1), 'me') });
+  const next = contest({ id: 'c-next', scheduledAt: '2026-10-10T18:00:00Z', outcome: { kind: 'fixture', complete: false, home: side('them', 'Comets', null), away: side('me', 'Blazers', null), winnerEntryId: null, tie: false, scoreline: null } });
+  const out = mergeTeamSchedule({
+    contests: [played, next, contest({ id: 'c-gone', status: 'canceled' })],
+    calendar: [
+      { id: 'cal-mirror', title: 'Mirror', starts_at: '2026-09-20T18:00:00Z', all_day: false, timezone: 'America/Toronto', location: null, status: 'active', href: null },
+      { id: 'cal-practice', title: 'Practice', starts_at: '2026-10-01T17:00:00Z', all_day: false, timezone: 'America/Toronto', location: 'Rink 2', status: 'active', href: null },
+      { id: 'cal-off', title: 'Off', starts_at: '2026-10-02T17:00:00Z', all_day: false, timezone: null, location: null, status: 'cancelled', href: null },
+    ],
+    events: [
+      { id: 'ev-linked', name: 'Linked game', status: 'completed', startsAt: '2026-09-20T18:00:00Z', date: null, mySide: 1, opponentName: 'Comets', side1Score: 3, side2Score: 1, roundIds: ['round-linked'], timezone: null, href: '/events/ev-linked' },
+      { id: 'ev-scrim', name: 'Scrimmage', status: 'completed', startsAt: null, date: '2026-09-25', mySide: 2, opponentName: 'Rockets', side1Score: 2, side2Score: 5, roundIds: ['r9'], timezone: null, href: '/events/ev-scrim' },
+    ],
+  });
+
+  it('each game once: a calendar mirror and a linked event fold into the contest; cancelled items leave', () => {
+    const keys = [...out.upcoming, ...out.results].map(i => i.key);
+    expect(keys).not.toContain('calendar:cal-mirror');
+    expect(keys).not.toContain('event:ev-linked');
+    expect(keys).not.toContain('contest:c-gone');
+    expect(keys).not.toContain('calendar:cal-off');
+  });
+  it('upcoming soonest first; results newest first, each from the team side', () => {
+    expect(out.upcoming.map(i => i.key)).toEqual(['calendar:cal-practice', 'contest:c-next']);
+    expect(out.upcoming[1].opponent).toBe('Comets');
+    // A contest borrows its calendar mirror's zone.
+    expect(out.results.find(i => i.key === 'contest:c-played')!.timezone).toBe('America/Toronto');
+    expect(out.results.map(i => [i.key, i.result])).toEqual([
+      ['event:ev-scrim', { outcome: 'W', score: '5–2' }],
+      ['contest:c-played', { outcome: 'W', score: '3–1' }],
+    ]);
+  });
+  it('the items carry names and hrefs — never an entry id, a profile id or an email', () => {
+    const json = JSON.stringify(out);
+    expect(json).not.toMatch(/"me"|"them"|@|profile/);
+  });
+});
