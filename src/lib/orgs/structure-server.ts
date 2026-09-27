@@ -14,6 +14,8 @@
 // delete verifies through the division join — never "simplify" that to a
 // bare delete.
 
+import { isSportEnabled } from '@/lib/features';
+import type { SportKey } from '@/lib/sports/SportRegistry';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { capabilityAllows, getOrgAndCapabilities, type IntentScope, type OrgCapabilities, type OrgIntent } from './authz';
@@ -118,7 +120,7 @@ export async function structureAggregateGET(
       : Promise.resolve({ data: [] as never[] }),
     admin
       .from('teams')
-      .select('id, name, display_name, status, created_at')
+      .select('id, name, display_name, status, created_at, sport_key, primary_color, secondary_color, logo_path')
       .eq(ORG_ID, scope.orgId)
       .order('name', { ascending: true }),
   ]);
@@ -442,17 +444,35 @@ export async function teamPATCH(
   input: TeamPatchInput,
   scope: StructureScope | null
 ): Promise<NextResponse> {
-  let query = admin.from('teams').update({ status: input.status }).eq('id', input.id);
+  // Teams & divisions PR 6: the identity rides the same PATCH (the sport is
+  // checked HERE — validate.ts stays registry-free, the 113 convention).
+  if (input.sportKey && !isSportEnabled(input.sportKey as SportKey)) {
+    return NextResponse.json({ error: 'That sport is not available' }, { status: 400 });
+  }
+  const patch: Record<string, unknown> = {};
+  if (input.status !== undefined) patch.status = input.status;
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.displayName !== undefined) patch.display_name = input.displayName;
+  if (input.sportKey !== undefined) patch.sport_key = input.sportKey;
+  if (input.primaryColor !== undefined) patch.primary_color = input.primaryColor;
+  if (input.secondaryColor !== undefined) patch.secondary_color = input.secondaryColor;
+  let query = admin.from('teams').update(patch).eq('id', input.id);
   if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: updated, error } = await query.select('id');
   if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'Another team already has that name' }, { status: 409 });
+    }
     console.error(`${TAG} team patch error:`, error);
     return NextResponse.json({ error: 'Failed to update team' }, { status: 500 });
   }
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
-  return NextResponse.json({ action: input.status === 'archived' ? 'archived' : 'restored' });
+  const identityChanged = Object.keys(patch).some(k => k !== 'status');
+  return NextResponse.json({
+    action: identityChanged ? 'updated' : input.status === 'archived' ? 'archived' : 'restored',
+  });
 }
 
 export async function teamDELETE(

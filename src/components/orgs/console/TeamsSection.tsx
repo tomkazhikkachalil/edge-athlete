@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import TeamRosterPanel from './TeamRosterPanel';
+import TeamIdentityForm from './TeamIdentityForm';
+import { teamLogoUrl } from '@/lib/teams/logo-url';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // ── The console's Teams section (teams & divisions program, PR 5) ───────────
@@ -18,6 +20,11 @@ export interface ConsoleTeamRow {
   name: string;
   display_name: string | null;
   status: 'active' | 'archived';
+  // PR 6 (242): the identity the structure GET carries.
+  sport_key?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  logo_path?: string | null;
 }
 
 interface Props {
@@ -45,6 +52,8 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
   // PR 5: the open roster panel, and a re-read after a move (both teams change).
   const [rosterTeamId, setRosterTeamId] = useState<string | null>(null);
   const [rosterReload, setRosterReload] = useState(0);
+  // PR 6: the open identity editor.
+  const [editTeamId, setEditTeamId] = useState<string | null>(null);
 
   const act = useCallback(
     async (path: string, init: RequestInit, successMessage: string, failMessage: string, title = 'Structure') => {
@@ -143,11 +152,31 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
         <ul className="space-y-2">
           {teams.map(team => (
             <li key={team.id} className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg hover:bg-surface-muted">
-              <div className="min-w-0 grow basis-40">
-                <p className="font-medium text-primary">{team.name}</p>
-                {team.status === 'archived' && <p className="text-xs text-muted">Archived</p>}
+              <div className="min-w-0 grow basis-40 flex items-center gap-2">
+                {teamLogoUrl(team.id, team.logo_path) ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a tokenless streamer URL busted by ?v (the org-logo precedent)
+                  <img src={teamLogoUrl(team.id, team.logo_path)!} alt="" className="h-8 w-8 shrink-0 rounded-md border border-border object-contain bg-surface" />
+                ) : team.primary_color ? (
+                  <span aria-hidden="true" className="h-8 w-8 shrink-0 rounded-md border border-border" style={{ background: team.secondary_color ? `linear-gradient(135deg, ${team.primary_color}, ${team.secondary_color})` : team.primary_color }} />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="font-medium text-primary">{team.name}</p>
+                  {team.status === 'archived' && <p className="text-xs text-muted">Archived</p>}
+                  {team.display_name && team.display_name !== team.name && <p className="text-xs text-muted">Shown as {team.display_name}</p>}
+                </div>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {team.status === 'active' && (
+                  <button
+                    type="button"
+                    aria-expanded={editTeamId === team.id}
+                    aria-label={`Edit ${team.name}`}
+                    onClick={() => setEditTeamId(editTeamId === team.id ? null : team.id)}
+                    className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Edit
+                  </button>
+                )}
                 {team.status === 'active' && (
                   <button
                     type="button"
@@ -248,6 +277,19 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
                     </ul>
                   )}
                 </div>
+              )}
+              {editTeamId === team.id && team.status === 'active' && (
+                <TeamIdentityForm
+                  side={side}
+                  orgId={orgId}
+                  team={team}
+                  onSaved={message => {
+                    onSuccess('Team', message);
+                    onChanged();
+                  }}
+                  onError={message => onError('Team', message)}
+                  onClose={() => setEditTeamId(null)}
+                />
               )}
               {rosterTeamId === team.id && team.status === 'active' && (
                 <TeamRosterPanel
