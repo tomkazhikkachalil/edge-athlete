@@ -10,6 +10,7 @@
 // session, so one cached entry serves everyone (authed or not).
 
 import { orderStandingRows } from './standings-order';
+import { switchesOf } from '@/lib/orgs/switches';
 import { entryDisplayName } from './entries';
 import { BRACKET_COLUMNS, bracketColumnsFromContests, type BracketColumnView, type BracketContestRow } from './bracket-draw';
 import { readBracketRows, readMeetRows } from './standings';
@@ -115,8 +116,15 @@ export async function fetchPublicStandings(
     membersView?: boolean;
   } = {}
 ): Promise<PublicStandingsPayload | null> {
-  const { data: org } = await admin.from('organizations').select('id, name').eq('id', orgId).maybeSingle();
+  const full = await admin.from('organizations').select('id, name, operates_competitions').eq('id', orgId).maybeSingle();
+  const org = (full.error?.code === '42703' ? (await admin.from('organizations').select('id, name').eq('id', orgId).maybeSingle()).data : full.data) as
+    | { id: string; name: string; operates_competitions?: boolean }
+    | null;
   if (!org) return null;
+  // Teams & divisions (242): an org that switched competitions OFF shows no
+  // standings anywhere (the site, the SSR twin, the CDN API, members' view) —
+  // hidden, never deleted; turning it back on brings them back.
+  if (!switchesOf(org).competitions) return { orgName: org.name, competitions: [] };
   // Onboarding v2 R1 (179): a pending listing no longer empties the
   // standings — the org is live by link; listing gates discoverability only.
   // Phase 9 V4 (both sides since program 11 L2): a private org's PUBLIC

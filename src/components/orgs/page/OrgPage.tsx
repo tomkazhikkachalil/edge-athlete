@@ -1,5 +1,6 @@
 'use client';
 
+import { ALL_ON } from '@/lib/orgs/switches';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
@@ -293,6 +294,7 @@ export default function OrgPage({ side }: { side: OrgKind }) {
           canManage={canManage}
           isOwner={isOwner}
           composition={data.composition ?? null}
+          switches={data.switches ?? ALL_ON}
           siteId={brand?.siteId ?? null}
           standingsScope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'}
           members={members}

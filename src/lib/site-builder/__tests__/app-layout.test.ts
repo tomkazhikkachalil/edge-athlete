@@ -73,3 +73,14 @@ describe('deriveAppLayout', () => {
     expect(isOrgWindowKey('gallery')).toBe(false);
   });
 });
+
+describe('the switches (teams & divisions, 242)', () => {
+  it('competitions off drops the standings and week tiles from the registry order; everything else keeps its place', () => {
+    const all = deriveAppLayout().map(s => s.key);
+    const off = deriveAppLayout(null, { teams: true, competitions: false }).map(s => s.key);
+    expect(off).toEqual(all.filter(k => k !== 'standings' && k !== 'week'));
+  });
+  it('both on is the registry order exactly', () => {
+    expect(deriveAppLayout(null, { teams: true, competitions: true })).toEqual(deriveAppLayout());
+  });
+});

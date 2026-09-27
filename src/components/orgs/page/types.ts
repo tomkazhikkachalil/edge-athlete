@@ -5,6 +5,7 @@
 // clubs are multi-sport by decision, mig 117) and the legacy free-text
 // `location` fallback (club, 001).
 
+import type { OrgSwitches } from '@/lib/orgs/switches';
 import type { OrgBrand } from '@/lib/org-sites/brand-types';
 import type { AppComposition } from '@/lib/site-builder/app-layout';
 
@@ -94,6 +95,8 @@ export interface OrgPageResponse {
    *  app-capable instances in reading order, pruned to the viewer; null =
    *  no site / no stored layout (the glance grid keeps the registry order). */
   composition?: AppComposition | null;
+  /** Teams & divisions (242): the org's switches; absent = everything on. */
+  switches?: OrgSwitches;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
