@@ -336,6 +336,9 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
           ...(input.ctaLabel && input.ctaUrl ? { ctaLabel: input.ctaLabel, ctaUrl: input.ctaUrl } : {}),
           ...(input.notice ? { notice: input.notice } : {}),
           ...(input.notice && input.noticeUntil ? { noticeUntil: input.noticeUntil } : {}),
+          // L4: only with a notice; the default tone is absence.
+          ...(input.notice && input.noticeTone && input.noticeTone !== 'warning' ? { noticeTone: input.noticeTone } : {}),
+          ...(input.notice && input.noticeHref ? { noticeHref: input.noticeHref } : {}),
         },
       };
     case 'set_theme': {

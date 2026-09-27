@@ -27,6 +27,7 @@ import {
   HERO_CTA_LABEL_MAX,
   HERO_IMAGE_ALT_MAX,
   HERO_NOTICE_MAX,
+  HERO_NOTICE_TONES,
   HOLE_PHOTO_MAX_HOLE,
   ISO_DAY_RE,
   ORG_DOCUMENT_PATH_RE,
@@ -51,6 +52,9 @@ export const HeroConfigSchema = z
     ctaUrl: httpsUrl.optional(),
     notice: text(HERO_NOTICE_MAX).optional(),
     noticeUntil: z.string().regex(ISO_DAY_RE).optional(),
+    // L4 (Sep 27 2026): the band's tone and "More" link.
+    noticeTone: z.enum(HERO_NOTICE_TONES).optional(),
+    noticeHref: httpsUrl.optional(),
   })
   .loose();
 

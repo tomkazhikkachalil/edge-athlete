@@ -35,6 +35,14 @@ import { SiteMenu, SiteNavInline, type SiteNavLink } from './SiteNav';
 // theme, template, nav and notice — not the live ones around a draft body.
 // Viewer-independent by construction (the standings contract).
 
+// L4: the notice band's tones as LITERAL classes (Tailwind sees them; the
+// tone itself is a validated enum from parseHeroConfig / activeBanner).
+const BANNER_TONE_CLASS = {
+  warning: 'bg-amber-50 border-b border-amber-200 text-amber-900',
+  info: 'bg-sky-50 border-b border-sky-200 text-sky-900',
+  alert: 'bg-red-700 border-b border-red-800 text-white',
+} as const;
+
 export default function SiteShell({
   site,
   pages,
@@ -230,9 +238,21 @@ export default function SiteShell({
         <aside
           role="status"
           aria-label="Notice"
-          className="bg-amber-50 border-b border-amber-200 text-amber-900"
+          data-site-notice={banner.tone}
+          className={BANNER_TONE_CLASS[banner.tone]}
         >
-          <p className="site-container px-4 py-2 text-sm">{banner}</p>
+          <p className="site-container px-4 py-2 text-sm">
+            {banner.tone === 'alert' && <span className="mr-2 font-bold uppercase tracking-wide">Urgent</span>}
+            {banner.text}
+            {banner.href && (
+              <>
+                {' '}
+                <a href={banner.href} rel="noopener nofollow" className="font-semibold underline">
+                  More →
+                </a>
+              </>
+            )}
+          </p>
         </aside>
       )}
       <main id="main" className="flex-1">{children}</main>

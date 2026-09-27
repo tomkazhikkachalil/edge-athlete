@@ -1,5 +1,27 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, L4: notice tones and the site's own 404 (zero DDL)
+
+**Notice tones:**
+- The hero's standing notice gains a tone and a link, both on `hero_config` (jsonb — no DDL), written by `set_hero` and re-validated by `parseHeroConfig`:
+  - `noticeTone`: heads-up amber (the default, and ABSENT when chosen) · information blue · urgent red.
+  - `noticeHref`: https only; the band shows "More →".
+- The editor's hero panel offers "Notice style" and "Notice link" through a new content field kind, `choice` (`fields.ts`) — a short fixed list, pinned to `HeroConfigSchema` by `config-fields.test.ts` like every other field.
+- `banner.ts activeBanner` now returns `{ text, tone, href }`. An announcement still speaks in amber with no link; the standing notice carries the manager's choice. Urgent is a red band that reads "URGENT" first. The tones are literal classes in `SiteShell`.
+
+**The site's own 404:**
+- `org/[slug]/not-found.tsx` (plus the vanity twin re-export) renders a missing page ON a real site — a mistyped subpage, a removed post, an old team link — INSIDE the site's layout. The visitor keeps the club's header, menu and footer instead of the platform's generic page.
+- An unknown SITE still falls through to `(public)/not-found.tsx`: a segment's `not-found` does not catch its own layout's `notFound()`, which is exactly the split wanted.
+- A not-found receives no params and the public tree reads no headers, so the way home is the site's own menu above it (always present).
+
+**Proof:**
+- `npm run verify` green (3962).
+- New `org-site-notice-404.spec.ts`:
+  - the manager picks "Urgent" and a link in the editor's hero panel; the public band reads URGENT, shows the text and links "More →";
+  - `/no-such-page` answers 404 with the site's 404 and its menu at 375 px, on both route trees;
+  - an unknown site keeps "Page not found".
+- Green alongside it: org-announce, golf-season-wrap, org-vanity-path ×4, org-site-editor ×2, org-site-identity.
+
 ## September 27, 2026 — Sports-team website program, L3: social icons and a sponsor bar (zero DDL)
 
 **What:**

@@ -39,6 +39,8 @@ export type FieldSpec =
   | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' }
   /** Program 3, D2 — the sponsors list editor (name, link, tier, logo, order), saved through set_sponsors. */
   | { kind: 'sponsors'; name: 'sponsors'; label: string; help?: string; scope: 'content' }
+  // L4 (Sep 27 2026): a short fixed list for a content value (the notice's tone).
+  | { kind: 'choice'; name: string; label: string; help?: string; options: readonly (readonly [string, string])[]; scope: 'content' }
   /** Program 3, D1 — a fourth scope, 'display': the value goes to `config.display[name]`
    *  (how THIS tile presents its items); the field itself is the declaration in display.ts. */
   | { kind: 'display'; name: string; label: string; help?: string; scope: 'display'; field: DisplayField };
@@ -63,6 +65,8 @@ export const HERO_FIELDS: FieldSpec[] = [
   { kind: 'url', name: 'ctaUrl', label: 'Button link', max: 200, scope: 'content' },
   { kind: 'text', name: 'notice', label: 'Notice', help: 'A banner every page carries until the date below.', max: 200, scope: 'content' },
   { kind: 'date', name: 'noticeUntil', label: 'Notice until', scope: 'content' },
+  { kind: 'choice', name: 'noticeTone', label: 'Notice style', options: [['warning', 'Heads-up (amber)'], ['info', 'Information (blue)'], ['alert', 'Urgent (red)']], scope: 'content' },
+  { kind: 'url', name: 'noticeHref', label: 'Notice link', help: 'Optional — a page with the details (https://…).', scope: 'content' },
   // P10-C parity: the hero photo moved here from the console form.
   { kind: 'image', name: 'imagePath', label: 'Welcome photo', help: 'Shown under the headline, behind a colour wash.', scope: 'content' },
   { kind: 'text', name: 'imageAlt', label: 'Describe the photo', max: 200, scope: 'content' },

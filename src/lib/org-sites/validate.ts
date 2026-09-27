@@ -392,7 +392,15 @@ export interface PublicHero {
   ctaUrl?: string;
   notice?: string;
   noticeUntil?: string;
+  /** L4 (Sep 27 2026): the band's tone — absent = 'warning' (today's amber). */
+  noticeTone?: Exclude<HeroNoticeTone, 'warning'>;
+  /** L4: an https "More" link on the band (a rain-out page, the schedule). */
+  noticeHref?: string;
 }
+
+/** L4: the notice band's tones — the FIRST is today's amber (the default). */
+export const HERO_NOTICE_TONES = ['warning', 'info', 'alert'] as const;
+export type HeroNoticeTone = (typeof HERO_NOTICE_TONES)[number];
 
 export const HERO_CTA_LABEL_MAX = 24;
 export const HERO_NOTICE_MAX = 200;
@@ -430,6 +438,8 @@ export function parseHeroConfig(config: unknown): PublicHero {
     if (typeof record.noticeUntil === 'string' && ISO_DAY_RE.test(record.noticeUntil)) {
       out.noticeUntil = record.noticeUntil;
     }
+    if (record.noticeTone === 'info' || record.noticeTone === 'alert') out.noticeTone = record.noticeTone;
+    if (typeof record.noticeHref === 'string' && httpsUrl.safeParse(record.noticeHref).success) out.noticeHref = record.noticeHref;
   }
   return out;
 }
@@ -717,6 +727,9 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
       ctaUrl: httpsUrl.optional(),
       notice: optionalTrimmed(HERO_NOTICE_MAX),
       noticeUntil: z.string().regex(ISO_DAY_RE, 'YYYY-MM-DD').optional(),
+      // L4: the band's tone and an optional "More" link.
+      noticeTone: z.enum(HERO_NOTICE_TONES).optional(),
+      noticeHref: httpsUrl.optional(),
     })
     .superRefine((val, ctx) => {
       if (!!val.ctaLabel !== !!val.ctaUrl) {

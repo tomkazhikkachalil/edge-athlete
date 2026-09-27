@@ -9,8 +9,8 @@ describe('activeBanner', () => {
   });
 
   it('the standing hero notice shows through its end date, inclusive', () => {
-    expect(activeBanner({ notice: 'Cart path only' }, [], today)).toBe('Cart path only');
-    expect(activeBanner({ notice: 'Cart path only', noticeUntil: today }, [], today)).toBe('Cart path only');
+    expect(activeBanner({ notice: 'Cart path only' }, [], today)).toMatchObject({ text: 'Cart path only' });
+    expect(activeBanner({ notice: 'Cart path only', noticeUntil: today }, [], today)).toMatchObject({ text: 'Cart path only' });
     expect(activeBanner({ notice: 'Cart path only', noticeUntil: '2026-09-26' }, [], today)).toBeNull();
   });
 
@@ -19,16 +19,25 @@ describe('activeBanner', () => {
       { title: 'Games cancelled tonight', noticeUntil: '2026-09-28' },
       { title: 'Older', noticeUntil: '2026-10-30' },
     ];
-    expect(activeBanner({ notice: 'Cart path only' }, notices, today)).toBe('Games cancelled tonight');
+    expect(activeBanner({ notice: 'Cart path only' }, notices, today)).toMatchObject({ text: 'Games cancelled tonight', tone: 'warning', href: null });
   });
 
   it('an expired announcement falls back to the standing notice (or nothing)', () => {
     const expired = [{ title: 'Yesterday only', noticeUntil: '2026-09-26' }];
-    expect(activeBanner({ notice: 'Cart path only' }, expired, today)).toBe('Cart path only');
+    expect(activeBanner({ notice: 'Cart path only' }, expired, today)).toMatchObject({ text: 'Cart path only' });
     expect(activeBanner({}, expired, today)).toBeNull();
   });
 
   it('an announcement without an end date never reaches the band', () => {
     expect(activeBanner({}, [{ title: 'No date', noticeUntil: null }], today)).toBeNull();
+  });
+
+  it('L4: the standing notice carries its tone and link; the default tone is warning', () => {
+    expect(activeBanner({ notice: 'Fields closed', noticeTone: 'alert', noticeHref: 'https://example.com/fields' }, [], today)).toEqual({
+      text: 'Fields closed',
+      tone: 'alert',
+      href: 'https://example.com/fields',
+    });
+    expect(activeBanner({ notice: 'Picture day Saturday' }, [], today)).toEqual({ text: 'Picture day Saturday', tone: 'warning', href: null });
   });
 });
