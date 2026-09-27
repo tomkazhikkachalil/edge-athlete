@@ -213,3 +213,52 @@ export async function readTeamForPage(admin: Admin, orgId: string, teamId: strin
   const { data } = await admin.from('teams').select('id, name, display_name, status, sport_key, primary_color, secondary_color, logo_path').eq('id', teamId).eq(ORG_ID, orgId).eq('status', 'active').maybeSingle();
   return data as { id: string; name: string; display_name: string | null; sport_key: string | null; primary_color: string | null; secondary_color: string | null; logo_path: string | null } | null;
 }
+
+export interface TeamRecordRow {
+  competitionName: string;
+  seasonLabel: string | null;
+  rank: number;
+  played: number;
+  points: number | null;
+}
+
+/** The team's standing in each competition it is entered in — the public
+ *  page's Record table, the in-app Standings tab. The same gates as the
+ *  schedule's contests (public mode: public competitions of public orgs that
+ *  run competitions; member mode adds the team's own org's private ones). */
+export async function readTeamRecords(admin: Admin, input: { orgId: string; teamId: string; mode: 'public' | 'member' }): Promise<TeamRecordRow[]> {
+  try {
+    const entries = (logged('record entries', await admin.from('competition_entries').select('id, competition_id').eq('team_id', input.teamId).eq('status', 'approved').limit(100)) ?? []) as { id: string; competition_id: string }[];
+    if (entries.length === 0) return [];
+    const [standingsRes, compsRes] = await Promise.all([
+      admin.from('competition_standings').select('entry_id, competition_id, rank, points, played').in('entry_id', entries.map(e => e.id)),
+      admin.from('competitions').select('id, name, season_id, org_id, visibility, status').in('id', [...new Set(entries.map(e => e.competition_id))]),
+    ]);
+    const comps = (logged('record comps', compsRes) ?? []) as { id: string; name: string; season_id: string; org_id: string; visibility: string; status: string }[];
+    const orgs = (logged('record orgs', await admin.from('organizations').select('id, visibility, operates_competitions').in('id', [...new Set(comps.map(c => c.org_id))])) ?? []) as { id: string; visibility: string | null; operates_competitions?: boolean }[];
+    const orgById = new Map(orgs.map(o => [o.id, o]));
+    const allowed = new Map(
+      comps
+        .filter(c => c.status === 'active' || c.status === 'completed')
+        .filter(c => {
+          const org = orgById.get(c.org_id);
+          if (!org || !switchesOf(org).competitions) return false;
+          if (input.mode === 'member' && c.org_id === input.orgId) return true;
+          return c.visibility === 'public' && org.visibility !== 'private';
+        })
+        .map(c => [c.id, c])
+    );
+    const seasonIds = [...new Set([...allowed.values()].map(c => c.season_id))];
+    const { data: seasons } = seasonIds.length ? await admin.from('seasons').select('id, label').in('id', seasonIds) : { data: [] };
+    const seasonLabel = new Map(((seasons ?? []) as { id: string; label: string }[]).map(s => [s.id, s.label]));
+    return ((logged('record standings', standingsRes) ?? []) as { competition_id: string; rank: number; points: number | null; played: number }[])
+      .flatMap(r => {
+        const c = allowed.get(r.competition_id);
+        return c ? [{ competitionName: c.name, seasonLabel: seasonLabel.get(c.season_id) ?? null, rank: r.rank, played: r.played, points: r.points }] : [];
+      })
+      .sort((a, b) => a.competitionName.localeCompare(b.competitionName));
+  } catch (e) {
+    console.error(`${TAG} records failed:`, e);
+    return [];
+  }
+}

@@ -122,7 +122,7 @@ describe('content tiles (P10-B): resolved on the server, empty ones dropped for 
     ] };
     const out = deriveAppLayout(comp);
     // week(20) goes before standings(30); the tile sticks to standings (anchor 30 < 60), announcements(60) after members.
-    expect(out.map(s => s.instanceId ?? s.key)).toEqual(['week', 's', 't', 'm', 'announcements', 'activity', 'gallery', 'posts']);
+    expect(out.map(s => s.instanceId ?? s.key)).toEqual(['week', 's', 't', 'm', 'teams', 'announcements', 'activity', 'gallery', 'posts']);
     expect(out.find(s => s.instanceId === 't')).toMatchObject({ bubbleKey: null, span: 'md', title: 'Notes' });
     expect(deriveAppLayout().some(s => s.bubbleKey === null)).toBe(false);
   });
@@ -135,25 +135,26 @@ describe('deriveAppLayout(composition) — the interleave', () => {
   it('no composition (null / undefined) is the registry order; an empty one is the app-only + pinned set in registry order', () => {
     const registry = keys(undefined);
     expect(keys(null)).toEqual(registry);
-    expect(keys({ widgets: [] })).toEqual(['members', 'week', 'announcements', 'activity', 'gallery', 'posts']);
+    expect(keys({ widgets: [] })).toEqual(['members', 'week', 'teams', 'announcements', 'activity', 'gallery', 'posts']);
   });
 
   it('the layout’s order drives the module bubbles; app-only widgets slot in at their priority; posts is last', () => {
     // standings(30) then members(10): week(20) goes before the first anchor > 20 — standings.
-    expect(keys(comp(['standings', 'members']))).toEqual(['week', 'standings', 'members', 'announcements', 'activity', 'gallery', 'posts']);
+    expect(keys(comp(['standings', 'members']))).toEqual(['week', 'standings', 'members', 'teams', 'announcements', 'activity', 'gallery', 'posts']);
     // members first: week sits between members(10) and standings(30) — today's order.
-    expect(keys(comp(['members', 'standings']))).toEqual(['members', 'week', 'standings', 'announcements', 'activity', 'gallery', 'posts']);
+    expect(keys(comp(['members', 'standings']))).toEqual(['members', 'week', 'standings', 'teams', 'announcements', 'activity', 'gallery', 'posts']);
     // A long composition: posts still last, every present module once, missing unpinned modules dropped.
     const out = keys(comp(['news', 'affiliations', 'venues', 'schedule', 'standings', 'gallery']));
     expect(out[out.length - 1]).toBe('posts');
     expect(out.filter(k => k === 'standings')).toHaveLength(1);
-    expect(out).not.toContain('teams');
+    // Teams is PINNED since teams & divisions PR 8 — present without an instance.
+    expect(out).toContain('teams');
     expect(out.indexOf('news')).toBeLessThan(out.indexOf('standings'));
   });
 
   it('a module absent from the composition is dropped unless pinned; pinned ones appear at their priority', () => {
     const out = keys(comp(['standings']));
-    expect(out).toEqual(['members', 'week', 'standings', 'announcements', 'activity', 'gallery', 'posts']);
+    expect(out).toEqual(['members', 'week', 'standings', 'teams', 'announcements', 'activity', 'gallery', 'posts']);
     expect(out).not.toContain('schedule');
   });
 

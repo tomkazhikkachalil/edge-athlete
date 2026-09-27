@@ -125,7 +125,8 @@ export type AppBubbleKey =
   | 'activity'
   | 'affiliations'
   | 'photos'
-  | 'posts';
+  | 'posts'
+  | 'teams';
 
 /** The fields of the public home's `SiteHomeData` a web widget consumes —
  *  page.tsx gates its readers on these (a widget that is not on the page
@@ -342,7 +343,10 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'live',
     moduleKey: 'teams',
     constraints: FULL,
-    surfaces: { default: WEB },
+    // Teams & divisions PR 8: the in-app Teams tile (after Standings) — PINNED:
+    // it shows whenever the org runs teams (the switch gates it), whatever the
+    // site's composition or the module toggle say (the Photos precedent).
+    surfaces: { default: BOTH, app: { priority: 35, size: 'sm', bubbleKey: 'teams', pinned: true } },
     subpage: true,
     data: ['teams'],
   },

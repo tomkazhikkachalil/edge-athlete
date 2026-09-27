@@ -93,9 +93,9 @@ describe('site-builder catalog', () => {
     }
   });
 
-  it('phase 10: pinned app surfaces are exactly members and gallery (the roster window; Photos regardless of the toggle)', () => {
+  it('phase 10: pinned app surfaces are exactly members, gallery and teams (the roster window; Photos regardless of the toggle; Teams whenever the org runs teams — PR 8)', () => {
     const pinned = WIDGET_KEYS.filter(k => WIDGETS[k].surfaces.app?.pinned);
-    expect([...pinned].sort()).toEqual(['gallery', 'members']);
+    expect([...pinned].sort()).toEqual(['gallery', 'members', 'teams']);
     for (const key of pinned) expect(WIDGETS[key].surfaces.app, key).toBeDefined();
   });
 
