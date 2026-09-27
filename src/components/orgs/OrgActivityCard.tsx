@@ -3,6 +3,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { OwnerAuthorityEntry } from '@/lib/authority/projection';
 
+// The identity fields in words — the log stores column names. Location
+// columns collapse into one "location"; an unknown column reads as itself.
+const FIELD_LABELS: Record<string, string> = {
+  name: 'name',
+  description: 'description',
+  visibility: 'visibility',
+  join_policy: 'join policy',
+  operates_teams: 'We run teams',
+  operates_competitions: 'We run competitions',
+};
+const LOCATION_FIELDS = new Set(['place', 'place_id', 'city', 'region', 'region_code', 'country', 'country_code', 'lat', 'lng', 'location', 'location_source']);
+function fieldWords(fields: string[]): string {
+  const words = fields.map(f => (LOCATION_FIELDS.has(f) ? 'location' : (FIELD_LABELS[f] ?? f)));
+  return [...new Set(words)].join(', ');
+}
+
 // ── Activity — the owner's authority log (Authority PR 5, Sep 25 2026) ─────
 // Who changed who can run this club or league and its public face: owners,
 // managers, staff, the site going live or offline, publishes, restores,
@@ -84,7 +100,7 @@ export default function OrgActivityCard({ plural, orgId, onRestored }: { plural:
               <p className="text-primary break-words">
                 {e.words}
                 {e.target ? ` — ${e.target}` : ''}
-                {e.detail.title ? ` — “${e.detail.title}”` : e.detail.label ? ` — “${e.detail.label}”` : e.detail.domain ? ` — ${e.detail.domain}` : e.detail.listing ? ` — ${e.detail.listing}` : e.detail.fields?.length ? ` — ${e.detail.fields.join(', ')}` : ''}
+                {e.detail.title ? ` — “${e.detail.title}”` : e.detail.label ? ` — “${e.detail.label}”` : e.detail.domain ? ` — ${e.detail.domain}` : e.detail.listing ? ` — ${e.detail.listing}` : e.detail.fields?.length ? ` — ${fieldWords(e.detail.fields)}` : ''}
               </p>
               <p className="text-xs text-muted">
                 {e.actor} · {new Date(e.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}

@@ -1,5 +1,30 @@
 # Development Log
 
+## September 26, 2026 — Teams & divisions PR 2: the switches gate the console; the wizard's "We run divisions or teams" means it (zero DDL; needs 242)
+
+**Why (Tom):** "We run teams" / "We run competitions" should turn their part of the product on or off, be changeable later, and hide rather than delete. Until now nothing read them and nothing could change them.
+
+**The console:**
+- **The switches are editable.** `OrgUpdateSchema` takes `operatesTeams` / `operatesCompetitions`. The org PATCH maps them to the columns, stays `manage_org` (owners and managers; a member gets a 403), and records `identity_changed` with the switch's real before/after. `getOrgAndRole` reads only id, name and owner, so the prior switch values are read on purpose.
+- **A "What you run" card** (`src/components/orgs/console/SettingsSection.tsx`, console view key `settings`, owners / managers / admins only). It has two switches, each saying what a hidden part keeps: "Your 4 teams and their rosters are kept". Both may be off here (a purely social club); only the creation wizard asks for one.
+- **The console's sections follow the switches** (`sectionAllowed`, `switches.ts`): Teams under teams, Competitions under competitions, Seasons & divisions under either.
+- **The setup checklist** (`checklist.ts`) stops offering a step for a part the org doesn't run: a golf club with competitions off is never asked to create a league.
+- **The Activity log names fields in words** ("We run teams", "join policy", "location") instead of column names.
+
+**Creation:**
+- **`capabilityDefaultsFor(kind, sport)`:** a golf club starts with competitions on and teams off, as the wizard and 242's backfill already say. An admin-created golf club no longer starts with its Leagues hidden.
+- **The wizard's expander** ("We run divisions or teams") turns teams on, and so does any team entered in the structure step.
+- **Link-only orgs keep their structure.** `provisionPendingOrg` builds the wizard's season, divisions and teams at REQUEST time. A link-only request is never approved, so its structure used to be lost. Approval replays only into an org with no season yet, so a second run never collides on the season label.
+
+**Tests:**
+- Unit: `switches.test.ts` (settings classified), checklist (the switches drop their steps), `org-lib-fold.test.ts` (`capabilityDefaultsFor`; an admin-created golf club writes competitions on).
+- e2e:
+  - `createQaOrg` defaults both switches on.
+  - The three request specs now expect teams on after the expander.
+  - New `org-switches-console.spec.ts` @mobile: a member gets a 403; the owner turns teams off, the Teams section leaves while the team row is untouched, a reload keeps it hidden, on brings it back, and Activity records both.
+- `npm run verify` green (3887 tests).
+- **Found by the first staging batch:** the switch only moved once the PATCH answered, so a tap looked dead ("Clicking the checkbox did not change its state" on both phone engines). It is optimistic now (Key Conventions 6): it moves on the tap, and a failed save puts it back.
+- **Staging e2e is pending:** the free-tier staging project ran out of its Disk IO budget tonight (`select 1` takes 16 s, and PostgREST's schema-cache query overruns the API role's 8 s `statement_timeout`, so every request answers `PGRST002`). Production is unaffected (`/api/health` ok). The specs run once staging recovers.
 ## September 26, 2026 — e2e fixtures: every team roster row names its season (test only; follows 242)
 
 **Found by the teams stack's first staging batch:** migration 242's CHECK (every team roster row names its season) refused the fixture rows that TEN specs insert with the service role. Those specs fail on production too, since 242 ran there:

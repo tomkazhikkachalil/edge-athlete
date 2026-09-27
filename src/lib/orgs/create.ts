@@ -59,8 +59,17 @@ export const ORG_CAPABILITY_DEFAULTS: Record<OrgKind, { operatesCompetitions: bo
   club: { operatesCompetitions: false, operatesTeams: true },
 };
 
+/** The defaults for THIS org (teams & divisions, 242 — the switches gate
+ *  now): a golf club runs competitions, not teams — the wizard's own golf
+ *  default (OrgStartWizard) and 242's backfill say the same, so an
+ *  admin-created golf club no longer starts with its Leagues hidden. */
+export function capabilityDefaultsFor(kind: OrgKind, sportKey: string | null | undefined): { operatesCompetitions: boolean; operatesTeams: boolean } {
+  if (kind === 'club' && sportKey === 'golf') return { operatesCompetitions: true, operatesTeams: false };
+  return ORG_CAPABILITY_DEFAULTS[kind];
+}
+
 export async function createOrgWithOwner(admin: Admin, input: CreateOrgInput): Promise<CreateOrgResult> {
-  const defaults = ORG_CAPABILITY_DEFAULTS[input.kind];
+  const defaults = capabilityDefaultsFor(input.kind, input.sportKey);
   const tag = input.kind === 'league' ? '[LEAGUES CREATE]' : '[CLUBS CREATE]';
   const { data: org, error: insertError } = await admin
     .from('organizations')

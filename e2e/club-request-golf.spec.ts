@@ -127,7 +127,8 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
     };
     expect(row.status).toBe('pending');
     expect(row.operates_competitions).toBe(true);
-    expect(row.operates_teams).toBe(false);
+    // The expander ("We run divisions or teams") turns teams on (Sep 26 2026).
+    expect(row.operates_teams).toBe(true);
     if (hasSiteDraft) {
       expect(row.site_draft).toEqual({
         listing: 'pending',

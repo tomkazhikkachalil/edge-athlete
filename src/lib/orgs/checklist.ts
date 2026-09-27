@@ -6,6 +6,17 @@
 // course, publish, members, the first league, a word to the members. Steps
 // carry an anchor into the console section that completes them. Optional
 // steps never block "all done". Node-tested.
+// Teams & divisions (242): a step for a part the org switched OFF is not
+// offered at all (never "to do" for something the org doesn't run).
+
+import { switchAllows, type OrgSwitches, type SwitchRule } from './switches';
+
+const STEP_SWITCH: Record<string, SwitchRule> = {
+  season: 'either',
+  divisions: 'either',
+  teams: 'teams',
+  league: 'competitions',
+};
 
 export interface OrgChecklistInput {
   hasSeasonWithDates: boolean;
@@ -29,6 +40,8 @@ export interface OrgChecklistInput {
    *  (Tom: a co-owner or a manager counts; staff do not.) Absent → the old
    *  count stands in (pre-240 consoles). */
   backup?: 'ok' | 'none' | 'pending' | 'n/a';
+  /** The org's switches (242); absent = everything on. */
+  switches?: OrgSwitches;
 }
 
 /** The backup step — shared by both variants, never optional. */
@@ -59,6 +72,12 @@ export function buildOrgChecklistSteps(
   input: OrgChecklistInput,
   variant: ChecklistVariant = 'default'
 ): ChecklistStep[] {
+  const steps = buildAllSteps(input, variant);
+  const switches = input.switches;
+  return switches ? steps.filter(step => switchAllows(switches, STEP_SWITCH[step.key] ?? 'always')) : steps;
+}
+
+function buildAllSteps(input: OrgChecklistInput, variant: ChecklistVariant): ChecklistStep[] {
   if (variant === 'golf') {
     return [
       {

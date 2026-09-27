@@ -19,7 +19,7 @@ import { revalidateTag } from 'next/cache';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { draftPreviewUrls } from '@/lib/orgs/pending-org';
 import { reportRouteError } from '@/lib/observability/report';
-import type { OrgKind } from './org-ref';
+import { ORG_ID, type OrgKind } from './org-ref';
 import { publicRequestRow } from './requests-server';
 
 const TAG: Record<OrgKind, string> = { league: '[ADMIN LEAGUE REQUESTS]', club: '[ADMIN CLUB REQUESTS]' };
@@ -144,7 +144,13 @@ export async function adminRequestsPATCH(request: NextRequest, kind: OrgKind) {
     // fresh org (145 cascades erase everything) and the request stays
     // pending, so the retry is a free second click.
     const { planStructureReplay, replayStructure } = await import('@/lib/orgs/wizard-replay');
-    const plan = planStructureReplay(row.structure_draft, kind, kind === 'league' ? (row.sport_key as string) : null);
+    // An adopted org built its structure at request time (pending-org.ts,
+    // Sep 26 2026) — replay only into an org with no season yet, so a second
+    // run never collides on the season label.
+    const { count: seasonCount } = adopted
+      ? await supabase.from('seasons').select('id', { count: 'exact', head: true }).eq(ORG_ID, adopted.id)
+      : { count: 0 };
+    const plan = (seasonCount ?? 0) > 0 ? null : planStructureReplay(row.structure_draft, kind, kind === 'league' ? (row.sport_key as string) : null);
     let structureCounts: { divisions: number; teams: number } | null = null;
     if (plan) {
       const replayed = await replayStructure(supabase, { side: kind, orgId: org.id }, plan);

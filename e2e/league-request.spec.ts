@@ -77,7 +77,8 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
     const row = rows![0];
     expect(row.status).toBe('pending');
     expect(row.operates_competitions).toBe(true);
-    expect(row.operates_teams).toBe(false);
+    // The expander ("We run divisions or teams") turns teams on (Sep 26 2026).
+    expect(row.operates_teams).toBe(true);
     const draft = row.structure_draft as { divisions: { sportKey: string }[]; teams: string[] };
     expect(draft.divisions).toHaveLength(before - 1);
     // The server re-stamps every division sport with the request sport.
