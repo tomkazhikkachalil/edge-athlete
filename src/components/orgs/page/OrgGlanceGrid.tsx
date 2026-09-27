@@ -1,5 +1,6 @@
 'use client';
 
+import type { OrgSwitches } from '@/lib/orgs/switches';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
@@ -181,6 +182,8 @@ interface OrgGlanceGridProps {
   isOwner: boolean;
   /** Phase 10: the site's composition (order + titles); null = registry order. */
   composition: AppComposition | null;
+  /** Teams & divisions (242): the org's switches — a switched-off part's tile is not offered. */
+  switches: OrgSwitches;
   /** Phase 10-B: the site id the content tiles' images stream under (from the brand). */
   siteId: string | null;
   standingsScope: 'public' | 'mine';
@@ -198,6 +201,7 @@ export default function OrgGlanceGrid({
   canManage,
   isOwner,
   composition,
+  switches,
   siteId,
   standingsScope,
   members,
@@ -424,7 +428,7 @@ export default function OrgGlanceGrid({
   // its own bubble and window. An instance title names the bubble AND its
   // window (LargerWindow reads the label).
   type Slot = { kind: 'bubble'; bubble: Bubble } | { kind: 'posts' } | { kind: 'tile'; slot: AppSlot };
-  const slots: Slot[] = deriveAppLayout(composition).flatMap((s): Slot[] => {
+  const slots: Slot[] = deriveAppLayout(composition, switches).flatMap((s): Slot[] => {
     if (s.ownsWindow) return [{ kind: 'posts' }];
     // P10-B: a content tile (bubbleKey null) — rendered where the layout put it.
     if (s.bubbleKey === null) return s.instanceId ? [{ kind: 'tile', slot: s }] : [];

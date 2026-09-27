@@ -35,6 +35,7 @@ import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
 import { applyDraftAction, loadDraftSnapshot, loadSitePointers, publishDraft } from './revisions-server';
 import { readGalleryPicks } from './member-photo-gate';
 import { overlaySnapshot, parseSnapshot, type SnapshotAction, type ApplyContext } from '@/lib/site-builder/snapshot';
+import { gateModules, switchesOf, type OrgSwitches } from '@/lib/orgs/switches';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { NEUTRAL_ORG, type GalleryOrg } from '@/lib/site-builder/gallery';
 import type { SiteLayout } from '@/lib/site-builder/layout';
@@ -658,6 +659,11 @@ export interface PublicSite extends SiteRow {
    *  preview, the canvas). Null = no stored layout yet: the renderer draws
    *  `seedLayout(site)`, the template's seed of the module rows. */
   layout: SiteLayout | null;
+  /** Teams & divisions (242): the org's switches. `modules` already reads
+   *  them (a switched-off module is disabled HERE, so every renderer, the
+   *  nav, requireSiteModule and the sitemap agree); kept for the readers
+   *  that are not module-shaped (standings, contest places). */
+  switches: OrgSwitches;
 }
 
 /** The (public) segment's read: a PUBLISHED site by slug, with its org
@@ -698,7 +704,9 @@ export async function getDraftSiteBySlug(admin: Admin, slug: string): Promise<Pu
     published_revision_id: null,
   });
   if (!state) return site;
-  return { ...overlaySnapshot(site, state.snapshot), layout: parseStoredLayout(state.snapshot.layout) };
+  // The snapshot replaces the module rows — the switches gate them again.
+  const overlaid = overlaySnapshot(site, state.snapshot);
+  return { ...overlaid, modules: gateModules(overlaid.modules, site.switches), layout: parseStoredLayout(state.snapshot.layout) };
 }
 
 async function getSiteBySlugInternal(
@@ -732,7 +740,7 @@ async function getSiteBySlugInternal(
   const readOrg = (fields: string) =>
     admin.from('organizations').select(fields).eq('id', orgId).maybeSingle();
   const [orgRead, { data: modules }] = await Promise.all([
-    readOrg('id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at'),
+    readOrg('id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at, operates_teams, operates_competitions'),
     admin
       .from('org_site_modules')
       .select('module_key, enabled, sort_order, config')
@@ -773,7 +781,12 @@ async function getSiteBySlugInternal(
     description?: string | null;
     listing_status?: string | null;
     approved_at?: string | null;
+    operates_teams?: boolean | null;
+    operates_competitions?: boolean | null;
   };
+  // Teams & divisions (242): a switched-off part reads disabled; the step-down
+  // reads (no switch columns) read everything on.
+  const switches = switchesOf(orgRow);
   return {
     ...siteFields,
     orgName: orgRow.name,
@@ -789,7 +802,8 @@ async function getSiteBySlugInternal(
     // R1: decided from the org row alone (viewer-independent, like visibility).
     listed: isListed(listingFromRow(orgRow as unknown as Record<string, unknown>)),
     orgDescription: orgRow.description ?? null,
-    modules: modules ?? [],
+    modules: gateModules(modules ?? [], switches),
     layout,
+    switches,
   };
 }

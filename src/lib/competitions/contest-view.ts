@@ -32,6 +32,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { readOrgAccess, type OrgAccess } from '@/lib/orgs/access';
+import { switchesOf } from '@/lib/orgs/switches';
 import { getOrgCapabilities, hasAnyCapability } from '@/lib/orgs/authz';
 import { type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf, type OrgKind } from '@/lib/orgs/org-ref';
 import { deriveDisplayTier, type ResultProvenance } from '@/lib/orgs/provenance';
@@ -431,9 +432,12 @@ export async function fetchContestView(
 
     const [orgAccess, orgRow] = await Promise.all([
       readOrgAccess(admin, side, orgId),
-      admin.from('organizations').select('id, name').eq('id', orgId).maybeSingle(),
+      admin.from('organizations').select('id, name, operates_competitions').eq('id', orgId).maybeSingle(),
     ]);
     if (!orgRow.data) return null;
+    // Teams & divisions (242): an org that switched competitions OFF has no
+    // contest places — the same 404 as not-found (hidden, never deleted).
+    if (!switchesOf(orgRow.data as { operates_competitions?: boolean }).competitions) return null;
 
     const teamIdsEntered = [...new Set([...entryById.values()].map(e => e.team_id).filter((v): v is string => !!v))];
     const access = await resolveContestAccess(admin, {

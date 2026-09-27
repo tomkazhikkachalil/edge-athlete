@@ -1,5 +1,33 @@
 # Development Log
 
+## September 26, 2026 — Teams & divisions PR 3: the switches gate the public site and the in-app org page (zero DDL; stacked on PR 2)
+
+**Why:** PR 2 made the switches gate the console. The org's public site and its in-app page must agree, or a club that switched teams off would still show teams to everyone.
+
+**One seam per surface:**
+- **The public site: `getSiteBySlugInternal`** (`org-sites/server.ts`) reads `operates_teams` / `operates_competitions` with the org row and returns `modules: gateModules(modules, switches)`. A switched-off module reads DISABLED for every reader: the renderer, `publicWidgets`, the nav, `requireSiteModule` (so `/teams`, `/teams/[id]`, `/standings`, `/leaders` 404), the preview and the home's data needs.
+  - The draft preview re-applies the gate after `overlaySnapshot`, because the snapshot replaces the module rows.
+  - The step-down reads for older databases carry no switch columns and read everything on.
+  - `PublicSite.switches` is there for the readers that aren't module-shaped.
+- **The sitemap** (`fetchPublishedSitesForSitemap`): the organizations read it already made for visibility now carries the switches. A switched-off module and its subpages (teams, standings players) leave the sitemap, and contest pages leave with competitions.
+- **Standings:** `fetchPublicStandings` answers the empty state when competitions is off. That covers the site modules, the SSR twin, the CDN-cached API and the members' view.
+- **Contest places:** `fetchContestView` gives the not-found 404 for an org with competitions off.
+- **The in-app org page:**
+  - `deriveAppLayout(composition, switches)` drops a switched-off tile (standings and week under competitions), in the registry order and in a composition alike.
+  - The org GET returns `switches`, and `OrgPage` passes them to `OrgGlanceGrid`.
+  - `APP_WINDOW_KEYS` stays all-on (window identity, not visibility).
+
+Off hides; nothing is deleted. The module rows are never written, so turning a switch back on restores the site exactly.
+
+**Tests:**
+- `app-layout.test.ts`: competitions off drops only standings and week; both on is the registry order exactly.
+- The widget-data fixture carries `switches`.
+- New `org-switches-site.spec.ts` @mobile, on a published club site:
+  - teams off → `/teams` 404 while `/standings` serves;
+  - competitions off → `/standings` 404, and the org page has no Standings tile;
+  - both on → both serve, the tile is back, and the module rows were never touched.
+- `npm run verify` green. On the first staging batch the spec passed on WebKit, and on Chromium ran out of its 240 s over eight ISR settles on the slow instance; it has 480 s now.
+
 ## September 26, 2026 — Teams & divisions PR 2: the switches gate the console; the wizard's "We run divisions or teams" means it (zero DDL; needs 242)
 
 **Why (Tom):** "We run teams" / "We run competitions" should turn their part of the product on or off, be changeable later, and hide rather than delete. Until now nothing read them and nothing could change them.

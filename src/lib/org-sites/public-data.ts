@@ -34,6 +34,7 @@ import type { PublicCompetitionStandings } from '@/lib/competitions/public-stand
 import { sortWeeks, utcToday, weekState, type GolfWeekState } from '@/lib/competitions/golf-weeks';
 import { buildGolfLeaderBoards, type GolfLeaderInputRow } from '@/lib/competitions/golf-leaders';
 import { LISTING_NOT_KNOWN, isListed, listingFromRow, readListingMap } from '@/lib/orgs/listing';
+import { ALL_ON, switchesOf, widgetAllowed, type OrgSwitches } from '@/lib/orgs/switches';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -612,10 +613,27 @@ export async function fetchPublishedSitesForSitemap(
   // Phase 9 V4 (leagues in program 11 L2): private orgs — the members-only
   // subpages leave the sitemap. Pre-176/177 (42703) ⇒ nothing is private.
   // D1: one organizations read, keyed by id (unique across kinds).
+  // Teams & divisions (242): the same read carries the switches — a module
+  // (and a contest page) for a part the org switched off leaves the sitemap,
+  // as it 404s (getSiteBySlugInternal gates the modules).
   const privateOrgs = new Set<string>();
+  const switchesByOrg = new Map<string, OrgSwitches>();
   if (orgIds.length) {
-    const { data: vis } = await admin.from('organizations').select('id, visibility').in('id', orgIds);
-    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateOrgs.add(c.id as string);
+    type OrgFlags = { id: string; visibility?: string; operates_teams?: boolean; operates_competitions?: boolean };
+    const full = await admin.from('organizations').select('id, visibility, operates_teams, operates_competitions').in('id', orgIds);
+    const vis: OrgFlags[] =
+      full.error?.code === '42703'
+        ? (((await admin.from('organizations').select('id, visibility').in('id', orgIds)).data ?? []) as OrgFlags[])
+        : ((full.data ?? []) as OrgFlags[]);
+    for (const c of vis) {
+      if (c.visibility === 'private') privateOrgs.add(c.id);
+      switchesByOrg.set(c.id, switchesOf(c));
+    }
+  }
+  const switchesOfSite = (r: { ref: OrgRef | null }): OrgSwitches => (r.ref ? switchesByOrg.get(r.ref.orgId) : undefined) ?? ALL_ON;
+  for (const r of siteRows) {
+    const keys = modulesBySite.get(r.id);
+    if (keys) modulesBySite.set(r.id, keys.filter(k => widgetAllowed(switchesOfSite(r), k)));
   }
   const visibilityOf = (r: { ref: OrgRef | null }): 'public' | 'private' =>
     r.ref && privateOrgs.has(r.ref.orgId) ? 'private' : 'public';
@@ -634,7 +652,7 @@ export async function fetchPublishedSitesForSitemap(
   const contestsByOrg = await fetchContestIdsForOrgs(
     admin,
     siteRows
-      .filter(r => (modulesBySite.get(r.id) ?? []).includes('schedule') && visibilityOf(r) === 'public')
+      .filter(r => (modulesBySite.get(r.id) ?? []).includes('schedule') && visibilityOf(r) === 'public' && switchesOfSite(r).competitions)
       .filter(r => !!r.ref)
       .map(r => ({ key: `${r.ref!.side}:${r.ref!.orgId}`, side: r.ref!.side, orgId: r.ref!.orgId }))
   );

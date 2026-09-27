@@ -17,6 +17,7 @@
  * (`app-composition.ts`) into the plain wire shapes below.
  */
 
+import { ALL_ON, widgetAllowed, type OrgSwitches } from '@/lib/orgs/switches';
 import { WIDGETS, WIDGET_KEYS, isContentWidgetKey, type AppBubbleKey, type BubbleSpan, type WidgetKey } from './catalog';
 import { effectiveAudience, type AudienceSite } from './audience';
 import { instanceTitle } from './config';
@@ -127,7 +128,13 @@ export function spanFor(inst: Pick<AppInstance, 'key' | 'w'>): BubbleSpan {
  *  placed after); a missing widget of priority p goes before the first slot
  *  whose anchor exceeds p. Posts (110) is always last: no module priority
  *  exceeds 100. */
-export function deriveAppLayout(composition?: AppComposition | null): AppSlot[] {
+export function deriveAppLayout(composition?: AppComposition | null, switches: OrgSwitches = ALL_ON): AppSlot[] {
+  // Teams & divisions (242): a tile for a part the org switched off is not
+  // offered (hidden, never deleted) — in the registry order and a composition alike.
+  return composeSlots(composition).filter(s => widgetAllowed(switches, s.key));
+}
+
+function composeSlots(composition?: AppComposition | null): AppSlot[] {
   const registry = registrySlots();
   if (!composition) return registry;
 

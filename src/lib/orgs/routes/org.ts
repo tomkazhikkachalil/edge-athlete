@@ -20,6 +20,7 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 import { readSiteBrandRow, revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { buildOrgBrand } from '@/lib/org-sites/brand';
 import { buildAppComposition } from '@/lib/site-builder/app-composition';
+import { switchesOf } from '@/lib/orgs/switches';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
@@ -126,6 +127,8 @@ export async function orgRouteGET(request: NextRequest, kind: OrgKind, params: {
       // Phase 10: the app-capable instances of the site's layout in reading
       // order, pruned to this viewer; null = no stored layout (registry order).
       composition,
+      // Teams & divisions (242): the switches — the org page's tiles follow them.
+      switches: switchesOf(org),
       memberCount: count,
       members: privateOutsider ? [] : members,
       viewerRole,
