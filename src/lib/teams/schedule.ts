@@ -83,6 +83,8 @@ export interface EventInput {
   date: string | null;
   mySide: 1 | 2;
   opponentName: string | null;
+  /** G4: the team's own name on its side — with the opponent's, the sides as data. */
+  myName?: string | null;
   side1Score: number | null;
   side2Score: number | null;
   roundIds: string[];
@@ -159,6 +161,7 @@ export function mergeTeamSchedule(input: {
       href: c.href,
       state,
       result: state === 'final' ? teamResultLine(c.outcome, c.myEntryId) : null,
+      ...withPair(pairing(c.outcome).pair),
     });
   }
   for (const e of input.calendar) {
@@ -180,6 +183,11 @@ export function mergeTeamSchedule(input: {
       href: ev.href,
       state,
       result: state === 'final' ? gameResultLine(ev.mySide, ev.side1Score, ev.side2Score) : null,
+      ...withPair(
+        ev.myName && ev.opponentName
+          ? eventPair(ev.mySide === 1 ? ev.myName : ev.opponentName, ev.mySide === 1 ? ev.opponentName : ev.myName, ev.side1Score, ev.side2Score)
+          : undefined
+      ),
     });
   }
 
@@ -203,8 +211,39 @@ export interface DivisionContestInput {
   playFrom: string | null;
   status: string;
   eventId: string | null;
+  /** G4: the event round a linked contest mirrors — its event folds into it. */
+  sportEventRoundId?: string | null;
   outcome: ContestOutcome;
   href: string | null;
+}
+
+/** G4: a sport-event game at the division / org level — both sides named
+ *  (side 1 = home, the game shape's Home / Away), no single side to read a
+ *  W/L from. */
+export interface DivisionEventInput {
+  id: string;
+  name: string;
+  status: string;
+  startsAt: string | null;
+  date: string | null;
+  side1Name: string | null;
+  side2Name: string | null;
+  side1Score: number | null;
+  side2Score: number | null;
+  roundIds: string[];
+  timezone: string | null;
+  href: string | null;
+  /** The teams (ids) playing a side. */
+  teamIds: string[];
+}
+
+function withPair(pair: GamePair | undefined): { pair?: GamePair } {
+  return pair ? { pair } : {};
+}
+
+function eventPair(home: string, away: string, homeScore: number | null, awayScore: number | null): GamePair {
+  const scored = homeScore !== null && awayScore !== null;
+  return { home, away, homeScore: scored ? homeScore : null, awayScore: scored ? awayScore : null };
 }
 
 function pairing(outcome: ContestOutcome): { title: string | null; score: string | null; pair?: GamePair } {
@@ -217,8 +256,13 @@ function pairing(outcome: ContestOutcome): { title: string | null; score: string
   return { title: `${home} vs ${away}`, score: scored ? `${home} ${outcome.home!.score}–${outcome.away!.score} ${away}` : null, pair };
 }
 
-export function divisionSchedule(input: { calendar: readonly CalendarInput[]; contests: readonly DivisionContestInput[] }): { upcoming: TeamScheduleItem[]; results: TeamScheduleItem[] } {
+export function divisionSchedule(input: {
+  calendar: readonly CalendarInput[];
+  contests: readonly DivisionContestInput[];
+  events?: readonly DivisionEventInput[];
+}): { upcoming: TeamScheduleItem[]; results: TeamScheduleItem[] } {
   const mirrored = new Set(input.contests.map(c => c.eventId).filter((v): v is string => !!v));
+  const linkedRoundIds = new Set(input.contests.map(c => c.sportEventRoundId).filter((v): v is string => !!v));
   const zoneOfCalendar = new Map(input.calendar.map(e => [e.id, e.timezone]));
   const items: TeamScheduleItem[] = [];
   for (const c of input.contests) {
@@ -245,11 +289,40 @@ export function divisionSchedule(input: { calendar: readonly CalendarInput[]; co
     if (e.status !== 'active' || mirrored.has(e.id)) continue;
     items.push({ kind: 'calendar', key: `calendar:${e.id}`, when: e.starts_at, allDay: e.all_day, timezone: e.timezone, title: e.title, opponent: null, location: e.location, href: e.href, state: 'upcoming', result: null });
   }
+  // G4: the sport-event games (a game between two sides no competition
+  // owns); one a linked contest mirrors folds into the contest.
+  for (const ev of input.events ?? []) {
+    const state = eventState(ev.status);
+    if (!state || ev.roundIds.some(id => linkedRoundIds.has(id))) continue;
+    const pair = ev.side1Name && ev.side2Name ? eventPair(ev.side1Name, ev.side2Name, ev.side1Score, ev.side2Score) : undefined;
+    const scoreLine = pair && pair.homeScore !== null ? `${pair.home} ${pair.homeScore}–${pair.awayScore} ${pair.away}` : null;
+    items.push({
+      kind: 'event',
+      key: `event:${ev.id}`,
+      when: ev.startsAt ?? ev.date,
+      allDay: !ev.startsAt && !!ev.date,
+      timezone: ev.timezone,
+      title: state === 'final' && scoreLine ? scoreLine : pair ? `${pair.home} vs ${pair.away}` : ev.name,
+      opponent: null,
+      location: pair ? ev.name : null,
+      href: ev.href,
+      state,
+      result: null,
+      ...withPair(pair),
+      ...(ev.teamIds.length ? { teamIds: ev.teamIds } : {}),
+    });
+  }
   const at = (i: TeamScheduleItem) => (i.when ? Date.parse(i.when.length === 10 ? `${i.when}T12:00:00Z` : i.when) : Number.POSITIVE_INFINITY);
   return {
     upcoming: items.filter(i => i.state !== 'final').sort((a, b) => at(a) - at(b) || a.key.localeCompare(b.key)),
     results: items.filter(i => i.state === 'final').sort((a, b) => at(b) - at(a) || a.key.localeCompare(b.key)),
   };
+}
+
+/** G4: the game a page leads with — the soonest upcoming or live GAME (a
+ *  contest or a sport event; a calendar row is a practice or a meeting). */
+export function nextGameOf(schedule: { upcoming: readonly TeamScheduleItem[] }): TeamScheduleItem | null {
+  return schedule.upcoming.find(i => i.kind !== 'calendar') ?? null;
 }
 
 // ── An org's games window (sports-team website program, G1) ────────────────

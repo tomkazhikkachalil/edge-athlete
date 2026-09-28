@@ -16,7 +16,7 @@ import { switchesOf } from '@/lib/orgs/switches';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { deriveContestOutcome, type ContestOutcome } from '@/lib/competitions/contest-outcome';
 import { entryDisplayName } from '@/lib/competitions/entries';
-import { mergeTeamSchedule, type CalendarInput, type ContestInput, type EventInput, type TeamScheduleItem } from './schedule';
+import { mergeTeamSchedule, type CalendarInput, type ContestInput, type DivisionEventInput, type EventInput, type TeamScheduleItem } from './schedule';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -206,8 +206,9 @@ async function readEvents(admin: Admin, input: { orgId: string; teamId: string; 
   const events = (logged('events', eventsRes) ?? []) as { id: string; name: string; status: string; visibility: string; org_id: string | null; format_config: { game?: { side_names?: string[] } } | null }[];
   const allSides = (logged('all sides', sidesRes) ?? []) as { sport_event_id: string; side: 1 | 2; team_id: string }[];
   const rounds = (logged('rounds', roundsRes) ?? []) as { id: string; sport_event_id: string; starts_at: string | null; scheduled_on: string | null; side1_score: number | null; side2_score: number | null; timezone: string | null }[];
-  const otherTeamIds = [...new Set(allSides.filter(s => s.team_id !== input.teamId).map(s => s.team_id))];
-  const { data: otherTeams } = otherTeamIds.length ? await admin.from('teams').select('id, name, display_name').in('id', otherTeamIds) : { data: [] };
+  // G4: the team's own name too — with the opponent's, the sides as data.
+  const nameIds = [...new Set([input.teamId, ...allSides.map(s => s.team_id)])];
+  const { data: otherTeams } = await admin.from('teams').select('id, name, display_name').in('id', nameIds);
   const teamName = new Map(((otherTeams ?? []) as { id: string; name: string; display_name: string | null }[]).map(t => [t.id, t.display_name || t.name]));
   const mySide = new Map(mySides.map(s => [s.sport_event_id, s.side]));
 
@@ -228,12 +229,65 @@ async function readEvents(admin: Admin, input: { orgId: string; teamId: string; 
         date: first?.scheduled_on ?? null,
         mySide: side,
         opponentName: (otherTeam ? teamName.get(otherTeam.team_id) : null) ?? e.format_config?.game?.side_names?.[other - 1] ?? null,
+        myName: teamName.get(input.teamId) ?? null,
         side1Score: first?.side1_score ?? null,
         side2Score: first?.side2_score ?? null,
         roundIds: eventRounds.map(r => r.id),
         timezone: first?.timezone ?? null,
         href: input.links.event(e.id),
       }];
+    });
+}
+
+// ── G4: the sport-event games a SET of teams plays (division / org level) ──
+/** Every game event one of `teamIds` plays a side of — both sides named
+ *  (a team's name, else the game's side name), the first round's time and
+ *  score. 'public' keeps public events only; 'member' adds the org's own.
+ *  Never throws: a failed read is empty, logged. */
+export async function readSideEvents(
+  admin: Admin,
+  input: { orgId: string; teamIds: readonly string[]; mode: 'public' | 'member'; links: { event: (eventId: string) => string | null } }
+): Promise<DivisionEventInput[]> {
+  if (input.teamIds.length === 0) return [];
+  const ours = (logged('side events', await admin.from('sport_event_teams').select('sport_event_id').in('team_id', [...input.teamIds]).limit(300)) ?? []) as { sport_event_id: string }[];
+  const eventIds = [...new Set(ours.map(s => s.sport_event_id))];
+  if (eventIds.length === 0) return [];
+  const [eventsRes, sidesRes, roundsRes] = await Promise.all([
+    admin.from('sport_events').select('id, name, status, visibility, org_id, format_config').in('id', eventIds),
+    admin.from('sport_event_teams').select('sport_event_id, side, team_id').in('sport_event_id', eventIds),
+    admin.from('sport_event_rounds').select('id, sport_event_id, sequence, starts_at, scheduled_on, side1_score, side2_score, timezone').in('sport_event_id', eventIds).order('sequence', { ascending: true }),
+  ]);
+  const events = (logged('events', eventsRes) ?? []) as { id: string; name: string; status: string; visibility: string; org_id: string | null; format_config: { game?: { side_names?: string[] } } | null }[];
+  const sides = (logged('all sides', sidesRes) ?? []) as { sport_event_id: string; side: 1 | 2; team_id: string }[];
+  const rounds = (logged('rounds', roundsRes) ?? []) as { id: string; sport_event_id: string; starts_at: string | null; scheduled_on: string | null; side1_score: number | null; side2_score: number | null; timezone: string | null }[];
+  const nameIds = [...new Set(sides.map(s => s.team_id))];
+  const { data: named } = nameIds.length ? await admin.from('teams').select('id, name, display_name').in('id', nameIds) : { data: [] };
+  const teamName = new Map(((named ?? []) as { id: string; name: string; display_name: string | null }[]).map(t => [t.id, t.display_name || t.name]));
+  return events
+    .filter(e => e.visibility === 'public' || (input.mode === 'member' && e.org_id === input.orgId))
+    .map(e => {
+      const eventSides = sides.filter(s => s.sport_event_id === e.id);
+      const nameOf = (n: 1 | 2) => {
+        const t = eventSides.find(s => s.side === n);
+        return (t ? teamName.get(t.team_id) : null) ?? e.format_config?.game?.side_names?.[n - 1] ?? null;
+      };
+      const eventRounds = rounds.filter(r => r.sport_event_id === e.id);
+      const first = eventRounds[0];
+      return {
+        id: e.id,
+        name: e.name,
+        status: e.status,
+        startsAt: first?.starts_at ?? null,
+        date: first?.scheduled_on ?? null,
+        side1Name: nameOf(1),
+        side2Name: nameOf(2),
+        side1Score: first?.side1_score ?? null,
+        side2Score: first?.side2_score ?? null,
+        roundIds: eventRounds.map(r => r.id),
+        timezone: first?.timezone ?? null,
+        href: input.links.event(e.id),
+        teamIds: [...new Set(eventSides.map(s => s.team_id))],
+      };
     });
 }
 

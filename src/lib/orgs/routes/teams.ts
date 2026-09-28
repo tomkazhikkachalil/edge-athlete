@@ -152,7 +152,7 @@ export async function divisionRouteGET(request: NextRequest, kind: OrgKind, para
       orgId: params.id,
       divisionId: params.divisionId,
       mode: gate.isMember ? 'member' : 'public',
-      links: { contest: id => `/event/${id}` },
+      links: { contest: id => `/event/${id}`, event: id => `/events/${id}` },
     });
     if (!view) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
     const canManage = !!gate.caps && capabilityAllows(gate.caps, 'manage_structure', { type: 'division', id: params.divisionId });

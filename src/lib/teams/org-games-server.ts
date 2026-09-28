@@ -18,7 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { switchesOf } from '@/lib/orgs/switches';
 import { divisionSchedule, inGameWindow, type TeamScheduleItem } from './schedule';
-import { CONTEST_FIELDS, resolveOutcomes, type CompetitionRow, type ContestRow } from './schedule-server';
+import { CONTEST_FIELDS, readSideEvents, resolveOutcomes, type CompetitionRow, type ContestRow } from './schedule-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -35,6 +35,8 @@ export interface OrgGames {
 export interface OrgGamesLinks {
   /** `competitionOrgId` = the org that runs the contest's competition. */
   contest: (contestId: string, competitionOrgId: string) => string | null;
+  /** G4: a sport-event game's place (the app's public event page). */
+  event: (eventId: string) => string | null;
 }
 
 export async function fetchOrgGames(admin: Admin, input: { side: OrgKind; orgId: string; links: OrgGamesLinks }): Promise<OrgGames> {
@@ -66,7 +68,11 @@ export async function fetchOrgGames(admin: Admin, input: { side: OrgKind; orgId:
       }
     }
     const comps = [...own, ...foreign];
-    if (comps.length === 0) return empty;
+    // G4: the public sport-event games the org's teams play a side of.
+    const sideEvents = (await readSideEvents(admin, { orgId: input.orgId, teamIds: [...orgTeamIds], mode: 'public', links: { event: input.links.event } })).filter(e =>
+      inGameWindow(e.startsAt ?? e.date, Date.now())
+    );
+    if (comps.length === 0 && sideEvents.length === 0) return empty;
     const compById = new Map(comps.map(c => [c.id, c]));
     const foreignIds = new Set(foreign.map(c => c.id));
     const reads = await Promise.all([
@@ -97,11 +103,14 @@ export async function fetchOrgGames(admin: Admin, input: { side: OrgKind; orgId:
         // Another org's competition: only the games one of OUR teams plays.
         if (comp && foreignIds.has(comp.id) && !(teamsOf.get(c.id) ?? []).some(t => orgTeamIds.has(t))) return [];
         return comp && outcome
-          ? [{ id: c.id, competitionName: comp.name, round: c.round, scheduledAt: c.scheduled_at, playFrom: c.play_from, status: c.status, eventId: c.event_id, outcome, href: input.links.contest(c.id, comp.org_id) }]
+          ? [{ id: c.id, competitionName: comp.name, round: c.round, scheduledAt: c.scheduled_at, playFrom: c.play_from, status: c.status, eventId: c.event_id, sportEventRoundId: c.sport_event_round_id, outcome, href: input.links.contest(c.id, comp.org_id) }]
           : [];
       }),
+      events: sideEvents,
     });
+    // Contests are tagged here; events arrive tagged from their reader.
     const tag = (i: TeamScheduleItem): TeamScheduleItem => {
+      if (i.kind !== 'contest') return i;
       const ids = teamsOf.get(i.key.slice('contest:'.length));
       return ids && ids.length ? { ...i, teamIds: ids } : i;
     };

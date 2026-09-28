@@ -1,5 +1,28 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, G4: the team and division pages go game-day; sport-event games join the division and org views (zero DDL)
+
+**What visitors get:**
+- **Next game leads the page:** the public team page, the public division page, and their in-app twins open with it, above the record and the teams. The public pages show the brand banner; the in-app ones show the house card. While the game is live it becomes a scoreboard with a Live chip.
+- It is the soonest GAME (`schedule.ts nextGameOf` — a contest or a sport event). A practice or meeting on the calendar never leads, even when it comes first.
+- **A division lists its teams' sport-event games:** a game between two sides that no competition owns now appears home-first ("Hawks vs Storm", then "Hawks 4–1 Storm" once final), beside the competitions' fixtures.
+- **The org's games include them too:** the site's Results page and the game-day tiles pick them up. They link to the app's public event page.
+
+**The model:**
+- `divisionSchedule` takes an optional `events` input (`DivisionEventInput`: both sides named, the first round's time and score, the teams playing).
+- An event whose round a listed contest mirrors folds into the contest (`sportEventRoundId` on the contest input, the team schedule's rule), so a game is never listed twice.
+- One reader, `schedule-server.ts readSideEvents(teamIds)`, serves the division view and `fetchOrgGames` (public events only for the org; the org's own too for a member's division).
+- Team items now carry the sides as data too: a contest from its outcome; an event from the team's side, using the team's own name (read with the opponent's; side 1 = home).
+- `GameDayCards` moved to `src/components/teams/` so the in-app client pages can use it. It stays server-safe, and its "Full schedule →" link is optional.
+
+**Proof:**
+- `npm run verify` green: 4003 tests. New cases cover the event fold (linked, cancelled, an unnamed side), the team pairs (contest, away event, anonymous opponent) and `nextGameOf`.
+- New `org-site-gameday-pages.spec.ts` @mobile passes on both engines. It covers:
+  - the division page lists and leads with the sport-event game, linking to `/events/<id>`;
+  - the Hawks page leads with the same game, not the practice before it;
+  - no overflow at 390 px on either page.
+- Green alongside it: division-page, team-page, team-schedule-public, the three game-day specs, org-site-results.
+
 ## September 28, 2026 — Sports-team website program, G3: a game-day section can follow one team; a club's teams' league games count (zero DDL)
 
 **What managers get:**

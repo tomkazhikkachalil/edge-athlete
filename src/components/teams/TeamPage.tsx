@@ -6,10 +6,11 @@ import Link from 'next/link';
 import { Shield } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import TeamScheduleList from './TeamScheduleList';
+import { NextGameCard } from './GameDayCards';
 import { useTheme } from '@/lib/use-theme';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
-import type { TeamScheduleItem } from '@/lib/teams/schedule';
+import { nextGameOf, type TeamScheduleItem } from '@/lib/teams/schedule';
 import type { TeamLook } from '@/lib/teams/brand';
 
 // ── The in-app team page (teams & divisions program, PR 8) ──────────────────
@@ -169,6 +170,13 @@ export default function TeamPage({ side }: { side: OrgKind }) {
             </Link>
           )}
         </header>
+
+        {/* G4: the next game leads, whatever the tab (its scoreboard while live). */}
+        {nextGameOf(schedule) && (
+          <section aria-label="Next game" data-team-next-game="">
+            <NextGameCard game={nextGameOf(schedule)} />
+          </section>
+        )}
 
         <div role="tablist" aria-label="Team" className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {TABS.map(t => (
