@@ -138,7 +138,15 @@ export interface CompetitionRow {
 
 /** Each contest's outcome (sides, names masked, scores) — the ONE rule
  *  (deriveContestOutcome). Shared by the team and the division readers. */
-export async function resolveOutcomes(admin: Admin, contestRows: readonly ContestRow[], compById: ReadonlyMap<string, CompetitionRow>): Promise<Map<string, ContestOutcome>> {
+/** `entryTeams` (G3, optional): filled with entry id → team id for every
+ *  team entry read, so a caller can tell which teams played a contest
+ *  without a second read. */
+export async function resolveOutcomes(
+  admin: Admin,
+  contestRows: readonly ContestRow[],
+  compById: ReadonlyMap<string, CompetitionRow>,
+  entryTeams?: Map<string, string>
+): Promise<Map<string, ContestOutcome>> {
   const out = new Map<string, ContestOutcome>();
   if (contestRows.length === 0) return out;
   const partsRes = await admin.from('contest_participants').select('id, contest_id, entry_id, side, start_position').in('contest_id', contestRows.map(c => c.id)).limit(1000);
@@ -150,6 +158,7 @@ export async function resolveOutcomes(admin: Admin, contestRows: readonly Contes
   ]);
   const entries = (logged('entry names', entriesRes) ?? []) as { id: string; team_id: string | null; profile_id: string | null; name: string | null }[];
   const teamIds = [...new Set(entries.map(e => e.team_id).filter((v): v is string => !!v))];
+  if (entryTeams) for (const e of entries) if (e.team_id) entryTeams.set(e.id, e.team_id);
   const profileIds = [...new Set(entries.map(e => e.profile_id).filter((v): v is string => !!v))];
   const [teamsRes, profilesRes] = await Promise.all([
     teamIds.length ? admin.from('teams').select('id, name, display_name').in('id', teamIds) : Promise.resolve({ data: [], error: null }),

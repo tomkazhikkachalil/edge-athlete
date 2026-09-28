@@ -56,6 +56,8 @@ export function instanceTitle(w: WidgetInstance): string | null {
 export interface WidgetQuery {
   competitionId?: string;
   venueId?: string;
+  /** G3: one of the org's teams — the schedule's team events, the game-day tiles' team games. */
+  teamId?: string;
   limit?: number;
 }
 
@@ -64,6 +66,7 @@ export function instanceQuery(w: WidgetInstance): WidgetQuery {
   const out: WidgetQuery = {};
   if (typeof q.competitionId === 'string' && q.competitionId) out.competitionId = q.competitionId;
   if (typeof q.venueId === 'string' && q.venueId) out.venueId = q.venueId;
+  if (typeof q.teamId === 'string' && q.teamId) out.teamId = q.teamId;
   if (typeof q.limit === 'number' && Number.isInteger(q.limit) && q.limit >= 1) out.limit = q.limit;
   return out;
 }

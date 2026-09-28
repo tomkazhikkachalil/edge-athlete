@@ -52,3 +52,10 @@ export function siteAbsoluteUrl(site: SiteAddress): string {
     ? `https://${site.custom_domain}`
     : `${appBaseUrl()}${orgSitePath(site.subdomain)}`;
 }
+
+/** G3: a contest link from a site — the site's own schedule page for the
+ *  org's own competition, else the app's public contest place (another org's
+ *  competition; the site's contest page 404s it). The team page's rule. */
+export function siteContestLink(basePath: string, orgId: string): (contestId: string, competitionOrgId: string) => string {
+  return (contestId, competitionOrgId) => (competitionOrgId === orgId ? `${basePath}/schedule/${contestId}` : `${appBaseUrl()}/event/${contestId}`);
+}

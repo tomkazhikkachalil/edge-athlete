@@ -84,9 +84,10 @@ export const WIDGET_SWITCH: Readonly<Record<string, SwitchRule>> = {
   embed: 'always',
   contact_form: 'always',
   interest_form: 'always',
-  // G2: the game-day sections read competition games only.
-  next_game: 'competitions',
-  results: 'competitions',
+  // G2 + G3: the game-day sections — the org's own competitions' games OR
+  // its teams' games in another org's (a club that runs teams, not leagues).
+  next_game: 'either',
+  results: 'either',
   week: 'competitions',
   announcements: 'always',
   activity: 'always',

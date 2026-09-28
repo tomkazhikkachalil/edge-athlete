@@ -22,12 +22,14 @@ type Admin = SupabaseClient<any, 'public', any>;
 export interface CanvasOptions {
   competitions: { id: string; name: string; seasonLabel: string | null; status: string }[];
   venues: { id: string; name: string }[];
+  /** G3: the org's active teams (the team picker). */
+  teams: { id: string; name: string }[];
 }
 
-export const EMPTY_OPTIONS: CanvasOptions = { competitions: [], venues: [] };
+export const EMPTY_OPTIONS: CanvasOptions = { competitions: [], venues: [], teams: [] };
 
 export async function fetchCanvasOptions(admin: Admin, side: OrgKind, orgId: string): Promise<CanvasOptions> {
-  const [competitions, venues] = await Promise.all([
+  const [competitions, venues, teams] = await Promise.all([
     (async () => {
       try {
         const { data, error } = await admin
@@ -59,6 +61,15 @@ export async function fetchCanvasOptions(admin: Admin, side: OrgKind, orgId: str
         return [];
       }
     })(),
+    (async () => {
+      try {
+        const { data, error } = await admin.from('teams').select('id, name, display_name').eq(ORG_ID, orgId).eq('status', 'active').order('name', { ascending: true }).limit(200);
+        if (error || !data) return [];
+        return (data as { id: string; name: string; display_name: string | null }[]).map(t => ({ id: t.id, name: t.display_name || t.name }));
+      } catch {
+        return [];
+      }
+    })(),
   ]);
-  return { competitions, venues };
+  return { competitions, venues, teams };
 }

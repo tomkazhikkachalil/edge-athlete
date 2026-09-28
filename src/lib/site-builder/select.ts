@@ -67,8 +67,9 @@ export function selectForInstance(w: WidgetInstance, data: SiteHomeData): SiteHo
     }
     case 'schedule': {
       const limit = clampLimit(q.limit, 'schedule');
+      // G3: a team narrows the events to that team's own (team-scoped) ones.
       const events = data.events
-        ? data.events.filter(e => !q.venueId || e.venue_id === q.venueId).slice(0, limit)
+        ? data.events.filter(e => (!q.venueId || e.venue_id === q.venueId) && (!q.teamId || e.team_id === q.teamId)).slice(0, limit)
         : data.events;
       // A venue narrows EVENTS only — golf rounds carry a course name, not a
       // venue id; a competition narrows the rounds.
@@ -83,6 +84,13 @@ export function selectForInstance(w: WidgetInstance, data: SiteHomeData): SiteHo
       return { ...data, news: data.news ? data.news.slice(0, clampLimit(q.limit, 'news')) : data.news };
     case 'teams':
       return { ...data, teams: data.teams.slice(0, clampLimit(q.limit, 'teams')) };
+    case 'next_game':
+    case 'results': {
+      // G3: one team's games — those it plays a side of.
+      if (!q.teamId || !data.games) return data;
+      const mine = (i: { teamIds?: string[] }) => (i.teamIds ?? []).includes(q.teamId!);
+      return { ...data, games: { upcoming: data.games.upcoming.filter(mine), results: data.games.results.filter(mine) } };
+    }
     default:
       return data;
   }

@@ -38,6 +38,8 @@ export interface TeamScheduleItem {
   /** G2: a fixture's two sides as data (home first) — the game-day cards
    *  draw a scoreboard from it; absent when a side is unknown. */
   pair?: GamePair;
+  /** G3: the teams (ids) playing it — the org games' team filter. */
+  teamIds?: string[];
 }
 
 export interface GamePair {

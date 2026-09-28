@@ -25,7 +25,7 @@ type Admin = SupabaseClient<any, 'public', any>;
  *  facility_id (141) are included DELIBERATELY: harmless ids on a public
  *  schedule, and the future venue picker must not silently drop here. */
 const ORG_EVENT_FIELDS =
-  'id, title, description, location, starts_at, ends_at, all_day, timezone, category, venue_id, facility_id';
+  'id, title, description, location, starts_at, ends_at, all_day, timezone, category, venue_id, facility_id, team_id';
 
 export interface OrgEvent {
   id: string;
@@ -39,6 +39,8 @@ export interface OrgEvent {
   category: string | null;
   venue_id: string | null;
   facility_id: string | null;
+  /** G3 (146's column): the team a team-scoped event belongs to — the schedule tile's team filter. */
+  team_id?: string | null;
   /** Contest Place E3: the contest a mirror event was minted from (read-time
    *  reverse lookup on contests.event_id); absent/null for hand-made events. */
   contest_id?: string | null;

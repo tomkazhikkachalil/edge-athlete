@@ -35,7 +35,7 @@ export type FieldSpec =
   | { kind: 'blocks'; name: 'blocks'; label: string; help?: string; scope: 'instance' }
   | { kind: 'image'; name: 'path' | 'imagePath'; label: string; help?: string; scope: 'instance' | 'content' }
   | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
-  | { kind: 'select'; name: 'competitionId' | 'venueId'; label: string; help?: string; source: 'competitions' | 'venues'; noneLabel: string; scope: 'query' }
+  | { kind: 'select'; name: 'competitionId' | 'venueId' | 'teamId'; label: string; help?: string; source: 'competitions' | 'venues' | 'teams'; noneLabel: string; scope: 'query' }
   | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' }
   /** Program 3, D2 — the sponsors list editor (name, link, tier, logo, order), saved through set_sponsors. */
   | { kind: 'sponsors'; name: 'sponsors'; label: string; help?: string; scope: 'content' }
@@ -120,6 +120,8 @@ export const SPONSORS_FIELD: FieldSpec = { kind: 'sponsors', name: 'sponsors', l
 /** Phase 9 — the query fields, per widget. Option lists come from the
  *  canvas response (`options`); the panel names the empty choice. */
 const COMPETITION = (noneLabel: string, help?: string): FieldSpec => ({ kind: 'select', name: 'competitionId', label: 'Competition', help, source: 'competitions', noneLabel, scope: 'query' });
+/** G3: one team's schedule / games. */
+const TEAM = (help: string): FieldSpec => ({ kind: 'select', name: 'teamId', label: 'Team', help, source: 'teams', noneLabel: 'All teams', scope: 'query' });
 const VENUE: FieldSpec = { kind: 'select', name: 'venueId', label: 'Venue', help: 'Only events at this venue.', source: 'venues', noneLabel: 'All venues', scope: 'query' };
 const LIMIT = (key: keyof typeof QUERY_LIMITS, help?: string): FieldSpec => ({
   kind: 'number',
@@ -168,7 +170,11 @@ function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
     case 'standings':
       return [TITLE, SIZE, VISIBILITY, COMPETITION('Automatic — the first with results')];
     case 'schedule':
-      return [TITLE, SIZE, VISIBILITY, VENUE, COMPETITION('All leagues', 'Filters a golf league’s rounds.'), LIMIT('schedule', 'Upcoming events shown.')];
+      return [TITLE, SIZE, VISIBILITY, VENUE, TEAM('Only this team’s own events.'), COMPETITION('All leagues', 'Filters a golf league’s rounds.'), LIMIT('schedule', 'Upcoming events shown.')];
+    case 'next_game':
+      return [TITLE, SIZE, VISIBILITY, TEAM('This team’s next game.')];
+    case 'results':
+      return [TITLE, SIZE, VISIBILITY, TEAM('Only this team’s results.')];
     case 'leaders':
       return [TITLE, SIZE, VISIBILITY, COMPETITION('All competitions')];
     case 'news':

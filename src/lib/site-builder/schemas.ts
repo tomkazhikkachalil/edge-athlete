@@ -175,6 +175,8 @@ export const QuerySchema = z
   .object({
     competitionId: z.uuid().optional(),
     venueId: z.uuid().optional(),
+    /** G3: a team of the org (schedule, next_game, results). */
+    teamId: z.uuid().optional(),
     limit: z.number().int().min(1).max(QUERY_LIMIT_MAX).optional(),
   })
   .loose();

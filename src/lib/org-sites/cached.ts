@@ -1,5 +1,6 @@
 import { fetchDivisionView, type DivisionView } from '@/lib/teams/division-server';
 import { fetchOrgGames, type OrgGames } from '@/lib/teams/org-games-server';
+import { siteContestLink } from './urls';
 import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
@@ -179,7 +180,7 @@ export const getCachedDivisionPage = (slug: string, side: OrgKind, orgId: string
 // the key (it mints the contest links; the closure trap).
 export const getCachedOrgGames = (slug: string, side: OrgKind, orgId: string, basePath: string): Promise<OrgGames> =>
   perSlug(['org-site-games', slug, basePath], slug, () =>
-    fetchOrgGames(getSupabaseAdmin(), { side, orgId, links: { contest: id => `${basePath}/schedule/${id}` } })
+    fetchOrgGames(getSupabaseAdmin(), { side, orgId, links: { contest: siteContestLink(basePath, orgId) } })
   );
 
 /** The sitemap's enumerator — its own tag ('org-sitemap', purged by
