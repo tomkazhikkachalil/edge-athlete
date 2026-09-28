@@ -20,7 +20,7 @@
  */
 
 import { isMembersOnly } from '@/lib/org-sites/private';
-import { WIDGETS } from './catalog';
+import { WIDGETS, isGameWidgetKey } from './catalog';
 import type { WidgetInstance, WidgetVisibility } from './layout';
 
 export interface AudienceSite {
@@ -47,5 +47,9 @@ export function effectiveAudience(site: AudienceSite, instance: WidgetInstance):
   if (instance.visibility !== 'public') return instance.visibility;
   const moduleKey = WIDGETS[instance.key].moduleKey;
   if (moduleKey && isMembersOnly(site, moduleKey)) return 'members';
+  // V1 fix: a game-day tile prints TEAM names — members-only wherever the
+  // teams are (a private club), like the Results page, though its module
+  // (the schedule) stays public.
+  if (isGameWidgetKey(instance.key) && isMembersOnly(site, 'teams')) return 'members';
   return 'public';
 }
