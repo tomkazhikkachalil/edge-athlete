@@ -159,12 +159,13 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
       await anonCtx.close();
     }
 
-    // Console: the reset button exists next to Save layout.
-    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    // The reset button sits beside Save navigation — in the editor's Settings
+    // since the sports-team program's one-home round (H2).
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
     try {
       const page = await ownerCtx.newPage();
-      await page.goto(`/app/org/club/${clubId}`);
-      await expect(page.getByRole('button', { name: 'Reset to recommended order' })).toBeVisible({ timeout: 20_000 });
+      await page.goto(`/app/org/club/${clubId}/site/edit?open=settings`);
+      await expect(page.locator('[data-sb-settings-panel]').getByRole('button', { name: 'Reset to recommended order' })).toBeVisible({ timeout: 30_000 });
     } finally {
       await ownerCtx.close();
     }

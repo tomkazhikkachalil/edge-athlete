@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { hasDeepLink, parseEditorDeepLink, type EditorDeepLink } from '@/lib/site-builder/deep-link';
 import { useParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import { useAuth } from '@/lib/auth';
@@ -121,6 +122,8 @@ export default function SiteBuilder() {
   // so a reload (an applied design, a publish) never re-offers it.
   const galleryOffered = useRef(false);
   const [autoGallery, setAutoGallery] = useState(false);
+  // H2: `?open=settings` / `?section=<key>` from the console (first load only).
+  const [deepLink, setDeepLink] = useState<EditorDeepLink>({ open: null, section: null });
   // Program 2, B3: which layout the editor holds — the home, or a page by
   // id. `?page=<id>` deep-links (read once, in the load effect — the console
   // precedent); a switch flushes the draft, then reloads onto the new target
@@ -154,7 +157,10 @@ export default function SiteBuilder() {
         pendingTarget.current = null;
         const next: EditorTarget = wanted !== 'home' && (body.pages ?? []).some(p => p.id === wanted) ? wanted : 'home';
         setTarget(next);
-        const fresh = next === 'home' && !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
+        // H2: a deep link wins over the first-open gallery (the manager came for something).
+        const link = reloadKey === 0 ? parseEditorDeepLink(window.location.search) : { open: null, section: null };
+        setDeepLink(link);
+        const fresh = next === 'home' && !hasDeepLink(link) && !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
         if (fresh) galleryOffered.current = true;
         setAutoGallery(fresh);
         setState('ready');
@@ -233,6 +239,7 @@ export default function SiteBuilder() {
         setReloadKey(k => k + 1);
       }}
       autoGallery={autoGallery}
+      deepLink={deepLink}
       target={target}
       openPageSettings={openPageSettings}
       onSwitchTarget={(next, opts) => {
@@ -256,6 +263,7 @@ function Editor({
   consoleHref,
   onReload,
   autoGallery,
+  deepLink,
   target,
   openPageSettings,
   onSwitchTarget,
@@ -270,6 +278,8 @@ function Editor({
   onReload: () => void;
   /** Phase 11: open the gallery at mount (a fresh site's first visit). */
   autoGallery: boolean;
+  /** H2: open Settings / select a section at mount (the console's links). */
+  deepLink: EditorDeepLink;
   /** Program 2, B3: the layout this editor holds. */
   target: EditorTarget;
   /** Open the page's settings sheet at mount (a page just created). */
@@ -284,7 +294,9 @@ function Editor({
   const isHome = target === 'home';
   const page = isHome ? null : (canvas.pages ?? []).find(p => p.id === target) ?? null;
   const history = useHistory<SiteLayout>(page ? page.layout : canvas.layout);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    deepLink.section ? (history.present.widgets.find(w => w.key === deepLink.section)?.id ?? null) : null
+  );
   const [pagePanelOpen, setPagePanelOpen] = useState(openPageSettings && !!page);
   // A1 (Sep 11 2026): below lg the panels are bottom sheets. A JS gate, not
   // CSS: a LargerWindow locks scroll and moves focus even when display:none'd.
@@ -317,7 +329,7 @@ function Editor({
     setThemeDirty(dirty);
   }, []);
   // Program 2, C2: the site settings panel (SEO, footer, icon).
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(deepLink.open === 'settings' && !deepLink.section);
   const reportSettingsDirty = useCallback((dirty: boolean) => {
     dirtyRef.current.settings = dirty;
   }, []);
@@ -846,7 +858,10 @@ function Editor({
                   onRemove={removeOne}
                 />
               </div>
-              {themeDraft && (
+              {/* H2: the desktop asides mount on a desktop ONLY (JS gate, like the
+                  phone sheets): the lg:block wrapper is CSS, so without it a phone
+                  mounted every panel twice — two photo pickers, two nav editors. */}
+              {isDesktop && themeDraft && (
                 <ThemePanel
                   className={STICKY_ASIDE}
                   site={site}
@@ -865,7 +880,7 @@ function Editor({
                   showSuccess={showSuccess}
                 />
               )}
-              {settingsOpen && !themeDraft && !selected && (
+              {isDesktop && settingsOpen && !themeDraft && !selected && (
                 <SitePanel
                   className={STICKY_ASIDE}
                   site={site}
@@ -887,7 +902,7 @@ function Editor({
                   showSuccess={showSuccess}
                 />
               )}
-              {!themeDraft && selected && (
+              {isDesktop && !themeDraft && selected && (
                 <PropertiesPanel
                   key={selected.id}
                   className={STICKY_ASIDE}

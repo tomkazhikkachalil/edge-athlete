@@ -85,17 +85,24 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       await page.getByRole('button', { name: 'Take site live', exact: true }).click();
       await expect(page.getByText('live', { exact: true })).toBeVisible({ timeout: 15_000 });
 
-      // R2: the Sections toggles render, default-on, hero absent.
-      await expect(page.getByLabel('Toggle Standings section')).toBeChecked();
-      await expect(page.getByLabel('Toggle Contact section')).toBeChecked();
+      // R2 → sports-team program H2: the Sections toggles render in the
+      // editor's Settings (the console links there), default-on, hero absent.
+      await expect(page.getByRole('link', { name: 'Header & subpages →' })).toBeVisible();
+      const editorTab = await ctx.newPage();
+      await editorTab.setViewportSize({ width: 1280, height: 900 });
+      await editorTab.goto(`/app/org/league/${leagueId}/site/edit?open=settings`);
+      const settings = editorTab.locator('[data-sb-settings-panel]');
+      await expect(settings.getByLabel('Toggle Standings section')).toBeChecked({ timeout: 30_000 });
+      await expect(settings.getByLabel('Toggle Contact section')).toBeChecked();
       // The toggle count trails the module-migration ladder (8 pre-156 →
       // 11 post-164) and chased it three times as an enumerated list —
       // assert the RANGE instead: at least the 155 base set, at most the
       // local build's toggleable list (the DB can never exceed what the
       // newest CHECK admits).
-      const toggleCount = await page.getByLabel(/^Toggle .* section$/).count();
+      const toggleCount = await settings.getByLabel(/^Toggle .* section$/).count();
       expect(toggleCount).toBeGreaterThanOrEqual(8);
       expect(toggleCount).toBeLessThanOrEqual(TOGGLEABLE_MODULE_KEYS.length);
+      await editorTab.close();
 
       // 375px: the Website card stays usable.
       await page.setViewportSize({ width: 375, height: 812 });
@@ -714,9 +721,11 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     const ctxOwner = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const page = await ctxOwner.newPage();
-      await page.goto(`/app/org/league/${leagueId}`);
-      await expect(page.getByRole('button', { name: 'Upload logo' })).toBeVisible({
-        timeout: 20_000,
+      // The logo lives in the editor's Settings (sports-team program H1/H2).
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(`/app/org/league/${leagueId}/site/edit?open=settings`);
+      await expect(page.locator('[data-sb-settings-panel]').getByRole('button', { name: 'Upload logo' })).toBeVisible({
+        timeout: 30_000,
       });
       const fixture = path.join(__dirname, 'fixtures', 'photo.png');
       await page.locator('input[aria-label="Site logo file"]').setInputFiles(fixture);

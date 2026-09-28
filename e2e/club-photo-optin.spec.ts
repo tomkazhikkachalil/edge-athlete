@@ -124,12 +124,15 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
       await memberCtx.close();
     }
 
-    // The console picker at 375px: one candidate; Add → picked.
+    // The picker at 375px — in the site editor's Gallery panel since the
+    // sports-team program's one-home round (H2): one candidate; Add → picked.
+    const galleryOn = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_module', moduleKey: 'gallery', enabled: true } });
+    expect(galleryOn.status(), await readErrorBody(galleryOn)).toBe(200);
     const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const page = await ownerCtx.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(`/app/org/club/${clubId}`);
+      await page.goto(`/app/org/club/${clubId}/site/edit?section=gallery`);
       const picker = page.locator('[data-photo-candidates]');
       await expect(picker).toHaveAttribute('data-photo-candidates', '1', { timeout: 20_000 });
       await page.getByRole('button', { name: /^Add to gallery/ }).click();
