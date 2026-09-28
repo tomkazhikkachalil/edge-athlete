@@ -63,7 +63,15 @@ export default async function OrgSiteNewsPostPage({ params }: PageParams) {
         <p className="mt-1 text-xs text-muted">
           {formatEventWhen({ starts_at: post.publishedAt, all_day: true, timezone: null })}
         </p>
+        {/* N5 (243): the summary is the lead line. */}
+        {post.summary && <p className="mt-3 text-base text-secondary" data-news-summary="">{post.summary}</p>}
       </header>
+      {/* N5: a cover the post CHOSE leads the page (a derived one is already
+          the body's first photo). Tokenless streamer — never the optimizer. */}
+      {post.coverChosen && post.cover && orgMediaUrl(site.id, post.cover.path) && (
+        // eslint-disable-next-line @next/next/no-img-element -- the org-media streamer (the image policy)
+        <img src={orgMediaUrl(site.id, post.cover.path)!} alt={post.cover.alt} className="w-full max-h-[28rem] rounded-lg border border-border object-cover" data-news-cover-hero="" />
+      )}
       <section
         aria-label={post.title}
         className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"

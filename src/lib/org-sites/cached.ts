@@ -239,6 +239,18 @@ export const getCachedNewsList = (slug: string, siteId: string, publicOnly = fal
     fetchPublicNewsList(getSupabaseAdmin(), siteId, { publicOnly })
   );
 
+// N5 (243): a team's / a division's news — the tag varies per slug, so it
+// MUST be in the keyParts (the closure trap).
+export const getCachedTaggedNews = (
+  slug: string,
+  siteId: string,
+  publicOnly: boolean,
+  tag: { teamId: string } | { divisionId: string }
+): Promise<PublicNewsItem[]> =>
+  perSlug(['org-site-news-tag', slug, 'teamId' in tag ? `team:${tag.teamId}` : `division:${tag.divisionId}`], slug, () =>
+    fetchPublicNewsList(getSupabaseAdmin(), siteId, { publicOnly, limit: 5, ...tag })
+  );
+
 // newsSlug varies per slug → it MUST be in the keyParts (the closure trap).
 export const getCachedNewsPost = (
   slug: string,

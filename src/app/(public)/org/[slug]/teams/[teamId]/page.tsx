@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { isMembersOnly } from '@/lib/org-sites/private';
 import MembersOnlyPage from '../../_components/MembersOnlyPage';
 import { notFound } from 'next/navigation';
-import { getCachedSite, getCachedTeamPage } from '@/lib/org-sites/cached';
+import { getCachedSite, getCachedTaggedNews, getCachedTeamPage } from '@/lib/org-sites/cached';
+import NewsItems from '../../_components/NewsItems';
 import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import TeamScheduleList from '@/components/teams/TeamScheduleList';
@@ -64,6 +65,9 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
   if (!teamPage) notFound();
 
   const { team, records, schedule, roster } = teamPage;
+  // N5 (243): the posts tagged to this team — only while the site has news.
+  const newsOn = site.modules.some(m => m.module_key === 'news' && m.enabled);
+  const teamNews = newsOn ? await getCachedTaggedNews(slug, site.id, site.visibility === 'private', { teamId: team.id }) : [];
   // The team's colours (validated hex, 242's CHECK) re-point the site's accent
   // for this page; without them the site's own accent stays.
   const look = teamLook({ id: team.id, primary_color: team.primaryColor, secondary_color: team.secondaryColor }, null);
@@ -153,6 +157,13 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
         <h2 className="text-lg font-semibold text-primary">Results</h2>
         <TeamScheduleList items={schedule.results} empty="No results yet." />
       </section>
+
+      {teamNews.length > 0 && (
+        <section aria-label="Team news" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-team-news="">
+          <h2 className="text-lg font-semibold text-primary">News</h2>
+          <NewsItems posts={teamNews} siteId={site.id} basePath={siteBasePath(site)} />
+        </section>
+      )}
 
       <section
         aria-label="Roster"

@@ -1,5 +1,23 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, N5: tagged news on team and division pages; the chosen cover and the summary
+
+**H + N are PROD-PROVEN.** Tom ran 243 on production and merged #968–#973; production served `3fac7e7e`. The probe ran 19 files — one-home ×4, both photo opt-ins, brand, pages-composed, two-pages, org-site ×5, news-schedule-inline, newsroom-api, the newsroom ×3, publish-edits ×2, news-display, news-cover, club/league public items, announce, activity, editor ×2, sections ×2: **31 passed, 0 failed, 0 flaky (10.1 min).** `news-cover` passes on production, confirming its local failure is the environment (`NEXT_PUBLIC_APP_URL`).
+
+**N5 — what the site shows:**
+- **A team's page lists the news tagged to it** (up to five, newest first) and a division's page likewise. They appear only while the site has news on, so the links never 404.
+  - `fetchPublicNewsList` takes `teamId` / `divisionId` / `limit`; pre-243 a tagged read is empty.
+  - `getCachedTaggedNews` keys the tag into the cache (the closure trap); the post's own edits purge the site tag, so the pages follow.
+- **The chosen cover** — `newsCoverOf`: 243's `cover_path` wins, else the first image block (the old rule). A chosen cover borrows the first image's description when it is that image. It leads the post page (`coverChosen`); a derived cover is already the body's first photo, so it is not shown twice. The og:image and the cards read the same cover.
+- **The summary** is the cards' line (before the first-paragraph excerpt) and the post page's lead.
+
+**Not in N5, on purpose:** the in-app team page's news tab. Members read their club's news in the app through `/news/mine` today; the in-app team page can gain the tagged list later without a server change.
+
+**Proof:**
+- `npm run verify` green (3984; `newsCoverOf` ×3).
+- New `org-site-news-tags.spec.ts` @mobile (both engines): the team page shows its post and summary and never the division's or the club's; the division page shows its own; the post page leads with the summary and the chosen cover; no overflow at 390 px.
+- Green alongside it: team-page, division-page, team-schedule-public (both phone engines), news-display, newsroom-api.
+
 ## September 27, 2026 — Sports-team website program, N4: the newsroom inside the site editor
 
 **What a manager gets:** a **News** button in the editor's header opens one window — a centred card, a bottom sheet on a phone (`NewsRoom.tsx`):
