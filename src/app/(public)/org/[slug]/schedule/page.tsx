@@ -6,6 +6,7 @@ import GolfRoundsSchedule from '../_components/GolfRoundsSchedule';
 import { requireSiteModule } from '../_components/require-module';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
+import Link from 'next/link';
 
 // ── /org/[slug]/schedule — the full schedule subpage (phase 3 R2) ──────────
 // The one canonical cached schedule entry (25 upcoming events across the
@@ -74,6 +75,15 @@ export default async function OrgSiteSchedulePage({ params }: PageParams) {
           </a>
         </p>
       </div>
+      {/* G1: the org's results live beside the schedule (a static page — no ?tab=, which would defeat ISR). */}
+      <nav aria-label="Schedule views" className="flex gap-4 text-sm font-medium">
+        <span aria-current="page" className="text-brand-fg underline underline-offset-4">
+          Upcoming
+        </span>
+        <Link href={`${siteBasePath(site)}/schedule/results`} className="text-secondary hover:text-brand-fg" data-site-results-link="">
+          Results
+        </Link>
+      </nav>
       {rounds.length > 0 && (
         <section
           aria-label="League rounds"

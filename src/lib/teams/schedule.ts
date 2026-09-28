@@ -236,3 +236,15 @@ export function divisionSchedule(input: { calendar: readonly CalendarInput[]; co
     results: items.filter(i => i.state === 'final').sort((a, b) => at(b) - at(a) || a.key.localeCompare(b.key)),
   };
 }
+
+// ── An org's games window (sports-team website program, G1) ────────────────
+export const GAME_WINDOW_DAYS = 60;
+
+/** Inside the window: scheduled (or opening) within ±days of now; an
+ *  unscheduled or unparseable time counts (it is still to come). */
+export function inGameWindow(when: string | null, nowMs: number, days: number = GAME_WINDOW_DAYS): boolean {
+  if (!when) return true;
+  const at = Date.parse(when.length === 10 ? `${when}T12:00:00Z` : when);
+  if (!Number.isFinite(at)) return true;
+  return Math.abs(at - nowMs) <= days * 86_400_000;
+}
