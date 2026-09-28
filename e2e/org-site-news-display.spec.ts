@@ -89,13 +89,14 @@ test('org site news: grid + my own order + expands in place reach the published 
     } finally {
       await anon2.close();
     }
-    // The console editor's toggle unpins.
+    // The newsroom's toggle unpins.
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
     try {
       const page = await ctx.newPage();
       page.setDefaultTimeout(20_000);
-      await page.goto(`/app/org/league/${leagueId}/site/news/${a.id}`);
-      const pin = page.locator('[data-news-pin]');
+      // N4: the post opens in the editor's newsroom (?news=<id>).
+      await page.goto(`/app/org/league/${leagueId}/site/edit?news=${a.id}`);
+      const pin = page.locator('[data-larger-window="sb-news"] [data-news-pin]');
       await expect(pin).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
       await pin.click();
       await expect(pin).toHaveAttribute('aria-pressed', 'false');

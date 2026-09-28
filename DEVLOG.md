@@ -1,5 +1,40 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, N4: the newsroom inside the site editor
+
+**What a manager gets:** a **News** button in the editor's header opens one window — a centred card, a bottom sheet on a phone (`NewsRoom.tsx`):
+- **The list** — Drafts (newest edit first), Scheduled (soonest first), Live (newest first, "Changes waiting" when a live post holds an unpublished edit), and "+ New post".
+- **The composer**:
+  - Content: title, summary, cover photo (`AssetPicker`, extracted from SitePanel), team or division tag (the org's own, from the structure read), and the post body. `BlocksField` gains optional PHOTO blocks — upload plus a description; the Text section passes none and keeps its old behaviour — and a 40-block cap for posts.
+  - Settings: audience and pin.
+  - Acts: Publish now · Schedule (a `datetime-local`) / Change time / Unschedule · Update / Unpublish · Delete (the house `ConfirmModal`; soft, restorable from the console for 30 days). The action bar sticks to the window's bottom.
+  - The state line says where the post stands: "Draft — only you can see it" · "Scheduled — goes live …" · "Live — your latest changes are not on the site yet. Press Update."
+
+**The save model** (N3's server rules):
+- Every content change is an `edit`, debounced 800 ms, ONE save in flight, edits typed meanwhile accumulating and going out next (a draining loop — the React compiler lint refuses a callback that calls itself).
+- A 409 loads the latest post and says so.
+- Every act flushes the pending edit first, so Publish right after typing publishes what was typed.
+- Closing the window with a save waiting sends it as a `keepalive` request (it outlives the unmount).
+- **Audience and pin are the post's SETTINGS**: they act at once (the old editor's behaviour), never through a live post's draft — a visibility change should not wait for Update.
+- The clock is read into state, never in render (react-hooks/purity).
+
+**Links:**
+- `?news=<id> | new | list` (`deep-link.ts`) opens the newsroom; a deep link wins over the first-open gallery.
+- The old per-post page `…/site/news/[id]` now redirects there (the pages subpage's recipe).
+- The console's News rows edit in the editor, and "Write a post →" replaces its create form; "Recently deleted" stays in the console.
+- `SiteBlockEditor` (pages retired in program 2, news now) and P0's `news-edit.ts` are deleted — their last callers are gone.
+
+**Found on the way:**
+- A prop named `photos.upload(…)` tripped `storage-sweep.test.ts`, which classifies every `.upload(` as a storage writer; it is `store` now.
+- `getByLabel('Paragraph 1')` substring-matched "Move paragraph 1 up" and its siblings — `exact: true` (the second time this program; memory records it).
+
+**Specs:**
+- New `site-newsroom.spec.ts`: on desktop, News → New post → type → the autosave survives a reload (the deep link) → schedule two days ahead (the public post 404s) → Publish now → edit the live title (the public page keeps the old one; the line says Press Update) → Update → the new title is public, filed under Live. @mobile on both engines: the header button opens the sheet; write and publish.
+- `org-site-news-publish-edits` is rewritten for the composer: publish immediately after typing keeps the text, with the draft null.
+- `org-site-news-display` (pin) and club/league `public-items` (audience) now open the post via `?news=`.
+
+**Proof:** `npm run verify` green (3981; news-room ×5, deep links). On staging: the newsroom ×3, publish-edits ×2, news-display, public-items ×2, editor ×2, one-home ×4, seo ×2, display-content — all green; a screenshot pass at 1280 and 390 px.
+
 ## September 27, 2026 — Sports-team website program, N3: the newsroom writer (one save model, compare-and-set, schedule, draft → Update)
 
 **The rules** (`org-sites/news-state.ts`, pure and tested):

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
+import { orgMediaUrl } from '@/lib/media/org-site-media';
 
 import { TEXT_WIDGET_BLOCKS_MAX } from '@/lib/site-builder/fields';
 
@@ -53,13 +55,30 @@ export interface BlocksFieldProps {
   blocks: TextBlock[];
   /** `coalesce` names the field being typed in; structural edits pass none. */
   onChange: (blocks: TextBlock[], coalesce?: string) => void;
+  /** N4 (Sep 27 2026): photo blocks — the newsroom composer passes an
+   *  uploader (a site asset); the Text section passes none (a photo is its
+   *  own section there, and an arrived image block stays read-only). */
+  photos?: { siteId: string; store: (file: File) => Promise<{ path: string; width?: number; height?: number } | null> };
+  /** The block cap (the Text section's by default; a news post's is larger). */
+  max?: number;
 }
 
 let blockSeq = 0;
 const mintBlockId = () => `b${++blockSeq}`;
 
-export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldProps) {
-  const full = blocks.length >= TEXT_WIDGET_BLOCKS_MAX;
+export default function BlocksField({ idBase, blocks, onChange, photos, max = TEXT_WIDGET_BLOCKS_MAX }: BlocksFieldProps) {
+  const full = blocks.length >= max;
+  const [uploading, setUploading] = useState(false);
+  const addPhoto = async (file: File | undefined) => {
+    if (!file || !photos) return;
+    setUploading(true);
+    try {
+      const up = await photos.store(file);
+      if (up) add({ type: 'image', path: up.path, alt: '', ...(up.width ? { width: up.width } : {}), ...(up.height ? { height: up.height } : {}) });
+    } finally {
+      setUploading(false);
+    }
+  };
   // B3: a STABLE key per block, kept alongside the blocks (they carry no id
   // of their own). Keyed by index, moving or removing a block while a field
   // had focus left the caret on the index and swapped the text under it.
@@ -181,7 +200,25 @@ export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldPro
                 <p className="text-xs text-tertiary">Links need a label and an https:// address to show.</p>
               </div>
             )}
-            {b.type === 'image' && <p className="text-xs text-tertiary">A photo block — remove it here, or add an Image section to show a photo.</p>}
+            {b.type === 'image' &&
+              (photos ? (
+                <div className="space-y-2">
+                  {orgMediaUrl(photos.siteId, b.path) ? (
+                    <Image src={orgMediaUrl(photos.siteId, b.path)!} alt="" width={b.width ?? 1200} height={b.height ?? 800} unoptimized className="h-auto max-h-48 w-auto rounded-md border border-border" />
+                  ) : null}
+                  <input
+                    type="text"
+                    aria-label={`Photo ${n} description`}
+                    placeholder="Describe the photo (for screen readers)"
+                    maxLength={200}
+                    value={b.alt}
+                    onChange={e => patch(i, { ...b, alt: e.target.value }, `${id}:alt`)}
+                    className={INPUT}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-tertiary">A photo block — remove it here, or add an Image section to show a photo.</p>
+              ))}
           </div>
         );
       })}
@@ -195,8 +232,25 @@ export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldPro
         <button type="button" className={SMALL} disabled={full} onClick={() => add({ type: 'link-list', links: [{ label: '', url: '' }] })}>
           + Links
         </button>
+        {photos && (
+          <label className={`${SMALL} inline-flex cursor-pointer items-center ${full || uploading ? 'pointer-events-none opacity-40' : ''}`}>
+            {uploading ? 'Uploading…' : '+ Photo'}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              aria-label="Add a photo"
+              disabled={full || uploading}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                void addPhoto(file);
+              }}
+            />
+          </label>
+        )}
       </div>
-      {full && <p className="text-xs text-tertiary">{`A section holds up to ${TEXT_WIDGET_BLOCKS_MAX} blocks — add another Text section for more.`}</p>}
+      {full && <p className="text-xs text-tertiary">{photos ? `A post holds up to ${max} blocks.` : `A section holds up to ${max} blocks — add another Text section for more.`}</p>}
     </div>
   );
 }
