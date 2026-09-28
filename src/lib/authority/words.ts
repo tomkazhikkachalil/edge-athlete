@@ -44,6 +44,9 @@ export const AUTHORITY_ACTION_WORDS: Record<AuthorityAction, string> = {
   result_reassigned: 'Moved a result to the right person',
   result_corrected: 'Corrected a result',
   official_tag_removed: 'Took someone off an official result',
+  // 243 (the newsroom).
+  news_published: 'Published a news post',
+  news_notified: 'Sent a news post to the members',
 };
 
 export function actionWords(action: string): string {
