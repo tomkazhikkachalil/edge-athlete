@@ -106,3 +106,15 @@ describe('game-day widgets', () => {
     expect(out.upcoming[0].pair).toEqual({ home: 'Comets', away: 'Blazers', homeScore: null, awayScore: null });
   });
 });
+
+describe('game-day tiles on a private club (V1 fix)', () => {
+  it('are members-only wherever the teams are — they print team names — though the schedule stays public', async () => {
+    const { effectiveAudience } = await import('../audience');
+    const priv = { ...site, visibility: 'private' as const };
+    for (const key of GAME_WIDGET_KEYS) {
+      expect(effectiveAudience(priv, inst(key)), key).toBe('members');
+      expect(effectiveAudience(site, inst(key)), key).toBe('public');
+    }
+    expect(effectiveAudience(priv, inst('schedule'))).toBe('public');
+  });
+});

@@ -1,5 +1,27 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, V1: the public live-scores feed (zero DDL) — and a privacy fix to the game tiles
+
+**The feed:** `GET /api/public/org-sites/[slug]/live` is the one public, polled read behind the coming live card (V2).
+- It returns the games being played now, the ones starting within two hours, and the ones that just finished (so a card can flip to Final), capped at six. Scores are home-first, from `fetchOrgGames`.
+- `pollMs` is the server's word on how often to ask: 15 s while live, 60 s when starting soon, 0 when idle (the card stops).
+- It is viewer-independent by construction: no auth, cookie or request header in the route or its reader (pinned), because the edge caches one copy for everyone. A 200 is `max-age=5, s-maxage=10, stale-while-revalidate=10`; the reader's own cache is 10 s under the site's tag, so G5's status purges reach it too.
+- A query string is a 400, since it would split the cache.
+- An unpublished site, a site whose teams are private, or a site with the schedule off is a 404. Every non-200 is `no-store`.
+- The payload is names and links only, the ISR pages' own (pinned: no team or profile id).
+- **Kill switch:** runtime env `PUBLIC_LIVE_SCORES=0` answers an IDLE feed, so every open card stops.
+- **No rate bucket, a deliberate change from the plan:** with query strings refused, the edge answers every poll inside the 10 s window. The origin sees at most one read per slug per window whatever the traffic, and a bucket would only add a database round trip to each.
+- The route is allowlisted in the authz audit with that reasoning.
+
+**A privacy gap found by the spec and fixed here:** on a private club the schedule stays public by design, but team names are members-only (the Results page already gated on `teams`).
+- The feed now gates on `teams`.
+- So do the G2 game-day tiles: `effectiveAudience` makes `next_game` / `results` members-only wherever the teams are, even though their module is the schedule. Before this, a private club's published home would have printed its team names in those tiles. Pinned in `game-widgets.test.ts`.
+
+**Proof:**
+- `npm run verify` green: 4021 tests. `live-feed.test.ts` covers live / soon / idle / recent final, the cap, the idle feed, and the route source (no session reads, query refused, every non-200 `no-store`, the 200's cache line).
+- New `org-site-live-feed.spec.ts`: anonymous; the live game with its score and a 15 s hint; `s-maxage=10`; no ids in the payload; a new score reaches the feed within its cache; `?bust=1` answers 400 `no-store`; an unknown slug answers 404 `no-store`; a private league answers 404.
+- Green alongside it: gameday-widgets.
+
 ## September 28, 2026 — Sports-team website program, R1: one-click recap drafts (zero DDL — 243's source_ref)
 
 **What managers get:** the newsroom's list has a **From results** section: the org's finished games of the last 30 days, from every competition it runs, home-first ("Comets 2–3 Blazers"). Each row has either **Draft a recap** or **Open the recap**.

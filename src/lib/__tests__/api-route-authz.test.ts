@@ -48,6 +48,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'help/articles/[slug]': 'one published help article; viewer-independent, CDN-cached',
   'tickets/guest': 'the signed-out Help request: honeypot + the contact IP bucket; Help only; the email is the recipient',
   'public/profile': 'public-profile read surface; visibility-filtered in query',
+  'public/org-sites/[slug]/live':
+    'sports-team website program V1 (Sep 28 2026): a site’s live scoreboard feed — viewer-independent by construction (no auth, cookies or headers), edge-cached 10 s, query strings refused; published + public + schedule-on sites only; the names are the ISR pages’ own',
   'public/site-forms/[siteId]/[widgetId]':
     'program 2 D (Sep 11 2026): a visitor’s org-site form POST — no session by design (the public site is anonymous); honeypot, per-IP + per-site buckets, an HMAC form key, the widget must be a form on the PUBLISHED layout; every outcome is a 303 back to the site',
   explore: 'guest browse surface; public-only queries by construction',
