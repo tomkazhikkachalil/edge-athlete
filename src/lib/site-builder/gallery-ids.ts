@@ -6,7 +6,8 @@
  */
 // Sep 11 2026: three more golf shapes (weekly league, points race, social) —
 // appended, so the order still equals GALLERY_ENTRIES (gallery.test.ts pins it).
-export const GALLERY_ENTRY_IDS = ['golf-clubhouse', 'golf-tour', 'team-clubhouse', 'team-scoreboard', 'community', 'simple', 'golf-weekly', 'golf-points-race', 'golf-social'] as const;
+// Sep 28 2026 (sports-team website program, L6): three game-day designs.
+export const GALLERY_ENTRY_IDS = ['golf-clubhouse', 'golf-tour', 'team-clubhouse', 'team-scoreboard', 'community', 'simple', 'golf-weekly', 'golf-points-race', 'golf-social', 'team-matchday', 'club-teams-pro', 'league-central'] as const;
 export type GalleryEntryId = (typeof GALLERY_ENTRY_IDS)[number];
 export const GALLERY_MODES = ['keep', 'clean'] as const;
 export type GalleryMode = (typeof GALLERY_MODES)[number];

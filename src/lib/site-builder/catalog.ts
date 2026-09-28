@@ -80,6 +80,9 @@ export const CONTENT_WIDGET_KEYS = ['text', 'image', 'embed', 'contact_form', 'i
  *  so they need no module row of their own (mig 179's CHECK untouched). */
 export const GAME_WIDGET_KEYS = ['next_game', 'results'] as const;
 export type GameWidgetKey = (typeof GAME_WIDGET_KEYS)[number];
+export function isGameWidgetKey(key: string): key is GameWidgetKey {
+  return (GAME_WIDGET_KEYS as readonly string[]).includes(key);
+}
 export const FORM_WIDGET_KEYS = ['contact_form', 'interest_form'] as const;
 export type FormWidgetKey = (typeof FORM_WIDGET_KEYS)[number];
 export function isFormWidgetKey(key: string): key is FormWidgetKey {
