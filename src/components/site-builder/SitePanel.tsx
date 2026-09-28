@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
-import { orgMediaUrl } from '@/lib/media/org-site-media';
+import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
+import OrgLogoUploader from '@/components/org/OrgLogoUploader';
+import NavigationEditor from './NavigationEditor';
 import { validateFiles } from '@/lib/media/validation';
 import {
   FOOTER_LINKS_MAX,
@@ -34,6 +36,11 @@ export interface SitePanelProps {
   onClose: () => void;
   onSaved: () => Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
+  /** H1: re-read the site after a write that saves on its own (logo, nav). */
+  onSiteChanged?: () => Promise<void>;
+  /** H1: a section on/off re-lays the draft — flush the autosave, then reload. */
+  onFlush?: () => Promise<boolean>;
+  onReload?: () => void;
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
@@ -45,7 +52,7 @@ const CTA = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md bg-brand text-white fon
 
 type FooterLink = { label: string; url: string };
 
-export default function SitePanel({ site, plural, orgId, variant = 'aside', className, onClose, onSaved, onDirtyChange, showError, showSuccess }: SitePanelProps) {
+export default function SitePanel({ site, plural, orgId, variant = 'aside', className, onClose, onSaved, onDirtyChange, onSiteChanged, onFlush, onReload, showError, showSuccess }: SitePanelProps) {
   const seo0 = parseSeoConfig(site.seo_config);
   const footer0 = parseFooterConfig(site.footer_config);
   const icon0 = parseThemeTokens(site.theme_token_set).iconPath;
@@ -79,6 +86,20 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
       throw new Error(err.error || 'Could not save');
+    }
+  };
+  const removeLogo = async () => {
+    try {
+      const res = await fetch(`/api/${plural}/${orgId}/site/logo`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        showError('Website', err.error || 'Failed to remove the logo');
+        return;
+      }
+      showSuccess('Website', 'Logo removed');
+      await onSiteChanged?.();
+    } catch {
+      showError('Website', 'Failed to remove the logo');
     }
   };
   const save = async () => {
@@ -117,7 +138,38 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
         )}
       </div>
 
-      <fieldset className="space-y-3">
+      {/* H1 (Sep 27 2026): the logo lives here now (one home). It is not
+          draft content — like the console's uploader, a change is live at once. */}
+      <fieldset className="space-y-2" data-sb-logo="">
+        <legend className="text-xs font-medium text-secondary">Logo</legend>
+        <div className="flex flex-wrap items-center gap-2">
+          {site.logo_path ? (
+            <Image src={orgLogoUrl(site.id, site.logo_path)!} alt="Current site logo" width={40} height={40} unoptimized className="rounded border border-border shrink-0" />
+          ) : (
+            <span className="text-xs text-tertiary">No logo yet.</span>
+          )}
+          <OrgLogoUploader
+            endpoint={`/api/${plural}/${orgId}/site/logo`}
+            onUploaded={() => {
+              showSuccess('Website', 'Logo updated');
+              void onSiteChanged?.();
+            }}
+            render={({ open, uploading }) => (
+              <button type="button" onClick={open} disabled={uploading} className={PILL}>
+                {uploading ? 'Uploading…' : site.logo_path ? 'Replace logo' : 'Upload logo'}
+              </button>
+            )}
+          />
+          {site.logo_path && (
+            <button type="button" onClick={() => void removeLogo()} className={PILL}>
+              Remove
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-tertiary">Logo changes show on your site right away.</p>
+      </fieldset>
+
+      <fieldset className="space-y-3 border-t border-border pt-4">
         <legend className="text-xs font-medium text-secondary">Search and sharing</legend>
         <div>
           <label className={LABEL} htmlFor="sb-seo-title">
@@ -190,6 +242,27 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           {saving ? 'Saving…' : 'Save settings'}
         </button>
       </div>
+
+      {/* H1: subpages & navigation — moved here from the console (one home).
+          Each change saves to the draft on its own; publish to make it live. */}
+      <fieldset className="space-y-2 border-t border-border pt-4">
+        <legend className="text-xs font-medium text-secondary">Subpages &amp; navigation</legend>
+        <p className="text-xs text-tertiary">Which pages your site has and how the header lists them. Changes save to your draft; publish to make them live.</p>
+        <NavigationEditor
+          plural={plural}
+          orgId={orgId}
+          side={site.side}
+          modules={site.modules}
+          navConfig={site.nav_config}
+          onChanged={async () => {
+            await onSiteChanged?.();
+          }}
+          beforeStructural={onFlush}
+          onStructural={onReload}
+          showError={showError}
+          showSuccess={showSuccess}
+        />
+      </fieldset>
     </aside>
   );
 }

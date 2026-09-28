@@ -1,5 +1,27 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, H1: one home — documents, logo, photo picks and navigation in the editor (zero DDL)
+
+**The look phase is PROD-PROVEN.** #962–#967 merged and production served `74edefb0`. The probe ran 22 files — the six new or extended specs (news-publish-edits, announce, pro-header, team-crests, footer-chrome, notice-404, gallery) plus the site regression set (org-site ×5, golf-order, pages-composed, editor ×2, sections ×2, seo ×2, member-photos ×2, announce-archive, golf-season-wrap, news-display, vanity-path ×4, club-private-gates, team-page ×2, display ×3): **39 passed, 0 failed, 0 flaky (12.3 min).**
+
+**H1 — what moved into the editor (Tom: one person manages all the edits):**
+- **Documents** — the Documents section's panel gains the list: a title plus a PDF uploaded through the site's asset route, or an https link, ordered by arrows.
+  - `DocumentsField.tsx` over pure `documents-draft.ts` (`readDocumentDrafts`, `documentsPayload`; a file wins over a link; untitled or empty rows drop).
+  - A new `documents` field kind; `contentActionFor('documents') = 'set_documents'`, saved whole by "Save content" like sponsors. An upload dropped before the save is reclaimed.
+- **Gallery picks** — `MemberPhotoPicker` rides the gallery section's panel. A pick is a draft write that bumps the rev, so the picker's new `onChanged(rev)` lets the editor adopt it (its autosave never 409s).
+- **Logo** — a Logo block at the top of Settings. It is live at once, as it always was, and the panel says so.
+- **Subpages & navigation** — `NavigationEditor.tsx`, EXTRACTED from the console (its markup, labels and data attributes, so the console specs read the same), hosted in Settings AND used by the console.
+  - A section switched on or off re-lays the draft on the server (the toggle governs the tile), so the editor flushes its autosave first and reloads from the draft after — the gallery's recipe.
+  - Labels, order, a page's header checkbox and the reset are nav-only re-reads.
+  - The component is keyed on the stored nav config: the console mounts it before the site has loaded, and the brand spec caught the labels seeding empty.
+
+**Found on the way:** `OrgLogoUploader` rendered its full-screen media editor INLINE. Inside the editor's sticky Settings aside it sat trapped in the aside's box and its Done never reached the upload. It is portalled to `<body>` now (the house overlay rule), so it works wherever it is hosted.
+
+**Proof:**
+- `npm run verify` green (3964).
+- New `org-site-editor-one-home.spec.ts`: on desktop, one manager writes a document, sees the photo picks, uploads a logo, renames a header link, switches Divisions off (the editor reloads without that tile), and publishes — the public header reads the new label and shows the logo, /documents lists the document, /divisions is 404. @mobile on both engines: the Settings sheet carries the logo and the navigation, no overflow.
+- Green on staging: pages-composed, brand, modules, org-site ×5, member-photos ×2, editor ×2, seo ×2, sponsors-display, golf-order.
+
 ## September 27, 2026 — Sports-team website program, L5: the gallery lightbox (zero DDL)
 
 **What:** the public gallery's photos open large, still with no script.

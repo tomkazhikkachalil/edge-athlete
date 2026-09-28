@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useToast } from '@/components/Toast';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
@@ -95,14 +96,21 @@ export default function OrgLogoUploader({ endpoint, onUploaded, render }: OrgLog
         }}
       />
       {render({ open, uploading })}
-      {editorAssets && (
-        <MediaEditor
-          assets={editorAssets}
-          config={LOGO_EDITOR_CONFIG}
-          onDone={handleDone}
-          onCancel={() => setPending(null)}
-        />
-      )}
+      {/* Portalled to <body> (the house overlay rule): the site editor hosts
+          this uploader inside its sticky Settings aside (H1, Sep 27 2026),
+          where an inline full-screen editor sat trapped in the aside's box
+          and its Done never reached the upload. `editorAssets` is only ever
+          set by a user's pick, so `document` exists whenever this renders. */}
+      {editorAssets &&
+        createPortal(
+          <MediaEditor
+            assets={editorAssets}
+            config={LOGO_EDITOR_CONFIG}
+            onDone={handleDone}
+            onCancel={() => setPending(null)}
+          />,
+          document.body
+        )}
     </>
   );
 }

@@ -39,6 +39,8 @@ export type FieldSpec =
   | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' }
   /** Program 3, D2 — the sponsors list editor (name, link, tier, logo, order), saved through set_sponsors. */
   | { kind: 'sponsors'; name: 'sponsors'; label: string; help?: string; scope: 'content' }
+  // H1 (Sep 27 2026): the documents list — its own editor, like sponsors.
+  | { kind: 'documents'; name: 'documents'; label: string; help?: string; scope: 'content' }
   // L4 (Sep 27 2026): a short fixed list for a content value (the notice's tone).
   | { kind: 'choice'; name: string; label: string; help?: string; options: readonly (readonly [string, string])[]; scope: 'content' }
   /** Program 3, D1 — a fourth scope, 'display': the value goes to `config.display[name]`
@@ -112,6 +114,7 @@ export const EMBED_FIELDS: FieldSpec[] = [
 
 /** Program 3, D2 — the sponsors move into the editor like the hero and the
  *  contact card: one list, saved whole through set_sponsors. */
+export const DOCUMENTS_FIELD: FieldSpec = { kind: 'documents', name: 'documents', label: 'Documents', help: 'A title and a PDF or a link — forms, bylaws, waivers. Use the arrows to order them.', scope: 'content' };
 export const SPONSORS_FIELD: FieldSpec = { kind: 'sponsors', name: 'sponsors', label: 'Sponsors', help: 'Name, link, tier and logo. Drag or use the arrows to order them.', scope: 'content' };
 
 /** Phase 9 — the query fields, per widget. Option lists come from the
@@ -132,7 +135,8 @@ const LIMIT = (key: keyof typeof QUERY_LIMITS, help?: string): FieldSpec => ({
 /** Every non-hero widget gets the instance options; content fields where
  *  the org object has a simple form; the content widgets' editors; the
  *  query widgets' pickers. Sponsors moved here in program 3 D2; documents
- *  and media picks (gallery, course photos) stay in the console. */
+ *  in the sports-team program H1 (the gallery's member-photo picks ride the
+ *  gallery panel); course photos stay with the course in the console. */
 export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
   return [...baseFieldsFor(key), ...displayFieldsFor(key)];
 }
@@ -150,6 +154,8 @@ function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
       return [TITLE, SIZE, VISIBILITY, ...CONTACT_FIELDS];
     case 'sponsors':
       return [TITLE, SIZE, VISIBILITY, SPONSORS_FIELD];
+    case 'documents':
+      return [TITLE, SIZE, VISIBILITY, DOCUMENTS_FIELD];
     case 'text':
       return [TITLE, SIZE, VISIBILITY, ...TEXT_FIELDS];
     case 'image':
@@ -177,6 +183,6 @@ function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
 }
 
 /** The content fields' PATCH action, per widget. */
-export function contentActionFor(key: SiteWidgetKey): 'set_hero' | 'set_contact' | 'set_sponsors' | null {
-  return key === 'hero' ? 'set_hero' : key === 'contact' ? 'set_contact' : key === 'sponsors' ? 'set_sponsors' : null;
+export function contentActionFor(key: SiteWidgetKey): 'set_hero' | 'set_contact' | 'set_sponsors' | 'set_documents' | null {
+  return key === 'hero' ? 'set_hero' : key === 'contact' ? 'set_contact' : key === 'sponsors' ? 'set_sponsors' : key === 'documents' ? 'set_documents' : null;
 }

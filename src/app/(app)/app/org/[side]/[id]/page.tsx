@@ -16,14 +16,6 @@ import { useToast } from '@/components/Toast';
 import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
-import {
-  MODULE_TITLES,
-  NAV_LABEL_MAX,
-  TOGGLEABLE_MODULE_KEYS,
-  parseNavConfig,
-  isPageNavKey,
-} from '@/lib/org-sites/validate';
-import { navEntries } from '@/lib/org-sites/nav';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { ORG_ROUTE_FAMILY, isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
@@ -33,6 +25,7 @@ import { courseDisplayName } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
+import NavigationEditor from '@/components/site-builder/NavigationEditor';
 import SiteInboxCard from '@/components/orgs/SiteInboxCard';
 import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import OrgActivityCard from '@/components/orgs/OrgActivityCard';
@@ -196,7 +189,6 @@ export default function OrgConsolePage() {
     | { kind: 'news'; id: string; label: string }
     | { kind: 'venue'; id: string; label: string }
     | { kind: 'domain'; id: string; label: string }
-    | { kind: 'layout'; id: string; label: string }
     | { kind: 'restore'; id: string; label: string }
     | { kind: 'discard'; id: string; label: string }
     | null
@@ -285,8 +277,8 @@ export default function OrgConsolePage() {
   const [documentDrafts, setDocumentDrafts] = useState<
     { title: string; path: string; url: string }[]
   >([]);
-  // B1: brand tokens beyond the accent, and the per-section labels.
-  const [navLabels, setNavLabels] = useState<Record<string, string>>({});
+  // H1: the site's raw nav_config — NavigationEditor parses it (labels + stored entries).
+  const [siteNavConfig, setSiteNavConfig] = useState<unknown>(null);
   // Site Builder P2-C: the draft line and the history from the revisions API
   // (180). `revisionsSupported` false = a pre-180 database — the block hides.
   const [siteDraft, setSiteDraft] = useState<{ id: string; rev: number; updatedAt: string; hasUnpublishedChanges: boolean } | null>(null);
@@ -306,11 +298,6 @@ export default function OrgConsolePage() {
   >([]);
   const [revisionLabel, setRevisionLabel] = useState('');
   const [renamingRevision, setRenamingRevision] = useState<{ id: string; value: string } | null>(null);
-  // Local display order for the Sections list (seeded from the rows' order;
-  // ▲/▼ reorder here, Save layout mirrors it into sort_order).
-  const [navOrder, setNavOrder] = useState<string[] | null>(null);
-  // Program 2, B5: the stored header entries (modules AND `page:<id>` keys) — the pages' places.
-  const [navStored, setNavStored] = useState<string[]>([]);
   // Phase 6e S1: the golf club's front door + contact card. Every field
   // rides the whole-object save (replace semantics), seeded from GET.
   const [heroImagePath, setHeroImagePath] = useState('');
@@ -544,10 +531,8 @@ export default function OrgConsolePage() {
             setHeroImagePath(str(heroConfig.imagePath));
             setHeroCtaUrl(str(heroConfig.ctaUrl));
             setHeroNotice(str(heroConfig.notice));
-            // B1: the nav labels (the theme tokens moved to the editor in P10-C).
-            const parsedNav = parseNavConfig(siteBody.site?.nav_config);
-            setNavLabels(parsedNav.labels);
-            setNavStored(parsedNav.entries);
+            // H1: NavigationEditor parses the labels and the stored entries itself.
+            setSiteNavConfig(siteBody.site?.nav_config ?? null);
             // C1: the domain status rides its own GET (best-effort; a
             // pre-171 database answers migrationPending).
             if (siteBody.site?.published_at) {
@@ -889,13 +874,6 @@ export default function OrgConsolePage() {
         target.kind === 'restore' ? 'Draft replaced with that version' : 'Draft discarded',
         target.kind === 'restore' ? 'Could not restore that version' : 'Could not discard the draft'
       );
-      return;
-    }
-    if (target.kind === 'layout') {
-      void (async () => {
-        const ok = await siteAct({ action: 'reset_order' }, 'Layout reset to the recommended order', 'Failed to reset the layout');
-        if (ok) setNavOrder(null);
-      })();
       return;
     }
     if (target.kind === 'domain') {
@@ -3039,156 +3017,17 @@ export default function OrgConsolePage() {
                   <p className="text-xs text-tertiary mb-2">
                     Which pages your site has and how the header lists them. The home page’s arrangement lives in the editor. Changes save to your draft; publish to make them live.
                   </p>
-                  {(() => {
-                    // B1: the rows arrive in sort_order; the local order (▲/▼)
-                    // overlays it until Save layout mirrors it to the server.
-                    const toggleable = siteModules.filter(m =>
-                      (TOGGLEABLE_MODULE_KEYS as readonly string[]).includes(m.module_key)
-                    );
-                    const rowKeys = toggleable.map(m => m.module_key);
-                    // Program 2, B5: the pages join the list at their stored
-                    // places (every page, listed or not — the checkbox is here).
-                    const pageByKey = new Map<string, (typeof sitePages)[number]>(sitePages.map(p => [`page:${p.id}`, p]));
-                    const spine = navEntries({ entries: navStored }, rowKeys, sitePages.map(p => ({ id: p.id, slug: p.slug, title: p.title, visibility: 'public' as const, inNav: true, createdAt: p.created_at ?? '' }))).map(e => (e.kind === 'module' ? e.key : `page:${sitePages.find(p => p.slug === e.slug)?.id ?? ''}`));
-                    const order = navOrder
-                      ? [...navOrder.filter(k => spine.includes(k)), ...spine.filter(k => !navOrder.includes(k))]
-                      : spine;
-                    const byKey = new Map(toggleable.map(m => [m.module_key, m]));
-                    const move = (key: string, dir: -1 | 1) => {
-                      const i = order.indexOf(key);
-                      const j = i + dir;
-                      if (i < 0 || j < 0 || j >= order.length) return;
-                      const next = [...order];
-                      [next[i], next[j]] = [next[j], next[i]];
-                      setNavOrder(next);
-                    };
-                    return (
-                      <>
-                        <ul className="space-y-1.5">
-                          {order.map((key, index) => {
-                            if (isPageNavKey(key)) {
-                              const p = pageByKey.get(key);
-                              if (!p) return null;
-                              const listed = p.in_nav !== false;
-                              return (
-                                <li key={key} className="flex flex-wrap items-center gap-2 min-h-[28px]" data-console-nav-page={p.id}>
-                                  <label className="flex items-center gap-2 text-sm text-secondary min-w-[9rem]">
-                                    <input
-                                      type="checkbox"
-                                      checked={listed}
-                                      aria-label={`Show ${p.title} in the header`}
-                                      onChange={() => void siteAct({ action: 'set_page', pageId: p.id, inNav: !listed }, listed ? 'Page hidden from the header' : 'Page shown in the header', 'Failed to update the page')}
-                                    />
-                                    <span className="min-w-0 truncate">{p.title}</span>
-                                  </label>
-                                  <span className="text-xs text-muted">/{p.slug}</span>
-                                  {p.visibility === 'public' ? <span className="text-xs text-emerald-600">page</span> : <span className="text-xs text-amber-600">draft page</span>}
-                                  <span className="flex gap-1">
-                                    <button type="button" onClick={() => move(key, -1)} disabled={index === 0} aria-label={`Move ${p.title} up`} className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40">
-                                      ▲
-                                    </button>
-                                    <button type="button" onClick={() => move(key, 1)} disabled={index === order.length - 1} aria-label={`Move ${p.title} down`} className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40">
-                                      ▼
-                                    </button>
-                                  </span>
-                                </li>
-                              );
-                            }
-                            const m = byKey.get(key)!;
-                            const label = MODULE_TITLES[key] ?? key;
-                            return (
-                              <li key={key} className="flex flex-wrap items-center gap-2 min-h-[28px]">
-                                <label className="flex items-center gap-2 text-sm text-secondary min-w-[9rem]">
-                                  <input
-                                    type="checkbox"
-                                    checked={m.enabled}
-                                    aria-label={`Toggle ${label} section`}
-                                    onChange={() =>
-                                      void act(
-                                        `/api/${plural}/${orgId}/site`,
-                                        {
-                                          method: 'PATCH',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            action: 'set_module',
-                                            moduleKey: key,
-                                            enabled: !m.enabled,
-                                          }),
-                                        },
-                                        'Section updated',
-                                        'Failed to update the section'
-                                      )
-                                    }
-                                  />
-                                  {label}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={navLabels[key] ?? ''}
-                                  onChange={e =>
-                                    setNavLabels(prev => ({ ...prev, [key]: e.target.value }))
-                                  }
-                                  maxLength={NAV_LABEL_MAX}
-                                  placeholder={label}
-                                  aria-label={`${label} section label`}
-                                  className="px-2 py-1 border border-border-strong rounded-md outline-none text-xs w-36"
-                                />
-                                <span className="flex gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => move(key, -1)}
-                                    disabled={index === 0}
-                                    aria-label={`Move ${label} up`}
-                                    className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40"
-                                  >
-                                    ▲
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => move(key, 1)}
-                                    disabled={index === order.length - 1}
-                                    aria-label={`Move ${label} down`}
-                                    className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40"
-                                  >
-                                    ▼
-                                  </button>
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const ok = await siteAct(
-                              {
-                                action: 'set_nav',
-                                items: order.map(key => ({
-                                  key,
-                                  ...(!isPageNavKey(key) && navLabels[key]?.trim() ? { label: navLabels[key].trim() } : {}),
-                                })),
-                              },
-                              'Layout saved',
-                              'Failed to save the layout'
-                            );
-                            if (ok) setNavOrder(null);
-                          }}
-                          className="mt-2 px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                        >
-                          Save navigation
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setConfirmTarget({ kind: 'layout', id: site.id, label: 'the section order' })
-                          }
-                          className="mt-2 ml-2 px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
-                        >
-                          Reset to recommended order
-                        </button>
-                      </>
-                    );
-                  })()}
+                  {/* H1 (Sep 27 2026): the same editor the site editor's Settings host — one component. */}
+                  <NavigationEditor
+                    plural={plural}
+                    orgId={orgId}
+                    side={side as OrgKind}
+                    modules={siteModules}
+                    navConfig={siteNavConfig}
+                    onChanged={refresh}
+                    showError={showError}
+                    showSuccess={showSuccess}
+                  />
                 </div>
               )}
               {/* R3: site logo — square PNG through the shared editor,
@@ -3764,9 +3603,7 @@ export default function OrgConsolePage() {
       <ConfirmModal
         isOpen={!!confirmTarget}
         title={
-          confirmTarget?.kind === 'layout'
-            ? 'Reset the section order?'
-            : confirmTarget?.kind === 'restore'
+          confirmTarget?.kind === 'restore'
               ? 'Restore this version?'
               : confirmTarget?.kind === 'discard'
                 ? 'Discard the draft?'
@@ -3777,8 +3614,6 @@ export default function OrgConsolePage() {
             ? 'Its divisions and their entries are removed too. Teams persist.'
             : confirmTarget?.kind === 'venue'
               ? 'Its facilities are removed too. Events keep their dates.'
-            : confirmTarget?.kind === 'layout'
-              ? `Sections go back to the recommended ${side} order. Your section labels are kept.`
             : confirmTarget?.kind === 'restore'
               ? 'Your draft is replaced with this version. Nothing goes live until you publish.'
             : confirmTarget?.kind === 'discard'
@@ -3792,7 +3627,7 @@ export default function OrgConsolePage() {
               : 'Its entries are removed too. Teams persist.'
         }
         confirmText={
-          confirmTarget?.kind === 'layout' ? 'Reset' : confirmTarget?.kind === 'restore' ? 'Restore' : confirmTarget?.kind === 'discard' ? 'Discard' : 'Delete'
+          confirmTarget?.kind === 'restore' ? 'Restore' : confirmTarget?.kind === 'discard' ? 'Discard' : 'Delete'
         }
         confirmButtonClass={confirmTarget?.kind === 'restore' ? 'bg-brand hover:bg-brand-hover text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
         onConfirm={() => {
