@@ -36,14 +36,15 @@ export interface NewsRoomProps {
   plural: string;
   orgId: string;
   siteId: string;
-  /** 'list', 'new', or a post id (the ?news= deep link). */
+  /** 'list', 'new', a post id, or 'recap:<contest id>' (the ?news= deep link). */
   initial: string;
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
 
 export default function NewsRoom({ plural, orgId, siteId, initial, showError, showSuccess }: NewsRoomProps) {
-  const [openId, setOpenId] = useState<string | null>(initial !== 'list' && initial !== 'new' ? initial : null);
+  const recapFor = initial.startsWith('recap:') ? initial.slice('recap:'.length) : null;
+  const [openId, setOpenId] = useState<string | null>(initial !== 'list' && initial !== 'new' && !recapFor ? initial : null);
   const [creating, setCreating] = useState(false);
   const created = useRef(false);
   const base = `/api/${plural}/${orgId}/site/news`;
@@ -63,22 +64,56 @@ export default function NewsRoom({ plural, orgId, siteId, initial, showError, sh
     }
   }, [base, showError]);
 
-  // ?news=new: start a post once (a ref guard — never two posts for one link).
+  // R1: draft (or reopen) a game's recap — the server dedupes on the game.
+  const draftRecap = useCallback(
+    async (contestId: string) => {
+      setCreating(true);
+      try {
+        const res = await fetch(`${base}/recap`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contestId }) });
+        const body = (await res.json().catch(() => ({}))) as { post?: { id: string }; existing?: boolean; error?: string };
+        if (!res.ok || !body.post) {
+          showError('News', body.error || 'Could not draft the recap');
+          return;
+        }
+        if (!body.existing) showSuccess('News', 'Recap drafted — edit it, then publish');
+        setOpenId(body.post.id);
+      } finally {
+        setCreating(false);
+      }
+    },
+    [base, showError, showSuccess]
+  );
+
+  // ?news=new / ?news=recap:<id>: act once (a ref guard — never two posts for one link).
   useEffect(() => {
-    if (initial !== 'new' || created.current) return;
+    if ((initial !== 'new' && !recapFor) || created.current) return;
     created.current = true;
-    const t = setTimeout(() => void createPost(), 0);
+    const t = setTimeout(() => void (recapFor ? draftRecap(recapFor) : createPost()), 0);
     return () => clearTimeout(t);
-  }, [initial, createPost]);
+  }, [initial, recapFor, createPost, draftRecap]);
 
   return openId ? (
     <Composer key={openId} id={openId} base={base} plural={plural} orgId={orgId} siteId={siteId} onBack={() => setOpenId(null)} showError={showError} showSuccess={showSuccess} />
   ) : (
-    <NewsList base={base} creating={creating} onOpen={setOpenId} onNew={() => void createPost()} showError={showError} />
+    <NewsList base={base} creating={creating} onOpen={setOpenId} onNew={() => void createPost()} onRecap={id => void draftRecap(id)} showError={showError} />
   );
 }
 
-function NewsList({ base, creating, onOpen, onNew, showError }: { base: string; creating: boolean; onOpen: (id: string) => void; onNew: () => void; showError: (title: string, message?: string) => void }) {
+function NewsList({
+  base,
+  creating,
+  onOpen,
+  onNew,
+  onRecap,
+  showError,
+}: {
+  base: string;
+  creating: boolean;
+  onOpen: (id: string) => void;
+  onNew: () => void;
+  onRecap: (contestId: string) => void;
+  showError: (title: string, message?: string) => void;
+}) {
   const [rows, setRows] = useState<NewsRow[] | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +178,65 @@ function NewsList({ base, creating, onOpen, onNew, showError }: { base: string; 
           {section('Live', groups.live, 'live')}
         </>
       )}
+      <FromResults base={base} creating={creating} onOpen={onOpen} onRecap={onRecap} />
     </div>
+  );
+}
+
+interface RecapCandidate {
+  contestId: string;
+  title: string;
+  when: string | null;
+  competitionName: string;
+  recapNewsId: string | null;
+}
+
+/** R1: "From results" — the finished games of the last 30 days, one click
+ *  from a recap draft (or back to the recap already written). Quiet when
+ *  there is nothing to recap. */
+function FromResults({ base, creating, onOpen, onRecap }: { base: string; creating: boolean; onOpen: (id: string) => void; onRecap: (contestId: string) => void }) {
+  const [rows, setRows] = useState<RecapCandidate[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${base}/recap`);
+        const body = (await res.json().catch(() => ({}))) as { candidates?: RecapCandidate[] };
+        if (!cancelled) setRows(res.ok ? (body.candidates ?? []) : []);
+      } catch {
+        if (!cancelled) setRows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [base]);
+  if (!rows || rows.length === 0) return null;
+  return (
+    <section className="space-y-1" data-sb-news-recaps="">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">From results</h3>
+      <ul className="divide-y divide-border-subtle rounded-lg border border-border">
+        {rows.map(r => (
+          <li key={r.contestId} className="flex items-center justify-between gap-3 px-3 py-2.5" data-sb-news-recap={r.contestId}>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-primary">{r.title}</span>
+              <span className="block truncate text-xs text-tertiary">
+                {[r.competitionName, r.when ? new Date(r.when.length === 10 ? `${r.when}T12:00:00Z` : r.when).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+            {r.recapNewsId ? (
+              <button type="button" className={PILL} onClick={() => onOpen(r.recapNewsId!)} data-sb-news-recap-open="">
+                Open the recap
+              </button>
+            ) : (
+              <button type="button" className={PILL} disabled={creating} onClick={() => onRecap(r.contestId)} data-sb-news-recap-draft="">
+                Draft a recap
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

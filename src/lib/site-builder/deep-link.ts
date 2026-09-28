@@ -10,12 +10,13 @@ export interface EditorDeepLink {
   /** A widget key shape only — the editor looks it up in the layout. */
   section: string | null;
   /** N4: `?news=<post id>` opens the post in the newsroom; `?news=new` a new
-   *  one; `?news=list` the list. */
+   *  one; `?news=list` the list; `?news=recap:<contest id>` that game's recap draft (R1). */
   news: string | null;
 }
 
 const SECTION_RE = /^[a-z][a-z_]{1,31}$/;
-const NEWS_RE = /^(new|list|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+// R1: `recap:<contest id>` drafts (or reopens) that game's recap.
+const NEWS_RE = /^(new|list|(recap:)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 export function parseEditorDeepLink(search: string): EditorDeepLink {
   const params = new URLSearchParams(search);
