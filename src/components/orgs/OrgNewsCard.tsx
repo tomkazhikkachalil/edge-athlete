@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
+import InlineText from '@/components/text/InlineText';
 
 // Org news for MEMBERS (phase 9 V5; leagues in program 11 L2): every
 // published post, including the members-only ones a private org keeps off
@@ -99,7 +100,7 @@ export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { s
                   b.type === 'heading' ? (
                     <p key={i} className="font-semibold text-primary">{b.text}</p>
                   ) : b.type === 'paragraph' ? (
-                    <p key={i} className="whitespace-pre-wrap">{b.text}</p>
+                    <p key={i} className="whitespace-pre-wrap"><InlineText text={b.text ?? ''} /></p>
                   ) : b.type === 'image' && site && b.path ? (
                     // eslint-disable-next-line @next/next/no-img-element -- org-media rides the tokenless streamer, not next/image (the image policy)
                     <img key={i} src={orgMediaUrl(site.id, b.path) ?? undefined} alt={b.alt ?? ''} className="max-w-full rounded-md" />

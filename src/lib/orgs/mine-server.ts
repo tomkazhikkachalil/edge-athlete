@@ -70,6 +70,8 @@ export async function newsMineGET(user: SessionUser, side: OrgKind, params: Prom
         .select(fields)
         .eq('site_id', site.id)
         .not('published_at', 'is', null)
+        // N1 (Sep 27 2026): a post scheduled for later is not published yet.
+        .lte('published_at', new Date().toISOString())
         .is('deleted_at', null)
         .order('published_at', { ascending: false })
         .limit(50);
