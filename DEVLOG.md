@@ -114,6 +114,13 @@ Both are SETTINGS, like audience and pin: they act at once (`notifyMembers` / `b
 - `npm run verify` green (3984; `newsCoverOf` ×3).
 - New `org-site-news-tags.spec.ts` @mobile (both engines): the team page shows its post and summary and never the division's or the club's; the division page shows its own; the post page leads with the summary and the chosen cover; no overflow at 390 px.
 - Green alongside it: team-page, division-page, team-schedule-public (both phone engines), news-display, newsroom-api.
+## September 28, 2026 — 243 ran on prod; the baseline at 243
+
+Tom ran `243_newsroom.sql` on production. `npm run check:schema:prod` is OK: every live policy, function, trigger and grant is owned; ledger head 243 and the chain agree.
+
+`npm run build:baseline` regenerated `database/baseline/000_rebuild.sql` from production: 120 tables, 110 functions, 180 policies, 104 triggers, ledger head 243, self-check OK. It adds the ten newsroom columns, their CHECKs and indexes, and the audit CHECK. The dump is saved under `database/provenance/dumps/2026-09-28-schema.json`.
+
+This is its own PR because #971 merged (with #972 and #973) before its post-migration commit could land. It is the same recovery as 242's (#942), and the lesson stands: a PR owing a post-migration commit says DO NOT MERGE in its title — merge it only once that commit is on it.
 
 ## September 27, 2026 — Sports-team website program, N4: the newsroom inside the site editor
 
