@@ -1,5 +1,30 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, L6: three game-day designs in the gallery (zero DDL)
+
+**What managers get:** three new starting points in the gallery and the welcome design pick. All three use the pro header on a wide page:
+- **Matchday** (team sports, both sides): the next game as a full-width brand banner, then the score strip beside the table, the news, the teams, the sponsors, and where you play.
+- **Club pro** (team-sport clubs): the welcome beside the next game, every team, results beside the news, registration, the sponsors.
+- **League central** (team-sport leagues): the score strip on top, the table beside the next game, the leaders beside the news, the teams, the sponsors.
+
+**How the engine grew:**
+- A plan slot may now name a GAME tile (`{ game, w, variant? }`).
+- Game tiles are not modules, so the seed MINTS them under a seed id (`gameSeedId` → `seed:next_game`), only while their module (the schedule) is on.
+- `applyGallerySeed` treats them like the generated content (`isSeedMinted`): re-applying keeps an edited tile, matched by its id, and `clean` drops the manager's extras and re-mints the seed's.
+- Module tiles are still only ever arranged, never created: a private club's members-only visibility never leaks.
+- A game tile's audience is its module's at render, so a minted one is always safe.
+- Gallery tokens may now carry `width`.
+
+**A flake fixed on the way:** the photo-gallery lightbox image (L5) is lazy, and a lazy image with no size is 0×0 until its bytes land. Under a busy run, `org-site-gallery` saw it "hidden". It now carries the stored width and height (a `min-h-24` floor when none is stored), so the box exists before the image loads.
+
+**Proof:**
+- `npm run verify` green: 4007 tests. The every-entry grid now covers minted game tiles (seed id, module on, schema-valid), the tokens include `width`, the three designs are offered to team sports only, and keep/clean behave as described.
+- New `org-site-gallery-gameday.spec.ts` @mobile passes on both engines. It covers:
+  - the gallery offers Matchday and League central to a league (not Club pro);
+  - applying mints `seed:next_game` (banner) and `seed:results` (strip) under `header: pro, width: wide`;
+  - the published home at 390 px leads with both, with no overflow.
+- Green alongside it: org-site-start, org-site-gallery, member-photos.
+
 ## September 28, 2026 — Sports-team website program, G5: a game's status change refreshes the sites that show it (zero DDL)
 
 **What changed:** until now, a sport-event game going open, live, completed or cancelled reached the org sites only when the 300 s ISR window ran out. Now both transition doors (`applyTransition`, `applyRoundTransition`) end in `withSiteFreshness`. On success it purges every org site that shows the game: the host org's, plus each side team's org. The reader is `revalidate.ts revalidateOrgSitesForSportEvent`, bounded at 5 orgs, best-effort, and it never throws.

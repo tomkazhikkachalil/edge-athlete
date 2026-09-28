@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MODULE_KEYS, THEME_DENSITIES, THEME_HEADERS, THEME_HEROES, THEME_TEAMS, THEME_TYPEFACES } from '@/lib/org-sites/validate';
+import { MODULE_KEYS, THEME_DENSITIES, THEME_HEADERS, THEME_HEROES, THEME_TEAMS, THEME_TYPEFACES, THEME_WIDTHS } from '@/lib/org-sites/validate';
 import { MEMBERS_ONLY_MODULE_KEYS } from '@/lib/org-sites/private';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { GALLERY_ENTRY_IDS } from '../gallery-ids';
@@ -9,6 +9,8 @@ import {
   NEUTRAL_ORG,
   WELCOME_ID,
   applyGallerySeed,
+  gameSeedId,
+  isSeedMinted,
   clip,
   galleryEntriesFor,
   galleryEntry,
@@ -18,7 +20,7 @@ import {
   type GalleryOrg,
 } from '../gallery';
 import { isWidgetEmpty } from '../emptiness';
-import { isContentWidgetKey } from '../catalog';
+import { WIDGETS, isContentWidgetKey, isGameWidgetKey } from '../catalog';
 import { compactLayout, validateLayout, type SiteLayout, type WidgetInstance } from '../layout';
 import { LAYOUT_WIDGETS_MAX, parseStoredLayout } from '../layout-schema';
 import { instanceSchemaFor } from '../schemas';
@@ -71,6 +73,7 @@ describe('the gallery — entries', () => {
       if (e.tokens.hero) expect(THEME_HEROES, e.id).toContain(e.tokens.hero);
       if (e.tokens.density) expect(THEME_DENSITIES, e.id).toContain(e.tokens.density);
       if (e.tokens.teams) expect(THEME_TEAMS, e.id).toContain(e.tokens.teams);
+      if (e.tokens.width) expect(THEME_WIDTHS, e.id).toContain(e.tokens.width);
       for (const s of e.slots) {
         expect([6, 12], e.id).toContain(s.w);
         if ('module' in s) expect(ALL as readonly string[], `${e.id}:${s.module}`).toContain(s.module);
@@ -151,11 +154,19 @@ describe('gallerySeed — every entry × side × sport × org × module set', ()
               expect(new Set(l.widgets.map(w => w.id)).size, tag).toBe(l.widgets.length);
               expect(l.widgets.length, tag).toBeLessThanOrEqual(LAYOUT_WIDGETS_MAX);
               // Every module the org enables appears exactly once unless the entry omits the rest.
-              const moduleKeys = l.widgets.filter(w => !isContentWidgetKey(w.key)).map(w => w.key);
+              const moduleKeys = l.widgets.filter(w => !isSeedMinted(w.key)).map(w => w.key);
               expect(new Set(moduleKeys).size, tag).toBe(moduleKeys.length);
               for (const k of moduleKeys) expect(keys as readonly string[], tag).toContain(k);
               if (e.rest !== 'omit') expect([...moduleKeys].sort(), tag).toEqual([...keys].sort());
               for (const w of l.widgets) {
+                if (isGameWidgetKey(w.key)) {
+                  // L6: a game tile is minted with its seed id, only while its module is on;
+                  // empty until the org has games (then it never renders publicly).
+                  expect(w.id, tag).toBe(gameSeedId(w.key));
+                  expect(keys as readonly string[], tag).toContain(WIDGETS[w.key].moduleKey!);
+                  expect(instanceSchemaFor(w.key).safeParse(w.config).success, `${tag}:${w.id}`).toBe(true);
+                  continue;
+                }
                 if (!isContentWidgetKey(w.key)) {
                   expect(w.id, tag).toBe(`legacy:${w.key}`);
                   continue;
@@ -166,6 +177,9 @@ describe('gallerySeed — every entry × side × sport × org × module set', ()
               const hasMap = l.widgets.some(w => w.id === MAP_ID);
               const wantsMap = e.slots.some(s => 'content' in s && s.content === 'map');
               expect(hasMap, tag).toBe(wantsMap && galleryMap(org) !== null);
+              for (const g of e.slots.filter((s): s is Extract<typeof s, { game: string }> => 'game' in s)) {
+                expect(l.widgets.some(w => w.id === gameSeedId(g.game)), `${tag}:${g.game}`).toBe((keys as readonly string[]).includes(WIDGETS[g.game].moduleKey!));
+              }
               const wantsWelcome = e.slots.some(s => 'content' in s && s.content === 'welcome');
               expect(l.widgets.some(w => w.id === WELCOME_ID), tag).toBe(wantsWelcome);
             }
@@ -280,5 +294,37 @@ describe('applyGallerySeed — keep and clean', () => {
     const narrow: SiteLayout = { ...l, widgets: l.widgets.map(w => (w.key === 'news' ? { ...w, w: 4 } : w)) };
     const out = applyGallerySeed(narrow, gallerySeed(galleryEntry('simple')!, shape(ALL), org, 'league', 'golf'), 'keep');
     expect(validateLayout(out)).toEqual([]);
+  });
+});
+
+describe('L6 — the game-day designs', () => {
+  it('Matchday / Club pro / League central: the pro header on a wide page, offered to the team sports only', () => {
+    for (const id of ['team-matchday', 'club-teams-pro', 'league-central'] as const) {
+      const e = galleryEntry(id)!;
+      expect(e.tokens.header, id).toBe('pro');
+      expect(e.tokens.width, id).toBe('wide');
+      expect(e.forSports, id).toEqual(['team']);
+      expect(e.slots.some(s => 'game' in s), id).toBe(true);
+    }
+    expect(galleryEntriesFor('club', 'ice_hockey').map(e => e.id)).toEqual(expect.arrayContaining(['team-matchday', 'club-teams-pro']));
+    expect(galleryEntriesFor('league', 'ice_hockey').map(e => e.id)).toEqual(expect.arrayContaining(['team-matchday', 'league-central']));
+    expect(galleryEntriesFor('club', 'golf').map(e => e.id)).not.toContain('team-matchday');
+  });
+
+  it('re-applying keeps an edited game tile (matched by its seed id); clean drops the manager’s extra one and re-mints the seed’s', () => {
+    const e = galleryEntry('team-matchday')!;
+    const seed = gallerySeed(e, shape(ALL), ORG, 'league', 'ice_hockey');
+    const banner = seed.widgets.find(w => w.id === gameSeedId('next_game'))!;
+    expect(banner.config).toEqual({ display: { variant: 'banner' } });
+    const edited: SiteLayout = { ...seed, widgets: seed.widgets.map(w => (w.id === banner.id ? { ...w, config: { title: 'Game night', display: { variant: 'card' } } } : w)) };
+    const extra: WidgetInstance = { ...banner, id: 'w_mine', y: 999, config: { title: 'Another' } };
+    const withExtra: SiteLayout = { ...edited, widgets: compactLayout([...edited.widgets, extra]) };
+    const kept = applyGallerySeed(withExtra, seed, 'keep');
+    expect(kept.widgets.find(w => w.id === banner.id)!.config).toEqual({ title: 'Game night', display: { variant: 'card' } });
+    expect(kept.widgets.some(w => w.id === 'w_mine')).toBe(true);
+    const clean = applyGallerySeed(withExtra, seed, 'clean');
+    expect(clean.widgets.some(w => w.id === 'w_mine')).toBe(false);
+    expect(clean.widgets.find(w => w.id === banner.id)!.config).toEqual({ display: { variant: 'banner' } });
+    expect(validateLayout(clean)).toEqual([]);
   });
 });

@@ -26,7 +26,7 @@
 import { MEMBERS_ONLY_MODULE_KEYS } from '@/lib/org-sites/private';
 import { type TemplateId } from '@/lib/org-sites/templates';
 import { INSTANCE_TITLE_MAX } from './config';
-import { WIDGETS, isContentWidgetKey, type WebWidgetKey } from './catalog';
+import { WIDGETS, isContentWidgetKey, isGameWidgetKey, type GameWidgetKey, type WebWidgetKey } from './catalog';
 import { osmEmbedAround, type Embed } from './embeds';
 import { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode } from './gallery-ids';
 import { GRID, clampToConstraints, compactLayout, layoutBottom, sortByPosition, type LegacySiteShape, type SiteLayout, type WidgetInstance } from './layout';
@@ -53,12 +53,16 @@ export interface GalleryOrg {
   venues: GalleryVenue[];
 }
 
-export type GalleryDesignTokens = Partial<Record<'typeface' | 'header' | 'hero' | 'density' | 'teams', string>>;
+export type GalleryDesignTokens = Partial<Record<'typeface' | 'header' | 'hero' | 'density' | 'teams' | 'width', string>>;
 
 /** One row of a plan, flowed in order: 12 = its own row, 6 = pairs left/right. */
 export type GallerySlot =
   | { module: WebWidgetKey; w: 6 | 12; h?: number }
-  | { content: 'welcome' | 'map'; w: 6 | 12; h?: number };
+  | { content: 'welcome' | 'map'; w: 6 | 12; h?: number }
+  /** L6: a game-day tile, MINTED by the seed (it is not a module — its
+   *  audience is its module's at render), placed only while that module is
+   *  on; `variant` is its display layout. */
+  | { game: GameWidgetKey; w: 6 | 12; h?: number; variant?: string };
 
 export interface GalleryEntry {
   id: GalleryEntryId;
@@ -76,6 +80,14 @@ export interface GalleryEntry {
 
 export const WELCOME_ID = 'seed:welcome';
 export const MAP_ID = 'seed:map';
+/** L6: a game tile's seed id (re-applying matches it, like the welcome). */
+export const gameSeedId = (key: GameWidgetKey): string => `seed:${key}`;
+
+/** Tiles the seed MINTS and matches by id — the generated content and the
+ *  game-day tiles — as opposed to module tiles, which it only arranges. */
+export function isSeedMinted(key: string): boolean {
+  return isContentWidgetKey(key) || isGameWidgetKey(key);
+}
 
 const BOTH_SIDES = ['league', 'club'] as const;
 const BOTH_SPORTS = ['golf', 'team'] as const;
@@ -261,6 +273,70 @@ export const GALLERY_ENTRIES: readonly GalleryEntry[] = [
     ],
     rest: 'omit',
   },
+  // ── Sep 28 2026 (sports-team website program, L6): game-day designs ──────
+  // Tom: "look like a professional site" — the pro header, a wide page, the
+  // next game and the latest results leading. Data only, the same engine.
+  {
+    id: 'team-matchday',
+    family: 'bold',
+    name: 'Matchday',
+    blurb: 'The next game leads as a banner, then the scores, the table and the news.',
+    forSides: BOTH_SIDES,
+    forSports: ['team'],
+    tokens: { typeface: 'oswald', header: 'pro', width: 'wide', hero: 'bleed', density: 'compact', teams: 'tiles' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { game: 'next_game', w: 12, variant: 'banner' },
+      { game: 'results', w: 6, variant: 'strip' },
+      { module: 'standings', w: 6 },
+      { module: 'news', w: 12 },
+      { module: 'teams', w: 12 },
+      { module: 'sponsors', w: 12 },
+      { content: 'map', w: 6, h: 5 },
+      { module: 'contact', w: 6, h: 5 },
+    ],
+  },
+  {
+    id: 'club-teams-pro',
+    family: 'classic',
+    name: 'Club pro',
+    blurb: 'A club of teams: the welcome and the next game, every team, results and how to join.',
+    forSides: ['club'],
+    forSports: ['team'],
+    tokens: { typeface: 'nunito', header: 'pro', width: 'wide', teams: 'tiles' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { content: 'welcome', w: 6 },
+      { game: 'next_game', w: 6 },
+      { module: 'teams', w: 12 },
+      { game: 'results', w: 6 },
+      { module: 'news', w: 6 },
+      { module: 'register', w: 12 },
+      { module: 'sponsors', w: 12 },
+      { content: 'map', w: 6, h: 5 },
+      { module: 'contact', w: 6, h: 5 },
+    ],
+  },
+  {
+    id: 'league-central',
+    family: 'bold',
+    name: 'League central',
+    blurb: 'The scores strip on top, the table and the next game, the leaders and the news.',
+    forSides: ['league'],
+    forSports: ['team'],
+    tokens: { typeface: 'oswald', header: 'pro', width: 'wide', hero: 'card', density: 'compact' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { game: 'results', w: 12, variant: 'strip' },
+      { module: 'standings', w: 6 },
+      { game: 'next_game', w: 6 },
+      { module: 'leaders', w: 6 },
+      { module: 'news', w: 6 },
+      { module: 'teams', w: 12 },
+      { module: 'sponsors', w: 12 },
+      { module: 'contact', w: 12 },
+    ],
+  },
 ];
 
 export function galleryEntry(id: string): GalleryEntry | null {
@@ -377,6 +453,13 @@ export function gallerySeed(
       const h = Math.max(c.minH, Math.min(c.maxH, slot.h ?? c.defaultSize.h));
       put(place(slot.module, 0, 0, undefined, { id: `legacy:${slot.module}`, visibility: shape.visibility === 'private' && isMembersOnlyKey(slot.module) ? 'members' : 'public' }), slot.w, h);
       placed.add(slot.module);
+    } else if ('game' in slot) {
+      // L6: minted, never arranged — only while its module is on.
+      const moduleKey = WIDGETS[slot.game].moduleKey;
+      if (moduleKey && !enabled.has(moduleKey)) continue;
+      const c = WIDGETS[slot.game].constraints;
+      const h = Math.max(c.minH, Math.min(c.maxH, slot.h ?? c.defaultSize.h));
+      put(place(slot.game, 0, 0, undefined, { id: gameSeedId(slot.game), config: slot.variant ? { display: { variant: slot.variant } } : {} }), slot.w, h);
     } else if (slot.content === 'welcome') {
       const w = galleryWelcome(org, side, sportKey);
       put(
@@ -415,7 +498,7 @@ export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: Gal
   if (mode === 'clean') {
     const seen = new Set<string>();
     current = current.filter(w => {
-      if (isContentWidgetKey(w.key)) return false;
+      if (isSeedMinted(w.key)) return false;
       if (seen.has(w.key)) return false;
       seen.add(w.key);
       return true;
@@ -424,7 +507,7 @@ export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: Gal
   const used = new Set<string>();
   const placed: WidgetInstance[] = [];
   for (const s of sortByPosition(seed.widgets)) {
-    if (isContentWidgetKey(s.key)) {
+    if (isSeedMinted(s.key)) {
       const existing = current.find(w => w.id === s.id);
       if (existing) {
         used.add(existing.id);
@@ -445,7 +528,7 @@ export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: Gal
   let y = layoutBottom(placed);
   const rest = current
     .filter(w => !used.has(w.id))
-    .filter(w => !(mode === 'clean' && omitRest && !isContentWidgetKey(w.key) && !seedKeys.has(w.key)))
+    .filter(w => !(mode === 'clean' && omitRest && !isSeedMinted(w.key) && !seedKeys.has(w.key)))
     .map(w => {
       const out = clampToConstraints({ ...w, x: 0, y });
       y += out.h;

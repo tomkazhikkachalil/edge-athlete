@@ -112,8 +112,15 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
           <div key={item.id} id={`photo-${n}`} className="site-lightbox" role="dialog" aria-label={`Photo ${n} of ${photos.length}`} data-site-lightbox={n}>
             <a href="#gallery-grid" className="absolute inset-0" aria-label="Close" tabIndex={-1} />
             <figure className="relative z-10 flex max-h-full w-full max-w-5xl flex-col items-center gap-3">
+              {/* The stored size reserves the box before the bytes land (a lazy image with no size is 0×0 until then); none stored → a floor. */}
               {/* eslint-disable-next-line @next/next/no-img-element -- gate-checked streamer bytes; not an optimizable public asset */}
-              <img src={item.url} alt={item.caption ?? `${item.competitionName} photo`} loading="lazy" className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain" />
+              <img
+                src={item.url}
+                alt={item.caption ?? `${item.competitionName} photo`}
+                loading="lazy"
+                {...(item.width && item.height ? { width: item.width, height: item.height } : {})}
+                className="max-h-[75vh] w-auto max-w-full min-h-24 rounded-lg object-contain"
+              />
               <figcaption className="text-center text-sm text-white/90">
                 {item.caption ? <span className="block font-medium text-white">{item.caption}</span> : null}
                 {caption(item)}
