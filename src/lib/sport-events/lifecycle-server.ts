@@ -29,6 +29,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from './access-server';
+import { revalidateOrgSitesForSportEvent } from '@/lib/org-sites/revalidate';
 import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL_COPY, transitionStamp, TRANSITION_REFUSAL_COPY, validateRoundTransition, validateTransition, type RoundTransitionFacts, type RoundTransitionRefusal, type TransitionFacts, type TransitionRefusal } from './lifecycle';
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
@@ -147,6 +148,20 @@ export interface TransitionRequest {
  * exactly as in phase 1. `open` and `cancelled` stay event-wide.
  */
 export async function applyTransition(admin: Admin, req: TransitionRequest): Promise<TransitionOutcome> {
+  return withSiteFreshness(admin, req.eventId, await applyTransitionCore(admin, req));
+}
+
+/** G5 (sports-team website program): every successful status change —
+ *  open, live, completed, cancelled — purges the org sites that show the
+ *  game (the host org's, the side teams' orgs'), best-effort, after the
+ *  write. The live SCORE deliberately does not (pinned): the ISR copy is the
+ *  snapshot, the live card is the scoreboard. */
+async function withSiteFreshness(admin: Admin, eventId: string, outcome: TransitionOutcome): Promise<TransitionOutcome> {
+  if (outcome.ok) await revalidateOrgSitesForSportEvent(admin, eventId);
+  return outcome;
+}
+
+async function applyTransitionCore(admin: Admin, req: TransitionRequest): Promise<TransitionOutcome> {
   const { data: eventRow } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', req.eventId).maybeSingle();
   if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
   const event = eventRow as SportEventRow;
@@ -158,11 +173,11 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
     if (req.to === 'live') {
       const next = nextStartableRound(rounds);
       if (!next) return { ok: false, status: 409, reason: 'round_required', error: TRANSITION_REFUSAL_COPY.round_required };
-      return applyRoundTransition(admin, { eventId: req.eventId, roundId: next.id, to: 'live', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
+      return applyRoundTransitionCore(admin, { eventId: req.eventId, roundId: next.id, to: 'live', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
     }
     if (rounds.some(r => r.status === 'scheduled')) return { ok: false, status: 409, reason: 'rounds_remaining', error: TRANSITION_REFUSAL_COPY.rounds_remaining };
     const live = rounds.find(r => r.status === 'live');
-    if (live) return applyRoundTransition(admin, { eventId: req.eventId, roundId: live.id, to: 'completed', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
+    if (live) return applyRoundTransitionCore(admin, { eventId: req.eventId, roundId: live.id, to: 'completed', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
     // Nothing live, nothing scheduled: every round is already done — close the header.
     return closeEvent(admin, event, req.actorProfileId);
   }
@@ -250,6 +265,10 @@ export interface RoundTransitionRequest {
  * Every status write is a compare-and-set on the row's prior status.
  */
 export async function applyRoundTransition(admin: Admin, req: RoundTransitionRequest): Promise<TransitionOutcome> {
+  return withSiteFreshness(admin, req.eventId, await applyRoundTransitionCore(admin, req));
+}
+
+async function applyRoundTransitionCore(admin: Admin, req: RoundTransitionRequest): Promise<TransitionOutcome> {
   const { data: eventRow } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', req.eventId).maybeSingle();
   if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
   const event = eventRow as SportEventRow;

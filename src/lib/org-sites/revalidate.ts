@@ -174,3 +174,23 @@ export async function revalidateOrgSiteForCompetition(
     console.warn(`${TAG} competition lookup failed (write unaffected):`, error);
   }
 }
+
+/** G5 (sports-team website program): a sport-event game shows on the host
+ *  org's site and on every org site whose TEAM plays a side of it (the
+ *  division pages, the game-day tiles, the Results page) — purge each,
+ *  bounded, best-effort. Never throws. */
+export async function revalidateOrgSitesForSportEvent(admin: Admin, eventId: string): Promise<void> {
+  try {
+    const [{ data: event }, { data: sides }] = await Promise.all([
+      admin.from('sport_events').select('org_id').eq('id', eventId).maybeSingle(),
+      admin.from('sport_event_teams').select('team:teams(org_id)').eq('sport_event_id', eventId).limit(4),
+    ]);
+    const teamOrgIds = ((sides ?? []) as { team: { org_id: string | null } | { org_id: string | null }[] | null }[]).map(r => (Array.isArray(r.team) ? r.team[0] : r.team)?.org_id ?? null);
+    const orgIds = [...new Set([(event as { org_id?: string | null } | null)?.org_id ?? null, ...teamOrgIds].filter((v): v is string => !!v))].slice(0, 5);
+    if (orgIds.length === 0) return;
+    const { data: orgs } = await admin.from('organizations').select('id, kind').in('id', orgIds);
+    for (const o of (orgs ?? []) as { id: string; kind: OrgKind }[]) await revalidateOrgSiteForOrg(admin, o.kind, o.id);
+  } catch (error) {
+    console.warn(`${TAG} sport event lookup failed (write unaffected):`, error);
+  }
+}
