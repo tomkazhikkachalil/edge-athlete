@@ -39,6 +39,7 @@ import { appBaseUrl } from './urls';
 import { fetchTeamSchedule, type TeamSchedule } from '@/lib/teams/schedule-server';
 import { teamLogoUrl } from '@/lib/teams/logo-url';
 import { teamLook } from '@/lib/teams/brand';
+import { inlineToPlain } from './inline';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -585,6 +586,8 @@ export async function fetchPublishedSitesForSitemap(
       .select('site_id, slug')
       .in('site_id', siteIds)
       .not('published_at', 'is', null)
+      // N1 (Sep 27 2026): a post scheduled for later is not published yet.
+      .lte('published_at', new Date().toISOString())
       .is('deleted_at', null)
       .limit(5000),
     // Teams key by ORG, not site — one batch, bounded.
@@ -851,7 +854,8 @@ export function firstParagraph(body: unknown): string | null {
       (block as { type?: string }).type === 'paragraph' &&
       typeof (block as { text?: unknown }).text === 'string'
     ) {
-      const text = ((block as { text: string }).text || '').trim();
+      // N1: the excerpt is the WORDS — **bold** / [link](…) markup stripped.
+      const text = inlineToPlain((block as { text: string }).text || '').trim();
       if (text) return text.length > 160 ? `${text.slice(0, 157)}…` : text;
     }
   }
@@ -874,6 +878,8 @@ export async function fetchPublicNewsList(
       .select(fields)
       .eq('site_id', siteId)
       .not('published_at', 'is', null)
+      // N1 (Sep 27 2026): a post scheduled for later is not published yet.
+      .lte('published_at', new Date().toISOString())
       .is('deleted_at', null)
       .order('published_at', { ascending: false })
       .limit(50);
@@ -1120,6 +1126,8 @@ export async function fetchPublicNewsPost(
       .eq('site_id', siteId)
       .eq('slug', newsSlug)
       .not('published_at', 'is', null)
+      // N1 (Sep 27 2026): a post scheduled for later is not published yet.
+      .lte('published_at', new Date().toISOString())
       .is('deleted_at', null)
       .maybeSingle();
   let { data, error } = await read('slug, title, body, published_at, audience');

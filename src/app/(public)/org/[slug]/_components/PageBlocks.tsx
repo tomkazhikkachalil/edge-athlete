@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import type { PageBlock } from '@/lib/org-sites/validate';
+import InlineText from '@/components/text/InlineText';
 
 // Custom-page block renderer (phase 3 R3). Blocks arrive through
 // parsePageBody, so everything here is already schema-valid — but images
@@ -36,7 +37,8 @@ export default function PageBlocks({
           case 'paragraph':
             return (
               <p key={i} className="text-sm text-secondary whitespace-pre-wrap">
-                {block.text}
+                {/* N1: **bold** and [links](https://…) — parsed, never HTML. */}
+                <InlineText text={block.text} />
               </p>
             );
           case 'image': {

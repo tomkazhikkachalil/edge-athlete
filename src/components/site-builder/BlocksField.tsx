@@ -133,6 +133,9 @@ export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldPro
                 className={INPUT}
               />
             )}
+            {b.type === 'paragraph' && (
+              <p className="text-xs text-tertiary">Type **bold** or [a link](https://…).</p>
+            )}
             {b.type === 'link-list' && (
               <div className="space-y-2">
                 {b.links.map((l, k) => (

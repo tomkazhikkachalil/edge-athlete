@@ -1,5 +1,24 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, N1: the news schedule fence and inline formatting (zero DDL)
+
+**The newsroom's floor**, before its migration (243) and its home in the editor:
+- **Scheduling fence.** `published_at` in the future means *not published yet*. The four readers of published news all add `.lte('published_at', now)`: the sitemap index, the site's news list, a post's page, and the members' `/news/mine`.
+  - A scheduled post therefore appears within one cache window (~5–10 min on the host) with no cron.
+  - `news-fence.test.ts` sweeps `src` so any future published-news chain must carry the fence (the twin of the soft-delete sweep).
+  - Nothing sets a future date yet — the Schedule button arrives with the editor's newsroom (N4). Today the fence is inert and pinned.
+- **Inline formatting.** `org-sites/inline.ts parseInline` (pure, zero imports) reads `**bold**` and `[label](https://…)` into typed pieces. A non-https link and anything markup-looking stay literal text; an unclosed `**` stays literal.
+  - `components/text/InlineText.tsx` (server-safe, no hooks) builds `<strong>` / `<a rel="nofollow ugc noopener">` from them — never `dangerouslySetInnerHTML`.
+  - Rendered by `PageBlocks` (news posts, custom pages, the Text section, the in-app content tile) and the members' news card.
+  - `inlineToPlain` makes the excerpt words only (`firstParagraph`).
+  - Both editors hint "Type **bold** or [a link](https://…)."
+
+**Proof:**
+- `npm run verify` green (3972; inline ×5, the fence sweep).
+- New `org-site-news-schedule-inline.spec.ts`: a post dated a week ahead is off the list and its page 404s; the live post's excerpt reads words; its page shows `<strong>` and an https link with `rel="nofollow ugc noopener"`, while `[bad](javascript:…)` and `<b>raw</b>` stay text (no `javascript:` anchor); moved into the past, the scheduled post appears (list + page 200).
+- Green alongside it: pages-composed, org-site news, news-display, display-content.
+- **Known, not N1:** `org-site-news-cover`'s og:image bytes check fails on LOCAL staging runs — `.env.local`'s `NEXT_PUBLIC_APP_URL` is the production host, so the absolute image URL of a staging site points at production, where that media does not exist. It passes on production (where it is meant to run). A first batch also lost news-display and display-content to a slow staging patch; both passed alone (20 s each).
+
 ## September 27, 2026 — Sports-team website program, H2: the console keeps settings only; deep links into the editor (zero DDL)
 
 **The console's Website section is now settings only.** It keeps the address, domain, live/offline, publish / History, Inbox and Visitors, plus announcements and news until their own phases move them. The blocks the editor owns since H1 are gone:

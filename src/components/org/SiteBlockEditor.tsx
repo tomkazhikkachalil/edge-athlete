@@ -420,6 +420,9 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
                   className={INPUT_CLS}
                 />
               )}
+              {block.type === 'paragraph' && (
+                <p className="mt-1 text-xs text-tertiary">Type **bold** or [a link](https://…).</p>
+              )}
               {block.type === 'image' && (
                 <div className="space-y-2">
                   {block.path && orgMediaUrl(siteId, block.path) ? (
