@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-27T01:36:33.839821+00:00 from server 17.4 by
+-- Generated 2026-09-28T02:10:46.701265+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 242.
+-- public.schema_dump() (migration 227). Ledger head at generation: 243.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4861,7 +4861,17 @@ CREATE TABLE IF NOT EXISTS public.org_site_news (
   audience text DEFAULT 'public'::text NOT NULL,
   pinned_at timestamp with time zone,
   deleted_at timestamp with time zone,
-  deleted_by uuid
+  deleted_by uuid,
+  summary text,
+  cover_path text,
+  team_id uuid,
+  division_id uuid,
+  notify_members boolean DEFAULT false NOT NULL,
+  notified_at timestamp with time zone,
+  banner_until date,
+  source_ref text,
+  draft jsonb,
+  created_by uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.org_site_pages (
@@ -6802,7 +6812,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'authority_audit_action_check' AND conrelid = 'public.authority_audit'::regclass) THEN
-    ALTER TABLE public.authority_audit ADD CONSTRAINT authority_audit_action_check CHECK ((action = ANY (ARRAY['org_created'::text, 'owner_added'::text, 'owner_removed'::text, 'owner_stepped_down'::text, 'owner_claimed'::text, 'manager_added'::text, 'manager_removed'::text, 'staff_granted'::text, 'staff_changed'::text, 'staff_revoked'::text, 'identity_changed'::text, 'listing_changed'::text, 'site_created'::text, 'site_live'::text, 'site_offline'::text, 'site_held'::text, 'site_released'::text, 'site_published'::text, 'revision_restored'::text, 'revision_labelled'::text, 'domain_added'::text, 'domain_removed'::text, 'news_deleted'::text, 'news_restored'::text, 'page_removed'::text, 'recovery_link_minted'::text, 'recovery_link_redeemed'::text, 'co_organizer_invited'::text, 'co_organizer_added'::text, 'co_organizer_removed'::text, 'host_transferred'::text, 'event_details_changed'::text, 'event_cancelled'::text, 'event_deleted'::text, 'result_hidden'::text, 'result_unhidden'::text, 'result_reassigned'::text, 'result_corrected'::text, 'official_tag_removed'::text])));
+    ALTER TABLE public.authority_audit ADD CONSTRAINT authority_audit_action_check CHECK ((action = ANY (ARRAY['org_created'::text, 'owner_added'::text, 'owner_removed'::text, 'owner_stepped_down'::text, 'owner_claimed'::text, 'manager_added'::text, 'manager_removed'::text, 'staff_granted'::text, 'staff_changed'::text, 'staff_revoked'::text, 'identity_changed'::text, 'listing_changed'::text, 'site_created'::text, 'site_live'::text, 'site_offline'::text, 'site_held'::text, 'site_released'::text, 'site_published'::text, 'revision_restored'::text, 'revision_labelled'::text, 'domain_added'::text, 'domain_removed'::text, 'news_deleted'::text, 'news_restored'::text, 'page_removed'::text, 'recovery_link_minted'::text, 'recovery_link_redeemed'::text, 'co_organizer_invited'::text, 'co_organizer_added'::text, 'co_organizer_removed'::text, 'host_transferred'::text, 'event_details_changed'::text, 'event_cancelled'::text, 'event_deleted'::text, 'result_hidden'::text, 'result_unhidden'::text, 'result_reassigned'::text, 'result_corrected'::text, 'official_tag_removed'::text, 'news_published'::text, 'news_notified'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7346,8 +7356,38 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_cover_path_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_cover_path_check CHECK (((cover_path IS NULL) OR (cover_path ~~ 'org-media/%'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_draft_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_draft_check CHECK (((draft IS NULL) OR (jsonb_typeof(draft) = 'object'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_notified_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_notified_check CHECK (((notified_at IS NULL) OR notify_members));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_one_tag_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_one_tag_check CHECK (((team_id IS NULL) OR (division_id IS NULL)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_slug_check' AND conrelid = 'public.org_site_news'::regclass) THEN
     ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_slug_check CHECK (((slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'::text) AND (char_length(slug) <= 80)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_source_ref_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_source_ref_check CHECK (((source_ref IS NULL) OR (source_ref ~ '^(contest|game|season):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_summary_check' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_summary_check CHECK (((summary IS NULL) OR ((char_length(summary) >= 1) AND (char_length(summary) <= 280))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8868,13 +8908,28 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_created_by_fkey' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_deleted_by_fkey' AND conrelid = 'public.org_site_news'::regclass) THEN
     ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_division_id_fkey' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_division_id_fkey FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_site_id_fkey' AND conrelid = 'public.org_site_news'::regclass) THEN
     ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_site_id_fkey FOREIGN KEY (site_id) REFERENCES org_sites(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_news_team_id_fkey' AND conrelid = 'public.org_site_news'::regclass) THEN
+    ALTER TABLE public.org_site_news ADD CONSTRAINT org_site_news_team_id_fkey FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9717,10 +9772,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS org_requests_one_pending ON public.org_request
 CREATE INDEX IF NOT EXISTS idx_org_site_form_submissions_site_created ON public.org_site_form_submissions USING btree (site_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_site_hit_marks_day ON public.org_site_hit_marks USING btree (day);
 CREATE INDEX IF NOT EXISTS idx_org_site_modules_site ON public.org_site_modules USING btree (site_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_org_site_news_created_by ON public.org_site_news USING btree (created_by) WHERE (created_by IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_org_site_news_deleted ON public.org_site_news USING btree (site_id, deleted_at) WHERE (deleted_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_org_site_news_deleted_by ON public.org_site_news USING btree (deleted_by);
+CREATE INDEX IF NOT EXISTS idx_org_site_news_division ON public.org_site_news USING btree (division_id, published_at DESC) WHERE (division_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_org_site_news_feed ON public.org_site_news USING btree (site_id, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_org_site_news_notify_due ON public.org_site_news USING btree (published_at) WHERE (notify_members AND (notified_at IS NULL));
+CREATE INDEX IF NOT EXISTS idx_org_site_news_team ON public.org_site_news USING btree (team_id, published_at DESC) WHERE (team_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS org_site_news_site_pinned_idx ON public.org_site_news USING btree (site_id, pinned_at DESC NULLS LAST, published_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS org_site_news_source_ref_uniq ON public.org_site_news USING btree (site_id, source_ref) WHERE ((source_ref IS NOT NULL) AND (deleted_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_org_site_pages_site ON public.org_site_pages USING btree (site_id);
 CREATE INDEX IF NOT EXISTS idx_org_site_revisions_created_by ON public.org_site_revisions USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_org_site_revisions_published_by ON public.org_site_revisions USING btree (published_by);
@@ -16451,7 +16511,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (239, '239_fk_indexes.sql', 'rebuild-000'),
   (240, '240_authority.sql', 'rebuild-000'),
   (241, '241_results_kept.sql', 'rebuild-000'),
-  (242, '242_teams_divisions.sql', 'rebuild-000')
+  (242, '242_teams_divisions.sql', 'rebuild-000'),
+  (243, '243_newsroom.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16460,12 +16521,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 120 | 110 | 173 | 242
+-- Expected: 000 REBUILT | 120 | 110 | 173 | 243
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_120,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_242;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_243;
 
