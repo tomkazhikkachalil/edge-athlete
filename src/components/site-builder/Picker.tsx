@@ -166,7 +166,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                   </div>
                   {again && (
                     <p className="border-t border-border px-3 py-2 text-xs text-tertiary">
-                      {isWebWidgetKey(key) ? 'Already on the page — a second one can show a different competition or venue.' : 'Already on the page — a second one can use a different layout.'}
+                      {isWebWidgetKey(key) ? 'Already on the page — a second one can show a different competition or venue.' : 'Already on the page — a second one can follow a different team.'}
                     </p>
                   )}
                   {empty && (

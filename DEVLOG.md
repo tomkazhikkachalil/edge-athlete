@@ -1,5 +1,31 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, G3: a game-day section can follow one team; a club's teams' league games count (zero DDL)
+
+**What managers get:**
+- A **Team** picker on the Next game, Latest results and Schedule sections, listing the org's active teams. "All teams" is today's behaviour. Two "Next game" tiles can now follow the U13s and the U11s.
+- On the Schedule a team keeps that team's own team-scoped calendar events. The events read now selects 146's `team_id`; it is a harmless id on a public page, and team pages are public.
+- A tile bound to a team with no games is empty, so it never renders publicly.
+
+**The reader grew the case the plan named:** `fetchOrgGames` now also reads the games the org's OWN teams play in ANOTHER org's public competition — a club's teams in a league. It uses the team schedule's gates:
+- the other org is not private and runs competitions;
+- the competition is public;
+- only games one of our teams plays.
+
+Each game is tagged with the teams playing it (`teamIds`, filled by an optional `entryTeams` map on `resolveOutcomes` — no second read). A foreign contest links to the app's public `/event/[id]`, because the club's own site 404s another org's contest. The rule is one function, `urls.ts siteContestLink`, the same one the team page uses.
+
+**A switch changed with it:** the game-day tiles move from `competitions` to `either`. A club that runs teams but no leagues (the common club) gets them.
+
+**Proof:**
+- `npm run verify` green: 3999 tests. The team filter covers both tiles and the schedule; the uuid-only schema and the `either` switch are pinned, and the field pins widened.
+- New `org-site-gameday-team.spec.ts` @mobile passes on both engines. It covers:
+  - a club with competitions OFF;
+  - its U13 team's game in a league's cup shows on the club site, linking to `/event/<id>`;
+  - the U11 tile (no games) is absent;
+  - the canvas options list the teams, and the panel's picker holds the bound team;
+  - no overflow at 390 px.
+- Green alongside it: gameday-widgets, org-site-results, org-events, org-site, team-schedule-public, query-widgets.
+
 ## September 28, 2026 — Sports-team website program, G2: the "Next game" and "Latest results" sections (zero DDL)
 
 **What managers get:**

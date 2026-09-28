@@ -372,7 +372,9 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
     const list =
       f.source === 'competitions'
         ? (options?.competitions ?? []).map(c => ({ id: c.id, label: `${c.name}${c.seasonLabel ? ` · ${c.seasonLabel}` : ''}${c.status === 'completed' ? ' (completed)' : ''}` }))
-        : (options?.venues ?? []).map(v => ({ id: v.id, label: v.name }));
+        : f.source === 'teams'
+          ? (options?.teams ?? []).map(t => ({ id: t.id, label: t.name }))
+          : (options?.venues ?? []).map(v => ({ id: v.id, label: v.name }));
     const current = query[f.name] ?? '';
     if (list.length === 0 && !current) return null;
     const missing = current !== '' && !list.some(o => o.id === current);

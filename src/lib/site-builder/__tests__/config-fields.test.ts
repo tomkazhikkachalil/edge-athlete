@@ -57,7 +57,7 @@ describe('field descriptors are pinned to the schemas', () => {
       for (const f of fieldsFor(key)) {
         if (f.scope !== 'query') continue;
         expect(Object.keys(QuerySchema.shape), `${key}.${f.name}`).toContain(f.name);
-        if (f.kind === 'select') expect(['competitions', 'venues']).toContain(f.source);
+        if (f.kind === 'select') expect(['competitions', 'venues', 'teams']).toContain(f.source);
         if (f.kind === 'number') {
           expect(f.min).toBeLessThan(f.max);
           expect(f.placeholder).toBeGreaterThanOrEqual(f.min);
@@ -66,7 +66,10 @@ describe('field descriptors are pinned to the schemas', () => {
       }
     }
     expect(fieldsFor('standings').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['competitionId']);
-    expect(fieldsFor('schedule').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['venueId', 'competitionId', 'limit']);
+    expect(fieldsFor('schedule').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['venueId', 'teamId', 'competitionId', 'limit']);
+    // G3: the game-day tiles pick a team.
+    expect(fieldsFor('next_game').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['teamId']);
+    expect(fieldsFor('results').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['teamId']);
     expect(fieldsFor('leaders').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['competitionId']);
     for (const key of ['news', 'teams', 'members'] as const) expect(fieldsFor(key).filter(f => f.scope === 'query').map(f => f.name)).toEqual(['limit']);
     for (const key of ['staff', 'venues', 'contact', 'text'] as const) expect(fieldsFor(key).some(f => f.scope === 'query')).toBe(false);

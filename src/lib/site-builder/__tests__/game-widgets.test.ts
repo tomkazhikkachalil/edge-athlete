@@ -8,6 +8,8 @@ import { isWidgetEmpty } from '../emptiness';
 import { newInstanceFor, type WidgetInstance } from '../layout';
 import { SAMPLE_SENTINEL, sampleHomeData } from '../sample';
 import { widgetAllowed } from '@/lib/orgs/switches';
+import { selectForInstance } from '../select';
+import { instanceSchemaFor } from '../schemas';
 
 // Sports-team website program, G2 (Sep 28 2026): the game-day sections —
 // the next game and the latest results over the org's games bag.
@@ -39,11 +41,42 @@ describe('game-day widgets', () => {
     expect(displayNumber(d, 'count', 0)).toBe(5);
   });
 
-  it('follow "We run competitions" — a switched-off org shows no game tile', () => {
+  it('follow EITHER switch — its own competitions, or its teams in another org’s; both off hides them', () => {
     for (const key of GAME_WIDGET_KEYS) {
-      expect(widgetAllowed({ teams: true, competitions: false }, key), key).toBe(false);
+      expect(widgetAllowed({ teams: true, competitions: false }, key), key).toBe(true);
       expect(widgetAllowed({ teams: false, competitions: true }, key), key).toBe(true);
+      expect(widgetAllowed({ teams: false, competitions: false }, key), key).toBe(false);
     }
+  });
+
+  it('G3: a team query narrows the games to the ones that team plays; no query shows all; an untagged game never matches', () => {
+    const tagged = (key: string, state: TeamScheduleItem['state'], teamIds?: string[]): TeamScheduleItem => ({ ...item(state), key, ...(teamIds ? { teamIds } : {}) });
+    const games = {
+      upcoming: [tagged('a', 'upcoming', ['t1', 't2']), tagged('b', 'upcoming', ['t3', 't4']), tagged('c', 'upcoming')],
+      results: [tagged('d', 'final', ['t2', 't3'])],
+    };
+    const data = { ...EMPTY, games };
+    const bound = (key: 'next_game' | 'results', teamId: string): WidgetInstance => ({ ...inst(key), config: { query: { teamId } } });
+    expect(selectForInstance(inst('next_game'), data).games).toBe(games);
+    expect(selectForInstance(bound('next_game', 't1'), data).games!.upcoming.map(g => g.key)).toEqual(['a']);
+    expect(selectForInstance(bound('results', 't3'), data).games!.results.map(g => g.key)).toEqual(['d']);
+    // A team with no games: the tile is empty (never renders publicly).
+    expect(isWidgetEmpty(bound('next_game', 't9'), data, site)).toBe(true);
+    expect(isWidgetEmpty(bound('next_game', 't4'), data, site)).toBe(false);
+  });
+
+  it('G3: a team query on the schedule keeps that team’s own events', () => {
+    const ev = (id: string, team_id: string | null) => ({ id, title: id, description: null, location: null, starts_at: '2026-10-01T10:00:00Z', ends_at: null, all_day: false, timezone: null, category: null, venue_id: null, facility_id: null, team_id });
+    const data = { ...EMPTY, events: [ev('org', null), ev('mine', 't1'), ev('other', 't2')] };
+    const w: WidgetInstance = { ...inst('schedule'), config: { query: { teamId: 't1' } } };
+    expect(selectForInstance(w, data).events!.map(e => e.id)).toEqual(['mine']);
+    expect(selectForInstance(inst('schedule'), data).events!.map(e => e.id)).toEqual(['org', 'mine', 'other']);
+  });
+
+  it('G3: the draft schema takes a team id (a uuid only)', () => {
+    const schema = instanceSchemaFor('results');
+    expect(schema.safeParse({ query: { teamId: '6a1f5b0e-1c2d-4e3f-8a9b-0c1d2e3f4a5b' } }).success).toBe(true);
+    expect(schema.safeParse({ query: { teamId: 'not-a-team' } }).success).toBe(false);
   });
 
   it('sample: a next game and three finals, home first, sentinel-marked, scored', () => {
