@@ -120,6 +120,20 @@ const DECLARED: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
     ]),
     CLICK_DETAIL,
   ],
+  // G2 (Sep 28 2026): the game-day sections — the first option is the default look.
+  next_game: [
+    choice('variant', 'Layout', [
+      ['card', 'Card'],
+      ['banner', 'Banner'],
+    ]),
+  ],
+  results: [
+    choice('variant', 'Layout', [
+      ['list', 'List'],
+      ['strip', 'Score strip'],
+    ]),
+    count('count', 'Games', 3, 12, 5),
+  ],
   schedule: [
     choice('variant', 'Layout', [
       ['list', 'List'],

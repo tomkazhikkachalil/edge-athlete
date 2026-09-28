@@ -35,6 +35,17 @@ export interface TeamScheduleItem {
   href: string | null;
   state: TeamItemState;
   result: TeamResult | null;
+  /** G2: a fixture's two sides as data (home first) — the game-day cards
+   *  draw a scoreboard from it; absent when a side is unknown. */
+  pair?: GamePair;
+}
+
+export interface GamePair {
+  home: string;
+  away: string;
+  /** null until scored. */
+  homeScore: number | null;
+  awayScore: number | null;
 }
 
 export interface CalendarInput {
@@ -194,13 +205,14 @@ export interface DivisionContestInput {
   href: string | null;
 }
 
-function pairing(outcome: ContestOutcome): { title: string | null; score: string | null } {
+function pairing(outcome: ContestOutcome): { title: string | null; score: string | null; pair?: GamePair } {
   if (outcome.kind !== 'fixture' && outcome.kind !== 'bracket') return { title: null, score: null };
   const home = outcome.home?.name ?? null;
   const away = outcome.away?.name ?? null;
   if (!home || !away) return { title: home ?? away, score: null };
   const scored = outcome.home?.score !== null && outcome.home?.score !== undefined && outcome.away?.score !== null && outcome.away?.score !== undefined;
-  return { title: `${home} vs ${away}`, score: scored ? `${home} ${outcome.home!.score}–${outcome.away!.score} ${away}` : null };
+  const pair: GamePair = { home, away, homeScore: scored ? outcome.home!.score! : null, awayScore: scored ? outcome.away!.score! : null };
+  return { title: `${home} vs ${away}`, score: scored ? `${home} ${outcome.home!.score}–${outcome.away!.score} ${away}` : null, pair };
 }
 
 export function divisionSchedule(input: { calendar: readonly CalendarInput[]; contests: readonly DivisionContestInput[] }): { upcoming: TeamScheduleItem[]; results: TeamScheduleItem[] } {
@@ -224,6 +236,7 @@ export function divisionSchedule(input: { calendar: readonly CalendarInput[]; co
       href: c.href,
       state,
       result: null,
+      ...(pair.pair ? { pair: pair.pair } : {}),
     });
   }
   for (const e of input.calendar) {

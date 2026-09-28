@@ -4,11 +4,13 @@ import { FULL_WIDTH_MODULES } from '@/lib/org-sites/templates';
 import {
   APP_ONLY_WIDGET_KEYS,
   CONTENT_WIDGET_KEYS,
+  GAME_WIDGET_KEYS,
   PAGE_WIDGET_KEYS,
   SITE_WIDGET_KEYS,
   WEB_WIDGET_KEYS,
   WIDGETS,
   WIDGET_KEYS,
+  governedByModule,
   isWebWidgetKey,
   isWidgetKey,
   type WidgetKey,
@@ -66,10 +68,25 @@ describe('site-builder catalog', () => {
     expect(WIDGETS.hero.constraints.maxW).toBe(12);
   });
 
-  it('the keys are three disjoint sets: module-backed web, content (phase 6), app-only', () => {
-    expect([...WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS]);
-    const all = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS];
+  it('the keys are four disjoint sets: module-backed web, content (phase 6), game-day (G2), app-only', () => {
+    expect([...WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS]);
+    const all = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS];
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('G2: a game-day widget is a web tile over the games, gated by a MODULE it is not (so it needs no module row)', () => {
+    for (const key of GAME_WIDGET_KEYS) {
+      const def = WIDGETS[key];
+      expect((WEB_WIDGET_KEYS as readonly string[]).includes(key), key).toBe(false);
+      expect(def.moduleKey, key).toBe('schedule');
+      expect(def.surfaces.default, key).toEqual(['web']);
+      expect(def.data, key).toEqual(['games']);
+      expect(def.defaultTitle, key).toBeTruthy();
+      expect(def.emptyState?.public, key).toBe('hide');
+      expect(governedByModule(key, 'schedule'), key).toBe(true);
+      expect(governedByModule(key, 'news'), key).toBe(false);
+    }
+    expect(governedByModule('schedule', 'schedule')).toBe(true);
   });
 
   it('surfaces: web widgets render on the web, app-only widgets only in the app, and moduleKey links the module', () => {

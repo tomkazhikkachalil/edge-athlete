@@ -28,6 +28,7 @@ import { blankPageLayout, mintPageSlug, orderedPages, pageLayoutFromBody, parseS
 import { LAYOUT_WIDGETS_MAX, parseStoredLayout } from './layout-schema';
 import { LEGACY_ID_PREFIX, appendWidget, compactLayout, newInstanceFor, validateLayout, type LegacySiteShape, type WidgetInstance } from './layout';
 import { applySeed, seedLayout } from './seeds';
+import { governedByModule } from './catalog';
 import { NEUTRAL_ORG, applyGallerySeed, galleryEntry, gallerySeed, type GalleryOrg } from './gallery';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
 import type { OrgKind } from '@/lib/orgs/org-ref';
@@ -312,7 +313,7 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       if (!stored) return { ...swept, modules };
       const key = input.moduleKey as WidgetInstance['key'];
       if (!input.enabled) {
-        const kept = stored.widgets.filter(w => w.key !== key);
+        const kept = stored.widgets.filter(w => !governedByModule(w.key, key));
         return { ...swept, modules, layout: kept.length === stored.widgets.length ? stored : { ...stored, widgets: compactLayout(kept) } };
       }
       if (stored.widgets.some(w => w.key === key)) return { ...s, modules, layout: stored };

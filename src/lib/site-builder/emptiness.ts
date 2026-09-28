@@ -66,6 +66,11 @@ export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: Conten
       return data.leaders.every(b => b.unsupported || b.stats.every(s => s.rows.length === 0));
     case 'news':
       return (data.news ?? []).length === 0;
+    // G2: the game-day sections — no game to show is empty.
+    case 'next_game':
+      return (data.games?.upcoming ?? []).length === 0;
+    case 'results':
+      return (data.games?.results ?? []).length === 0;
     case 'members':
       // H1: the stats reader answers an EMPTY object for an org with no
       // members — "No members yet." must never render publicly.

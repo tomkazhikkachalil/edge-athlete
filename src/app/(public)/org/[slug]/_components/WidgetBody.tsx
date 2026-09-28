@@ -18,6 +18,7 @@ import ContactCard from './ContactCard';
 import CoursesList from './CoursesList';
 import DivisionsList from './DivisionsList';
 import GalleryStrip from './GalleryStrip';
+import { NextGameCard, ResultsList } from './GameDayCards';
 import DocumentsList from './DocumentsList';
 import GolfRoundsSchedule from './GolfRoundsSchedule';
 import LeadersTable from './LeadersTable';
@@ -435,6 +436,26 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
             className="h-full w-full border-0"
           />
         </div>
+      );
+    }
+    case 'next_game': {
+      const games = data.games ?? { upcoming: [], results: [] };
+      return (
+        <NextGameCard
+          game={games.upcoming[0] ?? null}
+          variant={variant === 'banner' ? 'banner' : 'card'}
+          scheduleHref={`${siteBasePath(site)}/schedule`}
+        />
+      );
+    }
+    case 'results': {
+      const games = data.games ?? { upcoming: [], results: [] };
+      return (
+        <ResultsList
+          games={games.results.slice(0, count(5))}
+          variant={variant === 'strip' ? 'strip' : 'list'}
+          resultsHref={`${siteBasePath(site)}/schedule/results`}
+        />
       );
     }
     default:
