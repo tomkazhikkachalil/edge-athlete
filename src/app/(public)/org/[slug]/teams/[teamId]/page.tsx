@@ -7,6 +7,8 @@ import NewsItems from '../../_components/NewsItems';
 import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import TeamScheduleList from '@/components/teams/TeamScheduleList';
+import { NextGameCard } from '@/components/teams/GameDayCards';
+import { nextGameOf } from '@/lib/teams/schedule';
 import { teamLook } from '@/lib/teams/brand';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { isSportEnabled } from '@/lib/features';
@@ -101,6 +103,13 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
           ) : null}
         </div>
       </header>
+
+      {/* G4: the team's next game leads the page (its scoreboard while live). */}
+      {nextGameOf(schedule) && (
+        <section aria-label="Next game" data-team-next-game="">
+          <NextGameCard game={nextGameOf(schedule)} variant="banner" />
+        </section>
+      )}
 
       <section
         aria-label="Record"

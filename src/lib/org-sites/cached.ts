@@ -1,6 +1,6 @@
 import { fetchDivisionView, type DivisionView } from '@/lib/teams/division-server';
 import { fetchOrgGames, type OrgGames } from '@/lib/teams/org-games-server';
-import { siteContestLink } from './urls';
+import { appBaseUrl, siteContestLink } from './urls';
 import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
@@ -173,14 +173,14 @@ export const getCachedTeamPage = (
  *  (the divisionId and the base path that shapes the contest links). */
 export const getCachedDivisionPage = (slug: string, side: OrgKind, orgId: string, divisionId: string, basePath: string): Promise<DivisionView | null> =>
   perSlug(['org-site-division', slug, divisionId, basePath], slug, () =>
-    fetchDivisionView(getSupabaseAdmin(), { side, orgId, divisionId, mode: 'public', links: { contest: id => `${basePath}/schedule/${id}` } })
+    fetchDivisionView(getSupabaseAdmin(), { side, orgId, divisionId, mode: 'public', links: { contest: id => `${basePath}/schedule/${id}`, event: id => `${appBaseUrl()}/events/${id}` } })
   );
 
 // G1 (sports-team website program): the org's games — the base path rides
 // the key (it mints the contest links; the closure trap).
 export const getCachedOrgGames = (slug: string, side: OrgKind, orgId: string, basePath: string): Promise<OrgGames> =>
   perSlug(['org-site-games', slug, basePath], slug, () =>
-    fetchOrgGames(getSupabaseAdmin(), { side, orgId, links: { contest: siteContestLink(basePath, orgId) } })
+    fetchOrgGames(getSupabaseAdmin(), { side, orgId, links: { contest: siteContestLink(basePath, orgId), event: id => `${appBaseUrl()}/events/${id}` } })
   );
 
 /** The sitemap's enumerator — its own tag ('org-sitemap', purged by

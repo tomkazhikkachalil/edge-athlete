@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { TeamScheduleItem } from '@/lib/teams/schedule';
-import { whenOf } from '@/components/teams/TeamScheduleList';
-import ScrollStrip from './ScrollStrip';
+import { whenOf } from './TeamScheduleList';
+import ScrollStrip from '@/app/(public)/org/[slug]/_components/ScrollStrip';
 
 // The game-day sections — sports-team website program, G2 (Sep 28 2026).
 // Props-only and server-safe (the (public) contract: no hooks, no script):
@@ -38,7 +38,8 @@ export function NextGameCard({
 }: {
   game: TeamScheduleItem | null;
   variant?: 'card' | 'banner';
-  scheduleHref: string;
+  /** Absent on a page that lists the schedule itself (team, division). */
+  scheduleHref?: string;
 }) {
   if (!game) return <p className="mt-1 text-sm text-tertiary">No games scheduled.</p>;
   const live = game.state === 'live';
@@ -65,9 +66,11 @@ export function NextGameCard({
             {live ? 'Follow the game →' : 'Game details →'}
           </a>
         )}
-        <Link href={scheduleHref} className={banner ? 'underline' : 'text-brand-fg'}>
-          Full schedule →
-        </Link>
+        {scheduleHref && (
+          <Link href={scheduleHref} className={banner ? 'underline' : 'text-brand-fg'}>
+            Full schedule →
+          </Link>
+        )}
       </p>
     </div>
   );

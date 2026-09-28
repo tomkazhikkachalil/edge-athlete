@@ -10,6 +10,8 @@ import { requireSiteModule } from '../../_components/require-module';
 import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import TeamScheduleList from '@/components/teams/TeamScheduleList';
+import { NextGameCard } from '@/components/teams/GameDayCards';
+import { nextGameOf } from '@/lib/teams/schedule';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { isSportEnabled } from '@/lib/features';
 
@@ -73,6 +75,13 @@ export default async function OrgSiteDivisionPage({ params }: PageParams) {
         <h1 className="mt-2 text-2xl font-bold text-primary break-words">{division.name}</h1>
         <p className="mt-1 text-sm text-tertiary">{[division.seasonLabel, sport, division.ageBand, division.genderStream, division.tier].filter(Boolean).join(' · ')}</p>
       </header>
+
+      {/* G4: the division's next game leads the page. */}
+      {nextGameOf(schedule) && (
+        <section aria-label="Next game" data-division-next-game="">
+          <NextGameCard game={nextGameOf(schedule)} variant="banner" />
+        </section>
+      )}
 
       <section aria-label="Teams" className={card}>
         <h2 className="text-lg font-semibold text-primary">Teams</h2>

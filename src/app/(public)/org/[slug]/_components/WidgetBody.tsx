@@ -18,7 +18,7 @@ import ContactCard from './ContactCard';
 import CoursesList from './CoursesList';
 import DivisionsList from './DivisionsList';
 import GalleryStrip from './GalleryStrip';
-import { NextGameCard, ResultsList } from './GameDayCards';
+import { NextGameCard, ResultsList } from '@/components/teams/GameDayCards';
 import DocumentsList from './DocumentsList';
 import GolfRoundsSchedule from './GolfRoundsSchedule';
 import LeadersTable from './LeadersTable';

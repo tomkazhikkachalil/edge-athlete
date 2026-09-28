@@ -40,7 +40,7 @@ import {
 } from '@/lib/org-sites/cached';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { fetchOrgGames } from '@/lib/teams/org-games-server';
-import { siteBasePath, siteContestLink } from '@/lib/org-sites/urls';
+import { appBaseUrl, siteBasePath, siteContestLink } from '@/lib/org-sites/urls';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import type { SiteHomeDataKey } from '@/lib/site-builder/catalog';
 import { needsData, type SiteLayout } from '@/lib/site-builder/layout';
@@ -165,7 +165,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
     news: () => fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }),
     memberStats: () => fetchPublicMemberStats(admin, side, orgId),
     gallery: () => fetchPublicGallery(admin, side, orgId),
-    games: () => fetchOrgGames(admin, { side, orgId, links: { contest: siteContestLink(siteBasePath(site), orgId) } }),
+    games: () => fetchOrgGames(admin, { side, orgId, links: { contest: siteContestLink(siteBasePath(site), orgId), event: id => `${appBaseUrl()}/events/${id}` } }),
   };
 }
 

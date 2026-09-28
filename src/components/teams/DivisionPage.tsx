@@ -7,6 +7,8 @@ import { Layers } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import TeamScheduleList from './TeamScheduleList';
+import { NextGameCard } from './GameDayCards';
+import { nextGameOf } from '@/lib/teams/schedule';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import type { DivisionView } from '@/lib/teams/division-server';
@@ -105,6 +107,13 @@ export default function DivisionPage({ side }: { side: OrgKind }) {
             </Link>
           )}
         </header>
+
+        {/* G4: the division's next game leads the page. */}
+        {nextGameOf(schedule) && (
+          <section aria-label="Next game" data-division-next-game="">
+            <NextGameCard game={nextGameOf(schedule)} />
+          </section>
+        )}
 
         <section aria-label="Teams" className={card}>
           <h2 className="text-lg font-semibold text-primary">Teams</h2>

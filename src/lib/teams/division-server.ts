@@ -15,7 +15,7 @@ import { switchesOf } from '@/lib/orgs/switches';
 import { fetchPublicStandings, type PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import { teamLogoUrl } from './logo-url';
 import { divisionSchedule, type CalendarInput, type TeamScheduleItem } from './schedule';
-import { CONTEST_FIELDS, resolveOutcomes, type CompetitionRow, type ContestRow } from './schedule-server';
+import { CONTEST_FIELDS, readSideEvents, resolveOutcomes, type CompetitionRow, type ContestRow } from './schedule-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -31,7 +31,13 @@ export interface DivisionView {
 
 export async function fetchDivisionView(
   admin: Admin,
-  input: { side: OrgKind; orgId: string; divisionId: string; mode: 'public' | 'member'; links: { contest: (contestId: string) => string | null } }
+  input: {
+    side: OrgKind;
+    orgId: string;
+    divisionId: string;
+    mode: 'public' | 'member';
+    links: { contest: (contestId: string) => string | null; event: (eventId: string) => string | null };
+  }
 ): Promise<DivisionView | null> {
   try {
     const { data: division } = await admin
@@ -81,7 +87,11 @@ export async function fetchDivisionView(
       ? await admin.from('contests').select(CONTEST_FIELDS).in('competition_id', comps.map(c => c.id)).limit(300)
       : { data: [] };
     const contestRows = (contestData ?? []) as ContestRow[];
-    const outcomes = await resolveOutcomes(admin, contestRows, compById);
+    // G4: the division's teams' sport-event games join the fold.
+    const [outcomes, sideEvents] = await Promise.all([
+      resolveOutcomes(admin, contestRows, compById),
+      readSideEvents(admin, { orgId: input.orgId, teamIds: teams.map(t => t.id), mode: input.mode, links: { event: input.links.event } }),
+    ]);
 
     const [standings, schedule] = await Promise.all([
       competitionsOn
@@ -94,9 +104,10 @@ export async function fetchDivisionView(
             const comp = compById.get(c.competition_id);
             const outcome = outcomes.get(c.id);
             return comp && outcome
-              ? [{ id: c.id, competitionName: comp.name, round: c.round, scheduledAt: c.scheduled_at, playFrom: c.play_from, status: c.status, eventId: c.event_id, outcome, href: input.links.contest(c.id) }]
+              ? [{ id: c.id, competitionName: comp.name, round: c.round, scheduledAt: c.scheduled_at, playFrom: c.play_from, status: c.status, eventId: c.event_id, sportEventRoundId: c.sport_event_round_id, outcome, href: input.links.contest(c.id) }]
               : [];
           }),
+          events: sideEvents,
         })
       ),
     ]);

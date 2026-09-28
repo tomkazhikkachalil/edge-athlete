@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { divisionSchedule, gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput, inGameWindow } from '../schedule';
+import { divisionSchedule, gameResultLine, mergeTeamSchedule, nextGameOf, teamResultLine, type ContestInput, type DivisionEventInput, inGameWindow } from '../schedule';
 import type { ContestOutcome } from '@/lib/competitions/contest-outcome';
 
 // Teams & divisions PR 7: a team's schedule from three sources, each game once.
@@ -105,5 +105,66 @@ describe('inGameWindow (G1)', () => {
     expect(inGameWindow('2027-01-15T19:00:00Z', NOW)).toBe(false);
     expect(inGameWindow('2026-06-01', NOW)).toBe(false);
     expect(inGameWindow(null, NOW)).toBe(true);
+  });
+});
+
+describe('G4 — sport-event games and the sides as data', () => {
+  const ev = (over: Partial<DivisionEventInput>): DivisionEventInput => ({
+    id: 'e1', name: 'Scrimmage', status: 'open', startsAt: '2026-10-05T18:00:00Z', date: null, side1Name: 'Hawks', side2Name: 'Storm',
+    side1Score: null, side2Score: null, roundIds: ['r1'], timezone: null, href: '/events/e1', teamIds: ['t1', 't2'], ...over,
+  });
+
+  it('a division folds its teams’ games: home-first, scored once final, tagged with its teams; a contest-linked one folds away', () => {
+    const out = divisionSchedule({
+      calendar: [],
+      contests: [{ id: 'c1', competitionName: 'Cup', round: null, scheduledAt: '2026-10-01T18:00:00Z', playFrom: null, status: 'scheduled', eventId: null, sportEventRoundId: 'r-linked', outcome: { kind: 'unscored', complete: false }, href: null }],
+      events: [
+        ev({}),
+        ev({ id: 'e2', status: 'completed', startsAt: '2026-09-20T18:00:00Z', side1Score: 4, side2Score: 1, roundIds: ['r2'] }),
+        ev({ id: 'e3', roundIds: ['r-linked'] }),
+        ev({ id: 'e4', status: 'cancelled', roundIds: ['r4'] }),
+      ],
+    });
+    const keys = [...out.upcoming, ...out.results].map(i => i.key);
+    expect(keys).not.toContain('event:e3');
+    expect(keys).not.toContain('event:e4');
+    const upcoming = out.upcoming.find(i => i.key === 'event:e1')!;
+    expect(upcoming.title).toBe('Hawks vs Storm');
+    expect(upcoming.location).toBe('Scrimmage');
+    expect(upcoming.teamIds).toEqual(['t1', 't2']);
+    expect(upcoming.pair).toEqual({ home: 'Hawks', away: 'Storm', homeScore: null, awayScore: null });
+    expect(out.results[0].title).toBe('Hawks 4–1 Storm');
+    expect(out.results[0].pair).toEqual({ home: 'Hawks', away: 'Storm', homeScore: 4, awayScore: 1 });
+  });
+
+  it('a game with an unnamed side reads its event name and carries no pair', () => {
+    const out = divisionSchedule({ calendar: [], contests: [], events: [ev({ side2Name: null })] });
+    expect(out.upcoming[0].title).toBe('Scrimmage');
+    expect(out.upcoming[0].pair).toBeUndefined();
+  });
+
+  it('a team’s items carry the sides: a contest from its outcome, an event from the team’s side (side 1 = home)', () => {
+    const out = mergeTeamSchedule({
+      calendar: [],
+      contests: [contest({ id: 'c-next', outcome: { kind: 'fixture', complete: false, home: side('them', 'Comets', null), away: side('me', 'Blazers', null), winnerEntryId: null, tie: false, scoreline: null } })],
+      events: [
+        { id: 'e-away', name: 'Friendly', status: 'live', startsAt: '2026-10-02T18:00:00Z', date: null, mySide: 2, opponentName: 'Rockets', myName: 'Blazers', side1Score: 1, side2Score: 2, roundIds: ['r'], timezone: null, href: null },
+        { id: 'e-anon', name: 'Pickup', status: 'open', startsAt: '2026-10-04T18:00:00Z', date: null, mySide: 1, opponentName: null, myName: 'Blazers', side1Score: null, side2Score: null, roundIds: ['r2'], timezone: null, href: null },
+      ],
+    });
+    const byKey = new Map(out.upcoming.map(i => [i.key, i]));
+    expect(byKey.get('contest:c-next')!.pair).toEqual({ home: 'Comets', away: 'Blazers', homeScore: null, awayScore: null });
+    expect(byKey.get('event:e-away')!.pair).toEqual({ home: 'Rockets', away: 'Blazers', homeScore: 1, awayScore: 2 });
+    expect(byKey.get('event:e-anon')!.pair).toBeUndefined();
+  });
+
+  it('nextGameOf: the soonest game — never a practice on the calendar; none → null', () => {
+    const out = mergeTeamSchedule({
+      calendar: [{ id: 'p', title: 'Practice', starts_at: '2026-10-01T17:00:00Z', all_day: false, timezone: null, location: null, status: 'active', href: null }],
+      contests: [contest({ id: 'c-next', scheduledAt: '2026-10-03T18:00:00Z' })],
+      events: [],
+    });
+    expect(nextGameOf(out)?.key).toBe('contest:c-next');
+    expect(nextGameOf({ upcoming: out.upcoming.filter(i => i.kind === 'calendar') })).toBeNull();
   });
 });
