@@ -219,11 +219,12 @@ test('sport events API: the round lifecycle — one round at a time; the event f
     const bells = await admin.from('notifications').select('id').eq('user_id', s.userB.id).eq('type', 'sport_event_results').eq('metadata->>sport_event_id', eventId);
     expect((bells.data ?? []).length).toBe(1);
 
-    // Over: nothing starts; the completed event deletes.
+    // Over: nothing starts; the completed event stays on the record
+    // (results-kept round, Sep 26 2026: a played event is never deleted).
     expect((await s.apiA.post(`${base}/rounds/${r2}/transition`, { data: { to: 'live' } })).status()).toBe(409);
     const del = await s.apiA.delete(base);
-    expect(del.ok(), await readErrorBody(del)).toBe(true);
-    eventId = null;
+    expect(del.status(), await readErrorBody(del)).toBe(409);
+    expect(((await del.json()) as { results?: boolean }).results).toBe(true);
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await s.dispose();

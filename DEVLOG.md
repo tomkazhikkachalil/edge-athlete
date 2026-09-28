@@ -1,5 +1,21 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, G5: a game's status change refreshes the sites that show it (zero DDL)
+
+**What changed:** until now, a sport-event game going open, live, completed or cancelled reached the org sites only when the 300 s ISR window ran out. Now both transition doors (`applyTransition`, `applyRoundTransition`) end in `withSiteFreshness`. On success it purges every org site that shows the game: the host org's, plus each side team's org. The reader is `revalidate.ts revalidateOrgSitesForSportEvent`, bounded at 5 orgs, best-effort, and it never throws.
+- The event-level sugar ("live" starts the next round, "completed" completes the live one) calls the round CORE, so each act purges once.
+- Competition games were already fresh: their writers call `revalidateOrgSiteForCompetition`.
+
+**What deliberately does not purge:** the live SCORE. A purge per goal would re-render a whole site on every tap. The ISR copy is a snapshot, and the live card (V) is the scoreboard. `site-freshness.test.ts` pins this: the score route never names `revalidate`, and both doors wrap their cores.
+
+**A stale spec fixed on the way:** `sport-events-rounds` still expected a completed event to delete. Since the results-kept round (#928, "a played event is never deleted") that answers 409 `results: true`, and the spec now asserts that.
+
+**Proof:**
+- `npm run verify` green: 4005 tests.
+- New `org-site-gameday-freshness.spec.ts`: a division page (ISR) lists a game between its teams; the organizer cancels it; the page drops it within ~30 s, well inside the 300 s window.
+- **Negative control:** the same spec with the purge disabled FAILED (the page still listed the game after 12 polls). The spec proves the purge.
+- Green alongside it: sport-events lifecycle, rounds (with the fix), contest, team-sides.
+
 ## September 28, 2026 — Sports-team website program, G4: the team and division pages go game-day; sport-event games join the division and org views (zero DDL)
 
 **What visitors get:**
