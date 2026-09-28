@@ -10,6 +10,9 @@ describe('parseEditorDeepLink (H2)', () => {
   it('anything else is nothing', () => {
     expect(parseEditorDeepLink('?open=theme&section=Docs;drop&news=../x')).toEqual({ open: null, section: null, news: null });
     expect(parseEditorDeepLink('')).toEqual({ open: null, section: null, news: null });
+    // R1: a recap link names a contest; anything else after recap: is dropped.
+    expect(parseEditorDeepLink('?news=recap:6a1f5b0e-1c2d-4e3f-8a9b-0c1d2e3f4a5b').news).toBe('recap:6a1f5b0e-1c2d-4e3f-8a9b-0c1d2e3f4a5b');
+    expect(parseEditorDeepLink('?news=recap:nope').news).toBeNull();
     expect(hasDeepLink(parseEditorDeepLink(''))).toBe(false);
     expect(hasDeepLink(parseEditorDeepLink('?open=settings'))).toBe(true);
   });

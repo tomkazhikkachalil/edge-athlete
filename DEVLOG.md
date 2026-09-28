@@ -1,5 +1,39 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, R1: one-click recap drafts (zero DDL — 243's source_ref)
+
+**What managers get:** the newsroom's list has a **From results** section: the org's finished games of the last 30 days, from every competition it runs, home-first ("Comets 2–3 Blazers"). Each row has either **Draft a recap** or **Open the recap**.
+- One click writes a DRAFT, and nothing is public until the manager publishes.
+  - **Headline:** the winner leads ("Blazers beat Comets 3–2"). A draw says so, and a knockout tie settled in the payload says how ("won on a shootout").
+  - **Summary:** the competition and the scoreline.
+  - **Body:** the result, the top three performers on the sport's headline stat, and a line inviting the manager's own words.
+  - A leaderboard contest names its winner (or "a shared lead") and the podium.
+- A private competition's game drafts for **members**: publishing a recap never widens its audience.
+- The deep link `?news=recap:<contest id>` drafts or reopens that game's recap.
+
+**The rules:**
+- `recap.ts` (pure) turns the ONE reader's MASKED view (`fetchContestView`: names through `publicDisplayName` in both modes) into the words. Nothing is guessed: an unfinished or unscored game has no recap (409 `no_result`).
+- `recap-server.ts` holds the candidates (`resolveOutcomes` + the division reader's words) and the one writer, `createRecap`:
+  - the contest must be the org's own (else 404);
+  - the draft carries `source_ref contest:<id>`, so 243's partial UNIQUE makes a second click, or a racing tab, land on the SAME draft;
+  - a 23505 is re-checked as a race before the next slug is tried.
+- Routes: `GET/POST /api/{leagues,clubs}/[id]/site/news/recap` (shims → `orgs/routes/site-news-recap.ts`, `manage_site`, the `org-site-pages` bucket).
+- Pre-243 the server says so by name (`needs_243`).
+
+**Not in R1, on purpose:** a "Draft a recap" button on the contest page itself. Its public copy is viewer-independent (ISR / CDN), so a manager-only button needs the client island's session. The newsroom and the deep link are the door; the button can follow as a `ContestGate` affordance.
+
+**Proof:**
+- `npm run verify` green: 4013 tests. New `recap.test.ts` covers a fixture, a draw, a shootout, a leaderboard and a shared lead, null cases, the members audience, the zone-correct day, and both composer schemas. `deep-link.test.ts` covers `recap:`.
+- New `org-site-recap.spec.ts` @mobile passes on both engines. It covers:
+  - the candidates list shows the game;
+  - a draft once, with the right headline and `source_ref`;
+  - two racing clicks land on the same id;
+  - the private game drafts for members;
+  - a foreign id answers 404;
+  - nothing public;
+  - at 390 px the list says "Open the recap" and the deep link opens the composer.
+- Green alongside it: site-newsroom, org-site-newsroom-api.
+
 ## September 28, 2026 — Sports-team website program, L6: three game-day designs in the gallery (zero DDL)
 
 **What managers get:** three new starting points in the gallery and the welcome design pick. All three use the pro header on a wide page:
