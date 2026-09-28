@@ -1058,11 +1058,37 @@ export const NewsCreateSchema = z.object({
 });
 export type NewsCreateInput = z.infer<typeof NewsCreateSchema>;
 
+/** N3 (243): what the newsroom composer edits — the server routes it to the
+ *  columns (an unpublished post) or the draft (a live one), news-state.ts. */
+export const NEWS_SUMMARY_MAX = 280;
+export const NewsEditSchema = z
+  .object({
+    title: boundedTrimmed(120).optional(),
+    summary: z.string().trim().max(NEWS_SUMMARY_MAX).transform(v => (v ? v : null)).nullable().optional(),
+    body: PageBodySchema.optional(),
+    coverPath: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').nullable().optional(),
+    teamId: z.uuid().nullable().optional(),
+    divisionId: z.uuid().nullable().optional(),
+    audience: z.enum(['public', 'members']).optional(),
+    notifyMembers: z.boolean().optional(),
+    bannerUntil: z.string().regex(ISO_DAY_RE, 'YYYY-MM-DD').nullable().optional(),
+  })
+  .strict()
+  .refine(e => !(e.teamId && e.divisionId), 'Tag a team or a division, not both');
+export type NewsEditInput = z.infer<typeof NewsEditSchema>;
+
 export const NewsPatchSchema = z
   .object({
     title: boundedTrimmed(120).optional(),
     body: PageBodySchema.optional(),
     publish: z.boolean().optional(),
+    // N3 (243): the newsroom — an autosaved edit (routed to the columns or
+    // the draft), the updated_at the editor last saw (a compare-and-set),
+    // publish at a time (future = scheduled), and "Update" (promote the draft).
+    edit: NewsEditSchema.optional(),
+    expectUpdatedAt: z.string().min(10).max(40).optional(),
+    publishAt: z.iso.datetime({ offset: true }).optional(),
+    promote: z.literal(true).optional(),
     // Phase 9 V5 (176): 'members' hides the post from a PRIVATE club's site.
     audience: z.enum(['public', 'members']).optional(),
     // Program 3, D4 (189): pinned to the top of the news page and the home's pinned-first sort.
@@ -1070,9 +1096,15 @@ export const NewsPatchSchema = z
     // Authority (240): put a soft-deleted post back (alone — nothing else rides with it).
     restore: z.literal(true).optional(),
   })
-  .refine(o => !o.restore || (o.title === undefined && o.body === undefined && o.publish === undefined && o.audience === undefined && o.pinned === undefined), 'A restore changes nothing else')
   .refine(
-    o => o.restore === true || o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined,
+    o => !o.restore || (o.title === undefined && o.body === undefined && o.publish === undefined && o.audience === undefined && o.pinned === undefined && o.edit === undefined && o.publishAt === undefined && o.promote === undefined),
+    'A restore changes nothing else'
+  )
+  .refine(o => !(o.publish === false && (o.publishAt !== undefined || o.promote)), 'Unpublish changes nothing else')
+  .refine(
+    o =>
+      o.restore === true || o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined ||
+      o.edit !== undefined || o.publishAt !== undefined || o.promote === true,
     'Nothing to update'
   );
 export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;

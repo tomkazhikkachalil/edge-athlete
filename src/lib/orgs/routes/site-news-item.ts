@@ -37,18 +37,21 @@ export async function siteNewsItemRouteGET(request: NextRequest, kind: OrgKind, 
 export async function siteNewsItemRoutePATCH(request: NextRequest, kind: OrgKind, params: { id: string; newsId: string }) {
   try {
     const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-site-pages', { userId: user.id });
-    if (limited) return limited;
     const { id, newsId } = params;
     if (!UUID_RE.test(id) || !UUID_RE.test(newsId)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    const parsed = await parseBody(request, NewsPatchSchema);
+    if (!parsed.success) return parsed.response;
+    // N3: the composer's autosave (an edit, nothing else) rides its own bucket
+    // — the site draft's reasoning; every other act the pages bucket.
+    const autosave = parsed.data.edit !== undefined && Object.keys(parsed.data).every(k => k === 'edit' || k === 'expectUpdatedAt');
+    const limited = await enforceRateLimit(request, autosave ? 'org-site-news-draft' : 'org-site-pages', { userId: user.id });
+    if (limited) return limited;
     const admin = getSupabaseAdmin();
     const gate = await requireOrgManager(admin, user, kind, id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
 
-    const parsed = await parseBody(request, NewsPatchSchema);
-    if (!parsed.success) return parsed.response;
     if (parsed.data.restore) {
       // Authority (240): a deleted post comes back as it was.
       const res = await newsRESTORE(admin, kind, id, newsId);
@@ -63,7 +66,20 @@ export async function siteNewsItemRoutePATCH(request: NextRequest, kind: OrgKind
       }
       return res;
     }
-    return await newsPATCH(admin, kind, id, newsId, parsed.data);
+    const res = await newsPATCH(admin, kind, id, newsId, parsed.data);
+    // N3 (243): a post going live — or scheduled — is an act on the org's public face.
+    if (res.ok) {
+      const body = (await res.clone().json().catch(() => null)) as { transition?: string | null; post?: { title?: string; slug?: string; published_at?: string } } | null;
+      if (body?.transition === 'published' || body?.transition === 'scheduled') {
+        await recordAuthority(admin, {
+          subject: { type: 'org', id },
+          actor: { kind: 'member', profileId: user.id },
+          action: 'news_published',
+          detail: { news_id: newsId, title: body.post?.title ?? null, slug: body.post?.slug ?? null, status: body.transition, after: body.post?.published_at ?? null },
+        });
+      }
+    }
+    return res;
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[ORG SITE NEWS] ${kind} page PATCH error:`, error);

@@ -21,6 +21,7 @@ import {
   type NewsPatchInput,
 } from './validate';
 import { ORG_MEDIA_PREFIX } from './pages-server';
+import { newsState, promoteDraft, publishedAtFor, routeEdit, sameInstant, type NewsEdit } from './news-state';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -30,6 +31,20 @@ const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, u
 // Program 3, D4 (189): the pin; pre-189 databases step down to NEWS_FIELDS.
 const NEWS_FIELDS_189 = `${NEWS_FIELDS}, pinned_at`;
 const PIN_NEEDS_189 = 'Pinning needs migration 189 — run it, then try again';
+// Sports-team website program, N3 (243): the newsroom columns; every read
+// steps down 243 → 189 → base on 42703, a write naming a 243 column says so.
+const NEWS_FIELDS_243 = `${NEWS_FIELDS_189}, summary, cover_path, team_id, division_id, notify_members, notified_at, banner_until, source_ref, draft, created_by`;
+export const NEWS_NEEDS_243 = 'The newsroom needs a database update (migration 243) — ask your admin';
+const NEWS_243_COLUMNS = ['summary', 'cover_path', 'team_id', 'division_id', 'notify_members', 'notified_at', 'banner_until', 'source_ref', 'draft', 'created_by'];
+
+type QueryResult = { data: unknown; error: { code?: string; message?: string } | null };
+/** Try the widest field list first; a missing column steps down. */
+async function readLadder(run: (fields: string) => PromiseLike<QueryResult>): Promise<QueryResult> {
+  let res = await run(NEWS_FIELDS_243);
+  if (res.error?.code === '42703') res = await run(NEWS_FIELDS_189);
+  if (res.error?.code === '42703') res = await run(NEWS_FIELDS);
+  return res;
+}
 
 async function getSiteForOrg(admin: Admin, side: OrgKind, orgId: string) {
   const { data } = await admin
@@ -57,10 +72,9 @@ export async function newsListGET(
   if (!site) return NextResponse.json({ posts: [] });
   const list = (fields: string) =>
     admin.from('org_site_news').select(fields).eq('site_id', site.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(NEWS_PER_SITE_MAX + 5);
-  let { data, error } = await list(NEWS_FIELDS_189);
-  if (error?.code === '42703') ({ data, error } = await list(NEWS_FIELDS));
+  const { data, error } = await readLadder(list);
   if (error) {
-    if (isMissingTableError(error.code)) return NextResponse.json({ posts: [] });
+    if (isMissingTableError(error.code ?? '')) return NextResponse.json({ posts: [] });
     console.error(`${TAG} list error:`, error);
     return NextResponse.json({ error: 'Failed to load news' }, { status: 500 });
   }
@@ -74,12 +88,22 @@ export async function newsCreatePOST(
   admin: Admin,
   side: OrgKind,
   orgId: string,
-  input: NewsCreateInput
+  input: NewsCreateInput,
+  actorId?: string
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) {
     return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   }
+  // N3 (243): the author — dropped on a database without the column.
+  const insertPost = async (slug: string) => {
+    const row = { site_id: site.id, slug, title: input.title, ...(actorId ? { created_by: actorId } : {}) };
+    let res = await admin.from('org_site_news').insert(row).select(NEWS_FIELDS).single();
+    if (actorId && (res.error?.code === 'PGRST204' || res.error?.code === '42703')) {
+      res = await admin.from('org_site_news').insert({ site_id: site.id, slug, title: input.title }).select(NEWS_FIELDS).single();
+    }
+    return res;
+  };
   const { count, error: countError } = await admin
     .from('org_site_news')
     .select('id', { count: 'exact', head: true })
@@ -105,11 +129,7 @@ export async function newsCreatePOST(
         { status: 400 }
       );
     }
-    const { data: post, error } = await admin
-      .from('org_site_news')
-      .insert({ site_id: site.id, slug: input.slug, title: input.title })
-      .select(NEWS_FIELDS)
-      .single();
+    const { data: post, error } = await insertPost(input.slug);
     if (error || !post) {
       if (error?.code === '23505') {
         return NextResponse.json({ error: 'That address is already in use' }, { status: 409 });
@@ -126,11 +146,7 @@ export async function newsCreatePOST(
     .map(c => c.slice(0, 80))
     .filter(isValidPageSlug);
   for (const candidate of candidates) {
-    const { data: post, error } = await admin
-      .from('org_site_news')
-      .insert({ site_id: site.id, slug: candidate, title: input.title })
-      .select(NEWS_FIELDS)
-      .single();
+    const { data: post, error } = await insertPost(candidate);
     if (post) {
       purge(site.subdomain);
       return NextResponse.json({ post });
@@ -155,10 +171,9 @@ export async function newsGET(
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const one = (fields: string) => admin.from('org_site_news').select(fields).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null).maybeSingle();
-  let { data: post, error } = await one(NEWS_FIELDS_189);
-  if (error?.code === '42703') ({ data: post, error } = await one(NEWS_FIELDS));
+  const { data: post } = await readLadder(one);
   if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ post });
+  return NextResponse.json({ post, state: newsState((post as { published_at?: string | null }).published_at, Date.now()) });
 }
 
 export async function newsPATCH(
@@ -170,52 +185,102 @@ export async function newsPATCH(
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const nowMs = Date.now();
 
-  if (input.body) {
-    // The cross-site image guard (the pagePATCH recipe).
-    for (const block of input.body) {
-      if (block.type === 'image' && !block.path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`)) {
-        return NextResponse.json(
-          { error: 'Image is not one of this site’s assets' },
-          { status: 400 }
-        );
+  // The cross-site image guard (the pagePATCH recipe) — over every body the
+  // PATCH can write: the legacy body, the edit's body, and the cover.
+  const ownAsset = (path: string) => path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`);
+  const bodies = [input.body, input.edit?.body].filter((b): b is NonNullable<typeof b> => Array.isArray(b));
+  for (const body of bodies) {
+    for (const block of body) {
+      if (block.type === 'image' && !ownAsset(block.path)) {
+        return NextResponse.json({ error: 'Image is not one of this site’s assets' }, { status: 400 });
       }
     }
   }
+  if (input.edit?.coverPath && !ownAsset(input.edit.coverPath)) {
+    return NextResponse.json({ error: 'The cover is not one of this site’s images' }, { status: 400 });
+  }
+  // A tag names THIS org's team or division — never another org's.
+  if (input.edit?.teamId) {
+    const { data: team } = await admin.from('teams').select('id').eq('id', input.edit.teamId).eq(ORG_ID, orgId).maybeSingle();
+    if (!team) return NextResponse.json({ error: 'That team is not one of yours' }, { status: 400 });
+  }
+  if (input.edit?.divisionId) {
+    const { data: division } = await admin.from('divisions').select('id').eq('id', input.edit.divisionId).eq(ORG_ID, orgId).maybeSingle();
+    if (!division) return NextResponse.json({ error: 'That division is not one of yours' }, { status: 400 });
+  }
+
+  // N3: the newsroom acts read the row first (its state, its draft, its
+  // updated_at for the compare-and-set). Pre-243 they answer by name.
+  const uses243 = input.edit !== undefined || input.publishAt !== undefined || input.promote === true;
+  const needsCurrent = uses243 || input.publish !== undefined || input.expectUpdatedAt !== undefined;
+  type CurrentRow = { published_at: string | null; updated_at: string; draft?: unknown };
+  let current: CurrentRow | null = null;
+  if (needsCurrent) {
+    const read = (fields: string) => admin.from('org_site_news').select(fields).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null).maybeSingle();
+    let res = await read('published_at, updated_at, draft');
+    if (res.error?.code === '42703') {
+      if (uses243) return NextResponse.json({ error: NEWS_NEEDS_243, code: 'needs_243' }, { status: 400 });
+      res = await read('published_at, updated_at');
+    }
+    current = (res.data as CurrentRow | null) ?? null;
+    if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (input.expectUpdatedAt && !sameInstant(current.updated_at, input.expectUpdatedAt)) {
+      const { data: latest } = await readLadder(fields => admin.from('org_site_news').select(fields).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null).maybeSingle());
+      return NextResponse.json({ error: 'This post changed somewhere else — the latest is loaded.', code: 'conflict', post: latest }, { status: 409 });
+    }
+  }
+  const state = newsState(current?.published_at, nowMs);
 
   const patch: Record<string, unknown> = {
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.body !== undefined ? { body: input.body } : {}),
     ...(input.audience !== undefined ? { audience: input.audience } : {}),
     // D4: the pin — a timestamp (newest pin first) or NULL.
-    ...(input.pinned !== undefined ? { pinned_at: input.pinned ? new Date().toISOString() : null } : {}),
+    ...(input.pinned !== undefined ? { pinned_at: input.pinned ? new Date(nowMs).toISOString() : null } : {}),
   };
-  if (input.publish !== undefined) {
-    if (input.publish) {
-      // Stamp once — re-publishing keeps the original feed date.
-      const { data: current } = await admin
-        .from('org_site_news')
-        .select('published_at')
-        .eq('id', newsId)
-        .eq('site_id', site.id)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      if (!current.published_at) patch.published_at = new Date().toISOString();
-    } else {
-      patch.published_at = null;
+  // N3: an edit lands in the columns (unpublished) or the draft (live);
+  // "Update" promotes the draft; the draft's images pass the same guard.
+  if (input.edit) Object.assign(patch, routeEdit(state, input.edit as NewsEdit, current?.draft));
+  if (input.promote) {
+    const promoted = promoteDraft(current?.draft);
+    const body = promoted.body;
+    if (Array.isArray(body) && body.some(b => b && typeof b === 'object' && (b as { type?: string }).type === 'image' && !ownAsset(String((b as { path?: unknown }).path ?? '')))) {
+      return NextResponse.json({ error: 'Image is not one of this site’s assets' }, { status: 400 });
     }
+    Object.assign(patch, promoted);
   }
+  // Publishing: now, or at a time (future = scheduled, N1's fence); a live
+  // post keeps its date; unpublish clears it.
+  if (input.publish === true || input.publishAt !== undefined) {
+    const at = publishedAtFor(input.publishAt ? { kind: 'at', at: input.publishAt } : { kind: 'now' }, current?.published_at, nowMs);
+    if (at) patch.published_at = at;
+  } else if (input.publish === false) {
+    patch.published_at = null;
+  }
+  const transition: 'published' | 'scheduled' | null =
+    typeof patch.published_at === 'string' ? (Date.parse(patch.published_at) > nowMs ? 'scheduled' : 'published') : null;
 
   if (Object.keys(patch).length === 0) {
     // Re-publishing an already-published post: nothing to write.
     return newsGET(admin, side, orgId, newsId);
   }
-  const write = (fields: string) => admin.from('org_site_news').update(patch).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null).select(fields);
-  let { data: updated, error } = await write(NEWS_FIELDS_189);
-  // Pre-189: an UPDATE naming the missing column answers PGRST204 (the
-  // schema cache), a SELECT of it 42703 — the pin cannot be written: say
-  // so; anything else still can, through the base field list.
+  const write = (fields: string) => {
+    let q = admin.from('org_site_news').update(patch).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null);
+    // The compare-and-set: the row the editor saw, or nothing.
+    if (input.expectUpdatedAt && current) q = q.eq('updated_at', current.updated_at);
+    return q.select(fields);
+  };
+  const names243 = Object.keys(patch).some(k => NEWS_243_COLUMNS.includes(k));
+  let { data: updated, error } = await write(NEWS_FIELDS_243);
+  // Pre-243 / pre-189: an UPDATE naming a missing column answers PGRST204
+  // (the schema cache), a SELECT of one 42703 — say which migration a write
+  // needs; anything else still goes through a narrower field list.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    if (names243) return NextResponse.json({ error: NEWS_NEEDS_243, code: 'needs_243' }, { status: 400 });
+    ({ data: updated, error } = await write(NEWS_FIELDS_189));
+  }
   if (error?.code === '42703' || error?.code === 'PGRST204') {
     if ('pinned_at' in patch) return NextResponse.json({ error: PIN_NEEDS_189 }, { status: 400 });
     ({ data: updated, error } = await write(NEWS_FIELDS));
@@ -225,10 +290,16 @@ export async function newsPATCH(
     return NextResponse.json({ error: 'Failed to update the post' }, { status: 500 });
   }
   if (!updated || updated.length === 0) {
+    if (input.expectUpdatedAt) {
+      // Lost the race between the read and the write: the same answer as a stale save.
+      const { data: latest } = await readLadder(fields => admin.from('org_site_news').select(fields).eq('id', newsId).eq('site_id', site.id).is('deleted_at', null).maybeSingle());
+      if (latest) return NextResponse.json({ error: 'This post changed somewhere else — the latest is loaded.', code: 'conflict', post: latest }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   purge(site.subdomain);
-  return NextResponse.json({ post: updated[0] });
+  const post = updated[0] as unknown as { published_at?: string | null };
+  return NextResponse.json({ post, state: newsState(post.published_at, Date.now()), transition });
 }
 
 /**
