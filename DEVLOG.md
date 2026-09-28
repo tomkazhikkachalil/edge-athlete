@@ -1,5 +1,34 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, N3: the newsroom writer (one save model, compare-and-set, schedule, draft → Update)
+
+**The rules** (`org-sites/news-state.ts`, pure and tested):
+- `newsState` — draft · scheduled · live, derived from `published_at`.
+- `routeEdit` — the composer sends ONE `edit` shape. An unpublished post writes its columns. A LIVE post merges the edit into `draft` (243), so the public copy never shows half-typed text.
+- `promoteDraft` — "Update": the draft's known keys become the post and the draft clears; junk keys in the jsonb never reach a column.
+- `publishedAtFor` — publish now or at a time; a future time schedules (N1's fence hides it). A live post keeps its date: scheduling it would pull it off the site, so that is refused silently.
+- One tag: setting a team clears the division and vice versa (243's CHECK).
+- `sameInstant` — compares Postgres and JS timestamps as instants.
+
+**The writer** (`news-server.ts newsPATCH`):
+- `expectUpdatedAt` makes an edit a compare-and-set. It is checked on read and fenced on write (`.eq('updated_at', …)`); a stale or raced save answers **409 `conflict` carrying the latest post** — never a silent overwrite.
+- `publishAt` and `promote` join `publish`; the legacy `title` / `body` / `publish` / `audience` / `pinned` keep working (the old editor and every spec).
+- The image guard covers the edit's body, the promoted draft and the cover; a tag must name THIS org's team or division.
+- Every read steps down 243 → 189 → base on 42703. A write naming a 243 column on a database without it answers **400 `needs_243`**, so the code is mergeable before production runs 243.
+- `newsCreatePOST` stamps `created_by` (dropped pre-243).
+- `newsGET` answers `state`; `newsPATCH` answers `state` + `transition`.
+
+**The route:** a pure autosave (`edit` + `expectUpdatedAt` only) rides its own bucket, `org-site-news-draft` (300/h — the site draft's reasoning); every other act keeps `org-site-pages`. A publish or schedule records `news_published` (`status` published | scheduled, `after` = the time — within the audit's detail allowlist).
+
+**Proof:**
+- `npm run verify` green (3980; news-state ×8, the bucket pin).
+- New `org-site-newsroom-api.spec.ts` (staging has 243):
+  - the author stamped; a draft's edit writes its columns; a stale `expectUpdatedAt` → 409 carrying the latest;
+  - a foreign team, a foreign cover, and team + division all → 400;
+  - scheduled a week ahead → 404 publicly, audited `scheduled`; publish now → live;
+  - a live edit lands in `draft` while the public page keeps the old title; Update → the new title is public and the draft clears.
+- Green alongside it: news-publish-edits (both phone engines — the legacy path), news-display (the pin), news-schedule-inline, org-site news, org-activity, authority-reports ×4.
+
 ## September 27, 2026 — Sports-team website program, N2: migration 243 (the newsroom)
 
 **The program's only DDL.** `org_site_news` gains ten columns:

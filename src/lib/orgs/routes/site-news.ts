@@ -50,7 +50,7 @@ export async function siteNewsRoutePOST(request: NextRequest, kind: OrgKind, par
 
     const parsed = await parseBody(request, NewsCreateSchema);
     if (!parsed.success) return parsed.response;
-    return await newsCreatePOST(admin, kind, id, parsed.data);
+    return await newsCreatePOST(admin, kind, id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError(`[ORG SITE NEWS] ${kind} POST error:`, error);

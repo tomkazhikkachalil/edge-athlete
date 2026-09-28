@@ -146,6 +146,9 @@ export const RATE_LIMITS = {
   // ~30 of them and exhausted the org-site hour, after which every save
   // silently 429'd. Its own bucket; the 300/h still caps a runaway client.
   'org-site-draft': { max: 300, windowSeconds: 3600, keyBy: 'user' },
+  // Sports-team website program, N3: the newsroom composer autosaves a post
+  // as the manager types (the site draft's reasoning) — its own bucket.
+  'org-site-news-draft': { max: 300, windowSeconds: 3600, keyBy: 'user' },
   // Phase 6e S6: announce to members — a megaphone, a few a day.
   'org-announce': { max: 5, windowSeconds: 86400, keyBy: 'user' },
   // Page CRUD (phase 3 R3) — its own bucket: a save-happy block-editor

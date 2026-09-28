@@ -85,6 +85,7 @@ describe('validateRateLimitConfig', () => {
 describe('RATE_LIMITS shape guards', () => {
   it('H2: the site editor autosave has its own bucket, ten times the deliberate org-site one', () => {
     expect(RATE_LIMITS['org-site-draft']).toEqual({ max: 300, windowSeconds: 3600, keyBy: 'user' });
+    expect(RATE_LIMITS['org-site-news-draft']).toEqual({ max: 300, windowSeconds: 3600, keyBy: 'user' });
     expect(RATE_LIMITS['org-site'].max).toBe(30);
   });
 
