@@ -1,5 +1,33 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, N2: migration 243 (the newsroom)
+
+**The program's only DDL.** `org_site_news` gains ten columns:
+- `summary` (≤ 280) and `cover_path` (`org-media/%`).
+- `team_id` / `division_id` — one of them at most; SET NULL, so a removed team keeps its news, untagged.
+- `notify_members` (NOT NULL DEFAULT false) and `notified_at` (CHECK ⇒ notify). A conditional claim makes the bells at-most-once, including for a scheduled post.
+- `banner_until` — the Announce banner, on the post.
+- `source_ref` (`contest|game|season:<uuid>`) — the recap / season-wrap origin.
+- `draft` (jsonb object) — a LIVE post's unpublished edits, so an autosave never publishes half-typed text; Update promotes it.
+- `created_by` (SET NULL — the post outlives the person).
+
+Indexes:
+- a partial UNIQUE `(site_id, source_ref)` over live rows (one recap draft per result);
+- the team and division news reads;
+- the notify sweep's "due" index;
+- a leading index on every new foreign key (239's rule).
+
+`authority_audit_action_check` is re-added in full with `news_published` and `news_notified` (241's precedent). The code's `AUTHORITY_ACTIONS` and the Activity log's words gain both, and the vocabulary pin reads 243 now.
+
+**Nothing reads or writes the new columns yet.** N3 (the writer) ships with read ladders, so the code stays mergeable on a database without 243.
+
+**Staging:**
+- `node scripts/staging-sql.mjs` → `243 APPLIED | 10 | 6 | 5 | 1 | 243`.
+- The twin `verify-243-newsroom.sql` 10/10 OK: columns, CHECKs, NOT NULL default, three SET NULL FKs, five indexes, the partial unique, the audit list keeping 241's, RLS on, ledger 243.
+- `npm run check:schema` OK, ledger head 243.
+
+**Production:** Tom runs the file in the SQL editor; expect `243 APPLIED | 10 | 6 | 5 | 1 | 243`. Then `check:schema:prod` and `build:baseline` regenerate the rebuild baseline into this PR before it merges.
+
 ## September 27, 2026 — Sports-team website program, N1: the news schedule fence and inline formatting (zero DDL)
 
 **The newsroom's floor**, before its migration (243) and its home in the editor:

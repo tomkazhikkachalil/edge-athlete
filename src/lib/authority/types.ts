@@ -22,6 +22,8 @@ export const AUTHORITY_ACTIONS = [
   // 241 (results are never lost): a player hides / unhides an official result; support
   // reassigns or corrects one on a ticket; an org takes a person off an official result.
   'result_hidden', 'result_unhidden', 'result_reassigned', 'result_corrected', 'official_tag_removed',
+  // 243 (the newsroom): a post goes live; its "Notify members" bells go out.
+  'news_published', 'news_notified',
 ] as const;
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];
 
