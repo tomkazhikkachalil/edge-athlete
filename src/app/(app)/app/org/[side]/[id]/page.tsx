@@ -15,17 +15,14 @@ import OrgSetupChecklist from '@/components/orgs/OrgSetupChecklist';
 import { useToast } from '@/components/Toast';
 import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
+import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { ORG_ROUTE_FAMILY, isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
-import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { courseDisplayName } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
-import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
-import NavigationEditor from '@/components/site-builder/NavigationEditor';
 import SiteInboxCard from '@/components/orgs/SiteInboxCard';
 import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import OrgActivityCard from '@/components/orgs/OrgActivityCard';
@@ -257,10 +254,6 @@ export default function OrgConsolePage() {
     /** B2: the render template ('classic' | 'bold'); unknown → classic. */
     template_id?: string | null;
   } | null>(null);
-  // R2: the site's module rows — the Sections toggles (+R3: config).
-  const [siteModules, setSiteModules] = useState<
-    { module_key: string; enabled: boolean; config?: unknown }[]
-  >([]);
   // C1: the custom-domain lifecycle (published sites only).
   const [domainStatus, setDomainStatus] = useState<{
     state: string;
@@ -273,12 +266,6 @@ export default function OrgConsolePage() {
   } | null>(null);
   const [domainInput, setDomainInput] = useState('');
   const [domainBusy, setDomainBusy] = useState(false);
-  // B3: documents & policies drafts (stored PDF path OR https link).
-  const [documentDrafts, setDocumentDrafts] = useState<
-    { title: string; path: string; url: string }[]
-  >([]);
-  // H1: the site's raw nav_config — NavigationEditor parses it (labels + stored entries).
-  const [siteNavConfig, setSiteNavConfig] = useState<unknown>(null);
   // Site Builder P2-C: the draft line and the history from the revisions API
   // (180). `revisionsSupported` false = a pre-180 database — the block hides.
   const [siteDraft, setSiteDraft] = useState<{ id: string; rev: number; updatedAt: string; hasUnpublishedChanges: boolean } | null>(null);
@@ -328,11 +315,6 @@ export default function OrgConsolePage() {
     verdict: string;
     reason?: string;
   } | null>(null);
-  // R3 pages — the list in the Website card; the block editor is a subpage.
-  const [sitePages, setSitePages] = useState<
-    { id: string; slug: string; title: string; visibility: 'public' | 'draft'; in_nav?: boolean; created_at?: string }[]
-  >([]);
-  const [pageTitle, setPageTitle] = useState('');
   // Phase 3.5: news posts (published_at is the state).
   const [siteNews, setSiteNews] = useState<
     { id: string; slug: string; title: string; published_at: string | null; audience?: 'public' | 'members' }[]
@@ -397,14 +379,13 @@ export default function OrgConsolePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, capsRes, structureRes, competitionsRes, siteRes, pagesRes, newsRes] =
+        const [orgRes, capsRes, structureRes, competitionsRes, siteRes, newsRes] =
           await Promise.all([
             fetch(`/api/${plural}/${orgId}`),
             fetch(`/api/${plural}/${orgId}/capabilities`),
             fetch(`/api/${plural}/${orgId}/structure`),
             fetch(`/api/${plural}/${orgId}/competitions`),
             fetch(`/api/${plural}/${orgId}/site`),
-            fetch(`/api/${plural}/${orgId}/site/pages`),
             fetch(`/api/${plural}/${orgId}/site/news`),
           ]);
         if (cancelled) return;
@@ -500,7 +481,6 @@ export default function OrgConsolePage() {
           const siteBody = await siteRes.json();
           if (!cancelled) {
             setSite(siteBody.site ?? null);
-            setSiteModules(siteBody.modules ?? []);
             // P2-C: the draft line + history (best-effort; pre-180 hides both).
             setSiteDraft(siteBody.draft ?? null);
             setRevisionsSupported(siteBody.revisions?.supported === true);
@@ -531,8 +511,6 @@ export default function OrgConsolePage() {
             setHeroImagePath(str(heroConfig.imagePath));
             setHeroCtaUrl(str(heroConfig.ctaUrl));
             setHeroNotice(str(heroConfig.notice));
-            // H1: NavigationEditor parses the labels and the stored entries itself.
-            setSiteNavConfig(siteBody.site?.nav_config ?? null);
             // C1: the domain status rides its own GET (best-effort; a
             // pre-171 database answers migrationPending).
             if (siteBody.site?.published_at) {
@@ -548,16 +526,6 @@ export default function OrgConsolePage() {
             } else if (!cancelled) {
               setDomainStatus(null);
             }
-            const documentsConfig = (siteBody.modules ?? []).find(
-              (m: { module_key: string }) => m.module_key === 'documents'
-            )?.config as { documents?: { title?: string; path?: string; url?: string }[] } | undefined;
-            setDocumentDrafts(
-              (documentsConfig?.documents ?? []).map(d => ({
-                title: d.title ?? '',
-                path: d.path ?? '',
-                url: d.url ?? '',
-              }))
-            );
             // N6: per-hole photos ride the same entries.
             const holeCfg = (siteBody.modules ?? []).find(
               (m: { module_key: string }) => m.module_key === 'courses'
@@ -588,11 +556,6 @@ export default function OrgConsolePage() {
               )
             );
           }
-        }
-        // Pages list (R3) — tolerate failure: an empty list, never a block.
-        if (pagesRes.ok) {
-          const pagesBody = await pagesRes.json();
-          if (!cancelled) setSitePages(pagesBody.pages ?? []);
         }
         if (newsRes.ok) {
           const newsBody = await newsRes.json();
@@ -3008,79 +2971,28 @@ export default function OrgConsolePage() {
                   )}
                 </div>
               )}
-              {/* R2: Sections — one toggle per non-hero module. act()
-                  refreshes, so the checkbox state round-trips through
-                  the server; revalidateTag flips the public pages. */}
-              {siteModules.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-sm font-medium text-primary">Subpages &amp; navigation</p>
-                  <p className="text-xs text-tertiary mb-2">
-                    Which pages your site has and how the header lists them. The home page’s arrangement lives in the editor. Changes save to your draft; publish to make them live.
-                  </p>
-                  {/* H1 (Sep 27 2026): the same editor the site editor's Settings host — one component. */}
-                  <NavigationEditor
-                    plural={plural}
-                    orgId={orgId}
-                    side={side as OrgKind}
-                    modules={siteModules}
-                    navConfig={siteNavConfig}
-                    onChanged={refresh}
-                    showError={showError}
-                    showSuccess={showSuccess}
-                  />
-                </div>
-              )}
-              {/* R3: site logo — square PNG through the shared editor,
-                  streamed publicly by /api/media/org-logo/[siteId]. */}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Logo</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {site.logo_path ? (
-                    <Image
-                      src={orgLogoUrl(site.id, site.logo_path)!}
-                      alt="Current site logo"
-                      width={40}
-                      height={40}
-                      unoptimized
-                      className="rounded border border-border shrink-0"
-                    />
-                  ) : (
-                    <span className="text-xs text-tertiary">No logo yet.</span>
-                  )}
-                  <OrgLogoUploader
-                    endpoint={`/api/${plural}/${orgId}/site/logo`}
-                    onUploaded={() => {
-                      showSuccess('Website', 'Logo updated');
-                      refresh();
-                    }}
-                    render={({ open, uploading }) => (
-                      <button
-                        type="button"
-                        onClick={open}
-                        disabled={uploading}
-                        className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
-                      >
-                        {uploading ? 'Uploading…' : site.logo_path ? 'Replace logo' : 'Upload logo'}
-                      </button>
-                    )}
-                  />
-                  {site.logo_path && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void act(
-                          `/api/${plural}/${orgId}/site/logo`,
-                          { method: 'DELETE' },
-                          'Logo removed',
-                          'Failed to remove the logo',
-                          'Website'
-                        )
-                      }
-                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+              {/* H2 (Sep 27 2026): one home — the editor owns the site's content now.
+                  These deep links open the right place in it (?open / ?section). */}
+              <div className="pt-2 space-y-1.5" data-console-editor-links="">
+                <p className="text-sm font-medium text-primary">Edit in the editor</p>
+                <p className="text-xs text-tertiary">Sections, pages, documents, photos, sponsors, the logo and the header all live in the site editor.</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Header & subpages', q: 'open=settings' },
+                    { label: 'Logo & site settings', q: 'open=settings' },
+                    { label: 'Documents', q: 'section=documents' },
+                    { label: 'Gallery photos', q: 'section=gallery' },
+                    { label: 'Sponsors', q: 'section=sponsors' },
+                    { label: 'Pages', q: '' },
+                  ].map(l => (
+                    <Link
+                      key={l.label}
+                      href={`/app/org/${side}/${orgId}/site/edit${l.q ? `?${l.q}` : ''}`}
+                      className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
                     >
-                      Remove
-                    </button>
-                  )}
+                      {l.label} →
+                    </Link>
+                  ))}
                 </div>
               </div>
               {/* S6: announce to members — every member is belled (guardians
@@ -3170,218 +3082,6 @@ export default function OrgConsolePage() {
                 </div>
                 {/* N3: the archive — what was sent, and which went to the site. */}
                 <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={announceSentAt} />
-              </div>
-              {/* M2 (both sides since program 12): the manager curates members' round photos onto the gallery. */}
-              {site && (
-                <MemberPhotoPicker side={side as OrgKind} orgId={orgId} onError={message => showError('Website', message)} />
-              )}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Documents &amp; policies</p>
-                <p className="text-xs text-tertiary">
-                  Upload a PDF or link to one hosted elsewhere. Shown when the Documents section is on.
-                </p>
-                {documentDrafts.map((d, index) => (
-                  <div key={index} className="flex flex-wrap gap-2">
-                    <input
-                      type="text"
-                      value={d.title}
-                      onChange={e =>
-                        setDocumentDrafts(list =>
-                          list.map((row, i) => (i === index ? { ...row, title: e.target.value } : row))
-                        )
-                      }
-                      maxLength={80}
-                      placeholder="Title (e.g. Code of conduct)"
-                      aria-label={`Document ${index + 1} title`}
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                    />
-                    {d.path ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-secondary">
-                        PDF attached
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDocumentDrafts(list =>
-                              list.map((row, i) => (i === index ? { ...row, path: '' } : row))
-                            )
-                          }
-                          className="text-tertiary hover:text-primary"
-                          aria-label={`Detach document ${index + 1} file`}
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    ) : (
-                      <>
-                        <input
-                          type="url"
-                          value={d.url}
-                          onChange={e =>
-                            setDocumentDrafts(list =>
-                              list.map((row, i) => (i === index ? { ...row, url: e.target.value } : row))
-                            )
-                          }
-                          maxLength={200}
-                          placeholder="https:// link (or upload)"
-                          aria-label={`Document ${index + 1} link`}
-                          className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                        />
-                        <label className="flex items-center gap-1.5 text-xs text-tertiary">
-                          PDF
-                          <input
-                            type="file"
-                            accept="application/pdf"
-                            aria-label={`Document ${index + 1} file`}
-                            className="w-32 text-xs"
-                            onChange={async e => {
-                              const file = e.target.files?.[0];
-                              e.target.value = '';
-                              if (!file) return;
-                              const formData = new FormData();
-                              formData.append('document', file);
-                              try {
-                                const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
-                                  method: 'POST',
-                                  body: formData,
-                                });
-                                const body = await res.json();
-                                if (!res.ok) {
-                                  showError('Website', body.error || 'Failed to upload the document');
-                                  return;
-                                }
-                                setDocumentDrafts(list =>
-                                  list.map((row, i) =>
-                                    i === index ? { ...row, path: body.path, url: '' } : row
-                                  )
-                                );
-                              } catch {
-                                showError('Website', 'Upload failed — please try again');
-                              }
-                            }}
-                          />
-                        </label>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setDocumentDrafts(list => list.filter((_, i) => i !== index))}
-                      aria-label={`Remove document ${index + 1}`}
-                      className="px-2 text-tertiary hover:text-primary"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-2">
-                  {documentDrafts.length < 20 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDocumentDrafts(list => [...list, { title: '', path: '', url: '' }])
-                      }
-                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
-                    >
-                      + Add document
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void siteAct(
-                        {
-                          action: 'set_documents',
-                          documents: documentDrafts
-                            .filter(d => d.title.trim() && (d.path || d.url.trim()))
-                            .map(d => ({
-                              title: d.title.trim(),
-                              ...(d.path ? { path: d.path } : { url: d.url.trim() }),
-                            })),
-                        },
-                        'Documents saved',
-                        'Failed to save documents'
-                      )
-                    }
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Save documents
-                  </button>
-                </div>
-              </div>
-              {/* Program 3, D2: the sponsors moved into the editor (the hero's
-                  and the contact card's precedent) — names, links, tiers,
-                  logos and their order live on the Sponsors section's panel. */}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Sponsors</p>
-                <p className="text-xs text-tertiary">Names, links, logos, tiers and their order are edited in the editor — select the Sponsors section.</p>
-              </div>
-              {/* R3 → program 2 B5: custom pages are compositions — the list
-                  and the create live here; arranging happens in the editor
-                  (`?page=`). Every write goes to the draft. */}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Pages</p>
-                <p className="text-xs text-tertiary">A page is arranged in the editor like the home page. New pages start as drafts; publish to make them live.</p>
-                {sitePages.map(p => (
-                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1" data-console-page={p.id}>
-                    <span className="text-sm text-primary min-w-0 truncate">{p.title}</span>
-                    <span className="text-xs text-muted">/{p.slug}</span>
-                    {p.visibility === 'public' ? (
-                      <span className="text-xs text-emerald-600">published</span>
-                    ) : (
-                      <span className="text-xs text-amber-600">draft</span>
-                    )}
-                    {p.in_nav === false && <span className="text-xs text-muted">hidden from header</span>}
-                    <Link
-                      href={`/app/org/${side}/${orgId}/site/edit?page=${p.id}`}
-                      className="text-sm text-brand-fg font-medium"
-                    >
-                      Edit in editor
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfirmTarget({ kind: 'page', id: p.id, label: p.title })
-                      }
-                      className="text-sm text-tertiary hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={pageTitle}
-                    onChange={e => setPageTitle(e.target.value)}
-                    maxLength={120}
-                    placeholder="New page title"
-                    aria-label="New page title"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!pageTitle.trim()) {
-                        showError('Website', 'A page title is required');
-                        return;
-                      }
-                      const ok = await act(
-                        `/api/${plural}/${orgId}/site/pages`,
-                        {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ title: pageTitle.trim() }),
-                        },
-                        'Page created — it starts as a draft',
-                        'Failed to create the page',
-                        'Website'
-                      );
-                      if (ok) setPageTitle('');
-                    }}
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Add page
-                  </button>
-                </div>
               </div>
               {/* Phase 3.5: news posts — same shape as Pages; published_at
                   is the state and the feed order. */}

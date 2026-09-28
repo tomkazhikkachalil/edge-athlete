@@ -132,3 +132,37 @@ test('one home on a phone: Settings carries the logo and Subpages & navigation @
     await deleteQaOrgs(admin, [leagueId]);
   }
 });
+
+test('one home: the console keeps settings only and deep-links into the editor — ?section selects, ?open opens Settings', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const stamp = Date.now();
+  const { admin, ownerApi, leagueId } = await setUp(stamp);
+  try {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`/app/org/league/${leagueId}`);
+      const links = page.locator('[data-console-editor-links]');
+      await expect(links).toBeVisible({ timeout: 30_000 });
+      // The moved blocks are gone from the console (one home).
+      await expect(page.getByRole('button', { name: 'Save documents' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Save navigation' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Upload logo' })).toHaveCount(0);
+      await expect(page.getByLabel('New page title')).toHaveCount(0);
+      // Documents → the editor, the Documents section selected.
+      await links.getByRole('link', { name: 'Documents →' }).click();
+      await expect(page).toHaveURL(/\/site\/edit\?section=documents$/);
+      await expect(page.locator('[data-sb-panel="documents"] [data-sb-documents]')).toBeVisible({ timeout: 30_000 });
+      // Header & subpages → Settings open.
+      await page.goto(`/app/org/league/${leagueId}`);
+      await page.locator('[data-console-editor-links]').getByRole('link', { name: 'Header & subpages →' }).click();
+      await expect(page.locator('[data-sb-settings-panel] [data-sb-navigation]')).toBeVisible({ timeout: 30_000 });
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    await ownerApi.dispose();
+    await admin.from('org_sites').delete().eq('org_id', leagueId);
+    await deleteQaOrgs(admin, [leagueId]);
+  }
+});

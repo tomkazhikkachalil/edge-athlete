@@ -123,10 +123,18 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
       // Subpages & navigation list still carries the label.
       await expect(page.getByRole('link', { name: 'Open the editor →' })).toBeVisible({ timeout: 20_000 });
       await expect(page.getByRole('button', { name: 'Save brand' })).toHaveCount(0);
-      await expect(page.getByLabel('Standings section label')).toHaveValue('Tables');
-      await expect(page.getByRole('button', { name: 'Save navigation' })).toBeVisible();
-      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      // Sports-team program H2: Subpages & navigation moved into the editor's
+      // Settings — the console links there (?open=settings).
+      await expect(page.getByRole('link', { name: 'Header & subpages →' })).toBeVisible();
+      let scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+      await page.getByRole('link', { name: 'Header & subpages →' }).click();
+      const sheet = page.locator('[data-larger-window="sb-settings"]');
+      await expect(sheet).toBeVisible({ timeout: 30_000 });
+      await expect(sheet.getByLabel('Standings section label')).toHaveValue('Tables');
+      await expect(sheet.getByRole('button', { name: 'Save navigation' })).toBeAttached();
+      scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth, 'editor: no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     } finally {
       await ownerCtx.close();
     }

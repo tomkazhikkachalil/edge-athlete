@@ -1,5 +1,32 @@
 # Development Log
 
+## September 27, 2026 — Sports-team website program, H2: the console keeps settings only; deep links into the editor (zero DDL)
+
+**The console's Website section is now settings only.** It keeps the address, domain, live/offline, publish / History, Inbox and Visitors, plus announcements and news until their own phases move them. The blocks the editor owns since H1 are gone:
+- Subpages & navigation, the logo, the member-photo picker, documents, the sponsors pointer, and the pages list with its create form — 465 lines out of the 3,807-line console page, together with their dead state and one fetch.
+- In their place, ONE "Edit in the editor" card of deep links: Header & subpages, Logo & site settings, Documents, Gallery photos, Sponsors, Pages. The console is never a dead end.
+
+**Editor deep links** (`lib/site-builder/deep-link.ts parseEditorDeepLink`, pure and tested):
+- `?open=settings` opens Settings.
+- `?section=<widget key>` selects the first section of that kind (documents, gallery, sponsors …).
+- They are read on first load beside `?page=`. A deep link wins over the first-open design gallery (the manager came for something).
+
+**Found on the way:** below `lg` the editor mounted EVERY desktop aside panel as well as the phone sheet. The desktop wrapper is `hidden lg:block` (CSS), while the sheets were already JS-gated. That meant two panels: two photo pickers fetching twice (the photo specs' strict locator caught it) and two navigation editors. The desktop asides are gated on `useIsDesktop` now, exactly like the sheets.
+
+**Decided, not done:** the org checklist's website steps stay as they are. They still land on the console's Website section, whose editor links finish the job, and the editor's own checklist rail covers the site steps — collapsing them was churn for no reader.
+
+**Specs moved to where the controls live now:**
+- `club-photo-optin` / `league-photo-optin`: the picker is in the editor's Gallery panel (`?section=gallery`; the gallery module switched on).
+- `org-site-brand`: the header label is read in the Settings sheet via the console's link.
+- `org-site-pages-composed`: the page's header checkbox and order are driven in Settings; the console's "Pages →" link is asserted `exact` — the default substring match also found "Header & subpages →".
+- `org-site-two-pages`: reset lives in Settings.
+- `org-site`: the toggles are checked in an editor tab, the logo uploads through Settings.
+- New in `org-site-editor-one-home`: the console carries none of the moved controls, "Documents →" lands on the Documents panel, and "Header & subpages →" opens Settings.
+
+**Proof:**
+- `npm run verify` green (3966).
+- On staging: one-home ×4, both photo opt-ins, brand, pages-composed, two-pages, org-site ×5, announce, news-display, club/league public items, display ×3, seo ×2, editor ×2, start ×7, sections ×2 — all green.
+
 ## September 27, 2026 — Sports-team website program, H1: one home — documents, logo, photo picks and navigation in the editor (zero DDL)
 
 **The look phase is PROD-PROVEN.** #962–#967 merged and production served `74edefb0`. The probe ran 22 files — the six new or extended specs (news-publish-edits, announce, pro-header, team-crests, footer-chrome, notice-404, gallery) plus the site regression set (org-site ×5, golf-order, pages-composed, editor ×2, sections ×2, seo ×2, member-photos ×2, announce-archive, golf-season-wrap, news-display, vanity-path ×4, club-private-gates, team-page ×2, display ×3): **39 passed, 0 failed, 0 flaky (12.3 min).**

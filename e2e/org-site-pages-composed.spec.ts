@@ -118,15 +118,21 @@ test('org site pages composed: layout renders publicly, header order and hide, p
       const twin = base.startsWith('/org/') ? `/${subdomain}` : `/org/${subdomain}`;
       const twinRes = await anon.request.get(`${twin}/${about.slug}`, { maxRedirects: 0 });
       expect([200, 301]).toContain(twinRes.status());
-      // Program 2, B5 — the console: the navigation list holds the page row;
-      // unticking "Show in the header" writes set_page; after a publish the
+      // Program 2, B5 → sports-team program H2: the navigation list lives in the
+      // editor's Settings now (the console links there with ?open=settings).
+      // Unticking "Show in the header" writes set_page; after a publish the
       // header drops it; ticking it back and moving it below Standings, then
       // Save navigation → publish → the header reads Standings before About.
       const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
       try {
         const console_ = await ownerCtx.newPage();
         await console_.goto(`/app/org/league/${leagueId}`);
-        const row = console_.locator(`[data-console-nav-page="${about.id}"]`);
+        // The console's door into the editor for pages and the header.
+        await expect(console_.locator('[data-console-editor-links]').getByRole('link', { name: 'Pages →', exact: true })).toHaveAttribute('href', new RegExp(`/site/edit$`), { timeout: 30_000 });
+        const editorUrl = `/app/org/league/${leagueId}/site/edit?open=settings`;
+        await console_.goto(editorUrl);
+        const settings = console_.locator('[data-sb-settings-panel]');
+        const row = settings.locator(`[data-console-nav-page="${about.id}"]`);
         await expect(row).toBeVisible({ timeout: 30_000 });
         const tick = row.getByLabel(`Show About ${stamp} in the header`);
         await expect(tick).toBeChecked();
@@ -135,18 +141,14 @@ test('org site pages composed: layout renders publicly, header order and hide, p
         await publishSite(ownerApi, 'league', leagueId, 'Hidden');
         const hiddenHome = await settleBody(anon.request, base, `About ${stamp}`, false);
         expect(hiddenHome).not.toContain(`>About ${stamp}<`);
-        await console_.reload();
-        const tick2 = console_.locator(`[data-console-nav-page="${about.id}"]`).getByLabel(`Show About ${stamp} in the header`);
+        await console_.goto(editorUrl);
+        const tick2 = settings.locator(`[data-console-nav-page="${about.id}"]`).getByLabel(`Show About ${stamp} in the header`);
         await expect(tick2).not.toBeChecked({ timeout: 30_000 });
         await tick2.click();
         await expect(console_.getByRole('alert').filter({ hasText: 'Page shown in the header' })).toBeVisible({ timeout: 15_000 });
-        await console_.locator(`[data-console-nav-page="${about.id}"]`).getByRole('button', { name: `Move About ${stamp} down` }).click();
-        await console_.getByRole('button', { name: 'Save navigation' }).click();
+        await settings.locator(`[data-console-nav-page="${about.id}"]`).getByRole('button', { name: `Move About ${stamp} down` }).click();
+        await settings.getByRole('button', { name: 'Save navigation' }).click();
         await expect(console_.getByRole('alert').filter({ hasText: 'Layout saved' })).toBeVisible({ timeout: 15_000 });
-        // The Pages card: the page with its status and the editor's door.
-        const card = console_.locator(`[data-console-page="${about.id}"]`);
-        await expect(card).toContainText('published');
-        await expect(card.getByRole('link', { name: 'Edit in editor' })).toHaveAttribute('href', new RegExp(`/site/edit\\?page=${about.id}$`));
       } finally {
         await ownerCtx.close();
       }
