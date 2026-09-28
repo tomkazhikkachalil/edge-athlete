@@ -319,7 +319,6 @@ export default function OrgConsolePage() {
   const [siteNews, setSiteNews] = useState<
     { id: string; slug: string; title: string; published_at: string | null; audience?: 'public' | 'members' }[]
   >([]);
-  const [newsTitle, setNewsTitle] = useState('');
   // Authority (240): soft-deleted posts, restorable for 30 days.
   const [siteNewsDeleted, setSiteNewsDeleted] = useState<{ id: string; slug: string; title: string; deleted_at: string }[]>([]);
   // Phase 6b A1: venues & courses — the org's PROPERTY (141); a golf link
@@ -3100,7 +3099,7 @@ export default function OrgConsolePage() {
                       <span className="text-xs text-secondary" data-news-audience="members">members only</span>
                     )}
                     <Link
-                      href={`/app/org/${side}/${orgId}/site/news/${n.id}`}
+                      href={`/app/org/${side}/${orgId}/site/edit?news=${n.id}`}
                       className="text-sm text-brand-fg font-medium"
                     >
                       Edit
@@ -3114,41 +3113,14 @@ export default function OrgConsolePage() {
                     </button>
                   </div>
                 ))}
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={newsTitle}
-                    onChange={e => setNewsTitle(e.target.value)}
-                    maxLength={120}
-                    placeholder="New post title"
-                    aria-label="New post title"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!newsTitle.trim()) {
-                        showError('Website', 'A post title is required');
-                        return;
-                      }
-                      const ok = await act(
-                        `/api/${plural}/${orgId}/site/news`,
-                        {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ title: newsTitle.trim() }),
-                        },
-                        'Post created — it starts as a draft',
-                        'Failed to create the post',
-                        'Website'
-                      );
-                      if (ok) setNewsTitle('');
-                    }}
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Add post
-                  </button>
-                </div>
+                {/* N4 (Sep 27 2026): news is written in the editor's newsroom. */}
+                <Link
+                  href={`/app/org/${side}/${orgId}/site/edit?news=new`}
+                  className="inline-flex px-3 py-1.5 text-sm rounded-md border border-brand text-brand-fg font-medium hover:bg-brand-soft transition-colors"
+                  data-console-news-write=""
+                >
+                  Write a post →
+                </Link>
                 {siteNewsDeleted.length > 0 && (
                   <div className="pt-2 space-y-1.5" data-news-deleted="">
                     <p className="text-sm font-medium text-primary">Recently deleted</p>

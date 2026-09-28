@@ -104,8 +104,9 @@ test('league news audience: private site lists public posts only, members read b
       const op = await ownerCtx.newPage();
       await op.goto(`/app/org/league/${leagueId}`);
       await expect(op.locator('[data-news-audience="members"]')).toHaveCount(1, { timeout: 20_000 });
-      await op.goto(`/app/org/league/${leagueId}/site/news/${secret.id}`);
-      const audience = op.getByLabel('Post audience');
+      // N4: the post opens in the editor's newsroom (?news=<id>).
+      await op.goto(`/app/org/league/${leagueId}/site/edit?news=${secret.id}`);
+      const audience = op.locator('[data-larger-window="sb-news"]').getByLabel('Post audience');
       await expect(audience).toHaveValue('members', { timeout: 20_000 });
       await audience.selectOption('public');
       await expect(op.getByText('Public — shown on the site')).toBeVisible({ timeout: 15_000 });

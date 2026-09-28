@@ -7,7 +7,7 @@ import Link from 'next/link';
 // Program 2, B5 (Sep 11 2026): a page is a composition — it is arranged in
 // the site editor (`?page=<id>`). This subpage was the block editor's door;
 // it now sends the manager to the editor and keeps a link for a browser that
-// does not follow. The block editor stays for news.
+// does not follow. (News followed in the sports-team program, N4.)
 export default function OrgSitePageEditorPage() {
   const params = useParams();
   const router = useRouter();

@@ -18,6 +18,7 @@ import PropertiesPanel from './PropertiesPanel';
 import SectionsList from './SectionsList';
 import PagePanel from './PagePanel';
 import SitePanel from './SitePanel';
+import NewsRoom from './NewsRoom';
 import type { CanvasPage } from '@/lib/org-sites/canvas-server';
 import { PAGE_WIDGET_KEYS } from '@/lib/site-builder/catalog';
 import LargerWindow from '@/components/bubbles/LargerWindow';
@@ -123,7 +124,7 @@ export default function SiteBuilder() {
   const galleryOffered = useRef(false);
   const [autoGallery, setAutoGallery] = useState(false);
   // H2: `?open=settings` / `?section=<key>` from the console (first load only).
-  const [deepLink, setDeepLink] = useState<EditorDeepLink>({ open: null, section: null });
+  const [deepLink, setDeepLink] = useState<EditorDeepLink>({ open: null, section: null, news: null });
   // Program 2, B3: which layout the editor holds — the home, or a page by
   // id. `?page=<id>` deep-links (read once, in the load effect — the console
   // precedent); a switch flushes the draft, then reloads onto the new target
@@ -158,7 +159,7 @@ export default function SiteBuilder() {
         const next: EditorTarget = wanted !== 'home' && (body.pages ?? []).some(p => p.id === wanted) ? wanted : 'home';
         setTarget(next);
         // H2: a deep link wins over the first-open gallery (the manager came for something).
-        const link = reloadKey === 0 ? parseEditorDeepLink(window.location.search) : { open: null, section: null };
+        const link: EditorDeepLink = reloadKey === 0 ? parseEditorDeepLink(window.location.search) : { open: null, section: null, news: null };
         setDeepLink(link);
         const fresh = next === 'home' && !hasDeepLink(link) && !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
         if (fresh) galleryOffered.current = true;
@@ -330,6 +331,8 @@ function Editor({
   }, []);
   // Program 2, C2: the site settings panel (SEO, footer, icon).
   const [settingsOpen, setSettingsOpen] = useState(deepLink.open === 'settings' && !deepLink.section);
+  // N4: the newsroom — 'list', 'new' or a post id (the ?news= deep link).
+  const [newsOpen, setNewsOpen] = useState<string | null>(deepLink.news);
   const reportSettingsDirty = useCallback((dirty: boolean) => {
     dirtyRef.current.settings = dirty;
   }, []);
@@ -721,6 +724,15 @@ function Editor({
             >
               Settings
             </button>
+            <button
+              type="button"
+              onClick={() => guarded(() => setNewsOpen('list'))}
+              aria-pressed={newsOpen !== null}
+              className={PILL}
+              data-sb-open-news=""
+            >
+              News
+            </button>
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
@@ -783,6 +795,12 @@ function Editor({
                 showError={showError}
                 showSuccess={showSuccess}
               />
+            </LargerWindow>
+          )}
+          {/* N4: the newsroom — one window at every width (a card ≥ sm, a sheet below). */}
+          {newsOpen !== null && (
+            <LargerWindow title="News" windowKey="sb-news" onClose={() => setNewsOpen(null)}>
+              <NewsRoom plural={plural} orgId={orgId} siteId={site.id} initial={newsOpen} showError={showError} showSuccess={showSuccess} />
             </LargerWindow>
           )}
           {!isDesktop && settingsOpen && !themeDraft && !selected && (
