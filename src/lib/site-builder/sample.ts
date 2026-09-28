@@ -5,6 +5,8 @@ import { FIXTURE_RULES, LEADERBOARD_RULES } from '@/lib/competitions/scoring';
 import type { CourseStats } from '@/lib/golf/course-stats';
 import type { MemberStats } from '@/lib/golf/member-stats';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
+import type { OrgGames } from '@/lib/teams/org-games-server';
+import type { TeamScheduleItem } from '@/lib/teams/schedule';
 import type {
   PublicAffiliation,
   PublicCourse,
@@ -274,6 +276,34 @@ function events(family: Family, sportKey: string | null, now: Date): OrgEvent[] 
   ];
 }
 
+/** G2: the game-day sections — the next game and three finals, home first. */
+function games(family: Family, now: Date): OrgGames {
+  const league = family === 'golf' ? `${SAMPLE_SENTINEL} Interclub Matches` : `${SAMPLE_SENTINEL} Fall League`;
+  const sat = nextWeekday(now, 6);
+  const game = (n: number, home: string, away: string, when: string, score: [number, number] | null, round: string): TeamScheduleItem => ({
+    kind: 'contest',
+    key: `contest:sample:game-${n}`,
+    when,
+    allDay: false,
+    timezone: null,
+    title: score ? `${home} ${score[0]}–${score[1]} ${away}` : `${home} vs ${away}`,
+    opponent: null,
+    location: `${league} · ${round}`,
+    href: null,
+    state: score ? 'final' : 'upcoming',
+    result: null,
+    pair: { home, away, homeScore: score ? score[0] : null, awayScore: score ? score[1] : null },
+  });
+  return {
+    upcoming: [game(1, TEAMS[0], TEAMS[1], at(sat, 14), null, 'Week 7'), game(2, TEAMS[2], TEAMS[3], at(sat, 16), null, 'Week 7')],
+    results: [
+      game(3, TEAMS[1], TEAMS[2], at(addDays(sat, -7), 14), [3, 2], 'Week 6'),
+      game(4, TEAMS[3], TEAMS[0], at(addDays(sat, -7), 16), [1, 4], 'Week 6'),
+      game(5, TEAMS[0], TEAMS[2], at(addDays(sat, -14), 14), [2, 2], 'Week 5'),
+    ],
+  };
+}
+
 function leaders(family: Family, sportKey: string | null, now: Date): PublicLeaderBoard[] {
   if (family === 'golf') {
     const note = `Week 6 · ${dayIso(addDays(now, -7))}`;
@@ -478,6 +508,7 @@ export function sampleHomeData(sportKey: string | null | undefined, side: OrgKin
     news: news(family, now),
     memberStats: family === 'golf' ? memberStats(now) : null,
     gallery: gallery(family, now),
+    games: games(family, now),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODULE_KEYS } from '@/lib/org-sites/validate';
-import { CONTENT_WIDGET_KEYS, QUERY_WIDGET_KEYS, SITE_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isContentWidgetKey, isSiteWidgetKey, isWebWidgetKey } from '../catalog';
+import { CONTENT_WIDGET_KEYS, GAME_WIDGET_KEYS, QUERY_WIDGET_KEYS, SITE_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isContentWidgetKey, isSiteWidgetKey, isWebWidgetKey } from '../catalog';
 import { isWidgetEmpty } from '../emptiness';
 import { LayoutSchema, parseStoredLayout } from '../layout-schema';
 import { appendWidget, newInstanceFor, validateLayout, type SiteLayout, type WidgetInstance } from '../layout';
@@ -23,7 +23,7 @@ const inst = (key: WidgetInstance['key'], config: unknown, id = `w_${key}`): Wid
 
 describe('content widgets — the catalog', () => {
   it('are a third key set: not modules, both surfaces (in-app as tiles), multiple, heading-optional, with a name', () => {
-    expect([...SITE_WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS]);
+    expect([...SITE_WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS]);
     for (const key of CONTENT_WIDGET_KEYS) {
       expect((MODULE_KEYS as readonly string[]).includes(key), key).toBe(false);
       const def = WIDGETS[key];

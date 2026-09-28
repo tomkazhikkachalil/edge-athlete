@@ -176,6 +176,21 @@ describe('applySiteAction', () => {
     expect(parseStoredLayout(teams.layout)!.widgets.filter(w => w.key === 'teams').map(w => w.id)).toEqual(['legacy:teams']);
   });
 
+  it('G2: the schedule switch governs the game-day tiles too — off sweeps next_game / results with the schedule', () => {
+    let s = base();
+    const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });
+    const tile = (id: string, key: 'next_game' | 'results', y: number) => ({ id, key, x: 0, y, w: 6, h: 3, cv: 1, config: {}, visibility: 'public' as const });
+    s = { ...s, layout: { ...stack, widgets: [...stack.widgets, tile('ng', 'next_game', 90), tile('rs', 'results', 93)] } };
+    const off = applySiteAction(s, patch({ action: 'set_module', moduleKey: 'schedule', enabled: false }), ctx);
+    const keys = parseStoredLayout(off.layout)!.widgets.map(w => w.key);
+    expect(keys).not.toContain('next_game');
+    expect(keys).not.toContain('results');
+    expect(validateLayout(parseStoredLayout(off.layout)!)).toEqual([]);
+    // Another module's switch leaves them alone.
+    const newsOff = applySiteAction(s, patch({ action: 'set_module', moduleKey: 'news', enabled: false }), ctx);
+    expect(parseStoredLayout(newsOff.layout)!.widgets.map(w => w.key)).toEqual(expect.arrayContaining(['next_game', 'results']));
+  });
+
   it('H4: apply_gallery never writes a layout the readers refuse — past the cap the tail is trimmed; an unfixable result leaves the snapshot unchanged', () => {
     let s = base();
     const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });

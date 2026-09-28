@@ -74,6 +74,12 @@ export type AppOnlyWidgetKey = (typeof APP_ONLY_WIDGET_KEYS)[number];
 // Program 2, D (Sep 11 2026): two FIXED forms — the instance holds the intro
 // and the thank-you line; a visitor's submission lands in the site's inbox.
 export const CONTENT_WIDGET_KEYS = ['text', 'image', 'embed', 'contact_form', 'interest_form'] as const;
+/** Sports-team website program, G2 (Sep 28 2026): the GAME-DAY sections —
+ *  the next game and the latest results. Web tiles over the org's games
+ *  (the Results page's reader), gated by the SCHEDULE module (`moduleKey`),
+ *  so they need no module row of their own (mig 179's CHECK untouched). */
+export const GAME_WIDGET_KEYS = ['next_game', 'results'] as const;
+export type GameWidgetKey = (typeof GAME_WIDGET_KEYS)[number];
 export const FORM_WIDGET_KEYS = ['contact_form', 'interest_form'] as const;
 export type FormWidgetKey = (typeof FORM_WIDGET_KEYS)[number];
 export function isFormWidgetKey(key: string): key is FormWidgetKey {
@@ -83,7 +89,7 @@ export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
 
 /** Every key a SITE layout may hold (the wire schema's enum): the module-
  *  backed web widgets plus the content widgets. */
-export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS] as const;
+export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS] as const;
 export type SiteWidgetKey = (typeof SITE_WIDGET_KEYS)[number];
 
 /** Program 2, B (Sep 11 2026): what a custom PAGE may hold — every site
@@ -97,8 +103,15 @@ export type PageWidgetKey = (typeof PAGE_WIDGET_KEYS)[number];
 export const QUERY_WIDGET_KEYS = ['standings', 'schedule', 'leaders'] as const;
 export type QueryWidgetKey = (typeof QUERY_WIDGET_KEYS)[number];
 
-export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
+export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
 export type WidgetKey = (typeof WIDGET_KEYS)[number];
+
+/** G2: does this tile follow the given module's switch? The module's own
+ *  tile, and a tile gated by it (the game-day sections ride `schedule`). */
+export function governedByModule(widgetKey: string, moduleKey: string): boolean {
+  if (widgetKey === moduleKey) return true;
+  return isWidgetKey(widgetKey) && WIDGETS[widgetKey].moduleKey === moduleKey;
+}
 
 export function isWidgetKey(value: unknown): value is WidgetKey {
   return typeof value === 'string' && (WIDGET_KEYS as readonly string[]).includes(value);
@@ -148,7 +161,9 @@ export type SiteHomeDataKey =
   | 'news'
   | 'memberStats'
   /** Program 3, D1b: the picked photos, for the gallery's strip / grid on the home. */
-  | 'gallery';
+  | 'gallery'
+  /** G2: the org's games (upcoming + results) — the game-day sections. */
+  | 'games';
 
 export interface WidgetConstraints {
   minW: number;
@@ -271,6 +286,32 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     multiple: true,
     data: ['events', 'golfRounds'],
     emptyState: { staff: { label: 'Add an event →', consoleHash: '#competitions' }, public: 'hide' },
+  },
+  // G2: the game-day sections — web tiles, any number (each can later carry
+  // a team query, G3), gated by the schedule module and "We run competitions".
+  next_game: {
+    key: 'next_game',
+    family: 'live',
+    moduleKey: 'schedule',
+    constraints: HALF,
+    surfaces: { default: WEB },
+    subpage: false,
+    multiple: true,
+    data: ['games'],
+    defaultTitle: 'Next game',
+    emptyState: { staff: { label: 'Schedule a game →', consoleHash: '#competitions' }, public: 'hide' },
+  },
+  results: {
+    key: 'results',
+    family: 'live',
+    moduleKey: 'schedule',
+    constraints: HALF,
+    surfaces: { default: WEB },
+    subpage: false,
+    multiple: true,
+    data: ['games'],
+    defaultTitle: 'Latest results',
+    emptyState: { staff: { label: 'Record a result →', consoleHash: '#competitions' }, public: 'hide' },
   },
   news: {
     key: 'news',

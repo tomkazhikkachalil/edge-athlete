@@ -8,7 +8,7 @@ import { formatEventWhen } from '@/lib/org-sites/format';
 // public schedule rule, org-sites/format.ts). A result reads from the team's
 // side: "W 3–2".
 
-function whenOf(item: TeamScheduleItem): string {
+export function whenOf(item: TeamScheduleItem): string {
   if (!item.when) return 'Date to be set';
   const startsAt = item.when.length === 10 ? `${item.when}T12:00:00Z` : item.when;
   return formatEventWhen({ starts_at: startsAt, all_day: item.allDay, timezone: item.when.length === 10 ? 'UTC' : item.timezone });

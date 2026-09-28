@@ -2,6 +2,7 @@ import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { CourseStats } from '@/lib/golf/course-stats';
 import type { MemberStats } from '@/lib/golf/member-stats';
+import type { OrgGames } from '@/lib/teams/org-games-server';
 import type {
   PublicAffiliation,
   PublicClubGolfBoard,
@@ -52,4 +53,6 @@ export interface SiteHomeData {
   /** Program 3, D1b — the picked photos for the gallery's strip / grid on
    *  the home (the consent-gated public reader; absent = the teaser). */
   gallery?: PublicGalleryItem[];
+  /** G2 — the org's games (the Results page's reader) for the game-day sections. */
+  games?: OrgGames;
 }

@@ -6,7 +6,7 @@ import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { moduleLabel, parseNavConfig, parseThemeTokens, resolveAccentPair } from '@/lib/org-sites/validate';
 import { templateSpec } from '@/lib/org-sites/templates';
-import { WIDGETS, isContentWidgetKey } from '@/lib/site-builder/catalog';
+import { WIDGETS, isWebWidgetKey, isWidgetKey } from '@/lib/site-builder/catalog';
 import { galleryEntriesFor, galleryMap, gallerySeed, type GalleryEntry, type GalleryOrg } from '@/lib/site-builder/gallery';
 import type { SiteLayout } from '@/lib/site-builder/layout';
 import { isFreshSite } from '@/lib/site-builder/seeds';
@@ -97,7 +97,8 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
   const tokens = parseThemeTokens(site.theme_token_set);
   const { accent, strong } = resolveAccentPair(tokens);
   const wordmark = tokens.wordmark?.trim() || site.orgName;
-  const label = (key: string) => (isContentWidgetKey(key) ? WIDGETS[key as 'text'].defaultTitle ?? key : moduleLabel(key, nav, site.side, site.sportKey));
+  // G2: a game-day tile is not a module — its catalog name, like a content tile's.
+  const label = (key: string) => (isWebWidgetKey(key) ? moduleLabel(key, nav, site.side, site.sportKey) : isWidgetKey(key) ? WIDGETS[key].defaultTitle ?? key : key);
   const venueName = galleryMap(org)?.venueName ?? null;
   const editorHref = `/app/org/${side}/${orgId}/site/edit`;
 

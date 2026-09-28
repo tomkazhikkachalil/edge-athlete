@@ -1,5 +1,34 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, G2: the "Next game" and "Latest results" sections (zero DDL)
+
+**What managers get:**
+- Two new sections in the editor's picker, first in the "From your league's data" list: **Next game** and **Latest results**.
+- **Next game** is the soonest game of the org's public fixture competitions, or the one being played now (a red "Live" chip with the score). It shows as a scoreboard **card** (the default) or a full-width **banner** in the site's brand colour, with "Game details →" and "Full schedule →".
+- **Latest results** shows the finals home-first as a **list** (the default) or a snap-scrolling **score strip** (winner in bold), 3–12 games (5 by default), each linking to its contest page, then "All results →" (G1's page).
+- Both use the house display axes. The draft PUT refuses a count the panel could not offer.
+- Empty never renders publicly: no game means no tile. Inside the editor the sample bag shows a game and three finals until the league has real ones.
+
+**How they fit the registries:**
+- `GAME_WIDGET_KEYS` is a fourth disjoint key set in the catalog (web · content · game-day · app-only; pinned). Its members are web-only tiles over the new `games` bag (G1's `fetchOrgGames`), gated by the SCHEDULE module through `moduleKey`. They are not modules, so migration 179's module CHECK is untouched.
+- **One new rule:** `governedByModule(widget, module)`. The set_module sweep (H4, on the home and on every page) now removes a tile GATED by the module as well as the module's own tile, so switching the schedule off takes the game tiles with it.
+- The switches map classifies both as `competitions`.
+- `divisionSchedule` now carries each fixture's two sides as data (`pair`: home, away, scores once both are in). The scoreboard draws from that instead of re-parsing the title. The line text is unchanged.
+- The labels in the gallery thumbnails and the welcome pick use the catalog name for any key that is not a module.
+
+**Not in G2, on purpose:**
+- A per-team query ("this team's next game") is G3.
+- Placing the tiles in a gallery design is L6. `applyGallerySeed` still never mints a module-like tile.
+
+**Proof:**
+- `npm run verify` green: 3996 tests. New `game-widgets.test.ts` covers emptiness, default display, switches, the sample and the `pair`. There are pins for the four key sets and the schedule sweep.
+- New `org-site-gameday-widgets.spec.ts` @mobile passes on both engines. It covers:
+  - the canvas renders the banner and the strip;
+  - the picker offers both;
+  - the schema refuses count 99;
+  - the published page at 390 px shows both teams in the banner and the strip, the contest link and the two onward links, with no overflow.
+- Green alongside it: org-site-results (both engines), org-site-modules, org-site-editor, org-site-query-widgets.
+
 ## September 28, 2026 — Sports-team website program, G1: the site's Results page (the org's games, zero DDL)
 
 **What visitors get:**

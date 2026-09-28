@@ -15,7 +15,7 @@
  * the same rows compare equal (else every draft would read "dirty").
  * `blocksFromPageLayout` is the exact inverse for a converted layout.
  */
-import { PAGE_WIDGET_KEYS, SITE_WIDGET_KEYS, WIDGETS, type PageWidgetKey } from './catalog';
+import { PAGE_WIDGET_KEYS, SITE_WIDGET_KEYS, WIDGETS, governedByModule, type PageWidgetKey } from './catalog';
 import { GRID, compactLayout, validateLayout, type LayoutIssue, type SiteLayout, type WidgetInstance } from './layout';
 import { parseStoredLayout } from './layout-schema';
 import { TEXT_WIDGET_BLOCKS_MAX } from './fields';
@@ -192,12 +192,12 @@ export function sweepModuleFromPages(pages: Record<string, SnapshotPage>, module
   const out: Record<string, SnapshotPage> = {};
   for (const [id, page] of Object.entries(pages)) {
     const layout = parseStoredLayout(page.layout);
-    if (!layout || !layout.widgets.some(w => w.key === moduleKey)) {
+    if (!layout || !layout.widgets.some(w => governedByModule(w.key, moduleKey))) {
       out[id] = page;
       continue;
     }
     changed = true;
-    out[id] = { ...page, layout: { ...layout, widgets: compactLayout(layout.widgets.filter(w => w.key !== moduleKey)) } };
+    out[id] = { ...page, layout: { ...layout, widgets: compactLayout(layout.widgets.filter(w => !governedByModule(w.key, moduleKey))) } };
   }
   return changed ? out : pages;
 }

@@ -6,7 +6,7 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { effectiveSpec } from '@/lib/org-sites/theme';
-import { CONTENT_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
+import { CONTENT_WIDGET_KEYS, GAME_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isWebWidgetKey, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { newInstanceFor, type SiteLayout } from '@/lib/site-builder/layout';
 import WidgetBody from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { effectiveAudience } from '@/lib/site-builder/audience';
@@ -62,8 +62,13 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
   // Fetch previews for the ABSENT keys only; a repeatable key already on the
   // page (phase 9: standings, schedule, leaders) previews from the canvas's
   // data and is listed with "Add another".
-  const missing = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && permitted(k) && !present.has(k));
-  const listed = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && permitted(k) && (!present.has(k) || WIDGETS[k].multiple));
+  // G2: the game-day sections lead the data list — offered while their
+  // module (the schedule) is on, since a tile of a switched-off module
+  // never renders.
+  const moduleOn = (k: string) => site.modules.some(m => m.module_key === k && m.enabled);
+  const dataKeys: SiteWidgetKey[] = [...GAME_WIDGET_KEYS.filter(k => moduleOn(WIDGETS[k].moduleKey ?? '')), ...WEB_WIDGET_KEYS];
+  const missing = dataKeys.filter(k => k !== 'hero' && permitted(k) && !present.has(k));
+  const listed = dataKeys.filter(k => k !== 'hero' && permitted(k) && (!present.has(k) || WIDGETS[k].multiple));
   const keysParam = missing.join(',');
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; data: SiteHomeData | null; empty: Record<string, boolean> }>({
     status: keysParam ? 'loading' : 'ready',
@@ -124,7 +129,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2" aria-label="Sections you can add" data-sb-picker="">
             {listed.map(key => {
-              const title = moduleLabel(key, nav, site.side, site.sportKey);
+              const title = isWebWidgetKey(key) ? moduleLabel(key, nav, site.side, site.sportKey) : (WIDGETS[key].defaultTitle ?? key);
               const again = present.has(key);
               // A present key previews from the canvas's own data; an absent one from the fetch.
               const previewData = again ? (canvasData ?? state.data) : (state.data ? { ...(canvasData ?? {}), ...state.data } as SiteHomeData : null);
@@ -161,7 +166,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                   </div>
                   {again && (
                     <p className="border-t border-border px-3 py-2 text-xs text-tertiary">
-                      Already on the page — a second one can show a different competition or venue.
+                      {isWebWidgetKey(key) ? 'Already on the page — a second one can show a different competition or venue.' : 'Already on the page — a second one can use a different layout.'}
                     </p>
                   )}
                   {empty && (

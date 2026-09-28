@@ -44,6 +44,7 @@ function spyReaders() {
     news: hit('news', ['N'] as never[]),
     memberStats: hit('memberStats', { members: [] } as unknown as Awaited<ReturnType<SiteReaders['memberStats']>>),
     gallery: hit('gallery', [] as never[]),
+    games: hit('games', { upcoming: [], results: [] }),
   };
   return { readers, calls };
 }

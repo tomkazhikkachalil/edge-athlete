@@ -26,6 +26,7 @@ import {
   getCachedCourses,
   getCachedDivisions,
   getCachedGallery,
+  getCachedOrgGames,
   getCachedGolfRounds,
   getCachedLeaders,
   getCachedMemberStats,
@@ -38,6 +39,8 @@ import {
   getCachedVenues,
 } from '@/lib/org-sites/cached';
 import type { PublicSite } from '@/lib/org-sites/server';
+import { fetchOrgGames } from '@/lib/teams/org-games-server';
+import { siteBasePath } from '@/lib/org-sites/urls';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import type { SiteHomeDataKey } from '@/lib/site-builder/catalog';
 import { needsData, type SiteLayout } from '@/lib/site-builder/layout';
@@ -87,6 +90,8 @@ export interface SiteReaders {
   memberStats: () => Promise<SiteHomeData['memberStats']>;
   /** Program 3, D1b: the gallery's picked photos (strip / grid on the home). */
   gallery: () => Promise<NonNullable<SiteHomeData['gallery']>>;
+  /** G2: the org's games (next game, latest results). */
+  games: () => Promise<NonNullable<SiteHomeData['games']>>;
 }
 
 const EMPTY: SiteHomeData = {
@@ -106,6 +111,7 @@ const EMPTY: SiteHomeData = {
   news: [],
   memberStats: null,
   gallery: [],
+  games: { upcoming: [], results: [] },
 };
 
 /** The published home's readers: the per-slug ISR cache. */
@@ -128,6 +134,7 @@ export function cachedSiteReaders(slug: string, site: PublicSite): SiteReaders {
     news: () => getCachedNewsList(slug, site.id, site.visibility === 'private'),
     memberStats: () => getCachedMemberStats(slug, side, orgId),
     gallery: () => getCachedGallery(slug, side, orgId),
+    games: () => getCachedOrgGames(slug, side, orgId, siteBasePath(site)),
   };
 }
 
@@ -158,6 +165,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
     news: () => fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }),
     memberStats: () => fetchPublicMemberStats(admin, side, orgId),
     gallery: () => fetchPublicGallery(admin, side, orgId),
+    games: () => fetchOrgGames(admin, { side, orgId, links: { contest: id => `${siteBasePath(site)}/schedule/${id}` } }),
   };
 }
 
@@ -167,7 +175,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
 export function neededFields(layout: SiteLayout, side: Side): SiteHomeDataKey[] {
   const all: SiteHomeDataKey[] = [
     'standings', 'events', 'teams', 'staff', 'venues', 'affiliations', 'openWindows', 'courses',
-    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats', 'gallery',
+    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats', 'gallery', 'games',
   ];
   const clubOnly = new Set<SiteHomeDataKey>(['clubGolfBoards', 'courseStrip']);
   return all.filter(f => needsData(layout, f) && (side === 'club' || !clubOnly.has(f)));
@@ -180,7 +188,7 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
   const run = <K extends keyof SiteHomeData>(field: K & SiteHomeDataKey, read: () => Promise<SiteHomeData[K]>) =>
     need.has(field) ? read() : Promise.resolve(EMPTY[field]);
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats, gallery] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats, gallery, games] =
     await Promise.all([
       run('standings', readers.standings),
       run('events', readers.events),
@@ -197,10 +205,11 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
       run('news', readers.news),
       run('memberStats', readers.memberStats),
       run('gallery', readers.gallery),
+      run('games', readers.games),
     ]);
   // S3: the club strip needs the course ids from the read above.
   const courseStrip = need.has('courseStrip') ? await readers.courseStrip(courses) : EMPTY.courseStrip;
 
-  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats, gallery };
+  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats, gallery, games };
 }
 
