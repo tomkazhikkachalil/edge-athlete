@@ -1,5 +1,22 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, G1: the site's Results page (the org's games, zero DDL)
+
+**What visitors get:**
+- `/schedule/results`, and its vanity twin: every final game of the org's PUBLIC fixture and bracket competitions, newest first, home-first ("Comets 2–3 Blazers" — the division page's neutral line, since an org has no single side to read a W/L from), each linking to its contest page.
+- The schedule page and the Results page link to each other ("Upcoming | Results"). They are plain static pages — a `?tab=` would defeat ISR.
+- The site's sitemap lists the page on a public site.
+- A private club's results are the members-only panel: its team names are members-only, the `/teams` gate.
+
+**The reads:** `teams/org-games-server.ts fetchOrgGames` reuses the division page's pieces rather than a new merge — `resolveOutcomes`, `CONTEST_FIELDS` and `divisionSchedule` — over ALL the org's public fixture and bracket competitions. It is bounded by `inGameWindow` (pure, in `schedule.ts`; ±60 days of the contest's time), returns nothing while "We run competitions" is off, and never throws. `getCachedOrgGames` keys the base path (it mints the contest links). A recorded result purges the site tag through the competition writers, as before.
+
+**Not in G1, on purpose:** ad-hoc sport-event games (an event between two sides that no competition owns). They join with G4, when the division schedule gains them too, so the org, division and team views gain them together.
+
+**Proof:**
+- `npm run verify` green (3989; `inGameWindow`).
+- New `org-site-results.spec.ts` @mobile (both engines): the public final reads "Comets 2–3 Blazers" and links to its contest; a private competition's game is absent; the schedule page's Results link lands and Upcoming links back; no overflow at 390 px; the sitemap lists `/schedule/results`; the org gone private → the members-only panel.
+- Green alongside it: team-schedule-public, division-page, org-site-contest (both phone engines), org-site modules, league-standings ×2.
+
 ## September 28, 2026 — Sports-team website program, A2: the console's Announce form retires into the newsroom
 
 **What changed:**

@@ -30,6 +30,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const urls = [
     base,
     ...(entry?.moduleKeys ?? []).map(key => `${base}/${key}`),
+    // G1: the Results page rides the schedule module (a public site only — a
+    // private club's results are the members-only panel).
+    ...(site.visibility === 'public' && (entry?.moduleKeys ?? []).includes('schedule') ? [`${base}/schedule/results`] : []),
     ...(entry?.pageSlugs ?? []).map(p => `${base}/${p}`),
     ...(entry?.teamIds ?? []).map(id => `${base}/teams/${id}`),
     ...(entry?.divisionIds ?? []).map(id => `${base}/divisions/${id}`),

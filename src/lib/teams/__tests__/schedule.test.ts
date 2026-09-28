@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { divisionSchedule, gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput } from '../schedule';
+import { divisionSchedule, gameResultLine, mergeTeamSchedule, teamResultLine, type ContestInput, inGameWindow } from '../schedule';
 import type { ContestOutcome } from '@/lib/competitions/contest-outcome';
 
 // Teams & divisions PR 7: a team's schedule from three sources, each game once.
@@ -94,5 +94,16 @@ describe('divisionSchedule', () => {
     expect(out.upcoming[1].location).toBe('U13 League · Week 2');
     expect(out.results[0].timezone).toBe('America/Toronto');
     expect(out.results.every(i => i.result === null)).toBe(true);
+  });
+});
+
+describe('inGameWindow (G1)', () => {
+  const NOW = Date.parse('2026-09-28T12:00:00Z');
+  it('±60 days of now counts; further out does not; unscheduled counts', () => {
+    expect(inGameWindow('2026-10-20T19:00:00Z', NOW)).toBe(true);
+    expect(inGameWindow('2026-08-01', NOW)).toBe(true);
+    expect(inGameWindow('2027-01-15T19:00:00Z', NOW)).toBe(false);
+    expect(inGameWindow('2026-06-01', NOW)).toBe(false);
+    expect(inGameWindow(null, NOW)).toBe(true);
   });
 });
