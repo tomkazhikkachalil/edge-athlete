@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
+import { runScheduledNewsSweep } from '@/lib/org-sites/news-notify-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 export const maxDuration = 60;
@@ -18,9 +19,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const summary = await runReminderSweep(getSupabaseAdmin());
+    const admin = getSupabaseAdmin();
+    const summary = await runReminderSweep(admin);
     if (summary.due > 0) console.log('[REMINDERS]', JSON.stringify(summary));
-    return NextResponse.json({ ok: true, ...summary });
+    // A1 (Sep 28 2026): a scheduled news post with "Notify members" bells
+    // when its time comes (the claim makes a repeat run a no-op).
+    const news = await runScheduledNewsSweep(admin);
+    if (news.sent > 0) console.log('[NEWS NOTIFY]', JSON.stringify(news));
+    return NextResponse.json({ ok: true, ...summary, news });
   } catch (error) {
     reportRouteError('[REMINDERS] sweep failed:', error);
     return NextResponse.json({ ok: false }, { status: 500 });

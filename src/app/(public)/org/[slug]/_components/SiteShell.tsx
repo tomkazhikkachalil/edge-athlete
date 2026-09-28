@@ -48,6 +48,7 @@ export default function SiteShell({
   pages,
   notices = [],
   navTeams = [],
+  newsBanner = null,
   children,
 }: {
   site: PublicSite;
@@ -58,6 +59,8 @@ export default function SiteShell({
   /** L1: the teams the header's Teams dropdown lists — the caller passes them
    *  only when the teams page is public (module on, not members-only). */
   navTeams?: readonly NavTeamInput[];
+  /** A1 (243): the live post shown "as a site banner until …" — it leads the band. */
+  newsBanner?: { title: string; slug: string } | null;
   children: React.ReactNode;
 }) {
   // B1: nav follows the modules' sort_order (set_nav mirrors the list
@@ -77,7 +80,7 @@ export default function SiteShell({
   // the data attributes all come from one helper the editor canvas shares.
   const tokens = parseThemeTokens(site.theme_token_set);
   const hero = parseHeroConfig(site.hero_config);
-  const banner = activeBanner(hero, notices, utcToday());
+  const banner = activeBanner(hero, notices, utcToday(), newsBanner ? { title: newsBanner.title, href: `${siteBasePath(site)}/news/${newsBanner.slug}` } : null);
   // Program 2, C: the manager's footer — a line, up to six links, the
   // contact card's socials when asked; "Powered by Edge Athlete" stays.
   const footer = parseFooterConfig(site.footer_config);

@@ -1,5 +1,36 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, A1: "Notify members" and "Show as a site banner" on a news post (the Announce merge)
+
+**What a manager gets:** the newsroom composer's **Tell people** block.
+- **Notify members.**
+  - A draft or scheduled post has a checkbox: "Notify members when it goes live" — every member, and a young athlete's guardians too, the moment it is published, now or at its scheduled time.
+  - A live post that never belled has a **Notify members now** button, behind the house `ConfirmModal`.
+  - Once sent, the block says "Members were notified …".
+- **Show as a site banner until** (a date): the post's title leads the site's notice band on every page, linking to the post ("More →"), through that day.
+
+Both are SETTINGS, like audience and pin: they act at once (`notifyMembers` / `bannerUntil` on the news PATCH, written to 243's columns), never through a live post's draft.
+
+**The sending** (`org-sites/news-notify-server.ts`):
+- `notifyNewsPost` is the ONE sender. It CLAIMS the post first — `notified_at` is set only where it is still null, the post live and notify on, in one UPDATE — so a double click, a publish racing the cron, or two tabs can never bell twice. It then fans out through `fanOutAnnouncement`, EXTRACTED from `orgAnnouncePOST`: Announce and a news post share one fan-out, with members chunked and guardians best-effort.
+- A failed member insert UN-stamps the claim, so the next try sends.
+- The bell is the post's title, its summary (else its first paragraph's words — `news-bell.ts`, pure), and the post's page. `announcement_id` is the post's id and `news_id` rides the metadata, so the in-app archive and `NOTIFY_ORG_KEY` readers are unchanged.
+- The route sends whenever a PATCH leaves a post live with notify on and no bells yet (publish, Update, or the switch on a live post), AFTER recording `news_published`, and answers `notified: { sent, guardians }`. `news_notified` is audited.
+- `runScheduledNewsSweep` runs in the ten-minute reminders cron: a scheduled post whose time has come bells, with its author as the actor (else an owner).
+
+**The banner:** `fetchNewsBanner` / `getCachedNewsBanner` read the newest live post with `banner_until` ≥ today. The day is in the cache key, so a banner ends at midnight without a purge. `activeBanner` puts a post's banner first, then an announcement's, then the standing hero notice. `SiteShell` takes `newsBanner`; the layout and both previews read it.
+
+**Found on the way:** the extraction first dropped Announce's post-insert site-tag purge (it sat inside the moved block), which would have left an announcement's banner waiting out the cache. It was restored before any spec ran; `org-announce` asserts the band.
+
+**Proof:**
+- `npm run verify` green (3988; news-bell ×3, the banner precedence).
+- New `org-site-news-notify.spec.ts`:
+  - a draft with notify and a banner never bells; publish bells the member once (the title, the post's URL); a repeat switch and a re-publish send nothing more;
+  - the public band shows the title with "More →" to the post;
+  - the composer shows "notified" and the banner date;
+  - a scheduled post with notify stays silent, then bells once through `/api/cron/reminders` when its time has passed.
+- Green alongside it: org-announce, announce-archive, golf-season-wrap (the shared fan-out), notice-404 (the band), the newsroom ×3, newsroom-api.
+
 ## September 28, 2026 — Sports-team website program, N5: tagged news on team and division pages; the chosen cover and the summary
 
 **H + N are PROD-PROVEN.** Tom ran 243 on production and merged #968–#973; production served `3fac7e7e`. The probe ran 19 files — one-home ×4, both photo opt-ins, brand, pages-composed, two-pages, org-site ×5, news-schedule-inline, newsroom-api, the newsroom ×3, publish-edits ×2, news-display, news-cover, club/league public items, announce, activity, editor ×2, sections ×2: **31 passed, 0 failed, 0 flaky (10.1 min).** `news-cover` passes on production, confirming its local failure is the environment (`NEXT_PUBLIC_APP_URL`).

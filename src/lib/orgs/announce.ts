@@ -36,6 +36,9 @@ export interface AnnouncementContext {
    *  the title (the mirror runs before the insert now) — the archive's
    *  "shown on the site until" stamp. */
   siteNoticeUntil?: string;
+  /** A1 (Sep 28 2026): where the bell goes — a news post's page; default
+   *  the org's page. */
+  actionUrl?: string;
 }
 
 export interface AnnouncementRow {
@@ -74,7 +77,7 @@ export function buildAnnouncementRows(
       actor_id: ctx.actorId,
       title: announcementTitle(ctx.orgName, ctx.title),
       message: ctx.message,
-      action_url: `/${ctx.side}/${ctx.orgId}`,
+      action_url: ctx.actionUrl ?? `/${ctx.side}/${ctx.orgId}`,
       is_read: false,
       metadata: {
         ...(ctx.extraMetadata ?? {}),

@@ -36,7 +36,15 @@ export interface BannerNotice {
 /** The band today, or null. `notices` newest first (the reader's order). An
  *  announcement speaks in today's amber and links to nothing; the standing
  *  notice carries the manager's tone and link (L4). */
-export function activeBanner(hero: BannerHero, notices: readonly BannerNotice[], today: string): Banner | null {
+export function activeBanner(
+  hero: BannerHero,
+  notices: readonly BannerNotice[],
+  today: string,
+  /** A1 (243): a live news post shown "as a site banner until …" — it leads,
+   *  and the band links to it. The reader already applied its end date. */
+  newsBanner?: { title: string; href: string } | null
+): Banner | null {
+  if (newsBanner && newsBanner.title) return { text: newsBanner.title, tone: 'warning', href: newsBanner.href };
   const announced = notices.find(n => !!n.title && !!n.noticeUntil && today <= n.noticeUntil);
   if (announced) return { text: announced.title, tone: 'warning', href: null };
   if (!hero.notice) return null;

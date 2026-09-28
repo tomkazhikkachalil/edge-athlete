@@ -936,6 +936,33 @@ export function newsCoverOf(coverPath: unknown, body: unknown): NewsCover | null
   return firstImage(body);
 }
 
+/** A1 (243): the post leading the site's notice band — the newest LIVE
+ *  post whose "Show as site banner until" is today or later. Pre-243 or none
+ *  → null (never throws). `today` is a YYYY-MM-DD (the band's UTC day). */
+export interface PublicNewsBanner {
+  title: string;
+  slug: string;
+}
+
+export async function fetchNewsBanner(admin: Admin, siteId: string, today: string, opts: { publicOnly?: boolean } = {}): Promise<PublicNewsBanner | null> {
+  const { data, error } = await admin
+    .from('org_site_news')
+    .select('slug, title, audience')
+    .eq('site_id', siteId)
+    .not('published_at', 'is', null)
+    .lte('published_at', new Date().toISOString())
+    .is('deleted_at', null)
+    .gte('banner_until', today)
+    .order('published_at', { ascending: false })
+    .limit(5);
+  if (error) {
+    if (error.code !== '42703') degraded('news banner', error);
+    return null;
+  }
+  const row = ((data ?? []) as { slug: string; title: string; audience?: string }[]).find(r => !opts.publicOnly || r.audience !== 'members');
+  return row ? { title: row.title, slug: row.slug } : null;
+}
+
 // ── Notices (N3, program 10) ────────────────────────────────────────────────
 // The announcements a manager ALSO put on the site's notice band, listed
 // under News as "Notices" — title, message, date, nothing about a person
