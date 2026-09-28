@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isMembersOnly } from '@/lib/org-sites/private';
 import MembersOnlyPage from '../../_components/MembersOnlyPage';
-import { getCachedDivisionPage, getCachedSite } from '@/lib/org-sites/cached';
+import { getCachedDivisionPage, getCachedSite, getCachedTaggedNews } from '@/lib/org-sites/cached';
+import NewsItems from '../../_components/NewsItems';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { requireSiteModule } from '../../_components/require-module';
 import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
@@ -59,6 +60,9 @@ export default async function OrgSiteDivisionPage({ params }: PageParams) {
   const sport = isSportEnabled(division.sportKey as SportKey) ? getSportDefinition(division.sportKey as SportKey).display_name : null;
   const card = 'bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6';
   const withRows = standings.filter(c => c.rows.length > 0 || c.golf);
+  // N5 (243): the posts tagged to this division — only while the site has news.
+  const newsOn = site.modules.some(m => m.module_key === 'news' && m.enabled);
+  const divisionNews = newsOn ? await getCachedTaggedNews(slug, site.id, site.visibility === 'private', { divisionId: division.id }) : [];
 
   return (
     <div className="site-container px-4 py-8 space-y-6" data-division-page={division.id}>
@@ -106,6 +110,13 @@ export default async function OrgSiteDivisionPage({ params }: PageParams) {
         <h2 className="text-lg font-semibold text-primary">Results</h2>
         <TeamScheduleList items={schedule.results} empty="No results yet." />
       </section>
+
+      {divisionNews.length > 0 && (
+        <section aria-label="Division news" className={card} data-division-news="">
+          <h2 className="text-lg font-semibold text-primary">News</h2>
+          <NewsItems posts={divisionNews} siteId={site.id} basePath={base} />
+        </section>
+      )}
     </div>
   );
 }

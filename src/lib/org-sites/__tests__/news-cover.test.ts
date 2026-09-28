@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstImage, firstParagraph } from '../public-data';
+import { firstImage, firstParagraph, newsCoverOf } from '../public-data';
 
 // N1 (program 10): a news post's cover is derived from its first image
 // block — nothing stored. These pin the derivation's edges.
@@ -35,5 +35,20 @@ describe('firstParagraph', () => {
     expect(firstParagraph([{ type: 'paragraph', text: '   ' }, { type: 'paragraph', text: 'Second' }])).toBe('Second');
     expect(firstParagraph([{ type: 'paragraph', text: 'x'.repeat(200) }])).toBe(`${'x'.repeat(157)}…`);
     expect(firstParagraph([{ type: 'image', path: 'org-media/s/a.png', alt: 'a' }])).toBeNull();
+  });
+});
+
+describe('newsCoverOf (N5, 243)', () => {
+  const body = [{ type: 'paragraph', text: 'x' }, { type: 'image', path: 'org-media/s1/first.jpg', alt: 'The team' }];
+  it('a chosen cover (cover_path) wins over the first image', () => {
+    expect(newsCoverOf('org-media/s1/cover.jpg', body)).toEqual({ path: 'org-media/s1/cover.jpg', alt: '' });
+  });
+  it('the chosen cover borrows the alt when it IS the first image', () => {
+    expect(newsCoverOf('org-media/s1/first.jpg', body)).toEqual({ path: 'org-media/s1/first.jpg', alt: 'The team' });
+  });
+  it('no (or a foreign-shaped) cover_path → the first image block, as before', () => {
+    expect(newsCoverOf(null, body)).toMatchObject({ path: 'org-media/s1/first.jpg' });
+    expect(newsCoverOf('https://evil.example/x.jpg', body)).toMatchObject({ path: 'org-media/s1/first.jpg' });
+    expect(newsCoverOf(undefined, [])).toBeNull();
   });
 });

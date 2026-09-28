@@ -804,8 +804,10 @@ export interface PublicNewsItem {
   excerpt: string | null; // first paragraph block, truncated
   /** Phase 9 V5 (176): 'members' posts leave a PRIVATE club's site. */
   audience?: 'public' | 'members';
-  /** N1: the post's cover — its first image block (no cover column). */
+  /** The post's cover — its chosen cover (243's cover_path), else its first image block. */
   cover: NewsCover | null;
+  /** N5 (243): the post's summary line (the card reads it before the excerpt). */
+  summary?: string;
   /** Program 3, D4 (189): pinned to the top — PRESENT ONLY when true. */
   pinned?: boolean;
   /** Program 3, D4: the body, for the home's inline (`<details>`) click
@@ -819,11 +821,17 @@ export interface PublicNewsPost {
   publishedAt: string;
   body: unknown; // parsed defensively at render (parsePageBody)
   cover: NewsCover | null;
+  /** N5 (243): the summary line, shown under the title. */
+  summary?: string;
+  /** N5: the post CHOSE its cover (cover_path) — the page shows it above the
+   *  body; a derived cover is already the body's first photo. */
+  coverChosen?: boolean;
 }
 
 /** N1 (program 10): a news post's cover is DERIVED — the first image
- *  block of its body. No column, no upload slot: the thumbnail on the
- *  list, the home teaser and the post's og:image all read this. */
+ *  block of its body — unless the post CHOSE one (243's cover_path, the
+ *  newsroom's Cover photo; `newsCoverOf`). The thumbnail on the list, the
+ *  home teaser and the post's og:image all read this. */
 export interface NewsCover {
   path: string; // org-media/{siteId}/{file} — orgMediaUrl re-asserts the prefix
   alt: string;
@@ -870,36 +878,62 @@ export async function fetchPublicNewsList(
     /** Phase 9 V5: a PRIVATE club's site lists public posts only (a
      *  public club shows everything). Pre-176 (no audience) ⇒ all. */
     publicOnly?: boolean;
+    /** N5 (243): only the posts tagged to this team / division (a team's
+     *  or a division's page). Pre-243 ⇒ none (no tag to read). */
+    teamId?: string;
+    divisionId?: string;
+    limit?: number;
   } = {}
 ): Promise<PublicNewsItem[]> {
-  const read = (fields: string) =>
-    admin
+  const tagged = !!(opts.teamId || opts.divisionId);
+  const read = (fields: string) => {
+    let q = admin
       .from('org_site_news')
       .select(fields)
       .eq('site_id', siteId)
       .not('published_at', 'is', null)
       // N1 (Sep 27 2026): a post scheduled for later is not published yet.
       .lte('published_at', new Date().toISOString())
-      .is('deleted_at', null)
-      .order('published_at', { ascending: false })
-      .limit(50);
-  // Program 3, D4 (189): the pin column steps down like the audience did.
-  let { data, error } = await read('slug, title, body, published_at, audience, pinned_at');
+      .is('deleted_at', null);
+    if (opts.teamId) q = q.eq('team_id', opts.teamId);
+    if (opts.divisionId) q = q.eq('division_id', opts.divisionId);
+    return q.order('published_at', { ascending: false }).limit(Math.min(Math.max(opts.limit ?? 50, 1), 50));
+  };
+  // 243 (summary, cover, tags) → 189 (the pin) → 176 (audience) → base.
+  let { data, error } = await read('slug, title, body, published_at, audience, pinned_at, summary, cover_path');
+  if (error?.code === '42703') {
+    if (tagged) return [];
+    ({ data, error } = await read('slug, title, body, published_at, audience, pinned_at'));
+  }
   if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at, audience'));
   if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));
   if (degraded('news list', error) || !data) return [];
   return (data as unknown as Record<string, unknown>[])
     .filter(n => !opts.publicOnly || n.audience === undefined || n.audience === 'public')
-    .map(n => ({
-      slug: n.slug as string,
-      title: n.title as string,
-      publishedAt: n.published_at as string,
-      excerpt: firstParagraph(n.body),
-      cover: firstImage(n.body),
-      body: n.body,
-      ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
-      ...(n.pinned_at ? { pinned: true } : {}),
-    }));
+    .map(n => {
+      const summary = typeof n.summary === 'string' && n.summary.trim() ? n.summary.trim() : null;
+      return {
+        slug: n.slug as string,
+        title: n.title as string,
+        publishedAt: n.published_at as string,
+        // N5: the summary is the card's line when the post has one.
+        excerpt: summary ?? firstParagraph(n.body),
+        cover: newsCoverOf(n.cover_path, n.body),
+        body: n.body,
+        ...(summary ? { summary } : {}),
+        ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
+        ...(n.pinned_at ? { pinned: true } : {}),
+      };
+    });
+}
+
+/** N5 (243): the chosen cover (a site asset) wins; else the first image block. */
+export function newsCoverOf(coverPath: unknown, body: unknown): NewsCover | null {
+  if (typeof coverPath === 'string' && coverPath.startsWith('org-media/')) {
+    const first = firstImage(body);
+    return { path: coverPath, alt: first && first.path === coverPath ? first.alt : '' };
+  }
+  return firstImage(body);
 }
 
 // ── Notices (N3, program 10) ────────────────────────────────────────────────
@@ -1130,18 +1164,21 @@ export async function fetchPublicNewsPost(
       .lte('published_at', new Date().toISOString())
       .is('deleted_at', null)
       .maybeSingle();
-  let { data, error } = await read('slug, title, body, published_at, audience');
+  let { data, error } = await read('slug, title, body, published_at, audience, summary, cover_path');
+  if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at, audience'));
   if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));
   if (degraded('news post', error) || !data) return null;
   // V5: a members-only post on a private club's site is indistinguishable from missing.
   if (opts.publicOnly && (data as unknown as { audience?: string }).audience === 'members') return null;
-  const row = data as unknown as { slug: string; title: string; published_at: string; body: unknown };
+  const row = data as unknown as { slug: string; title: string; published_at: string; body: unknown; summary?: string | null; cover_path?: string | null };
   return {
     slug: row.slug,
     title: row.title,
     publishedAt: row.published_at,
     body: row.body,
-    cover: firstImage(row.body),
+    cover: newsCoverOf(row.cover_path, row.body),
+    ...(row.summary && row.summary.trim() ? { summary: row.summary.trim() } : {}),
+    ...(typeof row.cover_path === 'string' && row.cover_path.startsWith('org-media/') ? { coverChosen: true } : {}),
   };
 }
 
