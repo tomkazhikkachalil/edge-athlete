@@ -1087,6 +1087,10 @@ export const NewsPatchSchema = z
     // publish at a time (future = scheduled), and "Update" (promote the draft).
     edit: NewsEditSchema.optional(),
     expectUpdatedAt: z.string().min(10).max(40).optional(),
+    // A1 (243): the post's SETTINGS for telling people — they act at once
+    // (like audience), never through a live post's draft.
+    notifyMembers: z.boolean().optional(),
+    bannerUntil: z.string().regex(ISO_DAY_RE, 'YYYY-MM-DD').nullable().optional(),
     publishAt: z.iso.datetime({ offset: true }).optional(),
     promote: z.literal(true).optional(),
     // Phase 9 V5 (176): 'members' hides the post from a PRIVATE club's site.
@@ -1097,14 +1101,14 @@ export const NewsPatchSchema = z
     restore: z.literal(true).optional(),
   })
   .refine(
-    o => !o.restore || (o.title === undefined && o.body === undefined && o.publish === undefined && o.audience === undefined && o.pinned === undefined && o.edit === undefined && o.publishAt === undefined && o.promote === undefined),
+    o => !o.restore || (o.title === undefined && o.body === undefined && o.publish === undefined && o.audience === undefined && o.pinned === undefined && o.edit === undefined && o.publishAt === undefined && o.promote === undefined && o.notifyMembers === undefined && o.bannerUntil === undefined),
     'A restore changes nothing else'
   )
   .refine(o => !(o.publish === false && (o.publishAt !== undefined || o.promote)), 'Unpublish changes nothing else')
   .refine(
     o =>
       o.restore === true || o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined ||
-      o.edit !== undefined || o.publishAt !== undefined || o.promote === true,
+      o.edit !== undefined || o.publishAt !== undefined || o.promote === true || o.notifyMembers !== undefined || o.bannerUntil !== undefined,
     'Nothing to update'
   );
 export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;

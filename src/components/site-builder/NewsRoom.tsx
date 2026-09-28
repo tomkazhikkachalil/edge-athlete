@@ -174,6 +174,7 @@ function Composer({
   const [scheduleAt, setScheduleAt] = useState('');
   const [tags, setTags] = useState<TagOption[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmNotify, setConfirmNotify] = useState(false);
   // The clock the state reads against — refreshed whenever a post is adopted
   // (a publish or a schedule), never read during render (react-hooks/purity).
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -458,6 +459,57 @@ function Composer({
       >
         {post.pinned_at ? 'Pinned to the top — unpin' : 'Pin to the top of the news'}
       </button>
+      {/* A1 (243): telling people — the Announce merge. Settings: they act at once. */}
+      <fieldset className="space-y-3 rounded-lg border border-border p-3" data-sb-news-tell="">
+        <legend className="px-1 text-xs font-medium text-secondary">Tell people</legend>
+        {post.notified_at ? (
+          <p className="text-sm text-secondary" data-sb-news-notified="">
+            Members were notified {new Date(post.notified_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.
+          </p>
+        ) : state === 'live' ? (
+          <button type="button" className={PILL} disabled={busy} onClick={() => setConfirmNotify(true)} data-sb-news-notify-now="">
+            Notify members now
+          </button>
+        ) : (
+          <label className="flex items-start gap-2 text-sm text-primary">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={!!post.notify_members}
+              disabled={busy}
+              onChange={e => void act({ notifyMembers: e.target.checked }, e.target.checked ? 'Members will be notified when it goes live' : 'No notification')}
+              data-sb-news-notify=""
+            />
+            <span>
+              Notify members when it goes live
+              <span className="block text-xs text-tertiary">Everyone in your club gets a notification (a young athlete’s guardians too).</span>
+            </span>
+          </label>
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className={LABEL} htmlFor={`news-${id}-banner`}>
+              Show as a site banner until
+            </label>
+            <input
+              id={`news-${id}-banner`}
+              type="date"
+              value={post.banner_until ?? ''}
+              disabled={busy}
+              onChange={e => void act({ bannerUntil: e.target.value || null }, e.target.value ? 'Banner set — it shows once the post is live' : 'Banner removed')}
+              className={`${INPUT} w-auto`}
+              data-sb-news-banner=""
+            />
+          </div>
+          {post.banner_until && (
+            <button type="button" className={PILL} disabled={busy} onClick={() => void act({ bannerUntil: null }, 'Banner removed')}>
+              Remove banner
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-tertiary">The banner runs across the top of every page of your site and links to this post.</p>
+      </fieldset>
+
       <div>
         <p className={LABEL}>The post</p>
         <BlocksField
@@ -516,6 +568,18 @@ function Composer({
           Delete
         </button>
       </div>
+      <ConfirmModal
+        isOpen={confirmNotify}
+        title="Notify your members now?"
+        message="Everyone in your club gets a notification about this post (a young athlete’s guardians too). This happens once."
+        confirmText="Notify"
+        confirmButtonClass="bg-brand hover:bg-brand-hover text-white"
+        onConfirm={() => {
+          setConfirmNotify(false);
+          void act({ notifyMembers: true }, 'Members notified');
+        }}
+        onCancel={() => setConfirmNotify(false)}
+      />
       <ConfirmModal
         isOpen={confirmDelete}
         title="Delete this post?"

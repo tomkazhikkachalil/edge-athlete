@@ -40,4 +40,14 @@ describe('activeBanner', () => {
     });
     expect(activeBanner({ notice: 'Picture day Saturday' }, [], today)).toEqual({ text: 'Picture day Saturday', tone: 'warning', href: null });
   });
+
+  it('A1: a live news post shown as a banner leads the band and links to the post', () => {
+    const notices = [{ title: 'An announcement', noticeUntil: '2026-10-01' }];
+    expect(activeBanner({ notice: 'Standing' }, notices, today, { title: 'Games cancelled', href: '/org/x/news/games-cancelled' })).toEqual({
+      text: 'Games cancelled',
+      tone: 'warning',
+      href: '/org/x/news/games-cancelled',
+    });
+    expect(activeBanner({ notice: 'Standing' }, notices, today, null)).toMatchObject({ text: 'An announcement' });
+  });
 });

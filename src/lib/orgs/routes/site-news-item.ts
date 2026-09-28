@@ -13,6 +13,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
 import { recordAuthority } from '@/lib/authority/audit-server';
+import { notifyNewsPost } from '@/lib/org-sites/news-notify-server';
 
 // ── /api/{leagues,clubs}/[id]/site/news/[newsId] — one news post (phase 3 R3) ──────────
 
@@ -69,7 +70,11 @@ export async function siteNewsItemRoutePATCH(request: NextRequest, kind: OrgKind
     const res = await newsPATCH(admin, kind, id, newsId, parsed.data);
     // N3 (243): a post going live — or scheduled — is an act on the org's public face.
     if (res.ok) {
-      const body = (await res.clone().json().catch(() => null)) as { transition?: string | null; post?: { title?: string; slug?: string; published_at?: string } } | null;
+      const body = (await res.clone().json().catch(() => null)) as {
+        state?: string;
+        transition?: string | null;
+        post?: { title?: string; slug?: string; published_at?: string; notify_members?: boolean; notified_at?: string | null };
+      } | null;
       if (body?.transition === 'published' || body?.transition === 'scheduled') {
         await recordAuthority(admin, {
           subject: { type: 'org', id },
@@ -77,6 +82,18 @@ export async function siteNewsItemRoutePATCH(request: NextRequest, kind: OrgKind
           action: 'news_published',
           detail: { news_id: newsId, title: body.post?.title ?? null, slug: body.post?.slug ?? null, status: body.transition, after: body.post?.published_at ?? null },
         });
+      }
+      // A1: a LIVE post with "Notify members" on and no bells yet sends them
+      // now (publish, promote, or the switch on a live post) — the claim
+      // inside notifyNewsPost makes it once only. The answer carries the count
+      // and the post's new notified_at.
+      if (body?.state === 'live' && body.post?.notify_members && !body.post.notified_at) {
+        const out = await notifyNewsPost(admin, { side: kind, orgId: id, newsId, actorId: user.id });
+        if (out.status === 'sent') {
+          const json = (await res.clone().json()) as { post?: Record<string, unknown> } & Record<string, unknown>;
+          const { data: stamped } = await admin.from('org_site_news').select('notified_at, updated_at').eq('id', newsId).is('deleted_at', null).maybeSingle();
+          return NextResponse.json({ ...json, post: { ...(json.post ?? {}), ...(stamped ?? {}) }, notified: { sent: out.sent, guardians: out.guardians } });
+        }
       }
     }
     return res;

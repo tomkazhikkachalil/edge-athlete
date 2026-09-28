@@ -22,6 +22,7 @@ import {
   fetchPublicOpenWindows,
   fetchPublicNewsPost,
   fetchPublicNotices,
+  fetchNewsBanner,
   fetchPublicPage,
   fetchPublicPages,
   fetchPublicStaff,
@@ -38,6 +39,7 @@ import {
   type PublicGolfRound,
   type PublicLeaderBoard,
   type PublicNewsItem,
+  type PublicNewsBanner,
   type PublicOpenWindow,
   type PublicNewsPost,
   type PublicNotice,
@@ -249,6 +251,13 @@ export const getCachedTaggedNews = (
 ): Promise<PublicNewsItem[]> =>
   perSlug(['org-site-news-tag', slug, 'teamId' in tag ? `team:${tag.teamId}` : `division:${tag.divisionId}`], slug, () =>
     fetchPublicNewsList(getSupabaseAdmin(), siteId, { publicOnly, limit: 5, ...tag })
+  );
+
+// A1 (243): the post leading the notice band; the day is in the keyParts (a
+// banner ends at midnight — the cached answer must not outlive its day).
+export const getCachedNewsBanner = (slug: string, siteId: string, today: string, publicOnly = false): Promise<PublicNewsBanner | null> =>
+  perSlug(['org-site-news-banner', slug, today], slug, () =>
+    fetchNewsBanner(getSupabaseAdmin(), siteId, today, { publicOnly })
   );
 
 // newsSlug varies per slug → it MUST be in the keyParts (the closure trap).

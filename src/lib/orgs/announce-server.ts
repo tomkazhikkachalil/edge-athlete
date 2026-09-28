@@ -18,7 +18,7 @@ import { ORG_ID, type OrgKind } from './org-ref';
 import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
-import { announcementType, buildAnnouncementRows, siteNoticeMetadata, type OrgAnnounceInput } from './announce';
+import { announcementType, buildAnnouncementRows, siteNoticeMetadata, type AnnouncementContext, type OrgAnnounceInput } from './announce';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -64,18 +64,35 @@ export async function orgAnnouncePOST(
     ...(opts.extraMetadata ? { extraMetadata: opts.extraMetadata } : {}),
     ...(siteNotice && input.siteNoticeUntil ? { siteNoticeUntil: input.siteNoticeUntil } : {}),
   };
+  const out = await fanOutAnnouncement(admin, profileIds, ctx);
+  if (!out.ok) return NextResponse.json({ error: 'Failed to send the announcement' }, { status: 500 });
+  const { sent, guardians } = out;
+  // The band + the News page's Notices read the rows just written: purge
+  // AFTER the insert, so no render between the two can cache a page without it.
+  if (noticeSite) revalidateTag(`org-site:${noticeSite.subdomain}`, { expire: 0 });
+  return NextResponse.json({ ok: true, announcementId, sent, guardians, siteNotice });
+}
+
+/**
+ * The fan-out, shared by Announce and a news post's "Notify members" (A1,
+ * Sep 28 2026): one bell per member (the actor excluded), chunked — the
+ * member insert IS the deliverable, so a failure answers ok:false — and a
+ * supervised member's guardians hear too (best-effort; a safety behaviour,
+ * never flag-gated).
+ */
+export async function fanOutAnnouncement(
+  admin: Admin,
+  profileIds: string[],
+  ctx: AnnouncementContext
+): Promise<{ ok: true; sent: number; guardians: number } | { ok: false }> {
   const rows = buildAnnouncementRows(profileIds, ctx);
   for (const batch of chunk(rows, NOTIFY_CHUNK)) {
     const { error } = await admin.from('notifications').insert(batch);
     if (error) {
       console.error(`${TAG} insert failed:`, error);
-      return NextResponse.json({ error: 'Failed to send the announcement' }, { status: 500 });
+      return { ok: false };
     }
   }
-
-  // The band + the News page's Notices read the rows just written: purge
-  // AFTER the insert, so no render between the two can cache a page without it.
-  if (noticeSite) revalidateTag(`org-site:${noticeSite.subdomain}`, { expire: 0 });
 
   // Guardians of supervised members hear too (best-effort fan-out).
   let guardians = 0;
@@ -97,19 +114,20 @@ export async function orgAnnouncePOST(
           admin,
           child.id,
           {
-            type: announcementType(side),
-            title: `${ctx.orgName} announced for ${childName}: ${input.title}`,
-            message: input.message,
+            type: announcementType(ctx.side),
+            title: `${ctx.orgName} announced for ${childName}: ${ctx.title}`,
+            message: ctx.message,
             actionUrl: `/app/guardian/athlete/${child.id}`,
-            actorId,
+            actorId: ctx.actorId,
             metadata: {
+              ...(ctx.extraMetadata ?? {}),
               ...siteNoticeMetadata(ctx.siteNoticeUntil),
-              org: `${side}:${orgId}`,
-              announcement_id: announcementId,
+              org: `${ctx.side}:${ctx.orgId}`,
+              announcement_id: ctx.announcementId,
               announcement: true,
             },
           },
-          actorId
+          ctx.actorId
         );
         guardians += 1;
       }
@@ -117,8 +135,7 @@ export async function orgAnnouncePOST(
   } catch (e) {
     console.error(`${TAG} guardian fan-out failed:`, e);
   }
-
-  return NextResponse.json({ ok: true, announcementId, sent: rows.length, guardians, siteNotice });
+  return { ok: true, sent: rows.length, guardians };
 }
 
 /** The org's site for the notice band — null when it has none (or the read

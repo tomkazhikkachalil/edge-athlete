@@ -18,6 +18,10 @@ export interface NewsRow {
   pinned_at?: string | null;
   body?: unknown;
   draft?: unknown;
+  /** A1 (243): telling people. */
+  notify_members?: boolean;
+  notified_at?: string | null;
+  banner_until?: string | null;
 }
 
 export interface NewsGroups {

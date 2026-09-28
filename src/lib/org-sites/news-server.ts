@@ -213,7 +213,7 @@ export async function newsPATCH(
 
   // N3: the newsroom acts read the row first (its state, its draft, its
   // updated_at for the compare-and-set). Pre-243 they answer by name.
-  const uses243 = input.edit !== undefined || input.publishAt !== undefined || input.promote === true;
+  const uses243 = input.edit !== undefined || input.publishAt !== undefined || input.promote === true || input.notifyMembers !== undefined || input.bannerUntil !== undefined;
   const needsCurrent = uses243 || input.publish !== undefined || input.expectUpdatedAt !== undefined;
   type CurrentRow = { published_at: string | null; updated_at: string; draft?: unknown };
   let current: CurrentRow | null = null;
@@ -239,6 +239,9 @@ export async function newsPATCH(
     ...(input.audience !== undefined ? { audience: input.audience } : {}),
     // D4: the pin — a timestamp (newest pin first) or NULL.
     ...(input.pinned !== undefined ? { pinned_at: input.pinned ? new Date(nowMs).toISOString() : null } : {}),
+    // A1: telling people — settings, written straight to the columns.
+    ...(input.notifyMembers !== undefined ? { notify_members: input.notifyMembers } : {}),
+    ...(input.bannerUntil !== undefined ? { banner_until: input.bannerUntil } : {}),
   };
   // N3: an edit lands in the columns (unpublished) or the draft (live);
   // "Update" promotes the draft; the draft's images pass the same guard.
