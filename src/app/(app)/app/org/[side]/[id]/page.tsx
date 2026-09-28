@@ -295,15 +295,6 @@ export default function OrgConsolePage() {
   /** N6: courseId → hole number → photo path (the same config entry). */
   const [courseHolePhotos, setCourseHolePhotos] = useState<Record<string, Record<string, string>>>({});
   const [holePick, setHolePick] = useState<Record<string, number>>({});
-  // Phase 6e S6: announce to members (a megaphone — bells every member,
-  // optionally mirrored to the site's notice band).
-  const [announceTitle, setAnnounceTitle] = useState('');
-  const [announceMessage, setAnnounceMessage] = useState('');
-  const [announceOnSite, setAnnounceOnSite] = useState(false);
-  const [announceUntil, setAnnounceUntil] = useState('');
-  const [announceBusy, setAnnounceBusy] = useState(false);
-  /** N3: bumps after a send so the history below the form re-reads. */
-  const [announceSentAt, setAnnounceSentAt] = useState(0);
   // Phase 6 R1 — the slug picker (create flow): identity-composed
   // suggestions + a custom candidate with live availability/policy check.
   const [slugPickerOpen, setSlugPickerOpen] = useState(false);
@@ -2994,93 +2985,24 @@ export default function OrgConsolePage() {
                   ))}
                 </div>
               </div>
-              {/* S6: announce to members — every member is belled (guardians
-                  of supervised members too); optionally the title becomes
-                  the site's notice band until a day. Rate-limited: a
-                  megaphone, not a chat. */}
-              <div className="pt-2 space-y-1.5">
+              {/* A2 (Sep 28 2026): announcing is a news post now — write it in the
+                  editor's newsroom and tick "Notify members" (and "Show as a site
+                  banner until …"). The history of what was sent stays here; the
+                  /announce API stays for a siteless org and scripts. */}
+              <div className="pt-2 space-y-1.5" data-console-announce="">
                 <p className="text-sm font-medium text-primary">Announce to members</p>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={announceTitle}
-                    onChange={e => setAnnounceTitle(e.target.value)}
-                    maxLength={80}
-                    placeholder="Title (e.g. Rain-out: Week 3 extended to Sunday)"
-                    aria-label="Announcement title"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                <textarea
-                  value={announceMessage}
-                  onChange={e => setAnnounceMessage(e.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  placeholder="The message every member receives."
-                  aria-label="Announcement message"
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-2 text-sm text-secondary">
-                    <input
-                      type="checkbox"
-                      checked={announceOnSite}
-                      onChange={e => setAnnounceOnSite(e.target.checked)}
-                      aria-label="Also show on the site"
-                    />
-                    Also show on the site until
-                  </label>
-                  <input
-                    type="date"
-                    value={announceUntil}
-                    onChange={e => setAnnounceUntil(e.target.value)}
-                    disabled={!announceOnSite}
-                    aria-label="Show on the site until"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm disabled:opacity-50"
-                  />
-                  <button
-                    type="button"
-                    disabled={announceBusy || !announceTitle.trim() || !announceMessage.trim() || (announceOnSite && !announceUntil)}
-                    onClick={async () => {
-                      setAnnounceBusy(true);
-                      try {
-                        const res = await fetch(`/api/${plural}/${orgId}/announce`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            title: announceTitle.trim(),
-                            message: announceMessage.trim(),
-                            ...(announceOnSite && announceUntil ? { siteNoticeUntil: announceUntil } : {}),
-                          }),
-                        });
-                        const body = await res.json().catch(() => ({}));
-                        if (!res.ok) {
-                          showError('Announce', body.error || 'Failed to send the announcement');
-                          return;
-                        }
-                        showSuccess(
-                          'Announce',
-                          `Sent to ${body.sent ?? 0} ${body.sent === 1 ? 'member' : 'members'}${body.siteNotice ? ' · shown on the site' : ''}`
-                        );
-                        setAnnounceTitle('');
-                        setAnnounceMessage('');
-                        setAnnounceOnSite(false);
-                        setAnnounceUntil('');
-                        setAnnounceSentAt(Date.now());
-                        if (body.siteNotice) refresh();
-                      } catch {
-                        showError('Announce', 'Failed to send the announcement');
-                      } finally {
-                        setAnnounceBusy(false);
-                      }
-                    }}
-                    className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
-                  >
-                    Send announcement
-                  </button>
-                </div>
+                <p className="text-xs text-tertiary">
+                  Write a news post and tick “Notify members” — every member gets a notification (a young athlete’s guardians too), and it can run as a banner on your site.
+                </p>
+                <Link
+                  href={`/app/org/${side}/${orgId}/site/edit?news=new`}
+                  className="inline-flex px-3 py-1.5 text-sm rounded-md border border-brand text-brand-fg font-medium hover:bg-brand-soft transition-colors"
+                  data-console-announce-news=""
+                >
+                  Write an announcement →
+                </Link>
                 {/* N3: the archive — what was sent, and which went to the site. */}
-                <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={announceSentAt} />
+                <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={0} />
               </div>
               {/* Phase 3.5: news posts — same shape as Pages; published_at
                   is the state and the feed order. */}

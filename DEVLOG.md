@@ -1,5 +1,25 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, A2: the console's Announce form retires into the newsroom
+
+**What changed:**
+- The console's Website section no longer carries the Announce form (title, message, "also show on the site until").
+- In its place: "Announce to members" and **Write an announcement →**, which opens the editor's newsroom on a new post (`?news=new`), where "Notify members" and "Show as a site banner until …" (A1) do both jobs.
+- The **announcement history stays** in the console: what was sent, and which ran on the site.
+- The form's six pieces of state go with it.
+
+**What did not change, on purpose:**
+- `POST /api/{clubs,leagues}/[id]/announce` stays. The console form only ever rendered inside the site-exists branch, so a siteless org never had it — the API is its way, and scripts'.
+- The golf season wrap keeps announcing through its own route; its dedupe (`season_competition_id`) is untouched.
+- Both share A1's `fanOutAnnouncement` with the news post.
+
+**Why not backfill old announcements into news posts:** a siteless org's announcements have no site to live on, members-only bells must never become public URLs, and they would count against the 200-post cap. The history reads the notification rows exactly as before.
+
+**Proof:**
+- `npm run verify` green (3988).
+- `org-announce` updated: the console at 375 px shows the link to `?news=new` and no form. The daily cap still bites at the sixth request, rebalanced — the console send was one of the five, now an API send is.
+- Green alongside it: announce-archive, golf-season-wrap, one-home's console deep-link test, news-notify.
+
 ## September 28, 2026 — Sports-team website program, A1: "Notify members" and "Show as a site banner" on a news post (the Announce merge)
 
 **What a manager gets:** the newsroom composer's **Tell people** block.

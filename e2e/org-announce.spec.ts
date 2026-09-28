@@ -27,7 +27,7 @@ import { publishSite } from './helpers/org-site';
 // grant can announce (the form lives in the Website section).
 
 
-test('announce: members belled (not the sender), guardian copy, site notice, member 403, daily cap; console at 375px', async ({
+test('announce: members belled (not the sender), guardian copy, site notice, member 403, daily cap; the console points to the newsroom at 375px', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -115,39 +115,25 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
     expect(published, 'the band survives the publish').toContain(title);
     expect(published).toContain('role="status"');
 
-    // The console form at 375px sends one more, then the daily cap bites.
+    // A2 (Sep 28 2026): the console no longer carries the form — announcing is
+    // a news post with "Notify members"; the console points there (375px).
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const page = await ctx.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`/app/org/league/${leagueId}`);
-      await expect(page.getByLabel('Announcement title')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole('button', { name: 'Send announcement' })).toBeDisabled();
-      await page.getByLabel('Announcement title').fill(`Console note ${stamp}`);
-      await page.getByLabel('Announcement message').fill('Sent from the console.');
-      await page.getByRole('button', { name: 'Send announcement' }).click();
-      await expect(page.getByText(/Sent to \d+ member/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('[data-console-announce-news]')).toHaveAttribute('href', `/app/org/league/${leagueId}/site/edit?news=new`, { timeout: 20_000 });
+      await expect(page.getByLabel('Announcement title')).toHaveCount(0);
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     } finally {
       await ctx.close();
     }
-    const { data: second } = await admin
-      .from('notifications')
-      .select('metadata')
-      .eq('user_id', alpha.id)
-      .eq('type', 'league_update')
-      .contains('metadata', { org: `league:${leagueId}`, announcement: true });
-    for (const r of second ?? []) {
-      const id = (r.metadata as { announcement_id?: string }).announcement_id;
-      if (id && !announcementIds.includes(id)) announcementIds.push(id);
-    }
-    expect(announcementIds.length).toBe(2);
 
-    // Five a day — the limiter runs BEFORE validation, so the earlier 400
-    // took a slot too: 400, the API send, the console send, two more pass;
-    // the sixth request is 429.
-    for (let i = 0; i < 2; i++) {
+    // Five a day through the API (a siteless org and scripts still announce
+    // there) — the limiter runs BEFORE validation, so the earlier 400 took a
+    // slot too: 400, the first send, three more pass; the sixth request is 429.
+    for (let i = 0; i < 3; i++) {
       res = await ownerApi.post(`/api/leagues/${leagueId}/announce`, { data: { title: `Cap ${i}`, message: 'x' } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
       announcementIds.push((await res.json()).announcementId);
