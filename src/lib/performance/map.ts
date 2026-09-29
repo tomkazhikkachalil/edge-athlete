@@ -1,9 +1,10 @@
 import { scoreDifferential } from '@/lib/golf/handicap';
+import { classifyScore } from '@/lib/golf/scoring';
 import type { ResultProvenance } from '@/lib/orgs/provenance';
 import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
 import { validateStatLine } from '@/lib/sports/stat-line-validate';
 import { isUuid } from '@/lib/uuid';
-import { dateOnly, naturalKey, type PerformanceOverlay, type PerformanceRow } from './types';
+import { contextKey, dateOnly, naturalKey, outcomeFromResult, type PerformanceOverlay, type PerformanceRow } from './types';
 
 /**
  * The pure mappers from each origin row to the common shape — data
@@ -64,7 +65,21 @@ export function fromStatLinePost(post: StatLinePostOrigin): PerformanceRow | nul
     metrics,
     context: compact({ opponent: line.opponent, result: line.result, result_score: line.result_score }),
     headline: schema.heroStat.compute(metrics),
+    ...statLineContext(post.stats_data, line.result),
   };
+}
+
+/** 244: an event round's line (its post carries `sport_event_round_id`, and
+ *  `side` since P2) played a SHARED game — the key, the side, the result.
+ *  A self-posted line's opponent is free text: no shared game, all three
+ *  NULL (sent, so a post re-pointed off an event clears them). The post
+ *  data is the owner, so the keys are always sent. */
+function statLineContext(stats_data: unknown, result: unknown): Required<Pick<PerformanceRow, 'context_key' | 'side' | 'outcome'>> {
+  const data = (stats_data ?? {}) as { sport_event_round_id?: unknown; side?: unknown };
+  const roundId = data.sport_event_round_id;
+  if (typeof roundId !== 'string' || !isUuid(roundId)) return { context_key: null, side: null, outcome: null };
+  const side = data.side === 1 || data.side === 2 ? data.side : null;
+  return { context_key: contextKey.sportEventRound(roundId), side, outcome: outcomeFromResult(result) };
 }
 
 // ── Golf rounds ─────────────────────────────────────────────────────────────
@@ -85,6 +100,28 @@ export interface GolfRoundOrigin {
   course?: string | null;
   tee?: string | null;
   group_post_id?: string | null;
+  /** The round's holes (golf_holes) — folded into the hole counts; readers never see holes. */
+  hole_scores?: ReadonlyArray<{ par: number | null; strokes: number | null }> | null;
+}
+
+/** 244 (the Play program): the per-hole facts a badge or a challenge asks
+ *  about — birdies, eagles (albatross included: classifyScore's rule),
+ *  aces — counted from the round's holes. Absent when no hole was scored
+ *  (a total-only round), so "0 birdies" is never claimed for a round whose
+ *  holes were never entered. */
+export function golfHoleCounts(holes: GolfRoundOrigin['hole_scores']): { birdies: number; eagles: number; aces: number } | null {
+  let scored = 0, birdies = 0, eagles = 0, aces = 0;
+  for (const h of holes ?? []) {
+    const strokes = h.strokes, par = h.par;
+    if (typeof strokes !== 'number' || !Number.isFinite(strokes) || strokes <= 0) continue;
+    scored++;
+    if (strokes === 1) aces++;
+    if (typeof par !== 'number' || par <= 0) continue;
+    const cls = classifyScore(strokes, par);
+    if (cls === 'eagle') eagles++;
+    else if (cls === 'birdie') birdies++;
+  }
+  return scored > 0 ? { birdies, eagles, aces } : null;
 }
 
 /** A golf round → one row; `null` without a positive gross (a round in
@@ -106,6 +143,8 @@ export function fromGolfRound(round: GolfRoundOrigin, overlay?: PerformanceOverl
     typeof round.course_rating === 'number' && round.course_rating > 0 &&
     typeof round.slope_rating === 'number' && round.slope_rating > 0
   ) metrics.differential = scoreDifferential(gross, round.course_rating, round.slope_rating);
+  const counts = golfHoleCounts(round.hole_scores);
+  if (counts) Object.assign(metrics, counts);
   const row: PerformanceRow = {
     profile_id: round.profile_id,
     sport_key: 'golf',
@@ -117,6 +156,10 @@ export function fromGolfRound(round: GolfRoundOrigin, overlay?: PerformanceOverl
     metrics,
     context: compact({ course_id: round.course_id, course: round.course, tee: round.tee }),
     headline: gross,
+    // 244: a shared round's key is its GROUP POST (an event round mints one).
+    // Side / outcome are never sent here — a match's outcome is stamped at
+    // completion (stampMatchOutcomes) and a round edit must not NULL it.
+    context_key: round.group_post_id && isUuid(round.group_post_id) ? contextKey.groupPost(round.group_post_id) : null,
   };
   return overlay ? { ...row, ...overlay } : row;
 }
@@ -158,6 +201,9 @@ export function fromContestStatLine(line: ContestStatLineOrigin, sportKey: strin
     metrics,
     context: null,
     headline: schema.heroStat.compute(metrics),
+    // 244: the contest is the shared game. Its side / outcome are parked
+    // (a fixture's score lands after its lines — docs/PLAY.md).
+    context_key: contextKey.contest(line.contest_id),
   };
 }
 

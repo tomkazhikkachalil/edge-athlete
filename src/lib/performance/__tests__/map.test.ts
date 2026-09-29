@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { scoreDifferential } from '@/lib/golf/handicap';
-import { fromContestStatLine, fromGolfRound, fromStatLinePost, golfOverlayFromResult, groupUniformRows } from '../map';
-import { HEADLINE_DIRECTION, PERFORMANCE_SOURCES, headlineDirection, naturalKey } from '../types';
+import { fromContestStatLine, fromGolfRound, fromStatLinePost, golfHoleCounts, golfOverlayFromResult, groupUniformRows } from '../map';
+import { HEADLINE_DIRECTION, PERFORMANCE_SOURCES, contextKey, contextKindOf, headlineDirection, naturalKey, outcomeFromResult } from '../types';
 
 // Data foundation F3 — the pure mappers from each origin row to the ONE
 // performance shape. The invariants pinned here are the ones the writers
@@ -37,6 +37,10 @@ describe('fromStatLinePost', () => {
       metrics: { goals: 2, assists: 1 },
       context: { opponent: 'Wolves', result: 'W', result_score: '4-2' },
       headline: 3,
+      // 244: a self post played no SHARED game — the three keys go as NULL.
+      context_key: null,
+      side: null,
+      outcome: null,
     });
     // The overlay keys are ABSENT — a self post carries the column default.
     expect(row && 'provenance' in row).toBe(false);
@@ -168,5 +172,72 @@ describe('the shape helpers', () => {
     expect(headlineDirection('golf')).toBe('lower');
     expect(headlineDirection('ice_hockey')).toBe('higher');
     expect([...PERFORMANCE_SOURCES]).toEqual(['post', 'live_round', 'org_entry', 'import']);
+  });
+});
+
+// ── 244 (the Play program): the shared game on the fact table ───────────────
+describe('the shared context (244)', () => {
+  const GROUP = 'e0000000-0000-4000-8000-000000000001';
+  const EVENT_ROUND = 'e0000000-0000-4000-8000-000000000002';
+  const golf = (over: Record<string, unknown> = {}) => ({
+    id: ROUND, profile_id: PROFILE, date: '2026-09-11', holes: 18, par: 72, gross_score: 79, group_post_id: null, ...over,
+  });
+  const eventPost = (data: Record<string, unknown>) => ({
+    id: POST, profile_id: PROFILE, sport_key: 'ice_hockey', created_at: '2026-09-12T18:30:00Z', status: 'published',
+    stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2026-09-10', stats: { goals: 1 }, sport_event_id: 'x', sport_event_round_id: EVENT_ROUND, sport_event_stat_line_id: 'y', ...data },
+  });
+
+  it('a golf shared round keys on its GROUP POST; a solo round has none; golf never sends side / outcome', () => {
+    const shared = fromGolfRound(golf({ group_post_id: GROUP }));
+    expect(shared?.context_key).toBe(`group_post:${GROUP}`);
+    expect(shared && 'side' in shared).toBe(false);
+    expect(shared && 'outcome' in shared).toBe(false);
+    expect(fromGolfRound(golf())?.context_key).toBeNull();
+  });
+
+  it('an event round line keys on the ROUND, with its side and the game result', () => {
+    expect(fromStatLinePost(eventPost({ side: 1, result: 'W' }))).toMatchObject({ context_key: `sport_event_round:${EVENT_ROUND}`, side: 1, outcome: 'win' });
+    expect(fromStatLinePost(eventPost({ side: 2, result: 'L' }))).toMatchObject({ side: 2, outcome: 'loss' });
+    expect(fromStatLinePost(eventPost({ result: 'T' }))).toMatchObject({ side: null, outcome: 'tie' }); // a pre-244 post: no side
+    expect(fromStatLinePost(eventPost({}))).toMatchObject({ context_key: `sport_event_round:${EVENT_ROUND}`, outcome: null }); // a session
+  });
+
+  it('a malformed round id is no context (never a CHECK violation)', () => {
+    expect(fromStatLinePost(eventPost({ sport_event_round_id: 'nope', side: 1, result: 'W' }))).toMatchObject({ context_key: null, side: null, outcome: null });
+  });
+
+  it('an org contest line keys on its contest', () => {
+    const row = fromContestStatLine({ id: LINE, contest_id: CONTEST, profile_id: PROFILE, stats: { kills: 3 }, provenance: 'club_recorded', entered_by: null, created_at: '2026-09-09T10:00:00Z' }, 'volleyball', null);
+    expect(row?.context_key).toBe(`contest:${CONTEST}`);
+  });
+
+  it('the key helpers round-trip, and only the three kinds parse', () => {
+    expect(contextKindOf(contextKey.groupPost(GROUP))).toBe('group_post');
+    expect(contextKindOf(contextKey.sportEventRound(EVENT_ROUND))).toBe('sport_event_round');
+    expect(contextKindOf(contextKey.contest(CONTEST))).toBe('contest');
+    expect(contextKindOf(`golf_round:${ROUND}`)).toBeNull();
+    expect(contextKindOf(null)).toBeNull();
+    expect([outcomeFromResult('W'), outcomeFromResult('L'), outcomeFromResult('T'), outcomeFromResult('x')]).toEqual(['win', 'loss', 'tie', null]);
+  });
+});
+
+describe('golf hole counts (244)', () => {
+  it('counts birdies, eagles (albatross included) and aces from the scored holes', () => {
+    expect(golfHoleCounts([
+      { par: 4, strokes: 3 }, { par: 5, strokes: 3 }, { par: 5, strokes: 2 }, { par: 3, strokes: 1 }, { par: 4, strokes: 4 }, { par: 4, strokes: 6 },
+    ])).toEqual({ birdies: 1, eagles: 3, aces: 1 }); // the ace on a par 3 is also an eagle
+  });
+  it('an ace counts even without a par; unscored holes are skipped', () => {
+    expect(golfHoleCounts([{ par: null, strokes: 1 }, { par: 4, strokes: null }, { par: 4, strokes: 0 }])).toEqual({ birdies: 0, eagles: 0, aces: 1 });
+  });
+  it('no scored hole → null, and the round claims no counts', () => {
+    expect(golfHoleCounts([])).toBeNull();
+    expect(golfHoleCounts(null)).toBeNull();
+    const row = fromGolfRound({ id: ROUND, profile_id: PROFILE, date: '2026-09-11', holes: 18, par: 72, gross_score: 90, hole_scores: [] });
+    expect(row?.metrics).not.toHaveProperty('birdies');
+  });
+  it('a round with holes carries the counts in its metrics', () => {
+    const row = fromGolfRound({ id: ROUND, profile_id: PROFILE, date: '2026-09-11', holes: 9, par: 36, gross_score: 38, hole_scores: [{ par: 4, strokes: 3 }, { par: 4, strokes: 5 }] });
+    expect(row?.metrics).toMatchObject({ gross: 38, birdies: 1, eagles: 0, aces: 0 });
   });
 });

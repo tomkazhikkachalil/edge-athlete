@@ -1,5 +1,36 @@
 # Development Log
 
+## September 28, 2026 — Play program, P2: the shared game on the fact table
+
+**The rule:** a result played with others carries its game's key, one canonical key per game, so a game copied elsewhere is never counted twice:
+- **Golf shared round:** `group_post:<id>`. An event round mints a group post, so it keys the same way.
+- **Stat-line event round:** `sport_event_round:<id>`.
+- **Org contest line:** `contest:<id>`.
+
+A rivalry is then one self-join on `context_key`, for every sport (P6).
+
+**The mappers own it** (`src/lib/performance/map.ts`), so the backfill door fills history with no SQL:
+- **`fromGolfRound`:**
+  - Sends `context_key` from `group_post_id`.
+  - Never sends `side` / `outcome`, because a round edit must not blank a match's stamped result.
+  - Folds the round's holes into `metrics.birdies` / `eagles` / `aces` through `scoring.ts classifyScore`. An ace counts even without a par. `GOLF_ROUND_ORIGIN_SELECT` embeds `golf_holes(par, strokes)`.
+  - A total-only round claims no counts: a missing count is absent, never zero.
+- **`fromStatLinePost`:** an event line's post carries `sport_event_round_id` and, from now on, `side` (`statLinePostData`). The row gets the key, the side and `W/L/T` → `win/loss/tie`. A self-posted line sends all three as NULL; its opponent is free text, not a shared game.
+- **`fromContestStatLine`:** sends `contest:<id>`. A fixture's side and outcome are **parked**, because a fixture's score lands after its lines, so an outcome written with the lines would be wrong.
+- **Match play:** the one place golf's `side` / `outcome` are written is `write-server.ts stampMatchOutcomes`. The lifecycle calls it right after `closeMatchesOnCompletion`, when the mirror has already written the rows. The pure `match-outcomes.ts matchOutcomeEntries` applies the rules: a stored decision beats the computation, and a bye or an undecided match stamps nothing. Match rounds completed before P2 are **not** re-stamped (the backfill replays mappers, not matches). Prod holds only QA match events.
+
+**`src/lib/play/versus.ts`** is the one pure head-to-head fold:
+- **Same side:** counted in the together record.
+- **Both rows have an outcome:** A's outcome decides. Two identical wins with no sides mean teammates; two ties with no sides are ambiguous, so undecided.
+- **Golf round with no outcome:** stroke play decides, lower gross wins, over the same number of holes only.
+- **Anything else:** counted as played, with no result.
+- **Output:** W–L–T, the last five, a verified count (both rows verified), and when they last played.
+
+**Proof:**
+- 49 unit tests across `map`, `match-outcomes` and `versus`, covering every shape.
+- The embed read works on staging.
+- The backfill ran on staging in both modes with no errors. Staging holds almost no origins right now (the QA sweeps clear them), so the rivalry e2e in P6 is the end-to-end proof.
+
 ## September 28, 2026 — Play program, P1: migration 244 (the program's only DDL)
 
 **Tom's brief:** "something fun". He picked five features: milestones + badges, round share cards, live cheers, rivalries and friend challenges. His rule: "I don't want it just be about golf. It's got have the building blocks and principles for every other sport."

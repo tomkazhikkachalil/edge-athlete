@@ -10,7 +10,7 @@ const d = { id: 'l3', participant_id: 'pd', profile_id: 'D', stats: {}, side: 2 
 
 describe('a line\'s results post — the existing stat_line shape, found again by the line id', () => {
   it('a game: the opponent is the other side, the result and score from the player\'s side', () => {
-    expect(statLinePostData(event, round, b, game)).toEqual({ type: 'stat_line', sport_key: 'ice_hockey', date: '2030-06-01', stats: { goals: 2, assists: 1 }, opponent: 'Blues', result: 'W', result_score: '4-2', sport_event_id: 'e1', sport_event_round_id: 'r1', sport_event_stat_line_id: 'l1' });
+    expect(statLinePostData(event, round, b, game)).toEqual({ type: 'stat_line', sport_key: 'ice_hockey', date: '2030-06-01', stats: { goals: 2, assists: 1 }, side: 1, opponent: 'Blues', result: 'W', result_score: '4-2', sport_event_id: 'e1', sport_event_round_id: 'r1', sport_event_stat_line_id: 'l1' });
     expect(statLinePostData(event, round, c, game)).toMatchObject({ opponent: 'Reds', result: 'L', result_score: '2-4' });
     // A session: the opponent is the event; no result.
     expect(statLinePostData(event, round, { ...b, side: null }, null)).toMatchObject({ opponent: 'Friday skate' });
