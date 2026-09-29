@@ -165,9 +165,39 @@ are different in kind from the app's and each one is load-bearing:
     public URL mint funnels through `siteBasePath`/`siteAbsoluteUrl` (a
     stray `orgSitePath(site.subdomain)` in the (public) tree is a bug — it
     would double the slug on a custom host).
+11. **The live scoreboard is THE one client island** (sports-team website
+    program, V1–V2, Sep 28 2026). `src/components/site-live/` (the island
+    and its shared poller) is the ONLY client code a public site page
+    ships beyond the framework runtime. Its contract:
+    - it imports only React, `org-sites/live-feed` (types + the snapshot
+      mapper) and `org-sites/live-poll` (the pure rules) — no Supabase,
+      auth, cookies, storage, Font Awesome, or an absolute-URL fetch;
+    - its first render IS the ISR snapshot (no hydration drift); it polls
+      only a game being played or starting within two hours, on the
+      viewer's clock; one request per page per tick however many cards;
+      the server's `pollMs` (15 s live / 60 s soon / 0 stop), jittered;
+      exponential backoff on failure; nothing while the tab is hidden;
+      Save-Data / reduced-data → a Refresh button, never automatic;
+      `AbortController` only (the iOS 15 floor);
+    - it fetches ONE thing: `GET /api/public/org-sites/[slug]/live`, a
+      relative same-origin path. That route reads no session, cookie or
+      request header; refuses a query string (400); answers 200 with
+      `max-age=5, s-maxage=10, stale-while-revalidate=10` and every
+      non-200 `no-store`; 404s an unpublished site, a site whose teams are
+      members-only (it prints team names — the Results page's gate) or one
+      with the schedule off; carries names and links only (the ISR pages'
+      own); and has a kill switch (`PUBLIC_LIVE_SCORES=0` → an idle feed,
+      every open card stops). It has NO rate bucket by design: with query
+      strings refused the edge answers every poll inside its window, so
+      the origin sees at most one read per slug per 10 s;
+    - the editor canvas, the picker and the draft preview pass no feed URL
+      (a static snapshot); the in-app pages do not poll.
+    Guardrail **4e** enforces the island's imports, the `(public)` tree's
+    `@/components` allowlist (a new entry must be server-safe or be the
+    island) and the feed's no-session rule.
 The guardrails script enforces the mechanical half (no `'use client'`,
-`next/headers`, or Font Awesome under `(public)`; `next/og` isolation);
-this sweep covers the rest by reading.
+`next/headers`, or Font Awesome under `(public)`; `next/og` isolation;
+4e's island contract); this sweep covers the rest by reading.
 
 ---
 

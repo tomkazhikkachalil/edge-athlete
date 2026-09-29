@@ -114,6 +114,26 @@ else
   ok "every (public) page declares revalidate or dynamic"
 fi
 
+# 4e. Sports-team website program, V2 (Sep 28 2026; HARDENING B4.11): the ONE
+#     sanctioned client island on the public site is the live scoreboard
+#     (src/components/site-live/). It may import only React, the pure feed
+#     and poll modules and its own files — no Supabase, auth, cookies,
+#     storage, Font Awesome, or an absolute URL fetch. And the (public) tree
+#     may import from @/components only the server-safe modules listed here
+#     (a new one is a reviewed addition: it must be server-safe, or be the
+#     island); the live feed route and its reader never read a session.
+hits=$(scan "from '[^.r][^']*'" 'src/components/site-live/*.ts' 'src/components/site-live/*.tsx' | grep -vE "from '(react|@/lib/org-sites/live-poll|@/lib/org-sites/live-feed)'" || true)
+hits2=$(scan 'supabase|localStorage|sessionStorage|document[.]cookie|@fortawesome|fetch[(].https?:' 'src/components/site-live/*.ts' 'src/components/site-live/*.tsx')
+PUBLIC_COMPONENTS='@/components/(contests/ContestPage|golf/CourseScorecardTable|standings/PublicStandingsTable|teams/GameDayCards|teams/TeamScheduleList|text/InlineText)'
+hits3=$(scan "from '@/components/" 'src/app/(public)/**/*.ts' 'src/app/(public)/**/*.tsx' | grep -vE "from '${PUBLIC_COMPONENTS}'" || true)
+hits4=$(scan "requireAuth|getServerAuth|next/headers|cookies\(" 'src/app/api/public/org-sites/**/*.ts' 'src/lib/org-sites/live-feed-server.ts')
+if [ -n "$hits$hits2$hits3$hits4" ]; then
+  bad "the public site's client island / component allowlist / live feed contract broken (B4.11):"
+  printf '%s\n%s\n%s\n%s\n' "$hits" "$hits2" "$hits3" "$hits4" | sed '/^$/d; s/^/      /'
+else
+  ok "the live island stays self-contained; (public) imports only allowlisted components; the live feed reads no session"
+fi
+
 # 5. next/og carries a multi-MB wasm payload — it stays isolated to the
 #    share-card route bundles, never imported elsewhere.
 hits=$(scan "from 'next/og'" 'src/**/*.ts' 'src/**/*.tsx' | grep -v 'card\.png/route\.ts')
