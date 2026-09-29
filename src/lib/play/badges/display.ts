@@ -69,5 +69,7 @@ export function earnedLine(v: BadgeView): string | null {
   if (typeof d.results === 'number') return `${d.results} logged`;
   if (typeof d.sports === 'number') return `${d.sports} sports`;
   const [k, n] = Object.entries(d)[0] ?? [];
-  return typeof n === 'number' ? `${n} ${String(k).replace(/_/g, ' ')}` : null;
+  if (typeof n !== 'number') return null;
+  const words = String(k).replace(/_/g, ' ');
+  return `${n} ${n === 1 ? words.replace(/s$/, '') : words}`; // "1 eagle", "31 points", "1 home run"
 }

@@ -29,6 +29,8 @@ describe('badge views', () => {
     expect(earnedLine(p)).toBe('31 points');
     const [h] = badgeViews([e('golf.handicap_10', '2026-09-01', { detail: { handicap_index: 9.4 } })]);
     expect(earnedLine(h)).toBe('Index 9.4');
+    const [one] = badgeViews([e('golf.first_eagle', '2026-09-01', { detail: { eagles: 1 } })]);
+    expect(earnedLine(one)).toBe('1 eagle');
   });
 });
 

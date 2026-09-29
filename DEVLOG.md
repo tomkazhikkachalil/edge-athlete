@@ -1,5 +1,49 @@
 # Development Log
 
+## September 28, 2026 — Play program, P5: every public result has a share card
+
+**The page:** `/r/[postId]` is where a share link lands and what a link preview unfurls from.
+- It is **viewer-independent**: it reads through the service role and never reads the session.
+- **A public card renders for everyone, signed out included.** That means a published, public result post (a golf round or a stat line) of a *public* profile (`isPublicProfile`: claimed, unsupervised, public, not departed). The page shows:
+  - the card;
+  - "See <name>'s profile" (`/u/@handle`);
+  - "Track your own on Edge Athlete";
+  - the header's signed-out Log in / Sign up. It is never a dead end.
+- **A real post without a public card** (a private post, a private or supervised author, a hidden round) redirects to the in-app link, where the normal privacy gate runs.
+- **Anything else is the house 404.** The image never confirms that a private result exists.
+- The root segment `r` is reserved in both places (244 + `RESERVED_ROOT_SLUGS`).
+
+**The projection:** `src/lib/play/share-card.ts` is pure and feeds three things (the page, its metadata, and the image), so a link preview and the page always match.
+- **Golf:** the score, to-par, course · holes, and the hole facts from the fact table (ace, eagles, birdies, putts, GIR).
+- **A stat-line sport:** its schema's `heroStat` + `supportKeys`, with no code per sport.
+- **Zeros are left off.** An untracked stat is not a brag: the first screenshot showed "0% GIR" on a round entered without greens.
+- The card carries nothing personal beyond the masked display name (pinned by test).
+- `share-server.ts` is the one reader.
+
+**The image:** `/r/[postId]/card.png` uses the org card's recipe:
+- an explicit route, so the URL is hash-free;
+- `next/og` only in a `card.png` route (guardrail 5);
+- `createElement`, Geist regular, 1200×630;
+- `s-maxage=3600` (safe because it is viewer-independent);
+- the middleware matcher skips `*.png`.
+- **The Share button** on a public golf or stat-line post now hands out `/r/<id>`. The existing modal already offers the native share sheet and copy link.
+
+**Polish from the screenshots:**
+- Badge tiers now wear their metal (amber, slate and orange rings), and a locked "Up next" badge is a dashed outline. The old palette had silver and locked both grey.
+- The chip row splits evenly for 1, 2 or 3 chips.
+- "1 eagles" became "1 eagle".
+
+**Proof:**
+- `e2e/play-share-card.spec.ts` passed **4/4** on staging, and `play-badges` re-ran **4/4** (8/8 together). The share-card spec covers:
+  - a signed-out 200 with the card, the title, and the og:image ending in `/r/<id>/card.png`;
+  - the image is 200 `image/png`;
+  - a private post 307s to the in-app link and its image 404s;
+  - a public post of a private profile 404s its image;
+  - an unknown id is a 404;
+  - at 390px signed out, with no horizontal scroll.
+- 11 pure tests.
+- Screenshots of the card image, the page (desktop + 375px) and the trophy case were reviewed.
+
 ## September 28, 2026 — Play program, P4: the trophy case shows what was earned — on both profile routes, with a live celebration
 
 **Read:** `GET /api/profile/[profileId]/badges`

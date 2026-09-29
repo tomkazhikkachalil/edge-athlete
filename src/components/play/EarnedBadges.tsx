@@ -19,10 +19,9 @@ import {
   Trophy,
 } from 'lucide-react';
 import LargerWindow from '@/components/bubbles/LargerWindow';
-import { tierAccent } from '@/components/achievements/tier-colors';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { formatDateOnly } from '@/lib/sport-events/format';
-import type { BadgeDef, BadgeIcon } from '@/lib/play/badges/catalog';
+import type { BadgeDef, BadgeIcon, BadgeTier } from '@/lib/play/badges/catalog';
 import { badgeShelves, badgeViews, earnedLine, type BadgeView, type EarnedBadge } from '@/lib/play/badges/display';
 
 /**
@@ -57,6 +56,15 @@ const ICONS: Record<BadgeIcon, ComponentType<{ className?: string; 'aria-hidden'
   shuffle: Shuffle,
   medal: Medal,
 };
+
+// A badge's tier wears its metal; a LOCKED one is an outline (never mistaken
+// for silver). Literal classes — the JIT purges interpolated ones.
+const TIER_LOOK: Record<BadgeTier, { circle: string; icon: string; chip: string }> = {
+  gold: { circle: 'bg-amber-100 dark:bg-amber-950/60 ring-2 ring-amber-300 dark:ring-amber-700', icon: 'text-amber-600 dark:text-amber-300', chip: 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-100' },
+  silver: { circle: 'bg-slate-100 dark:bg-slate-800 ring-2 ring-slate-300 dark:ring-slate-600', icon: 'text-slate-600 dark:text-slate-200', chip: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' },
+  bronze: { circle: 'bg-orange-50 dark:bg-orange-950/50 ring-2 ring-orange-200 dark:ring-orange-800', icon: 'text-orange-700 dark:text-orange-300', chip: 'bg-orange-50 dark:bg-orange-950/50 text-orange-900 dark:text-orange-100' },
+};
+const LOCKED_LOOK = { circle: 'border-2 border-dashed border-border', icon: 'text-faint' };
 
 const sportName = (key: string | null) => (key === null ? 'Across sports' : SPORT_NAMES[key] ?? key);
 
@@ -175,7 +183,7 @@ function Shelves({ shelves, onOpen }: { shelves: ReturnType<typeof badgeShelves>
 
 function BadgeTile({ def, verified = false, locked = false, sub, onOpen }: { def: BadgeDef; verified?: boolean; locked?: boolean; sub: string; onOpen: () => void }) {
   const Icon = locked ? Lock : ICONS[def.icon];
-  const accent = tierAccent(locked ? null : def.tier);
+  const look = locked ? LOCKED_LOOK : TIER_LOOK[def.tier];
   return (
     <button
       type="button"
@@ -184,8 +192,8 @@ function BadgeTile({ def, verified = false, locked = false, sub, onOpen }: { def
       className={`ea-interactive w-full h-full flex flex-col items-center text-center gap-1.5 rounded-lg px-2 py-3 ${locked ? 'opacity-60' : ''}`}
       aria-label={`${def.label}${locked ? ' — not yet earned' : ''}${verified ? ' — verified' : ''}`}
     >
-      <span className={`relative flex items-center justify-center w-12 h-12 rounded-full ${accent.circle}`}>
-        <Icon className={`w-6 h-6 ${accent.text}`} aria-hidden />
+      <span className={`relative flex items-center justify-center w-12 h-12 rounded-full ${look.circle}`}>
+        <Icon className={`w-6 h-6 ${look.icon}`} aria-hidden />
         {verified && (
           <BadgeCheck className="absolute -bottom-1 -right-1 w-5 h-5 text-brand bg-surface rounded-full" aria-hidden />
         )}
@@ -198,14 +206,14 @@ function BadgeTile({ def, verified = false, locked = false, sub, onOpen }: { def
 
 function BadgeChip({ view, onOpen }: { view: BadgeView; onOpen: () => void }) {
   const Icon = ICONS[view.def.icon];
-  const accent = tierAccent(view.def.tier);
+  const look = TIER_LOOK[view.def.tier];
   return (
     <button
       type="button"
       role="listitem"
       onClick={onOpen}
       data-badge-key={view.key}
-      className={`ea-interactive inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${accent.chip}`}
+      className={`ea-interactive inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${look.chip}`}
     >
       <Icon className="w-4 h-4" aria-hidden />
       {view.def.label}
@@ -218,13 +226,13 @@ function BadgeDetail({ item, onClose }: { item: BadgeView | BadgeDef; onClose: (
   const earned = 'def' in item ? item : null;
   const def = earned ? earned.def : (item as BadgeDef);
   const Icon = earned ? ICONS[def.icon] : Lock;
-  const accent = tierAccent(earned ? def.tier : null);
+  const look = earned ? TIER_LOOK[def.tier] : LOCKED_LOOK;
   const line = earned ? earnedLine(earned) : null;
   return (
     <LargerWindow title={def.label} subtitle={sportName(def.sportKey)} onClose={onClose} windowKey="badge-detail">
       <div className="flex flex-col items-center text-center gap-3 py-2">
-        <span className={`flex items-center justify-center w-20 h-20 rounded-full ${accent.circle}`}>
-          <Icon className={`w-10 h-10 ${accent.text}`} aria-hidden />
+        <span className={`flex items-center justify-center w-20 h-20 rounded-full ${look.circle}`}>
+          <Icon className={`w-10 h-10 ${look.icon}`} aria-hidden />
         </span>
         <p className="text-base text-primary">{def.description}</p>
         {earned ? (
