@@ -1,5 +1,67 @@
 # Development Log
 
+## September 29, 2026 — Play program, P10: the close — COMPLETE on staging (#991–#1000, mig 244 the only DDL)
+
+**Tom's brief** (Sep 28): "something fun". He picked five features:
+- milestones + badges;
+- round share cards;
+- live-round cheers;
+- rivalries;
+- friend challenges.
+
+And the rule: *"I don't want it just be about golf. It's got to have the building blocks and principles for every other sport."*
+
+His plan-mode decisions:
+- **Rivalries:** the athlete chooses what shows, in the Stats area under the sport.
+- **Challenges:** mutual follows only.
+- **Counting:** every result counts; verified ones are marked.
+
+**What shipped, by PR** (each with its own entry below):
+- **P1 (#991):** migration 244.
+  - `athlete_performances.context_key / side / outcome`;
+  - the tables `badge_awards` (not the dropped `athlete_badges`), `athlete_rivalry_display`, `challenges`, `live_cheers`;
+  - the challenge bells; `challenges_enabled`; the reserved handle `r`.
+- **P2 (#992):** the mappers own the shared-game key; golf hole counts; `stampMatchOutcomes`; the pure head-to-head fold.
+- **P3 (#993):** the badge catalog (every sport by data), the evaluator, the one writer, and the post-write hook.
+- **P4 (#994):** the trophy case on both profile routes, plus the live celebration.
+- **P5 (#995):** `/r/[postId]` + its 1200×630 card, for every sport.
+- **P6 (#996):** rivalries in the Stats area under the sport; the athlete chooses what shows.
+- **P7 (#997):** live cheers, anonymous, on any live round.
+- **P8 (#998):** friend challenges: mutual follows, answered from the bell, settled by real results.
+- **P9 (#999):** the challenges UI: dare from your own result, answer in your Stats.
+- **P10 (this PR):** `docs/PLAY.md`, CLAUDE.md convention 29 (plus the docs index and THE list at 18).
+
+**What the specs found** (each fixed in its PR):
+- the athlete refused by `requireProfileRole` on their own profile (no profile holds a self owner row);
+- a visitor seeing themselves twice in a rivalry list;
+- an event's golf group post still `pending` when live;
+- `last_score_activity_at` is not a column;
+- cheer floats under the score-entry sheet;
+- a composer under `PostDetailModal` (and `LargerWindow` is not for forms);
+- a challengee with no results in the sport having nowhere to see the challenge;
+- "0% GIR" on a card;
+- silver badges indistinguishable from locked ones.
+
+**Proof on staging:**
+- All 20 Play e2e tests pass across desktop, mobile and webkit-mobile, with fresh users per test.
+- `npm run verify` exit 0 on every PR (4,099 tests at P9).
+- 244 applied (twin 14/14, `check:schema` OK).
+
+**What Tom owes, in order:**
+1. Run `database/migrations/244_play.sql` in the prod SQL editor. Expect `244 APPLIED | 3 | 4 | 4 | 1 | 1 | 1 | 244`.
+2. Then I run `check:schema:prod` + the baseline.
+3. Merge #991 → #1000 in order, each after its base.
+4. One prod probe of the five Play specs under `caffeinate`.
+5. The backfill door (dashboard → performance backfill) re-run on prod, so history gets its shared-game keys, hole counts and silent badges.
+6. An iPhone pass: the confetti, the cheer floats, the composer sheet.
+
+**Parked (decided)** — `docs/PLAY.md` has the list:
+- org contest lines' outcomes;
+- re-stamping old match rounds;
+- targeted cheers in the UI;
+- a badge share card;
+- the feed modal's first-load re-render.
+
 ## September 28–29, 2026 — Play program, P9: challenges in the app — dare from your own result, answer in your Stats
 
 **Three doors:**
