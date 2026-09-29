@@ -670,6 +670,60 @@ const { canView } = await response.json();
      the sample overlay's seam) until "Save content"; the contact card's
      fields take `contact_config.order` (`contactRenderOrder`). Read
      DEVLOG Sep 13 2026 S1–H3 first.
+   - **The sports-team website program (Sep 27–28 2026, #962–#988, mig 243
+     the ONLY DDL)** — Tom: a professional team site one person runs. The
+     pieces, each with its invariant:
+     *Look* — theme tokens `header: 'pro'` (utility strip + logo band) and
+     `width: standard | wide` (`.site-container`, never `max-w-4xl`);
+     `SiteNav.tsx` (md+ inline links with a Teams `<details>` dropdown from
+     `nav-groups.ts`, a CSS-only phone menu — no script); `TeamCrest` +
+     the teams `crests` variant; `SocialIcon` (inline SVG, never FA);
+     `footer_config.sponsorBar`; `hero_config.noticeTone/noticeHref`; the
+     branded site 404; the `:target` gallery lightbox (its image reserves
+     its box — a lazy 0×0 image flaked).
+     *One home* — the editor carries documents, gallery picks, the logo
+     and Subpages & navigation (`NavigationEditor`); the console Website
+     section keeps settings only plus the deep links (`deep-link.ts`:
+     `?open=settings`, `?section=`, `?news=<id>|new|list|recap:<contest>`).
+     *Newsroom* (243) — ONE edit shape (`news-state.ts routeEdit`): an
+     unpublished post's columns, a LIVE post's `draft` until Update;
+     compare-and-set on `updated_at` (409 carries the latest); scheduling is
+     a future `published_at` fenced by `.lte(now)` in every published reader
+     (`news-fence.test.ts`); inline `**bold**` / `[label](https://…)` via
+     `inline.ts` (never HTML); team / division tags reach those pages.
+     *Announce merged into news* — "Notify members" claims `notified_at`
+     ONCE (`news-notify-server.ts`; the reminders cron sweeps scheduled
+     posts) through Announce's own `fanOutAnnouncement`; "Show as a site
+     banner until" leads `activeBanner` (derived at READ time — nothing
+     writes live `org_sites` for a notice; `site-row-writers.test.ts`); the
+     console form retired, the history and the API stay.
+     *Game-day* — `fetchOrgGames` (the org's public fixture / bracket games
+     ±60 d, its teams' games in OTHER orgs' public competitions, and its
+     teams' sport-event games via `readSideEvents`; home-first, each item
+     tagged `teamIds` with the sides as data `pair`) feeds the Results page
+     (`/schedule/results` + twin) and the game-day tiles: `GAME_WIDGET_KEYS`
+     (`next_game` card | banner, `results` list | strip) — a FOURTH catalog
+     key set, web-only, gated by the SCHEDULE module through `moduleKey`
+     (`governedByModule`: the module's switch sweeps them too), switch
+     `either`, members-only wherever the TEAMS are (they print team names;
+     `effectiveAudience`), an optional `teamId` query. Team and division
+     pages lead with `nextGameOf` (never a calendar row). A game's STATUS
+     change purges the sites that show it (`withSiteFreshness` in
+     `lifecycle-server.ts`); its SCORE never does (pinned). The gallery's
+     Matchday / Club pro / League central seeds MINT game tiles by seed id
+     (`isSeedMinted`) — module tiles are still only arranged.
+     *Recaps* — `recap.ts` writes a DRAFT from the masked contest view;
+     `source_ref contest:<id>` (243's partial UNIQUE) makes a second click
+     the same draft; a private competition's recap drafts for members.
+     *Live* — `GET /api/public/org-sites/[slug]/live` (viewer-independent,
+     query → 400, 200 `s-maxage=10`, non-200 `no-store`, kill switch
+     `PUBLIC_LIVE_SCORES=0`, no rate bucket by design) and THE one client
+     island, `src/components/site-live/` (snapshot first, one poller per
+     URL, the server's `pollMs`, hidden tab quiet, Save-Data → Refresh) —
+     HARDENING B4.11 + guardrail 4e (the island's imports and the
+     `(public)` tree's `@/components` allowlist). The static CSP's
+     `script-src` is `'self' 'unsafe-inline'` — no `https:`.
+     Read DEVLOG Sep 27–28 2026 (P0 … V3) first.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
@@ -1303,6 +1357,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** September 2026 (Teams & divisions program) — this file is the single source of truth for project
+**Last Updated:** September 2026 (Sports-team website program) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.
