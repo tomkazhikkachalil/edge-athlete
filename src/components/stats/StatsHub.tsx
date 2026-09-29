@@ -11,6 +11,7 @@
  * Later rounds add the sport-chip layers and per-sport breakdowns.
  */
 
+import RivalsPanel from '@/components/play/RivalsPanel';
 import { useEffect, useRef, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import MediaGridItem, { type MediaItem } from '../media/MediaGridItem';
@@ -335,7 +336,13 @@ export default function StatsHub({
           ) : getStatSchema(card.sportKey as SportKey) ? (
             <StatLineBreakdown profileId={profileId} sportKey={card.sportKey as SportKey} />
           ) : undefined;
-        return <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>;
+        return (
+          <>
+            <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>
+            {/* Play (244): head-to-head in this sport — the athlete chooses what shows. */}
+            <RivalsPanel profileId={profileId} sportKey={card.sportKey} />
+          </>
+        );
       })()}
 
       {/* All layer: the per-sport summary intros above the combined grid. */}
