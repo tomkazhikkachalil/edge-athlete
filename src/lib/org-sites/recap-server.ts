@@ -79,7 +79,7 @@ export async function recapCandidates(admin: Admin, side: OrgKind, orgId: string
       .select(CONTEST_FIELDS)
       .in('competition_id', comps.map(c => c.id))
       .eq('status', 'completed')
-      .or(`scheduled_at.gte.${since},and(scheduled_at.is.null,play_from.gte.${since.slice(0, 10)})`)
+      .or(`scheduled_at.gte.${since},and(scheduled_at.is.null,play_from.gte.${since.slice(0, 10)})`) // hardening-ok: `since` is the server clock, never input
       .limit(100);
     if (error) {
       console.error(`${TAG} contests read failed:`, error);
