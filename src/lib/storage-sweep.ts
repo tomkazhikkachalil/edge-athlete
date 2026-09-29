@@ -126,7 +126,9 @@ export function collectSetMediaPaths(mediaValues: unknown[]): string[] {
  * that stores a bare path adds its prefix here in the same PR —
  * storage-sweep.test.ts reads every uploads writer and fails otherwise.
  */
-export const PROTECTED_PREFIXES = ['org-logos/', 'org-media/', 'contest-media/', 'team-logos/'] as const;
+// activities/ (245): a GPS stream's path is a bare column (activities.stream_path);
+// its owner's delete and the account-deletion engine remove it, never the sweep.
+export const PROTECTED_PREFIXES = ['org-logos/', 'org-media/', 'contest-media/', 'team-logos/', 'activities/'] as const;
 
 export function isProtectedPath(path: string): boolean {
   return PROTECTED_PREFIXES.some(prefix => path.startsWith(prefix));

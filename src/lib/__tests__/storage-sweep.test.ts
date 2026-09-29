@@ -158,6 +158,8 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   'src/lib/orgs/contest-media-server.ts': { marker: 'contest-media/', keep: { kind: 'protected', prefix: 'contest-media/' } },
   // Teams & divisions PR 6: teams.logo_path is a bare path (242's CHECK).
   'src/lib/teams/logo-server.ts': { marker: 'TEAM_LOGO_PREFIX', keep: { kind: 'protected', prefix: 'team-logos/' } },
+  // Activities (245): activities.stream_path is a bare path under activities/.
+  'src/lib/activities/write-server.ts': { marker: 'ACTIVITY_STREAM_PREFIX', keep: { kind: 'protected', prefix: 'activities/' } },
 };
 
 function sourceFiles(dir: string): string[] {

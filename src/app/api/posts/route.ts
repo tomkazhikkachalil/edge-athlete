@@ -10,6 +10,8 @@ import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { validateStatLine } from '@/lib/sports/stat-line-validate';
+import { isActivityShareRequest } from '@/lib/activities/post-card';
+import { buildActivityPostStats, linkActivityPost } from '@/lib/activities/share-server';
 import { fromStatLinePost } from '@/lib/performance/map';
 import { upsertPerformances } from '@/lib/performance/write-server';
 import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
@@ -283,8 +285,23 @@ export async function POST(request: NextRequest) {
     // a non-number, a bad or future date, a sport mismatch → 400 naming the
     // field — never clamped, never stripped. A vitals entry or any other
     // non-stat-line payload passes untouched.
-    if (incomingStatsData && postType !== 'golf') {
-      const line = validateStatLine(incomingStatsData, postType);
+    // Activities (245): "Share to feed" sends `{ type: 'activity', activity_id }`
+    // — a REQUEST. The card's payload is rebuilt from the athlete's own row
+    // (owner, not Only me, not already shared); the client's is never stored.
+    let statsData: Record<string, unknown> | null = incomingStatsData;
+    let shareActivityId: string | null = null;
+    if (isActivityShareRequest(incomingStatsData)) {
+      if (postType !== 'general') {
+        return NextResponse.json({ error: 'An activity is shared as a general post' }, { status: 400 });
+      }
+      const built = await buildActivityPostStats(supabase, userId, incomingStatsData.activity_id);
+      if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
+      statsData = { ...built.statsData };
+      shareActivityId = built.activityId;
+    }
+
+    if (statsData && postType !== 'golf') {
+      const line = validateStatLine(statsData, postType);
       if (!line.ok) return NextResponse.json({ error: line.error }, { status: 400 });
     }
 
@@ -319,7 +336,7 @@ export async function POST(request: NextRequest) {
       hashtags: hashtags,
       likes_count: 0,
       comments_count: 0,
-      ...(incomingStatsData && postType !== 'golf' ? { stats_data: incomingStatsData } : {}),
+      ...(statsData && postType !== 'golf' ? { stats_data: statsData } : {}),
       ...(repostTargetId ? { shared_post_id: repostTargetId } : {}),
       ...(postCategory ? { post_category: postCategory } : {}),
       ...(eventId ? { event_id: eventId } : {}),
@@ -399,7 +416,17 @@ export async function POST(request: NextRequest) {
     // the origin write — awaited, never throws, never fails the post (a
     // golf post's round is projected by post-write.ts; a pending post is
     // projected on approval).
-    if (post?.id && incomingStatsData && postType !== 'golf') {
+    // The activity learns its card; a lost race (another tab shared it a
+    // moment earlier) removes this second card rather than keep two.
+    if (post?.id && shareActivityId) {
+      const linked = await linkActivityPost(supabase, shareActivityId, userId, post.id);
+      if (!linked) {
+        await supabase.from('posts').delete().eq('id', post.id).eq('profile_id', userId);
+        return NextResponse.json({ error: 'This activity is already on your feed.' }, { status: 409 });
+      }
+    }
+
+    if (post?.id && statsData && postType !== 'golf') {
       const perf = fromStatLinePost({
         id: post.id,
         profile_id: userId,
@@ -407,7 +434,7 @@ export async function POST(request: NextRequest) {
         created_at: post.created_at ?? new Date().toISOString(),
         status: post.status ?? null,
         created_by_user_id: postData.created_by_user_id ?? null,
-        stats_data: incomingStatsData,
+        stats_data: statsData,
       });
       if (perf) await upsertPerformances(supabase, [perf]);
     }

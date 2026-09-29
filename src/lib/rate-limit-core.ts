@@ -79,6 +79,8 @@ export const RATE_LIMITS = {
   cheer: { max: 60, windowSeconds: 60, keyBy: 'user' },
   // Play (244): sending a friend challenge — a contact act, so a daily budget.
   challenge: { max: 20, windowSeconds: 86_400, keyBy: 'user' },
+  // Activities (245): a file import — a batch of ten is one sitting; a whole season is several.
+  'activity-import': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   follow: { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'conversation-create': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },

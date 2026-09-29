@@ -4,7 +4,7 @@
 // own total (a barometric ascent, a wheel-sensor distance) is kept only when
 // it agrees with the points within bounds — otherwise the points win.
 
-import { ACTIVITY_TYPE_DEFS } from './catalog';
+import { ACTIVITY_TYPE_DEFS, type ActivityType } from './catalog';
 import type { ActivityPoint, ActivitySummary, NormalizedActivity } from './types';
 
 /** At most this many samples travel from the browser to the server. */
@@ -211,25 +211,46 @@ export function implausibility(n: NormalizedActivity, s: ActivitySummary, now = 
   return null;
 }
 
-/** The athlete's local calendar day it started on: the file's own offset,
+/** The start in the athlete's local time: the file's own offset first,
  *  else the uploader's zone, else UTC (the date-only TZ trap). */
-export function occurredOn(startedAt: number, tzOffsetMin: number | null, timeZone: string | null): string {
+export function localParts(startedAt: number, tzOffsetMin: number | null, timeZone: string | null): { date: string; hour: number } {
   if (tzOffsetMin !== null && Number.isFinite(tzOffsetMin) && Math.abs(tzOffsetMin) <= 14 * 60) {
-    return new Date(startedAt + tzOffsetMin * 60_000).toISOString().slice(0, 10);
+    const iso = new Date(startedAt + tzOffsetMin * 60_000).toISOString();
+    return { date: iso.slice(0, 10), hour: Number(iso.slice(11, 13)) };
   }
   if (timeZone) {
     try {
-      const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(startedAt));
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(new Date(startedAt));
       const get = (k: string) => parts.find(p => p.type === k)?.value;
       const y = get('year');
       const m = get('month');
       const d = get('day');
-      if (y && m && d) return `${y}-${m}-${d}`;
+      const h = Number(get('hour'));
+      if (y && m && d && Number.isFinite(h)) return { date: `${y}-${m}-${d}`, hour: h % 24 };
     } catch {
       // an unknown zone falls through to UTC
     }
   }
-  return new Date(startedAt).toISOString().slice(0, 10);
+  const iso = new Date(startedAt).toISOString();
+  return { date: iso.slice(0, 10), hour: Number(iso.slice(11, 13)) };
+}
+
+/** The athlete's local calendar day it started on. */
+export function occurredOn(startedAt: number, tzOffsetMin: number | null, timeZone: string | null): string {
+  return localParts(startedAt, tzOffsetMin, timeZone).date;
+}
+
+/** "Morning Run", "Evening Ride" — the name when the file has none. */
+export function defaultActivityName(type: ActivityType, hour: number): string {
+  const part = hour < 5 ? 'Night' : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : hour < 21 ? 'Evening' : 'Night';
+  return `${part} ${ACTIVITY_TYPE_DEFS[type].label}`;
 }
 
 /** The dedupe key for a FILE: an athlete cannot start two activities in the

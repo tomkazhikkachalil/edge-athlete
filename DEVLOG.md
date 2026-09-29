@@ -1,5 +1,45 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 3: the server (the import doors, the one gate, share to feed)
+
+**Routes:**
+- **`POST /api/activities`:** a GPX/TCX payload parsed in the browser. It is write-gated, uses the new `activity-import` bucket (60/h), and a guardian may import for their athlete through `resolveActingProfile`. The body is capped at 3 MB and zod-checked.
+- **`POST /api/activities/fit`:** a raw .FIT (≤ 4 MB), decoded on the SERVER (the SDK's license). The athlete's type pick overrides the file's sport.
+- **`/api/activities/[id]`:** GET (signed-out visitors welcome), plus PATCH (name, type, Only me) and DELETE for the owner audience only.
+- **`GET /api/profile/[profileId]/activities`:** the tab: keyset-paged (a strict ISO timestamp + a uuid cursor, since it is interpolated into a filter), with the count and 12 weeks of totals on the first page. Every response is `private, no-store`.
+
+**The ONE gate** is `read-server.ts resolveActivityAccess`:
+- Self or a guardian → owner.
+- A departed athlete, a block or mute either way, or "Only me" → the same 404 as not-found.
+- Signed in → `canViewProfile`; signed out → a public profile only.
+- For everyone but the owner, the athlete's supervision picks the audience.
+
+**`write-server.ts importActivity`** is the ONE writer:
+- It recomputes every total and refuses the implausible with the reason.
+- It writes the gzipped stream BEFORE the row; a failed row write removes the object it just wrote.
+- A re-import refreshes the data but keeps the athlete's name, type, Only me and post. Two tabs racing lands one row (the 23505 branch).
+- `deleteActivity` removes the post, the row, then the stream.
+
+**Share to feed** (`POST /api/posts` with `stats_data {type:'activity', activity_id}`):
+- The payload is a REQUEST. The card is rebuilt from the author's own row (`share-server.ts`): the trimmed preview, or no route for a supervised author.
+- "Only me" and an already-shared activity are refused by name.
+- The post links back through a compare-and-set, so the loser of a race deletes its own card.
+- An Only-me switch on a shared activity is refused ("delete that post first").
+
+**The house rules, each pinned:**
+- THE write-gate list 18 → 20 (`activities`, `activities/fit`; SUPPORT.md and CLAUDE.md updated).
+- `PROTECTED_PREFIXES` gains `activities/`, and `write-server.ts` is classified in the sweep test.
+- The tab route is reviewed in the authz audit.
+- The QA teardown removes a QA athlete's streams, since the protected prefix is never swept.
+
+**Proof on staging:** `e2e/activities-api.spec.ts` 3/3.
+- A GPX import, a re-import (200, the same id), and **the same run as a .FIT → the same activity**.
+- Owner vs stranger vs signed out (trimmed, no storage path, `no-store`).
+- A supervised athlete (no `lat`/`lng` key at all, the charts kept); Only me; a private profile then a follow; a block.
+- The share rebuilt from the row despite a forged distance and preview; a double share → 409.
+- Delete takes the row, the post and the object together.
+- The refusals: car speed → 422 in words, misaligned columns → 400, non-FIT bytes → 422, a bad cursor → 400.
+
 ## September 29, 2026 — Activities program, PR 2: the pure core (parsers, normalizer, stream, projections)
 
 **`src/lib/activities/`**, pure except the one `-server` module:

@@ -556,6 +556,12 @@ export async function deleteQaUser(userId: string): Promise<void> {
   await admin.from('workout_sessions').delete().eq('profile_id', userId);
   await admin.from('athlete_vitals').delete().eq('profile_id', userId);
   await admin.from('athlete_achievements').delete().eq('profile_id', userId);
+  // Activities (245): the GPS streams live in storage under a PROTECTED
+  // prefix (the sweep never touches them), so a QA athlete's go with them.
+  const { data: streams } = await admin.storage.from('uploads').list(`activities/${userId}`, { limit: 1000 });
+  if (streams && streams.length > 0) {
+    await admin.storage.from('uploads').remove(streams.map(o => `activities/${userId}/${o.name}`));
+  }
 
   // Delete the profiles row FIRST (the account-deletion flow's order): the
   // auth-side cascade fires the search-document delete trigger as

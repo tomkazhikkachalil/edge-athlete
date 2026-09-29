@@ -125,6 +125,7 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'messages/[conversationId]/participants/[profileId]': 'participant-scoped via conversation membership',
   'privacy/check': 'read-only visibility probe; leaks only a boolean the UI needs',
   'profile/[profileId]/media': 'visibility-filtered public read surface',
+  'profile/[profileId]/activities': 'Activities (245): gated by read-server resolveActivityAccess (self / guardian / canViewProfile / blocks / departed), projected per audience',
   'profile/[profileId]/contest-media':
     'visibility-filtered public read (GET mirrors the media route gate); DELETE self/guardian-gated inline',
   'profile/[profileId]/organizations': 'public org membership read',
