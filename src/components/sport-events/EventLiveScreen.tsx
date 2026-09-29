@@ -14,6 +14,7 @@ import type { StatLineView } from '@/lib/sport-events/stats-server';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import ScoreControl from './ScoreControl';
 import StatEntryStrip from './StatEntryStrip';
+import LiveCheers from '@/components/play/LiveCheers';
 
 interface Props {
   eventId: string;
@@ -136,6 +137,8 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
         <h1 className="text-h3 font-bold text-primary">{round.name?.trim() || (rounds.length > 1 ? `Round ${round.sequence}` : view.event.shape === 'game' ? 'The game' : 'The session')}</h1>
         <p className="text-xs text-muted">{formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ' · not started'}</p>
       </div>
+      {/* Play (244): cheers on the live round — every sport's. */}
+      {roundId && <LiveCheers contextKey={`sport_event_round:${roundId}`} signedIn={!!user} />}
       {data && sides && roundId && (
         <ScoreControl eventId={eventId} roundId={roundId} score={data.round.score} sides={sides} canScore={!!user && live && data.viewer.can_score} onSaved={refresh} />
       )}

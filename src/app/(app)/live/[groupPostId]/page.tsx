@@ -22,6 +22,7 @@ import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import { polylineYards, trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import LiveCheers from '@/components/play/LiveCheers';
 
 /**
  * /live/[groupPostId] — a live round as a PLACE.
@@ -378,6 +379,9 @@ export default function LiveRoundPage() {
         // replace() for the same back-button reason as above.
         onDeleted={() => router.replace('/feed')}
       />
+
+      {/* Play (244): cheers for everyone watching; the floats reach the scorer too. */}
+      <LiveCheers contextKey={`group_post:${groupPostId}`} signedIn={!!user} />
 
       {groupCard && (entry.mode === 'score' || entry.mode === 'record') && user && activeGroup && (
         <div className="mt-4 -mx-4 bg-surface rounded-lg border border-border overflow-hidden" style={{ minHeight: '60vh' }}>

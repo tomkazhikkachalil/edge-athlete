@@ -75,6 +75,8 @@ export const RATE_LIMITS = {
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },
   like: { max: 120, windowSeconds: 600, keyBy: 'user' },
+  // Play (244): a live-round cheer — a tap, so generous, but a held finger is not a flood.
+  cheer: { max: 60, windowSeconds: 60, keyBy: 'user' },
   follow: { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'conversation-create': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },

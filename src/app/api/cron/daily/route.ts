@@ -14,6 +14,7 @@ import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runTicketAnonymize } from '@/lib/tickets/server';
 import { purgeDeletedNews } from '@/lib/org-sites/news-server';
 import { runModerationLift } from '@/lib/moderation/server';
+import { purgeOldCheers } from '@/lib/play/cheers-server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -168,6 +169,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] deleted news purge phase failed:', e);
     summary.deletedNews = { ok: false };
+  }
+
+  // Play (244): live cheers are a garnish — gone after 30 days. Pre-244 a no-op.
+  try {
+    summary.cheers = await purgeOldCheers(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] cheers purge phase failed:', e);
+    summary.cheers = { ok: false };
   }
 
   // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the
