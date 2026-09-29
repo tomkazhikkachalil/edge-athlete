@@ -71,6 +71,8 @@ export interface ChallengeDraft {
   message?: string | null;
   /** The challenger's own result it was made from ("Beat my 78"). */
   sourceKey?: string | null;
+  /** Golf: hold it to the source round's course (the server reads the course off the challenger's OWN round). */
+  sameCourse?: boolean;
 }
 
 export interface ValidChallenge {

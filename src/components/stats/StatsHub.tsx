@@ -12,6 +12,8 @@
  */
 
 import RivalsPanel from '@/components/play/RivalsPanel';
+import ChallengesPanel from '@/components/play/ChallengesPanel';
+import { challengeMetrics } from '@/lib/play/challenges';
 import { useEffect, useRef, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import MediaGridItem, { type MediaItem } from '../media/MediaGridItem';
@@ -341,9 +343,15 @@ export default function StatsHub({
             <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>
             {/* Play (244): head-to-head in this sport — the athlete chooses what shows. */}
             <RivalsPanel profileId={profileId} sportKey={card.sportKey} />
+            {/* Play (244): friend challenges — the athlete's own, never shown to visitors. */}
+            {isOwnProfile && challengeMetrics(card.sportKey).length > 0 && <ChallengesPanel sportKey={card.sportKey} />}
           </>
         );
       })()}
+
+      {/* Play (244): the athlete's challenges across sports — a challenge in a
+          sport with no layer yet (no results there) still lands here. */}
+      {!selectedSport && isOwnProfile && <ChallengesPanel sportKey={null} />}
 
       {/* All layer: the per-sport summary intros above the combined grid. */}
       {!selectedSport && (skillCards?.length ?? 0) > 0 && (

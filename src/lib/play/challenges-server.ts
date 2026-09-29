@@ -148,6 +148,13 @@ export async function createChallenge(admin: Admin, challengerId: string, draft:
   }
   if ((open ?? 0) >= OPEN_CAP) return { ok: false, status: 409, error: `You have ${OPEN_CAP} open challenges — let one finish first.` };
 
+  // "Beat my 78 at Eagle Creek": the course comes off the challenger's OWN round (a catalog course only).
+  if (draft.sameCourse && c.sport_key === 'golf' && c.source_key?.startsWith('golf_round:')) {
+    const { data: src } = await admin.from('golf_rounds').select('course_id').eq('id', c.source_key.slice('golf_round:'.length)).eq('profile_id', challengerId).maybeSingle();
+    const courseId = (src as { course_id?: string | null } | null)?.course_id ?? null;
+    if (courseId) c.course_id = courseId;
+  }
+
   const { data, error } = await admin.from('challenges').insert({ challenger_id: challengerId, ...c }).select(COLUMNS).single();
   if (error || !data) {
     if (error && isMissingTableError(error.code)) return { ok: false, status: 503, error: 'Challenges are not available yet.' };
