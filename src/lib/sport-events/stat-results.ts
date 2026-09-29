@@ -34,6 +34,8 @@ export interface StatLinePostData extends StatLineData {
   sport_event_id: string;
   sport_event_round_id: string;
   sport_event_stat_line_id: string;
+  /** The player's side on a game (244, the Play program): the performance row's `side` — teammates vs opponents. */
+  side?: 1 | 2;
 }
 
 /** A line mirrors only when something was entered — an untouched line is not a game played. */
@@ -58,7 +60,7 @@ export function statLinePostData(event: Pick<SportEventRow, 'id' | 'name' | 'spo
     const opponent = game.sides[line.side === 1 ? 1 : 0];
     const result = resultFor(line.side, game.score);
     const score = resultScore(line.side, game.score);
-    return { ...base, opponent, ...(result ? { result } : {}), ...(score ? { result_score: score } : {}) };
+    return { ...base, side: line.side, opponent, ...(result ? { result } : {}), ...(score ? { result_score: score } : {}) };
   }
   return { ...base, opponent: event.name };
 }

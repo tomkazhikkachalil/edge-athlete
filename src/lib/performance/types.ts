@@ -43,7 +43,24 @@ export interface PerformanceOverlay {
  *  purpose: a PostgREST upsert updates only the columns in the payload,
  *  so a row written without them leaves an existing overlay untouched
  *  (`provenance DEFAULT 'self_reported'` carries the first write). */
-export interface PerformanceRow extends Partial<PerformanceOverlay> {
+/** How a shared game ended for this athlete (244) — only where the context
+ *  DECIDES one (a game's sides, a match); a stroke-play round leaves it
+ *  NULL and the reader compares headlines. */
+export type PerformanceOutcome = 'win' | 'loss' | 'tie';
+
+/** The shared game a result was played in (244; the Play program). Two
+ *  athletes' rows with the same `context_key` played the same game — a
+ *  rivalry is one self-join. OPTIONAL keys, the overlay's rule: a mapper
+ *  sends only what it OWNS (golf owns the key but never side / outcome —
+ *  a match's outcome is stamped at completion and a round edit must not
+ *  NULL it). */
+export interface PerformanceContext {
+  context_key?: string | null;
+  side?: 1 | 2 | null;
+  outcome?: PerformanceOutcome | null;
+}
+
+export interface PerformanceRow extends Partial<PerformanceOverlay>, PerformanceContext {
   /** 238: NULL once the person left (the fact survives, the link is severed). */
   profile_id: string | null;
   sport_key: string;
@@ -62,6 +79,30 @@ export const naturalKey = {
   golfRound: (roundId: string): string => `golf_round:${roundId}`,
   contestStatLine: (lineId: string): string => `contest_stat_line:${lineId}`,
 } as const;
+
+/** The three shared-game kinds (244's CHECK) — ONE canonical key per game,
+ *  so a game mirrored elsewhere (an event round's group post, a contest's
+ *  copy of an event game) is never counted twice: a golf shared round is
+ *  ALWAYS its group post, an event stat round its round, an org contest
+ *  line its contest. */
+export const contextKey = {
+  groupPost: (groupPostId: string): string => `group_post:${groupPostId}`,
+  sportEventRound: (roundId: string): string => `sport_event_round:${roundId}`,
+  contest: (contestId: string): string => `contest:${contestId}`,
+} as const;
+
+export type ContextKind = 'group_post' | 'sport_event_round' | 'contest';
+
+/** `group_post:<uuid>` → its kind; `null` for anything else. */
+export function contextKindOf(key: string | null | undefined): ContextKind | null {
+  const m = typeof key === 'string' ? /^(group_post|sport_event_round|contest):[0-9a-f-]{36}$/.exec(key) : null;
+  return m ? (m[1] as ContextKind) : null;
+}
+
+/** A stat line's `W | L | T` → the column's word. */
+export function outcomeFromResult(result: unknown): PerformanceOutcome | null {
+  return result === 'W' ? 'win' : result === 'L' ? 'loss' : result === 'T' ? 'tie' : null;
+}
 
 /** Which way a better headline points. The column stores the number; the
  *  rank is the reader's (the scout search orders by this). */

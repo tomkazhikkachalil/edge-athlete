@@ -46,6 +46,8 @@ import { writeStartsOn } from './rounds-server';
 import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus, isStablefordFormat } from './types';
 import { mintStatRound, syncStatLineForPlayer } from './stats-server';
 import { mirrorStatRound } from './stat-results-server';
+import { matchOutcomeEntries } from '@/lib/performance/match-outcomes';
+import { stampMatchOutcomes } from '@/lib/performance/write-server';
 import { mirrorEventMedia } from './media-server';
 import { recordAuthority } from '@/lib/authority/audit-server';
 
@@ -371,6 +373,8 @@ async function applyRoundTransitionCore(admin: Admin, req: RoundTransitionReques
       // never counts toward a competition (`not_stroke_play`).
       if (match) {
         await closeMatchesOnCompletion(admin, matches, now);
+        // 244 (Play): each player's side + win / loss onto their mirrored row (the mirror ran above).
+        await stampMatchOutcomes(admin, round.group_post_id, matchOutcomeEntries(matches));
         await notifyMatchClosed(admin, event, round.id, matches, req.actorProfileId); // 213; best-effort, 23514-tolerant
         await syncMatchContests(admin, event, round, matches, req.actorProfileId); // track 2 PR 11: the org's bracket result
       } else await syncSportEventContest(admin, event, round, req.actorProfileId);

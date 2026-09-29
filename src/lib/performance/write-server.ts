@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { fromGolfRound, groupUniformRows, type GolfRoundOrigin } from './map';
-import { naturalKey, type PerformanceOverlay, type PerformanceRow, type PerformanceSourceTable } from './types';
+import type { MatchOutcomeEntry } from './match-outcomes';
+import { contextKey, naturalKey, type PerformanceOverlay, type PerformanceRow, type PerformanceSourceTable } from './types';
 
 /**
  * The ONE writer of `athlete_performances` — data foundation, F3 (Sep 13
@@ -78,7 +79,7 @@ export async function deletePerformancesBySource(
 }
 
 export const GOLF_ROUND_ORIGIN_SELECT =
-  'id, profile_id, date, holes, par, gross_score, total_putts, fir_percentage, gir_percentage, course_rating, slope_rating, course_id, course, tee, group_post_id';
+  'id, profile_id, date, holes, par, gross_score, total_putts, fir_percentage, gir_percentage, course_rating, slope_rating, course_id, course, tee, group_post_id, hole_scores:golf_holes(par, strokes)';
 
 /** Re-read the round and project it — `gross_score` exists only after
  *  `calculate_round_stats`, so every golf hook calls this AFTER the RPC.
@@ -101,6 +102,38 @@ export async function syncGolfRoundPerformance(
     return upsertPerformances(admin, [row]);
   } catch (err) {
     console.warn(`${TAG} round sync threw:`, err instanceof Error ? err.message : err);
+    return { ok: false };
+  }
+}
+
+/** 244 (the Play program): a completed match round's side + outcome onto
+ *  its players' mirrored golf rows — the one place those two columns are
+ *  written for golf (the mapper never sends them, so a later round edit
+ *  keeps them). Scoped to the round's group post so a row is only ever
+ *  stamped inside its own shared game. Never throws; always await. */
+export async function stampMatchOutcomes(admin: SupabaseClient, groupPostId: string, entries: readonly MatchOutcomeEntry[]): Promise<WriteOutcome> {
+  if (entries.length === 0) return { ok: true, count: 0 };
+  try {
+    const profileIds = [...new Set(entries.map(e => e.profileId))];
+    const { data, error } = await admin.from('golf_rounds').select('id, profile_id').eq('group_post_id', groupPostId).in('profile_id', profileIds);
+    if (error) return outcomeOf(error, 0, 'match outcome round read');
+    const roundOf = new Map(((data ?? []) as Array<{ id: string; profile_id: string }>).map(r => [r.profile_id, r.id]));
+    let count = 0;
+    for (const e of entries) {
+      const roundId = roundOf.get(e.profileId);
+      if (!roundId) continue; // no mirrored card (an empty card, a hidden player's erase) — nothing to stamp
+      const { error: upErr } = await admin
+        .from('athlete_performances')
+        .update({ side: e.side, outcome: e.outcome })
+        .eq('natural_key', naturalKey.golfRound(roundId))
+        .eq('context_key', contextKey.groupPost(groupPostId));
+      const o = outcomeOf(upErr, 1, 'match outcome stamp');
+      if (!o.ok) return o;
+      count++;
+    }
+    return { ok: true, count };
+  } catch (err) {
+    console.warn(`${TAG} match outcome stamp threw:`, err instanceof Error ? err.message : err);
     return { ok: false };
   }
 }
