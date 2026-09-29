@@ -1,5 +1,43 @@
 # Development Log
 
+## September 28, 2026 — Play program, P6: rivalries, in the Stats area under the sport
+
+**Tom's rule:** "The user can choose what they want to display. It should be displayed in the stats area under the sport itself."
+
+**The read:** `src/lib/play/rivals-server.ts` is one self-join on the fact table's shared-game key (P2), for every sport.
+- It reads the athlete's shared games in the sport, then everyone else's rows in those games, and folds them per opponent with `versus.ts foldHeadToHead`: stroke play, matches, games, and sides (the together record).
+- Opponent names are the masked public name. Only a public profile links, and a masked name never shows a face.
+- The shapes live in `rivals.ts`, which is pure and client-safe.
+
+**Who sees what** (`GET /api/profile/[profileId]/rivals?sport=`, `private, no-store`):
+- **The athlete, or their guardian:** every rival, with a Show / Hide toggle per rival. **None is shown by default.** A supervised athlete sees theirs, and their guardian decides what shows.
+- **Anyone else who may view the profile** (the Achievements tab's gate): only the shown rivals. A viewer who has played the athlete always sees **their own record, from their side**, and never sees themselves in the list.
+- **A stranger to a private profile:** nothing.
+
+**The choice:** `PUT` (with `athlete_rivalry_display` presence meaning shown) is allowed for the athlete themself, unless supervised, and for a guardian through `manage_settings`.
+- The first e2e run caught that `requireProfileRole` alone refuses the athlete: no profile has a self `owner` access row (staging: 0 of 501). Only a supervised self row exists.
+- So the route uses the followers route's rule: self is allowed unless supervised, and everyone else goes through the role matrix.
+
+**The UI:** `RivalsPanel` sits in the Stats hub's sport layer, so it appears on all three stats routes (`/athlete`, `/athlete/[id]`, `/u/`). Each row shows:
+- the record (W–L–T) and the last five as W / L / T chips;
+- "Together x–y" for teammates;
+- "n more played" for games with no result;
+- "n verified".
+
+The toggle is optimistic and rolls back on a refusal.
+
+**Proof:**
+- `e2e/play-rivals.spec.ts` passed **3/3** on staging (desktop + mobile + webkit-mobile). It uses two fresh athletes and a **real** event round: live → scored → completed → both mirrored rows keyed on the round's group post. It checks:
+  - the athlete sees B hidden, record 1–0, `['W']`;
+  - B sees `yours` 0–1 and no list;
+  - a stranger sees nothing;
+  - B cannot show A's rivals (403);
+  - A shows B → a stranger sees one rival, and B still sees only their own record;
+  - a private A hides it again;
+  - in the UI: the 1–0 row, the toggle, and B's own 0–1 on A's page and on `/u/` at 390px.
+- All the Play specs together pass **11/11**.
+- The screenshots were reviewed. They are what caught the visitor seeing themselves twice.
+
 ## September 28, 2026 — Play program, P5: every public result has a share card
 
 **The page:** `/r/[postId]` is where a share link lands and what a link preview unfurls from.
