@@ -1448,7 +1448,7 @@ export async function fetchPublicDivisions(
     .from('seasons')
     .select('id, label, starts_on, ends_on')
     .eq(ORG_ID, orgId)
-    .or(`ends_on.is.null,ends_on.gte.${today}`)
+    .or(`ends_on.is.null,ends_on.gte.${today}`) // hardening-ok: `today` is the server clock's ISO day, never input
     .order('starts_on', { ascending: false, nullsFirst: false })
     .limit(3);
   if (degraded('divisions seasons', error) || !seasons || seasons.length === 0) return [];

@@ -1,5 +1,21 @@
 # Development Log
 
+## September 29, 2026 — Maintenance: the full checklist, and the website program's last production check
+
+**The last production check (#986–#988):** after the merge, production served the tightened policy (`script-src 'self' 'unsafe-inline'`). The prod probe ran under `caffeinate` and passed **19/19**: live-scoreboard, csp, live-feed, gameday-widgets, gameday-pages, org-site, pro-header, gallery, forms. The sports-team website program (#962–#988) is COMPLETE and proven on production.
+
+**The checklist, on main at 3cb37694:**
+- `npm run verify` green: typecheck, lint at 0 warnings, 4027 tests in 433 files, the production build, and 211 client chunks inside the iOS 15 floor.
+- The hardening guardrails pass.
+- `npm audit` finds no high or critical advisory. Lower-severity ones remain; `npm audit fix --force` would take breaking upgrades, so it was deliberately not run.
+
+**One advisory resolved by reading, not by code:** the guardrail's "interpolated `.or()`" note counted three sites. All three interpolate a value the server makes itself, never input:
+- `public-data.ts` — today's ISO day;
+- `recap-server.ts` — the 30-day window's start;
+- `media-server.ts` — a round uuid read from the database.
+
+Each now carries `hardening-ok` with its reason. The change is comments only, so behaviour is unchanged.
+
 ## September 28, 2026 — Sports-team website program, F: the close — COMPLETE (#962–#988, mig 243 the only DDL)
 
 **Tom's brief** (Sep 27): a site that "looks like a professional site", with "all the functionalities required for one user to manage all the edits and news", making the manager's life as easy as possible. His plan-mode decisions: all four pillars (pro look, one home, newsroom, game-day); Announce merged into news; one-click recap drafts; a live scoreboard on the site.

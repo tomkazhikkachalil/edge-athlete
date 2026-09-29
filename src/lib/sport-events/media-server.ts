@@ -40,7 +40,7 @@ export async function mirrorEventMedia(admin: Admin, event: Pick<SportEventRow, 
   try {
     const { data: post } = await admin.from('posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
     if (!post?.id) return;
-    const { data: rows, error } = await admin.from('sport_event_media').select(MEDIA_COLUMNS).eq('sport_event_id', event.id).is('mirrored_at', null).or(`sport_event_round_id.eq.${round.id},sport_event_round_id.is.null`);
+    const { data: rows, error } = await admin.from('sport_event_media').select(MEDIA_COLUMNS).eq('sport_event_id', event.id).is('mirrored_at', null).or(`sport_event_round_id.eq.${round.id},sport_event_round_id.is.null`); // hardening-ok: `round.id` is a uuid read from the database, never input
     if (error || !rows || rows.length === 0) return;
     const media = rows as EventMediaRow[];
     const { data: existing } = await admin.from('post_media').select('media_url, display_order').eq('post_id', post.id);
