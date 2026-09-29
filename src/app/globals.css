@@ -540,6 +540,18 @@ body {
  * Small CSS-only motions for reactions and message edits. No new dependency
  * required. Disabled automatically by the prefers-reduced-motion block below.
  */
+/* Play (244): a live cheer rises and fades (LiveCheers). The reduced-motion
+ * block below collapses it to an instant, so nothing moves for those users. */
+@keyframes ea-cheer-float {
+  0%   { transform: translateY(0) scale(0.8); opacity: 0; }
+  15%  { transform: translateY(-20px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-220px) scale(1); opacity: 0; }
+}
+
+.ea-cheer-float {
+  animation: ea-cheer-float 1.8s ease-out forwards;
+}
+
 @keyframes ea-reaction-pop {
   0%   { transform: scale(0.85); }
   60%  { transform: scale(1.08); }

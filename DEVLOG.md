@@ -1,5 +1,40 @@
 # Development Log
 
+## September 28, 2026 — Play program, P7: live cheers, every sport
+
+**The feature:** anyone who may watch a live round taps one of six emoji (🔥 👏 💪 🎯 🙌 😮). It floats up for everyone watching, including the player mid-entry, and the round keeps a count.
+- Cheers work on a golf shared round (`group_post:<id>`, which is also what event golf rounds use) and on a stat event's round (`sport_event_round:<id>`). These are the fact table's own context keys.
+- **They are anonymous by design.** A cheer is a key, never text, and no name ever rides one. So cheers are no contact surface: nothing to moderate, and nothing a stranger can say to a minor. The spec pins that the feed never carries the cheerer's id.
+
+**The gate is the context's own, re-run on every read and write** (`src/lib/play/cheers-server.ts`, the one writer):
+- A golf round goes through `canViewSharedRound` (the scorecard route's rule); an event round through `readSportEventAccess`.
+- A refusal is the same 404 an unknown round gets.
+- Reading the count works for anyone who may watch, signed out included on a public round. Cheering needs a session and a **live** round.
+- A target, when named, must be one of the players.
+- Like a like, a cheer is not on the write-gate list (content and contact routes); the `cheer` bucket (60 a minute) keeps a held finger from being a flood.
+- **"Live" follows the event round when there is one.** An event's golf group post stays `pending` until its first score, and the first run caught cheers refused on a just-started round. A casual round is live while `pending` or `active` and not gone quiet (`effectiveRoundStatus`). `last_score_activity_at` is not a column: it is derived from the newest card write, scorecard-transform's rule. The second run caught that 404.
+- The daily cron purges cheers after 30 days.
+
+**The client:**
+- `useCheers` is the round-stats poll's shape: every 10 s while visible, quiet when hidden, once on return. The first read is a baseline (past cheers are counted, never floated).
+- A tap floats at once (optimistic) and remembers its id, so the next poll never floats it twice.
+- `LiveCheers` sits on the golf live page and on the stat event's live screen.
+- **The floats are portaled to `<body>` at `z-[70]`.** The spec caught the player's score-entry sheet covering them at z-40. They now sit above the sheet and the house modals and below toasts, with pointer-events none.
+- The reduced-motion block turns the rise into an instant.
+
+**Proof:**
+- `e2e/play-cheers.spec.ts` passed **4/4** on staging (desktop, mobile, webkit-mobile), with a fresh player and a fresh spectator. It checks:
+  - anonymous read + `no-store`;
+  - 401 / 400 / 400 on the refusals;
+  - a targeted cheer → 201, and the feed carries no cheerer id;
+  - the player's live page floats a new cheer with no reload, above the entry sheet;
+  - the player's own tap reaches the server;
+  - a finished round → 409 and still counts;
+  - a private round is a 404 to a stranger and anonymous reads, and a 200 to the player;
+  - 390px, no horizontal scroll.
+- 4 pure tests.
+- A screenshot of the bar with a rising float was reviewed.
+
 ## September 28, 2026 — Play program, P6: rivalries, in the Stats area under the sport
 
 **Tom's rule:** "The user can choose what they want to display. It should be displayed in the stats area under the sport itself."
