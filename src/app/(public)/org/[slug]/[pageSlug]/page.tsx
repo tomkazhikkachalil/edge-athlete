@@ -60,7 +60,7 @@ export default async function OrgSitePage({ params }: PageParams) {
   const layout = parsePageLayout(page.layout);
   if (layout) {
     const data = await resolveHomeData(cachedSiteReaders(slug, site), site, layout);
-    return <GridRenderer site={site} layout={layout} data={data} heading={page.title} />;
+    return <GridRenderer site={site} layout={layout} data={data} heading={page.title} live />;
   }
 
   return (

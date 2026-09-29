@@ -12,6 +12,7 @@ import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import TeamScheduleList from '@/components/teams/TeamScheduleList';
 import { NextGameCard } from '@/components/teams/GameDayCards';
 import { nextGameOf } from '@/lib/teams/schedule';
+import { liveFeedPath } from '@/lib/org-sites/urls';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { isSportEnabled } from '@/lib/features';
 
@@ -79,7 +80,7 @@ export default async function OrgSiteDivisionPage({ params }: PageParams) {
       {/* G4: the division's next game leads the page. */}
       {nextGameOf(schedule) && (
         <section aria-label="Next game" data-division-next-game="">
-          <NextGameCard game={nextGameOf(schedule)} variant="banner" />
+          <NextGameCard game={nextGameOf(schedule)} variant="banner" feedUrl={liveFeedPath(site.subdomain)} />
         </section>
       )}
 

@@ -1,5 +1,45 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, V2: the live card — the public site's one client island (zero DDL)
+
+**What visitors get:** a "Next game" card for a game being played now follows the score LIVE, on the site home, a custom page, the team page and the division page, without a reload. When the game finishes it flips to "Final". Screen readers hear the new score through a polite live region.
+
+**How it stays cheap and safe (HARDENING B4.11):**
+- **The island:** `src/components/site-live/` (`LiveScoreboard` + a shared `feed-poller`) is the ONLY client code a public site page ships beyond the framework runtime. Its first render IS the ISR snapshot, so there is no hydration drift, and without JavaScript the snapshot and "Follow the game →" stand on their own.
+- **The rules** are pure in `live-poll.ts`:
+  - it polls only a game being played or starting within two hours, read on the viewer's clock (the ISR copy may be minutes old);
+  - one request per page per tick however many cards;
+  - the server's `pollMs`, jittered ±20 %; exponential backoff to a 5-minute cap;
+  - never an older feed (a stale edge copy cannot roll a score back);
+  - nothing while the tab is hidden, resuming at once when it shows;
+  - Save-Data / reduced-data → a "Refresh score" button, never automatic;
+  - `AbortController` only (the iOS 15 floor).
+- **Where it's on:** the published pages only (`GridRenderer live`, the team and division pages). The editor canvas, the picker and the draft preview pass no feed URL, and the in-app pages don't poll.
+- **Guardrail 4e (new):**
+  - the island imports only React and the two pure feed modules — no Supabase, auth, cookies, storage, Font Awesome or absolute-URL fetch;
+  - the `(public)` tree may import from `@/components` only six allowlisted server-safe modules;
+  - the feed route and its reader read no session.
+  - Negative-tested: a throwaway violating file failed the script. That test found that `git grep 'dir/**/*.ts'` misses files directly in `dir`, so the rule uses `dir/*.ts`.
+
+**A spec fix riding along:** V1's `org-site-live-feed` asserted the raw `s-maxage=10`, and on prod Vercel's CDN consumes it and hands the browser `public, max-age=5`. The spec now follows the #303 pattern (`league-standings`): the raw directive locally; `x-vercel-cache` + public (never no-store) on Vercel. It then passed on prod.
+
+**The production check for #975–#985:**
+- The first run took 11.8 h because the Mac slept mid-run: 20 failures, all timeouts or `fetch failed` on the spec's own Supabase admin calls, across unrelated specs.
+- The rerun of exactly those specs, under `caffeinate`, ran 28 passed, 1 skipped (the cron half of news-notify, whose local CRON_SECRET ≠ prod's), and 1 failed (the live-feed header above).
+- The fixed spec then passed on prod.
+- Lesson: a long prod probe runs under `caffeinate -dimsu`.
+
+**Proof:**
+- `npm run verify` green: 4026 tests. The island's chunks parse and call within the iOS 15 floor (211 client chunks). New `live-poll.test.ts` covers watch, delay, merge, Save-Data and the snapshot mapper.
+- New `org-site-live-scoreboard.spec.ts` @mobile passes on both engines. It covers:
+  - the snapshot first;
+  - a score written mid-page lands on the card and the aria-live line with no reload;
+  - no overflow at 390 px and zero CSP violations;
+  - a hidden tab makes no requests over 25 s;
+  - Save-Data shows Refresh, makes nothing automatic, and asks exactly once on click;
+  - with JS off the snapshot and "Follow the game →" render.
+- Green alongside it: live-feed, gameday-widgets, gameday-pages.
+
 ## September 28, 2026 — Sports-team website program, V1: the public live-scores feed (zero DDL) — and a privacy fix to the game tiles
 
 **The feed:** `GET /api/public/org-sites/[slug]/live` is the one public, polled read behind the coming live card (V2).

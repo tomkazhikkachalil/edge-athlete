@@ -59,3 +59,9 @@ export function siteAbsoluteUrl(site: SiteAddress): string {
 export function siteContestLink(basePath: string, orgId: string): (contestId: string, competitionOrgId: string) => string {
   return (contestId, competitionOrgId) => (competitionOrgId === orgId ? `${basePath}/schedule/${contestId}` : `${appBaseUrl()}/event/${contestId}`);
 }
+
+/** V2: a site's live feed — RELATIVE on purpose (it works on the app host,
+ *  the vanity path and a custom domain alike; /api is host-agnostic). */
+export function liveFeedPath(slug: string): string {
+  return `/api/public/org-sites/${slug}/live`;
+}

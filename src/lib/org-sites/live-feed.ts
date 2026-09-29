@@ -52,7 +52,8 @@ const atMs = (when: string | null): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
-function toGame(i: TeamScheduleItem): LiveFeedGame {
+/** V2: a schedule item as the feed would carry it — the island's first render. */
+export function liveGameOf(i: TeamScheduleItem): LiveFeedGame {
   return {
     id: i.key,
     state: i.state,
@@ -75,7 +76,7 @@ export function projectLiveFeed(games: { upcoming: readonly TeamScheduleItem[]; 
     const t = atMs(i.when);
     return t !== null && nowMs - t <= RECENT_FINAL_MS && t <= nowMs;
   });
-  const picked = [...live, ...soon, ...recent].slice(0, LIVE_FEED_MAX_GAMES).map(toGame);
+  const picked = [...live, ...soon, ...recent].slice(0, LIVE_FEED_MAX_GAMES).map(liveGameOf);
   const pollMs = live.length > 0 ? POLL_LIVE_MS : soon.length > 0 ? POLL_SOON_MS : 0;
   return { v: LIVE_FEED_VERSION, at: new Date(nowMs).toISOString(), pollMs, games: picked };
 }

@@ -51,6 +51,8 @@ export interface WidgetBodyProps {
    *  members-only module renders the panel; the body never reads the
    *  instance's stored visibility itself. */
   membersOnly?: boolean;
+  /** V2: the live feed for the next-game card — the published pages only. */
+  liveFeedUrl?: string | null;
 }
 
 /** The section title for a widget — the INSTANCE's title (phase 5), else
@@ -71,7 +73,7 @@ export function widgetHeading(site: PublicSite, w: WidgetInstance): string | nul
   return widgetTitle(site, w);
 }
 
-export default function WidgetBody({ site, w, data: raw, spec, membersOnly = false }: WidgetBodyProps) {
+export default function WidgetBody({ site, w, data: raw, spec, membersOnly = false, liveFeedUrl = null }: WidgetBodyProps) {
   // Phase 9: the instance's QUERY narrows the bag first (which competition,
   // which venue, how many) — the same pick the empty rule makes.
   const data = selectForInstance(w, raw);
@@ -445,6 +447,7 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
           game={games.upcoming[0] ?? null}
           variant={variant === 'banner' ? 'banner' : 'card'}
           scheduleHref={`${siteBasePath(site)}/schedule`}
+          feedUrl={liveFeedUrl}
         />
       );
     }

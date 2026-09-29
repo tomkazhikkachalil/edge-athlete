@@ -6,6 +6,7 @@ import { deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { effectiveAudience } from '@/lib/site-builder/audience';
 import { publicWidgets } from '@/lib/site-builder/public-view';
 import { fitOf } from '@/lib/site-builder/fit';
+import { liveFeedPath } from '@/lib/org-sites/urls';
 import HeroSection from './HeroSection';
 import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
@@ -33,7 +34,7 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
 const HERO_KEY = 'hero';
 
-export default function GridRenderer({ site, layout, data, heading }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData; /** Program 2, B4: a PAGE's visible h1 (pages have no hero). */ heading?: string }) {
+export default function GridRenderer({ site, layout, data, heading, live = false }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData; /** Program 2, B4: a PAGE's visible h1 (pages have no hero). */ heading?: string; /** V2: the published pages follow the live feed; the draft preview does not. */ live?: boolean }) {
   const spec = effectiveSpec(site);
   const compact = spec.density === 'compact';
   const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'}`;
@@ -72,7 +73,7 @@ export default function GridRenderer({ site, layout, data, heading }: { site: Pu
             <section key={w.id} aria-label={title} className={`sb-w ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id} data-sb-fit={fitOf(w)}>
               {heading && <h2 className={headingClass}>{heading}</h2>}
               <div className="sb-body">
-                <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
+                <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} liveFeedUrl={live ? liveFeedPath(site.subdomain) : null} />
               </div>
             </section>
           );

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { TeamScheduleItem } from '@/lib/teams/schedule';
 import { whenOf } from './TeamScheduleList';
 import ScrollStrip from '@/app/(public)/org/[slug]/_components/ScrollStrip';
+import LiveScoreboard from '@/components/site-live/LiveScoreboard';
+import { liveGameOf } from '@/lib/org-sites/live-feed';
 
 // The game-day sections — sports-team website program, G2 (Sep 28 2026).
 // Props-only and server-safe (the (public) contract: no hooks, no script):
@@ -35,11 +37,15 @@ export function NextGameCard({
   game,
   variant = 'card',
   scheduleHref,
+  feedUrl = null,
 }: {
   game: TeamScheduleItem | null;
   variant?: 'card' | 'banner';
   /** Absent on a page that lists the schedule itself (team, division). */
   scheduleHref?: string;
+  /** V2: the site's live feed — the public pages pass it; the editor, the
+   *  preview and the app leave it off (a static snapshot). */
+  feedUrl?: string | null;
 }) {
   if (!game) return <p className="mt-1 text-sm text-tertiary">No games scheduled.</p>;
   const live = game.state === 'live';
@@ -51,14 +57,20 @@ export function NextGameCard({
       data-site-next-game={game.state}
       data-variant={variant}
     >
-      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-        {live ? (
-          <span className="rounded-full bg-red-600 px-2 py-0.5 text-white">Live</span>
-        ) : (
-          <span className={banner ? 'opacity-80' : 'text-secondary'}>Next game</span>
-        )}
-      </p>
-      <Matchup game={game} />
+      {feedUrl ? (
+        <LiveScoreboard feedUrl={feedUrl} initial={liveGameOf(game)} />
+      ) : (
+        <>
+          <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+            {live ? (
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-white">Live</span>
+            ) : (
+              <span className={banner ? 'opacity-80' : 'text-secondary'}>Next game</span>
+            )}
+          </p>
+          <Matchup game={game} />
+        </>
+      )}
       <p className={`mt-3 break-words text-sm ${banner ? 'opacity-90' : 'text-secondary'}`}>{meta}</p>
       <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium">
         {game.href && (

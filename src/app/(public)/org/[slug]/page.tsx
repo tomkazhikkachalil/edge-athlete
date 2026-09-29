@@ -73,7 +73,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(buildOrgJsonLd(site)) }}
       />
-      <GridRenderer site={site} layout={layout} data={data} />
+      <GridRenderer site={site} layout={layout} data={data} live />
     </>
   );
 }

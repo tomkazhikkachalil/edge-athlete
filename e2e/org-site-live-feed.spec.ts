@@ -58,12 +58,20 @@ test('live feed: a live game’s score, cacheable for everyone; query strings re
     const first = await pollUntil(
       async () => {
         const r = await anon.request.get(url);
-        return { status: r.status(), cache: r.headers()['cache-control'] ?? '', body: r.status() === 200 ? ((await r.json()) as Feed) : null };
+        return { status: r.status(), cache: r.headers()['cache-control'] ?? '', edge: !!r.headers()['x-vercel-cache'], body: r.status() === 200 ? ((await r.json()) as Feed) : null };
       },
       v => v.status === 200 && !!v.body && !!liveGame(v.body),
       { attempts: 12, label: 'the live game on the feed' }
     );
-    expect(first.cache).toContain('s-maxage=10');
+    // Vercel's CDN CONSUMES s-maxage into its own layer and hands the browser
+    // only the max-age (the #303 lesson — league-standings asserts the same):
+    // the raw directive locally, x-vercel-cache + public (never no-store) there.
+    if (first.edge) {
+      expect(first.cache).toContain('public');
+      expect(first.cache).not.toContain('no-store');
+    } else {
+      expect(first.cache).toContain('s-maxage=10');
+    }
     expect(first.body!.pollMs).toBe(15_000);
     expect(liveGame(first.body!)).toMatchObject({ state: 'live', home: { name: `Hawks ${stamp}`, score: 1 }, away: { name: `Storm ${stamp}`, score: 0 } });
     const raw = JSON.stringify(first.body);
