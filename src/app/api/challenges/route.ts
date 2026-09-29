@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       holes: body.holes === 9 || body.holes === 18 ? body.holes : null,
       message: typeof body.message === 'string' ? body.message : null,
       sourceKey: typeof body.sourceKey === 'string' ? body.sourceKey : null,
+      sameCourse: body.sameCourse === true,
     };
     const out = await createChallenge(getSupabaseAdmin(), user.id, draft);
     if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });

@@ -15,6 +15,11 @@ import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import SharePostModal from './SharePostModal';
 import { shareableKind } from '@/lib/play/share-card';
+import { challengePrefillFor } from '@/lib/play/challenge-prefill';
+import dynamic from 'next/dynamic';
+
+// Play (244): the composer loads only when an owner taps "Challenge a friend".
+const ChallengeComposer = dynamic(() => import('./play/ChallengeComposer'), { ssr: false });
 import RepostModal from './RepostModal';
 import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import SportPostBody from './SportPostBody';
@@ -231,6 +236,7 @@ function PostCard({
 
   // Resume-banner deep link: open the viewer's own score entry once, as soon
   const [showShareModal, setShowShareModal] = useState(false);
+  const [challengeOpen, setChallengeOpen] = useState(false);
 
   // The one number the post is "about", for the strip over the lead media.
   // Null when there is nothing worth overlaying — an empty strip on someone's
@@ -434,6 +440,7 @@ function PostCard({
   };
 
   const isOwner = currentUserId === post.profile.id;
+  const challengePrefill = isOwner ? challengePrefillFor(post) : null;
   const [reportOpen, setReportOpen] = useState(false);
 
   const nextMedia = () => {
@@ -1010,6 +1017,19 @@ function PostCard({
               <i className="far fa-share-square text-lg"></i>
             </button>
 
+            {/* Play (244): the owner dares a friend to beat this result. */}
+            {isOwner && !actingAs && challengePrefill && (
+              <button
+                onClick={() => setChallengeOpen(true)}
+                className="flex items-center justify-center text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px] min-w-[44px]"
+                title="Challenge a friend"
+                aria-label="Challenge a friend"
+                data-post-challenge
+              >
+                <i className="fas fa-bolt text-lg"></i>
+              </button>
+            )}
+
             <button
               onClick={handleSave}
               disabled={actingAs}
@@ -1189,6 +1209,10 @@ function PostCard({
             setShowFullScorecard(true);
           }}
         />
+      )}
+
+      {challengeOpen && challengePrefill && (
+        <ChallengeComposer sportKey={challengePrefill.sportKey} prefill={challengePrefill.prefill} onClose={() => setChallengeOpen(false)} />
       )}
 
       {/* Share Post Modal */}

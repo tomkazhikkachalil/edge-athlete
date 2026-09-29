@@ -131,3 +131,57 @@ test('the refusals: not mutual, a decline, a block, challenges switched off', as
     await dispose(t);
   }
 });
+
+// P9: the UI. A dares B from A's OWN round card ("Beat my 77", prefilled);
+// B lands on the bell's link — their Stats, on golf, the challenge
+// highlighted — and accepts there. Desktop and phone width.
+for (const phone of [false, true]) {
+  test(`challenge from your own round, accept in the Stats panel${phone ? ' @mobile' : ''}`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const t = await trio();
+    const viewport = phone ? { width: 390, height: 844 } : undefined;
+    try {
+      const holes = Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: 4, score: i === 0 ? 3 : i <= 6 ? 5 : 4 }));
+      const made = await t.apiA.post('/api/posts', { data: { caption: `Dare round ${Date.now()}`, visibility: 'private', postType: 'golf', golfData: { date: today(), courseName: 'QA Dare Links', holes: '18', coursePar: 72, holesData: holes } } });
+      expect(made.ok(), await readErrorBody(made)).toBe(true);
+      const postId = (await made.json()).post.id as string;
+
+      const ctxA = await browser.newContext({ storageState: await mintStorageState(t.a), extraHTTPHeaders: bypassHeaders(), ...(viewport ? { viewport } : {}) });
+      const pageA = await ctxA.newPage();
+      await pageA.goto(`/feed?post=${postId}`);
+      // ?post= opens the post in its modal over the feed — the one on top is the LAST in the DOM.
+      // Let the feed settle first: its first data pass re-renders the modal.
+      await pageA.waitForLoadState('networkidle');
+      const dare = pageA.locator('[data-post-challenge]').last();
+      await expect(dare).toBeVisible({ timeout: 20_000 });
+      await dare.click({ timeout: 15_000 });
+      const composer = pageA.locator('[data-challenge-composer]');
+      await expect(composer.locator('select[name="challengee"]')).toBeVisible({ timeout: 15_000 });
+      await composer.locator('select[name="challengee"]').selectOption(t.b.id, { timeout: 15_000 });
+      await expect(composer.locator('input[name="target"]')).toHaveValue('77');
+      await expect(composer.locator('[data-challenge-preview]')).toContainText('Shoot under 77 (18 holes) at QA Dare Links');
+      await composer.getByRole('button', { name: 'Send challenge' }).click({ timeout: 15_000 });
+      await expect(pageA.getByText('Challenge sent')).toBeVisible({ timeout: 15_000 });
+      await ctxA.close();
+
+      const { data: bell } = await adminClient().from('notifications').select('action_url, metadata').eq('user_id', t.b.id).eq('type', 'challenge').single();
+      const challengeId = (bell!.metadata as { challenge_id: string }).challenge_id;
+      expect(bell!.action_url).toBe(`/athlete?tab=stats&sport=golf&challenge=${challengeId}`);
+
+      const ctxB = await browser.newContext({ storageState: await mintStorageState(t.b), extraHTTPHeaders: bypassHeaders(), ...(viewport ? { viewport } : {}) });
+      const pageB = await ctxB.newPage();
+      await pageB.goto(bell!.action_url as string);
+      const item = pageB.locator(`[data-challenge="${challengeId}"]`);
+      await expect(item).toContainText('Challenger Ann challenged you', { timeout: 25_000 });
+      await item.getByRole('button', { name: 'Accept' }).click({ timeout: 15_000 });
+      await expect(item).toHaveAttribute('data-challenge-status', 'accepted', { timeout: 15_000 });
+      if (phone) {
+        const overflow = await pageB.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow, 'no horizontal page scroll at 390px').toBeLessThanOrEqual(0);
+      }
+      await ctxB.close();
+    } finally {
+      await dispose(t);
+    }
+  });
+}

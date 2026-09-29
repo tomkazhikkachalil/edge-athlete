@@ -1,5 +1,41 @@
 # Development Log
 
+## September 28–29, 2026 — Play program, P9: challenges in the app — dare from your own result, answer in your Stats
+
+**Three doors:**
+- **"Challenge a friend" from one of your OWN results.** It is a ⚡ in the post's action bar, shown to the owner only.
+  - It is prefilled by the pure `challenge-prefill.ts`: a golf round gives its score, length and course ("Shoot under 77 (18 holes) at Eagle Creek Golf Club"); a stat line gives the headline stat it recorded.
+  - "At <course>" is resolved **on the server** from the challenger's own round (`sameCourse`). The client round carries no course id, and a client-sent id would be a claim.
+- **The Challenges panel** sits in your own Stats hub's sport layer, with "Challenge a friend", the list, Accept / Pass, and Call it off.
+- **"Your challenges" in the All view**, across sports, which renders nothing while there are none.
+  - The first UI run found the gap this closes: the bell links to `/athlete?tab=stats&sport=golf`, but a challengee with no golf results has no golf layer, so the hub falls back to All, and the challenge had nowhere to render.
+  - `?challenge=<id>` highlights and scrolls to the challenge.
+  - A challenge waiting on *you* sorts first, marked "Your move".
+  - Challenges are never shown to visitors; they are between two people.
+
+**The composer (`ChallengeComposer.tsx`) is its own dialog, not a `LargerWindow`:**
+- That house window is for read-only content (never `useDirtyClose`) and sits at z-50, *under* `PostDetailModal` (z-[60]), where the ⚡ is often tapped.
+- So the composer is portaled to `<body>` at z-[65] (the media editor's precedent): a bottom sheet on a phone, a centered card from sm:.
+- Escape and the backdrop go through `useDirtyClose`, and the discard confirm sits at z-[70].
+- The picker lists exactly who you may challenge (`/api/challenges/people`).
+- The metric list is the sport's own vocabulary.
+- A live preview shows the challenge in words.
+
+**Settings:** "Friend challenges" in Notification settings (`challenges_enabled`). Off means nobody can send you one.
+
+**Observed, not fixed:** `/feed?post=` re-renders its post modal on the feed's first data pass, so a composer opened within the first instant after load is dropped. The spec settles the page first. A tap that early is rare, and the fix belongs to the feed modal, not this program.
+
+**Proof:**
+- `e2e/play-challenges.spec.ts` now passes **5/5**, adding the UI test on desktop, mobile and webkit-mobile:
+  - A opens their own round → ⚡ → the composer is prefilled with 77 and the course preview;
+  - A picks B and sends → "Challenge sent";
+  - the bell's link is exactly `/athlete?tab=stats&sport=golf&challenge=<id>`;
+  - B lands on it → the challenge renders ("Challenger Ann challenged you") → Accept → `accepted`;
+  - no horizontal scroll at 390px.
+- All Play specs together pass **20/20**.
+- 3 pure prefill tests.
+- Screenshots of the panel and composer at 375px were reviewed; they are what caught the header wrap and the ordering.
+
 ## September 28, 2026 — Play program, P8: friend challenges, settled by real results
 
 **Tom's rules:** mutual follows only; every result counts, and a verified one is marked. Examples: "Shoot under 78 (18 holes) at Eagle Creek by Oct 28", "20+ points by Oct 12".

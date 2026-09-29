@@ -16,6 +16,7 @@ interface Preferences {
   mentions_enabled: boolean;
   tags_enabled: boolean;
   achievements_enabled: boolean;
+  challenges_enabled: boolean;
   system_announcements_enabled: boolean;
   club_updates_enabled: boolean;
   email_enabled: boolean;
@@ -46,6 +47,7 @@ const GROUPS: Array<{ title: string; items: Array<{ key: PrefKey; label: string;
     title: 'Platform',
     items: [
       { key: 'achievements_enabled', label: 'Achievements', description: 'Milestones and badges you earn' },
+      { key: 'challenges_enabled', label: 'Friend challenges', description: 'Friends can challenge you — off means nobody can send you one' },
       { key: 'system_announcements_enabled', label: 'Announcements', description: 'Updates from Edge Athlete' },
       { key: 'club_updates_enabled', label: 'Club updates', description: 'News from clubs you belong to' },
     ],
