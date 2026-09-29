@@ -1,5 +1,38 @@
 # Development Log
 
+## September 28, 2026 — Play program, P1: migration 244 (the program's only DDL)
+
+**Tom's brief:** "something fun". He picked five features: milestones + badges, round share cards, live cheers, rivalries and friend challenges. His rule: "I don't want it just be about golf. It's got have the building blocks and principles for every other sport."
+
+**His plan-mode decisions:**
+- **Rivalries:** the athlete chooses which to show, in the Stats area under the sport.
+- **Challenges:** mutual follows only.
+- **Counting:** every result counts; a verified one is marked.
+
+**The rule that makes it sport-agnostic:** every piece reads `athlete_performances` (194, the one fact table), never a sport's own tables.
+
+**What 244 adds:**
+- **The fact table learns its shared context.** `context_key` (`group_post:` · `sport_event_round:` · `contest:`), `side` and `outcome`. A rivalry becomes one self-join. The mappers fill these in P2, and the backfill door re-runs; no SQL backfill.
+- **`badge_awards`:** earned badges, `UNIQUE (profile_id, badge_key)`, with the key namespaced by sport. This is deliberately not the name `athlete_badges`, which 191 recorded and 199 dropped (`schema-inventory.test.ts` pins that it stays gone).
+- **`athlete_rivalry_display`:** the rivalries an athlete chose to show.
+- **`challenges`:** metric, target, direction, window, status, and `version` for compare-and-set.
+- **`live_cheers`:** a key from a fixed set of six, never free text.
+- All four new tables are posture A.
+- **Notifications:** the `challenge` and `challenge_result` types (registered).
+- **`notification_preferences.challenges_enabled`.**
+- **Reserved handle `r`:** for `/r/[postId]`, the public result page (P5). Also in `RESERVED_ROOT_SLUGS`.
+
+**Two parser lessons:**
+- `helpers/live-schema.ts` only sees foreign keys, primary keys and uniques declared as named `ALTER TABLE … ADD CONSTRAINT`. Inline `REFERENCES` or `CONSTRAINT … UNIQUE` inside a `CREATE TABLE` is invisible to `fk-index-coverage` and `profile-fk-classification` until the next baseline. So 244 names them all, using Postgres's default `<table>_<col>_fkey` names so the baseline reads the same.
+- Every new cascading foreign key onto profiles is classified `goes` in `PROFILE_FK_POLICY`, with a `mustDelete` for each in the deletion engine. Badges, shown rivalries, challenges and cheers are the person's own, never a result.
+
+**Proof:**
+- On staging, 244 returned `244 APPLIED | 3 | 4 | 4 | 1 | 1 | 1 | 244`.
+- The twin `verify-244-play.sql` shows 14/14 OK (488 performance rows, 0 with a context yet).
+- `check:schema` passes at head 244.
+
+**This PR must not merge until 244 runs on prod.** The deletion engine now names the four tables, so deleting an account would fail before 244 runs there.
+
 ## September 29, 2026 — `scripts/merge-pr.sh`: one guarded command to merge a PR
 
 **Why:** Claude Code's auto mode blocks a raw `curl … /pulls/N/merge` as a merge without review, and an allow rule for `curl` in general would let almost anything through. This script is the ONE command to allow instead: `"Bash(bash scripts/merge-pr.sh *)"` in `.claude/settings.local.json`.

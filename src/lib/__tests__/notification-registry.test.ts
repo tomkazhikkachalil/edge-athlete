@@ -100,6 +100,8 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'affiliation_update',
       'carpool_offer',
       'carpool_update',
+      'challenge',
+      'challenge_result',
       'club_join',
       'club_request_result',
       'competition_entry_decided',

@@ -139,6 +139,10 @@ export const NOTIFICATION_TYPE_META = {
   // Teams & divisions (242): you were added to, moved between, removed from or
   // carried forward on a team roster (a supervised athlete's guardians get a copy).
   team_roster: { tab: null, icon: 'fa-people-group' },
+  // Play (244): a friend challenged you (Accept / Decline from the bell), and
+  // how a challenge ended (won / lost / expired / declined).
+  challenge: { tab: null, icon: 'fa-bolt' },
+  challenge_result: { tab: null, icon: 'fa-flag-checkered' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
