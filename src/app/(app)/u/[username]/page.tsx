@@ -13,6 +13,7 @@ import RecruitingCard from '@/components/recruiting/RecruitingCard';
 import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
+import EarnedBadges from '@/components/play/EarnedBadges';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
 import VitalsTab from '@/components/VitalsTab';
 import EquipmentSection from '@/components/EquipmentSection';
@@ -573,6 +574,9 @@ export default function PublicProfilePage() {
 
         {activeSection === 'overview' && (
           <>
+
+        {/* Badges — earned automatically from results (Play, 244); nothing at zero */}
+        <EarnedBadges profileId={profile.id} variant="compact" />
 
         {/* Achievements — real athlete_achievements rows, podium-first */}
         {achievements.length > 0 && (

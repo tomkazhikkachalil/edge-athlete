@@ -23,6 +23,8 @@ import { STAT_SCHEMAS } from '@/lib/sports/stat-schemas';
 
 export type BadgeTier = 'bronze' | 'silver' | 'gold';
 
+export type BadgeIcon = 'flag' | 'layers' | 'trophy' | 'verified' | 'star' | 'golf' | 'flame' | 'bird' | 'feather' | 'target' | 'trending' | 'crown' | 'shuffle' | 'medal';
+
 export type BadgeRule =
   /** The athlete's results in this sport reach `min` (the first result is 1). */
   | { kind: 'results'; min: number }
@@ -44,8 +46,8 @@ export interface BadgeDef {
   sportKey: string | null;
   label: string;
   description: string;
-  /** A Font Awesome solid icon name. */
-  icon: string;
+  /** A glyph NAME — the UI maps it to its icon set (EarnedBadges.tsx), so this file stays data. */
+  icon: BadgeIcon;
   tier: BadgeTier;
   rule: BadgeRule;
 }
@@ -74,14 +76,14 @@ function perSportPack(sportKey: string): BadgeDef[] {
     sportKey,
     label: step.label,
     description: step.min === 1 ? `Logged your first ${n}.` : `Logged ${step.min} ${n}s.`,
-    icon: step.min === 1 ? 'fa-flag' : 'fa-layer-group',
+    icon: step.min === 1 ? 'flag' : 'layers',
     tier: step.tier,
     rule: { kind: 'results', min: step.min },
   }));
   if (sportKey !== 'golf' && sportKey !== 'track_field') {
-    out.push({ key: `${sportKey}.first_win`, sportKey, label: 'First win', description: `Won a ${n}.`, icon: 'fa-trophy', tier: 'bronze', rule: { kind: 'win' } });
+    out.push({ key: `${sportKey}.first_win`, sportKey, label: 'First win', description: `Won a ${n}.`, icon: 'trophy', tier: 'bronze', rule: { kind: 'win' } });
   }
-  out.push({ key: `${sportKey}.first_verified`, sportKey, label: 'On the record', description: `A verified ${n} — recorded by a club, league or sanctioning body.`, icon: 'fa-certificate', tier: 'silver', rule: { kind: 'verified' } });
+  out.push({ key: `${sportKey}.first_verified`, sportKey, label: 'On the record', description: `A verified ${n} — recorded by a club, league or sanctioning body.`, icon: 'verified', tier: 'silver', rule: { kind: 'verified' } });
   return out;
 }
 
@@ -99,7 +101,7 @@ function milestonePack(): BadgeDef[] {
           sportKey: schema.sport_key,
           label: named ?? `${value} ${field.label}`,
           description: value === 1 ? `${field.label.replace(/s$/, '')} in a ${n}.` : `${value} or more ${field.label.toLowerCase()} in one ${n}.`,
-          icon: 'fa-star',
+          icon: 'star',
           tier: i === 0 ? 'bronze' : i === 1 ? 'silver' : 'gold',
           rule: { kind: 'metric', metric: field.key, op: 'gte', value },
         });
@@ -110,24 +112,24 @@ function milestonePack(): BadgeDef[] {
 }
 
 const GOLF_PACK: BadgeDef[] = [
-  { key: 'golf.break_100', sportKey: 'golf', label: 'Broke 100', description: 'Shot 99 or better over 18 holes.', icon: 'fa-golf-ball-tee', tier: 'bronze', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 99, holes: 18 } },
-  { key: 'golf.break_90', sportKey: 'golf', label: 'Broke 90', description: 'Shot 89 or better over 18 holes.', icon: 'fa-golf-ball-tee', tier: 'bronze', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 89, holes: 18 } },
-  { key: 'golf.break_80', sportKey: 'golf', label: 'Broke 80', description: 'Shot 79 or better over 18 holes.', icon: 'fa-golf-ball-tee', tier: 'silver', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 79, holes: 18 } },
-  { key: 'golf.break_70', sportKey: 'golf', label: 'Broke 70', description: 'Shot 69 or better over 18 holes.', icon: 'fa-golf-ball-tee', tier: 'gold', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 69, holes: 18 } },
-  { key: 'golf.under_par', sportKey: 'golf', label: 'Red number', description: 'Finished 18 holes under par.', icon: 'fa-fire', tier: 'gold', rule: { kind: 'metric', metric: 'to_par', op: 'lte', value: -1, holes: 18 } },
-  { key: 'golf.first_birdie', sportKey: 'golf', label: 'First birdie', description: 'Made a birdie.', icon: 'fa-dove', tier: 'bronze', rule: { kind: 'metric', metric: 'birdies', op: 'gte', value: 1 } },
-  { key: 'golf.birdie_barrage', sportKey: 'golf', label: 'Birdie barrage', description: 'Three or more birdies in one round.', icon: 'fa-dove', tier: 'silver', rule: { kind: 'metric', metric: 'birdies', op: 'gte', value: 3 } },
-  { key: 'golf.first_eagle', sportKey: 'golf', label: 'Eagle', description: 'Made an eagle (or better).', icon: 'fa-feather', tier: 'gold', rule: { kind: 'metric', metric: 'eagles', op: 'gte', value: 1 } },
-  { key: 'golf.hole_in_one', sportKey: 'golf', label: 'Hole-in-one', description: 'An ace.', icon: 'fa-bullseye', tier: 'gold', rule: { kind: 'metric', metric: 'aces', op: 'gte', value: 1 } },
-  { key: 'golf.handicap_20', sportKey: 'golf', label: 'Handicap under 20', description: 'A handicap index of 20.0 or lower.', icon: 'fa-chart-line', tier: 'bronze', rule: { kind: 'handicap', atMost: 20 } },
-  { key: 'golf.handicap_10', sportKey: 'golf', label: 'Single digits', description: 'A handicap index of 10.0 or lower.', icon: 'fa-chart-line', tier: 'silver', rule: { kind: 'handicap', atMost: 10 } },
-  { key: 'golf.handicap_5', sportKey: 'golf', label: 'Handicap under 5', description: 'A handicap index of 5.0 or lower.', icon: 'fa-chart-line', tier: 'gold', rule: { kind: 'handicap', atMost: 5 } },
-  { key: 'golf.handicap_0', sportKey: 'golf', label: 'Scratch', description: 'A handicap index of 0.0 or better.', icon: 'fa-crown', tier: 'gold', rule: { kind: 'handicap', atMost: 0 } },
+  { key: 'golf.break_100', sportKey: 'golf', label: 'Broke 100', description: 'Shot 99 or better over 18 holes.', icon: 'golf', tier: 'bronze', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 99, holes: 18 } },
+  { key: 'golf.break_90', sportKey: 'golf', label: 'Broke 90', description: 'Shot 89 or better over 18 holes.', icon: 'golf', tier: 'bronze', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 89, holes: 18 } },
+  { key: 'golf.break_80', sportKey: 'golf', label: 'Broke 80', description: 'Shot 79 or better over 18 holes.', icon: 'golf', tier: 'silver', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 79, holes: 18 } },
+  { key: 'golf.break_70', sportKey: 'golf', label: 'Broke 70', description: 'Shot 69 or better over 18 holes.', icon: 'golf', tier: 'gold', rule: { kind: 'metric', metric: 'gross', op: 'lte', value: 69, holes: 18 } },
+  { key: 'golf.under_par', sportKey: 'golf', label: 'Red number', description: 'Finished 18 holes under par.', icon: 'flame', tier: 'gold', rule: { kind: 'metric', metric: 'to_par', op: 'lte', value: -1, holes: 18 } },
+  { key: 'golf.first_birdie', sportKey: 'golf', label: 'First birdie', description: 'Made a birdie.', icon: 'bird', tier: 'bronze', rule: { kind: 'metric', metric: 'birdies', op: 'gte', value: 1 } },
+  { key: 'golf.birdie_barrage', sportKey: 'golf', label: 'Birdie barrage', description: 'Three or more birdies in one round.', icon: 'bird', tier: 'silver', rule: { kind: 'metric', metric: 'birdies', op: 'gte', value: 3 } },
+  { key: 'golf.first_eagle', sportKey: 'golf', label: 'Eagle', description: 'Made an eagle (or better).', icon: 'feather', tier: 'gold', rule: { kind: 'metric', metric: 'eagles', op: 'gte', value: 1 } },
+  { key: 'golf.hole_in_one', sportKey: 'golf', label: 'Hole-in-one', description: 'An ace.', icon: 'target', tier: 'gold', rule: { kind: 'metric', metric: 'aces', op: 'gte', value: 1 } },
+  { key: 'golf.handicap_20', sportKey: 'golf', label: 'Handicap under 20', description: 'A handicap index of 20.0 or lower.', icon: 'trending', tier: 'bronze', rule: { kind: 'handicap', atMost: 20 } },
+  { key: 'golf.handicap_10', sportKey: 'golf', label: 'Single digits', description: 'A handicap index of 10.0 or lower.', icon: 'trending', tier: 'silver', rule: { kind: 'handicap', atMost: 10 } },
+  { key: 'golf.handicap_5', sportKey: 'golf', label: 'Handicap under 5', description: 'A handicap index of 5.0 or lower.', icon: 'trending', tier: 'gold', rule: { kind: 'handicap', atMost: 5 } },
+  { key: 'golf.handicap_0', sportKey: 'golf', label: 'Scratch', description: 'A handicap index of 0.0 or better.', icon: 'crown', tier: 'gold', rule: { kind: 'handicap', atMost: 0 } },
 ];
 
 const CROSS_SPORT: BadgeDef[] = [
-  { key: 'all.two_sports', sportKey: null, label: 'Two-sport athlete', description: 'Results in two different sports.', icon: 'fa-shuffle', tier: 'silver', rule: { kind: 'sports', min: 2 } },
-  { key: 'all.three_sports', sportKey: null, label: 'All-rounder', description: 'Results in three different sports.', icon: 'fa-medal', tier: 'gold', rule: { kind: 'sports', min: 3 } },
+  { key: 'all.two_sports', sportKey: null, label: 'Two-sport athlete', description: 'Results in two different sports.', icon: 'shuffle', tier: 'silver', rule: { kind: 'sports', min: 2 } },
+  { key: 'all.three_sports', sportKey: null, label: 'All-rounder', description: 'Results in three different sports.', icon: 'medal', tier: 'gold', rule: { kind: 'sports', min: 3 } },
 ];
 
 export const BADGES: readonly BadgeDef[] = [

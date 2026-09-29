@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { formatDisplayName } from '@/lib/formatters';
 import { decidedText } from '@/lib/notification-actions';
+import { celebratePR } from '@/lib/celebrate';
+import { celebrationFor } from '@/lib/play/celebration';
+import { useToast } from '@/components/Toast';
 
 // Web Notification API is missing in some runtimes (older iOS Safari, in-app
 // browsers, embedded WebViews, some Brave / enterprise configurations).
@@ -105,6 +108,7 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { showSuccess } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   // Live mirror of `notifications` — realtime handlers need the current list
   // (e.g. to detect an unread→read transition) without stale closures.
@@ -429,6 +433,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Increase unread count
         setUnreadCount(prev => prev + 1);
 
+        // Play (244): a badge earned while in the app — confetti + a toast.
+        const party = celebrationFor(incoming);
+        if (party) {
+          if (party.confetti) void celebratePR();
+          showSuccess(party.title, party.message ?? undefined);
+        }
+
         // Optional: Play notification sound
         // playNotificationSound();
 
@@ -511,7 +522,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       channel.unsubscribe();
       setConnectionStatus('connecting');
     };
-  }, [user]);
+  }, [user, showSuccess]); // showSuccess is stable (useCallback [])
 
   return (
     <NotificationsContext.Provider

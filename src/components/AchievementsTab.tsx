@@ -11,6 +11,7 @@ import AchievementsHero from './achievements/AchievementsHero';
 import TopFinishes from './achievements/TopFinishes';
 import YearTimeline from './achievements/YearTimeline';
 import { useToast } from './Toast';
+import EarnedBadges from './play/EarnedBadges';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { achievementStats } from '@/lib/achievements/display';
 import {
@@ -166,9 +167,12 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
       <div>
         <h2 className="text-h2 text-primary">Achievements</h2>
         <p className="text-sm text-muted mt-0.5">
-          Awards, titles, and milestones — the athletic résumé.
+          Badges earned from results, plus the awards and titles on the résumé.
         </p>
       </div>
+
+      {/* ── Badges: EARNED automatically from real results (Play, 244) ── */}
+      <EarnedBadges profileId={profileId} isOwnProfile={isOwnProfile} />
 
       {/* ── Hero: career totals — always all-time, never filtered ────── */}
       <AchievementsHero stats={stats} />
