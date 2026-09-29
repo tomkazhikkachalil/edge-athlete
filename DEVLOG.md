@@ -1,5 +1,36 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 1: migration 245 (the `activities` table)
+
+**Tom's brief:** athletes bring the runs, rides and hikes their watch or app recorded. The long-term plan is Strava, Google Health (Fitbit / Pixel), Garmin and an Apple Watch path. **Phase 1 is file import** (.FIT / .GPX / .TCX): every device can export a file, and no provider approvals are needed. Every later provider becomes an adapter producing the same normalized shape.
+
+**Tom's decisions (Sep 29):**
+- Phase 1 only.
+- Apple Watch users upload an exported file for now.
+- Route privacy: the first and last ~200 m are trimmed for everyone but the owner. A supervised athlete's map is seen only by the athlete and their guardians; the stats still show.
+- Imports land on the profile; the athlete chooses **Share to feed**.
+- FIT files are decoded with Garmin's official `@garmin/fitsdk`.
+
+**Migration 245 is the program's only DDL:**
+- **`activities`:** posture A, one row per activity per athlete.
+  - `activity_type` is its own list (run … climb), **not a sport**. It follows the training → post-category precedent, and nothing writes `athlete_performances`. Bridging activities into the dataset is a later decision.
+  - `UNIQUE (profile_id, source, external_id)` makes a re-import update the existing row.
+  - `route_preview` is stored **already trimmed**.
+  - The full stream lives in storage (`uploads/activities/<profile>/<id>.json.gz`), not in rows.
+  - `post_id` is SET NULL when the post goes; `only_me` is the per-activity "Only me".
+- **`reserved_handles`:** adds `activities`. `RESERVED_ROOT_SLUGS` gets it in the same PR. The pre-flight refuses if a profile handle or an org slug already holds it.
+
+**Deletion:**
+- `activities.profile_id` is classified `goes`, with `mustDelete('activities','profile_id')`.
+- The engine collects the athlete's stream paths in step 1 and removes them with the rest of their storage. A location trace leaves with the person rather than waiting for the sweep.
+
+**Staging:**
+- `245 APPLIED | 1 | 1 | 0 | 1 | 245`.
+- The twin (`verify-245-activities.sql`) is 11/11 OK.
+- `check:schema` is OK at head 245.
+
+**Tom:** run 245 in the prod SQL editor before this PR merges. Expect `245 APPLIED | 1 | 1 | 0 | 1 | 245`.
+
 ## September 29, 2026 — Maintenance after the Play program: the full checklist, all green
 
 **On main at `860b6426`** (Play #991–#1000 + baseline@244 #1001). No code changed; this entry is the record.
