@@ -198,7 +198,7 @@ export async function runPerformanceBackfill(
     summary.scanned += result.origins.length;
     summary.mapped += result.rows.length;
     if (!opts.dryRun && result.rows.length > 0) {
-      const written = await upsertPerformances(admin, result.rows);
+      const written = await upsertPerformances(admin, result.rows, { after: 'silent' }); // Play (244): history earns badges without bells
       if (!written.ok) {
         if (written.skipped === 'missing_table') return { ok: false, error: 'missing_table' };
         return { ok: false, error: 'read_failed' };

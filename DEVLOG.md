@@ -1,5 +1,37 @@
 # Development Log
 
+## September 28, 2026 — Play program, P3: the badges engine (every sport, by data)
+
+**The catalog** (`src/lib/play/badges/catalog.ts`, pure data) is what defines badges; a `badge_awards` row only records one that was earned.
+- **Every FEATURE sport:**
+  - first result, and 10 / 25 / 50 / 100 results;
+  - a first win (not for golf or track, which have no win);
+  - "On the record", a first *verified* result.
+- **A stat-line sport's single-game milestones are generated** from `StatFieldDef.milestones` in `stat-schemas.ts`. For example: basketball points 20 / 30 / 40; hockey and soccer "Hat trick"; baseball "Home run". Adding a sport or a milestone is a data edit there.
+- **Golf's pack is hand-written:**
+  - break 100 / 90 / 80 / 70 and "Red number", all over 18 holes only;
+  - first birdie, birdie barrage, eagle and hole-in-one, from P2's hole counts;
+  - handicap under 20 / 10 / 5 and scratch, from a non-provisional index only.
+- **Across sports:** two sports, three sports.
+- A key, once shipped, is kept forever: rename the label, never the key.
+
+**The evaluator** (`evaluate.ts`) is pure. It takes the rows just written plus the whole record's counts, and returns NEW awards only.
+- Each award names the row that earned it, preferring a verified qualifying row.
+- The award is marked verified when that row's provenance is official. This is Tom's rule: every result counts, and a verified one is marked.
+
+**The one hook:**
+- `upsertPerformances` now calls `src/lib/play/after-write.ts afterPerformanceWrite` after every successful upsert. So every sport and every writer earns badges without a hook of its own: a round, a stat line, an event mirror, an org line or a league overlay.
+- The backfill passes `after: 'silent'`, so history earns badges with no flood of bells.
+- `badges-server.ts` is the one writer:
+  - It inserts ON CONFLICT DO NOTHING.
+  - It sends **one** bell per write, of type `achievement`. It respects the athlete's `achievements_enabled`, and a supervised athlete's guardians get a copy (`achievement` joins `GuardianNotificationType`). The link goes to `?tab=achievements`.
+  - The handicap is read only when a rated golf round was written.
+- **Support corrections** (reassign, correct a card, correct a line, remove) call `rescanBadges`: the whole record re-decides the row-based badges, both revoking and awarding, silently. A handicap badge is never revoked, because the index was reached.
+
+**Proof:**
+- 28 unit tests: catalog integrity (unique keys that match 244's CHECK, every FEATURE sport, every declared milestone, no typo'd metric), every rule, held badges, verified preference, and the bell copy.
+- **Live on staging, through the real writer:** one basketball row (31 points, W) earned four badges (first result, first win, 20 Points, 30 Points), sent one bell ("4 badges earned"), and a re-save earned nothing more. The probe cleaned up after itself.
+
 ## September 28, 2026 — Play program, P2: the shared game on the fact table
 
 **The rule:** a result played with others carries its game's key, one canonical key per game, so a game copied elsewhere is never counted twice:

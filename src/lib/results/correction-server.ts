@@ -23,6 +23,7 @@
 // where it is and reassigns once they join — the data is never parked
 // somewhere lossy (flagged to Tom).
 
+import { rescanBadges } from '@/lib/play/badges-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { recordAuthority } from '@/lib/authority/audit-server';
 import type { RecoveryContext, Result } from '@/lib/authority/recovery-server';
@@ -182,6 +183,9 @@ export async function reassignResult(admin: Admin, ctx: RecoveryContext, eventId
     }
   }
   await resync(admin, event, rounds, ctx.actorId);
+  // Play (244): the moved result's badges follow it — both records re-decided.
+  await rescanBadges(admin, oldId);
+  await rescanBadges(admin, to.id);
 
   await recordAuthority(admin, { subject: { type: 'sport_event', id: event.id }, actor: { kind: 'platform', profileId: ctx.actorId }, action: 'result_reassigned', targetProfileId: to.id, ticketId: ctx.ticketId, detail: { from_profile_id: oldId, to_profile_id: to.id, participant_id: from.id, note: ctx.note } });
   await ticketStep(admin, ctx, 'result_reassigned', `A result in ${event.name} moved to ${to.name}`);
@@ -207,6 +211,7 @@ export async function correctCard(admin: Admin, ctx: RecoveryContext, eventId: s
   const out = await writeHoleScores(admin, cardId, holes.map(h => ({ hole_number: h.hole_number, strokes: h.strokes })));
   if (out.error) return { ok: false, status: 409, error: out.error };
   await resync(admin, event, rounds, ctx.actorId);
+  await rescanBadges(admin, part.profile_id); // Play (244): a corrected score re-decides its badges
   const after = Object.fromEntries(holes.map(h => [String(h.hole_number), h.strokes]));
   await recordAuthority(admin, { subject: { type: 'sport_event', id: event.id }, actor: { kind: 'platform', profileId: ctx.actorId }, action: 'result_corrected', targetProfileId: part.profile_id, ticketId: ctx.ticketId, detail: { before, after, note: ctx.note } });
   await ticketStep(admin, ctx, 'result_corrected', `Corrected ${holes.length} hole${holes.length === 1 ? '' : 's'} in ${event.name}`);
@@ -231,6 +236,7 @@ export async function correctStatLine(admin: Admin, ctx: RecoveryContext, eventI
   const { data: written } = await admin.from('sport_event_stat_lines').update({ stats, version: l.version + 1 }).eq('id', l.id).eq('version', l.version).select('id');
   if (!written || written.length === 0) return { ok: false, status: 409, error: 'The line changed while you were working — reload and try again.' };
   await resync(admin, event, rounds, ctx.actorId);
+  await rescanBadges(admin, l.profile_id); // Play (244): corrected stats re-decide their badges
   await recordAuthority(admin, { subject: { type: 'sport_event', id: event.id }, actor: { kind: 'platform', profileId: ctx.actorId }, action: 'result_corrected', targetProfileId: l.profile_id, ticketId: ctx.ticketId, detail: { before: l.stats ?? {}, after: stats, note: ctx.note } });
   await ticketStep(admin, ctx, 'result_corrected', `Corrected a stat line in ${event.name}`);
   const url = `/events/${event.id}`;
@@ -262,6 +268,7 @@ export async function removeMistakenResult(admin: Admin, ctx: RecoveryContext, e
     }
   }
   await resync(admin, event, rounds, ctx.actorId);
+  await rescanBadges(admin, row.profile_id); // Play (244): the only true removal takes its badges with it
   await recordAuthority(admin, { subject: { type: 'sport_event', id: event.id }, actor: { kind: 'platform', profileId: ctx.actorId }, action: 'result_corrected', targetProfileId: row.profile_id, ticketId: ctx.ticketId, detail: { via: 'removed', participant_id: row.id, note: ctx.note } });
   await ticketStep(admin, ctx, 'result_removed', `Removed a mistaken result from ${event.name}`);
   const url = `/events/${event.id}`;

@@ -62,7 +62,9 @@ export type GuardianNotificationType =
   // between, removed from or carried forward on a team roster.
   | 'team_roster'
   // Spec 2 (mig 223): a decision against a supervised athlete — the guardians hear.
-  | 'moderation_notice';
+  | 'moderation_notice'
+  // Play (244): a supervised athlete earned a badge — the guardians see it too.
+  | 'achievement';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

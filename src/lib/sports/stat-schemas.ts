@@ -38,6 +38,11 @@ export interface StatFieldDef {
   /** A fractional value (a race time 11.85, innings pitched 5.2): the composer
    *  offers the decimal keypad and a 0.01 step (Round 4). Integers otherwise. */
   decimal?: boolean;
+  /** Single-game milestones that earn a badge (the Play program, 244): "20
+   *  Points" at 20+. A number, or a number with its own name ("Hat trick").
+   *  A sport opts into milestone badges by DATA here — the catalog
+   *  (src/lib/play/badges/catalog.ts) generates them; no code per sport. */
+  milestones?: ReadonlyArray<number | { value: number; label: string }>;
 }
 
 /**
@@ -165,15 +170,15 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     activityNoun: 'Game',
     opponentLabel: 'Opponent',
     fields: [
-      { key: 'goals', label: 'Goals', shortLabel: 'G', min: 0, max: 20 },
-      { key: 'assists', label: 'Assists', shortLabel: 'A', min: 0, max: 20 },
+      { key: 'goals', label: 'Goals', shortLabel: 'G', min: 0, max: 20, milestones: [2, { value: 3, label: 'Hat trick' }] },
+      { key: 'assists', label: 'Assists', shortLabel: 'A', min: 0, max: 20, milestones: [3] },
       { key: 'shots', label: 'Shots', shortLabel: 'S', min: 0, max: 60 },
       { key: 'hits', label: 'Hits', shortLabel: 'H', min: 0, max: 30 },
       { key: 'blocks', label: 'Blocked Shots', shortLabel: 'BLK', min: 0, max: 20 },
       { key: 'pim', label: 'Penalty Minutes', shortLabel: 'PIM', min: 0, max: 60 },
       // The goalie's line (Round 4): saves and goals against — a save % is
       // Σsaves / Σ(saves + goals against), a ratio of sums like batting AVG.
-      { key: 'saves', label: 'Saves', shortLabel: 'SV', min: 0, max: 80 },
+      { key: 'saves', label: 'Saves', shortLabel: 'SV', min: 0, max: 80, milestones: [30, 40] },
       { key: 'goals_against', label: 'Goals Against', shortLabel: 'GA', min: 0, max: 15 },
     ],
     profileTiles: [
@@ -192,11 +197,11 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     activityNoun: 'Match',
     opponentLabel: 'Opponent',
     fields: [
-      { key: 'kills', label: 'Kills', shortLabel: 'K', min: 0, max: 50 },
+      { key: 'kills', label: 'Kills', shortLabel: 'K', min: 0, max: 50, milestones: [15, 25] },
       { key: 'assists', label: 'Assists', shortLabel: 'A', min: 0, max: 80 },
-      { key: 'digs', label: 'Digs', shortLabel: 'D', min: 0, max: 50 },
-      { key: 'aces', label: 'Aces', shortLabel: 'ACE', min: 0, max: 20 },
-      { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 25 },
+      { key: 'digs', label: 'Digs', shortLabel: 'D', min: 0, max: 50, milestones: [20] },
+      { key: 'aces', label: 'Aces', shortLabel: 'ACE', min: 0, max: 20, milestones: [5] },
+      { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 25, milestones: [5] },
       { key: 'service_errors', label: 'Service Errors', shortLabel: 'SE', min: 0, max: 20 },
       // Attacking (Round 4): hitting % = (kills − attack errors) / attempts.
       { key: 'attack_attempts', label: 'Attack Attempts', shortLabel: 'ATT', min: 0, max: 80 },
@@ -220,12 +225,12 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     activityNoun: 'Game',
     opponentLabel: 'Opponent',
     fields: [
-      { key: 'points', label: 'Points', shortLabel: 'PTS', min: 0, max: 100 },
-      { key: 'rebounds', label: 'Rebounds', shortLabel: 'REB', min: 0, max: 40 },
-      { key: 'assists', label: 'Assists', shortLabel: 'AST', min: 0, max: 30 },
-      { key: 'steals', label: 'Steals', shortLabel: 'STL', min: 0, max: 15 },
-      { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 15 },
-      { key: 'threes', label: '3-Pointers', shortLabel: '3PM', min: 0, max: 20 },
+      { key: 'points', label: 'Points', shortLabel: 'PTS', min: 0, max: 100, milestones: [20, 30, 40] },
+      { key: 'rebounds', label: 'Rebounds', shortLabel: 'REB', min: 0, max: 40, milestones: [10, 15] },
+      { key: 'assists', label: 'Assists', shortLabel: 'AST', min: 0, max: 30, milestones: [10] },
+      { key: 'steals', label: 'Steals', shortLabel: 'STL', min: 0, max: 15, milestones: [5] },
+      { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 15, milestones: [5] },
+      { key: 'threes', label: '3-Pointers', shortLabel: '3PM', min: 0, max: 20, milestones: [5] },
       // Attempts (Round 4): FG% and FT% become ratios of sums.
       { key: 'fga', label: 'FG Attempts', shortLabel: 'FGA', min: 0, max: 60 },
       { key: 'fgm', label: 'FG Made', shortLabel: 'FGM', min: 0, max: 40 },
@@ -255,10 +260,10 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     activityNoun: 'Match',
     opponentLabel: 'Opponent',
     fields: [
-      { key: 'goals', label: 'Goals', shortLabel: 'G', min: 0, max: 15 },
-      { key: 'assists', label: 'Assists', shortLabel: 'A', min: 0, max: 15 },
+      { key: 'goals', label: 'Goals', shortLabel: 'G', min: 0, max: 15, milestones: [2, { value: 3, label: 'Hat trick' }] },
+      { key: 'assists', label: 'Assists', shortLabel: 'A', min: 0, max: 15, milestones: [2] },
       { key: 'shots', label: 'Shots', shortLabel: 'SH', min: 0, max: 30 },
-      { key: 'saves', label: 'Saves', shortLabel: 'SV', min: 0, max: 30 },
+      { key: 'saves', label: 'Saves', shortLabel: 'SV', min: 0, max: 30, milestones: [8] },
       { key: 'tackles', label: 'Tackles', shortLabel: 'TKL', min: 0, max: 30 },
       { key: 'yellow_cards', label: 'Yellow Cards', shortLabel: 'YC', min: 0, max: 5 },
     ],
@@ -279,16 +284,16 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     activityNoun: 'Game',
     opponentLabel: 'Opponent',
     fields: [
-      { key: 'hits', label: 'Hits', shortLabel: 'H', min: 0, max: 10 },
+      { key: 'hits', label: 'Hits', shortLabel: 'H', min: 0, max: 10, milestones: [3, 4] },
       { key: 'at_bats', label: 'At Bats', shortLabel: 'AB', min: 0, max: 12 },
       { key: 'runs', label: 'Runs', shortLabel: 'R', min: 0, max: 10 },
-      { key: 'rbis', label: 'RBIs', shortLabel: 'RBI', min: 0, max: 12 },
-      { key: 'home_runs', label: 'Home Runs', shortLabel: 'HR', min: 0, max: 5 },
+      { key: 'rbis', label: 'RBIs', shortLabel: 'RBI', min: 0, max: 12, milestones: [4] },
+      { key: 'home_runs', label: 'Home Runs', shortLabel: 'HR', min: 0, max: 5, milestones: [{ value: 1, label: 'Home run' }, 2] },
       { key: 'stolen_bases', label: 'Stolen Bases', shortLabel: 'SB', min: 0, max: 6 },
       // The pitcher's line (Round 4). Innings pitched is fractional by
       // convention (5.2 = five and two thirds).
       { key: 'innings_pitched', label: 'Innings Pitched', shortLabel: 'IP', min: 0, max: 12, decimal: true },
-      { key: 'strikeouts', label: 'Strikeouts', shortLabel: 'K', min: 0, max: 25 },
+      { key: 'strikeouts', label: 'Strikeouts', shortLabel: 'K', min: 0, max: 25, milestones: [10] },
       { key: 'earned_runs', label: 'Earned Runs', shortLabel: 'ER', min: 0, max: 15 },
     ],
     profileTiles: [
