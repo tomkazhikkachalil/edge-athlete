@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-28T02:10:46.701265+00:00 from server 17.4 by
+-- Generated 2026-09-29T21:49:21.502892+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 243.
+-- public.schema_dump() (migration 227). Ledger head at generation: 244.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4004,7 +4004,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (120) ──────────────────────────────────────────────────────────────
+-- ── Tables (124) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.affiliations (
   org_id uuid NOT NULL,
   parent_org_id uuid NOT NULL,
@@ -4095,7 +4095,18 @@ CREATE TABLE IF NOT EXISTS public.athlete_performances (
   context jsonb,
   headline numeric,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  context_key text,
+  side smallint,
+  outcome text
+);
+
+CREATE TABLE IF NOT EXISTS public.athlete_rivalry_display (
+  profile_id uuid NOT NULL,
+  opponent_id uuid NOT NULL,
+  sport_key text NOT NULL,
+  position smallint DEFAULT 0 NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.athlete_vitals (
@@ -4127,11 +4138,49 @@ CREATE TABLE IF NOT EXISTS public.authority_audit (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.badge_awards (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  badge_key text NOT NULL,
+  sport_key text,
+  earned_on date NOT NULL,
+  source_key text,
+  verified boolean DEFAULT false NOT NULL,
+  detail jsonb DEFAULT '{}'::jsonb NOT NULL,
+  seen_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.calendar_feed_tokens (
   profile_id uuid NOT NULL,
   token_hash text NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   rotated_at timestamp with time zone
+);
+
+CREATE TABLE IF NOT EXISTS public.challenges (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  challenger_id uuid NOT NULL,
+  challengee_id uuid NOT NULL,
+  sport_key text NOT NULL,
+  metric text NOT NULL,
+  direction text NOT NULL,
+  target numeric NOT NULL,
+  course_id uuid,
+  min_holes smallint,
+  source_key text,
+  message text,
+  starts_on date NOT NULL,
+  ends_on date NOT NULL,
+  status text DEFAULT 'pending'::text NOT NULL,
+  responded_at timestamp with time zone,
+  settled_at timestamp with time zone,
+  settled_key text,
+  settled_value numeric,
+  verified boolean DEFAULT false NOT NULL,
+  version integer DEFAULT 0 NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.comment_likes (
@@ -4669,6 +4718,15 @@ CREATE TABLE IF NOT EXISTS public.help_articles (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.live_cheers (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  context_key text NOT NULL,
+  profile_id uuid NOT NULL,
+  target_profile_id uuid,
+  cheer text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.memberships (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4744,7 +4802,8 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   last_digest_at timestamp with time zone,
-  urgent_email_enabled boolean DEFAULT true NOT NULL
+  urgent_email_enabled boolean DEFAULT true NOT NULL,
+  challenges_enabled boolean DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -5816,6 +5875,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_rivalry_display_pkey' AND conrelid = 'public.athlete_rivalry_display'::regclass) THEN
+    ALTER TABLE public.athlete_rivalry_display ADD CONSTRAINT athlete_rivalry_display_pkey PRIMARY KEY (profile_id, opponent_id, sport_key);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_vitals_pkey' AND conrelid = 'public.athlete_vitals'::regclass) THEN
     ALTER TABLE public.athlete_vitals ADD CONSTRAINT athlete_vitals_pkey PRIMARY KEY (id);
   END IF;
@@ -5826,8 +5890,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_pkey' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'calendar_feed_tokens_pkey' AND conrelid = 'public.calendar_feed_tokens'::regclass) THEN
     ALTER TABLE public.calendar_feed_tokens ADD CONSTRAINT calendar_feed_tokens_pkey PRIMARY KEY (profile_id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_pkey' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6013,6 +6087,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'help_articles_pkey' AND conrelid = 'public.help_articles'::regclass) THEN
     ALTER TABLE public.help_articles ADD CONSTRAINT help_articles_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'live_cheers_pkey' AND conrelid = 'public.live_cheers'::regclass) THEN
+    ALTER TABLE public.live_cheers ADD CONSTRAINT live_cheers_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6398,6 +6477,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_natural_key_uniq' AND conrelid = 'public.athlete_performances'::regclass) THEN
     ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_natural_key_uniq UNIQUE (natural_key);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_uniq' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_uniq UNIQUE (profile_id, badge_key);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6791,13 +6875,33 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_context_key_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
+    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_context_key_check CHECK (((context_key IS NULL) OR (context_key ~ '^(group_post|sport_event_round|contest):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_context_parts_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
+    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_context_parts_check CHECK (((context_key IS NOT NULL) OR ((side IS NULL) AND (outcome IS NULL))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_dispute_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
     ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_dispute_check CHECK ((dispute_status = ANY (ARRAY['none'::text, 'disputed'::text, 'resolved'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_outcome_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
+    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['win'::text, 'loss'::text, 'tie'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_provenance_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
     ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_provenance_check CHECK ((provenance = ANY (ARRAY['sanctioned'::text, 'league_verified'::text, 'club_recorded'::text, 'self_reported'::text, 'imported'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_side_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
+    ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY[1, 2]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6808,6 +6912,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_performances_source_table_check' AND conrelid = 'public.athlete_performances'::regclass) THEN
     ALTER TABLE public.athlete_performances ADD CONSTRAINT athlete_performances_source_table_check CHECK ((source_table = ANY (ARRAY['posts'::text, 'golf_rounds'::text, 'contest_stat_lines'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_rivalry_display_self_check' AND conrelid = 'public.athlete_rivalry_display'::regclass) THEN
+    ALTER TABLE public.athlete_rivalry_display ADD CONSTRAINT athlete_rivalry_display_self_check CHECK ((profile_id <> opponent_id));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_rivalry_display_sport_key_check' AND conrelid = 'public.athlete_rivalry_display'::regclass) THEN
+    ALTER TABLE public.athlete_rivalry_display ADD CONSTRAINT athlete_rivalry_display_sport_key_check CHECK (((length(sport_key) >= 1) AND (length(sport_key) <= 40)));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6833,6 +6947,76 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'authority_audit_subject_type_check' AND conrelid = 'public.authority_audit'::regclass) THEN
     ALTER TABLE public.authority_audit ADD CONSTRAINT authority_audit_subject_type_check CHECK ((subject_type = ANY (ARRAY['org'::text, 'sport_event'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_badge_key_check' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_badge_key_check CHECK ((badge_key ~ '^[a-z0-9_]{1,40}\.[a-z0-9_]{1,60}$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_detail_check' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_detail_check CHECK ((jsonb_typeof(detail) = 'object'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_source_key_check' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_source_key_check CHECK (((source_key IS NULL) OR ((length(source_key) >= 1) AND (length(source_key) <= 200))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_sport_key_check' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_sport_key_check CHECK (((sport_key IS NULL) OR ((length(sport_key) >= 1) AND (length(sport_key) <= 40))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_direction_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_direction_check CHECK ((direction = ANY (ARRAY['lower'::text, 'higher'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_message_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_message_check CHECK (((message IS NULL) OR ((char_length(message) >= 1) AND (char_length(message) <= 140))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_metric_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_metric_check CHECK ((metric ~ '^[a-z0-9_]{1,40}$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_min_holes_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_min_holes_check CHECK (((min_holes IS NULL) OR (min_holes = ANY (ARRAY[9, 18]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_people_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_people_check CHECK ((challenger_id <> challengee_id));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_source_key_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_source_key_check CHECK (((source_key IS NULL) OR ((length(source_key) >= 1) AND (length(source_key) <= 200))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_sport_key_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_sport_key_check CHECK (((length(sport_key) >= 1) AND (length(sport_key) <= 40)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_status_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'cancelled'::text, 'won'::text, 'lost'::text, 'expired'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_window_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_window_check CHECK (((ends_on >= starts_on) AND (ends_on <= (starts_on + 90))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_won_check' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_won_check CHECK (((status <> 'won'::text) OR ((settled_key IS NOT NULL) AND (settled_at IS NOT NULL))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7256,6 +7440,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'live_cheers_cheer_check' AND conrelid = 'public.live_cheers'::regclass) THEN
+    ALTER TABLE public.live_cheers ADD CONSTRAINT live_cheers_cheer_check CHECK ((cheer = ANY (ARRAY['fire'::text, 'clap'::text, 'flex'::text, 'target'::text, 'hands'::text, 'wow'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'live_cheers_context_key_check' AND conrelid = 'public.live_cheers'::regclass) THEN
+    ALTER TABLE public.live_cheers ADD CONSTRAINT live_cheers_context_key_check CHECK ((context_key ~ '^(group_post|sport_event_round):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_kind_check' AND conrelid = 'public.memberships'::regclass) THEN
     ALTER TABLE public.memberships ADD CONSTRAINT memberships_kind_check CHECK ((kind = ANY (ARRAY['follow'::text, 'roster'::text, 'staff'::text])));
   END IF;
@@ -7312,7 +7506,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'notifications_type_check' AND conrelid = 'public.notifications'::regclass) THEN
-    ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK ((type = ANY (ARRAY['follow_request'::text, 'follow_accepted'::text, 'new_follower'::text, 'like'::text, 'comment'::text, 'comment_reply'::text, 'mention'::text, 'tag'::text, 'achievement'::text, 'system_announcement'::text, 'club_update'::text, 'team_update'::text, 'new_message'::text, 'group_invite'::text, 'group_update'::text, 'guardian_invite'::text, 'athlete_added'::text, 'event_invite'::text, 'event_update'::text, 'event_cancelled'::text, 'event_response'::text, 'event_reminder'::text, 'post_pending_approval'::text, 'post_approval_result'::text, 'transfer_update'::text, 'consent_result'::text, 'comment_pending_approval'::text, 'comment_approval_result'::text, 'follow_request_guardian'::text, 'follow_update'::text, 'tag_alert'::text, 'profile_change'::text, 'calendar_alert'::text, 'safety_alert'::text, 'league_join'::text, 'league_update'::text, 'league_request_result'::text, 'club_join'::text, 'club_request_result'::text, 'affiliation_invite'::text, 'affiliation_update'::text, 'carpool_offer'::text, 'carpool_update'::text, 'roster_invite'::text, 'competition_entry_pending'::text, 'competition_entry_decided'::text, 'org_registration_received'::text, 'org_registration_placed'::text, 'org_registration_released'::text, 'contest_dispute_raised'::text, 'contest_dispute_resolved'::text, 'golf_league_round_counted'::text, 'golf_league_round_confirmed'::text, 'golf_league_window_closing'::text, 'org_staff_invite'::text, 'org_staff_accepted'::text, 'org_staff_revoked'::text, 'org_listing_request'::text, 'site_form_submission'::text, 'sport_event_invite'::text, 'sport_event_request'::text, 'sport_event_request_decision'::text, 'sport_event_live'::text, 'sport_event_results'::text, 'sport_event_reminder'::text, 'sport_event_match'::text, 'ticket_update'::text, 'ticket_critical'::text, 'moderation_notice'::text, 'authority_notice'::text, 'team_roster'::text])));
+    ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK ((type = ANY (ARRAY['follow_request'::text, 'follow_accepted'::text, 'new_follower'::text, 'like'::text, 'comment'::text, 'comment_reply'::text, 'mention'::text, 'tag'::text, 'achievement'::text, 'system_announcement'::text, 'club_update'::text, 'team_update'::text, 'new_message'::text, 'group_invite'::text, 'group_update'::text, 'guardian_invite'::text, 'athlete_added'::text, 'event_invite'::text, 'event_update'::text, 'event_cancelled'::text, 'event_response'::text, 'event_reminder'::text, 'post_pending_approval'::text, 'post_approval_result'::text, 'transfer_update'::text, 'consent_result'::text, 'comment_pending_approval'::text, 'comment_approval_result'::text, 'follow_request_guardian'::text, 'follow_update'::text, 'tag_alert'::text, 'profile_change'::text, 'calendar_alert'::text, 'safety_alert'::text, 'league_join'::text, 'league_update'::text, 'league_request_result'::text, 'club_join'::text, 'club_request_result'::text, 'affiliation_invite'::text, 'affiliation_update'::text, 'carpool_offer'::text, 'carpool_update'::text, 'roster_invite'::text, 'competition_entry_pending'::text, 'competition_entry_decided'::text, 'org_registration_received'::text, 'org_registration_placed'::text, 'org_registration_released'::text, 'contest_dispute_raised'::text, 'contest_dispute_resolved'::text, 'golf_league_round_counted'::text, 'golf_league_round_confirmed'::text, 'golf_league_window_closing'::text, 'org_staff_invite'::text, 'org_staff_accepted'::text, 'org_staff_revoked'::text, 'org_listing_request'::text, 'site_form_submission'::text, 'sport_event_invite'::text, 'sport_event_request'::text, 'sport_event_request_decision'::text, 'sport_event_live'::text, 'sport_event_results'::text, 'sport_event_reminder'::text, 'sport_event_match'::text, 'ticket_update'::text, 'ticket_critical'::text, 'moderation_notice'::text, 'authority_notice'::text, 'team_roster'::text, 'challenge'::text, 'challenge_result'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8253,6 +8447,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_rivalry_display_opponent_id_fkey' AND conrelid = 'public.athlete_rivalry_display'::regclass) THEN
+    ALTER TABLE public.athlete_rivalry_display ADD CONSTRAINT athlete_rivalry_display_opponent_id_fkey FOREIGN KEY (opponent_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_rivalry_display_profile_id_fkey' AND conrelid = 'public.athlete_rivalry_display'::regclass) THEN
+    ALTER TABLE public.athlete_rivalry_display ADD CONSTRAINT athlete_rivalry_display_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_vitals_linked_post_id_fkey' AND conrelid = 'public.athlete_vitals'::regclass) THEN
     ALTER TABLE public.athlete_vitals ADD CONSTRAINT athlete_vitals_linked_post_id_fkey FOREIGN KEY (linked_post_id) REFERENCES posts(id) ON DELETE SET NULL;
   END IF;
@@ -8263,8 +8467,28 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'badge_awards_profile_id_fkey' AND conrelid = 'public.badge_awards'::regclass) THEN
+    ALTER TABLE public.badge_awards ADD CONSTRAINT badge_awards_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'calendar_feed_tokens_profile_id_fkey' AND conrelid = 'public.calendar_feed_tokens'::regclass) THEN
     ALTER TABLE public.calendar_feed_tokens ADD CONSTRAINT calendar_feed_tokens_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_challengee_id_fkey' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_challengee_id_fkey FOREIGN KEY (challengee_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_challenger_id_fkey' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_challenger_id_fkey FOREIGN KEY (challenger_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'challenges_course_id_fkey' AND conrelid = 'public.challenges'::regclass) THEN
+    ALTER TABLE public.challenges ADD CONSTRAINT challenges_course_id_fkey FOREIGN KEY (course_id) REFERENCES golf_courses(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8730,6 +8954,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'help_articles_updated_by_fkey' AND conrelid = 'public.help_articles'::regclass) THEN
     ALTER TABLE public.help_articles ADD CONSTRAINT help_articles_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'live_cheers_profile_id_fkey' AND conrelid = 'public.live_cheers'::regclass) THEN
+    ALTER TABLE public.live_cheers ADD CONSTRAINT live_cheers_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'live_cheers_target_profile_id_fkey' AND conrelid = 'public.live_cheers'::regclass) THEN
+    ALTER TABLE public.live_cheers ADD CONSTRAINT live_cheers_target_profile_id_fkey FOREIGN KEY (target_profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9580,12 +9814,14 @@ CREATE INDEX IF NOT EXISTS idx_equipment_profile ON public.athlete_equipment USI
 CREATE INDEX IF NOT EXISTS idx_equipment_sport ON public.athlete_equipment USING btree (sport_key);
 CREATE INDEX IF NOT EXISTS idx_equipment_status ON public.athlete_equipment USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_contest_id ON public.athlete_performances USING btree (contest_id);
+CREATE INDEX IF NOT EXISTS idx_athlete_performances_context ON public.athlete_performances USING btree (context_key) WHERE (context_key IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_entered_by ON public.athlete_performances USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_headline ON public.athlete_performances USING btree (sport_key, headline) WHERE (headline IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_metrics ON public.athlete_performances USING gin (metrics jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_profile ON public.athlete_performances USING btree (profile_id, sport_key, occurred_on DESC);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_source ON public.athlete_performances USING btree (source_table, source_id);
 CREATE INDEX IF NOT EXISTS idx_athlete_performances_sport_date ON public.athlete_performances USING btree (sport_key, occurred_on DESC);
+CREATE INDEX IF NOT EXISTS idx_athlete_rivalry_display_opponent ON public.athlete_rivalry_display USING btree (opponent_id);
 CREATE INDEX IF NOT EXISTS idx_athlete_vitals_linked_post ON public.athlete_vitals USING btree (linked_post_id) WHERE (linked_post_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_vitals_profile_date ON public.athlete_vitals USING btree (profile_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_athlete_vitals_profile_id ON public.athlete_vitals USING btree (profile_id);
@@ -9594,7 +9830,12 @@ CREATE INDEX IF NOT EXISTS idx_authority_audit_actor ON public.authority_audit U
 CREATE INDEX IF NOT EXISTS idx_authority_audit_subject ON public.authority_audit USING btree (subject_type, subject_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_authority_audit_target ON public.authority_audit USING btree (target_profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_authority_audit_ticket ON public.authority_audit USING btree (ticket_id);
+CREATE INDEX IF NOT EXISTS idx_badge_awards_source ON public.badge_awards USING btree (source_key) WHERE (source_key IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_calendar_feed_tokens_profile ON public.calendar_feed_tokens USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_challenges_challengee ON public.challenges USING btree (challengee_id, status);
+CREATE INDEX IF NOT EXISTS idx_challenges_challenger ON public.challenges USING btree (challenger_id, status);
+CREATE INDEX IF NOT EXISTS idx_challenges_course ON public.challenges USING btree (course_id) WHERE (course_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_challenges_open_ends ON public.challenges USING btree (ends_on) WHERE (status = ANY (ARRAY['pending'::text, 'accepted'::text]));
 CREATE INDEX IF NOT EXISTS idx_comment_likes_profile ON public.comment_likes USING btree (profile_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_name_uniq ON public.competition_entries USING btree (competition_id, lower(name)) WHERE ((team_id IS NULL) AND (profile_id IS NULL) AND (name IS NOT NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS competition_entries_profile_uniq ON public.competition_entries USING btree (competition_id, profile_id) WHERE (profile_id IS NOT NULL);
@@ -9730,6 +9971,10 @@ CREATE INDEX IF NOT EXISTS idx_handle_history_profile_id ON public.handle_histor
 CREATE INDEX IF NOT EXISTS idx_help_articles_created_by ON public.help_articles USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_help_articles_public ON public.help_articles USING btree (topic, sort_order, title) WHERE published;
 CREATE INDEX IF NOT EXISTS idx_help_articles_updated_by ON public.help_articles USING btree (updated_by);
+CREATE INDEX IF NOT EXISTS idx_live_cheers_context ON public.live_cheers USING btree (context_key, created_at);
+CREATE INDEX IF NOT EXISTS idx_live_cheers_created ON public.live_cheers USING btree (created_at);
+CREATE INDEX IF NOT EXISTS idx_live_cheers_profile ON public.live_cheers USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_live_cheers_target ON public.live_cheers USING btree (target_profile_id) WHERE (target_profile_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_memberships_granted_by ON public.memberships USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_memberships_org ON public.memberships USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_photo_consent_by ON public.memberships USING btree (photo_consent_by);
@@ -13798,6 +14043,8 @@ DROP TRIGGER IF EXISTS athlete_performances_updated_at ON public.athlete_perform
 CREATE TRIGGER athlete_performances_updated_at BEFORE UPDATE ON public.athlete_performances FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS authority_audit_immutable ON public.authority_audit;
 CREATE TRIGGER authority_audit_immutable BEFORE DELETE OR UPDATE ON public.authority_audit FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+DROP TRIGGER IF EXISTS challenges_updated_at ON public.challenges;
+CREATE TRIGGER challenges_updated_at BEFORE UPDATE ON public.challenges FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS trigger_decrement_comment_likes_count ON public.comment_likes;
 CREATE TRIGGER trigger_decrement_comment_likes_count AFTER DELETE ON public.comment_likes FOR EACH ROW EXECUTE FUNCTION decrement_comment_likes_count();
 DROP TRIGGER IF EXISTS trigger_increment_comment_likes_count ON public.comment_likes;
@@ -14004,9 +14251,12 @@ ALTER TABLE public.athlete_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_claim_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_performances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.athlete_rivalry_display ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_vitals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.authority_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.badge_awards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calendar_feed_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competition_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competition_entry_members ENABLE ROW LEVEL SECURITY;
@@ -14044,6 +14294,7 @@ ALTER TABLE public.group_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.guardian_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.handle_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.help_articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_cheers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.message_reports ENABLE ROW LEVEL SECURITY;
@@ -15343,16 +15594,22 @@ GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE pub
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_equipment TO service_role;
 REVOKE ALL ON TABLE public.athlete_performances FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_performances TO service_role;
+REVOKE ALL ON TABLE public.athlete_rivalry_display FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_rivalry_display TO service_role;
 REVOKE ALL ON TABLE public.athlete_vitals FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_vitals TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_vitals TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.athlete_vitals TO service_role;
 REVOKE ALL ON TABLE public.authority_audit FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.authority_audit TO service_role;
+REVOKE ALL ON TABLE public.badge_awards FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.badge_awards TO service_role;
 REVOKE ALL ON TABLE public.calendar_feed_tokens FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.calendar_feed_tokens TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.calendar_feed_tokens TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.calendar_feed_tokens TO service_role;
+REVOKE ALL ON TABLE public.challenges FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.challenges TO service_role;
 REVOKE ALL ON TABLE public.comment_likes FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.comment_likes TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.comment_likes TO authenticated;
@@ -15475,6 +15732,8 @@ GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE pub
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.handle_history TO service_role;
 REVOKE ALL ON TABLE public.help_articles FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.help_articles TO service_role;
+REVOKE ALL ON TABLE public.live_cheers FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.live_cheers TO service_role;
 REVOKE ALL ON TABLE public.memberships FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.memberships TO service_role;
 REVOKE ALL ON TABLE public.message_reactions FROM anon, authenticated, service_role;
@@ -15928,7 +16187,11 @@ COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
 COMMENT ON COLUMN public.athlete_equipment.group_label IS 'Optional custom set name ("Tournament bag"). NULL = automatic category grouping only. App-capped at 60 chars.';
 COMMENT ON COLUMN public.athlete_performances.profile_id IS 'The athlete (194; 238: nullable, SET NULL — the fact survives the person; the deletion engine severs it explicitly for a departed profile).';
+COMMENT ON COLUMN public.athlete_performances.context_key IS 'The shared game this result was played in (244): group_post:<id> | sport_event_round:<id> | contest:<id>. Set by the mappers (src/lib/performance/map.ts) only.';
+COMMENT ON TABLE public.athlete_rivalry_display IS 'The rivalries an athlete chose to show on their stats (244); presence = shown. ONE writer: src/lib/play/rivals-server.ts. Posture A.';
 COMMENT ON TABLE public.authority_audit IS 'Authority (240): the append-only record of who changed who can run a club, league or event, and what they did to it — member, platform (with the ticket) or system actor. NO foreign keys on purpose (forbid_mutation vs ON DELETE SET NULL, 056). One writer: src/lib/authority/audit-server.ts recordAuthority. Posture A.';
+COMMENT ON TABLE public.badge_awards IS 'Badges a profile has earned (244). ONE writer: src/lib/play/badges-server.ts. The catalog is code (src/lib/play/badges/catalog.ts). Posture A.';
+COMMENT ON TABLE public.challenges IS 'Friend challenges (244): a metric, a target, a window; settled from athlete_performances. ONE writer: src/lib/play/challenges-server.ts. Posture A.';
 COMMENT ON COLUMN public.competition_entries.name IS 'An AD-HOC entry''s label (219): neither a team nor an athlete — a named side with members. Promoting it to a club''s team later = SET team_id; the name stays the snapshot label.';
 COMMENT ON COLUMN public.competition_entries.source_ref IS 'The bridge''s idempotency key (219): sport_event_side:<id> — an event''s side minted once as an entry.';
 COMMENT ON COLUMN public.competition_entries.affiliation_team_id IS 'A meet athlete''s team for the roll-up (219): snapshotted at entry, organizer-editable; NULL = unattached. Never a second entrant kind.';
@@ -15990,6 +16253,7 @@ COMMENT ON COLUMN public.guardian_invites.grant_role IS 'Role the claim grants (
 COMMENT ON TABLE public.help_articles IS 'Help Center (224): short articles by topic; a video is an article with a video_url (YouTube, validated by the app). Posture A: the public read is a cached route on the service role filtering published; the owner writes from the console.';
 COMMENT ON COLUMN public.help_articles.body IS 'Plain text (224): blank-line paragraphs, "- " bullets; the renderer never trusts HTML.';
 COMMENT ON COLUMN public.help_articles.video_url IS 'A YouTube link (224), validated through the site builder''s embed parser — never an arbitrary iframe source.';
+COMMENT ON TABLE public.live_cheers IS 'Spectator cheers on a live round (244); a key from a fixed set of six. ONE writer: src/lib/play/cheers-server.ts. Purged after 30 days by the daily cron. Posture A.';
 COMMENT ON COLUMN public.notification_preferences.urgent_email_enabled IS 'Urgent safety emails (safety_alert/consent_result within ~10 min). ON by default; the settings toggle is the opt-out (135).';
 COMMENT ON TABLE public.notifications IS 'Central notifications table for all user notifications';
 COMMENT ON COLUMN public.notifications.comment_id IS 'References post_comments.id - no FK for flexibility';
@@ -16230,6 +16494,7 @@ INSERT INTO public.reserved_handles (handle, reason, reserved_at) VALUES
   ('pricing', 'Reserved word (166)', '2026-09-01T20:08:50.000877+00:00'),
   ('privacy', 'Root path (vanity namespace, 166)', '2026-09-01T20:08:50.000877+00:00'),
   ('profile', 'System path', '2025-10-07T18:58:50.62396+00:00'),
+  ('r', 'Root path (vanity namespace, 244): /r/[postId], the public result page', '2026-09-29T12:02:02.452599+00:00'),
   ('register', 'Root path (vanity namespace, 166)', '2026-09-01T20:08:50.000877+00:00'),
   ('reset-password', 'Root path (vanity namespace, 166)', '2026-09-01T20:08:50.000877+00:00'),
   ('robots.txt', 'Root file (vanity namespace, 166)', '2026-09-01T20:08:50.000877+00:00'),
@@ -16512,7 +16777,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (240, '240_authority.sql', 'rebuild-000'),
   (241, '241_results_kept.sql', 'rebuild-000'),
   (242, '242_teams_divisions.sql', 'rebuild-000'),
-  (243, '243_newsroom.sql', 'rebuild-000')
+  (243, '243_newsroom.sql', 'rebuild-000'),
+  (244, '244_play.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16521,12 +16787,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 120 | 110 | 173 | 243
+-- Expected: 000 REBUILT | 124 | 110 | 173 | 244
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_120,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_124,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_243;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_244;
 
