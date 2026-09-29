@@ -14,6 +14,7 @@ import { buildPostHeadline } from '@/lib/sports/post-headline';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import SharePostModal from './SharePostModal';
+import { shareableKind } from '@/lib/play/share-card';
 import RepostModal from './RepostModal';
 import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import SportPostBody from './SportPostBody';
@@ -397,8 +398,14 @@ function PostCard({
     }
   };
 
+  // Play (244): a public result (a golf round, a stat line) shares its CARD —
+  // /r/<id> unfurls with the 1200×630 image and opens signed out; the page
+  // itself falls back to the in-app link when the author is not public.
+  const resultCard = shareableKind({ visibility: post.visibility, status: post.status ?? null, stats_data: post.stats_data, has_round: !!post.golf_round });
   const shareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/athlete/${post.profile.id}?post=${post.id}`
+    ? resultCard
+      ? `${window.location.origin}/r/${post.id}`
+      : `${window.location.origin}/athlete/${post.profile.id}?post=${post.id}`
     : '';
 
   const handleShare = () => {
