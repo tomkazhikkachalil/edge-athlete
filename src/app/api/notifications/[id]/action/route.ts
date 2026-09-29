@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { ACTIONABLE_TYPES } from '@/lib/notification-registry';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { applyJoin } from '@/lib/sport-events/join-server';
+import { respondChallenge } from '@/lib/play/challenges-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(
@@ -89,6 +90,15 @@ export async function POST(
       const { error: stampError } = await supabaseAdmin.from('notifications').update({ action_status, is_read: true }).eq('id', id);
       if (stampError) reportRouteError('[NOTIFICATION ACTION] stamp failed:', stampError);
       return NextResponse.json({ success: true, action_status });
+    }
+
+    // Play (244): a friend challenge — the challenges writer decides and stamps the bell.
+    if (notification.type === 'challenge') {
+      const challengeId = (notification.metadata as { challenge_id?: unknown } | null)?.challenge_id;
+      if (typeof challengeId !== 'string' || !isUuid(challengeId)) return NextResponse.json({ error: 'That challenge is no longer open' }, { status: 404 });
+      const outcome = await respondChallenge(supabaseAdmin, challengeId, user.id, action === 'accept' ? 'accept' : 'decline');
+      if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+      return NextResponse.json({ success: true, action_status: action === 'accept' ? 'accepted' : 'declined', challenge_status: outcome.status });
     }
 
     // Get the follow_id

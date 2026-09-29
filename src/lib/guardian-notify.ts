@@ -63,8 +63,11 @@ export type GuardianNotificationType =
   | 'team_roster'
   // Spec 2 (mig 223): a decision against a supervised athlete — the guardians hear.
   | 'moderation_notice'
-  // Play (244): a supervised athlete earned a badge — the guardians see it too.
-  | 'achievement';
+  // Play (244): a supervised athlete earned a badge — the guardians see it too;
+  // every friend-challenge bell (sent, answered, settled) is copied as well.
+  | 'achievement'
+  | 'challenge'
+  | 'challenge_result';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

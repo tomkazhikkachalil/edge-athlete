@@ -1148,7 +1148,7 @@ const { canView } = await response.json();
    **and the account is limited only on repeat incidents** (2+ other reports
    in 90 days — ANY severity) or by an admin. `profiles.moderation_state`
    (`active · limited · suspended · banned`) is enforced by `requireActiveWriter`
-   on THE list of 17 content + contact routes (pinned by
+   on THE list of 18 content + contact routes (pinned by
    `src/lib/__tests__/write-gate.test.ts` — never a blanket; the ticket
    routes stay open) and, for suspended / banned, by Supabase Auth's
    `ban_duration` (a suspended session answers 401 at `getUser`). The

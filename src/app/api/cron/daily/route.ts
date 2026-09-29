@@ -15,6 +15,7 @@ import { runTicketAnonymize } from '@/lib/tickets/server';
 import { purgeDeletedNews } from '@/lib/org-sites/news-server';
 import { runModerationLift } from '@/lib/moderation/server';
 import { purgeOldCheers } from '@/lib/play/cheers-server';
+import { expireChallenges } from '@/lib/play/challenges-server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -177,6 +178,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] cheers purge phase failed:', e);
     summary.cheers = { ok: false };
+  }
+
+  // Play (244): friend challenges past their window — pending expire, accepted are lost.
+  try {
+    summary.challenges = await expireChallenges(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] challenge sweep phase failed:', e);
+    summary.challenges = { ok: false };
   }
 
   // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the
