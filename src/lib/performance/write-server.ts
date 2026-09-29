@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { fromGolfRound, groupUniformRows, type GolfRoundOrigin } from './map';
+import { afterPerformanceWrite, type AfterWriteMode } from '@/lib/play/after-write';
 import type { MatchOutcomeEntry } from './match-outcomes';
 import { contextKey, naturalKey, type PerformanceOverlay, type PerformanceRow, type PerformanceSourceTable } from './types';
 
@@ -31,7 +32,14 @@ const outcomeOf = (error: { code?: string; message?: string } | null, count: num
   return { ok: false };
 };
 
-export async function upsertPerformances(admin: SupabaseClient, rows: readonly PerformanceRow[]): Promise<WriteOutcome> {
+/** `after`: the Play program's post-write hook (244) — 'notify' for a live
+ *  write (the default), 'silent' for the backfill (history earns badges
+ *  without bells), 'none' to skip it. */
+export async function upsertPerformances(
+  admin: SupabaseClient,
+  rows: readonly PerformanceRow[],
+  opts: { after?: AfterWriteMode | 'none' } = {}
+): Promise<WriteOutcome> {
   if (rows.length === 0) return { ok: true, count: 0 };
   let count = 0;
   try {
@@ -41,6 +49,8 @@ export async function upsertPerformances(admin: SupabaseClient, rows: readonly P
       if (!o.ok) return o;
       count += group.length;
     }
+    const after = opts.after ?? 'notify';
+    if (after !== 'none') await afterPerformanceWrite(admin, rows, after);
     return { ok: true, count };
   } catch (err) {
     console.warn(`${TAG} upsert threw:`, err instanceof Error ? err.message : err);
