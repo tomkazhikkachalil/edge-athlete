@@ -70,7 +70,10 @@ export function buildStaticCsp(opts?: { dev?: boolean }): string {
   const dev = opts?.dev === true;
   return [
     `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
+    // V3 (sports-team website program, Sep 28 2026): no `https:` — nothing
+    // behind this policy loads a third-party script (Sentry is bundled; embeds
+    // are frames), so any https origin was headroom for an injected tag.
+    `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,

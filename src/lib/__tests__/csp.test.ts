@@ -47,3 +47,14 @@ describe('buildCsp', () => {
     expect(prod).toContain("form-action 'self'");
   });
 });
+
+describe('the static CSP (V3)', () => {
+  it('script-src is self + inline only — no https: wildcard, no eval in production', async () => {
+    const { buildStaticCsp } = await import('../csp');
+    const script = buildStaticCsp().split('; ').find(d => d.startsWith('script-src'))!;
+    expect(script).toBe("script-src 'self' 'unsafe-inline'");
+    expect(buildStaticCsp({ dev: true }).split('; ').find(d => d.startsWith('script-src'))).toBe("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+    // The island's feed is same-origin: connect-src keeps 'self'.
+    expect(buildStaticCsp().split('; ').find(d => d.startsWith('connect-src'))).toContain("'self'");
+  });
+});

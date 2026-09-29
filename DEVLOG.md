@@ -1,5 +1,19 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, V3: the public site's script policy drops `https:` (zero DDL)
+
+**What changed:** the static CSP (every `/org/*` page, the vanity and custom-domain rewrites, the standings twins and the crawler files) had `script-src 'self' 'unsafe-inline' https:`. Nothing behind that policy loads a third-party script:
+- Sentry is bundled;
+- embeds are frames (`frame-src`);
+- the V2 island is first-party.
+
+The `https:` was only headroom for an injected tag, so `script-src` is now `'self' 'unsafe-inline'` (plus `'unsafe-eval'` in dev only). The app's nonce policy is unchanged, and `connect-src 'self'` still covers the live feed. Pinned in `csp.test.ts`.
+
+**Proof:**
+- `npm run verify` green: 4027 tests.
+- New `org-site-csp.spec.ts` @mobile passes on both engines. It checks the header's `script-src` has no `https:`, and that home, schedule, results, teams, a team page and news each raise zero `securitypolicyviolation` events at 390 px.
+- Green alongside it, on the enforced local production build: live-scoreboard (the island), pro-header, gallery, forms, analytics.
+
 ## September 28, 2026 — Sports-team website program, V2: the live card — the public site's one client island (zero DDL)
 
 **What visitors get:** a "Next game" card for a game being played now follows the score LIVE, on the site home, a custom page, the team page and the division page, without a reload. When the game finishes it flips to "Final". Screen readers hear the new score through a polite live region.
