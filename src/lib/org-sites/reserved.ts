@@ -42,6 +42,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'org-claim',
   'org-invite',
   'privacy',
+  'r', // Play program P5: /r/[postId], the public result page (seeded into reserved_handles by mig 244)
   'register',
   'reset-password',
   'settings',

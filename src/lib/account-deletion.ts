@@ -489,6 +489,16 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   await mustDelete('scout_shortlists', 'athlete_id');
   // The person's own records and gear.
   await mustDelete('athlete_achievements', 'profile_id');
+  // Play (244): badges, the rivalries shown, challenges both ways, cheers
+  // both ways — the person's own, never a result (the performance rows
+  // they came from stay, severed, by 238's rule).
+  await mustDelete('badge_awards', 'profile_id');
+  await mustDelete('athlete_rivalry_display', 'profile_id');
+  await mustDelete('athlete_rivalry_display', 'opponent_id');
+  await mustDelete('challenges', 'challenger_id');
+  await mustDelete('challenges', 'challengee_id');
+  await mustDelete('live_cheers', 'profile_id');
+  await mustDelete('live_cheers', 'target_profile_id');
   await mustDelete('athlete_equipment', 'profile_id');
   await mustDelete('athlete_vitals', 'profile_id');
   await mustDelete('user_media_presets', 'profile_id');
