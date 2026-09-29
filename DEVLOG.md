@@ -1,5 +1,47 @@
 # Development Log
 
+## September 28, 2026 — Sports-team website program, F: the close — COMPLETE (#962–#988, mig 243 the only DDL)
+
+**Tom's brief** (Sep 27): a site that "looks like a professional site", with "all the functionalities required for one user to manage all the edits and news", making the manager's life as easy as possible. His plan-mode decisions: all four pillars (pro look, one home, newsroom, game-day); Announce merged into news; one-click recap drafts; a live scoreboard on the site.
+
+**What shipped, by phase** (each with its own entry below):
+- **P0 (#962):** three real defects — news Publish no longer loses unsaved edits; Announce never writes the live site row; the announce route's intent is `manage_site`.
+- **Look (#963–#967):** the pro header and wide page, the phone menu, the Teams dropdown, team crests and colours, the footer chrome and sponsor bar, notice tones, the branded 404, the CSS lightbox.
+- **One home (#968–#969):** documents, gallery picks, the logo, and subpages & navigation in the editor; the console keeps settings only; deep links.
+- **Newsroom (#970–#975, mig 243):**
+  - the scheduling fence; inline formatting;
+  - the one-edit-shape writer with compare-and-set;
+  - the newsroom inside the editor;
+  - team and division tags on those pages.
+- **Announce merge (#976–#977):** Notify members (claimed once, the cron sweep), the site banner, the console form retired.
+- **Game-day (#978–#983):**
+  - the Results page;
+  - the "Next game" / "Latest results" tiles;
+  - the team query, and a club's teams' games in other leagues;
+  - team and division pages that lead with the next game;
+  - sport-event games in every view;
+  - site freshness on a game's status change;
+  - three game-day gallery designs.
+- **Recaps (#984):** one-click drafts from results, deduped on the game.
+- **Live (#985–#987):** the public feed, the one client island (HARDENING B4.11, guardrail 4e), and the static CSP without `https:`.
+
+**Two gaps the specs found and fixed:**
+- the game tiles' audience (#985): members-only wherever a private club's teams are;
+- the lightbox image's reserved box (#983, a flake).
+
+**Deferred, on purpose:**
+- a "Draft a recap" button on the contest page itself (its public copy is viewer-independent — a client-island affordance later);
+- an in-app team news tab (the public team page has the tagged news).
+
+**Docs:** CLAUDE.md convention 12 gains the program's bullet (its invariants, one line each); HARDENING B4.11 (V2); this DEVLOG.
+
+**Production:**
+- #962–#967 and #968–#973 were each proven on prod.
+- #975–#985: after a probe that the Mac's sleep spoiled, a clean rerun passed every spec (details in V2's entry).
+- #986–#988 each need a probe once merged.
+
+**For Tom — the device pass:** on a phone, open a public team site and walk the menu, the next-game card (during a live game, watch the score move), the Results page and a team page. Then, in the editor, write and schedule a post with Notify members, and draft a recap from a finished game.
+
 ## September 28, 2026 — Sports-team website program, V3: the public site's script policy drops `https:` (zero DDL)
 
 **What changed:** the static CSP (every `/org/*` page, the vanity and custom-domain rewrites, the standings twins and the crawler files) had `script-src 'self' 'unsafe-inline' https:`. Nothing behind that policy loads a third-party script:
