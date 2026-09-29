@@ -1,5 +1,40 @@
 # Development Log
 
+## September 28, 2026 — Play program, P4: the trophy case shows what was earned — on both profile routes, with a live celebration
+
+**Read:** `GET /api/profile/[profileId]/badges`
+- The gate is the Achievements tab's:
+  - a public profile, to anyone (signed out too);
+  - a private one through `canViewProfile`;
+  - a departed account, nothing.
+- A refusal is the same empty list a profile with no badges gets.
+- The payload never carries the source row's key, which names a post the viewer may not see. `private, no-store`.
+
+**`EarnedBadges`** (`src/components/play/`) has two variants:
+- **`full`**, on the Achievements tab of `/athlete` and `/athlete/[id]`:
+  - shelves per sport, best tier first;
+  - the owner also sees "Up next", dimmed and locked, the easiest unearned first, so there is always something to chase.
+- **`compact`**, on the `/u/` overview: the best eight as chips, plus "See all" in a window. `/u/` has no Achievements tab, and a signed-out visitor must never be sent to `/athlete`.
+- Every badge opens its detail in the house `LargerWindow` (a bottom sheet on a phone): the number that earned it ("Shot 77"), the day, and **Verified** or "From a self-reported result".
+- The pure view logic is in `src/lib/play/badges/display.ts`.
+- The catalog's icons became glyph *names*, so the catalog stays data; the component maps each name to a lucide icon.
+
+**The celebration:**
+- The bell's existing realtime channel (`notifications.tsx`) sees the `achievement` row and fires `celebratePR()` + a toast. Reduced motion is already respected there.
+- `src/lib/play/celebration.ts` decides it. A guardian's copy gets a toast only: the confetti belongs to the one who earned it.
+- No new transport and no polling.
+
+**Proof:**
+- `e2e/play-badges.spec.ts` passed **4/4** on staging (desktop, mobile, webkit-mobile), using a fresh public athlete per test:
+  - a 77 with a birdie earns break 100/90/80 + first birdie, and not break 70;
+  - **one** bell is sent, linking to `?tab=achievements`;
+  - the toast arrives live;
+  - the trophy case shows the tile, "Up next" and the detail ("Shot 77", self-reported);
+  - a visitor on `/u/@handle` sees the compact shelf and no "Up next";
+  - a stranger and an anonymous reader get `[]` + `no-store` for a private athlete;
+  - at 390px, the deep link, the tile, the bottom sheet in the viewport, and no horizontal scroll.
+- Plus 9 pure tests (display + celebration).
+
 ## September 28, 2026 — Play program, P3: the badges engine (every sport, by data)
 
 **The catalog** (`src/lib/play/badges/catalog.ts`, pure data) is what defines badges; a `badge_awards` row only records one that was earned.
