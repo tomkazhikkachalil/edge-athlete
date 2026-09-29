@@ -1,5 +1,31 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 2: the pure core (parsers, normalizer, stream, projections)
+
+**`src/lib/activities/`**, pure except the one `-server` module:
+- **`catalog.ts`:** zero imports. The `ActivityType` list is pinned equal to 245's CHECK by a test. It holds each type's label, icon, pace style, moving threshold and top speed, and `activityTypeFromWord` (an unknown word maps to `other`, never a guess).
+- **`types.ts`:** the ONE `NormalizedActivity` every source becomes, the `ActivitySummary`, and the columnar `ActivityStream`.
+- **Parsers:** `parse-gpx.ts` / `parse-tcx.ts` run over a regex scanner (`xml-scan.ts`: no DOMParser, so it works in node for later providers; no entity or DTD resolution). A planned route with no times is refused. TCX lap totals are read with the Track cut out.
+- **`parse-fit-server.ts`:** Garmin's `@garmin/fitsdk` (pinned 21.217.0).
+  - **Server only.** Its license makes the SDK Garmin's confidential information and forbids making it available to third parties, so it never goes into a browser bundle. A test holds every import of it to a `-server.ts` module. This changes the plan: a .FIT uploads raw to the server, while GPX/TCX still parse in the browser.
+  - Positions are converted from semicircles, and the device's UTC offset comes from the activity message's `local_timestamp`.
+- **`normalize.ts`:** the summary is computed from the points on the server.
+  - `cleanPoints` sorts, drops duplicate timestamps and out-of-range sensor values, and drops the FIX (never the sample) of a GPS jump faster than 3× the type's top speed.
+  - `summarize` computes haversine distance, or the device counter indoors; moving time (a gap over 30 s is a pause); elevation with 3 m hysteresis; HR, power and cadence.
+  - A device total is kept only when it agrees with the points (distance ±15%, ascent 0.5–2× + 50 m).
+  - `implausibility` returns the reason in words the athlete can act on.
+  - `occurredOn` uses the file's offset, then the uploader's zone, then UTC.
+  - `fileExternalId` uses the start second, so the same run exported as .FIT and .GPX is one activity.
+- **`stream.ts`:** the stored stream (≤ 2,000 samples, aligned columns); `trimStream` (**Tom's rule**: positions within 200 m of the start or finish become null; the other columns stay); `routePreview` (built from the TRIMMED route, ≤ 200 points); km/mi `splits`.
+- **`wire.ts` / `wire-schema.ts`:** the browser → server GPX/TCX payload, columnar, ≤ 10,000 samples, with no totals. Zod refuses misaligned columns, a lone lat and extra keys.
+- **`visibility.ts`:** the projection is the access rule.
+  - `owner`: everything.
+  - `viewer`: the trimmed stream.
+  - `supervised_viewer`: no `lat`/`lng` key anywhere and no preview; the charts stay.
+  - The storage path never leaves the server. The tests serialise each projection.
+
+**Measured:** a 4.8 MB GPX (20,000 points, a 140 km ride) parses in 77 ms. Its payload is 0.38 MB and its stream 85 KB before gzip. **40 new tests.**
+
 ## September 29, 2026 — Activities program, PR 1: migration 245 (the `activities` table)
 
 **Tom's brief:** athletes bring the runs, rides and hikes their watch or app recorded. The long-term plan is Strava, Google Health (Fitbit / Pixel), Garmin and an Apple Watch path. **Phase 1 is file import** (.FIT / .GPX / .TCX): every device can export a file, and no provider approvals are needed. Every later provider becomes an adapter producing the same normalized shape.
