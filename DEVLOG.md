@@ -1,5 +1,32 @@
 # Development Log
 
+## September 29, 2026 — Maintenance after the Play program: the full checklist, all green
+
+**On main at `860b6426`** (Play #991–#1000 + baseline@244 #1001). No code changed; this entry is the record.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,099 tests in 441 files**;
+- the production build;
+- 211 client chunks inside the iOS 15 / Safari 15 floor.
+
+**Other checks:**
+- **The hardening guardrails pass.** Two informational notes remain, the standing ones: `.select('id'|'*')` sites and possible raw-error bodies. The Play sites that read `data.length` after an `update … .select('id')` are compare-and-set row checks, not counts.
+- **Schema:** `check:schema` on staging and `check:schema:prod` are both OK on all facets, with both ledgers at head 244 and every file run.
+- **Production health:** `ok`, database `ok`, serving main's head.
+
+**A CI flake, root-caused and fixed:** `e2e/get-started-mobile.spec.ts`, on webkit-mobile only. The PR's first smoke run failed on both attempts with *"Navigation to /feed is interrupted by another navigation to /athlete?edit=sport"*.
+
+The trace shows the sequence:
+1. The "Set level →" tap soft-navigates to `/athlete?edit=sport`, and one RSC request for it is still streaming.
+2. The test's `page.goto('/feed')` unloads the page, and WebKit aborts that request.
+3. Next's router answers the aborted fetch with a **hard** navigation back to `/athlete?edit=sport`: a `/athlete?edit=sport` document 200, right after the `/feed` document aborted.
+
+This is framework behaviour, not app code; nothing in `/athlete` re-navigates. The spec now continues in a **fresh page of the same context**, with the dismiss key in localStorage (shared per context) and the stub re-routed, instead of calling `goto` from the page that is still navigating. Every assertion is unchanged. It passed **10/10** locally (5× each on mobile and webkit-mobile).
+
+**Advisories** (`npm audit --omit=dev`): **one moderate, in `nodemailer` ≤10.0.1** (GHSA-6vj9-mwq6-2f5v, GHSA-8vvx-rff5-p5rq). The only fix is a **major** upgrade to 10.x, which `audit fix --force` would take. It was deliberately **not** taken ("without breaking anything"). Outbound email is parked until the app goes public (SMTP unset, so every send site is guarded off), so nothing reaches the vulnerable paths today. **Revisit it with the email work:** upgrade nodemailer to 10.x in its own PR and test the calendar-invite, guardian and digest sends.
+
 ## September 29, 2026 — Play program, P10: the close — COMPLETE on staging (#991–#1000, mig 244 the only DDL)
 
 **Tom's brief** (Sep 28): "something fun". He picked five features:

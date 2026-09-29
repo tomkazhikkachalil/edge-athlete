@@ -61,16 +61,30 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
   await page.waitForURL('**/athlete?edit=sport', { timeout: 15_000 });
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 20_000 });
 
-  // Back on the feed the card is still offered (not yet dismissed)…
-  await page.goto('/feed');
-  await expect(card).toBeVisible({ timeout: 15_000 });
+  // Back on the feed the card is still offered (not yet dismissed)… — in a
+  // FRESH page of the same context (the dismiss key is localStorage, shared
+  // per context). Never page.goto from here: the "Set level →" soft
+  // navigation can leave an RSC request still streaming, WebKit aborts it
+  // when the page unloads, and Next's router answers the aborted fetch with
+  // a HARD navigation back to /athlete?edit=sport — which interrupts the
+  // goto (the CI flake of Sep 29 2026, read off the trace: the goto's /feed
+  // document aborted, then a /athlete?edit=sport document 200).
+  const feed = await page.context().newPage();
+  await feed.setViewportSize({ width: 375, height: 812 });
+  await feed.route('**/api/profile/getting-started', route =>
+    route.fulfill({ json: STUBBED_STEPS })
+  );
+  await page.close();
+  await feed.goto('/feed');
+  const feedCard = feed.getByTestId('get-started-card');
+  await expect(feedCard).toBeVisible({ timeout: 15_000 });
 
   // …and dismissal hides it now and across a reload (localStorage).
-  await dismiss.click();
-  await expect(card).toBeHidden();
-  await page.reload();
-  await expect(page.getByRole('button', { name: /what's on your mind/i })).toBeVisible({
+  await feedCard.getByRole('button', { name: 'Dismiss get started checklist' }).click();
+  await expect(feedCard).toBeHidden();
+  await feed.reload();
+  await expect(feed.getByRole('button', { name: /what's on your mind/i })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByTestId('get-started-card')).toHaveCount(0);
+  await expect(feed.getByTestId('get-started-card')).toHaveCount(0);
 });
