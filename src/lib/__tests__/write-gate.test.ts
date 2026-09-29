@@ -28,6 +28,7 @@ export const GATED_WRITE_ROUTES = [
   'sport-events/[id]/participants/join/route.ts',
   'clubs/requests/route.ts',
   'leagues/requests/route.ts',
+  'challenges/route.ts', // Play (244): a friend challenge reaches another person
 ] as const;
 
 describe('the write gate covers THE list', () => {

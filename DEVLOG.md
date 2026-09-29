@@ -1,5 +1,53 @@
 # Development Log
 
+## September 28, 2026 — Play program, P8: friend challenges, settled by real results
+
+**Tom's rules:** mutual follows only; every result counts, and a verified one is marked. Examples: "Shoot under 78 (18 holes) at Eagle Creek by Oct 28", "20+ points by Oct 12".
+
+**The terms** (`src/lib/play/challenges.ts`, pure) use a metric from the sport's own vocabulary:
+- golf's round facts: score, score to par, birdies, putts;
+- a stat-line sport's schema fields;
+- `LOWER_IS_BETTER` holds the few stat fields where less wins (goals against, earned runs, turnovers…) plus race times. It is pinned so it names only real fields.
+
+A `lower` challenge is **beaten** (strictly under the target); a `higher` one is **reached** (at or over it). A golf score challenge defaults to 18 holes, and a 9 never answers it. The window runs 1–90 days from today.
+
+**Statuses:**
+- pending → accepted, declined, cancelled, or expired;
+- accepted → won, lost (the window passed unmet), or cancelled;
+- the rest are final.
+
+**`challenges-server.ts`** is the one writer.
+- **Sending:**
+  - Both follows must be accepted. It never uses `.or()` over interpolated ids.
+  - Never across a block or a mute in either direction, and never to a departed account.
+  - **A refusal never says which rule failed.** A block reads exactly like "not mutual".
+  - "They are not taking challenges right now" names the one refusal the recipient chose (`challenges_enabled`, which joins the preferences schema).
+  - At most 10 open challenges per challenger.
+  - It runs behind the write gate (THE list is now 18 routes, with `docs/SUPPORT.md` and CLAUDE.md updated) and a daily `challenge` bucket of 20.
+- **Answering:** Accept / Decline from **the bell** (`challenge` joins `ACTIONABLE_TYPES`, and the notification action route delegates to `respondChallenge`), or from the challenge itself.
+  - A compare-and-set on `version`.
+  - Someone who isn't part of it gets the 404 an unknown id gets.
+  - **An accept settles at once** when a result already in the window answers it.
+- **Settling** runs in `after-write.ts` beside the badges. Every writer in every sport reaches it. The best qualifying row wins, with a verified one preferred, and both people get a bell.
+- **The daily cron** expires unanswered challenges and marks accepted ones lost, with a friendly bell to each side.
+- A supervised athlete's guardians get a copy of every challenge bell.
+
+**Proof:**
+- `e2e/play-challenges.spec.ts` passed **2/2** on staging with fresh users. It checks:
+  - the picker offers mutual follows only;
+  - A sends → B's bell reads "Challenger Ann challenged you" with Accept / Decline;
+  - a stranger's accept → 404;
+  - B accepts from the bell;
+  - B's **real** 22-point stat line wins it (won, 22, self-reported), and both bells arrive;
+  - the lists; a stranger reading B's → 403;
+  - one-way follow → 403 with the neutral copy;
+  - a decline (the challenger can't accept their own; a second answer → 409);
+  - a cancel;
+  - challenges switched off → refused by name;
+  - a block → the neutral 403, and the picker is empty.
+- All Play specs together pass **17/17**.
+- 16 pure tests cover the vocabulary for every FEATURE sport, validation, qualifying, the status machine and the copy.
+
 ## September 28, 2026 — Play program, P7: live cheers, every sport
 
 **The feature:** anyone who may watch a live round taps one of six emoji (🔥 👏 💪 🎯 🙌 😮). It floats up for everyone watching, including the player mid-entry, and the round keeps a count.

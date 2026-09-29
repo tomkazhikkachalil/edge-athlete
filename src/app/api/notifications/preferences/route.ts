@@ -86,6 +86,8 @@ const PreferencesSchema = z
     mentions_enabled: z.boolean(),
     tags_enabled: z.boolean(),
     achievements_enabled: z.boolean(),
+    // Play (244): friend challenges — off means nobody can send you one.
+    challenges_enabled: z.boolean(),
     system_announcements_enabled: z.boolean(),
     club_updates_enabled: z.boolean(),
     push_enabled: z.boolean(),

@@ -146,7 +146,7 @@ export const NOTIFICATION_TYPE_META = {
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
-export const ACTIONABLE_TYPES: ReadonlySet<string> = new Set(['follow_request', 'sport_event_invite', 'sport_event_request']);
+export const ACTIONABLE_TYPES: ReadonlySet<string> = new Set(['follow_request', 'sport_event_invite', 'sport_event_request', 'challenge']);
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;
 

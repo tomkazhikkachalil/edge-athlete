@@ -32,5 +32,6 @@ export function decidedText(n: ActionableNotification, actorName: string): strin
   const did = n.action_status === 'accepted' ? 'accepted' : 'declined';
   if (n.type === 'sport_event_invite') return `You ${did} the invitation to ${eventName(n)}`;
   if (n.type === 'sport_event_request') return `You ${did} ${actorName}'s request to join ${eventName(n)}`;
+  if (n.type === 'challenge') return `You ${did} ${actorName}'s challenge`;
   return null;
 }
