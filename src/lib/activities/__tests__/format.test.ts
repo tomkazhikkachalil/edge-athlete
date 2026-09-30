@@ -48,3 +48,17 @@ describe('chart series', () => {
     expect(chartSeries(null, 'run', 'km')).toEqual([]);
   });
 });
+
+describe('routeSvg', () => {
+  it('fits a route into the box, keeping its shape', async () => {
+    const { routeSvg } = await import('../route-svg');
+    const { encodePolyline } = await import('../polyline');
+    const tall = encodePolyline([[43.6, -79.4], [43.61, -79.4], [43.62, -79.4]]);
+    const svg = routeSvg(tall, 160, 90, 8)!;
+    expect(svg.viewBox).toBe('0 0 160 90');
+    // A north-south line is drawn vertically, centred: x stays at the middle.
+    expect(svg.d.startsWith('M 80 ')).toBe(true);
+    expect(routeSvg(null)).toBeNull();
+    expect(routeSvg(encodePolyline([[1, 1]]))).toBeNull();
+  });
+});
