@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
-    "test:e2e:prod": "E2E_TARGET=prod E2E_ALLOW_PROD=1 E2E_BASE_URL=https://edge-athlete.vercel.app playwright test",
+    "test:e2e:prod": "E2E_TARGET=prod E2E_ALLOW_PROD=1 E2E_BASE_URL=${E2E_PROD_URL:-https://edge-athlete.vercel.app} playwright test",
     "check:syntax": "node scripts/check-browser-syntax.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
     "verify:media-privacy": "node scripts/verify-media-privacy.mjs",

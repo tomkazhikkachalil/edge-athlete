@@ -1,5 +1,12 @@
 # Development Log
 
+## September 29, 2026 — Go-live prep (Phase 0): the e2e suite knows every production host; migration 246 held
+
+- **`PROD_APP_HOSTS`** (`e2e/helpers/qa-user.ts`) lists every host that serves production: the vercel.app alias, `edgeathlete.ca` + www, and the planned `.com` + www. The prod refusal and the deploy wait (`deploy.ts`) read the list rather than one host. Without it, a local run pointed at `edgeathlete.ca` would not have been refused. `e2e-prod-guard.test.ts` pins every host, and pins that a preview is not production.
+- **`npm run test:e2e:prod`** keeps the vercel.app alias (it always serves prod) and takes `E2E_PROD_URL` to probe the domain after cutover.
+- **The Nominatim User-Agent** reads `NEXT_PUBLIC_APP_URL`.
+- **Migration 246** re-points the two pg_cron jobs at `edgeathlete.ca`. It rewrites only the host inside each job through `cron.alter_job`, so the secret is never re-typed. It stays in its own PR, **unmerged until go-live Phase 7**: run early, the jobs would call GoDaddy's page. It never names `cron.*` outside the guarded block, since staging has no pg_cron.
+
 ## September 29, 2026 — The go-live checklist for edgeathlete.ca (+ two host fixes)
 
 Tom asked for the domain go-live checklist. **`docs/GO_LIVE_EDGEATHLETE_CA.md`** was written from a sweep of every host dependency in the code and `edgeathlete.ca`'s live DNS that day.
