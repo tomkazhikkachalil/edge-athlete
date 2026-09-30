@@ -24,7 +24,7 @@ import { foldHeadToHead, type HeadToHead, type VersusRow } from './versus';
 
 type Admin = SupabaseClient;
 
-const ROW_COLUMNS = 'profile_id, context_key, sport_key, occurred_on, side, outcome, headline, metrics, provenance';
+const ROW_COLUMNS = 'profile_id, context_key, sport_key, occurred_on, side, outcome, headline, metrics, provenance, match_unit:context->>match';
 const CONTEXT_CAP = 1000;
 const KEY_CHUNK = 150;
 const RIVAL_CAP = 20;
@@ -39,6 +39,8 @@ interface PerfRow {
   headline: number | string | null;
   metrics: Record<string, number> | null;
   provenance: string | null;
+  /** The match a golf match-play row was played in (context.match). */
+  match_unit: string | null;
 }
 
 const toVersus = (r: PerfRow): VersusRow => ({
@@ -49,6 +51,7 @@ const toVersus = (r: PerfRow): VersusRow => ({
   outcome: r.outcome,
   headline: r.headline === null ? null : Number(r.headline),
   holes: typeof r.metrics?.holes === 'number' ? r.metrics.holes : null,
+  unit: r.match_unit ?? null,
   verified: !!r.provenance && OFFICIAL_PROVENANCE.has(r.provenance),
 });
 

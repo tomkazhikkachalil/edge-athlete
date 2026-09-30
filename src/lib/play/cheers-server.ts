@@ -3,7 +3,7 @@ import { canViewSharedRound } from '@/lib/golf/round-access';
 import { effectiveRoundStatus } from '@/lib/golf/round-status';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { isMissingTableError } from '@/lib/orgs/validate';
-import { parseCheerContext, tally, type CheerEvent, type CheerFeed, type CheerKey } from './cheers';
+import { CHEER_KEYS, emptyTotals, parseCheerContext, type CheerEvent, type CheerFeed, type CheerKey } from './cheers';
 
 /**
  * Live cheers — the Play program (244). Server-only; the ONE writer of
@@ -70,18 +70,33 @@ async function groupPostLive(admin: Admin, g: { status: string | null; last_scor
 }
 
 const RECENT_CAP = 50;
-const TALLY_CAP = 5000;
 
+/**
+ * The counts are six head counts in the database (one per cheer key, over
+ * idx_live_cheers_context) — never the rows: a popular round used to ship
+ * up to 5,000 rows to every viewer every 10 s, and its totals silently
+ * froze at that cap (the Play review, Sep 29 2026).
+ */
 export async function readCheerFeed(admin: Admin, contextKey: string, since: string | null): Promise<CheerFeed> {
   const now = new Date().toISOString();
-  const [all, recent] = await Promise.all([
-    admin.from('live_cheers').select('cheer').eq('context_key', contextKey).limit(TALLY_CAP),
+  const [counts, recent] = await Promise.all([
+    Promise.all(
+      CHEER_KEYS.map(k => admin.from('live_cheers').select('id', { count: 'exact', head: true }).eq('context_key', contextKey).eq('cheer', k))
+    ),
     since
       ? admin.from('live_cheers').select('id, cheer, target_profile_id, created_at').eq('context_key', contextKey).gt('created_at', since).order('created_at', { ascending: false }).limit(RECENT_CAP)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (all.error && !isMissingTableError(all.error.code)) console.warn('[cheers] tally failed:', all.error.message);
-  const { totals, total } = tally((all.data ?? []) as Array<{ cheer: string }>);
+  const totals = emptyTotals();
+  let total = 0;
+  counts.forEach((c, i) => {
+    if (c.error) {
+      if (!isMissingTableError(c.error.code)) console.warn('[cheers] count failed:', c.error.message);
+      return;
+    }
+    totals[CHEER_KEYS[i]] = c.count ?? 0;
+    total += c.count ?? 0;
+  });
   const events: CheerEvent[] = ((recent.data ?? []) as Array<{ id: string; cheer: CheerKey; target_profile_id: string | null; created_at: string }>).map(r => ({
     id: r.id,
     cheer: r.cheer,

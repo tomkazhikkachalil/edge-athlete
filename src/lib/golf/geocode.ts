@@ -137,7 +137,9 @@ export function parseReverseGeocode(payload: unknown): ReverseGeocodeFill | null
   return { city, region, country };
 }
 
-const NOMINATIM_UA = 'EdgeAthlete/1.0 (https://edge-athlete.vercel.app)';
+// Nominatim's policy asks for an identifying User-Agent: the app's own
+// address (NEXT_PUBLIC_APP_URL — the go-live domain once it is set).
+const NOMINATIM_UA = `EdgeAthlete/1.0 (${process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app'})`;
 
 /** Reverse-geocode a course location to city/region/country. Same Nominatim
  *  policy as forward geocoding: server-side, budgeted by the caller, never

@@ -3,7 +3,8 @@ import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
 import { notifyGuardians } from '@/lib/guardian-notify';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import type { PerformanceRow } from '@/lib/performance/types';
-import { badgeDef } from './badges/catalog';
+import { BADGES, badgeDef } from './badges/catalog';
+import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { evaluateBadges, type Award, type EvalRow } from './badges/evaluate';
 
 /**
@@ -54,6 +55,30 @@ async function readProfileRows(admin: Admin, profileId: string): Promise<EvalRow
     return null;
   }
   return (data ?? []) as EvalRow[];
+}
+
+/** Results per sport and sports played, as head counts over
+ *  (profile_id, sport_key) — one per registered sport, in parallel. */
+async function readResultCounts(admin: Admin, profileId: string): Promise<{ resultCounts: Record<string, number>; sportsPlayed: number } | null> {
+  const sports = Object.keys(SPORT_REGISTRY);
+  const results = await Promise.all(
+    sports.map(sport => admin.from('athlete_performances').select('id', { count: 'exact', head: true }).eq('profile_id', profileId).eq('sport_key', sport))
+  );
+  const resultCounts: Record<string, number> = {};
+  let sportsPlayed = 0;
+  for (let i = 0; i < sports.length; i++) {
+    const r = results[i];
+    if (r.error) {
+      warn('count read failed', r.error);
+      return null;
+    }
+    const n = r.count ?? 0;
+    if (n > 0) {
+      resultCounts[sports[i]] = n;
+      sportsPlayed++;
+    }
+  }
+  return { resultCounts, sportsPlayed };
 }
 
 function countsOf(rows: ReadonlyArray<{ sport_key: string }>): { resultCounts: Record<string, number>; sportsPlayed: number } {
@@ -136,21 +161,27 @@ export async function awardBadgesAfterWrite(admin: Admin, rows: readonly Perform
       else byProfile.set(r.profile_id, [r]);
     }
     for (const [profileId, mine] of byProfile) {
-      const [held, record] = await Promise.all([
-        readHeld(admin, profileId),
-        admin.from('athlete_performances').select('sport_key').eq('profile_id', profileId).limit(ROW_CAP),
-      ]);
+      // The counts are head counts per sport (an index-only count each, in
+      // parallel), never the rows: this hook runs on EVERY result write —
+      // once per player, serially, at an event's completion — and used to
+      // pull up to 5,000 rows per player just to count them (the Play
+      // review, Sep 29 2026).
+      const [held, counts] = await Promise.all([readHeld(admin, profileId), readResultCounts(admin, profileId)]);
       if (!held) continue; // pre-244, or a read error — nothing is awarded blind
-      if (record.error) { warn('count read failed', record.error); continue; }
-      const { resultCounts, sportsPlayed } = countsOf((record.data ?? []) as Array<{ sport_key: string }>);
+      if (!counts) continue;
+      const { resultCounts, sportsPlayed } = counts;
+      const heldKeys = new Set(held.map(h => h.badge_key));
+      // The handicap read (a full computation) only when a rated golf round
+      // was written AND a handicap badge is still open.
       const wroteRatedGolf = mine.some(r => r.sport_key === 'golf' && typeof r.metrics.differential === 'number');
-      const handicapIndex = wroteRatedGolf ? await currentHandicap(admin, profileId) : null;
+      const handicapOpen = BADGES.some(b => b.rule.kind === 'handicap' && !heldKeys.has(b.key));
+      const handicapIndex = wroteRatedGolf && handicapOpen ? await currentHandicap(admin, profileId) : null;
       const awards = evaluateBadges({
         rows: mine.map(r => ({ natural_key: r.natural_key, sport_key: r.sport_key, occurred_on: r.occurred_on, metrics: r.metrics, outcome: r.outcome ?? null, context: r.context, provenance: r.provenance ?? null })),
         resultCounts,
         sportsPlayed,
         handicapIndex,
-        held: new Set(held.map(h => h.badge_key)),
+        held: heldKeys,
       });
       const inserted = await insertAwards(admin, profileId, awards);
       if (opts.notify && inserted.length > 0) await bellFor(admin, profileId, inserted);
@@ -167,12 +198,16 @@ export async function rescanBadges(admin: Admin, profileId: string): Promise<voi
     if (!held || !rows) return;
     const earned = evaluateBadges({ rows, ...countsOf(rows), handicapIndex: null, held: new Set() });
     const earnedKeys = new Set(earned.map(a => a.badgeKey));
-    const revoke = held
+    // The read is capped: a record longer than ROW_CAP was only partly seen,
+    // and a badge an older row earned must not be taken away on that basis.
+    const complete = rows.length < ROW_CAP;
+    const revoke = complete ? held
       .filter(h => {
         const def = badgeDef(h.badge_key);
         return !!def && def.rule.kind !== 'handicap' && !earnedKeys.has(h.badge_key);
       })
-      .map(h => h.badge_key);
+      .map(h => h.badge_key) : [];
+    if (!complete) warn('rescan', `record longer than ${ROW_CAP} rows — nothing revoked`);
     if (revoke.length > 0) {
       const { error } = await admin.from('badge_awards').delete().eq('profile_id', profileId).in('badge_key', revoke);
       if (error) warn('revoke failed', error);

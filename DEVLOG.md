@@ -1,5 +1,84 @@
 # Development Log
 
+## September 30, 2026 — Maintenance after the launch day: the full checklist, all green
+
+**On main at `01d5c9c6`** (the launch gate, #1016). Since the Sep 29 maintenance entry: the Activities program (#1003–#1009), the go-live checklist and prep (#1010, #1011), the Play fix round (#1013), the production reset (#1014), the advisory upgrade (#1015), the gate (#1016); the domain cutover to `edgeathlete.ca` and the production wipe both ran.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,163 tests in 447 files**;
+- the production build;
+- 221 client chunks inside the iOS 15 / Safari 15 floor (Garmin's FIT SDK in none of them).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes are unchanged at 103 `.select('id'|'*')` sites and **14** raw-error-shaped bodies: the 15th was the FIT import route returning an `ActivityParseError`, whose messages are written for the athlete — annotated `hardening-ok`.
+- **`npm audit --omit=dev`: 0 vulnerabilities** (nodemailer 10 since #1015).
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet, both ledgers at head 245, every file run.
+- **Production:** health `ok`, database `ok`, serving main's head; `edgeathlete.ca` resolves to Vercel (`216.150.1.1`, the GoDaddy builder has not restored its records) and the gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+
+**Open:** #1012 (migration 246, the pg_cron host move) stays held until Tom runs it on prod — the domain serves the app now, so it can be run any time. Tom owes: the Supabase "Allow new users to sign up" switch (OFF while gated), Vercel Pro, one real watch file on his iPhone, and the list of "holes and bugs" he saw for the next fix round.
+
+## September 30, 2026 — The launch gate: coming soon for everyone signed out, no new sign-ups
+
+Tom, hours after the early go-live: *"I see a lot of holes and bugs, can we take down the site for now, or put a coming soon banner / block new users from signing up?"* Chosen over Vercel's own password wall because that would also block the scheduled database jobs and the APIs; this gate leaves them untouched.
+
+**`NEXT_PUBLIC_LAUNCH_GATE=1`** (one flag; inlined at build time — a real build, not a redeploy — read by the middleware, the sign-up API and the login page):
+- **Middleware, BEFORE the anonymous fast paths** (org sites, vanity, standings — they would otherwise serve a stranger a public page): a signed-OUT visitor on any path but the doors is 307'd to **`/auth/coming-soon`** (under `/auth`, so no new root segment and no reserved-handle migration). The doors: `/?signin=1` (the login form), `/auth/*` (the OAuth callback, complete-profile), the password flows, `/privacy` + `/terms` (the Google consent screen names them), static files. `/robots.txt` answers `Disallow: /` and `/sitemap.xml` 404s. A signed-in account (Tom) falls through to the app unchanged. `src/lib/launch-gate.ts` is the pure rule (zero imports — the edge bundle), pinned by `launch-gate.test.ts`.
+- **`POST /api/signup`** refuses with 403 "Sign-ups open soon". The login page's "New Here?" column becomes "Opening soon" with a link to the coming-soon page. Supabase's own **"Allow new users to sign up"** switch (Tom flips it) is the belt to this suspender: it covers Google sign-in too.
+- **The page:** the mark, one line, a waitlist email (the existing `/api/waitlist`, `guest`), "Have an account? Sign in".
+
+**Proof:** `e2e/launch-gate.spec.ts` runs only against a build made with the flag (CI's build is not gated; it skips there): signed out → coming-soon on `/`, `/feed`, `/u/…`, `/org/…`, `/register`; the sign-in link lands on the login form; robots forbid; sitemap 404; `/privacy` 200; signup 403; signed in → `/feed`. 3/3 on desktop, 390 Chromium and WebKit against a gated local build. `auth-login.spec.ts` now visits `/?signin=1` (harmless when the gate is off). Screenshots at 375 and 1280.
+
+**While the gate is up, the prod probes that walk SIGNED-OUT pages (share cards, public profiles, org sites) fail by design; the signed-in ones pass.** Turning the gate off: unset the flag + a build, and Supabase's switch back on.
+
+## September 30, 2026 — Advisories: nodemailer 9 → 10 (its own types), brace-expansion, fast-uri
+
+New advisories published today rated **high**: `nodemailer` ≤ 10.0.8 (four: a process-global DNS cache reusing TLS `servername` across transports, nested recipient arrays, a quoted local-part, addressparser backtracking) and `brace-expansion` (a transitive dependency of `glob`), plus `fast-uri` (moderate). The hardening guardrail fails CI on any high advisory, so every open PR went red at once.
+
+- **nodemailer → 10.0.12**, the major upgrade the Sep 29 maintenance entry deferred. It ships its own types now: `email-service.ts` imports `Transporter` and `SendMailOptions` as named types (the `nodemailer.` namespace is gone), and `@types/nodemailer` is removed. `createTransport` / `sendMail` are unchanged. Outbound email is still parked (SMTP unset), so no send path ran; when it is enabled, LAUNCH_RUNBOOK §1's probes cover it.
+- `npm audit fix` for the transitive two. `npm audit --omit=dev`: 0 vulnerabilities. `npm run verify` green.
+
+## September 30, 2026 — Production reset: a clean slate on edgeathlete.ca
+
+The site went live on Sep 29 ahead of schedule, with two months of test data. Tom: *"remove all users so the website is clean and brand new with no user data. I want the functionality to remain the same."* His decisions: everything goes, consent records and evidence included, his own three accounts included (he signs up again; `ADMIN_EMAILS` gives the new gmail account admin).
+
+**The kit** (`scripts/prod-reset/`, `database/ops/`):
+- `tables.mjs`: ONE classification. Kept = reference data (`schema_migrations`, `reserved_handles`, `golf_courses`, `golf_clubs`, `places`, `place_aliases`; `search_documents` rows of `entity_type = 'course'`). Everything else (118 tables) is user data. Two catches the FK map found: `golf_holes` is per-ROUND hole scores, not the catalog; `help_articles` references `profiles`, so it cannot stand outside the statement (0 rows; it goes). `prod-reset-tables.test.ts` pins coverage of the dump and that no kept table references a wiped one.
+- `generate-sql.mjs` → `database/ops/2026-09-30-prod-reset.sql`: pre-flight (ledger head 245, the reserved seed), `TRUNCATE … RESTART IDENTITY` **without CASCADE** (a missed table makes Postgres refuse rather than truncate a kept one), the non-course search rows deleted explicitly (row triggers do not fire on TRUNCATE), a result grid with problems first. Dry-run on staging inside `BEGIN … ROLLBACK`: 118 × 0, staging unchanged after.
+- `export.mjs`: the snapshot — every wiped table's rows, every storage object downloaded, the auth list — to the gitignored `database/ops/snapshots/2026-09-30-prod-…/` (47 MB) on Tom's Mac. The rollback.
+- `wipe.mjs`: refuses until the tables read 0; then empties `uploads` / `avatars` / `consent-evidence` and deletes every auth user through the admin API; `--confirm=` required.
+
+**The run (Sep 30):** export (119 tables, 140 objects, 7 users) → Tom ran the SQL in the prod editor (every wiped row 0; catalogs 28,973 / 69,641 / 247,077 / 32 / 102; ledger 244 rows) → wipe (140 objects removed, 7 users deleted, 0 left) → `check:schema:prod` OK (data only; no drift) → prod probe on the empty database against `edgeathlete.ca`: health, auth-login, feed-post, activities-api, 6/6 (they create and delete their own users). Two of the seven accounts were real people (named to Tom before the SQL); they sign up again.
+
+**Staging is untouched** (the test bed stays populated). `database/ops/README.md` is the folder's rule: one-off operations, run by hand, recorded here.
+
+## September 29, 2026 — Play fix round: the seven review findings, zero DDL
+
+The post-merge review of the Play program (this morning's session start) found seven defects. Every one is fixed here, with the tests that would have caught them.
+
+**Correctness:**
+1. **A challenge bell never stopped asking.** `respondChallenge` filtered the notification on the whole row (`c`) instead of `c.id`: no row matched, no error. Accept / Pass from the bell or the panel left Accept / Decline up; a second tap 409'd. Now keyed by the id, only a pending bell moves, a cancelled invite closes it too, and a failed stamp is logged. `play-challenges.spec.ts` reads the bell's state after accept, pass and cancel.
+2. **Match play invented rivalries.** An event round mints ONE group post for every match, so `side` 1|2 meant nothing across matches: in a 16-player bracket round every player got ~15 fake rivals with W/L. The fix, without DDL: `stampMatchOutcomes` also writes the MATCH id into the row's `context` (`match`), the ONE writer (`upsertPerformances`) carries a stamped match forward through any re-mirror (`carryMatchUnit` — a round edit and the backfill rebuild `context` from the round), rivals reads it as `unit`, and `versus.ts` counts a side or an outcome only between rows of the SAME match. A stamp with no match (rows written before this) invents nothing. Stroke play is untouched.
+3. **The post's action row overflowed the card on phones.** Measured: with fixed 24 px gaps the row needed 379 px; Save sat fully off the card at 375 AND 390, and the row had been ~20 px too wide before the ⚡ existed. Now the six controls spread across the row below `sm` (no fixed gap, Save's `ml-auto` from `sm:` only) with the card's inner padding at 12 px there. Measured after: 260 / 315 / 330 px at 320 / 375 / 390, all inside the card.
+4. **Escape discarded a half-written challenge.** `PostDetailModal` closed on every Escape, unmounting the composer above it and skipping its discard confirm. It now closes only when it is the topmost dialog (LargerWindow's rule, by document position).
+
+**Scale:**
+5. **Cheer totals** are six head counts in the database (over `idx_live_cheers_context`), never up to 5,000 rows per viewer per 10 s, and no longer freeze at that cap. A round that is not live is polled once a minute instead of six times (a scheduled round can still go live on an open page).
+6. **The badge hook** counts results per sport with head counts (one per registered sport, in parallel) instead of pulling up to 5,000 rows per player per write, and reads the handicap only when a rated golf round was written AND a handicap badge is still open.
+7. **`rescanBadges`** never revokes when the record read hit its 5,000-row cap (an older row may hold the badge).
+
+**Also:** the challenge window starts on the challenger's LOCAL date (`today` from the composer, admitted within a day of the server's clock — an evening round in North America counted a day late); the badge chip is a real button in a real list (no `role="listitem"` on a button; "Verified" as sr-only text); no empty "Badges" heading on another athlete's Achievements; the last-five form is `role="img"`; a failed challenge action offline shows an error instead of an unhandled rejection; a failed people read in the composer says so with a retry instead of "none yet"; a prefilled composer's edited target counts as dirty.
+
+**Proof:** 101 Play + performance unit tests; the six Play e2e specs 20/20 locally (desktop, 390 Chromium, WebKit); the feed spec green; the action row measured at three widths.
+
+## September 29, 2026 — Go-live prep (Phase 0): the e2e suite knows every production host; migration 246 held
+
+- **`PROD_APP_HOSTS`** (`e2e/helpers/qa-user.ts`) lists every host that serves production: the vercel.app alias, `edgeathlete.ca` + www, and the planned `.com` + www. The prod refusal and the deploy wait (`deploy.ts`) read the list rather than one host. Without it, a local run pointed at `edgeathlete.ca` would not have been refused. `e2e-prod-guard.test.ts` pins every host, and pins that a preview is not production.
+- **`npm run test:e2e:prod`** keeps the vercel.app alias (it always serves prod) and takes `E2E_PROD_URL` to probe the domain after cutover.
+- **The Nominatim User-Agent** reads `NEXT_PUBLIC_APP_URL`.
+- **Migration 246** re-points the two pg_cron jobs at `edgeathlete.ca`. It rewrites only the host inside each job through `cron.alter_job`, so the secret is never re-typed. It stays in its own PR, **unmerged until go-live Phase 7**: run early, the jobs would call GoDaddy's page. It never names `cron.*` outside the guarded block, since staging has no pg_cron.
+
 ## September 29, 2026 — The go-live checklist for edgeathlete.ca (+ two host fixes)
 
 Tom asked for the domain go-live checklist. **`docs/GO_LIVE_EDGEATHLETE_CA.md`** was written from a sweep of every host dependency in the code and `edgeathlete.ca`'s live DNS that day.

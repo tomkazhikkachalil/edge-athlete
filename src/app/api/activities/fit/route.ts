@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     try {
       activity = parseFit(new Uint8Array(await file.arrayBuffer()));
     } catch (e) {
-      if (e instanceof ActivityParseError) return NextResponse.json({ error: e.message }, { status: 422 });
+      if (e instanceof ActivityParseError) return NextResponse.json({ error: e.message }, { status: 422 }); // hardening-ok: ActivityParseError messages are written for the athlete (xml-scan.ts)
       console.error('[activities/fit] decode failed:', e instanceof Error ? e.message : e);
       return NextResponse.json({ error: 'This FIT file could not be read.' }, { status: 422 });
     }

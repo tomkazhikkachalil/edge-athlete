@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { E2E_BASE_URL, PROD_APP_HOST, bypassHeaders } from './qa-user';
+import { E2E_BASE_URL, bypassHeaders, isProdAppHost } from './qa-user';
 
 /**
  * Wait until the target deployment answers from the commit we expect
@@ -21,7 +21,7 @@ export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: num
   if (!expected) {
     // Production serves origin/main; a PREVIEW serves the pushed branch —
     // expect HEAD there (Round 2, Sep 21 2026).
-    const isProd = new URL(E2E_BASE_URL).hostname === PROD_APP_HOST;
+    const isProd = isProdAppHost(new URL(E2E_BASE_URL).hostname);
     try {
       if (isProd) {
         execSync('git fetch -q origin main', { stdio: 'ignore' });

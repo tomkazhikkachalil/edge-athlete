@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { STAT_SCHEMAS } from '@/lib/sports/stat-schemas';
 import { LOWER_IS_BETTER, challengeLine, challengeMetrics, expiredStatus, nextStatus, qualifies, validateChallenge, type ChallengeTerms } from '../challenges';
+import { localToday } from '../challenges';
 
 const ME = 'a0000000-0000-4000-8000-000000000001';
 const YOU = 'b0000000-0000-4000-8000-000000000002';
@@ -88,5 +89,15 @@ describe('the challenge in words', () => {
     expect(challengeLine({ sport_key: 'golf', metric: 'gross', direction: 'lower', target: 78, course_id: COURSE, min_holes: 18, starts_on: '2026-09-28', ends_on: '2026-10-28', courseName: 'Eagle Creek' })).toBe('Shoot under 78 (18 holes) at Eagle Creek by Oct 28');
     expect(challengeLine({ sport_key: 'basketball', metric: 'points', direction: 'higher', target: 20, course_id: null, min_holes: null, starts_on: '2026-09-28', ends_on: '2026-10-12' })).toBe('20+ points by Oct 12');
     expect(challengeLine({ sport_key: 'ice_hockey', metric: 'goals_against', direction: 'lower', target: 2, course_id: null, min_holes: null, starts_on: '2026-09-28', ends_on: '2026-10-12' })).toBe('Get goals against under 2 by Oct 12');
+  });
+});
+
+describe('localToday — the window starts on the challenger\'s own day', () => {
+  it('takes a local date within a day of the server, else the server\'s', () => {
+    expect(localToday('2026-09-29', '2026-09-30')).toBe('2026-09-29'); // a North American evening
+    expect(localToday('2026-10-01', '2026-09-30')).toBe('2026-10-01'); // ahead of UTC
+    expect(localToday('2026-09-27', '2026-09-30')).toBe('2026-09-30');
+    expect(localToday('yesterday', '2026-09-30')).toBe('2026-09-30');
+    expect(localToday(null, '2026-09-30')).toBe('2026-09-30');
   });
 });
