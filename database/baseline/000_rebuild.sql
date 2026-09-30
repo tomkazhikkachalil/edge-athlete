@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-29T21:49:21.502892+00:00 from server 17.4 by
+-- Generated 2026-09-30T00:38:02.639934+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 244.
+-- public.schema_dump() (migration 227). Ledger head at generation: 245.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4004,7 +4004,37 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (124) ──────────────────────────────────────────────────────────────
+-- ── Tables (125) ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.activities (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  activity_type text NOT NULL,
+  source text NOT NULL,
+  source_format text,
+  external_id text NOT NULL,
+  name text NOT NULL,
+  started_at timestamp with time zone NOT NULL,
+  timezone text,
+  occurred_on date NOT NULL,
+  elapsed_s integer NOT NULL,
+  moving_s integer,
+  distance_m numeric,
+  elev_gain_m numeric,
+  elev_loss_m numeric,
+  avg_hr smallint,
+  max_hr smallint,
+  avg_power smallint,
+  avg_cadence smallint,
+  calories integer,
+  has_route boolean DEFAULT false NOT NULL,
+  route_preview text,
+  stream_path text,
+  post_id uuid,
+  only_me boolean DEFAULT false NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.affiliations (
   org_id uuid NOT NULL,
   parent_org_id uuid NOT NULL,
@@ -5845,6 +5875,11 @@ ALTER TABLE public.tickets ALTER COLUMN number SET START WITH 1000;
 
 -- ── Primary keys, unique, check, exclusion ────────────────────────────────────
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_pkey' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_pkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_pkey PRIMARY KEY (org_id, parent_org_id);
   END IF;
@@ -6465,6 +6500,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_uniq' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_source_uniq UNIQUE (profile_id, source, external_id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'approved_contacts_child_profile_id_contact_profile_id_key' AND conrelid = 'public.approved_contacts'::regclass) THEN
     ALTER TABLE public.approved_contacts ADD CONSTRAINT approved_contacts_child_profile_id_contact_profile_id_key UNIQUE (child_profile_id, contact_profile_id);
   END IF;
@@ -6812,6 +6852,101 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'waitlist_email_user_type_key' AND conrelid = 'public.waitlist'::regclass) THEN
     ALTER TABLE public.waitlist ADD CONSTRAINT waitlist_email_user_type_key UNIQUE (email, user_type);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_activity_type_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_activity_type_check CHECK ((activity_type = ANY (ARRAY['run'::text, 'trail_run'::text, 'walk'::text, 'hike'::text, 'ride'::text, 'mountain_bike'::text, 'swim'::text, 'row'::text, 'ski'::text, 'climb'::text, 'other'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_avg_cadence_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_avg_cadence_check CHECK (((avg_cadence IS NULL) OR ((avg_cadence >= 0) AND (avg_cadence <= 300))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_avg_hr_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_avg_hr_check CHECK (((avg_hr IS NULL) OR ((avg_hr >= 20) AND (avg_hr <= 250))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_avg_power_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_avg_power_check CHECK (((avg_power IS NULL) OR ((avg_power >= 0) AND (avg_power <= 2500))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_calories_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_calories_check CHECK (((calories IS NULL) OR ((calories >= 0) AND (calories <= 50000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_distance_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_distance_check CHECK (((distance_m IS NULL) OR ((distance_m >= (0)::numeric) AND (distance_m <= (2000000)::numeric))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_elapsed_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_elapsed_check CHECK (((elapsed_s >= 0) AND (elapsed_s <= 172800)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_elev_gain_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_elev_gain_check CHECK (((elev_gain_m IS NULL) OR ((elev_gain_m >= (0)::numeric) AND (elev_gain_m <= (30000)::numeric))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_elev_loss_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_elev_loss_check CHECK (((elev_loss_m IS NULL) OR ((elev_loss_m >= (0)::numeric) AND (elev_loss_m <= (30000)::numeric))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_external_id_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_external_id_check CHECK (((length(external_id) >= 1) AND (length(external_id) <= 200)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_max_hr_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_max_hr_check CHECK (((max_hr IS NULL) OR ((max_hr >= 20) AND (max_hr <= 250))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_moving_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_moving_check CHECK (((moving_s IS NULL) OR ((moving_s >= 0) AND (moving_s <= 172800))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_name_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_name_check CHECK (((length(name) >= 1) AND (length(name) <= 120)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_route_parts_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_route_parts_check CHECK ((has_route OR (route_preview IS NULL)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_route_preview_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_route_preview_check CHECK (((route_preview IS NULL) OR (length(route_preview) <= 8000)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = 'file'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_format_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_source_format_check CHECK (((source_format IS NULL) OR (source_format = ANY (ARRAY['fit'::text, 'gpx'::text, 'tcx'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_stream_path_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_stream_path_check CHECK (((stream_path IS NULL) OR (stream_path ~ '^activities/[0-9a-f-]{36}/[0-9a-f-]{36}\.json\.gz$'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_timezone_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_timezone_check CHECK (((timezone IS NULL) OR ((length(timezone) >= 1) AND (length(timezone) <= 64))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8362,6 +8497,16 @@ END $$;
 
 -- ── Foreign keys ──────────────────────────────────────────────────────────────
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_post_id_fkey' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_post_id_fkey FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_profile_id_fkey' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_decided_by_profile_id_fkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_decided_by_profile_id_fkey FOREIGN KEY (decided_by_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -9798,6 +9943,8 @@ DO $$ BEGIN
 END $$;
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_activities_post ON public.activities USING btree (post_id) WHERE (post_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_activities_profile_started ON public.activities USING btree (profile_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_affiliations_decided_by_profile_id ON public.affiliations USING btree (decided_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_parent ON public.affiliations USING btree (parent_org_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_requested_by_profile_id ON public.affiliations USING btree (requested_by_profile_id);
@@ -14033,6 +14180,8 @@ END;
 $function$;
 
 -- ── Triggers ──────────────────────────────────────────────────────────────────
+DROP TRIGGER IF EXISTS activities_updated_at ON public.activities;
+CREATE TRIGGER activities_updated_at BEFORE UPDATE ON public.activities FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS affiliations_updated_at ON public.affiliations;
 CREATE TRIGGER affiliations_updated_at BEFORE UPDATE ON public.affiliations FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS set_athlete_achievements_updated_at ON public.athlete_achievements;
@@ -14245,6 +14394,7 @@ DROP TRIGGER IF EXISTS set_workout_sessions_updated_at ON public.workout_session
 CREATE TRIGGER set_workout_sessions_updated_at BEFORE UPDATE ON public.workout_sessions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 
 -- ── Row level security ────────────────────────────────────────────────────────
+ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approved_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_achievements ENABLE ROW LEVEL SECURITY;
@@ -15576,6 +15726,8 @@ CREATE POLICY "Users can upload their own files" ON storage.objects
   WITH CHECK (((bucket_id = 'uploads'::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
 
 -- ── Table and view grants ─────────────────────────────────────────────────────
+REVOKE ALL ON TABLE public.activities FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activities TO service_role;
 REVOKE ALL ON TABLE public.affiliations FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.affiliations TO service_role;
 REVOKE ALL ON TABLE public.approved_contacts FROM anon, authenticated, service_role;
@@ -16182,6 +16334,7 @@ REVOKE EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_ha
 GRANT EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_handle text) TO service_role;
 
 -- ── Comments ──────────────────────────────────────────────────────────────────
+COMMENT ON TABLE public.activities IS 'Imported GPS activities (245): one row per activity per athlete; not a sport. ONE writer: src/lib/activities/write-server.ts. The projection in src/lib/activities/visibility.ts is the access rule. Posture A.';
 COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) — Round 5 D-ii (236). A club in a league: org_id = the club, parent_org_id = the league. A league under a parent league: org_id = the child league. initiated_by is which END asked (child | parent). Replaces league_clubs + league_affiliations (dropped in 237).';
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
@@ -16434,6 +16587,7 @@ INSERT INTO public.reserved_handles (handle, reason, reserved_at) VALUES
   ('about', 'Reserved word (166)', '2026-09-01T20:08:50.000877+00:00'),
   ('account', 'System path', '2025-10-07T18:58:50.62396+00:00'),
   ('activate', 'Root path (vanity namespace, 166)', '2026-09-01T20:08:50.000877+00:00'),
+  ('activities', 'Root path (vanity namespace, 245): /activities/[id], the activity page', '2026-09-30T00:18:35.835333+00:00'),
   ('admin', 'System reserved', '2025-10-07T18:58:50.62396+00:00'),
   ('administrator', 'System reserved', '2025-10-07T18:58:50.62396+00:00'),
   ('api', 'System reserved', '2025-10-07T18:58:50.62396+00:00'),
@@ -16778,7 +16932,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (241, '241_results_kept.sql', 'rebuild-000'),
   (242, '242_teams_divisions.sql', 'rebuild-000'),
   (243, '243_newsroom.sql', 'rebuild-000'),
-  (244, '244_play.sql', 'rebuild-000')
+  (244, '244_play.sql', 'rebuild-000'),
+  (245, '245_activities.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16787,12 +16942,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 124 | 110 | 173 | 244
+-- Expected: 000 REBUILT | 125 | 110 | 173 | 245
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_124,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_125,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_244;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_245;
 
