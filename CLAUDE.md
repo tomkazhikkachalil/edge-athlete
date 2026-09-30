@@ -163,7 +163,10 @@ dead code).
 **`src/middleware.ts`** — refreshes the Supabase session per request; required for SSR
 auth. Deliberately still the `middleware` convention rather than `proxy` — the reason
 and revisit triggers are in the file header. Order matters inside it: the
-ORG_SUBDOMAINS host-301 branch runs FIRST, then static-CSP fast paths for
+ORG_SUBDOMAINS host-301 branch runs FIRST, then the LAUNCH GATE
+(`NEXT_PUBLIC_LAUNCH_GATE=1`: a signed-out visitor → `/auth/coming-soon`
+everywhere but the doors, robots forbid, `/api/signup` 403 —
+`src/lib/launch-gate.ts`, Sep 30 2026), then static-CSP fast paths for
 /org/* (behind PUBLIC_ORG_SITES), the standings carve-out, and the crawler
 files (/robots.txt, /sitemap.xml) — all of which skip the auth round trip.
 Its env flags are BUILD-INJECTED: changing one needs a real build, not a

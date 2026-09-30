@@ -44,6 +44,7 @@ import {
   resolveSlugDomain,
 } from '@/lib/org-sites/domain-cache'
 import { RESERVED_ROOT_SLUGS, firstPathSegment } from '@/lib/org-sites/reserved'
+import { GATED_ROBOTS, isLaunchGateOn, launchGateRedirect } from '@/lib/launch-gate'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
@@ -161,6 +162,32 @@ export async function middleware(request: NextRequest) {
       process.env.NEXT_PUBLIC_VANITY_CANONICAL === '1' ? '' : '/org'
     )
     if (target) return NextResponse.redirect(target, 301)
+  }
+  // The launch gate (Sep 30 2026): while NEXT_PUBLIC_LAUNCH_GATE=1, a signed-OUT
+  // visitor goes to the coming-soon page on every path but a few
+  // (launch-gate.ts), and the crawler files say "index nothing". This runs
+  // BEFORE the anonymous fast paths below (org sites, vanity, standings),
+  // which would otherwise serve a stranger a public page. A signed-in
+  // account falls through to the app unchanged. The session read costs the
+  // round trip the normal path pays anyway; only gated paths pay it here.
+  if (isLaunchGateOn()) {
+    if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
+      const robots = request.nextUrl.pathname === '/robots.txt'
+      return new NextResponse(robots ? GATED_ROBOTS : '', {
+        status: robots ? 200 : 404,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+      })
+    }
+    const target = launchGateRedirect(request.nextUrl.pathname, request.nextUrl.search)
+    if (target) {
+      const gateClient = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
+      )
+      const { data: { user: gateUser } } = await gateClient.auth.getUser()
+      if (!gateUser) return NextResponse.redirect(new URL(target, request.url), 307)
+    }
   }
   if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
     return withStaticCsp(NextResponse.next())

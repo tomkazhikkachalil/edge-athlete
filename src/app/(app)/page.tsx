@@ -17,6 +17,8 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export default function Home() {
+  // NEXT_PUBLIC_*: inlined at build time, the same value the middleware reads.
+  const gated = process.env.NEXT_PUBLIC_LAUNCH_GATE === '1';
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
   const [orgIntent, setOrgIntent] = useState<OrgKind | null>(null);
   const [formData, setFormData] = useState({
@@ -697,7 +699,17 @@ export default function Home() {
             <OAuthButtons onError={setError} />
           </div>
 
-          {/* Sign Up Section */}
+          {/* Sign Up Section — the launch gate (Sep 30 2026) replaces it with
+              "opening soon" while NEXT_PUBLIC_LAUNCH_GATE=1 (the API refuses too). */}
+          {gated ? (
+            <div className="w-full lg:w-1/2 bg-brand p-6 sm:p-8 lg:p-12 text-white flex flex-col items-center justify-center text-center" data-signup-gated>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-4">Opening soon</h2>
+              <p className="text-sm sm:text-base max-w-sm">Sign-ups are closed while we finish up. Leave your email on the coming-soon page and we’ll let you know.</p>
+              <Link href="/auth/coming-soon" className="mt-6 inline-block bg-white text-violet-600 py-3 px-5 rounded-md font-semibold hover:bg-violet-100 transition duration-300">
+                Notify me
+              </Link>
+            </div>
+          ) : (
           <div className="w-full lg:w-1/2 bg-brand p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
             <div className="flex flex-col items-center justify-center flex-grow">
               <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-center">New Here?</h2>
@@ -755,6 +767,7 @@ export default function Home() {
               </Link>
             </div>
           </div>
+          )}
         </div>
       </div>
       

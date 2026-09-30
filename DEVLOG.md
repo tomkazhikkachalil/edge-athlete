@@ -1,5 +1,18 @@
 # Development Log
 
+## September 30, 2026 — The launch gate: coming soon for everyone signed out, no new sign-ups
+
+Tom, hours after the early go-live: *"I see a lot of holes and bugs, can we take down the site for now, or put a coming soon banner / block new users from signing up?"* Chosen over Vercel's own password wall because that would also block the scheduled database jobs and the APIs; this gate leaves them untouched.
+
+**`NEXT_PUBLIC_LAUNCH_GATE=1`** (one flag; inlined at build time — a real build, not a redeploy — read by the middleware, the sign-up API and the login page):
+- **Middleware, BEFORE the anonymous fast paths** (org sites, vanity, standings — they would otherwise serve a stranger a public page): a signed-OUT visitor on any path but the doors is 307'd to **`/auth/coming-soon`** (under `/auth`, so no new root segment and no reserved-handle migration). The doors: `/?signin=1` (the login form), `/auth/*` (the OAuth callback, complete-profile), the password flows, `/privacy` + `/terms` (the Google consent screen names them), static files. `/robots.txt` answers `Disallow: /` and `/sitemap.xml` 404s. A signed-in account (Tom) falls through to the app unchanged. `src/lib/launch-gate.ts` is the pure rule (zero imports — the edge bundle), pinned by `launch-gate.test.ts`.
+- **`POST /api/signup`** refuses with 403 "Sign-ups open soon". The login page's "New Here?" column becomes "Opening soon" with a link to the coming-soon page. Supabase's own **"Allow new users to sign up"** switch (Tom flips it) is the belt to this suspender: it covers Google sign-in too.
+- **The page:** the mark, one line, a waitlist email (the existing `/api/waitlist`, `guest`), "Have an account? Sign in".
+
+**Proof:** `e2e/launch-gate.spec.ts` runs only against a build made with the flag (CI's build is not gated; it skips there): signed out → coming-soon on `/`, `/feed`, `/u/…`, `/org/…`, `/register`; the sign-in link lands on the login form; robots forbid; sitemap 404; `/privacy` 200; signup 403; signed in → `/feed`. 3/3 on desktop, 390 Chromium and WebKit against a gated local build. `auth-login.spec.ts` now visits `/?signin=1` (harmless when the gate is off). Screenshots at 375 and 1280.
+
+**While the gate is up, the prod probes that walk SIGNED-OUT pages (share cards, public profiles, org sites) fail by design; the signed-in ones pass.** Turning the gate off: unset the flag + a build, and Supabase's switch back on.
+
 ## September 30, 2026 — Advisories: nodemailer 9 → 10 (its own types), brace-expansion, fast-uri
 
 New advisories published today rated **high**: `nodemailer` ≤ 10.0.8 (four: a process-global DNS cache reusing TLS `servername` across transports, nested recipient arrays, a quoted local-part, addressparser backtracking) and `brace-expansion` (a transitive dependency of `glob`), plus `fast-uri` (moderate). The hardening guardrail fails CI on any high advisory, so every open PR went red at once.

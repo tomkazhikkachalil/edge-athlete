@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLaunchGateOn } from '@/lib/launch-gate';
 import * as Sentry from '@sentry/nextjs';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseAdmin } from '@/lib/auth-server';
@@ -18,6 +19,13 @@ import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
+    // The launch gate (Sep 30 2026): while it is up, no new accounts — the
+    // middleware already hides the sign-up screens from a signed-out
+    // visitor; this is the door itself. (Supabase's own "Allow new users to
+    // sign up" switch is the belt to this suspender: it covers OAuth too.)
+    if (isLaunchGateOn()) {
+      return NextResponse.json({ error: 'Sign-ups open soon. Leave your email on the coming-soon page and we’ll tell you.' }, { status: 403 });
+    }
     // Lazy admin client, once per request (module-scope export removed in
     // the Aug 2026 hardening round). Throws only on missing env — a deploy
     // fault, same contract as every other route.
