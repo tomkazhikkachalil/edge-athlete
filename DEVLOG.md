@@ -1,5 +1,39 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 6: the close (docs/ACTIVITIES.md, convention 30)
+
+**The program:** six stacked PRs, #1003–#1008, with **migration 245 the only DDL**.
+
+| PR | What |
+|---|---|
+| #1003 | Mig 245: the `activities` table; reserved `activities` |
+| #1004 | The pure core: parsers, the server-only FIT decoder, the normalizer, the stream, the projections |
+| #1005 | The server: import doors, the one gate, share to feed |
+| #1006 | The import page and the activity page |
+| #1007 | The tab on both profile routes, the feed card, the Create door |
+| #1008 | Docs |
+
+**References:**
+- `docs/ACTIVITIES.md` has the entity, the pipeline, the FIT license rule, the gate table, share to feed, the routes, lifecycle and retention, the provider seam (including Strava's owner-only display rule) and what is not in phase 1.
+- CLAUDE.md gets convention 30 and a docs index line; the write-gate count lines were updated in PR 3.
+
+**Proof across the program:**
+- 55 unit tests in `src/lib/activities/`.
+- Three e2e specs on staging:
+  - `activities-api`: 3/3;
+  - `activities-ui` (@mobile): 2/2, 390 px Chromium + WebKit;
+  - `activities-profile` (@mobile): 2/2, 390 px Chromium + WebKit.
+- Screenshot passes at 375 and 1280 as owner and stranger.
+- `npm run verify` green at every step. Garmin's SDK is in zero client chunks.
+
+**Merge order and prod:**
+- **Tom runs 245 in the prod SQL editor first.** Expect `245 APPLIED | 1 | 1 | 0 | 1 | 245`.
+- Then check:schema:prod, merge #1003 → #1008 in order (retarget each child to main), regenerate the baseline at 245, and run a prod probe of the three activities specs.
+
+**Tom owes:**
+- one real export from his own watch or app, imported on his iPhone. The Files picker and the real-device formats are the part a desktop cannot prove.
+- For the later provider rounds: register a Strava API app, apply to Garmin's Connect Developer Program, and create a Google Cloud project for the Google Health API.
+
 ## September 29, 2026 — Activities program, PR 5: the tab on both profile routes, the feed card, the Create door
 
 **The Activities tab** is on BOTH routes, because route parity is mobile parity (phones arrive by `/u/` links).
