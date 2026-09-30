@@ -39,6 +39,20 @@ New advisories published today rated **high**: `nodemailer` ≤ 10.0.8 (four: a 
 - **nodemailer → 10.0.12**, the major upgrade the Sep 29 maintenance entry deferred. It ships its own types now: `email-service.ts` imports `Transporter` and `SendMailOptions` as named types (the `nodemailer.` namespace is gone), and `@types/nodemailer` is removed. `createTransport` / `sendMail` are unchanged. Outbound email is still parked (SMTP unset), so no send path ran; when it is enabled, LAUNCH_RUNBOOK §1's probes cover it.
 - `npm audit fix` for the transitive two. `npm audit --omit=dev`: 0 vulnerabilities. `npm run verify` green.
 
+## September 30, 2026 — Production reset: a clean slate on edgeathlete.ca
+
+The site went live on Sep 29 ahead of schedule, with two months of test data. Tom: *"remove all users so the website is clean and brand new with no user data. I want the functionality to remain the same."* His decisions: everything goes, consent records and evidence included, his own three accounts included (he signs up again; `ADMIN_EMAILS` gives the new gmail account admin).
+
+**The kit** (`scripts/prod-reset/`, `database/ops/`):
+- `tables.mjs`: ONE classification. Kept = reference data (`schema_migrations`, `reserved_handles`, `golf_courses`, `golf_clubs`, `places`, `place_aliases`; `search_documents` rows of `entity_type = 'course'`). Everything else (118 tables) is user data. Two catches the FK map found: `golf_holes` is per-ROUND hole scores, not the catalog; `help_articles` references `profiles`, so it cannot stand outside the statement (0 rows; it goes). `prod-reset-tables.test.ts` pins coverage of the dump and that no kept table references a wiped one.
+- `generate-sql.mjs` → `database/ops/2026-09-30-prod-reset.sql`: pre-flight (ledger head 245, the reserved seed), `TRUNCATE … RESTART IDENTITY` **without CASCADE** (a missed table makes Postgres refuse rather than truncate a kept one), the non-course search rows deleted explicitly (row triggers do not fire on TRUNCATE), a result grid with problems first. Dry-run on staging inside `BEGIN … ROLLBACK`: 118 × 0, staging unchanged after.
+- `export.mjs`: the snapshot — every wiped table's rows, every storage object downloaded, the auth list — to the gitignored `database/ops/snapshots/2026-09-30-prod-…/` (47 MB) on Tom's Mac. The rollback.
+- `wipe.mjs`: refuses until the tables read 0; then empties `uploads` / `avatars` / `consent-evidence` and deletes every auth user through the admin API; `--confirm=` required.
+
+**The run (Sep 30):** export (119 tables, 140 objects, 7 users) → Tom ran the SQL in the prod editor (every wiped row 0; catalogs 28,973 / 69,641 / 247,077 / 32 / 102; ledger 244 rows) → wipe (140 objects removed, 7 users deleted, 0 left) → `check:schema:prod` OK (data only; no drift) → prod probe on the empty database against `edgeathlete.ca`: health, auth-login, feed-post, activities-api, 6/6 (they create and delete their own users). Two of the seven accounts were real people (named to Tom before the SQL); they sign up again.
+
+**Staging is untouched** (the test bed stays populated). `database/ops/README.md` is the folder's rule: one-off operations, run by hand, recorded here.
+
 ## September 29, 2026 — Play fix round: the seven review findings, zero DDL
 
 The post-merge review of the Play program (this morning's session start) found seven defects. Every one is fixed here, with the tests that would have caught them.
