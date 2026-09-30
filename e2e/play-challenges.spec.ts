@@ -62,6 +62,9 @@ test('a challenge is sent to a mutual follow, accepted from the bell, and won by
     const accepted = await t.apiB.post(`/api/notifications/${bells![0].id}/action`, { data: { action: 'accept' } });
     expect(accepted.ok(), await readErrorBody(accepted)).toBe(true);
     expect(await accepted.json()).toMatchObject({ action_status: 'accepted', challenge_status: 'accepted' });
+    // The bell itself stopped asking (it once kept Accept / Decline after an answer).
+    const { data: bellAfter } = await admin.from('notifications').select('action_status').eq('id', bells![0].id).single();
+    expect(bellAfter!.action_status).toBe('accepted');
 
     // B's real game: 22 points → the post-write hook wins the challenge.
     const post = await t.apiB.post('/api/posts', {
@@ -108,10 +111,14 @@ test('the refusals: not mutual, a decline, a block, challenges switched off', as
     expect((await t.apiB.post(`/api/challenges/${id}`, { data: { action: 'accept' } })).status()).toBe(409);
     const { data: passed } = await admin.from('notifications').select('title').eq('user_id', t.a.id).eq('type', 'challenge_result');
     expect(passed!.map(n => n.title)).toContain('Challengee Bo passed on your challenge');
+    const bellOf = async (challengeId: string) =>
+      (await admin.from('notifications').select('action_status').eq('user_id', t.b.id).eq('type', 'challenge').eq('metadata->>challenge_id', challengeId).single()).data!.action_status;
+    expect(await bellOf(id), 'a pass from the panel closes the bell too').toBe('declined');
 
     // A cancel: the challenger calls off a pending one.
     const again = await (await t.apiA.post('/api/challenges', body(t.b.id))).json();
     expect((await (await t.apiA.post(`/api/challenges/${again.challenge.id}`, { data: { action: 'cancel' } })).json()).status).toBe('cancelled');
+    expect(await bellOf(again.challenge.id), 'a called-off invite stops offering Accept').toBe('declined');
 
     // Challenges switched off → refused by name.
     await admin.from('notification_preferences').upsert({ user_id: t.b.id, challenges_enabled: false }, { onConflict: 'user_id' });

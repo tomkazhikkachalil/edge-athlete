@@ -71,6 +71,11 @@ export interface ChallengeDraft {
   message?: string | null;
   /** The challenger's own result it was made from ("Beat my 78"). */
   sourceKey?: string | null;
+  /** The challenger's LOCAL date (YYYY-MM-DD): the window starts on their
+   *  day, not UTC's — a round played the same evening in North America has
+   *  a local date a day behind the UTC date and must still count. The server
+   *  admits it only within a day of its own clock (`localToday`). */
+  today?: string | null;
   /** Golf: hold it to the source round's course (the server reads the course off the challenger's OWN round). */
   sameCourse?: boolean;
 }
@@ -195,4 +200,14 @@ export function challengeLine(c: ChallengeTerms & { courseName?: string | null }
   const holes = c.sport_key === 'golf' && c.min_holes ? ` (${c.min_holes} holes)` : '';
   const at = c.courseName ? ` at ${c.courseName}` : '';
   return `${core}${holes}${at} by ${shortDate(c.ends_on)}`;
+}
+
+/** The day a challenge starts: the challenger's own local date when it is
+ *  a real date within a day of the server's UTC date, else the server's. */
+export function localToday(claimed: string | null | undefined, serverToday: string): string {
+  if (!claimed || !/^\d{4}-\d{2}-\d{2}$/.test(claimed)) return serverToday;
+  const c = Date.parse(`${claimed}T00:00:00Z`);
+  const s = Date.parse(`${serverToday}T00:00:00Z`);
+  if (!Number.isFinite(c) || !Number.isFinite(s) || Math.abs(c - s) > 86_400_000) return serverToday;
+  return claimed;
 }

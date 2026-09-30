@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { fromGolfRound, groupUniformRows, type GolfRoundOrigin } from './map';
 import { afterPerformanceWrite, type AfterWriteMode } from '@/lib/play/after-write';
-import type { MatchOutcomeEntry } from './match-outcomes';
+import { carryMatchUnit, MATCH_UNIT_KEY, type MatchOutcomeEntry } from './match-outcomes';
 import { contextKey, naturalKey, type PerformanceOverlay, type PerformanceRow, type PerformanceSourceTable } from './types';
 
 /**
@@ -43,14 +43,30 @@ export async function upsertPerformances(
   if (rows.length === 0) return { ok: true, count: 0 };
   let count = 0;
   try {
-    for (const group of groupUniformRows(rows)) {
+    // A golf shared round's row may carry its match (stamped at completion);
+    // a re-mirror rebuilds `context` without it, so carry it forward.
+    const golfKeys = rows.filter(r => r.context_key?.startsWith('group_post:')).map(r => r.natural_key);
+    const units = new Map<string, string>();
+    for (let i = 0; i < golfKeys.length; i += 200) {
+      const { data, error } = await admin
+        .from('athlete_performances')
+        .select(`natural_key, unit:context->>${MATCH_UNIT_KEY}`)
+        .in('natural_key', golfKeys.slice(i, i + 200));
+      if (error) {
+        const o = outcomeOf(error, 0, 'match unit read');
+        if (!o.ok) return o;
+      }
+      for (const d of (data ?? []) as Array<{ natural_key: string; unit: string | null }>) if (d.unit) units.set(d.natural_key, d.unit);
+    }
+    const toWrite = units.size > 0 ? carryMatchUnit(rows, units) : rows;
+    for (const group of groupUniformRows(toWrite)) {
       const { error } = await admin.from('athlete_performances').upsert(group, { onConflict: 'natural_key' });
       const o = outcomeOf(error, group.length, 'upsert');
       if (!o.ok) return o;
       count += group.length;
     }
     const after = opts.after ?? 'notify';
-    if (after !== 'none') await afterPerformanceWrite(admin, rows, after);
+    if (after !== 'none') await afterPerformanceWrite(admin, toWrite, after);
     return { ok: true, count };
   } catch (err) {
     console.warn(`${TAG} upsert threw:`, err instanceof Error ? err.message : err);
@@ -132,10 +148,16 @@ export async function stampMatchOutcomes(admin: SupabaseClient, groupPostId: str
     for (const e of entries) {
       const roundId = roundOf.get(e.profileId);
       if (!roundId) continue; // no mirrored card (an empty card, a hidden player's erase) — nothing to stamp
+      // The match joins side + outcome inside the row's context (the unit
+      // versus.ts compares — a round holds many matches).
+      const key = naturalKey.golfRound(roundId);
+      const { data: cur, error: readErr } = await admin.from('athlete_performances').select('context').eq('natural_key', key).maybeSingle();
+      if (readErr) return outcomeOf(readErr, 0, 'match outcome context read');
+      const context = { ...((cur?.context as Record<string, unknown> | null) ?? {}), [MATCH_UNIT_KEY]: e.matchId };
       const { error: upErr } = await admin
         .from('athlete_performances')
-        .update({ side: e.side, outcome: e.outcome })
-        .eq('natural_key', naturalKey.golfRound(roundId))
+        .update({ side: e.side, outcome: e.outcome, context })
+        .eq('natural_key', key)
         .eq('context_key', contextKey.groupPost(groupPostId));
       const o = outcomeOf(upErr, 1, 'match outcome stamp');
       if (!o.ok) return o;

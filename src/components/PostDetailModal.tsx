@@ -146,12 +146,19 @@ export default function PostDetailModal({
   // scroll while another instance was open.
   useBodyScrollLock(isOpen);
 
-  // Handle ESC key to close
+  // Handle ESC key to close — the TOPMOST layer only (LargerWindow's rule).
+  // A dialog opened over this modal (the challenge composer, a confirm)
+  // owns the key while it is up: it sits after this root in the document.
+  // Closing here anyway unmounted the composer mid-message, skipping its
+  // discard confirm (the Play review, Sep 29 2026).
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+      if (e.key !== 'Escape' || !isOpen) return;
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const top = dialogs.length > 0 ? dialogs[dialogs.length - 1] : null;
+      if (top && rootRef.current && rootRef.current.compareDocumentPosition(top) & Node.DOCUMENT_POSITION_FOLLOWING) return;
+      onClose();
     };
 
     if (isOpen) {
@@ -229,7 +236,7 @@ export default function PostDetailModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div ref={rootRef} className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/75"

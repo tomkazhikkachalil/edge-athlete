@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cheerEmoji, emptyTotals, freshEvents, type CheerFeed, type CheerKey } from '@/lib/play/cheers';
 
 const POLL_MS = 10_000;
+/** A round that is not live (finished, not started) is read once a minute —
+ *  its totals cannot move, but a scheduled round can still go live. */
+const QUIET_POLL_MS = 60_000;
 const FLOAT_MS = 1_800;
 const FLOAT_CAP = 12;
 
@@ -27,6 +30,8 @@ export function useCheers(contextKey: string, enabled = true) {
   const since = useRef<string | null>(null);
   const seen = useRef(new Set<string>());
   const inFlight = useRef(false);
+  const liveRef = useRef<boolean | null>(null);
+  const lastPoll = useRef(0);
 
   const float = useCallback((id: string, cheer: CheerKey) => {
     const f: Float = { id, emoji: cheerEmoji(cheer), left: 10 + Math.round(Math.random() * 80) };
@@ -37,6 +42,7 @@ export function useCheers(contextKey: string, enabled = true) {
   const poll = useCallback(async () => {
     if (!enabled || inFlight.current) return;
     inFlight.current = true;
+    lastPoll.current = Date.now();
     try {
       const q = new URLSearchParams({ context: contextKey });
       if (since.current) q.set('since', since.current);
@@ -46,6 +52,7 @@ export function useCheers(contextKey: string, enabled = true) {
       setTotals(feed.totals);
       setTotal(feed.total);
       setLive(feed.live);
+      liveRef.current = feed.live;
       setReady(true);
       // The first read is the baseline: past cheers are counted, never floated.
       if (since.current) {
@@ -67,7 +74,12 @@ export function useCheers(contextKey: string, enabled = true) {
     let cancelled = false;
     const load = () => { if (!cancelled) void poll(); };
     load();
-    const tick = () => { if (document.visibilityState === 'visible') load(); };
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Not live: the quiet cadence (a finished round left open polled 6×/min forever).
+      if (liveRef.current === false && Date.now() - lastPoll.current < QUIET_POLL_MS) return;
+      load();
+    };
     const t = window.setInterval(tick, POLL_MS);
     const onVisible = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', onVisible);

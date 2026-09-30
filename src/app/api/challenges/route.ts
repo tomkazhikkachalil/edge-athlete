@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       message: typeof body.message === 'string' ? body.message : null,
       sourceKey: typeof body.sourceKey === 'string' ? body.sourceKey : null,
       sameCourse: body.sameCourse === true,
+      today: typeof body.today === 'string' ? body.today : null,
     };
     const out = await createChallenge(getSupabaseAdmin(), user.id, draft);
     if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });

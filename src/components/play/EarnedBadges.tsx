@@ -122,11 +122,13 @@ export default function EarnedBadges({ profileId, isOwnProfile = false, variant 
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2" role="list">
+        <ul className="flex flex-wrap gap-2">
           {views.slice(0, 8).map(v => (
-            <BadgeChip key={v.key} view={v} onOpen={() => setOpen(v)} />
+            <li key={v.key}>
+              <BadgeChip view={v} onOpen={() => setOpen(v)} />
+            </li>
           ))}
-        </div>
+        </ul>
         {allOpen && (
           <LargerWindow title="Badges" subtitle={`${views.length} earned`} onClose={() => setAllOpen(false)} windowKey="badges">
             <Shelves shelves={badgeShelves(earned)} onOpen={setOpen} />
@@ -136,6 +138,9 @@ export default function EarnedBadges({ profileId, isOwnProfile = false, variant 
       </section>
     );
   }
+
+  // Nothing earned and not the owner: no empty "Badges" heading on someone else's Achievements.
+  if (views.length === 0 && !isOwnProfile) return null;
 
   return (
     <section aria-labelledby="badges-heading" data-badges="full">
@@ -210,14 +215,18 @@ function BadgeChip({ view, onOpen }: { view: BadgeView; onOpen: () => void }) {
   return (
     <button
       type="button"
-      role="listitem"
       onClick={onOpen}
       data-badge-key={view.key}
       className={`ea-interactive inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${look.chip}`}
     >
       <Icon className="w-4 h-4" aria-hidden />
       {view.def.label}
-      {view.verified && <BadgeCheck className="w-4 h-4 text-brand" aria-label="Verified" />}
+      {view.verified && (
+        <>
+          <BadgeCheck className="w-4 h-4 text-brand" aria-hidden />
+          <span className="sr-only">Verified</span>
+        </>
+      )}
     </button>
   );
 }

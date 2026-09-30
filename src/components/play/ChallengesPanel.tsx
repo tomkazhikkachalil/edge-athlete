@@ -102,6 +102,9 @@ export default function ChallengesPanel({ sportKey }: { sportKey: string | null 
         showError('Could not update the challenge', body.error ?? 'Please try again.');
       }
       await load();
+    } catch {
+      // On a course with no signal: say so, never an unhandled rejection and a silent reset.
+      showError('Could not update the challenge', 'Check your connection and try again.');
     } finally {
       setBusy(null);
     }

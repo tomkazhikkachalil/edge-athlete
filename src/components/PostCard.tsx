@@ -977,8 +977,13 @@ function PostCard({
           hairlines. The row deliberately isn't tied to the media — it closes
           whatever the post contains. */}
       {showActions && (
-        <div className="px-base py-micro border-t border-border-subtle">
-          <div className="flex items-center gap-base">
+        // Phone width: the six controls (like, comment, repost, share, the
+        // owner's ⚡, save) are spread across the row with the card's inner
+        // padding tightened — measured Sep 29 2026: with fixed 24 px gaps the
+        // row needed 379 px and Save sat off the card at 375 AND 390 (the
+        // card is overflow-hidden). From sm: up the house gap returns.
+        <div className="px-3 sm:px-base py-micro border-t border-border-subtle">
+          <div className="flex items-center justify-between sm:justify-start sm:gap-base">
             <button
               onClick={handleLike}
               disabled={actingAs}
@@ -1038,7 +1043,7 @@ function PostCard({
             <button
               onClick={handleSave}
               disabled={actingAs}
-              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex items-center justify-center text-base font-bold transition-colors sm:ml-auto min-h-[44px] min-w-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
                 isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
               }`}
               title={actingAs ? 'Switch back to your own account to do this' : isSaved ? 'Unsave post' : 'Save post'}
