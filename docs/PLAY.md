@@ -92,7 +92,7 @@ Tom asked for "something fun", and set one rule: *"I don't want it just be about
 - **`challenges-server.ts`** is the one writer.
   - Mutual follows only. Never across a block or a mute in either direction, and **the refusal never says which rule failed**.
   - It honours `challenges_enabled`, with 10 open at most per challenger.
-  - It runs behind the write gate (THE list is 18 routes) and a daily `challenge` bucket.
+  - It runs behind the write gate (THE list, pinned by `write-gate.test.ts`) and a daily `challenge` bucket.
 - **Answering:** Accept / Decline from the bell (`challenge` is in `ACTIONABLE_TYPES`) or from the Stats panel, compare-and-set on `version`.
   - An accept settles at once when a result already in the window answers it.
   - Settling otherwise happens in the post-write hook.
