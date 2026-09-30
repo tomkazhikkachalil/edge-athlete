@@ -29,7 +29,7 @@ const RESULT_LOOK: Record<EncounterResult, string> = {
 function Form({ results }: { results: EncounterResult[] }) {
   if (results.length === 0) return null;
   return (
-    <span className="inline-flex gap-1" aria-label={`Last ${results.length}: ${results.join(' ')}`}>
+    <span className="inline-flex gap-1" role="img" aria-label={`Last ${results.length}: ${results.join(' ')}`}>
       {results.map((r, i) => (
         <span key={i} className={`w-6 h-6 inline-flex items-center justify-center rounded text-xs font-bold ${RESULT_LOOK[r]}`} aria-hidden>
           {r}

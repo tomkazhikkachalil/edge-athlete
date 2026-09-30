@@ -1,5 +1,24 @@
 # Development Log
 
+## September 29, 2026 — Play fix round: the seven review findings, zero DDL
+
+The post-merge review of the Play program (this morning's session start) found seven defects. Every one is fixed here, with the tests that would have caught them.
+
+**Correctness:**
+1. **A challenge bell never stopped asking.** `respondChallenge` filtered the notification on the whole row (`c`) instead of `c.id`: no row matched, no error. Accept / Pass from the bell or the panel left Accept / Decline up; a second tap 409'd. Now keyed by the id, only a pending bell moves, a cancelled invite closes it too, and a failed stamp is logged. `play-challenges.spec.ts` reads the bell's state after accept, pass and cancel.
+2. **Match play invented rivalries.** An event round mints ONE group post for every match, so `side` 1|2 meant nothing across matches: in a 16-player bracket round every player got ~15 fake rivals with W/L. The fix, without DDL: `stampMatchOutcomes` also writes the MATCH id into the row's `context` (`match`), the ONE writer (`upsertPerformances`) carries a stamped match forward through any re-mirror (`carryMatchUnit` — a round edit and the backfill rebuild `context` from the round), rivals reads it as `unit`, and `versus.ts` counts a side or an outcome only between rows of the SAME match. A stamp with no match (rows written before this) invents nothing. Stroke play is untouched.
+3. **The post's action row overflowed the card on phones.** Measured: with fixed 24 px gaps the row needed 379 px; Save sat fully off the card at 375 AND 390, and the row had been ~20 px too wide before the ⚡ existed. Now the six controls spread across the row below `sm` (no fixed gap, Save's `ml-auto` from `sm:` only) with the card's inner padding at 12 px there. Measured after: 260 / 315 / 330 px at 320 / 375 / 390, all inside the card.
+4. **Escape discarded a half-written challenge.** `PostDetailModal` closed on every Escape, unmounting the composer above it and skipping its discard confirm. It now closes only when it is the topmost dialog (LargerWindow's rule, by document position).
+
+**Scale:**
+5. **Cheer totals** are six head counts in the database (over `idx_live_cheers_context`), never up to 5,000 rows per viewer per 10 s, and no longer freeze at that cap. A round that is not live is polled once a minute instead of six times (a scheduled round can still go live on an open page).
+6. **The badge hook** counts results per sport with head counts (one per registered sport, in parallel) instead of pulling up to 5,000 rows per player per write, and reads the handicap only when a rated golf round was written AND a handicap badge is still open.
+7. **`rescanBadges`** never revokes when the record read hit its 5,000-row cap (an older row may hold the badge).
+
+**Also:** the challenge window starts on the challenger's LOCAL date (`today` from the composer, admitted within a day of the server's clock — an evening round in North America counted a day late); the badge chip is a real button in a real list (no `role="listitem"` on a button; "Verified" as sr-only text); no empty "Badges" heading on another athlete's Achievements; the last-five form is `role="img"`; a failed challenge action offline shows an error instead of an unhandled rejection; a failed people read in the composer says so with a retry instead of "none yet"; a prefilled composer's edited target counts as dirty.
+
+**Proof:** 101 Play + performance unit tests; the six Play e2e specs 20/20 locally (desktop, 390 Chromium, WebKit); the feed spec green; the action row measured at three widths.
+
 ## September 29, 2026 — Go-live prep (Phase 0): the e2e suite knows every production host; migration 246 held
 
 - **`PROD_APP_HOSTS`** (`e2e/helpers/qa-user.ts`) lists every host that serves production: the vercel.app alias, `edgeathlete.ca` + www, and the planned `.com` + www. The prod refusal and the deploy wait (`deploy.ts`) read the list rather than one host. Without it, a local run pointed at `edgeathlete.ca` would not have been refused. `e2e-prod-guard.test.ts` pins every host, and pins that a preview is not production.

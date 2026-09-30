@@ -16,6 +16,12 @@ import { contextKindOf, headlineDirection, type PerformanceOutcome } from '@/lib
  *    holes only (a 9 never beats an 18).
  *  • anything else (a session, a contest line whose outcome is parked) →
  *    played, undecided: it counts as an encounter, never a result.
+ *  • A MATCH-PLAY golf round: an event round mints ONE group post for all
+ *    its matches, so a side or an outcome means something only inside one
+ *    match — `unit` (the match id, stamped into the row's context at
+ *    completion). Two players in DIFFERENT matches, or a stamp older than
+ *    the unit, never met: no encounter (the review found every player of a
+ *    16-player bracket round given ~15 invented rivals).
  *
  * `verified` counts the decided encounters where BOTH rows are verified —
  * the "Verified" mark Tom asked for (every result counts; verified ones are
@@ -30,6 +36,8 @@ export interface VersusRow {
   outcome: PerformanceOutcome | null;
   headline: number | null;
   holes?: number | null;
+  /** The match inside a shared golf round (context.match); null elsewhere. */
+  unit?: string | null;
   verified: boolean;
 }
 
@@ -65,6 +73,9 @@ export function encounterOf(a: VersusRow, b: VersusRow): Encounter | null {
   if (!a.context_key || a.context_key !== b.context_key || a.sport_key !== b.sport_key) return null;
   const base = { contextKey: a.context_key, sportKey: a.sport_key, on: a.occurred_on };
   const both = a.verified && b.verified;
+
+  const decidedGolf = contextKindOf(a.context_key) === 'group_post' && (a.side !== null || b.side !== null || !!a.outcome || !!b.outcome);
+  if (decidedGolf && (!a.unit || a.unit !== b.unit)) return null;
 
   if (a.side !== null && b.side !== null && a.side === b.side) {
     const result = a.outcome ? RESULT_OF[a.outcome] : null;

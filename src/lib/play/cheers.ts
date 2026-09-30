@@ -24,6 +24,8 @@ export const CHEERS = [
 export type CheerKey = (typeof CHEERS)[number]['key'];
 
 const KEYS = new Set<string>(CHEERS.map(c => c.key));
+/** The keys, in the fixed order the counts are read. */
+export const CHEER_KEYS: readonly CheerKey[] = CHEERS.map(c => c.key);
 export const isCheerKey = (v: unknown): v is CheerKey => typeof v === 'string' && KEYS.has(v);
 export const cheerEmoji = (key: CheerKey): string => CHEERS.find(c => c.key === key)!.emoji;
 

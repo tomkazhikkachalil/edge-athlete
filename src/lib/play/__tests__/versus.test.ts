@@ -20,8 +20,21 @@ describe('encounterOf — one shared game from A\'s side', () => {
     expect(encounterOf(a, { ...a, headline: 10 })?.result).toBeNull();
   });
   it('a match or a game: A\'s outcome decides, opposite sides', () => {
-    expect(encounterOf(row({ side: 1, outcome: 'win' }), row({ side: 2, outcome: 'loss' }))).toMatchObject({ together: false, result: 'W' });
+    expect(encounterOf(row({ side: 1, outcome: 'win', unit: 'M1' }), row({ side: 2, outcome: 'loss', unit: 'M1' }))).toMatchObject({ together: false, result: 'W' });
     expect(encounterOf(row({ context_key: R(1), sport_key: 'ice_hockey', side: 2, outcome: 'tie' }), row({ context_key: R(1), sport_key: 'ice_hockey', side: 1, outcome: 'tie' }))).toMatchObject({ together: false, result: 'T' });
+  });
+  it('a match-play golf round holds MANY matches: sides and outcomes count only inside one match', () => {
+    // One event round, one group post, a 16-player bracket: A won match 1 on
+    // side 1; C lost match 3 on side 1; D lost match 5 on side 2.
+    const a = row({ side: 1, outcome: 'win', unit: 'M1' });
+    expect(encounterOf(a, row({ side: 1, outcome: 'loss', unit: 'M3' })), 'not partners').toBeNull();
+    expect(encounterOf(a, row({ side: 2, outcome: 'loss', unit: 'M5' })), 'never opponents').toBeNull();
+    // A stamp older than the unit (no match recorded) invents nothing either.
+    expect(encounterOf(row({ side: 1, outcome: 'win' }), row({ side: 2, outcome: 'loss' }))).toBeNull();
+    // Four-ball partners in the same match are together.
+    expect(encounterOf(a, row({ side: 1, outcome: 'win', unit: 'M1' }))).toMatchObject({ together: true, result: 'W' });
+    // A plain shared stroke round (no sides, no outcomes) still compares scores.
+    expect(encounterOf(row({ headline: 78 }), row({ headline: 82 }))?.result).toBe('W');
   });
   it('the same side is the TOGETHER record', () => {
     expect(encounterOf(row({ context_key: R(1), sport_key: 'soccer', side: 1, outcome: 'win' }), row({ context_key: R(1), sport_key: 'soccer', side: 1, outcome: 'win' }))).toMatchObject({ together: true, result: 'W' });

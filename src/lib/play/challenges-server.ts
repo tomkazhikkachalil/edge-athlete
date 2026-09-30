@@ -8,6 +8,7 @@ import type { PerformanceRow } from '@/lib/performance/types';
 import {
   challengeLine,
   expiredStatus,
+  localToday,
   nextStatus,
   qualifies,
   validateChallenge,
@@ -127,7 +128,7 @@ export async function challengeablePeople(admin: Admin, profileId: string): Prom
 }
 
 export async function createChallenge(admin: Admin, challengerId: string, draft: ChallengeDraft): Promise<Outcome<{ challenge: ChallengeRow }>> {
-  const checked = validateChallenge(draft, challengerId, today());
+  const checked = validateChallenge(draft, challengerId, localToday(draft.today, today()));
   if (!checked.ok) return { ok: false, status: 400, error: checked.error };
   const c = checked.value;
   const refused = { ok: false as const, status: 403, error: 'You can challenge people you follow who follow you back.' };
@@ -228,10 +229,17 @@ export async function respondChallenge(admin: Admin, challengeId: string, actorI
   }
   if (!moved || moved.length === 0) return { ok: false, status: 409, error: 'That challenge changed — reload.' };
 
-  // The challengee's bell stops asking.
-  if (action !== 'cancel') {
-    await admin.from('notifications').update({ action_status: next === 'accepted' ? 'accepted' : 'declined', is_read: true }).eq('user_id', c.challengee_id).eq('type', 'challenge').eq('metadata->>challenge_id', c);
-  }
+  // The challengee's bell stops asking — on an answer AND on the
+  // challenger calling it off (a cancelled invite must not keep offering
+  // Accept). Keyed by the challenge's id; only a still-pending bell moves.
+  const { error: bellError } = await admin
+    .from('notifications')
+    .update({ action_status: next === 'accepted' ? 'accepted' : 'declined', is_read: true })
+    .eq('user_id', c.challengee_id)
+    .eq('type', 'challenge')
+    .eq('metadata->>challenge_id', c.id)
+    .eq('action_status', 'pending');
+  if (bellError) console.warn(`${TAG} bell stamp failed:`, bellError.message);
   const who = await names(admin, [c.challenger_id, c.challengee_id]);
   const line = challengeLine({ ...c, courseName: await courseName(admin, c.course_id) });
   if (next === 'accepted') await bell(admin, c.challenger_id, c.challengee_id, 'challenge_result', `${who.get(c.challengee_id) ?? 'Your friend'} accepted your challenge`, line, c);

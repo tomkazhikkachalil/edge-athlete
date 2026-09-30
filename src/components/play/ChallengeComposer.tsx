@@ -42,10 +42,18 @@ const addDays = (days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+/** YYYY-MM-DD in the device's zone. */
+function localDateOf(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }: { sportKey: string; prefill?: ChallengePrefill | null; onClose: () => void; onSent?: () => void }) {
   const { showSuccess } = useToast();
   const metrics = useMemo(() => challengeMetrics(sportKey), [sportKey]);
   const [people, setPeople] = useState<Array<{ id: string; name: string }> | null>(null);
+  // A failed people read is not "none yet" — the list says so and offers a retry.
+  const [peopleError, setPeopleError] = useState(false);
   const [personId, setPersonId] = useState('');
   const [metric, setMetric] = useState(prefill?.metric ?? metrics[0]?.key ?? '');
   const [target, setTarget] = useState(prefill ? String(prefill.target) : '');
@@ -56,21 +64,29 @@ export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [peopleTry, setPeopleTry] = useState(0);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/challenges/people', { credentials: 'include' });
-        const body = res.ok ? ((await res.json()) as { people: Array<{ id: string; name: string }> }) : { people: [] };
-        if (!cancelled) setPeople(body.people);
+        if (!res.ok) throw new Error(String(res.status));
+        const body = (await res.json()) as { people: Array<{ id: string; name: string }> };
+        if (!cancelled) {
+          setPeople(body.people);
+          setPeopleError(false);
+        }
       } catch {
-        if (!cancelled) setPeople([]);
+        if (!cancelled) {
+          setPeople([]);
+          setPeopleError(true);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [peopleTry]);
 
-  const dirty = () => personId !== '' || message.trim() !== '' || (!prefill && target !== '');
+  const dirty = () => personId !== '' || message.trim() !== '' || (prefill ? target !== String(prefill.target) : target !== '');
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(dirty, onClose);
 
   // A real dialog: the scroll behind stays put, focus moves in, Escape asks
@@ -129,6 +145,8 @@ export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }
           message: message.trim() || null,
           sourceKey: prefill?.sourceKey ?? null,
           sameCourse: isGolf && sameCourse,
+          // The window starts on the challenger's own day (their local date).
+          today: localDateOf(new Date()),
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -187,6 +205,13 @@ export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }
             <span className="text-label font-semibold text-primary">Who</span>
             {people === null ? (
               <div className="mt-1 h-11 rounded-lg bg-surface-sunken animate-pulse" aria-hidden />
+            ) : peopleError ? (
+              <p className="mt-1 text-sm text-danger-fg">
+                Couldn’t load your people.{' '}
+                <button type="button" onClick={() => setPeopleTry(n => n + 1)} className="font-semibold underline">
+                  Try again
+                </button>
+              </p>
             ) : people.length === 0 ? (
               <p className="mt-1 text-sm text-muted">You can challenge people you follow who follow you back — none yet.</p>
             ) : (
