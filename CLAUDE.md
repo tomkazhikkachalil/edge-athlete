@@ -1271,6 +1271,8 @@ const { canView } = await response.json();
 
 29. **Play is sport-agnostic by construction: it reads the ONE fact table, sports join by DATA, and one post-write hook drives it (Play program, Sep 28–29 2026, #991–#1000, mig 244 the ONLY DDL)** — Tom: "I don't want it just be about golf. It's got to have the building blocks and principles for every other sport." Badges, rivalries and challenge settlement read `athlete_performances` only (golf's holes folded into `metrics.birdies/eagles/aces` by the MAPPER); a stat-line sport gets milestone badges from `StatFieldDef.milestones`, challenge metrics from its schema (+ `LOWER_IS_BETTER`), a share card from `heroStat`/`supportKeys`. `upsertPerformances` → `src/lib/play/after-write.ts afterPerformanceWrite` (badges + challenge settlement; the backfill is `after: 'silent'`). A shared game is `athlete_performances.context_key` (`group_post:` · `sport_event_round:` · `contest:` — ONE canonical key per game; the mappers own it; golf never sends `side`/`outcome`, `stampMatchOutcomes` does at completion). Badges: `badge_awards` (NOT the dropped `athlete_badges`), catalog keys are forever, one `achievement` bell per write. Share cards: `/r/[postId]` viewer-independent + `card.png`, public posts of public profiles only. Rivalries: the athlete chooses what shows (Stats, under the sport); a viewer sees their own record; self may manage unless supervised (no profile has a self owner access row). Cheers: six anonymous keys, the context's own gate, floats at z-[70]. Challenges: mutual follows only, never across a block/mute (the refusal never says which), write-gated (on THE list), answered from the bell, settled by real results; the composer is its own dialog at z-[65] (LargerWindow is read-only and sits under PostDetailModal). Every result counts; a verified one (`OFFICIAL_PROVENANCE`) is marked. `docs/PLAY.md` is the reference; read DEVLOG Sep 28–29 2026 (Play P1–P10) first.
 
+30. **Activities are not sports: one normalized shape, parsed where it must be, the route private at both ends (Activities program, Sep 29 2026, #1003–#1008, mig 245 the ONLY DDL)** — Tom: athletes bring what their watch or app recorded; phase 1 is FILE import (.FIT / .GPX / .TCX), providers (Strava, Google Health, Garmin) are later adapters onto the same `NormalizedActivity` (`src/lib/activities/types.ts`). `activities` (posture A) is one row per activity; `activity_type` is its OWN list (`catalog.ts` ≡ 245's CHECK), never a `SportRegistry` key, and phase 1 writes no `athlete_performances`. The dedupe key is the START SECOND (`fileExternalId`) — the same run as .FIT and .GPX is one activity. GPX/TCX parse in the BROWSER (Vercel's 4.5 MB cap; regex scanner, no DOMParser) into `wire.ts`; a .FIT uploads RAW to `/api/activities/fit` — **`@garmin/fitsdk` is SERVER-ONLY (its license: Garmin confidential, not to be made available to third parties; a test holds every import to a `-server` module)**. `write-server.ts importActivity` is the ONE writer (server-computed totals, a device total kept only when plausible, stream to storage BEFORE the row). `read-server.ts resolveActivityAccess` is the ONE gate (self / guardian → owner; departed, blocked, Only me → 404; `canViewProfile` or public signed-out) and `visibility.ts` the projection: a viewer's route is trimmed 200 m at BOTH ends (`trimStream`; `route_preview` is stored trimmed), a SUPERVISED athlete's viewers get no position at all (Tom's rules); every response `private, no-store`. Streams are gzipped JSON at `uploads/activities/<profile>/<id>.json.gz` — a PROTECTED prefix, removed by the delete and the deletion engine (`goes`). Share to feed: the posts route REBUILDS `stats_data {type:'activity'}` from the row (a client's is a request). The tab is on BOTH profile routes (`?tab=activities`), the feed card is a line drawing (`route-svg.ts`, no Leaflet in the feed), Create → Activity. `docs/ACTIVITIES.md` is the reference (the provider seam, Strava's owner-only rule); read DEVLOG Sep 29 2026 (Activities PR 1–6) first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1334,6 +1336,9 @@ addition below as a promise to keep it true.
   writer and reader, the pages, the coach view, the rollover carry.
 - `docs/PLAY.md` — the Play program (convention 29): badges, share cards,
   rivalries, live cheers, friend challenges; the principles and each piece's rules.
+- `docs/ACTIVITIES.md` — imported GPS activities (convention 30): the normalized
+  shape, the FIT-SDK server-only rule, the gate and the three projections, the
+  provider seam (Strava / Google Health / Garmin).
 - `docs/LAUNCH_RUNBOOK.md` — the pre-launch ops checklist (DNS/email, Supabase
   auth email, OAuth enablement, device walkthrough). Console actions, not code.
 - `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
@@ -1361,6 +1366,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** September 2026 (Play program) — this file is the single source of truth for project
+**Last Updated:** September 2026 (Activities program) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.
