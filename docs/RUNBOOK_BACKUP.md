@@ -151,3 +151,15 @@ Weekly, kept somewhere that is not the same laptop. A restore from it is
 `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>` into a FRESH
 project, then `check:schema`. This is a stopgap; it has no Storage, no
 automation and a week's RPO.
+
+
+## The app-level snapshot + restore (Sep 30 2026)
+
+Beside Supabase's own backups, the reset kit gives a full app-level export
+and a restore INTO STAGING: `scripts/prod-reset/export.mjs` (every user-data
+table, every storage object, the auth list → `database/ops/snapshots/…`,
+gitignored) and `scripts/prod-reset/restore-to-staging.mjs` (wipe staging,
+recreate the auth users with their original ids, load with row triggers off,
+rewrite the storage host, upload the files, verify). It ran on Sep 30 2026 —
+the reset's snapshot restored into staging in about two minutes, every
+count matching — which is the quarterly drill this runbook asks for.

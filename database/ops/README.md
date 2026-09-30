@@ -12,5 +12,12 @@ the record in `DEVLOG.md`. Re-running one is never routine — read its header.
   `scripts/prod-reset/export.mjs` and storage + auth were emptied by
   `scripts/prod-reset/wipe.mjs`.
 
+- A snapshot restores into STAGING with `scripts/prod-reset/restore-to-staging.mjs`
+  (the restore drill; Sep 30 2026: Tom browses the reset's data on localhost).
+  Staging only — it refuses any other ref; it wipes staging's user data first,
+  recreates the auth users with their original ids and generated passwords
+  (`<snapshot>/staging-passwords.txt`), loads every table with row triggers off,
+  rewrites the storage host, uploads the files, and verifies the counts.
+
 `snapshots/` is gitignored: it holds the exported rows and files (PII) on the
 operator's machine only.

@@ -1,5 +1,19 @@
 # Development Log
 
+## September 30, 2026 — The Sep 30 snapshot restored into staging (the restore drill; Tom's old data on localhost)
+
+Tom asked how to see his old data. It went into **staging** (the project localhost and previews use), so he signs in at `http://localhost:3000` and browses it as it was; production stays clean and gated.
+
+**`scripts/prod-reset/restore-to-staging.mjs`** (staging only — refuses any other ref; `--confirm=restore-staging`):
+1. Reads each table's insertable columns from `information_schema` (generated columns skipped; identity columns noted).
+2. Wipes staging's user data: the reset's own table list truncated, every auth user deleted (504 QA leftovers), the three buckets emptied (814 stale test uploads).
+3. Recreates the 7 auth users **with their original ids** (`createUser({ id })` — no FK reaches `auth.users`, no signup trigger fires) and generated passwords in `<snapshot>/staging-passwords.txt`. Google identities are not restorable; password sign-in is the way in on staging.
+4. Loads every table with **row triggers off** (`SET LOCAL session_replication_role = replica` — the search-vector, count and notification triggers would otherwise corrupt a bulk load) through `json_populate_recordset`, `tickets` with `OVERRIDING SYSTEM VALUE` then `setval`, and the prod storage host rewritten to staging's (30 `post_media`, 19 `group_post_media`, 4 `profiles`, 2 `workout_sets` URLs were absolute).
+5. Uploads the 140 storage files to the same paths (with two retries — one transient "fetch failed" on the first run).
+6. Verifies: every table equal to `counts.json`, the buckets equal to the manifest, 7 users.
+
+**The run:** verified on the second attempt (the first stopped on the `OVERRIDING SYSTEM VALUE` clause order, fixed). `check:schema` on staging OK at 246. A local build against staging: sign-in as the gmail account, the feed shows the old posts, the profile shows the cover, avatar, both orgs, the 14.1 handicap and 28 posts, and the Media tab's photos serve through the proxy (200, JPEG). This is the restore drill `docs/RUNBOOK_BACKUP.md` asks for.
+
 ## September 30, 2026 — Migration 246 ran on prod: the pg_cron jobs call edgeathlete.ca (go-live Phase 7)
 
 Tom ran 246 in the prod SQL editor: `246 APPLIED | 2 | 2 | 0 | 246` — `calendar-reminders` and `urgent-emails` now call `https://edgeathlete.ca/api/cron/…`, none call the vercel.app host, the secret was never re-typed. Staging: `246 APPLIED | 0 | 0 | 0 | 246` (no pg_cron there, the ledger row landed). `check:schema` on both: 245 rows, head 246, every file run. #1012 merged. The go-live checklist's Phase 7 cron item is done; the baseline regenerates at 246 with the next schema change (246 is data-only, so the baseline at 245 still describes the schema).
