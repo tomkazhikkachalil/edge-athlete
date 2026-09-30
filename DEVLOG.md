@@ -1,5 +1,11 @@
 # Development Log
 
+## September 30, 2026 — Advisories: nodemailer 9 → 10 (its own types), brace-expansion, fast-uri
+
+New advisories published today rated **high**: `nodemailer` ≤ 10.0.8 (four: a process-global DNS cache reusing TLS `servername` across transports, nested recipient arrays, a quoted local-part, addressparser backtracking) and `brace-expansion` (a transitive dependency of `glob`), plus `fast-uri` (moderate). The hardening guardrail fails CI on any high advisory, so every open PR went red at once.
+
+- **nodemailer → 10.0.12**, the major upgrade the Sep 29 maintenance entry deferred. It ships its own types now: `email-service.ts` imports `Transporter` and `SendMailOptions` as named types (the `nodemailer.` namespace is gone), and `@types/nodemailer` is removed. `createTransport` / `sendMail` are unchanged. Outbound email is still parked (SMTP unset), so no send path ran; when it is enabled, LAUNCH_RUNBOOK §1's probes cover it.
+- `npm audit fix` for the transitive two. `npm audit --omit=dev`: 0 vulnerabilities. `npm run verify` green.
 ## September 30, 2026 — Production reset: a clean slate on edgeathlete.ca
 
 The site went live on Sep 29 ahead of schedule, with two months of test data. Tom: *"remove all users so the website is clean and brand new with no user data. I want the functionality to remain the same."* His decisions: everything goes, consent records and evidence included, his own three accounts included (he signs up again; `ADMIN_EMAILS` gives the new gmail account admin).
