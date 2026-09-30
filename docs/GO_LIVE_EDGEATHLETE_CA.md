@@ -37,11 +37,12 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 
 - [ ] **[Tom] Vercel plan.** The project is on **Hobby**, which Vercel's terms limit to personal, non-commercial use. A business launch belongs on **Pro**. Pro also brings Skew Protection (LAUNCH_RUNBOOK §5b), which is one toggle once you're on Pro.
 - [ ] **[Tom] Lower the TTL** on the apex A records and the `www` CNAME at GoDaddy to 600 seconds, a day ahead, so the switch spreads in minutes.
-- [ ] **[Claude] The code-prep PR** (nothing in it changes behaviour until the env var is set):
-  - `e2e/helpers/qa-user.ts` `PROD_APP_HOST` and `e2e/helpers/deploy.ts` recognise **both** hosts, and `test:e2e:prod` targets `edgeathlete.ca`. Without this, the prod-refusal guard would not recognise the new host. `src/lib/__tests__/e2e-prod-guard.test.ts` follows.
-  - The ~20 `|| 'https://edge-athlete.vercel.app'` fallbacks stay (they're harmless once the env is set). The Nominatim User-Agent (`src/lib/golf/geocode.ts:140`) names the new host.
-  - A migration re-pointing the two pg_cron jobs, `calendar-reminders` (059) and `urgent-emails` (135), at `https://edgeathlete.ca/api/cron/…`. [Tom] runs it with the real `CRON_SECRET` substituted, the way 059/135 were run. The old host keeps answering, so this is not urgent, but it belongs to the move.
-  - Done in the checklist PR itself: the goodbye page and the delete-account modal now use the one support address (`COPY.SUPPORT.CONTACT_EMAIL`, `support@edgeathlete.ca`); both had pointed at `support@edgeathlete.com`, a domain we don't own. And the support team's recovery search now recognises `edgeathlete.ca` links.
+- [x] **[Claude] The code-prep PR** (nothing in it changes behaviour until the env var is set):
+  - The e2e suite knows **every** production host (`PROD_APP_HOSTS` in `e2e/helpers/qa-user.ts`: the vercel.app alias, `edgeathlete.ca` + www, the planned `.com` + www). The prod refusal and the deploy wait read the list; `e2e-prod-guard.test.ts` pins it.
+  - `npm run test:e2e:prod` still targets the vercel.app alias (it always serves production). After Phase 4, probe the domain itself with `E2E_PROD_URL=https://edgeathlete.ca npm run test:e2e:prod`.
+  - The Nominatim User-Agent reads `NEXT_PUBLIC_APP_URL`. The ~20 `|| 'https://edge-athlete.vercel.app'` fallbacks stay (harmless once the env is set).
+  - Already done in #1010: the one support address everywhere, and the recovery search recognising `.ca`.
+- [ ] **[Claude] Migration 246** re-points the two pg_cron jobs (`calendar-reminders`, `urgent-emails`) at `https://edgeathlete.ca/api/cron/…`. It rewrites only the host inside each job, so the secret is never re-typed. **Its PR stays unmerged until Phase 7.** Run early, the jobs would call GoDaddy's page and silently do nothing.
 
 ## Phase 1: add the domain in Vercel (nothing changes for users yet)
 
@@ -85,12 +86,12 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 - [ ] A **share link** from a post (`/r/<id>`) pasted into a message unfurls with the card and an `edgeathlete.ca` address.
 - [ ] An **org site** (`/org/<slug>`) loads with its canonical on the new domain.
 - [ ] A **calendar feed**: Settings → Calendar feed → the subscription URL starts with `edgeathlete.ca`.
-- [ ] **[Claude]** The prod e2e probe against `https://edgeathlete.ca` (after the code-prep PR), plus `check:schema:prod`.
+- [ ] **[Claude]** The prod e2e probe against the domain (`E2E_PROD_URL=https://edgeathlete.ca npm run test:e2e:prod`), plus `check:schema:prod`.
 - [ ] The old address still works: `https://edge-athlete.vercel.app` serves the app. Leave it; the crons and tests may still call it.
 
 ## Phase 7: after the move
 
-- [ ] **[Tom]** Run the pg_cron re-point migration from Phase 0 (with the secret).
+- [ ] **[Tom]** Run migration 246 in the prod SQL editor (expect `246 APPLIED | 2 | 2 | 0 | 246`), then [Claude] runs it on staging and merges its PR.
 - [ ] **[Tom] Google Search Console:** add the `edgeathlete.ca` domain property (DNS TXT verification at GoDaddy, alongside the others) and submit `https://edgeathlete.ca/sitemap.xml`.
 - [ ] **[Tom] Strava** (when the app exists): change the **Authorization Callback Domain** to `edgeathlete.ca`, then submit for review from the real domain.
 - [ ] **[Tom] Garmin:** apply to the Connect Developer Program now that the company website is the product.

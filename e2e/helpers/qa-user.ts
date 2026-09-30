@@ -42,6 +42,17 @@ const ENV_FILE = E2E_TARGET === 'prod' ? '.env.prod' : '.env.local';
 /** The production project's ref and host — the two things the suite refuses without E2E_ALLOW_PROD=1. */
 export const PROD_SUPABASE_REF = 'htwhmdoiszhhmwuflgci';
 export const PROD_APP_HOST = 'edge-athlete.vercel.app';
+/** Every host that serves PRODUCTION: the Vercel alias (always), the live
+ *  apex and its www (docs/GO_LIVE_EDGEATHLETE_CA.md), and the planned .com.
+ *  The refusal and the deploy wait read this list, never one host. */
+export const PROD_APP_HOSTS: readonly string[] = [
+  PROD_APP_HOST,
+  'edgeathlete.ca',
+  'www.edgeathlete.ca',
+  'edgeathlete.com',
+  'www.edgeathlete.com',
+];
+export const isProdAppHost = (host: string): boolean => PROD_APP_HOSTS.includes(host.toLowerCase());
 
 /**
  * Vercel previews sit behind Vercel Authentication; the suite reaches them
@@ -96,7 +107,7 @@ export function refuseProdUnlessAllowed(supabaseUrl: string | undefined, baseUrl
   } catch {
     /* refused below only by ref */
   }
-  if (host === PROD_APP_HOST) throw new Error(`REFUSED: E2E_BASE_URL is the PRODUCTION app. A prod probe is \`npm run test:e2e:prod\` (E2E_TARGET=prod E2E_ALLOW_PROD=1).`);
+  if (isProdAppHost(host)) throw new Error(`REFUSED: E2E_BASE_URL is the PRODUCTION app. A prod probe is \`npm run test:e2e:prod\` (E2E_TARGET=prod E2E_ALLOW_PROD=1).`);
 }
 
 export function requireEnv(): { url: string; anonKey: string; serviceKey: string } {
