@@ -9,6 +9,14 @@ saved.
 
 ---
 
+## 0. The launch gate (Sep 30 2026) — until the doors open
+
+Production is gated: `NEXT_PUBLIC_LAUNCH_GATE=1` in Vercel (Production; a
+real build) sends every signed-out visitor to `/auth/coming-soon` and
+refuses `/api/signup`; Supabase → Authentication → "Allow new users to sign
+up" is OFF (covers Google). To open: turn the Supabase switch on, remove the
+flag, build. `src/lib/launch-gate.ts` holds the rule; DEVLOG Sep 30 2026.
+
 ## 1. Email deliverability — BLOCKING (every app email 550s today)
 
 The app sends through Resend as an SMTP relay (`SMTP_*` vars in Vercel), but
