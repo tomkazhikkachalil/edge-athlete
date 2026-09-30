@@ -1,5 +1,24 @@
 # Development Log
 
+## September 30, 2026 — Maintenance after the launch day: the full checklist, all green
+
+**On main at `01d5c9c6`** (the launch gate, #1016). Since the Sep 29 maintenance entry: the Activities program (#1003–#1009), the go-live checklist and prep (#1010, #1011), the Play fix round (#1013), the production reset (#1014), the advisory upgrade (#1015), the gate (#1016); the domain cutover to `edgeathlete.ca` and the production wipe both ran.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,163 tests in 447 files**;
+- the production build;
+- 221 client chunks inside the iOS 15 / Safari 15 floor (Garmin's FIT SDK in none of them).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes are unchanged at 103 `.select('id'|'*')` sites and **14** raw-error-shaped bodies: the 15th was the FIT import route returning an `ActivityParseError`, whose messages are written for the athlete — annotated `hardening-ok`.
+- **`npm audit --omit=dev`: 0 vulnerabilities** (nodemailer 10 since #1015).
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet, both ledgers at head 245, every file run.
+- **Production:** health `ok`, database `ok`, serving main's head; `edgeathlete.ca` resolves to Vercel (`216.150.1.1`, the GoDaddy builder has not restored its records) and the gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+
+**Open:** #1012 (migration 246, the pg_cron host move) stays held until Tom runs it on prod — the domain serves the app now, so it can be run any time. Tom owes: the Supabase "Allow new users to sign up" switch (OFF while gated), Vercel Pro, one real watch file on his iPhone, and the list of "holes and bugs" he saw for the next fix round.
+
 ## September 30, 2026 — The launch gate: coming soon for everyone signed out, no new sign-ups
 
 Tom, hours after the early go-live: *"I see a lot of holes and bugs, can we take down the site for now, or put a coming soon banner / block new users from signing up?"* Chosen over Vercel's own password wall because that would also block the scheduled database jobs and the APIs; this gate leaves them untouched.
