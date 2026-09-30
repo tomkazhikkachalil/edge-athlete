@@ -282,7 +282,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                   Is there something we could do better? Your feedback helps us improve Edge Athlete.
                 </p>
                 <a
-                  href="mailto:support@edgeathlete.com"
+                  href={`mailto:${COPY.SUPPORT.CONTACT_EMAIL}`}
                   className="text-brand-fg hover:text-brand-fg-strong text-sm font-medium"
                 >
                   Send us feedback →

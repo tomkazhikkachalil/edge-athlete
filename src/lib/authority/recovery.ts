@@ -158,7 +158,8 @@ function isAppHost(host: string, appHosts: readonly string[]): boolean {
  * (EA-1042), an id, a pasted link to a club / league / event / org site
  * (the vanity path too), a custom domain, or a name.
  */
-export function parseRecoveryQuery(raw: string, appHosts: readonly string[] = ['edgeathlete.com', 'edge-athlete.com']): RecoveryQuery {
+// edgeathlete.ca is the live apex (the go-live runbook); .com is the planned future one.
+export function parseRecoveryQuery(raw: string, appHosts: readonly string[] = ['edgeathlete.ca', 'edgeathlete.com', 'edge-athlete.com']): RecoveryQuery {
   const q = raw.trim();
   if (!q) return { kind: 'empty' };
   const ticket = /^EA-?(\d{3,9})$/i.exec(q);

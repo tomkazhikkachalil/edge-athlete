@@ -80,8 +80,8 @@ export default function GoodbyePage() {
           {/* Footer Note */}
           <p className="text-xs text-muted mt-8">
             If you believe this was done in error or need assistance, please contact{' '}
-            <a href="mailto:support@edgeathlete.com" className="text-brand-fg hover:underline">
-              support@edgeathlete.com
+            <a href={`mailto:${COPY.SUPPORT.CONTACT_EMAIL}`} className="text-brand-fg hover:underline">
+              {COPY.SUPPORT.CONTACT_EMAIL}
             </a>
           </p>
         </div>
