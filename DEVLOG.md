@@ -1,5 +1,39 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 4: the import page and the activity page
+
+**`/activities/import`** is a page, not a sheet: a batch needs room for its results at phone width, and the path is linkable.
+- It takes up to 10 files, imported one at a time, each row with its own result (imported / "already here — updated" / the reason).
+- GPX/TCX are parsed in the browser, with the parsers lazily imported. A FIT is checked for its `.FIT` header and sent raw.
+- A `.gz` export (Strava's bulk export) is unzipped where `DecompressionStream` exists. It is newer than the iOS 15 floor, so it is feature-detected; otherwise the athlete is told to unzip first.
+- A "faster than a run" refusal offers the type picker and a retry.
+- There is **no `accept` filter**: iOS greys unknown types out of the Files picker, so the file is checked in code instead.
+- A guardian acting as their athlete imports for them (`targetProfileId`), and leaving mid-import asks first (beforeunload).
+- It carries a "where to find your files" list (Garmin, Strava, Apple Watch via HealthFit, Coros / Suunto / Polar / Wahoo).
+
+**`/activities/[id]`** has a server shell and a client body that draws only what the projection sent.
+- The layout:
+  - a back link to the athlete (never a dead end; a refusal is a not-available card with the auth-aware exit);
+  - a stats grid (2 columns on a phone, 4 on desktop);
+  - the route map;
+  - elevation / pace (or speed) / heart-rate charts, where hovering or touching one marks the point on the map;
+  - km/mi splits, with a km/mi toggle remembered on the device (localStorage inside try/catch).
+- Owner controls: Edit (name, type — the discard confirm), Share to feed (an optional caption — the discard confirm; a supervised author's post goes to approval), Only me, Delete (confirmed; the post goes too).
+- A viewer sees "The first and last part of every route stay private to the athlete."
+
+**Map:** `RouteMap` / `RouteMapInner` follow the `next/dynamic` ssr:false pattern of `CourseMap`.
+- The route is drawn as sent: nulls break the line, so a viewer's trimmed ends simply are not there.
+- Start/finish markers are the owner's only.
+- The tile layers moved to `src/lib/maps/tiles.ts`, and `CourseMapInner` reads them from there (one source).
+
+**Pure helpers:** `format.ts` (distance, duration, elevation, pace per type, the start in the activity's zone) and `charts.ts` (the series; pace over a ±5-sample window, null while stopped).
+
+**Proof:**
+- `e2e/activities-ui.spec.ts` (@mobile) passes 2/2: 390 px Chromium AND WebKit. It imports a GPX + a FIT through the real picker, re-picks the same file ("updated", still two rows), opens the activity (map, HR chart, splits), shares it with a caption (the post carries the server's card), and deletes it (confirmed; the row and post go, the page lands on the profile tab).
+- The API spec is still 3/3.
+- Screenshot pass at 375 and 1280 as owner and as stranger: the stranger's loop shows the trimmed gap at the start/finish, and there are no markers or controls.
+- **A spec lesson:** a random start date must be in the PAST. The first WebKit run "failed" because the server correctly refused a future date.
+
 ## September 29, 2026 — Activities program, PR 3: the server (the import doors, the one gate, share to feed)
 
 **Routes:**

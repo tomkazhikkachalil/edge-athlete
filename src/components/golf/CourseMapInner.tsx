@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { greenDistanceYards, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
+import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -51,16 +52,9 @@ export interface CourseMapInnerProps {
   captionInset?: number;
 }
 
-const OSM = {
-  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  maxZoom: 19,
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-};
-const SATELLITE = {
-  url: 'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  maxZoom: 19,
-  attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-};
+// The tile layers are shared with the activity route map (src/lib/maps/tiles.ts).
+const OSM = OSM_TILES;
+const SATELLITE = SATELLITE_TILES;
 
 const courseIcon = () =>
   L.divIcon({

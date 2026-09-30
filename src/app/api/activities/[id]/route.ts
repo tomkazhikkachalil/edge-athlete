@@ -35,8 +35,17 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     const admin = getSupabaseAdmin();
     const read = await readActivityForViewer(admin, user?.id ?? null, id);
     if (!read.ok) return notFound();
-    const stream = await readStream(admin, read.row.stream_path);
-    return NextResponse.json({ activity: projectActivityDetail(read.row, stream, read.audience) }, { headers: NO_STORE });
+    const [stream, athleteRes] = await Promise.all([
+      readStream(admin, read.row.stream_path),
+      admin.from('profiles').select('id, full_name, first_name, last_name, handle').eq('id', read.row.profile_id).maybeSingle(),
+    ]);
+    // The viewer may see this profile (the gate said so), so its own name and
+    // handle are what its profile page already shows them.
+    const p = athleteRes.data;
+    const athlete = p
+      ? { id: p.id as string, name: (p.full_name as string | null) || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Athlete', handle: (p.handle as string | null) ?? null }
+      : null;
+    return NextResponse.json({ activity: projectActivityDetail(read.row, stream, read.audience), athlete }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[activities/[id]] GET error:', error);
