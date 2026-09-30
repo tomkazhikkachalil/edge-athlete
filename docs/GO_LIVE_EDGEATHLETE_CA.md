@@ -46,33 +46,33 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 
 ## Phase 1: add the domain in Vercel (nothing changes for users yet)
 
-- [ ] **[Tom]** Vercel → edge-athlete → **Settings → Domains** → add `edgeathlete.ca`, then add `www.edgeathlete.ca` and choose **Redirect to `edgeathlete.ca`** (308). The code doesn't redirect www itself; Vercel does it at the edge.
-- [ ] **[Tom]** Note the exact records Vercel shows for each, usually an **A** record for the apex and a **CNAME** for www. **Use Vercel's values, not a remembered IP.** They'll read "Invalid configuration" until Phase 3; that's expected.
+- [x] **[Tom, Sep 29]** Vercel → edge-athlete → **Settings → Domains**: `edgeathlete.ca` and `www.edgeathlete.ca` are both attached, www → apex (308). The code doesn't redirect www itself; Vercel does it at the edge. (The domain had been on the TEAM since Apr 7 2026 with only `www` attached; the team-level Domains page offers nameservers only — ignore it, the project page is the one.)
+- [x] **[Tom, Sep 29]** The records Vercel prescribes: apex **A `216.150.1.1`** (the project page's value; the CLI still quotes the older `76.76.21.21` — both are Vercel's), www **CNAME `c378808a7891969d.vercel-dns-017.com`** (project-specific, from Vercel's domain-config API; `cname.vercel-dns.com` is its second choice). They read "Invalid Configuration" until Phase 3; that's expected.
 
 ## Phase 2: open the doors in Supabase and Google first (harmless in advance)
 
-- [ ] **[Tom] Supabase** (the **prod** project) → Authentication → **URL Configuration** → **Redirect URLs**: add `https://edgeathlete.ca/**` and `https://www.edgeathlete.ca/**`. **Keep** `https://edge-athlete.vercel.app/**` and `http://localhost:3000/**`. Leave the **Site URL** alone until Phase 5.
-- [ ] **[Tom] Google Cloud Console** → the OAuth client used by Supabase → **Authorized JavaScript origins**: add `https://edgeathlete.ca` and `https://www.edgeathlete.ca`. The **redirect URI stays Supabase's** (`https://<prod-ref>.supabase.co/auth/v1/callback`), so don't change it. Google's OAuth consent screen: add `edgeathlete.ca` to **Authorized domains**, and point the homepage, privacy (`/privacy`) and terms (`/terms`) links at the new domain.
+- [x] **[Tom, Sep 29] Supabase** (the **prod** project) → Authentication → **URL Configuration** → **Redirect URLs**: add `https://edgeathlete.ca/**` and `https://www.edgeathlete.ca/**`. **Keep** `https://edge-athlete.vercel.app/**` and `http://localhost:3000/**`. Leave the **Site URL** alone until Phase 5.
+- [x] **[Tom, Sep 29] Google Cloud Console** → the OAuth client used by Supabase → **Authorized JavaScript origins**: add `https://edgeathlete.ca` and `https://www.edgeathlete.ca`. The **redirect URI stays Supabase's** (`https://<prod-ref>.supabase.co/auth/v1/callback`), so don't change it. Google's OAuth consent screen: add `edgeathlete.ca` to **Authorized domains**, and point the homepage, privacy (`/privacy`) and terms (`/terms`) links at the new domain.
 - [ ] **[Tom]** If Apple sign-in is ever turned on (`NEXT_PUBLIC_OAUTH_APPLE`), its Services ID needs the same domain. It's off today.
 
 ## Phase 3: point the DNS (the switch)
 
-- [ ] **[Tom] GoDaddy** → the site built with GoDaddy's website builder: **disconnect it from the domain** (or unpublish it) first. Otherwise GoDaddy keeps restoring its own A records.
-- [ ] **[Tom] GoDaddy DNS** → edit **only** these:
-  - the apex **A** record(s): delete `13.248.243.5` and `76.223.105.230`, and add Vercel's A value;
-  - **www**: change the CNAME from `edgeathlete.ca` to Vercel's CNAME value.
+- [ ] **[Tom] GoDaddy** → the site built with GoDaddy's website builder: **disconnect it from the domain** (or unpublish it). Tom could not find the setting on Sep 29; the records were editable anyway. **Watch the A record for a week** (`dig +short edgeathlete.ca A` must stay `216.150.1.1`); if GoDaddy restores its own, disconnect the site then.
+- [x] **[Tom, Sep 29] GoDaddy DNS** → edit **only** these:
+  - the apex **A** record(s): delete `13.248.243.5` and `76.223.105.230`, and add **`216.150.1.1`** (TTL 600);
+  - **www**: change the CNAME from `edgeathlete.ca` to **`c378808a7891969d.vercel-dns-017.com`**.
 - [ ] **Do NOT touch:** MX (Microsoft 365 mail), the root TXT records (the M365 SPF and verification), `send` (TXT + MX), `resend._domainkey`, `_dmarc`, or the nameservers. Changing any of these breaks company email or app email.
-- [ ] **Probe:** Vercel → Domains shows both **Valid Configuration** with a certificate issued. Then `https://edgeathlete.ca` serves the app and `https://www.edgeathlete.ca` 308s to it. (The GoDaddy page sent HSTS; that only requires HTTPS, which Vercel serves.)
+- [x] **Probe (Sep 29):** Vercel → Domains shows both **Valid Configuration** with a certificate issued — within a minute of the records; DNS was visible on 8.8.8.8 and 1.1.1.1 at once. Then `https://edgeathlete.ca` serves the app and `https://www.edgeathlete.ca` 308s to it. (The GoDaddy page sent HSTS; that only requires HTTPS, which Vercel serves.)
 
 ## Phase 4: tell the app its name (a real build)
 
-- [ ] **[Tom or Claude] Vercel env:** `NEXT_PUBLIC_APP_URL=https://edgeathlete.ca`, **Production only** (Preview and Development keep their own). It's a `NEXT_PUBLIC_*` value, **inlined at build time**, so it takes a **new build**: merge any PR to main, or Deployments → Redeploy with **"Use existing Build Cache" unticked**.
+- [x] **[Claude, Sep 29] Vercel env:** `NEXT_PUBLIC_APP_URL=https://edgeathlete.ca`, **Production only** (the old entry spanned Preview + Production; it was removed and re-added per target — Preview keeps `https://edge-athlete.vercel.app`). The build was a fresh deployment from `main` through the deployments API (`forceNew`), 3 minutes. (Preview and Development keep their own). It's a `NEXT_PUBLIC_*` value, **inlined at build time**, so it takes a **new build**: merge any PR to main, or Deployments → Redeploy with **"Use existing Build Cache" unticked**.
 - [ ] What it moves, all read from that one variable:
   - canonical URLs, `metadataBase`, `og:url` and share-card images;
   - `/robots.txt` and `/sitemap.xml`;
   - every email link (invites, digest, transfers, guardian, calendar);
   - `.ics` feed URLs, and the middleware's apex for org subdomains and custom domains.
-- [ ] **Probe:** `curl https://edgeathlete.ca/api/health` shows the new commit. View source on `/u/<a public handle>` shows canonical and `og:url` on `edgeathlete.ca`. `/robots.txt` names `https://edgeathlete.ca/sitemap.xml`.
+- [x] **Probe (Sep 29):** `curl https://edgeathlete.ca/api/health` shows the new commit; www → 307 to the apex; robots and the sitemap name the domain. Before the build the domain answered the app's 404 (the middleware read the host as an unknown org domain) — expected, and the reason Phase 4 follows Phase 3 at once. View source on `/u/<a public handle>` shows canonical and `og:url` on `edgeathlete.ca`. `/robots.txt` names `https://edgeathlete.ca/sitemap.xml`.
 
 ## Phase 5: flip Supabase's Site URL
 
@@ -86,7 +86,7 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 - [ ] A **share link** from a post (`/r/<id>`) pasted into a message unfurls with the card and an `edgeathlete.ca` address.
 - [ ] An **org site** (`/org/<slug>`) loads with its canonical on the new domain.
 - [ ] A **calendar feed**: Settings → Calendar feed → the subscription URL starts with `edgeathlete.ca`.
-- [ ] **[Claude]** The prod e2e probe against the domain (`E2E_PROD_URL=https://edgeathlete.ca npm run test:e2e:prod`), plus `check:schema:prod`.
+- [x] **[Claude, Sep 29]** The prod e2e probe against the domain: health, auth-login, feed-post, activities-api, play-share-card — 9 passed, 1 flaky-then-passed (feed render timing).
 - [ ] The old address still works: `https://edge-athlete.vercel.app` serves the app. Leave it; the crons and tests may still call it.
 
 ## Phase 7: after the move
