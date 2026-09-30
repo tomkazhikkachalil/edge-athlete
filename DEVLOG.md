@@ -1,5 +1,12 @@
 # Development Log
 
+## September 30, 2026 — Advisories: nodemailer 9 → 10 (its own types), brace-expansion, fast-uri
+
+New advisories published today rated **high**: `nodemailer` ≤ 10.0.8 (four: a process-global DNS cache reusing TLS `servername` across transports, nested recipient arrays, a quoted local-part, addressparser backtracking) and `brace-expansion` (a transitive dependency of `glob`), plus `fast-uri` (moderate). The hardening guardrail fails CI on any high advisory, so every open PR went red at once.
+
+- **nodemailer → 10.0.12**, the major upgrade the Sep 29 maintenance entry deferred. It ships its own types now: `email-service.ts` imports `Transporter` and `SendMailOptions` as named types (the `nodemailer.` namespace is gone), and `@types/nodemailer` is removed. `createTransport` / `sendMail` are unchanged. Outbound email is still parked (SMTP unset), so no send path ran; when it is enabled, LAUNCH_RUNBOOK §1's probes cover it.
+- `npm audit fix` for the transitive two. `npm audit --omit=dev`: 0 vulnerabilities. `npm run verify` green.
+
 ## September 29, 2026 — Play fix round: the seven review findings, zero DDL
 
 The post-merge review of the Play program (this morning's session start) found seven defects. Every one is fixed here, with the tests that would have caught them.
