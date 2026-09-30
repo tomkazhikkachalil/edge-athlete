@@ -1,5 +1,9 @@
 # Development Log
 
+## September 30, 2026 — Migration 246 ran on prod: the pg_cron jobs call edgeathlete.ca (go-live Phase 7)
+
+Tom ran 246 in the prod SQL editor: `246 APPLIED | 2 | 2 | 0 | 246` — `calendar-reminders` and `urgent-emails` now call `https://edgeathlete.ca/api/cron/…`, none call the vercel.app host, the secret was never re-typed. Staging: `246 APPLIED | 0 | 0 | 0 | 246` (no pg_cron there, the ledger row landed). `check:schema` on both: 245 rows, head 246, every file run. #1012 merged. The go-live checklist's Phase 7 cron item is done; the baseline regenerates at 246 with the next schema change (246 is data-only, so the baseline at 245 still describes the schema).
+
 ## September 30, 2026 — Maintenance after the launch day: the full checklist, all green
 
 **On main at `01d5c9c6`** (the launch gate, #1016). Since the Sep 29 maintenance entry: the Activities program (#1003–#1009), the go-live checklist and prep (#1010, #1011), the Play fix round (#1013), the production reset (#1014), the advisory upgrade (#1015), the gate (#1016); the domain cutover to `edgeathlete.ca` and the production wipe both ran.

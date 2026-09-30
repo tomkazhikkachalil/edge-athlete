@@ -91,7 +91,7 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 
 ## Phase 7: after the move
 
-- [ ] **[Tom]** Run migration 246 in the prod SQL editor (expect `246 APPLIED | 2 | 2 | 0 | 246`), then [Claude] runs it on staging and merges its PR.
+- [x] **[Tom, Sep 30]** Ran migration 246 in the prod SQL editor: `246 APPLIED | 2 | 2 | 0 | 246`; staging `0 | 0 | 0 | 246`; #1012 merged.
 - [ ] **[Tom] Google Search Console:** add the `edgeathlete.ca` domain property (DNS TXT verification at GoDaddy, alongside the others) and submit `https://edgeathlete.ca/sitemap.xml`.
 - [ ] **[Tom] Strava** (when the app exists): change the **Authorization Callback Domain** to `edgeathlete.ca`, then submit for review from the real domain.
 - [ ] **[Tom] Garmin:** apply to the Connect Developer Program now that the company website is the product.
