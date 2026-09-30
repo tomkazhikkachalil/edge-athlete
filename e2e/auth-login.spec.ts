@@ -12,7 +12,8 @@ test('UI login with email/password reaches the authenticated app', { tag: '@smok
     readFileSync(join(process.cwd(), 'e2e', '.auth', 'user.json'), 'utf8')
   );
 
-  await page.goto('/');
+  // The launch gate (Sep 30 2026) lets the login form through at /?signin=1 only; harmless when the gate is off.
+  await page.goto('/?signin=1');
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
