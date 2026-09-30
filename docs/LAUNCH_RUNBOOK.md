@@ -125,8 +125,7 @@ console: `TXT _edgeathlete.<domain>` = the token, plus `CNAME <domain> →
 cname.vercel-dns.com` (apex domains: `A 76.76.21.21`). Serving on the
 custom host and the apex 301 are gated by **`CUSTOM_DOMAINS=1`** — read in
 the Edge middleware, so it is BUILD-INJECTED (a real build, not a redeploy;
-the ORG_SUBDOMAINS precedent). Test hostname for the prod probe: any
-Tom-controlled subdomain of `edgeathlete.ca` (TXT + CNAME at GoDaddy).
+the ORG_SUBDOMAINS precedent). Test hostname for the prod probe: a Tom-controlled domain **other than** `edgeathlete.ca` — once the apex is `edgeathlete.ca`, `isReservedDomain` refuses every `*.edgeathlete.ca` host (GO_LIVE_EDGEATHLETE_CA.md, Parked).
 Rollback = unset the flag + build; claimed domains simply stop routing
 (the apex address always works).
 
@@ -181,7 +180,11 @@ rotating a staging key. The manual steps below are the same change by hand.
 Verify: open any preview → sign up → the user appears in the STAGING
 project's Authentication list, not prod's.
 
-## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
+## 5. Custom domain — see `docs/GO_LIVE_EDGEATHLETE_CA.md`
+
+**Sep 29 2026:** the full cutover checklist for `edgeathlete.ca` (every host dependency in the code, today's DNS, the phase order, the probes, rollback, and the later `.com` move) is `docs/GO_LIVE_EDGEATHLETE_CA.md`. The history below is kept for context.
+
+### History (Aug 23 / Sep 1 2026)
 
 Sep 1 note: §5a (above, on purpose — the platform env comes first) makes
 this apex load-bearing for TESTING org custom domains: the C2 prod probe

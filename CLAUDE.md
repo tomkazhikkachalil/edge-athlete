@@ -1341,6 +1341,10 @@ addition below as a promise to keep it true.
   provider seam (Strava / Google Health / Garmin).
 - `docs/LAUNCH_RUNBOOK.md` — the pre-launch ops checklist (DNS/email, Supabase
   auth email, OAuth enablement, device walkthrough). Console actions, not code.
+- `docs/GO_LIVE_EDGEATHLETE_CA.md` — the domain cutover to `edgeathlete.ca`
+  (Sep 29 2026): today's DNS (keep the M365 + Resend records), the phase order
+  (Vercel domain → Supabase/Google → DNS → `NEXT_PUBLIC_APP_URL` + a build →
+  Site URL → probes), rollback, and the later `.com` move.
 - `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
   each stage. Pairs with `scripts/hardening-guardrails.sh` (the `guardrails` CI
   job) and carries the Tier-2 backlog from the Aug 2026 pre-scale audit.

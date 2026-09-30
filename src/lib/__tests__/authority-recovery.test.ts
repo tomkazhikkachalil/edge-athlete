@@ -110,6 +110,8 @@ describe('parseRecoveryQuery', () => {
     expect(parseRecoveryQuery(`/events/${id}`)).toEqual({ kind: 'event', id });
     expect(parseRecoveryQuery('https://edgeathlete.com/org/pine-valley/schedule')).toEqual({ kind: 'slug', slug: 'pine-valley' });
     expect(parseRecoveryQuery('edgeathlete.com/pine-valley')).toEqual({ kind: 'slug', slug: 'pine-valley' });
+    expect(parseRecoveryQuery(`https://edgeathlete.ca/club/${id}`)).toEqual({ kind: 'org', side: 'club', id });
+    expect(parseRecoveryQuery('www.edgeathlete.ca/org/pine-valley')).toEqual({ kind: 'slug', slug: 'pine-valley' });
     expect(parseRecoveryQuery('https://www.pinevalleygolf.org/news')).toEqual({ kind: 'domain', host: 'www.pinevalleygolf.org' });
     expect(parseRecoveryQuery('Pine Valley')).toEqual({ kind: 'text', text: 'Pine Valley' });
     expect(parseRecoveryQuery('   ')).toEqual({ kind: 'empty' });

@@ -1,5 +1,35 @@
 # Development Log
 
+## September 29, 2026 — The go-live checklist for edgeathlete.ca (+ two host fixes)
+
+Tom asked for the domain go-live checklist. **`docs/GO_LIVE_EDGEATHLETE_CA.md`** was written from a sweep of every host dependency in the code and `edgeathlete.ca`'s live DNS that day.
+
+**Today's DNS:**
+- The apex serves GoDaddy's website builder, not the app.
+- The mail is **Microsoft 365** (MX + SPF + verification TXT). These must not be touched.
+- The Resend records are already present.
+
+**The order:**
+1. Vercel domain (with www → apex, redirected by Vercel; the code never redirects www).
+2. Supabase redirect URLs + Google origins, which are harmless to add in advance.
+3. The DNS switch (disconnect the GoDaddy site first; edit only the apex A and the www CNAME).
+4. `NEXT_PUBLIC_APP_URL` (build-injected, so a real build).
+5. Supabase Site URL.
+6. The probes.
+
+Rollback is always available, because the vercel.app address keeps serving.
+
+**Found by the sweep, recorded in the checklist:**
+- The two pg_cron jobs (059, 135) call the vercel.app host; a re-point migration goes in the code-prep PR.
+- The e2e prod guard knows only the old host.
+- `isReservedDomain` will refuse every `*.edgeathlete.ca` host as an org custom domain, so LAUNCH_RUNBOOK §5a's probe needs another test domain.
+- Wildcard org subdomains on Vercel need Vercel's nameservers (a separate decision).
+- Vercel Hobby is non-commercial, so a business launch belongs on Pro.
+
+**Fixed here:**
+- The goodbye page and the delete-account modal mailed **`support@edgeathlete.com`**, a domain we don't own (it's listed on HugeDomains). Both now use `COPY.SUPPORT.CONTACT_EMAIL` (`support@edgeathlete.ca`).
+- The support team's recovery search didn't recognise `edgeathlete.ca` links (it would read one as an org's custom domain). `.ca` was added, with tests.
+
 ## September 29, 2026 — Activities program, PR 6: the close (docs/ACTIVITIES.md, convention 30)
 
 **The program:** six stacked PRs, #1003–#1008, with **migration 245 the only DDL**.
