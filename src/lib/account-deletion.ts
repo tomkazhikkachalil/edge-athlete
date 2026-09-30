@@ -31,6 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
 import { orgRefOf } from './orgs/org-ref';
+import { isMissingTableError } from './orgs/validate';
 import { departedProfilePatch, departureMode, type DepartureMode, type TiedCounts } from './account-departure';
 import { transferHost } from './sport-events/host-transfer-server';
 
@@ -218,6 +219,19 @@ export async function hardDeleteAccount(
   for (const path of collectSetMediaPaths((workoutSets || []).map(s => s.media))) {
     if (!byBucket.has('uploads')) byBucket.set('uploads', new Set());
     byBucket.get('uploads')!.add(path);
+  }
+
+  // Activity streams (245) live in the uploads bucket at a bare path —
+  // a location trace, so they leave with the person, not with the sweep.
+  const { data: activityStreams, error: streamsError } = await admin
+    .from('activities')
+    .select('stream_path')
+    .eq('profile_id', userId)
+    .not('stream_path', 'is', null);
+  if (streamsError && !isMissingTableError(streamsError.code)) throw new Error(`Failed to read activity streams: ${streamsError.message}`);
+  for (const a of activityStreams || []) {
+    if (!byBucket.has('uploads')) byBucket.set('uploads', new Set());
+    byBucket.get('uploads')!.add(a.stream_path as string);
   }
 
   // 2. Release consent rows FIRST. They survive deletion with their FKs
@@ -499,6 +513,9 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   await mustDelete('challenges', 'challengee_id');
   await mustDelete('live_cheers', 'profile_id');
   await mustDelete('live_cheers', 'target_profile_id');
+  // Activities (245): the person's own imports and their GPS streams (the
+  // stream objects were collected in step 1) — never a result.
+  await mustDelete('activities', 'profile_id');
   await mustDelete('athlete_equipment', 'profile_id');
   await mustDelete('athlete_vitals', 'profile_id');
   await mustDelete('user_media_presets', 'profile_id');

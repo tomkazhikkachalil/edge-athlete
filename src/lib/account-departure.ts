@@ -203,6 +203,7 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   // the person's own things — deleted
   'approved_contacts.child_profile_id': 'goes',
   'approved_contacts.contact_profile_id': 'goes',
+  'activities.profile_id': 'goes',
   'athlete_achievements.profile_id': 'goes',
   'athlete_claim_invites.profile_id': 'goes',
   'athlete_equipment.profile_id': 'goes',
