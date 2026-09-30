@@ -13,7 +13,7 @@ describe('prod reset: the table classification', () => {
     const go = goTables();
     const kept = [...KEEP, ...Object.keys(PARTIAL)];
     expect(new Set([...go, ...kept]).size).toBe(all.length);
-    expect(go.some(t => kept.includes(t))).toBe(false);
+    expect(go.some((t: string) => kept.includes(t))).toBe(false);
     expect(all.length).toBeGreaterThan(100);
   });
 
