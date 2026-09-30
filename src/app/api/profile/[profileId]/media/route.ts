@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
+import { countActivities } from '@/lib/activities/read-server';
 import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
 import { canViewSharedPost } from '@/lib/reposts';
@@ -561,7 +562,7 @@ export async function POST(
     }
     if (!canSee) {
       return NextResponse.json({
-        all: 0, stats: 0, tagged: 0, statements: 0, equipment: 0, vitals: 0, achievements: 0
+        all: 0, stats: 0, tagged: 0, statements: 0, equipment: 0, vitals: 0, achievements: 0, activities: 0
       });
     }
 
@@ -590,10 +591,13 @@ export async function POST(
     // Equipment, vitals & achievements counts for their tab badges. The media
     // RPC doesn't cover these tables, so they were always 0. (Visibility
     // already gated above.)
-    const [{ count: eqCount }, { count: vitCount }, { count: achCount }] = await Promise.all([
+    // Activities (245): "Only me" activities count for the athlete alone; a
+    // missing table (pre-245) reads 0 (countActivities never throws).
+    const [{ count: eqCount }, { count: vitCount }, { count: achCount }, activities] = await Promise.all([
       supabaseAdmin.from('athlete_equipment').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
       supabaseAdmin.from('athlete_vitals').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
       supabaseAdmin.from('athlete_achievements').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+      countActivities(supabaseAdmin, profileId, viewerId === profileId ? 'owner' : 'viewer'),
     ]);
     const equipment = eqCount ?? 0;
     // Vitals privacy (migration 122): a master-hidden section must not leak
@@ -617,7 +621,8 @@ export async function POST(
       statements: parseInt(result.statements_count || '0', 10),
       equipment,
       vitals,
-      achievements
+      achievements,
+      activities
     });
 
   } catch (error) {

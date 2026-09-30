@@ -36,6 +36,7 @@ import { COPY } from '@/lib/copy';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
+import ActivityPostCard from './activities/ActivityPostCard';
 import { getHandle } from '@/lib/profile-display';
 import PostOwnerMenu from '@/components/PostOwnerMenu';
 import ActionMenu from '@/components/ActionMenu';
@@ -963,6 +964,10 @@ function PostCard({
         {post.stats_data?.type === 'workout_session' && (
           <WorkoutPostCard statsData={post.stats_data} />
         )}
+
+        {/* Activity card (245) — a shared run / ride / hike, drawn from the
+            server-written stats_data; the card itself opens the activity */}
+        {post.stats_data?.type === 'activity' && <ActivityPostCard statsData={post.stats_data} />}
 
       </div>
 

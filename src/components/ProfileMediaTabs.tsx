@@ -2,7 +2,8 @@
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
+import ActivitiesTab from './activities/ActivitiesTab';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Route } from 'lucide-react';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
@@ -34,7 +35,7 @@ const ALL_YEARS: number[] = (() => {
   return years;
 })();
 
-type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
+type TabType = 'all' | 'stats' | 'activities' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
@@ -54,11 +55,13 @@ interface TabCounts {
   equipment: number;
   vitals: number;
   achievements: number;
+  /** Activities (245): absent from an old server → treated as 0. */
+  activities?: number;
 }
 
 type MediaCountsResponse = TabCounts;
 
-const TAB_IDS: TabType[] = ['all', 'stats', 'tagged', 'equipment', 'vitals', 'achievements'];
+const TAB_IDS: TabType[] = ['all', 'stats', 'activities', 'tagged', 'equipment', 'vitals', 'achievements'];
 
 /** `?tab=` values arrive from the URL, so anything unrecognised degrades to 'all'. */
 export function parseProfileTab(value: string | null | undefined): TabType {
@@ -422,11 +425,13 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
+    { id: 'activities' as TabType, label: 'Activities', icon: Route, count: counts.activities ?? 0 },
     { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
     { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
     { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
-  ];
+    // Activities show to others only when there is one (a deep link still opens it).
+  ].filter(t => t.id !== 'activities' || isOwnProfile || t.count > 0 || activeTab === 'activities');
 
   return (
     // scroll-mt clears the sticky AppHeader when the deep-link pin scrolls
@@ -513,6 +518,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           isOwnProfile={isOwnProfile}
         />
       )}
+
+      {/* Activities tab (245) — its own gated fetch */}
+      {activeTab === 'activities' && <ActivitiesTab profileId={profileId} />}
 
       {/* Achievements tab */}
       {activeTab === 'achievements' && (

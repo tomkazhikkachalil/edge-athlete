@@ -1,5 +1,26 @@
 # Development Log
 
+## September 29, 2026 — Activities program, PR 5: the tab on both profile routes, the feed card, the Create door
+
+**The Activities tab** is on BOTH routes, because route parity is mobile parity (phones arrive by `/u/` links).
+- **`ProfileMediaTabs`** (`/athlete/[id]` and the owner's `/athlete`): `activities` goes between Stats and Tagged, deep-linkable as `?tab=activities`.
+  - Others see the tab only when the athlete has one. A deep link still opens it.
+  - The count rides the existing counts endpoint: `countActivities`, "Only me" counted for the athlete alone, and 0 before 245.
+- **`/u/[username]`:** a sixth section in the sideways scroller.
+- **`ActivitiesTab`** fetches its own gated endpoint (the Vitals pattern; the `/u/` payload stays the CDN-cached stranger view).
+  - It shows this week, a 12-week distance bar chart with the 12-week total, and the list (route thumbnail, name, type, date, distance · time · pace), with Load more by cursor.
+  - The owner gets **Import activity**. Empty states are written for the owner and for a viewer.
+
+**The feed card, `ActivityPostCard`:** a branch beside the workout card in `PostCard`.
+- It is drawn from the SERVER-written `stats_data` (no fetch while scrolling) as a line drawing of the stored trimmed preview (`route-svg.ts` + `RouteThumb`; no Leaflet in the feed), plus distance, time, pace and elevation.
+- The whole card opens the activity, and it adds nothing to the post's action row (the Play review's 375 px lesson).
+
+**The Create door:** the header's Create sheet gains **Activity** (`data-create-activity`), and the phone drawer gains **Import Activity**. Both go to `/activities/import`.
+
+**Proof:**
+- `e2e/activities-profile.spec.ts` (@mobile) passes 2/2 on 390 px Chromium AND WebKit: a viewer sees both activities on `/u/<handle>?tab=activities` and `/athlete/<id>?tab=activities` (no Import); the follower's feed shows the card, which opens the activity; the owner's tab offers Import; Create → Activity lands on the import page.
+- A screenshot pass at 375 px of the tab and the feed card. The first pass showed the past weeks' bars nearly invisible, so they are now `bg-brand/45`, and the 12-week total was added.
+
 ## September 29, 2026 — Activities program, PR 4: the import page and the activity page
 
 **`/activities/import`** is a page, not a sheet: a batch needs room for its results at phone width, and the path is linkable.
