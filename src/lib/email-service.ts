@@ -1,4 +1,6 @@
-import nodemailer from 'nodemailer';
+// nodemailer 10 ships its own types (no @types/nodemailer): the Transporter
+// and SendMailOptions types are named exports, not a namespace.
+import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer';
 import * as Sentry from '@sentry/nextjs';
 
 /** What the ticket mails read — a projection, never the whole row (src/lib/tickets/types.ts TicketRow satisfies it). */
@@ -59,7 +61,7 @@ function fromAddress(): string {
 }
 
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter: Transporter;
 
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -83,7 +85,7 @@ export class EmailService {
    * unverified sender domain 550s every message). Failures log + Sentry-tag
    * so a dead mail pipe is visible.
    */
-  private async deliver(kind: string, mail: Parameters<nodemailer.Transporter['sendMail']>[0]): Promise<boolean> {
+  private async deliver(kind: string, mail: SendMailOptions): Promise<boolean> {
     try {
       await this.transporter.sendMail(mail);
       return true;
