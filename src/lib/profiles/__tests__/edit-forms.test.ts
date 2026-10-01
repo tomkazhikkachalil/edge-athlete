@@ -60,6 +60,10 @@ const signupRow = {
   dob: '1990-04-02',
   location: 'Toronto, ON',
   visibility: 'private',
+  nickname: 'TK',
+  phone: '416-555-0100',
+  gender: 'male',
+  postal_code: 'M5V 2T6',
 } as Profile;
 
 describe('formsFromProfile', () => {
@@ -67,6 +71,11 @@ describe('formsFromProfile', () => {
     const f = formsFromProfile(signupRow);
     expect(f.basic).toMatchObject({ first_name: 'Tom', last_name: 'Kay', full_name: 'Tom Kay', handle: 'tomkay', visibility: 'private', avatar_file: null });
     expect(f.vitals).toMatchObject({ dob: '1990-04-02', location: 'Toronto, ON', weight_unit: 'lbs', place: null });
+    // …including the four no screen used to show after sign-up.
+    expect(f.basic).toMatchObject({ nickname: 'TK', phone: '416-555-0100', gender: 'male', postal_code: 'M5V 2T6' });
+  });
+  it('a gender outside the column\'s values reads as not set', () => {
+    expect(formsFromProfile({ ...signupRow, gender: 'unknown' } as unknown as Profile).basic.gender).toBe('');
   });
   it('an edited row fills every tab', () => {
     const f = formsFromProfile({
@@ -94,7 +103,7 @@ describe('formsFromProfile', () => {
   });
   it('no profile: the empty forms, with the defaults the controls need', () => {
     const f = formsFromProfile(null);
-    expect(f.basic).toMatchObject({ first_name: '', last_name: '', handle: '', bio: '', visibility: 'public' });
+    expect(f.basic).toMatchObject({ first_name: '', last_name: '', handle: '', bio: '', visibility: 'public', nickname: '', phone: '', gender: '', postal_code: '' });
     expect(f.vitals).toMatchObject({ height_cm: '', weight_kg: '', weight_unit: 'lbs', dob: '', class_year: '' });
     expect(f.recruiting).toEqual({ status: 'closed', school: '', gpa: '', academic_notes: '', target_level: '' });
   });

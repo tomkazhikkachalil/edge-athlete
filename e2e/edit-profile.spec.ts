@@ -17,7 +17,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // case: the profile is loaded before the modal first mounts. @mobile: the
 // phone width on Chromium and on WebKit.
 
-const COLUMNS = 'first_name, last_name, full_name, display_name, bio, location, dob, birthday, class_year, social_instagram, sport' as const;
+const COLUMNS = 'first_name, last_name, full_name, display_name, bio, location, dob, birthday, class_year, social_instagram, sport, nickname, phone, gender, postal_code, height_cm, weight_display, weight_unit, weight_kg' as const;
 const SEED = {
   bio: 'Seeded bio for the edit-profile spec.',
   location: 'Seedville',
@@ -26,9 +26,21 @@ const SEED = {
   class_year: 2031,
   social_instagram: 'edgeqa_seeded',
   sport: 'Golf',
+  // The private sign-up details (no nickname: it would lead display_name
+  // and the name test asserts the full name does).
+  phone: '416-555-0100',
+  gender: 'male',
+  postal_code: 'M5V 2T6',
+  // 5'11" / 175 lbs — the Vitals timeline test edits these.
+  height_cm: 180,
+  weight_display: 175,
+  weight_unit: 'lbs',
+  weight_kg: 79.38,
 };
 
 let prior: Record<string, unknown> | null = null;
+// Timeline rows this spec's saves append are removed in afterAll.
+const startedAt = new Date().toISOString();
 
 test.beforeAll(async () => {
   const alpha = loadQaUser('user.json');
@@ -44,8 +56,10 @@ test.afterAll(async () => {
   if (!prior) return;
   const alpha = loadQaUser('user.json');
   // Other specs assert on this user's names — put every column back exactly.
-  const { error } = await adminClient().from('profiles').update(prior).eq('id', alpha.id);
+  const admin = adminClient();
+  const { error } = await admin.from('profiles').update(prior).eq('id', alpha.id);
   if (error) throw new Error(`edit-profile: restore failed: ${error.message}`);
+  await admin.from('athlete_vitals').delete().eq('profile_id', alpha.id).in('metric_key', ['height', 'weight']).gte('created_at', startedAt);
 });
 
 // Scoped to the dialog: /athlete has its own "Profile sections" tab row
@@ -163,5 +177,106 @@ test('the deep link opens the sport tab; unsaved typing in another tab survives 
 
   // The Basic save must not have cleared the seeded bio for the other tests.
   const { error } = await admin.from('profiles').update({ bio: SEED.bio }).eq('id', alpha.id);
+  expect(error).toBeNull();
+});
+
+test('the sign-up details are in Edit Profile, pre-filled, and a nickname leads the display name @mobile', async ({ page }) => {
+  const alpha = loadQaUser('user.json');
+  const admin = adminClient();
+  const nickname = `Nick${Math.random().toString(36).slice(2, 6)}`;
+
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Edit Profile Details' }).click();
+  // Collected at sign-up; until Sep 30 2026 no screen showed them again.
+  await expect(page.locator('#phone')).toHaveValue(SEED.phone, { timeout: 20_000 });
+  await expect(page.locator('#postal_code')).toHaveValue(SEED.postal_code);
+  await expect(page.getByRole('radio', { name: 'Male', exact: true })).toBeChecked();
+  await expect(page.locator('#nickname')).toHaveValue('');
+
+  await page.locator('#nickname').fill(nickname);
+  await page.locator('#phone').fill('647-555-0199');
+  await page.getByRole('radio', { name: 'Not set', exact: true }).check();
+  await page.getByRole('button', { name: 'Save Basic' }).click();
+  await expect(page.locator('#nickname')).toBeHidden({ timeout: 20_000 });
+
+  const res = await page.request.get(`/api/profile?id=${alpha.id}`);
+  expect(res.status(), await res.text()).toBe(200);
+  const body = await res.json();
+  expect(body.profile).toMatchObject({
+    nickname,
+    phone: '647-555-0199',
+    gender: null,
+    postal_code: SEED.postal_code,
+    // Signup's rule, kept current by the server: the nickname leads.
+    display_name: nickname,
+    full_name: `${prior!.first_name} ${prior!.last_name}`,
+  });
+
+  // A stored value the column refuses is a 400 naming the field — never a 500.
+  const bad = await page.request.put('/api/profile', { data: { profileData: { gender: 'other' }, userId: alpha.id } });
+  expect(bad.status()).toBe(400);
+  expect((await bad.json()).error).toBe('Gender must be Female, Male or Custom');
+
+  // Back to the seed for the tests that follow.
+  const { error } = await admin
+    .from('profiles')
+    .update({ nickname: null, phone: SEED.phone, gender: SEED.gender, full_name: prior!.full_name, display_name: prior!.display_name })
+    .eq('id', alpha.id);
+  expect(error).toBeNull();
+});
+
+test('a height changed in Edit Profile lands on the Vitals timeline; an untouched one adds nothing @mobile', async ({ page }) => {
+  const alpha = loadQaUser('user.json');
+  const admin = adminClient();
+  const t0 = new Date().toISOString();
+  const entries = async () =>
+    (
+      await admin
+        .from('athlete_vitals')
+        .select('metric_key, value_display')
+        .eq('profile_id', alpha.id)
+        .in('metric_key', ['height', 'weight'])
+        .gte('created_at', t0)
+    ).data ?? [];
+  const classYear = async () => (await admin.from('profiles').select('class_year').eq('id', alpha.id).single()).data?.class_year;
+
+  // 1. Save the Vitals tab WITHOUT touching height or weight: no entry, and
+  //    the stored height is not rewritten through a ft-in → cm round trip.
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Edit Profile Details' }).click();
+  await tab(page, 'Vitals').click();
+  await expect(page.locator('#height')).toHaveValue(`5'11"`, { timeout: 20_000 });
+  await page.locator('#class_year').fill('2032');
+  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await expect.poll(classYear, { timeout: 20_000 }).toBe(2032);
+  await expect(page.locator('#height')).toBeHidden({ timeout: 15_000 });
+  expect(await entries()).toEqual([]);
+  expect((await admin.from('profiles').select('height_cm').eq('id', alpha.id).single()).data?.height_cm).toBe(SEED.height_cm);
+
+  // 2. Change the height: one timeline entry, and the profile follows.
+  await page.getByRole('button', { name: 'Edit Profile Details' }).click();
+  await tab(page, 'Vitals').click();
+  await expect(page.locator('#height')).toHaveValue(`5'11"`);
+  await page.locator('#height').fill(`6'1"`);
+  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await expect.poll(async () => (await entries()).length, { timeout: 20_000 }).toBe(1);
+  expect(await entries()).toEqual([{ metric_key: 'height', value_display: `6'1"` }]);
+  await expect(page.locator('#height')).toBeHidden({ timeout: 15_000 });
+  expect((await admin.from('profiles').select('height_cm').eq('id', alpha.id).single()).data?.height_cm).toBe(185);
+
+  // 3. Reopen and save again untouched: still one entry.
+  await page.getByRole('button', { name: 'Edit Profile Details' }).click();
+  await tab(page, 'Vitals').click();
+  await expect(page.locator('#height')).toHaveValue(`6'1"`);
+  await page.locator('#class_year').fill('2033');
+  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await expect.poll(classYear, { timeout: 20_000 }).toBe(2033);
+  expect(await entries()).toHaveLength(1);
+
+  // Back to the seed.
+  const { error } = await admin
+    .from('profiles')
+    .update({ height_cm: SEED.height_cm, class_year: SEED.class_year })
+    .eq('id', alpha.id);
   expect(error).toBeNull();
 });
