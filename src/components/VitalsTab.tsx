@@ -435,7 +435,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             )}
           </div>
           {isOwnProfile && (
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={openStartWorkout}
                 disabled={startingWorkout}

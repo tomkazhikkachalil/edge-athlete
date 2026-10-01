@@ -366,7 +366,11 @@ export default function StatsHub({
       )}
 
       {/* Filter row — search + sort + media type + years in the shared
-          FilterBar (controls + count pill + Clear all strip). */}
+          FilterBar (controls + count pill + Clear all strip). The bar and
+          the results under it share ONE spaced stack (TaggedTab's and
+          AchievementsTab's shape): without it the strip sat flush on the
+          grid — this root has no space-y of its own. */}
+      <div className="space-y-6" data-stats-results="">
       <FilterBar
         resultCount={visibleItems.length}
         activeCount={selectedYears.length + (trimmedQuery ? 1 : 0)}
@@ -470,6 +474,7 @@ export default function StatsHub({
 
       {/* Intersection observer target */}
       <div ref={observerTarget} className="h-4" />
+      </div>
 
       {/* Post Detail Modal */}
       <PostDetailModal

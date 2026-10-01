@@ -107,7 +107,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
           <p className="text-xs text-muted mt-0.5">Runs, rides, swims and hikes from your watch or app.</p>
         </div>
         {state.isOwner && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Connections are the account's own (Settings): offered to the
                 athlete, never to a guardian looking at their athlete's Vitals. */}
             {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
