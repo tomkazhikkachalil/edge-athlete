@@ -1,5 +1,31 @@
 # Development Log
 
+## October 1, 2026 — Maintenance after fix-round parts 1 and 2: the full checklist, all green
+
+**On main at `dde55615`** (#1025). Since the Sep 30 maintenance entry: migration 246 recorded (#1012), the Next advisory upgrade (#1020), fix round part 1 — Edit Profile opens filled in and an edit shows everywhere (#1021), the sign-up details in Edit Profile and height / weight on the Vitals timeline (#1022) — and part 2 — the theme schedule works and is the default (#1023), saves in order and the look kept through sign-out (#1024), club and league sites follow the visitor (#1025). Zero DDL across both parts.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,226 tests in 453 files**;
+- the production build (next 16.3.8);
+- 222 client chunks inside the iOS 15 / Safari 15 floor.
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes: **104** `.select('id'|'*')` sites (one more than Sep 30 — the profile PUT's Vitals-timeline insert returns the ids it may have to take back out; it counts nothing) and 14 raw-error-shaped bodies, unchanged. The new advisory for the public tree — a hardcoded light colour with no `dark:` twin — reports none.
+- **`npm audit --omit=dev`: 0 vulnerabilities** (next 16.3.8 since #1020, for GHSA-vcvr-r3jv-pc5j).
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 245 rows, head 246, every file run.
+- **Production:** health `ok`, database `ok`, serving main's head (`dde55615`); main's own CI (verify, guardrails, smoke) green on that commit; the gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+- **Production probes since Sep 30:** `edit-profile` + `vitals` 13/13 (`b7b477d9`); `appearance` + the site editor's Light-and-dark control 15/15 (`dde55615`), Chromium and WebKit at phone width.
+
+**Known, not owed to this pass:**
+- The signed-out site tests of #1025 (a site follows its visitor; Always light / Always dark; the directories) are proven on STAGING only — the launch gate sends a signed-out visitor to coming-soon on production. Re-run `e2e/org-site-appearance.spec.ts` there when the gate opens.
+- The site 404 stays light for a dark-themed visitor (Next draws it in the browser; an inline script never runs there).
+- `e2e/org-site-news-cover.spec.ts` fails LOCALLY on any branch: `.env.local` carries the production host in `NEXT_PUBLIC_APP_URL`, so the spec asks production for an og:image that exists only on staging.
+- Every `org-site*` spec in ONE local run starves this 8 GB Mac (a 90-minute run was stopped; a browser took three minutes to launch). Run them in batches, with `caffeinate -i`.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. Found during the fix round and left for a later part: the profile header's Position / Team slots read columns that do not exist; a Google account with no last name cannot save the Basic tab; a guardian approving a parked sign-up keeps only name, DOB, handle and sport. Tom still owes from Sep 30: the Supabase "Allow new users to sign up" switch (OFF while gated), Vercel Pro, one real watch file on his iPhone.
+
 ## October 1, 2026 — Fix round, part 2 (PR 3): club and league sites follow the visitor, unless the site fixes its look
 
 PR 2 (#1024) merged; `appearance.spec` 14/14 on `edgeathlete.ca` at `0bb49dd9`, both engines, no retries — the two save races are closed on production. Tom's third ask: *"All other pages, including club and league sites follow suit unless they opt out and have it fixed with either a light or dark mode."* His decision for a visitor with no Edge Athlete preference: the same schedule, by their own clock. Zero DDL (`theme_token_set` is JSONB).
