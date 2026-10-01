@@ -1,5 +1,23 @@
 # Development Log
 
+## October 1, 2026 — Fix round, part 2 (PR 1): the theme schedule works, and is the default
+
+Tom, on gated production: *"Select day or night works. However, the schedule is broken … Match system is also broken. Nothing happens when you select either."* And the direction: the schedule should be ON by default — dark from 6 PM to 9 AM, light in the day — so everyone meets both themes; a person can keep one permanently until they turn the schedule back on. Zero DDL (`theme_prefs` is JSONB).
+
+**Why both modes looked dead.** Both SAVED. `use-theme.ts applyResolved` notified its hooks only when the RESOLVED theme flipped. Light and Dark always flip it; Scheduled picked in the daytime, or Match system on a device that already matches, flips nothing — so Settings → Appearance never redrew: the option was not shown as selected and the schedule's hours never rendered. Hooks are now notified when the theme OR the prefs change. Behind it sat a second fault: each time field saved on every change and was `disabled` while saving, so typing "21" lost focus after the "2". The typed hours now live in a local draft, the field is never disabled, and one save happens on leaving the field or a second after the last change (a phone's time picker never blurs the field when it closes).
+
+**The default is the schedule.** "Nothing stored = light" was decided in four places that shared no code — the resolver, the first-paint script, the sanitizer (an override survived only under an explicit `scheduled`), the quick switch. `theme-prefs.ts` now owns it: `DEFAULT_MODE = 'scheduled'`, `DEFAULT_SCHEDULE = 18:00–09:00`, and `effectiveMode(prefs)` is the ONE reading of "what mode is this". The head script resolves an absent or unknown mode as the schedule and takes the default hours by interpolation (it carried its own `1200` / `420`); a missing key, garbage JSON and disabled storage are all "nothing stored". NULL rows need no backfill — they already reach the device as `{}`.
+
+**The quick switch pins (Tom's decision).** The top-menu switch used to write an override that lapsed at the next scheduled change. It now sets the mode to Light or Dark whatever it was (`prefsAfterQuickSwitch`) and that stays until Schedule is chosen again in Settings. The hours ride along in every mode, so the schedule comes back as it was. The override is retired: `ThemeOverride`, `isOverrideActive`, `prevTransition`, `nextTransition` and the script's override branch are gone; a stored `override` key is simply not carried.
+
+**Settings → Appearance.** Schedule leads (it is what an account has until it chooses otherwise), then Light, Dark, Match system; each option carries `aria-pressed`; nothing is shown as selected until the stored prefs are read (`useTheme().ready`), so an empty placeholder never flashes as a choice.
+
+**The suite stays deterministic.** With a time-based default every spec's look would depend on the hour it runs at. The shared QA users, the managed child and the signed-out state are pinned to light (`helpers/qa-user.ts QA_THEME_PREFS`); `e2e/appearance.spec.ts` tests the theme with its own unpinned user and NO fake clock (a shifted `Date` makes the Supabase client think its session expired) — the default is asserted against the real hour, and both sides of a window are reached by moving the hours around now.
+
+**Proof.** `appearance.spec` (`@mobile`, Chromium + WebKit): nothing stored shows Schedule selected with 6:00 PM – 9:00 AM and the theme the hour calls for; typed hours save once, keep focus, and flip the theme both ways; Match system and Schedule show as selected when the theme does not move, and Match system follows a live device change; the top-menu switch pins, survives a reload inside the window, and Schedule restores the hours. 24/24 on staging with `edit-profile`, login, feed-post and the first-run checklist. 61 unit tests on the rule, the script matrix and the cookie. `npm run verify` exit 0: 4,210 tests in 451 files, 222 client chunks inside the floor; guardrails pass. 375 px screenshots of the four states read correctly.
+
+**Consequence:** an account that never chose a theme turns dark at 6 PM. Next: the signed-out pages keep the look (PR 2), then club and league sites follow the visitor with a per-site opt-out (PR 3).
+
 ## September 30, 2026 — Fix round, part 1 (PR B): the sign-up details in Edit Profile; height and weight on the Vitals timeline
 
 PR A (#1021) is merged and proven on production: `edit-profile.spec` 8/8 on `edgeathlete.ca` at `f091479e`, both phone engines. Tom chose two of the related gaps the investigation found to ship in the same part. Zero DDL.
