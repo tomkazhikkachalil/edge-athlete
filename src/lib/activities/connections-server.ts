@@ -16,7 +16,9 @@
 import { createHash, randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/orgs/validate';
-import type { ConnectionProvider, ConnectionRow } from './connections';
+import { openSecret, sealSecret, secretBoxReady } from '@/lib/crypto/secret-box-server';
+import { PROVIDER_DEFS, type ConnectionProvider, type ConnectionRow } from './connections';
+import { polarConfig, polarDeleteUser } from './providers/polar-server';
 
 type Admin = SupabaseClient;
 
@@ -49,6 +51,10 @@ export type DisconnectOutcome =
  * (a second tap, another device) — the same success, so the screen settles.
  */
 export async function disconnect(admin: Admin, profileId: string, provider: ConnectionProvider): Promise<DisconnectOutcome> {
+  // An OAuth connection is withdrawn AT THE PROVIDER first (the token is
+  // revoked there, the webhooks stop) — best effort: whatever the provider
+  // answers, our row and its sealed token go.
+  if (PROVIDER_DEFS[provider].kind === 'oauth') await revokeAtProvider(admin, profileId, provider);
   const { data, error } = await admin
     .from('activity_connections')
     .delete()
@@ -145,4 +151,140 @@ export async function recordDelivery(admin: Admin, connectionId: string, outcome
     : { status: 'error', last_error: outcome.error.slice(0, 300) };
   const { error } = await admin.from('activity_connections').update(patch).eq('id', connectionId);
   if (error) console.error('[connections] delivery stamp failed:', error.message);
+}
+
+// ── Provider (OAuth) connections (PR 4) ─────────────────────────────────────
+// The provider's tokens are sealed by the secret box under a context that
+// names the row (profile + provider): a box copied to another row does not
+// open. These are the only functions that read `secret_ciphertext`, and what
+// they return never leaves the server.
+
+/** What a provider connection's secret holds once opened. */
+export interface ProviderSecret {
+  accessToken: string;
+}
+
+const secretContext = (profileId: string, provider: ConnectionProvider) => `activity_connections:${profileId}:${provider}`;
+
+export interface ProviderConnection {
+  id: string;
+  profileId: string;
+  providerUserId: string;
+  /** Null when the box does not open (a rotated-away key, a damaged row). */
+  secret: ProviderSecret | null;
+}
+
+function openRow(row: { id: unknown; profile_id: unknown; provider_user_id: unknown; secret_ciphertext: unknown }, provider: ConnectionProvider): ProviderConnection {
+  const profileId = row.profile_id as string;
+  const opened = openSecret(row.secret_ciphertext as string | null, secretContext(profileId, provider));
+  let secret: ProviderSecret | null = null;
+  if (opened) {
+    try {
+      const parsed = JSON.parse(opened) as { accessToken?: unknown };
+      if (typeof parsed.accessToken === 'string' && parsed.accessToken) secret = { accessToken: parsed.accessToken };
+    } catch {
+      secret = null;
+    }
+  }
+  return { id: row.id as string, profileId, providerUserId: (row.provider_user_id as string | null) ?? '', secret };
+}
+
+const PROVIDER_COLUMNS = 'id, profile_id, provider_user_id, secret_ciphertext';
+
+export type ConnectOutcome =
+  | { ok: true }
+  | { ok: false; status: 404 | 409 | 500 | 503; error: string };
+
+/** Store (or refresh) a provider connection. The token is sealed here. */
+export async function connectProvider(
+  admin: Admin,
+  profileId: string,
+  provider: ConnectionProvider,
+  input: { providerUserId: string; secret: ProviderSecret }
+): Promise<ConnectOutcome> {
+  if (!secretBoxReady()) return { ok: false, status: 503, error: 'Connected apps are not available yet.' };
+  const label = PROVIDER_DEFS[provider].label;
+  const { error } = await admin.from('activity_connections').upsert(
+    {
+      profile_id: profileId,
+      provider,
+      provider_user_id: input.providerUserId,
+      secret_ciphertext: sealSecret(JSON.stringify(input.secret), secretContext(profileId, provider)),
+      status: 'active',
+      last_error: null,
+      connected_at: new Date().toISOString(),
+    },
+    { onConflict: 'profile_id,provider' }
+  );
+  if (error) {
+    if (isMissingTableError(error.code)) return { ok: false, status: 404, error: 'Connected apps are not available yet.' };
+    // 247's unique on (provider, provider_user_id): one provider account feeds ONE athlete.
+    if (error.code === '23505') return { ok: false, status: 409, error: `This ${label} account is already connected to another Edge Athlete account.` };
+    console.error('[connections] connect failed:', error.message);
+    return { ok: false, status: 500, error: `Could not connect ${label}. Try again.` };
+  }
+  return { ok: true };
+}
+
+/** The connection a provider's own user id names — how a webhook finds the athlete. */
+export async function findProviderConnection(admin: Admin, provider: ConnectionProvider, providerUserId: string): Promise<ProviderConnection | null> {
+  const { data, error } = await admin
+    .from('activity_connections')
+    .select(PROVIDER_COLUMNS)
+    .eq('provider', provider)
+    .eq('provider_user_id', providerUserId)
+    .maybeSingle();
+  if (error) {
+    if (!isMissingTableError(error.code)) console.error('[connections] provider lookup failed:', error.message);
+    return null;
+  }
+  return data ? openRow(data, provider) : null;
+}
+
+/** One athlete's connection to a provider. */
+export async function readProviderConnection(admin: Admin, profileId: string, provider: ConnectionProvider): Promise<ProviderConnection | null> {
+  const { data, error } = await admin
+    .from('activity_connections')
+    .select(PROVIDER_COLUMNS)
+    .eq('profile_id', profileId)
+    .eq('provider', provider)
+    .maybeSingle();
+  if (error || !data) return null;
+  return openRow(data, provider);
+}
+
+/** The connections a daily sync walks: active ones, least recently synced first. */
+export async function listActiveConnections(admin: Admin, provider: ConnectionProvider, limit: number): Promise<ProviderConnection[]> {
+  const { data, error } = await admin
+    .from('activity_connections')
+    .select(PROVIDER_COLUMNS)
+    .eq('provider', provider)
+    .eq('status', 'active')
+    .order('last_sync_at', { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) {
+    if (!isMissingTableError(error.code)) console.error('[connections] list failed:', error.message);
+    return [];
+  }
+  return (data ?? []).map(row => openRow(row, provider));
+}
+
+/** The provider said the athlete withdrew consent (a 401 on their token):
+ *  the connection reads "needs attention" until they connect again. */
+export async function markRevoked(admin: Admin, connectionId: string): Promise<void> {
+  const { error } = await admin.from('activity_connections').update({ status: 'revoked', secret_ciphertext: null, last_error: null }).eq('id', connectionId);
+  if (error) console.error('[connections] mark revoked failed:', error.message);
+}
+
+async function revokeAtProvider(admin: Admin, profileId: string, provider: ConnectionProvider): Promise<void> {
+  try {
+    if (provider !== 'polar') return;
+    const cfg = polarConfig();
+    const conn = await readProviderConnection(admin, profileId, provider);
+    if (!cfg || !conn?.secret || !conn.providerUserId) return;
+    const done = await polarDeleteUser(cfg, conn.secret.accessToken, conn.providerUserId);
+    if (!done) console.error('[connections] provider revoke did not confirm:', provider);
+  } catch (e) {
+    console.error('[connections] provider revoke failed:', e instanceof Error ? e.message : e);
+  }
 }

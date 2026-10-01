@@ -20,6 +20,7 @@ import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { reportRouteError } from '@/lib/observability/report';
+import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
 
 export const maxDuration = 60;
 
@@ -186,6 +187,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] challenge sweep phase failed:', e);
     summary.challenges = { ok: false };
+  }
+
+  // Connected apps (mig 247, PR 4): Polar's exercises of the last 30 days
+  // that a webhook did not deliver — the net under a missed one. A no-op
+  // until Polar is configured and 247 has run.
+  try {
+    summary.polarSync = await runPolarSync(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] polar sync phase failed:', e);
+    summary.polarSync = { ok: false };
   }
 
   // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the

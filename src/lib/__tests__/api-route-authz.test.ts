@@ -53,6 +53,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'public/site-forms/[siteId]/[widgetId]':
     'program 2 D (Sep 11 2026): a visitor’s org-site form POST — no session by design (the public site is anonymous); honeypot, per-IP + per-site buckets, an HMAC form key, the widget must be a form on the PUBLISHED layout; every outcome is a 303 back to the site',
   explore: 'guest browse surface; public-only queries by construction',
+  'webhooks/polar':
+    'fix round part 3 PR 4 (Oct 1 2026): Polar AccessLink is the caller — no session; the gate is Polar-Webhook-Signature (HMAC-SHA256 of the raw body under POLAR_WEBHOOK_SECRET, constant-time); the creation PING is answered without one and does nothing; the exercise is fetched from OUR configured base by id, never the payload url; 404 while Polar is not configured',
   'activities/inbound/[token]':
     'fix round part 3 PR 3 (Oct 1 2026): the personal upload link — no session by design (a phone automation has none); the 256-bit token (sha256 at rest, shown once, rotated / removed in Settings) IS the authorization; a supervised profile is the same 404; the moderation write gate, an IP bucket and a per-link bucket apply; every activity goes through the one writer',
   places: 'geo autocomplete over public place data',

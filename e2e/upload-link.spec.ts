@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
-import { Encoder, Profile, type Mesg } from '@garmin/fitsdk';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { parseGpx } from '../src/lib/activities/parse-gpx';
 import { toWire } from '../src/lib/activities/wire';
 import { gpxOf, healthWorkout, line } from '../src/lib/activities/__tests__/fixtures';
+import { fitRun as fitBytes } from './helpers/fit';
 
 // Fix round part 3, PR 3 (Oct 1 2026): the Apple Watch path. Apple has no web
 // API, so a bridge app on the iPhone POSTs each workout to the athlete's
@@ -26,25 +26,6 @@ const pathOf = (url: string) => {
   const u = new URL(url);
   return u.pathname + u.search;
 };
-
-function fitBytes(t0: number, n = 900): Buffer {
-  const encoder = new Encoder();
-  const on = (num: number, m: Record<string, unknown>) => encoder.onMesg(num, m as Mesg);
-  on(Profile.MesgNum.FILE_ID, { manufacturer: 'development', product: 1, timeCreated: new Date(t0), type: 'activity' });
-  const pts = line(n, { t0, stepM: 3, hr: 150 });
-  pts.forEach((p, i) =>
-    on(Profile.MesgNum.RECORD, {
-      timestamp: new Date(p.t),
-      positionLat: Math.round(p.lat / (180 / 2 ** 31)),
-      positionLong: Math.round(p.lng / (180 / 2 ** 31)),
-      altitude: p.ele,
-      heartRate: p.hr,
-      distance: i * 3,
-    })
-  );
-  on(Profile.MesgNum.SESSION, { timestamp: new Date(pts[pts.length - 1].t), startTime: new Date(t0), sport: 'running', totalElapsedTime: n - 1, totalTimerTime: n - 1, totalDistance: (n - 1) * 3 });
-  return Buffer.from(encoder.close());
-}
 
 let tableThere = true;
 

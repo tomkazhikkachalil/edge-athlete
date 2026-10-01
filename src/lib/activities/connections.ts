@@ -63,7 +63,7 @@ export const PROVIDER_DEFS: Readonly<Record<ConnectionProvider, ProviderDef>> = 
     stage: 'live',
     icon: 'heart-pulse',
   },
-  polar: { label: 'Polar', devices: 'Polar watches and the Polar Flow app.', kind: 'oauth', stage: 'building', icon: 'stopwatch' },
+  polar: { label: 'Polar', devices: 'Polar watches and the Polar Flow app.', kind: 'oauth', stage: 'live', icon: 'stopwatch' },
   wahoo: { label: 'Wahoo', devices: 'Wahoo bike computers, trainers and watches.', kind: 'oauth', stage: 'applying', icon: 'person-biking' },
   coros: { label: 'COROS', devices: 'COROS watches.', kind: 'oauth', stage: 'applying', icon: 'stopwatch' },
   suunto: { label: 'Suunto', devices: 'Suunto watches and the Suunto app.', kind: 'oauth', stage: 'applying', icon: 'mountain' },
@@ -120,7 +120,15 @@ export interface ConnectionView {
  * row selected too widely still cannot leak a secret or a token hash (pinned
  * by test). A row for a provider this build does not know is dropped.
  */
-export function projectConnections(rows: readonly ConnectionRow[]): ConnectionView[] {
+export function projectConnections(
+  rows: readonly ConnectionRow[],
+  opts: {
+    /** Live providers THIS deployment cannot connect yet (its credentials
+     *  are not set): they read "Coming soon", never an empty Connect. */
+    unconfigured?: readonly ConnectionProvider[];
+  } = {}
+): ConnectionView[] {
+  const unconfigured = new Set<ConnectionProvider>(opts.unconfigured ?? []);
   const byProvider = new Map<string, ConnectionRow>();
   for (const row of rows) if (isConnectionProvider(row.provider)) byProvider.set(row.provider, row);
 
@@ -129,8 +137,15 @@ export function projectConnections(rows: readonly ConnectionRow[]): ConnectionVi
     const row = byProvider.get(provider);
     const base = { provider, label: def.label, devices: def.devices, kind: def.kind, icon: def.icon };
     if (!row) {
-      const live = def.stage === 'live';
-      return { ...base, state: live ? 'available' : 'coming', note: stageNote(provider), connectedAt: null, lastSyncAt: null, problem: null };
+      const live = def.stage === 'live' && !unconfigured.has(provider);
+      return {
+        ...base,
+        state: live ? 'available' : 'coming',
+        note: live ? null : (stageNote(provider) ?? 'Coming soon.'),
+        connectedAt: null,
+        lastSyncAt: null,
+        problem: null,
+      };
     }
     const healthy = row.status === 'active';
     return {
@@ -151,3 +166,38 @@ export function projectConnections(rows: readonly ConnectionRow[]): ConnectionVi
 /** A supervised account's refusal — one sentence, used by every connect route and the screen. */
 export const SUPERVISED_CONNECTIONS_MESSAGE =
   "Connected apps aren't available on a supervised account. A guardian can still import the files a watch exports.";
+
+/** What the athlete agrees to, said on the card BEFORE they are sent to the
+ *  provider — the provider's terms ask for the member's explicit permission
+ *  before their data is shown to anyone else (Polar's 3.1.1). */
+export const PROVIDER_CONSENT =
+  'Workouts it records will appear in your Vitals, where the people who can see your profile can see them. You choose what goes on your feed.';
+
+/** Why a connect attempt came back without a connection (`?connect_error=`). */
+export const CONNECT_ERRORS: Readonly<Record<string, string>> = {
+  denied: 'Nothing was connected — you did not give permission.',
+  expired: 'That took too long, or was started in another browser. Start again from here.',
+  taken: 'That account is already connected to another Edge Athlete account.',
+  supervised: SUPERVISED_CONNECTIONS_MESSAGE,
+  limited: 'Your account cannot connect an app right now.',
+  busy: 'Too many tries. Wait a little and try again.',
+  unavailable: 'This connection is not available yet.',
+  failed: 'The connection did not go through. Try again.',
+};
+
+/** The credit a provider's terms require wherever its data is displayed
+ *  (Polar's 3.1.5). Plain words, no logo — a logo needs written consent (7.4). */
+export function sourceCredit(source: string | null | undefined): string | null {
+  const name = sourceName(source);
+  return name ? `Recorded with ${name}` : null;
+}
+
+/** The provider's name alone — the credit on a row too tight for a sentence. */
+export function sourceName(source: string | null | undefined): string | null {
+  switch (source) {
+    case 'polar':
+      return 'Polar';
+    default:
+      return null;
+  }
+}
