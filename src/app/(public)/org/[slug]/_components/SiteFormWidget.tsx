@@ -30,10 +30,10 @@ export default function SiteFormWidget({ site, w }: { site: PublicSite; w: Widge
   return (
     <div id={`form-${w.id}`} data-site-form={kind}>
       {intro && <p className="mb-3 text-sm text-secondary">{intro}</p>}
-      <p id={`sent-${w.id}`} className="sb-form-sent mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+      <p id={`sent-${w.id}`} className="sb-form-sent mb-3 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200" role="status">
         {thanks}
       </p>
-      <p id={`error-${w.id}`} className="sb-form-error mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+      <p id={`error-${w.id}`} className="sb-form-error mb-3 rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
         That didn’t go through — check the fields and try again in a moment.
       </p>
       <form method="post" action={`/api/public/site-forms/${site.id}/${w.id}`} className={columns ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'} data-variant={columns ? 'columns' : 'stacked'}>

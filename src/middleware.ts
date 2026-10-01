@@ -33,7 +33,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
+import { buildCsp, buildStaticCsp, inlineScriptHashSource, CSP_REPORT_PATH } from '@/lib/csp'
+import { PUBLIC_THEME_SCRIPT } from '@/lib/theme-script'
 import { computeSubdomainRedirect } from '@/lib/org-sites/subdomain'
 import {
   bareHost,
@@ -72,6 +73,13 @@ const ORG_SITE_PATH_RE = /^\/org\//
 // full supabase.auth.getUser() round trip (the matcher doesn't exclude
 // .txt/.xml, and that regex is too fragile to grow).
 const CRAWLER_PATH_RE = /^\/(robots\.txt|sitemap\.xml)$/
+
+// One digest per cold start: the script's text is a build-time constant.
+let publicThemeHash: Promise<string> | null = null
+function publicThemeScriptHash(): Promise<string> {
+  publicThemeHash ??= inlineScriptHashSource(PUBLIC_THEME_SCRIPT)
+  return publicThemeHash
+}
 
 /** The static-CSP fast path's headers (phase 6b C2 factored the four
  *  copies): no nonce, no auth round trip — the ISR renderer owns caching. */
@@ -255,7 +263,12 @@ export async function middleware(request: NextRequest) {
   // root layout stamp the theme script. Both response constructions below
   // must carry these request headers or the nonce never reaches the render.
   const nonce = btoa(crypto.randomUUID())
-  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production' })
+  const csp = buildCsp(nonce, {
+    dev: process.env.NODE_ENV !== 'production',
+    // The (public) layout's theme script is static (no nonce possible) and
+    // some of its pages come through here — /clubs, /leagues, the root 404.
+    scriptHashes: [await publicThemeScriptHash()],
+  })
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('content-security-policy', csp)

@@ -10,8 +10,9 @@ import { groupRowsByPool } from '@/lib/competitions/pools';
 // One competition's standings card — the SSR markup shared by the
 // league/club standings pages and the public org-site standings module.
 // Server-safe and dependency-free ON PURPOSE: it renders inside the
-// (public) segment, so no Font Awesome, no client hooks, no dark:
-// variants (that segment never stamps data-theme). The overflow-x-auto
+// (public) segment, so no Font Awesome, no client hooks. A hardcoded
+// colour carries its dark: twin — a site follows its visitor's theme
+// (Oct 1 2026; that segment was light-only until then). The overflow-x-auto
 // wrapper is the 375px rule — wide tables scroll inside the card, the
 // page never scrolls horizontally.
 export default function PublicStandingsTable({
@@ -107,7 +108,7 @@ export default function PublicStandingsTable({
           the same footnote (unconfirmed semantics, no new visual
           language). */}
       {competition.disputedCount > 0 && (
-        <p className="mt-2 text-xs text-amber-700">
+        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
           Includes {competition.disputedCount === 1 ? 'a disputed result' : 'disputed results'}{' '}
           awaiting the organizer’s review.
         </p>

@@ -4,7 +4,8 @@ import { contestHref, playerHref } from '@/lib/org-sites/player-links';
 // The points race (phase 8 P1) — one league's season, week by week: each
 // round's points, the running total and the movement into the latest
 // week. Server-safe and dependency-free ON PURPOSE (it renders inside the
-// (public) segment): no client hooks, no Font Awesome, no dark: variants.
+// (public) segment): no client hooks, no Font Awesome. A hardcoded colour
+// carries its dark: twin — a site follows its visitor's theme (Oct 1 2026).
 // The overflow-x-auto wrapper is the 375px rule — the table scrolls inside
 // the card, the page never scrolls horizontally.
 
@@ -20,7 +21,7 @@ function Movement({ value }: { value: number | null }) {
   if (value === 0) return <span className="text-muted">·</span>;
   const up = value > 0;
   return (
-    <span className={up ? 'text-emerald-700' : 'text-red-700'} aria-label={`${up ? 'up' : 'down'} ${Math.abs(value)}`}>
+    <span className={up ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'} aria-label={`${up ? 'up' : 'down'} ${Math.abs(value)}`}>
       {up ? '▲' : '▼'}
       {Math.abs(value)}
     </span>

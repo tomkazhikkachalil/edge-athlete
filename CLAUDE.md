@@ -133,7 +133,8 @@ src/app/
 │   │                        #   sport/[sport_key], org/[side]/[id] (the org console)
 │   └── dashboard/           #   Admin dashboard
 ├── (public)/                # PUBLIC ORG SITES — its own root layout: NO headers()/
-│   │                        # providers/theme/Font Awesome; light-only; ISR+CDN
+│   │                        # providers/Font Awesome; ISR+CDN; follows the visitor's
+│   │                        # light/dark theme (a read-only head script) unless fixed
 │   ├── org/[slug]/          #   Site home + standings|schedule|teams(+/[teamId])
 │   │                        #   + divisions(+/[divisionId])
 │   │                        #   + [pageSlug] custom pages + card.png (og image)
@@ -149,7 +150,16 @@ the route silently becomes permanent-MISS SSR); readers are viewer-
 independent and never throw; person names pass through `publicDisplayName`
 masking; `next/og` imports only in `card.png/route.ts`. `robots.ts` cannot
 move into a route group (Next's robots regex is root-anchored — it becomes
-dead code).
+dead code). **Light and dark (Oct 1 2026 — sites were light-only until
+then):** the server render carries NO theme; the visitor's device applies
+theirs through `PUBLIC_THEME_SCRIPT` (the read-only variant of the app's head
+script — the same cookie, then the mirror, else the default schedule; it
+writes nothing), and a site fixed to Always light / Always dark (theme token
+`appearance`) wears `data-theme` on its own `.org-scope` root instead — an
+island: the palette block re-declares the light values under
+`[data-theme="light"]` and the `dark:` variant stops there. A hardcoded
+palette colour in that tree carries its `dark:` twin on the same line (the
+guardrails advisory counts the ones that do not).
 
 ### Key Libraries & Utilities
 
