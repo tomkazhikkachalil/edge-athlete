@@ -31,6 +31,8 @@ export const GATED_WRITE_ROUTES = [
   'challenges/route.ts', // Play (244): a friend challenge reaches another person
   'activities/route.ts', // Activities (245): an import is the athlete's content
   'activities/fit/route.ts', // Activities (245): the .FIT door of the same import
+  'connections/upload-link/route.ts', // Connected apps (247): the upload link is a way to create content
+  'activities/inbound/[token]/route.ts', // …and the link itself: the token names the account, the gate still applies
 ] as const;
 
 describe('the write gate covers THE list', () => {

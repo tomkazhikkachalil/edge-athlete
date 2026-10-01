@@ -60,7 +60,7 @@ export const PROVIDER_DEFS: Readonly<Record<ConnectionProvider, ProviderDef>> = 
     label: 'Apple Watch',
     devices: 'Workouts from your Apple Watch and the Health app on your iPhone.',
     kind: 'link',
-    stage: 'building',
+    stage: 'live',
     icon: 'heart-pulse',
   },
   polar: { label: 'Polar', devices: 'Polar watches and the Polar Flow app.', kind: 'oauth', stage: 'building', icon: 'stopwatch' },

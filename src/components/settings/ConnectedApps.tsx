@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ago } from '@/components/tickets/ticket-ui';
@@ -44,6 +44,40 @@ export default function ConnectedApps() {
   const [confirming, setConfirming] = useState<ConnectionView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The upload link, right after it was made: shown ONCE (the server keeps
+  // only its hash), so it lives here and nowhere else.
+  const [freshLink, setFreshLink] = useState<string | null>(null);
+  const [confirmingNewLink, setConfirmingNewLink] = useState(false);
+
+  const makeLink = async () => {
+    setConfirmingNewLink(false);
+    setBusy('upload_link');
+    setError(null);
+    try {
+      let tz: string | undefined;
+      try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        tz = undefined;
+      }
+      const res = await fetch('/api/connections/upload-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tz ? { tz } : {}),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || typeof body.url !== 'string') {
+        setError(typeof body.error === 'string' ? body.error : 'Could not create your link. Try again.');
+        return;
+      }
+      setFreshLink(body.url);
+      setReloadKey(k => k + 1);
+    } catch {
+      setError('Could not create your link. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +107,7 @@ export default function ConnectedApps() {
         setError(typeof body.error === 'string' ? body.error : 'Could not disconnect. Try again.');
         return;
       }
+      if (c.kind === 'link') setFreshLink(null);
       setReloadKey(k => k + 1);
     } catch {
       setError('Could not disconnect. Try again.');
@@ -146,8 +181,28 @@ export default function ConnectedApps() {
                       {c.note && <p className="mt-1 text-sm text-muted">{c.note}</p>}
                     </div>
                   </div>
+                  {c.kind === 'link' && (c.state !== 'coming') && (
+                    <UploadLink
+                      linked={linked || !!freshLink}
+                      freshLink={freshLink}
+                      busy={busy === c.provider}
+                      disabled={data.supervised}
+                      onCreate={() => void makeLink()}
+                    />
+                  )}
                   {linked && (
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {c.kind === 'link' && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingNewLink(true)}
+                          disabled={busy === c.provider || data.supervised}
+                          className="min-h-[44px] rounded-lg border border-border px-4 text-sm font-medium text-primary ea-interactive disabled:opacity-50"
+                          data-upload-link-replace=""
+                        >
+                          Make a new link
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setConfirming(c)}
@@ -187,6 +242,124 @@ export default function ConnectedApps() {
         onConfirm={() => { if (confirming) void disconnect(confirming); }}
         onCancel={() => setConfirming(null)}
       />
+      <ConfirmModal
+        isOpen={confirmingNewLink}
+        title="Make a new link?"
+        message="Your current link stops working at once. You will need to paste the new one into the app on your iPhone."
+        confirmText="Make a new link"
+        onConfirm={() => void makeLink()}
+        onCancel={() => setConfirmingNewLink(false)}
+      />
+    </div>
+  );
+}
+
+// ── The Apple Watch card's body: the personal upload link ───────────────────
+// Apple has no web API, so a bridge app on the iPhone sends each workout to a
+// link that belongs to this athlete alone. The link is shown once, right
+// after it is made; afterwards the card can only replace it.
+
+const BRIDGE_STEPS: readonly string[] = [
+  'On your iPhone, install Health Auto Export and let it read your workouts.',
+  'In its sidebar open Automations, tap New Automation and choose REST API.',
+  'Paste your link into URL.',
+  'For the data type choose Workouts, and turn on Include Route Data and Include Workout Metrics.',
+  'Set the export format to JSON, version 2.',
+  'Under Manual Sync, export once to send your recent workouts.',
+];
+
+function UploadLink({
+  linked,
+  freshLink,
+  busy,
+  disabled,
+  onCreate,
+}: {
+  /** A link exists (or was just made) — creating is no longer offered. */
+  linked: boolean;
+  freshLink: string | null;
+  busy: boolean;
+  disabled: boolean;
+  onCreate: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    if (!freshLink) return;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(freshLink);
+      } else {
+        inputRef.current?.select();
+        document.execCommand('copy');
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Selecting it is the fallback the athlete can finish by hand.
+      inputRef.current?.select();
+    }
+  };
+
+  return (
+    <div className="mt-3 space-y-3" data-upload-link="">
+      {freshLink && (
+        <div className="rounded-lg border border-border bg-surface-muted p-3" data-upload-link-fresh="">
+          <label htmlFor="upload-link-url" className="block text-sm font-medium text-primary">
+            Your link
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="upload-link-url"
+              ref={inputRef}
+              readOnly
+              value={freshLink}
+              onFocus={e => e.currentTarget.select()}
+              className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-primary"
+            />
+            <button
+              type="button"
+              onClick={() => void copy()}
+              className="min-h-[44px] shrink-0 rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover transition"
+              data-upload-link-copy=""
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-tertiary">
+            This is the only time the link is shown. Keep it to yourself: anyone who has it can add workouts to your
+            Vitals. If you lose it, make a new one.
+          </p>
+        </div>
+      )}
+
+      <details className="rounded-lg border border-border px-3 py-2" open={!!freshLink || !linked}>
+        <summary className="cursor-pointer text-sm font-medium text-primary min-h-[28px]">How to set it up</summary>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-secondary">
+          {BRIDGE_STEPS.map(step => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p className="mt-2 text-xs text-tertiary">
+          Health Auto Export is a separate app from another company and may charge for automations. It can only read
+          your workouts while your iPhone is unlocked, so a workout arrives the next time you use your phone.
+        </p>
+      </details>
+
+      {!linked && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={busy || disabled}
+            className="min-h-[44px] rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover transition disabled:opacity-50"
+            data-upload-link-create=""
+          >
+            {busy ? 'Creating…' : 'Create my link'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

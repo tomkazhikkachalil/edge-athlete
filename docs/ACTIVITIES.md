@@ -123,7 +123,12 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 | `PATCH` / `DELETE /api/activities/[id]` | owner audience | name, type, Only me (refused while on the feed); delete takes the stream and the post |
 | `GET /api/profile/[profileId]/activities` | the one gate, then the Vitals privacy aspect for a viewer | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals; `?sessions=1` = the Vitals week maths' read |
 
-Both import routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
+| `GET /api/connections` | session (own rows) | one entry per provider; `supported`, `ready`, `supervised` |
+| `DELETE /api/connections/[provider]` | session · `connection-write` bucket | the row goes, the activities stay; not write-gated on purpose |
+| `POST /api/connections/upload-link` | write gate · `connection-write` bucket · not supervised | mint or replace; the URL is returned once |
+| `POST /api/activities/inbound/[token]` | the token · write gate on its account · `activity-inbound` (IP) + `activity-inbound-link` buckets | no session by design; bridge JSON or a raw file |
+
+The import routes, the link's mint and the inbound route are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
 
 ## Lifecycle and retention
 
@@ -142,7 +147,7 @@ Tom: *"You're supposed to connect permanently so anything you do with your smart
 
 | Source | What it is | Stage (Oct 1 2026) |
 |---|---|---|
-| `upload_link` | Apple Watch: a bridge app on the iPhone posts each workout to the athlete's personal upload link (Apple has no web or server API). | building — PR 3 |
+| `upload_link` | Apple Watch: a bridge app on the iPhone posts each workout to the athlete's personal upload link (Apple has no web or server API). | **live** |
 | `polar` | Polar AccessLink: self-serve OAuth, webhooks, FIT download. | building — PR 4 |
 | `wahoo` · `coros` · `suunto` | Open after the provider's own review. | applying |
 | `garmin` · `google_health` | Closed to new developers for now (Garmin's programme is paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). | closed |
@@ -155,6 +160,18 @@ Tom: *"You're supposed to connect permanently so anything you do with your smart
 - **A supervised athlete cannot hold a connection** (the calendar feed link's rule: a standing delivery nobody in the guardian console can see). A guardian still imports files. A guardian connecting on an athlete's behalf is a later decision.
 - **Disconnect is not behind the moderation write gate** — withdrawing a standing delivery is always allowed.
 - **`NEXT_PUBLIC_FEATURE_CONNECTED_APPS`** is a SURFACE switch (the tab and its two entry points: the Vitals Activities section and the import screen). The routes answer for themselves: `GET /api/connections` says `supported` (247 has run), `ready` (the key is set) and `supervised`.
+
+### The personal upload link (the Apple Watch path)
+
+Apple has no web or server API for Health data, so something must run on the iPhone. Tom's route is a third-party bridge app — **Health Auto Export** — whose "REST API" automation POSTs each workout as JSON to a URL the athlete pastes in. That URL is their **personal upload link**:
+
+- **Mint / replace**: `POST /api/connections/upload-link` (write-gated; refused for a supervised account). The raw token (256 random bits) is returned ONCE as `…/api/activities/inbound/<token>?tz=<their zone>`; only its sha256 is stored. Calling it again REPLACES the hash (`rotated: true`) — the old link stops at once; the connection's history stays.
+- **Deliver**: `POST /api/activities/inbound/[token]` — **no session by design** (a phone's automation has none; the route is in `PUBLIC_ROUTES` with its reason). The token is the authorization; an unknown, replaced, malformed or supervised link is ONE 404; a limited / suspended / banned account is refused by the write gate applied to the account the token names; an IP bucket (before the lookup) and a per-link bucket (after it) bound the cost.
+- **What it takes** (`inbound-server.ts readInbound` — the body is SNIFFED, never trusted to its Content-Type): the bridge app's workout JSON (`adapters/health-export.ts` — v2, and v1's `lat` / `lon` / `qty` shapes), or a raw `.fit` / `.gpx` / `.tcx` (also as the first file of a multipart form — a Shortcut or a script can send the file a watch exports).
+- **The adapter is pure and never guesses**: a timestamp without an offset is refused (a guessed zone moves the workout by hours); Apple's workout NAMES map through an explicit list (a "Stair Climbing" is not a climb) and anything unknown is `other`, which Vitals still counts as a session; unknown units are dropped; the route is the timeline and each fix takes the nearest heart-rate sample; with no route the heart rate is the timeline; a bare workout is its start and end. `NormalizedActivity.format` is null (it never was a file).
+- **Every delivery goes through the ONE writer** as `source: 'upload_link'` with the workout's own id — the server recomputes the totals, refuses the implausible, trims a viewer's route, and the duplicate rule keeps one activity however often the app re-sends it (or the athlete imports the same file by hand).
+- **The answer**: `200 { received, imported, duplicates, refused, skipped }` whenever the body was READ (a bridge app retries a non-2xx, and an implausible workout will not improve on a retry); `413 / 415 / 422` when the body itself is not something the link takes — that marks the connection `error` with the reason, and the next good delivery heals it. A read delivery stamps `last_sync_at`, even an empty one.
+- **Honest limits, said on the card**: the bridge app is another company's and may charge for automations; iOS lets it read Health data only while the iPhone is unlocked, so a workout arrives the next time the phone is used. No QR code: it would need a new dependency (none without approval) — the athlete opens Settings on the iPhone and taps Copy.
 
 **Adding a provider** is now: an adapter from its payload to a `NormalizedActivity` (FIT deliveries reuse `parse-fit-server.ts`); its connect / callback / webhook routes writing through `connections-server.ts` and `importActivity({ source, externalId })` with the provider's own id; `stage: 'live'` in `PROVIDER_DEFS`; its attribution wherever its brand rules ask. Read the provider's current agreement FIRST — a term that forbids showing an activity to followers stops the adapter (Strava's did).
 
