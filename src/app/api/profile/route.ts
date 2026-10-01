@@ -9,6 +9,8 @@ import {
   describeIdentityFields,
 } from '@/lib/profile-identity';
 import { notifyGuardians } from '@/lib/guardian-notify';
+import { derivedNameUpdate, mirrorDob } from '@/lib/profiles/derive-names';
+import { revalidatePublicHead } from '@/lib/profiles/public-head';
 import { reportRouteError } from '@/lib/observability/report';
 
 // Fields stripped for any viewer who is NOT the profile owner: contact
@@ -194,14 +196,15 @@ export async function PUT(request: NextRequest) {
 
     // ONE pre-update read: the supervised/dob_locked gate facts plus the
     // identity fields (Round H needs the old values to diff for the
-    // guardian "profile changed" bell).
+    // guardian "profile changed" bell) plus what the derived names read
+    // (nickname, handle — both baseline columns).
     let oldRow: Record<string, unknown> | null = null;
     {
       // Dynamic select string defeats supabase-js's template-literal query
       // parser — the row shape is asserted instead.
       const { data: fetched } = await supabaseAdmin
         .from('profiles')
-        .select(`dob_locked, supervision_state, ${IDENTITY_FIELDS.join(', ')}`)
+        .select(`dob_locked, supervision_state, nickname, handle, ${IDENTITY_FIELDS.join(', ')}`)
         .eq('id', userId)
         .maybeSingle();
       oldRow = (fetched ?? null) as Record<string, unknown> | null;
@@ -274,8 +277,16 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    
-    
+
+    // One value, two columns: a `dob` that survived the strip above is
+    // written to `birthday` too (org eligibility reads that one).
+    Object.assign(cleanedProfileData, mirrorDob(cleanedProfileData));
+
+    // The derived names follow every name write — never the client's copy
+    // of full_name (the modal used to send the LOADED one back, which is how
+    // a renamed athlete kept the old name across the app).
+    Object.assign(cleanedProfileData, derivedNameUpdate(cleanedProfileData, oldRow));
+
     // Update profile in database using admin client
     const { data, error } = await supabaseAdmin
       .from('profiles')
@@ -309,6 +320,9 @@ export async function PUT(request: NextRequest) {
         }, user.id);
       }
     }
+
+    // The /u/ page's <head> (name, bio, sport, visibility) is cached per handle.
+    revalidatePublicHead(data?.handle as string | null | undefined);
 
     const response = {
       success: true,

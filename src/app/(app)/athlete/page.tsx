@@ -1077,11 +1077,9 @@ export default function AthleteProfilePage() {
         initialTab={editInitialTab ?? undefined}
         profile={profile}
         onSave={async () => {
-          // Refresh all data after save
-          await Promise.all([
-            refreshProfile(),
-            user?.id ? loadAthleteData(user.id) : Promise.resolve()
-          ]);
+          // The modal has already re-read the shared profile (useAuth);
+          // this page's own data (stats, achievements, cards) follows.
+          if (user?.id) await loadAthleteData(user.id);
         }}
       />
       

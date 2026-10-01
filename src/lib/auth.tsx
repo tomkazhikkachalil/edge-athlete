@@ -236,9 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Hoisted function declaration, not a `const` arrow: an effect above calls it,
   // and react-hooks/immutability flags a reference to a binding declared later
   // in the body. Function declarations are hoisted, so there is no TDZ.
-  async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string, keepOnError = false) {
     try {
-      await fetchProfileInner(userId);
+      await fetchProfileInner(userId, keepOnError);
     } finally {
       // Every exit — a row, a confirmed absence, an error — is a completed
       // check for THIS user; the redirect effects gate on it.
@@ -246,7 +246,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function fetchProfileInner(userId: string) {
+  // `keepOnError` (refreshProfile): a re-read that FAILS keeps the profile
+  // the page already has. Nulling it on a dropped request would send a
+  // signed-in page through the no-profile redirects. A confirmed absence
+  // (the row is gone) still clears it, on every path.
+  async function fetchProfileInner(userId: string, keepOnError: boolean) {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -256,7 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error && error.code !== 'PGRST116') {
         // Error fetching profile
-        setProfile(null);
+        if (!keepOnError) setProfile(null);
         return;
       }
 
@@ -280,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfileCache(prev => new Map(prev.set(userId, data)));
     } catch {
       // Error in fetchProfile
-      setProfile(null);
+      if (!keepOnError) setProfile(null);
     }
   }
 
@@ -344,7 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (user?.id) {
-      await fetchProfile(user.id);
+      await fetchProfile(user.id, true);
     }
   };
 

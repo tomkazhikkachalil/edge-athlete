@@ -11,6 +11,7 @@ import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
 import PostDetailModal from './PostDetailModal';
 import { useToast } from './Toast';
+import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
 import { effectiveSessionStatus } from '@/lib/workouts/status';
 import { weeklySummary, streakWeeks, latestPB, sessionSeconds } from '@/lib/workouts/dashboard';
@@ -101,6 +102,9 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const router = useRouter();
   const { theme } = useTheme();
   const { showError } = useToast();
+  // A body measurement also writes profiles.height_cm / weight_display — the
+  // shared profile (Edit Profile, Settings → Account) must follow it.
+  const { refreshProfile } = useAuth();
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
   const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
@@ -681,6 +685,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         onSaved={() => {
           setShowAddVital(false);
           fetchDataRef.current();
+          if (isOwnProfile) void refreshProfile();
         }}
       />
 
@@ -689,7 +694,10 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           currentVitals={currentVitals ?? { heightCm: null, weightDisplay: null, weightUnit: null }}
           vitalsPrivacy={vitalsPrivacy}
           onClose={() => setShowVitalsSettings(false)}
-          onSaved={() => fetchDataRef.current()}
+          onSaved={() => {
+            fetchDataRef.current();
+            if (isOwnProfile) void refreshProfile();
+          }}
           onManageRoutines={() => {
             setShowVitalsSettings(false);
             setShowRoutinesModal(true);

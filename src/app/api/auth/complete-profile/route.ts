@@ -48,6 +48,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please enter your first name.' }, { status: 400 });
     }
 
+    // The athlete's date of birth, when one was sent and is a real past date.
+    // It is STORED on the row below (dob + birthday, /api/signup's shape):
+    // this route used to check it for the age gate and then keep neither
+    // column, so a Google sign-up's date of birth read "Not set" everywhere.
+    // Parents, organizers and scouts keep none (they have no DOB).
+    const athleteDob =
+      !noHandle && typeof body.dob === 'string' && isValidDateString(body.dob) && isNotFutureDate(body.dob)
+        ? (body.dob as string)
+        : null;
+
     // ── DOB gate (guardian-profiles) — the OAuth choke point ────────────────
     // OAuth first-timers arrive with a session but no profile; this is the
     // only place their age can be checked. Under-threshold: NO profile row is
@@ -210,6 +220,7 @@ export async function POST(request: NextRequest) {
       handle: noHandle ? null : handle,
       display_name: fullName || (noHandle ? first_name : handle) || 'Athlete',
       avatar_url: deriveAvatarUrl(meta),
+      ...(athleteDob ? { dob: athleteDob, birthday: athleteDob } : {}),
     });
 
     if (insertError) {
