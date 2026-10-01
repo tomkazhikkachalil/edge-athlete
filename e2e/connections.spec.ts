@@ -156,8 +156,8 @@ test('Settings → Connected apps: every source, an honest state, Disconnect @mo
 
   // The surface flag: with it off the tab is neither listed nor reachable.
   await page.goto('/settings?tab=connections');
-  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible({ timeout: 20_000 });
-  const tab = page.getByRole('button', { name: 'Connected apps' });
+  await expect(page.getByRole('button', { name: 'Account', exact: true })).toBeVisible({ timeout: 20_000 });
+  const tab = page.getByRole('button', { name: 'Connected apps', exact: true });
   if ((await tab.count()) === 0) {
     await expect(page.locator('[data-connected-apps]')).toHaveCount(0);
     test.skip(true, 'connected-apps flag off in this build');

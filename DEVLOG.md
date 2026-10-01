@@ -1,5 +1,17 @@
 # Development Log
 
+## October 2, 2026 — Migration 247 is on production; Connected apps switched on
+
+Tom ran `247_activity_connections.sql` on production. `npm run check:schema:prod`: OK on every facet, ledger head 247 — staging and production agree again.
+
+- **The deletion engine's tolerance is gone.** `mustDelete` no longer excuses a missing `activity_connections` (`NOT_EVERYWHERE_YET` existed only for the days 247 was on staging alone).
+- **Vercel** (set from the linked CLI, the way the launch gate's flag was on Sep 30): `CONNECTIONS_ENC_KEY` for Production — generated on Tom's Mac, stored as a sensitive variable, never displayed or written anywhere else — and `NEXT_PUBLIC_FEATURE_CONNECTED_APPS=1`. Preview got the flag and the STAGING key (Preview reads staging; the two environments never share a key). The flag is inlined at build time, so this merge's production build is the one that carries it.
+- **If the production key is ever lost** nothing is unrecoverable: upload links do not use it; a sealed Polar token stops opening and that athlete connects again. To rotate, set the new key and move the old one to `CONNECTIONS_ENC_KEY_PREVIOUS`.
+
+**Production, before the flag's build** (`4bf5969f`): the two API tests pass — `connections.spec` (own rows only, never a hash in a response, disconnect, one activity from several deliveries) and `upload-link.spec` (mint, the bridge JSON, a raw GPX and FIT, the duplicate rule, rotate, every refusal). **A spec defect of mine surfaced there:** with the flag off the two Settings tests FAILED instead of skipping — `getByRole('button', { name: 'Account' })` also matches "Delete my account" on the Account tab, which is where a flag-off build lands. The locators are exact now (three specs); the product was not at fault.
+
+**Still Tom's:** one real Apple Watch workout through Health Auto Export; the Polar client (clause 2.2 first); the Wahoo / COROS / Suunto applications.
+
 ## October 1, 2026 — Fix round, part 3: closed in code; what production still needs
 
 Part 3 (Tom: the watch and app integrations belong to Vitals, are connected once in Settings, and deliver by themselves) is merged in four pull requests: **#1027** activities inside Vitals · **#1028** migration 247, the sealed-token box, one activity from many deliveries, Settings → Connected apps · **#1029** the Apple Watch upload link · **#1030** Polar. Main is `9eb0a691`.

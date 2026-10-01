@@ -198,8 +198,8 @@ test('Settings → Apple Watch: create the link, it is shown once, a delivery la
   const START = Math.floor(Date.now() / 1000) * 1000 - 2 * 3_600_000;
 
   await page.goto('/settings?tab=connections');
-  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible({ timeout: 20_000 });
-  if ((await page.getByRole('button', { name: 'Connected apps' }).count()) === 0) {
+  await expect(page.getByRole('button', { name: 'Account', exact: true })).toBeVisible({ timeout: 20_000 });
+  if ((await page.getByRole('button', { name: 'Connected apps', exact: true }).count()) === 0) {
     test.skip(true, 'connected-apps flag off in this build');
     return;
   }

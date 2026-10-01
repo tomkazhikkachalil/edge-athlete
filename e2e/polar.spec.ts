@@ -271,8 +271,8 @@ test('Settings → Polar: the consent line, Connect, back with the workouts in V
   await admin.from('activity_connections').delete().eq('profile_id', alpha.id);
 
   await page.goto('/settings?tab=connections');
-  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible({ timeout: 20_000 });
-  if ((await page.getByRole('button', { name: 'Connected apps' }).count()) === 0) {
+  await expect(page.getByRole('button', { name: 'Account', exact: true })).toBeVisible({ timeout: 20_000 });
+  if ((await page.getByRole('button', { name: 'Connected apps', exact: true }).count()) === 0) {
     test.skip(true, 'connected-apps flag off in this build');
     return;
   }

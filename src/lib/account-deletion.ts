@@ -260,13 +260,8 @@ export async function hardDeleteAccount(
   // profile row goes — nothing irrecoverable has happened yet, the account
   // is intact, the caller retries. A discarded error here used to report a
   // partial deletion as success.
-  // A table a migration creates by hand may not exist everywhere yet (247 —
-  // activity_connections): its absence means there is nothing to delete.
-  // Remove an entry once its migration has run on staging AND production.
-  const NOT_EVERYWHERE_YET = new Set(['activity_connections']);
   const mustDelete = async (table: string, column: string) => {
     const { error } = await admin.from(table).delete().eq(column, userId);
-    if (error && NOT_EVERYWHERE_YET.has(table) && isMissingTableError(error.code)) return;
     if (error) throw new Error(`Failed to delete ${table} (${column}): ${error.message}`);
   };
   const check = async (what: string, q: PromiseLike<{ error: { message: string } | null }>) => {
