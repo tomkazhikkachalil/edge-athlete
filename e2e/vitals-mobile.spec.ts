@@ -21,7 +21,7 @@ test('vitals @mobile: deep links reach the dashboard at phone width', async ({ p
   await page.goto('/athlete?tab=vitals');
   const vitalsTab = page.getByRole('button', { name: /vitals/i }).first();
   await expect(vitalsTab).toBeInViewport({ timeout: 15_000 });
-  await expect(page.getByText('Workouts this week')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Sessions this week')).toBeVisible({ timeout: 15_000 });
 
   // /u/<handle>?tab=vitals — the public-profile route (where most in-app
   // profile links land) must carry the same design. User B views user A's
@@ -56,7 +56,7 @@ test('vitals @mobile: deep links reach the dashboard at phone width', async ({ p
     // The @-prefixed display form — the exact shape getProfileUrl emits
     // (regression: this used to double-encode into "Profile Not Found").
     await pageB.goto(`/u/@${handle}?tab=vitals`);
-    await expect(pageB.getByText('Workouts this week')).toBeVisible({ timeout: 15_000 });
+    await expect(pageB.getByText('Sessions this week')).toBeVisible({ timeout: 15_000 });
     // Read-only for a visitor: no owner actions at phone width either.
     await expect(pageB.getByRole('button', { name: 'Start Workout' })).toHaveCount(0);
   } finally {

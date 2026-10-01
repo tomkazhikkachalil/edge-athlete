@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { VITAL_CATEGORIES } from '@/lib/vitals-config';
 import {
-  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock,
+  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, FileUp,
 } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
@@ -14,8 +14,18 @@ import { useToast } from './Toast';
 import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
 import { effectiveSessionStatus } from '@/lib/workouts/status';
-import { weeklySummary, streakWeeks, latestPB, sessionSeconds } from '@/lib/workouts/dashboard';
-import { activeDaysThisWeek, weeklyBars } from '@/lib/vitals/derive';
+import { latestPB } from '@/lib/workouts/dashboard';
+import {
+  mergeSessions,
+  sessionsActiveDays,
+  sessionsStreakWeeks,
+  sessionsWeeklyBars,
+  sessionsWeeklySummary,
+  type ActivitySession,
+} from '@/lib/vitals/sessions';
+import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
+import { formatDistance, readUnitPreference } from '@/lib/activities/format';
+import ActivitiesTab from './activities/ActivitiesTab';
 import { formatDuration } from '@/lib/workouts/summary';
 import VitalsHero from './vitals/VitalsHero';
 import PBShowcase from './vitals/PBShowcase';
@@ -75,6 +85,9 @@ interface VitalsTabProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
+  /** `?tab=activities` (the old tab's deep link): open Vitals AT its
+   *  Activities section. */
+  focusSection?: 'activities';
 }
 
 interface CurrentVitals {
@@ -98,7 +111,7 @@ const VITALS_GEAR_CLASSES =
 
 // ── VitalsTab (main) ────────────────────────────────────────────────────────
 
-export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false }: VitalsTabProps) {
+export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false, focusSection }: VitalsTabProps) {
   const router = useRouter();
   const { theme } = useTheme();
   const { showError } = useToast();
@@ -114,6 +127,12 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
   const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
+  // Activities (runs, rides, swims from a watch or app) are part of Vitals
+  // since Oct 1 2026: they count in the week, the streak and the active
+  // days. Their own gated read — "Only me" and the Vitals privacy aspect
+  // are applied on the server.
+  const [activitySessions, setActivitySessions] = useState<ActivitySession[]>([]);
+  const [activitiesHidden, setActivitiesHidden] = useState(false);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentVitals, setCurrentVitals] = useState<CurrentVitals | null>(null);
   const [heroProfile, setHeroProfile] = useState<HeroProfile | null>(null);
@@ -143,9 +162,11 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     const run = async () => {
         try {
           setError('');
-          const [vitalsRes, workoutsRes] = await Promise.all([
+          const [vitalsRes, workoutsRes, activitiesRes] = await Promise.all([
             fetch(`/api/vitals?profileId=${profileId}`),
             fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
+            // A failure here costs the activities, never the tab.
+            fetch(`/api/profile/${profileId}/activities?sessions=1`, { credentials: 'include', cache: 'no-store' }).catch(() => null),
           ]);
           if (!vitalsRes.ok) {
             const data = await vitalsRes.json();
@@ -163,6 +184,15 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           if (workoutsRes.ok) {
             const workoutData = await workoutsRes.json();
             setWorkouts(workoutData.sessions || []);
+          }
+          if (activitiesRes?.ok) {
+            const activityData = await activitiesRes.json();
+            setActivitySessions(Array.isArray(activityData.sessions) ? activityData.sessions : []);
+            setActivitiesHidden(Boolean(activityData.hidden));
+          } else {
+            setActivitySessions([]);
+            // A 404 is the activity gate's refusal (blocked, departed) — no section.
+            setActivitiesHidden(activitiesRes?.status === 404);
           }
         } catch (e) {
           console.error('Failed to load vitals data:', e);
@@ -268,31 +298,50 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     () => workouts.filter(s => s.status === 'completed'),
     [workouts]
   );
-  const weekly = useMemo(() => weeklySummary(completedWorkouts), [completedWorkouts]);
-  const streak = useMemo(() => streakWeeks(completedWorkouts), [completedWorkouts]);
-  const activeDays = useMemo(() => activeDaysThisWeek(completedWorkouts), [completedWorkouts]);
+  // Every session — completed workouts and activities — newest first.
+  const sessions = useMemo(() => mergeSessions(workouts, activitySessions), [workouts, activitySessions]);
+  const weekly = useMemo(() => sessionsWeeklySummary(sessions), [sessions]);
+  const streak = useMemo(() => sessionsStreakWeeks(sessions), [sessions]);
+  const activeDays = useMemo(() => sessionsActiveDays(sessions), [sessions]);
   const pbSpotlight = useMemo(() => latestPB(vitals), [vitals]);
   const [showAllActivity, setShowAllActivity] = useState(false);
 
-  // The weekly-activity bubble's bars — last 8 weeks, workouts per week.
+  // The weekly-activity bubble's bars — last 8 weeks, sessions per week.
   // Labels only on the first and current bars; more reads as clutter at
   // bubble size, and the overlay carries the full detail.
   const activityBars = useMemo(
     () =>
-      weeklyBars(completedWorkouts, 8).map((bar, i, all) => {
+      sessionsWeeklyBars(sessions, 8).map((bar, i, all) => {
         const label = parseDateLocal(bar.weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         return {
           label: i === 0 || i === all.length - 1 ? label : '',
           value: bar.workouts,
           highlight: bar.isCurrent,
-          meta: `Week of ${label} — ${bar.workouts} workout${bar.workouts !== 1 ? 's' : ''}`,
+          meta: `Week of ${label} — ${bar.workouts} session${bar.workouts !== 1 ? 's' : ''}`,
         };
       }),
-    [completedWorkouts]
+    [sessions]
   );
 
-  // API order is newest-first; the bubble shows the top of the diary.
-  const recentWorkouts = completedWorkouts.slice(0, 3);
+  // The bubble shows the top of the diary, whichever kind it is.
+  const recentSessions = sessions.slice(0, 3);
+  const [unit] = useState(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
+  const scrollToActivities = () =>
+    document.getElementById('vitals-activities')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // `?tab=activities` lands on the Activities section once it has rendered
+  // (it loads its own page; a couple of frames is not enough on a slow link).
+  useEffect(() => {
+    if (focusSection !== 'activities' || loading) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      const el = document.getElementById('vitals-activities');
+      tries += 1;
+      if (el) el.scrollIntoView({ block: 'start' });
+      if (el || tries > 40) clearInterval(timer);
+    }, 150);
+    return () => clearInterval(timer);
+  }, [focusSection, loading]);
 
   // Group vitals by metric key (all-time — bubbles never lie either)
   const vitalsByMetric: Record<string, VitalEntry[]> = {};
@@ -364,7 +413,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             <div>
               <h2 className="text-h2 text-primary">Edge Vitals</h2>
               <p className="text-sm text-muted mt-0.5">
-                Live workouts, performance metrics, and training history.
+                Workouts, watch activities, performance metrics, and training history.
               </p>
             </div>
             {/* Section-wide quick settings (body measurements + workout
@@ -405,6 +454,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               >
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
+              </button>
+              <button
+                onClick={() => router.push('/activities/import')}
+                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted transition-colors"
+                data-vitals-import-activity
+              >
+                <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
+                Import Activity
               </button>
               <button
                 type="button"
@@ -480,39 +537,50 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             bars={activityBars}
             color="var(--brand-fg)"
             height={72}
-            ariaLabel="Workouts per week, last 8 weeks"
+            ariaLabel="Sessions per week, last 8 weeks"
           />
         </StatBubbleCard>
 
-        {recentWorkouts.length > 0 ? (
+        {recentSessions.length > 0 ? (
           <StatBubbleCard
             span="md"
             icon={Dumbbell}
-            label="Recent workouts"
-            onOpen={() => setShowWorkoutsOverlay(true)}
+            label="Recent sessions"
+            // The whole card is one button: the workout diary when there is
+            // one, else the Activities section further down.
+            onOpen={() => (completedWorkouts.length > 0 ? setShowWorkoutsOverlay(true) : scrollToActivities())}
             staggerIndex={1}
           >
-            <div className="space-y-2">
-              {recentWorkouts.map(session => (
-                <div key={session.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="font-semibold text-primary truncate">{session.title || 'Workout'}</span>
-                  <span className="text-xs text-muted whitespace-nowrap shrink-0">
-                    {new Date(session.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    {sessionSeconds(session) > 0 && <> · {formatDuration(sessionSeconds(session))}</>}
-                  </span>
-                </div>
-              ))}
+            <div className="space-y-2" data-vitals-recent-sessions>
+              {recentSessions.map(session => {
+                const def = session.kind === 'activity' && isActivityType(session.activityType) ? ACTIVITY_TYPE_DEFS[session.activityType] : null;
+                return (
+                  <div key={`${session.kind}:${session.id}`} className="flex items-center justify-between gap-2 text-sm" data-session-kind={session.kind}>
+                    <span className="flex min-w-0 items-center gap-2 font-semibold text-primary">
+                      <i className={`fas fa-${def ? def.icon : 'dumbbell'} w-4 shrink-0 text-center text-xs text-muted`} aria-hidden="true" />
+                      <span className="truncate">{session.title}</span>
+                    </span>
+                    <span className="text-xs text-muted whitespace-nowrap shrink-0">
+                      {new Date(session.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {session.kind === 'activity' && session.distanceM ? <> · {formatDistance(session.distanceM, unit)}</> : null}
+                      {session.seconds > 0 && <> · {formatDuration(session.seconds)}</>}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-3 text-xs font-bold text-brand-fg-strong">
-              See all {completedWorkouts.length} workout{completedWorkouts.length !== 1 ? 's' : ''}
+              {completedWorkouts.length > 0
+                ? `See all ${completedWorkouts.length} workout${completedWorkouts.length !== 1 ? 's' : ''}`
+                : 'See activities'}
             </div>
           </StatBubbleCard>
         ) : (
-          <StatBubbleCard span="md" icon={Dumbbell} label="Recent workouts" staggerIndex={1}>
+          <StatBubbleCard span="md" icon={Dumbbell} label="Recent sessions" staggerIndex={1}>
             <p className="text-sm text-muted mb-3">
               {isOwnProfile
                 ? 'Record live — exercises, sets, reps, and weight as you go.'
-                : "This athlete hasn't recorded workouts yet."}
+                : "This athlete hasn't recorded a session yet."}
             </p>
             {isOwnProfile && (
               <button
@@ -566,6 +634,11 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
       {/* ── Progress — one big chart, pick what to track ─────────────── */}
       <ProgressSection vitals={vitals} sessions={completedWorkouts} />
+
+      {/* ── Activities — runs, rides, swims from a watch or app. Its own
+             gated fetch (routes are trimmed for a viewer, "Only me" is the
+             owner's); hidden with the Workouts privacy aspect. ─────────── */}
+      {!activitiesHidden && <ActivitiesTab profileId={profileId} />}
 
       {/* ── Metrics library — bubbles by category; history behind a tap ── */}
       <div>
@@ -778,7 +851,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
       {showActivityOverlay && (
         <WeeklyActivityOverlay
-          sessions={completedWorkouts}
+          sessions={sessions}
           onClose={() => setShowActivityOverlay(false)}
         />
       )}

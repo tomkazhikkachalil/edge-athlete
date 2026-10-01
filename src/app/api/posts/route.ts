@@ -131,7 +131,12 @@ export async function POST(request: NextRequest) {
     if ('error' in identity) {
       return NextResponse.json({ error: identity.error }, { status: 400 });
     }
-    const { postType, postCategory } = identity;
+    const { postType } = identity;
+    // An activity shared from Vitals is a TRAINING post (Oct 1 2026) — it
+    // lists under Vitals → Training Activity like a shared workout. The
+    // client need not say so.
+    const postCategory =
+      identity.postCategory ?? (isActivityShareRequest(incomingStatsData) ? ('training' as const) : null);
 
     // Content owner: the session user, or — guardian-profiles — a managed
     // athlete via targetProfileId. The shared gate (guardian-gate.ts) is

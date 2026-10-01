@@ -160,7 +160,7 @@ export default function VitalsHero({
         <Stat
           icon={Dumbbell}
           value={String(summary.workouts)}
-          label="Workouts this week"
+          label="Sessions this week"
           delta={{ now: summary.workouts, prior: summary.prior.workouts }}
         />
         <Stat
