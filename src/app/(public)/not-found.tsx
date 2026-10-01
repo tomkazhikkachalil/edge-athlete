@@ -11,24 +11,24 @@ import Link from 'next/link';
 
 export default function PublicNotFound() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-canvas px-4">
       <div className="max-w-md w-full text-center py-16">
-        <p className="text-6xl font-bold text-gray-300 mb-4">404</p>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Page not found</h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-6xl font-bold text-gray-300 dark:text-stone-700 mb-4">404</p>
+        <h1 className="text-2xl font-bold text-primary mb-2">Page not found</h1>
+        <p className="text-tertiary mb-8">
           There’s nothing at this address — the organization may have moved
           or the link may be mistyped.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link
             href="/"
-            className="min-h-[44px] inline-flex items-center px-5 rounded-lg bg-violet-600 text-white font-semibold hover:bg-violet-700 transition-colors"
+            className="min-h-[44px] inline-flex items-center px-5 rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover transition-colors"
           >
             Go home
           </Link>
           <Link
             href="/sports/explore"
-            className="min-h-[44px] inline-flex items-center px-5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+            className="min-h-[44px] inline-flex items-center px-5 rounded-lg border border-border-strong text-secondary font-medium hover:bg-gray-100 dark:hover:bg-stone-800 transition-colors"
           >
             Explore athletes
           </Link>

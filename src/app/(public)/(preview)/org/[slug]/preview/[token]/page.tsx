@@ -61,8 +61,8 @@ export default async function OrgSitePreview({
 
   return (
     <SiteShell site={site} pages={pages} notices={notices} navTeams={navTeams} newsBanner={newsBanner}>
-      <div className="bg-amber-100 border-b border-amber-300">
-        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900">
+      <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800">
+        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900 dark:text-amber-200">
           Draft preview — not public. This link expires; publish from the console
           to go live.
         </p>

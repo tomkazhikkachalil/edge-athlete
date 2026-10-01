@@ -15,7 +15,7 @@ export function whenOf(item: TeamScheduleItem): string {
 }
 
 const RESULT_CLASS: Record<'W' | 'L' | 'T', string> = {
-  W: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  W: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800',
   L: 'bg-surface-muted text-secondary border-border',
   T: 'bg-surface-muted text-secondary border-border',
 };
@@ -34,7 +34,7 @@ function Row({ item }: { item: TeamScheduleItem }) {
           {`${item.result.outcome} ${item.result.score}`}
         </span>
       ) : item.state === 'live' ? (
-        <span className="shrink-0 min-w-[4.5rem] rounded-md border border-red-200 bg-red-50 px-2 py-1 text-center text-xs font-semibold text-red-700">Live</span>
+        <span className="shrink-0 min-w-[4.5rem] rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-2 py-1 text-center text-xs font-semibold text-red-700 dark:text-red-300">Live</span>
       ) : null}
       <div className="min-w-0 text-sm">
         <p className="break-words">

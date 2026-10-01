@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { THEME_INIT_SCRIPT } from '../theme-script';
+import { PUBLIC_THEME_SCRIPT, THEME_INIT_SCRIPT } from '../theme-script';
 import { THEME_PREFS_KEY } from '../theme-storage-keys';
 import { THEME_COOKIE, THEME_RESOLVED_COOKIE, encodeThemeCookie } from '../theme-cookie';
 import { THEME_COLOR } from '../theme-colors';
@@ -55,6 +55,8 @@ function run(opts: {
   cookie?: string | null;
   now: Date;
   systemPrefersDark?: boolean;
+  /** Which variant to execute — the app's by default. */
+  script?: string;
 }): RunResult {
   const metas = makeMetaStubs();
   const written: string[] = [];
@@ -69,6 +71,7 @@ function run(opts: {
     },
     documentElement: { dataset: {} as Record<string, string | undefined> },
     querySelectorAll: () => metas,
+    addEventListener: () => {},
   };
   let mirror = opts.stored ?? null;
   const localStorageStub = {
@@ -83,7 +86,7 @@ function run(opts: {
     }),
     location: { protocol: 'http:' },
   };
-  new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+  new Function('localStorage', 'window', 'document', 'Date', 'atob', opts.script ?? THEME_INIT_SCRIPT)(
     localStorageStub,
     windowStub,
     documentStub,
@@ -181,6 +184,46 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
       // starts from server truth and has nothing to correct
       expect(JSON.parse(mirror as string), name).toEqual(sanitized);
     }
+  });
+
+  it('the PUBLIC variant resolves the same matrix from both sources — and writes nothing', () => {
+    // Club and league sites (Oct 1 2026): one cached, viewer-independent
+    // document; the visitor's device reads the app's cookie, then its mirror,
+    // else the default schedule — and leaves no cookie and no storage behind.
+    const staleMirror = JSON.stringify({ mode: 'on' });
+    for (const { name, prefs, now, sys } of cases) {
+      const sanitized = sanitizeThemePrefs(prefs);
+      const expected = resolveTheme(sanitized, now, sys);
+
+      const fromMirror = run({ script: PUBLIC_THEME_SCRIPT, stored: JSON.stringify(sanitized), now, systemPrefersDark: sys });
+      expect(fromMirror.theme, `${name} (mirror)`).toBe(expected);
+      expect(fromMirror.cookieWrites, name).toEqual([]);
+
+      const fromCookie = run({ script: PUBLIC_THEME_SCRIPT, stored: staleMirror, cookie: encodeThemeCookie(sanitized), now, systemPrefersDark: sys });
+      expect(fromCookie.theme, `${name} (cookie)`).toBe(expected);
+      expect(fromCookie.cookieWrites, name).toEqual([]);
+      // The cookie wins but is NOT written back into the mirror here.
+      expect(fromCookie.mirror, name).toBe(staleMirror);
+    }
+  });
+
+  it('the PUBLIC variant with nothing to read (a custom domain) is the default schedule', () => {
+    expect(run({ script: PUBLIC_THEME_SCRIPT, now: aug5(23), systemPrefersDark: false }).theme).toBe('dark');
+    expect(run({ script: PUBLIC_THEME_SCRIPT, now: aug5(12), systemPrefersDark: true }).theme).toBe('light');
+  });
+
+  it('the PUBLIC variant darkens the chrome colour and leaves a light site\'s alone', () => {
+    const dark = run({ script: PUBLIC_THEME_SCRIPT, cookie: encodeThemeCookie({ mode: 'on' }), now: aug5(12) });
+    expect(dark.metaColors).toEqual([THEME_COLOR.dark, THEME_COLOR.dark]);
+    const light = run({ script: PUBLIC_THEME_SCRIPT, cookie: encodeThemeCookie({ mode: 'off' }), now: aug5(23) });
+    expect(light.metaColors).toEqual([THEME_COLOR.light, THEME_COLOR.dark]); // untouched stubs
+  });
+
+  it('neither variant carries the literal attribute name (the public pages are asserted free of it)', () => {
+    expect(THEME_INIT_SCRIPT).not.toContain('data-theme');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('data-theme');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('localStorage.setItem');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('document.cookie=');
   });
 
   it('points the browser-chrome metas at the resolved theme, not the OS', () => {

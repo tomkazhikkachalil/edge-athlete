@@ -21,11 +21,11 @@ export function HoleDiagram({ hole, size = 96 }: { hole: HoleLine; size?: number
       height={size}
       role="img"
       aria-label={label}
-      className="shrink-0 rounded bg-emerald-50"
+      className="shrink-0 rounded bg-emerald-50 dark:bg-emerald-950/40"
     >
       <path d={p.paths[0]} fill="none" stroke="var(--org-accent-strong)" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={p.tee[0].x} cy={p.tee[0].y} r={3.5} fill="var(--org-accent)" />
-      <circle cx={p.green[0].x} cy={p.green[0].y} r={5.5} fill="#15803d" />
+      <circle cx={p.green[0].x} cy={p.green[0].y} r={5.5} className="fill-[#15803d] dark:fill-[#4ade80]" />
     </svg>
   );
 }
@@ -38,14 +38,14 @@ export function CourseOverview({ geometry }: { geometry: HoleGeometry }) {
       viewBox={p.viewBox}
       role="img"
       aria-label={`Course overview: ${geometry.holes.length} holes`}
-      className="w-full max-w-md rounded-lg bg-emerald-50"
+      className="w-full max-w-md rounded-lg bg-emerald-50 dark:bg-emerald-950/40"
     >
       {p.paths.map((d, i) => (
         <g key={geometry.holes[i].hole}>
           <path d={d} fill="none" stroke="var(--org-accent-strong)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
           <circle cx={p.tee[i].x} cy={p.tee[i].y} r={2} fill="var(--org-accent)" />
-          <circle cx={p.green[i].x} cy={p.green[i].y} r={3} fill="#15803d" />
-          <text x={p.label[i].x} y={p.label[i].y} fontSize={7} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fill="#14532d">
+          <circle cx={p.green[i].x} cy={p.green[i].y} r={3} className="fill-[#15803d] dark:fill-[#4ade80]" />
+          <text x={p.label[i].x} y={p.label[i].y} fontSize={7} fontWeight={600} textAnchor="middle" dominantBaseline="middle" className="fill-[#14532d] dark:fill-[#bbf7d0]">
             {geometry.holes[i].hole}
           </text>
         </g>

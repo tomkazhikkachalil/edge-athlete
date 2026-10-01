@@ -76,7 +76,7 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
   const look = teamLook({ id: team.id, primary_color: team.primaryColor, secondary_color: team.secondaryColor }, null);
   const teamStyle =
     look.source === 'team' && look.accent
-      ? ({ '--org-accent': look.accent.fill, '--org-accent-strong': look.accent.fillStrong, '--org-accent-fg': look.accent.fgLight } as React.CSSProperties)
+      ? ({ '--org-accent': look.accent.fill, '--org-accent-strong': look.accent.fillStrong, '--org-accent-fg': look.accent.fgLight, '--org-accent-fg-dark': look.accent.fgDark } as React.CSSProperties)
       : undefined;
   const sportLabel = team.sportKey && isSportEnabled(team.sportKey as SportKey) ? getSportDefinition(team.sportKey as SportKey).display_name : null;
 
