@@ -18,7 +18,7 @@ export function readStoredThemePrefs(): ThemePrefs {
     if (!raw) return {};
     return sanitizeThemePrefs(JSON.parse(raw));
   } catch {
-    // private mode / garbage JSON — light defaults
+    // private mode / garbage JSON — no stored choice (the default schedule)
     return {};
   }
 }

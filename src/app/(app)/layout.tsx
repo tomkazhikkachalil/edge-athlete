@@ -97,8 +97,9 @@ export default async function RootLayout({
     // is expected, not a bug.
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* BLOCKING on purpose — resolves the stored theme (including the
-            schedule and any override) and stamps <html> before first paint,
+        {/* BLOCKING on purpose — resolves the stored theme (the schedule
+            included — and the default schedule when nothing is stored) and
+            stamps <html> before first paint,
             so there is no flash of the wrong theme. Must stay ahead of any
             stylesheet-dependent paint; see src/lib/theme-script.ts. */}
         {/* Also blocking, and FIRST: installs the globals the iOS 15 floor lacks

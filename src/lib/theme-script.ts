@@ -2,8 +2,10 @@
  * The no-flash-of-wrong-theme script: a self-contained IIFE string injected
  * as a BLOCKING inline <script> in the root layout's <head>. It re-implements
  * resolveTheme (theme-prefs.ts) in ES5 and stamps data-theme on <html> before
- * first paint. Any failure — no source, garbage JSON, storage disabled —
- * falls through to light, which is exactly the pre-dark-mode behavior.
+ * first paint. No source, garbage JSON or disabled storage all mean "no
+ * stored choice", which resolves like any absent mode: the DEFAULT SCHEDULE
+ * (theme-prefs.ts — dark 6 PM to 9 AM by the device's clock). Only a script
+ * that throws outright leaves the page unstamped, i.e. light.
  *
  * TWO SOURCES, IN PRIORITY ORDER:
  *   1. the `ea-theme` cookie — SERVER truth, refreshed from the account by
@@ -30,6 +32,7 @@
 import { THEME_PREFS_KEY } from './theme-storage-keys';
 import { THEME_COOKIE, THEME_RESOLVED_COOKIE, THEME_COOKIE_MAX_AGE } from './theme-cookie';
 import { THEME_COLOR } from './theme-colors';
+import { DEFAULT_SCHEDULE } from './theme-prefs';
 
 export const THEME_INIT_SCRIPT = `(function(){try{
 var p=null;
@@ -51,31 +54,16 @@ if(q&&typeof q==='object'&&!(q instanceof Array))p=q;
 if(!p)p={};
 var dark=false;
 if(p.mode==='on'){dark=true}
+else if(p.mode==='off'){dark=false}
 else if(p.mode==='system'){dark=window.matchMedia('(prefers-color-scheme: dark)').matches}
-else if(p.mode==='scheduled'){
+else{
 var s=p.schedule&&typeof p.schedule==='object'?p.schedule:null;
 var ok=s&&typeof s.start==='number'&&typeof s.end==='number';
-var st=ok?s.start:1200;
-var en=ok?s.end:420;
+var st=ok?s.start:${DEFAULT_SCHEDULE.start};
+var en=ok?s.end:${DEFAULT_SCHEDULE.end};
 var now=new Date();
 var m=now.getHours()*60+now.getMinutes();
 dark=st===en?false:(st<=en?(m>=st&&m<en):(m>=st||m<en));
-var o=p.override;
-if(o&&typeof o==='object'&&(o.theme==='dark'||o.theme==='light')&&typeof o.setAt==='string'){
-var setAt=new Date(o.setAt).getTime();
-if(!isNaN(setAt)){
-var prev=-Infinity;
-var bounds=[st,en];
-for(var i=0;i<2;i++){for(var d=0;d>=-1;d--){
-var c=new Date(now);
-c.setDate(c.getDate()+d);
-c.setHours(Math.floor(bounds[i]/60),bounds[i]%60,0,0);
-var ct=c.getTime();
-if(ct<=now.getTime()&&ct>prev)prev=ct;
-}}
-if(setAt>prev)dark=o.theme==='dark';
-}
-}
 }
 if(dark)document.documentElement.dataset.theme='dark';
 else delete document.documentElement.dataset.theme;
