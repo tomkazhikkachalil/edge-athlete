@@ -50,7 +50,13 @@ const options: PermissionOption[] = [
 export default function MessagingSettings() {
   const { profile, refreshProfile } = useAuth();
   const { showSuccess, showError } = useToast();
-  const [permission, setPermission] = useState<MessagingPermission>('everyone');
+  // Starts from the profile: this tab mounts with it already loaded, and the
+  // sync below only runs when it CHANGES — the saved choice used to open as
+  // "Everyone" (Sep 30 2026).
+  const [permission, setPermission] = useState<MessagingPermission>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((profile as any)?.messaging_permission as MessagingPermission | undefined) ?? 'everyone'
+  );
   const [saving, setSaving] = useState(false);
 
   // State synchronisation, not a side effect: doing it during render means

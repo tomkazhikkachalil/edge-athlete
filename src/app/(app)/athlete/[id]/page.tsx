@@ -42,7 +42,10 @@ export default function AthleteProfilePage() {
   const athleteId = params.id as string;
   // Share links point to /athlete/<id>?post=<postId> — open that post.
   // Without this reader every shared post link just showed the profile.
-  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
+  // Starts from the URL: the page MOUNTS with ?post= already there, and the
+  // sync below only runs when the params change afterwards — so a shared
+  // link used to open the profile and never the post (Sep 30 2026).
+  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(() => searchParams.get('post'));
 
   // Reading the query string is synchronisation, not a side effect.
   const [syncedParams, setSyncedParams] = useState(searchParams);
