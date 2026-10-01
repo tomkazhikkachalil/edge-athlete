@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 import { E2E_BASE_URL, bypassHeaders } from './e2e/helpers/qa-user';
+import { POLAR_E2E_ENV } from './e2e/helpers/polar-mock';
 
 /**
  * The e2e suite — runs against a real Supabase backend: STAGING by default
@@ -79,6 +80,10 @@ export default defineConfig({
   webServer: E2E_BASE_URL.includes('localhost')
     ? {
         command: 'npm run build && npm run start',
+        // A stand-in Polar for the LOCAL server only (e2e/polar.spec.ts runs
+        // it on this port): the real hosts are never called from a test, and
+        // a deployment ignores POLAR_MOCK_BASE in production by itself.
+        env: POLAR_E2E_ENV,
         url: `${E2E_BASE_URL}/`,
         reuseExistingServer: !process.env.CI,
         timeout: 300_000,

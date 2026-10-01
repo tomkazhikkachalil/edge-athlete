@@ -11,6 +11,7 @@
 //                      the elevation and HR charts and the splits stay.
 // visibility.test.ts serialises each projection and pins its keys.
 
+import { sourceCredit } from './connections';
 import { isActivityType, type ActivityType } from './catalog';
 import { trimStream } from './stream';
 import type { ActivityStream } from './types';
@@ -69,6 +70,9 @@ export interface ActivityView {
   avgCadence: number | null;
   calories: number | null;
   sourceFormat: string | null;
+  /** The credit a provider's terms require where its data is shown
+   *  ("Recorded with Polar"); null for a file or the upload link. */
+  credit: string | null;
   /** True only when THIS viewer may see a route. */
   hasRoute: boolean;
   /** The encoded, already-trimmed preview — null for a supervised athlete's viewer. */
@@ -115,6 +119,7 @@ export function projectActivity(row: ActivityRow, audience: ActivityAudience): A
     avgCadence: row.avg_cadence,
     calories: row.calories,
     sourceFormat: row.source_format,
+    credit: sourceCredit(row.source),
     hasRoute: routeVisible && (audience === 'owner' || row.route_preview !== null),
     routePreview: routeVisible ? row.route_preview : null,
     postId: row.post_id,

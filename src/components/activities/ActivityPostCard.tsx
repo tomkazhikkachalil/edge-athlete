@@ -47,6 +47,7 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
             </div>
           ))}
         </dl>
+        {s.credit && <p className="mt-2 text-xs text-muted" data-activity-credit>{s.credit}</p>}
       </div>
     </Link>
   );

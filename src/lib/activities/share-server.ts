@@ -5,6 +5,7 @@
 // this); "Only me" and an already-shared activity are refused by name; the
 // payload is rebuilt from the row (post-card.ts), never taken from the client.
 
+import { sourceCredit } from './connections';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
@@ -21,7 +22,7 @@ export async function buildActivityPostStats(
   const [actRes, profRes] = await Promise.all([
     admin
       .from('activities')
-      .select('id, profile_id, activity_type, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, route_preview, post_id, only_me')
+      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, route_preview, post_id, only_me')
       .eq('id', activityId)
       .maybeSingle(),
     admin.from('profiles').select('supervision_state').eq('id', authorId).maybeSingle(),
@@ -48,6 +49,7 @@ export async function buildActivityPostStats(
       elev_gain_m: num(a.elev_gain_m),
       avg_hr: a.avg_hr as number | null,
       route_preview: supervised ? null : ((a.route_preview as string | null) ?? null),
+      credit: sourceCredit(a.source as string),
     },
   };
 }

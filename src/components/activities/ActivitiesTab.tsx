@@ -177,6 +177,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                       </p>
                       <p className="text-xs text-muted">
                         {def.label} · {shortDate(a.occurredOn)}
+                        {a.credit && <span data-activity-credit> · {a.credit}</span>}
                       </p>
                       <p className="mt-1 text-sm text-secondary tabular-nums">
                         {formatDistance(a.distanceM, unit)} · {formatDuration(a.movingS ?? a.elapsedS)} · {pace.value}

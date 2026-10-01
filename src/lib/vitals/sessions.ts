@@ -19,6 +19,8 @@ export interface ActivitySession {
   elapsedS: number;
   movingS: number | null;
   distanceM: number | null;
+  /** The provider's name when its terms ask for a credit ("Polar"). */
+  sourceName?: string | null;
 }
 
 /** Moving time where the device recorded it, else elapsed (the Activities tab's rule). */
@@ -32,6 +34,7 @@ export function fromActivity(a: ActivitySession): VitalsSession {
     title: a.name,
     activityType: a.type,
     distanceM: a.distanceM,
+    sourceName: a.sourceName ?? null,
   };
 }
 

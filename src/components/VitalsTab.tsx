@@ -564,6 +564,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                       {new Date(session.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       {session.kind === 'activity' && session.distanceM ? <> · {formatDistance(session.distanceM, unit)}</> : null}
                       {session.seconds > 0 && <> · {formatDuration(session.seconds)}</>}
+                      {session.sourceName && <> · {session.sourceName}</>}
                     </span>
                   </div>
                 );

@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ago } from '@/components/tickets/ticket-ui';
-import { SUPERVISED_CONNECTIONS_MESSAGE, type ConnectionView } from '@/lib/activities/connections';
+import {
+  CONNECT_ERRORS,
+  PROVIDER_CONSENT,
+  PROVIDER_DEFS,
+  SUPERVISED_CONNECTIONS_MESSAGE,
+  isConnectionProvider,
+  type ConnectionView,
+} from '@/lib/activities/connections';
 
 /**
  * Settings → Connected apps (fix round part 3, mig 247).
@@ -148,6 +156,9 @@ export default function ConnectedApps() {
               {SUPERVISED_CONNECTIONS_MESSAGE}
             </p>
           )}
+          <Suspense fallback={null}>
+            <ConnectResult />
+          </Suspense>
           {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
           <ul className="space-y-3">
             {data.connections.map(c => {
@@ -181,6 +192,23 @@ export default function ConnectedApps() {
                       {c.note && <p className="mt-1 text-sm text-muted">{c.note}</p>}
                     </div>
                   </div>
+                  {c.kind === 'oauth' && c.state === 'available' && (
+                    <div className="mt-3 space-y-3" data-provider-connect={c.provider}>
+                      <p className="text-sm text-secondary">{PROVIDER_CONSENT}</p>
+                      {!data.supervised && (
+                        <div className="flex justify-end">
+                          {/* A full navigation on purpose: the athlete leaves for the provider's own sign-in. */}
+                          <a
+                            href={`/api/connections/${c.provider}/start`}
+                            className="inline-flex min-h-[44px] items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover transition"
+                            data-provider-connect-link=""
+                          >
+                            Connect {c.label}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {c.kind === 'link' && (c.state !== 'coming') && (
                     <UploadLink
                       linked={linked || !!freshLink}
@@ -202,6 +230,15 @@ export default function ConnectedApps() {
                         >
                           Make a new link
                         </button>
+                      )}
+                      {c.kind === 'oauth' && c.state === 'needs_attention' && !data.supervised && (
+                        <a
+                          href={`/api/connections/${c.provider}/start`}
+                          className="inline-flex min-h-[44px] items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover transition"
+                          data-provider-reconnect-link=""
+                        >
+                          Connect again
+                        </a>
                       )}
                       <button
                         type="button"
@@ -252,6 +289,29 @@ export default function ConnectedApps() {
       />
     </div>
   );
+}
+
+// ── What a trip to a provider came back with (`?connected=` / `?connect_error=`) ──
+function ConnectResult() {
+  const sp = useSearchParams();
+  const connected = sp.get('connected');
+  const failed = sp.get('connect_error');
+  if (connected && isConnectionProvider(connected)) {
+    return (
+      <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300" data-connect-result="connected">
+        {PROVIDER_DEFS[connected].label} is connected. Your recent workouts are on their way into your Vitals, and new ones
+        will arrive by themselves.
+      </p>
+    );
+  }
+  if (failed) {
+    return (
+      <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-connect-result="error">
+        {CONNECT_ERRORS[failed] ?? CONNECT_ERRORS.failed}
+      </p>
+    );
+  }
+  return null;
 }
 
 // ── The Apple Watch card's body: the personal upload link ───────────────────

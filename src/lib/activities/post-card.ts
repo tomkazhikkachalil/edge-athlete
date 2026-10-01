@@ -20,6 +20,9 @@ export interface ActivityPostStats {
   elev_gain_m: number | null;
   avg_hr: number | null;
   route_preview: string | null;
+  /** The provider credit its terms require ("Recorded with Polar"); absent
+   *  on cards written before PR 4 and for files / the upload link. */
+  credit?: string | null;
 }
 
 /** A composer's request to share an activity: `{ type: 'activity', activity_id }`. */

@@ -12,6 +12,7 @@
 //     (a supervised athlete's other viewers never receive a position).
 // Every response built from these is viewer-dependent: `private, no-store`.
 
+import { sourceName } from './connections';
 import { gunzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProfileRole } from '@/lib/auth-server';
@@ -123,7 +124,7 @@ export async function listActivitySessions(
   const since = new Date(now - SESSIONS_WEEKS * 7 * 86_400_000).toISOString();
   let q = admin
     .from('activities')
-    .select('id, activity_type, name, started_at, elapsed_s, moving_s, distance_m')
+    .select('id, activity_type, source, name, started_at, elapsed_s, moving_s, distance_m')
     .eq('profile_id', profileId)
     .gte('started_at', since)
     .order('started_at', { ascending: false })
@@ -148,6 +149,7 @@ export async function listActivitySessions(
       elapsedS: num(r.elapsed_s) ?? 0,
       movingS: num(r.moving_s),
       distanceM: num(r.distance_m),
+      sourceName: sourceName(r.source as string | null),
     })),
   };
 }

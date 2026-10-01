@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
-import { projectConnections } from '@/lib/activities/connections';
+import { projectConnections, type ConnectionProvider } from '@/lib/activities/connections';
 import { isSupervisedProfile, readConnections } from '@/lib/activities/connections-server';
+import { polarConfig } from '@/lib/activities/providers/polar-server';
 import { secretBoxReady } from '@/lib/crypto/secret-box-server';
 
 /**
@@ -25,12 +26,17 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
     const admin = getSupabaseAdmin();
     const [read, supervised] = await Promise.all([readConnections(admin, user.id), isSupervisedProfile(admin, user.id)]);
+    // A provider is offered only when this deployment can complete it: its
+    // credentials AND the key that seals its token.
+    const ready = secretBoxReady();
+    const unconfigured: ConnectionProvider[] = [];
+    if (!ready || !polarConfig()) unconfigured.push('polar');
     return NextResponse.json(
       {
         supported: read.supported,
-        ready: secretBoxReady(),
+        ready,
         supervised,
-        connections: projectConnections(read.rows),
+        connections: projectConnections(read.rows, { unconfigured }),
       },
       { headers: NO_STORE }
     );

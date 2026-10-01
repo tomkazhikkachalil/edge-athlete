@@ -128,7 +128,11 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 | `POST /api/connections/upload-link` | write gate · `connection-write` bucket · not supervised | mint or replace; the URL is returned once |
 | `POST /api/activities/inbound/[token]` | the token · write gate on its account · `activity-inbound` (IP) + `activity-inbound-link` buckets | no session by design; bridge JSON or a raw file |
 
-The import routes, the link's mint and the inbound route are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
+| `GET /api/connections/polar/start` · `/callback` | session · write gate · not supervised · signed state | navigations; always end in a redirect to Settings |
+| `POST /api/webhooks/polar` | Polar's signature | no session; 404 while Polar is not configured |
+| `GET` / `POST /api/admin/connections/polar-webhook` | admin | setup status; create the webhook (the key is shown once) |
+
+The import routes, the link's mint, the inbound route and Polar's two connect routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
 
 ## Lifecycle and retention
 
@@ -148,7 +152,7 @@ Tom: *"You're supposed to connect permanently so anything you do with your smart
 | Source | What it is | Stage (Oct 1 2026) |
 |---|---|---|
 | `upload_link` | Apple Watch: a bridge app on the iPhone posts each workout to the athlete's personal upload link (Apple has no web or server API). | **live** |
-| `polar` | Polar AccessLink: self-serve OAuth, webhooks, FIT download. | building — PR 4 |
+| `polar` | Polar AccessLink: self-serve OAuth, webhooks, FIT download. | **live** once the deployment holds Polar's client id + secret and the sealing key; until then the card reads "Coming soon" |
 | `wahoo` · `coros` · `suunto` | Open after the provider's own review. | applying |
 | `garmin` · `google_health` | Closed to new developers for now (Garmin's programme is paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). | closed |
 | Strava | **Left out (Tom).** Its API agreement (effective Jun 1 2026) lets an athlete's data be shown only to that athlete, kept at most seven days, and never combined into our dataset — a permanent Vitals history and a shareable post are not possible under it. | — |
@@ -172,6 +176,20 @@ Apple has no web or server API for Health data, so something must run on the iPh
 - **Every delivery goes through the ONE writer** as `source: 'upload_link'` with the workout's own id — the server recomputes the totals, refuses the implausible, trims a viewer's route, and the duplicate rule keeps one activity however often the app re-sends it (or the athlete imports the same file by hand).
 - **The answer**: `200 { received, imported, duplicates, refused, skipped }` whenever the body was READ (a bridge app retries a non-2xx, and an implausible workout will not improve on a retry); `413 / 415 / 422` when the body itself is not something the link takes — that marks the connection `error` with the reason, and the next good delivery heals it. A read delivery stamps `last_sync_at`, even an empty one.
 - **Honest limits, said on the card**: the bridge app is another company's and may charge for automations; iOS lets it read Health data only while the iPhone is unlocked, so a workout arrives the next time the phone is used. No QR code: it would need a new dependency (none without approval) — the athlete opens Settings on the iPhone and taps Copy.
+
+### Polar (AccessLink v3)
+
+Read from Polar's own pages on Oct 1 2026 (the API reference; the API License Agreement of 22 Aug 2025 — `docs/CONNECTIONS_APPLICATIONS.md` lists the clauses that matter and which are Tom's call).
+
+- **Configuration** (`providers/polar-server.ts polarConfig`): `POLAR_CLIENT_ID`, `POLAR_CLIENT_SECRET`, `POLAR_WEBHOOK_SECRET`. Without the first two every Polar route answers "not available" and `GET /api/connections` reports Polar as unconfigured (`projectConnections(rows, { unconfigured })` → "Coming soon"). `POLAR_MOCK_BASE` points the three hosts at the e2e stand-in and is IGNORED when `VERCEL_ENV=production`.
+- **Connect** — two navigations, never a fetch: `GET /api/connections/polar/start` (session; not supervised; the write gate) redirects to Polar with a SIGNED `state` (`oauth-state-server.ts`: names the account and the provider, ten minutes, key derived from `CONNECTIONS_ENC_KEY`); `GET /api/connections/polar/callback` verifies it — a code can never be attached to someone else's session — exchanges the code, registers the user with AccessLink, seals the token into the row (`connectProvider`; one Polar account feeds ONE athlete — the unique on `(provider, provider_user_id)` answers `connect_error=taken`), and runs the FIRST SYNC (ten exercises now, the rest daily). Both end in `/settings?tab=connections&connected=polar` or `&connect_error=<reason>` (`CONNECT_ERRORS` holds the words).
+- **The webhook** — `POST /api/webhooks/polar`. THE SIGNATURE IS THE GATE: `Polar-Webhook-Signature` = HMAC-SHA256 of the raw body under the key Polar returned when the webhook was created, compared in constant time. The creation PING is answered without one (it arrives before the key exists) and does nothing. The exercise is fetched from OUR configured base by id — never from the payload's `url`; ids must match `POLAR_ID_RE` before they reach a URL. A signed event is always a 200 (Polar deactivates a webhook that keeps failing). No rate bucket by design (an unsigned body costs one HMAC and no I/O).
+- **One exercise, one path** (`polar-sync-server.ts importPolarExercise`): its FIT → `parseFit` → `importActivity({ source: 'polar', externalId })`; no FIT (a session with no samples) → `polarSummaryToActivity` (start from the local time + its offset, never a guessed zone). A 401 from Polar = the athlete withdrew consent there → `markRevoked` (status `revoked`, the sealed token cleared; the card says "Connect again").
+- **The daily net** — `runPolarSync` in `/api/cron/daily`: each active connection's last 30 days (all Polar keeps), skipping the ids already imported, five new per athlete per run.
+- **Disconnect** de-registers the user at Polar (which revokes the token there) and deletes our row — the agreement's 3.3.
+- **The credit** (3.1.5): `sourceCredit(source)` → "Recorded with Polar" on the activity page, the list row and the feed card; the name alone on a Recent sessions row. Plain words, no logo (7.4).
+- **The consent** (3.1.1): `PROVIDER_CONSENT` is shown on the card BEFORE the athlete leaves for Polar.
+- **The owner's setup** is a dashboard panel ("Connected apps — Polar setup", `GET` / `POST /api/admin/connections/polar-webhook`): the callback URL to register, whether the credentials are set, and "Create the webhook" — Polar returns the signature key once; the panel hands it to the owner and stores nothing.
 
 **Adding a provider** is now: an adapter from its payload to a `NormalizedActivity` (FIT deliveries reuse `parse-fit-server.ts`); its connect / callback / webhook routes writing through `connections-server.ts` and `importActivity({ source, externalId })` with the provider's own id; `stage: 'live'` in `PROVIDER_DEFS`; its attribution wherever its brand rules ask. Read the provider's current agreement FIRST — a term that forbids showing an activity to followers stops the adapter (Strava's did).
 

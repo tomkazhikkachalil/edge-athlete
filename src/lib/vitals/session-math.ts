@@ -28,7 +28,7 @@ export interface VitalsSession {
   title: string;
   /** An activity's type (run, ride, …) and distance; absent on a workout. */
   activityType?: string;
-  distanceM?: number | null;
+  distanceM?: number | null; sourceName?: string | null;
 }
 
 export interface WeekTotals {
