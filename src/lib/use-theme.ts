@@ -11,6 +11,7 @@ import {
 import { readStoredThemePrefs, writeStoredThemePrefs, subscribeThemePrefs } from './theme';
 import { writeThemeCookie, writeResolvedThemeCookie } from './theme-cookie';
 import { THEME_COLOR } from './theme-colors';
+import { createSerialQueue } from './serial-queue';
 
 /**
  * The one theme evaluator. Module-level singleton, not a context provider,
@@ -140,20 +141,44 @@ function attachListeners() {
   };
 }
 
-/** Optimistic save with rollback: applies immediately, then persists; on
- *  failure restores the previous prefs and returns false. */
-export async function saveThemePrefs(next: ThemePrefs): Promise<boolean> {
+// Saves go to the server ONE AT A TIME, in the order they were made. Each is
+// a PATCH of the whole prefs object, so two that overlap are last-write-wins
+// on arrival — and the older one can arrive last (see serial-queue.ts).
+const enqueueSave = createSerialQueue();
+
+// A server read (the profile arriving in ThemeApplier) that lands while a
+// local save is in flight — or just after one — may PREDATE that save. It
+// used to be adopted anyway, which reverted the edit the person had just
+// made: the device went back to the old theme while the server took the new
+// one (Oct 1 2026, caught by holding a save on the wire). While saves are
+// pending, and for a short grace after the last one settles, the device's
+// own copy stands; the next profile load after that adopts as before.
+let pendingSaves = 0;
+let lastSaveSettledAt = 0;
+const ADOPT_GRACE_MS = 10_000;
+
+/** Optimistic save with rollback: applies immediately, then persists (in
+ *  order, behind any save still in flight); on failure restores the previous
+ *  prefs and returns false — unless a NEWER edit has been applied since, in
+ *  which case that edit stands and only the failure is reported. */
+export function saveThemePrefs(next: ThemePrefs): Promise<boolean> {
   const clean = sanitizeThemePrefs(next);
   const previous = getPrefs();
   setLocalPrefs(clean);
-  try {
-    const res = await persistToServer(clean);
-    if (!res.ok) throw new Error(`theme save ${res.status}`);
-    return true;
-  } catch {
-    setLocalPrefs(previous);
-    return false;
-  }
+  pendingSaves += 1;
+  return enqueueSave(async () => {
+    try {
+      const res = await persistToServer(clean);
+      if (!res.ok) throw new Error(`theme save ${res.status}`);
+      return true;
+    } catch {
+      if (prefs === clean) setLocalPrefs(previous);
+      return false;
+    } finally {
+      pendingSaves -= 1;
+      lastSaveSettledAt = Date.now();
+    }
+  });
 }
 
 /** The quick switch (the top menu) — pins the theme; the rule is
@@ -173,6 +198,8 @@ export function toggleThemeNow(): Promise<boolean> {
  *  settings, a cleared jar) gets it back without waiting for a preference
  *  change. */
 export function adoptServerThemePrefs(raw: unknown) {
+  // This read may predate a save of ours — see pendingSaves above.
+  if (pendingSaves > 0 || Date.now() - lastSaveSettledAt < ADOPT_GRACE_MS) return;
   const clean = sanitizeThemePrefs(raw);
   if (JSON.stringify(clean) === JSON.stringify(getPrefs())) {
     writeThemeCookie(clean);
