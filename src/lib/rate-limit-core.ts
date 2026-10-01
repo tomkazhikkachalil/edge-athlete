@@ -66,6 +66,10 @@ export const RATE_LIMITS = {
   // Guardian-invite peek — unauthenticated (parents open it accountless)
   // and a valid hit names the invited email; keep token guessing costly.
   'invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  // The personal upload link (PR 3) — unauthenticated by design (a phone's
+  // automation has no session); the token is 256 bits, so this bounds cost,
+  // not guessing. Generous: phones behind one carrier NAT share an address.
+  'activity-inbound': { max: 600, windowSeconds: 3600, keyBy: 'ip' },
 
   // ── Authenticated (user-keyed): spam-shaped or expensive writes ─────────
   'account-delete': { max: 5, windowSeconds: 900, keyBy: 'user', message: ATTEMPTS_MESSAGE },
@@ -83,6 +87,9 @@ export const RATE_LIMITS = {
   'activity-import': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Connected apps (247): connect, rotate the upload link, disconnect — a handful of deliberate taps, never a loop.
   'connection-write': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // The personal upload link (PR 3): per LINK (keyed by the connection id) —
+  // a bridge app syncing every few minutes with a backlog is ~20/h.
+  'activity-inbound-link': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   follow: { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'conversation-create': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },
