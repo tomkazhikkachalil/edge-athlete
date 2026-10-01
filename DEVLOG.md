@@ -1,5 +1,28 @@
 # Development Log
 
+## October 1, 2026 — Fix round, part 3: closed in code; what production still needs
+
+Part 3 (Tom: the watch and app integrations belong to Vitals, are connected once in Settings, and deliver by themselves) is merged in four pull requests: **#1027** activities inside Vitals · **#1028** migration 247, the sealed-token box, one activity from many deliveries, Settings → Connected apps · **#1029** the Apple Watch upload link · **#1030** Polar. Main is `9eb0a691`.
+
+**Production after each merge** (edgeathlete.ca, signed-in specs; one probe at a time):
+- #1027 at `f9766e47`: Vitals + activities 5 of 5.
+- #1028 at `8b1b719e`: the import specs 5 of 5; the connections specs skip until 247 runs there.
+- #1029 at `72eeec0b`: 5 of 5, 6 skipped (pre-247); a random upload token answers 404, a signed-out mint 401.
+- #1030 at `9eb0a691`: activities + Vitals 10 of 10, the Polar spec skipped (its stand-in exists only beside a local server); the Polar webhook answers 404 (not configured), a signed-out Connect goes to the sign-in door, the owner's setup route answers 401 signed out; health `ok`.
+
+**What is live on production today:** activities inside Vitals (PR 1) and the duplicate rule on file imports. **What is built and dark:** Connected apps, the Apple Watch link and Polar — each waits on a step only Tom can take.
+
+**Tom's steps, in order:**
+1. Run `database/migrations/247_activity_connections.sql` in the production SQL editor (expected row: `247 APPLIED | 1 | 1 | 0 | 8 | 247`).
+2. In Vercel → Production, set `CONNECTIONS_ENC_KEY` (`openssl rand -base64 32`; use a different value for Preview) and `NEXT_PUBLIC_FEATURE_CONNECTED_APPS=1`, then redeploy (the flag is inlined at build time). The Apple Watch card is then usable.
+3. Send one Apple Watch workout through Health Auto Export on the iPhone — the adapter is built from the app's published format; the real export is the last check.
+4. Polar: decide on licence clause 2.2, create the client with the callback URL the dashboard panel shows, set `POLAR_CLIENT_ID` / `POLAR_CLIENT_SECRET`, press "Create the webhook", set `POLAR_WEBHOOK_SECRET`.
+5. Send the Wahoo, COROS and Suunto applications (`docs/CONNECTIONS_APPLICATIONS.md`).
+
+**Mine, once 247 is on production:** `check:schema:prod`; run `connections.spec` and `upload-link.spec` there; remove `activity_connections` from `NOT_EVERYWHERE_YET` in `account-deletion.ts`.
+
+**Left out, on purpose:** Strava (its terms forbid showing an activity to anyone but the athlete); a QR code for the upload link (needs a new dependency); a guardian connecting for a supervised athlete; device vitals (resting heart rate, VO₂ max) into `athlete_vitals`; `athlete_performances` rows for activities.
+
 ## October 1, 2026 — Fix round, part 3 (PR 4): Polar — connect once, a signed webhook, the daily net
 
 The first provider reached over OAuth. An athlete taps Connect Polar in Settings → Connected apps, agrees at Polar, and comes back to a Vitals that already holds their recent workouts; after that Polar tells us when a workout is finished and we fetch it. **Dark until Tom creates a Polar client** — without `POLAR_CLIENT_ID` / `POLAR_CLIENT_SECRET` (and the sealing key) the card reads "Coming soon" and every Polar route answers "not available".
