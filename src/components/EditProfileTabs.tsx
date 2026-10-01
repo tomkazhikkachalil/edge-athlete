@@ -39,6 +39,8 @@ import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { GENDERS, GENDER_LABEL, NICKNAME_MAX, PHONE_MAX, POSTAL_CODE_MAX } from '@/lib/profiles/private-details';
+import { localDayKey } from '@/lib/calendar/grid';
 import PlacePicker from '@/components/PlacePicker';
 import { placeToProfileFields } from '@/lib/geo/profile-place';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -138,6 +140,10 @@ export default function EditProfileTabs({
   // server strips it for supervised profiles (child AND guardian — safety
   // posture lives on the guardian console's Safety card).
   const hideVisibility = actingAs || profile?.supervision_state === 'supervised';
+  // The private sign-up details (nickname, phone, gender, postal code) are
+  // the account holder's own: never in acting-as, never on a supervised
+  // profile (the server strips them there too).
+  const showPrivateDetails = !actingAs && profile?.supervision_state !== 'supervised';
   // Recruiting is a guardian decision for a supervised athlete: the tab is
   // theirs (acting-as) and the owner's, never the supervised profile's own.
   const supervisedSelf = !actingAs && profile?.supervision_state === 'supervised';
@@ -399,6 +405,10 @@ export default function EditProfileTabs({
     setIsSubmitting(true);
     setErrors({});
 
+    // Vitals only: the viewer's local day, sent beside the payload when a
+    // height or weight changed (the server appends the timeline entry).
+    let measuredOn: string | undefined;
+
     // `wrote`: something reached the server (even if a later step failed) —
     // the shared profile is re-read either way. `saved`: the whole tab saved
     // — the host is told. Both are settled in `finally`.
@@ -487,6 +497,14 @@ export default function EditProfileTabs({
             // from the name parts (src/lib/profiles/derive-names.ts). Sending
             // the loaded full_name back is what kept the old name alive.
             bio: basicForm.bio.trim(),
+            ...(showPrivateDetails
+              ? {
+                  nickname: basicForm.nickname.trim(),
+                  phone: basicForm.phone.trim(),
+                  gender: basicForm.gender,
+                  postal_code: basicForm.postal_code.trim(),
+                }
+              : {}),
             ...(hideVisibility ? {} : { visibility: basicForm.visibility }),
             ...(actingAs || !sportsLoaded
               ? {}
@@ -516,11 +534,27 @@ export default function EditProfileTabs({
             weightDisplay = undefined;
           }
           
+          // Height and weight are sent only when their INPUT changed from
+          // the loaded / last-saved value: an untouched 5'10" would otherwise
+          // round-trip through centimetres on every save, and the server
+          // adds a Vitals-timeline entry for each value it is sent that
+          // differs from the stored one.
+          const loadedVitals = snapRef.current.vitals
+            ? (JSON.parse(snapRef.current.vitals) as typeof vitalsForm)
+            : null;
+          const heightChanged = !loadedVitals || loadedVitals.height_cm !== vitalsForm.height_cm;
+          const weightChanged =
+            !loadedVitals ||
+            loadedVitals.weight_kg !== vitalsForm.weight_kg ||
+            loadedVitals.weight_unit !== vitalsForm.weight_unit;
+          if (heightChanged || weightChanged) measuredOn = localDayKey(new Date());
+
           // Empty strings intentional — server converts '' to null (clears)
           updateData = {
-            height_cm: heightValidation.value ?? '',
-            weight_display: weightDisplay ?? '',
-            weight_unit: vitalsForm.weight_unit || 'lbs',
+            ...(heightChanged ? { height_cm: heightValidation.value ?? '' } : {}),
+            ...(weightChanged
+              ? { weight_display: weightDisplay ?? '', weight_unit: vitalsForm.weight_unit || 'lbs' }
+              : {}),
             dob: vitalsForm.dob || '',
             location: vitalsForm.location.trim(),
             // A picked place writes the structured columns (names + ISO
@@ -645,6 +679,7 @@ export default function EditProfileTabs({
             profileData: updateData,
             userId: user.id,
             ...(targetProfileId ? { targetProfileId } : {}),
+            ...(measuredOn ? { measured_on: measuredOn } : {}),
           }),
         });
 
@@ -879,6 +914,96 @@ export default function EditProfileTabs({
           {basicForm.bio.length}/500 characters
         </p>
       </div>
+
+      {/* The private sign-up details. Collected at sign-up; until Sep 30
+          2026 no screen showed or edited them again. Owner-only on read. */}
+      {showPrivateDetails && (
+      <fieldset className="pt-4 border-t border-border">
+        <legend className="text-sm font-semibold text-primary">Private details</legend>
+        <p className="mt-1 mb-4 text-xs text-muted">
+          <i className="fas fa-lock mr-1" aria-hidden="true"></i>
+          Only you can see these.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="nickname" className="block text-sm font-medium text-secondary mb-1">
+              Nickname <span className="text-faint text-xs">(Optional)</span>
+            </label>
+            <input
+              id="nickname"
+              type="text"
+              maxLength={NICKNAME_MAX}
+              value={basicForm.nickname}
+              onChange={(e) => setBasicForm(prev => ({ ...prev, nickname: e.target.value }))}
+              className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              placeholder="What people call you"
+            />
+            <p className="mt-1 text-xs text-muted">
+              When set, some screens show it in place of your full name.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-secondary mb-1">
+                Phone number
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                autoComplete="tel"
+                maxLength={PHONE_MAX}
+                value={basicForm.phone}
+                onChange={(e) => setBasicForm(prev => ({ ...prev, phone: e.target.value }))}
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="Phone number"
+              />
+            </div>
+            <div>
+              <label htmlFor="postal_code" className="block text-sm font-medium text-secondary mb-1">
+                Postal code
+              </label>
+              <input
+                id="postal_code"
+                type="text"
+                autoComplete="postal-code"
+                maxLength={POSTAL_CODE_MAX}
+                value={basicForm.postal_code}
+                onChange={(e) => setBasicForm(prev => ({ ...prev, postal_code: e.target.value }))}
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="Postal code"
+              />
+            </div>
+          </div>
+          <div>
+            <span id="gender-label" className="block text-sm font-medium text-secondary mb-1">Gender</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-2" role="radiogroup" aria-labelledby="gender-label">
+              {GENDERS.map(g => (
+                <label key={g} className="flex min-h-[44px] items-center gap-2 text-sm text-secondary">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={g}
+                    checked={basicForm.gender === g}
+                    onChange={() => setBasicForm(prev => ({ ...prev, gender: g }))}
+                  />
+                  {GENDER_LABEL[g]}
+                </label>
+              ))}
+              <label className="flex min-h-[44px] items-center gap-2 text-sm text-secondary">
+                <input
+                  type="radio"
+                  name="gender"
+                  value=""
+                  checked={basicForm.gender === ''}
+                  onChange={() => setBasicForm(prev => ({ ...prev, gender: '' }))}
+                />
+                Not set
+              </label>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      )}
 
       {/* Privacy Toggle — hidden for supervised profiles (child and
           acting-as guardian alike): the server strips visibility there and

@@ -104,7 +104,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const { showError } = useToast();
   // A body measurement also writes profiles.height_cm / weight_display — the
   // shared profile (Edit Profile, Settings → Account) must follow it.
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, profile: ownProfile } = useAuth();
+  // Edit Profile's Vitals tab changes height / weight (and now adds the
+  // timeline entry) from OUTSIDE this tab — reload when the owner's current
+  // values change so the chart and Current Vitals follow without a reload.
+  const ownBodyKey = isOwnProfile
+    ? `${ownProfile?.height_cm ?? ''}|${ownProfile?.weight_display ?? ''}|${ownProfile?.weight_unit ?? ''}`
+    : '';
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
   const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
@@ -167,7 +173,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     };
     fetchDataRef.current = run;
     run();
-  }, [profileId]);
+  }, [profileId, ownBodyKey]);
 
   // Saved routines feed the Start Workout picker — owner only, and a failure
   // just degrades to the plain one-tap start. Inlined cancellable IIFE (not a

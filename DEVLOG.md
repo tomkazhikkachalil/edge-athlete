@@ -1,5 +1,21 @@
 # Development Log
 
+## September 30, 2026 — Fix round, part 1 (PR B): the sign-up details in Edit Profile; height and weight on the Vitals timeline
+
+PR A (#1021) is merged and proven on production: `edit-profile.spec` 8/8 on `edgeathlete.ca` at `f091479e`, both phone engines. Tom chose two of the related gaps the investigation found to ship in the same part. Zero DDL.
+
+**The sign-up details are editable.** Sign-up collects a nickname, a phone number, a gender and a postal code; no screen showed or edited them afterwards. Edit Profile's Basic tab now carries them as a "Private details" group, pre-filled (`formsFromProfile`), marked "Only you can see these" — all four are already `OWNER_ONLY_FIELDS` on read.
+- Never for a supervised profile and never in acting-as: the group is hidden and the PUT strips the four there.
+- `src/lib/profiles/private-details.ts` (pure, pinned): trimmed, `''` → null, and a value the column cannot hold is a 400 naming the field (`profiles_gender_check` used to answer a 500) — never truncated. Gender has a "Not set" choice so it can be cleared.
+- A nickname leads `display_name` (signup's rule; PR A's derivation keeps it current), and the field says so.
+
+**A height or weight changed in Edit Profile is a timeline entry.** That tab updated the profile snapshot only, so the Vitals chart never showed the change; only the Vitals gear appended a row.
+- `heightRow` / `weightRow` moved into `src/lib/body-measurement.ts`; the body-measurement route calls them (same rows as before). `measurementFromProfileEdit` is the PUT's decision: a row only for a value that is present, non-empty and DIFFERENT from the stored one; outside the chart's bounds is refused by name.
+- The modal sends height / weight only when their INPUT changed from the loaded value (an untouched 5'10" no longer round-trips through centimetres on every save) and, with them, `measured_on` — the viewer's local day (`localDayKey`). No other PUT caller sends it, so nothing else changes.
+- The rows are appended before the profile update and removed if it fails; they are written for the TARGET profile, so a guardian's edit lands on the athlete's timeline. The Vitals tab reloads when the owner's current height / weight change.
+
+**Proof.** Two more tests in `e2e/edit-profile.spec.ts`: the details open pre-filled, save, and a nickname leads `display_name` (a bad gender is a 400 by name); an untouched height adds no entry and keeps its stored centimetres, a changed one adds exactly one, a second untouched save still one. 38/38 on staging with the Vitals specs, the guardian console, the first-run checklist and login (Chromium + WebKit at 390). 375 px and desktop screenshots of the group read correctly. `npm run verify` exit 0: 4,202 tests in 451 files, 222 client chunks inside the floor; guardrails pass.
+
 ## September 30, 2026 — Fix round, part 1 (PR A): Edit Profile opens filled in, and an edit shows everywhere
 
 Tom, on gated production: *"The edit profile doesn't have the existing information populated. When you go and make changes in the settings to your profile, it doesn't translate to the rest of the app."* The stored data was fine. Four faults, each read off the code before anything changed; zero DDL.

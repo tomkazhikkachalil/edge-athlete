@@ -17,6 +17,7 @@ import type { Profile } from '@/lib/supabase';
 import type { PlaceValue } from '@/components/PlacePicker';
 import { profileToPlace } from '@/lib/geo/profile-place';
 import { formatHeight, formatSocialHandle } from '@/lib/formatters';
+import { GENDERS, type Gender } from '@/lib/profiles/private-details';
 import {
   isTargetLevel,
   parseRecruitingStatus,
@@ -36,6 +37,12 @@ export interface BasicForm {
   bio: string;
   avatar_file: File | null;
   visibility: 'public' | 'private';
+  // The private sign-up details (src/lib/profiles/private-details.ts) —
+  // owner-only, never offered for a supervised profile or in acting-as.
+  nickname: string;
+  phone: string;
+  gender: '' | Gender;
+  postal_code: string;
 }
 
 export interface VitalsForm {
@@ -96,6 +103,10 @@ export function formsFromProfile(profile: Profile | null | undefined): ProfileFo
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
+      nickname: (profile?.nickname || '').toString(),
+      phone: (profile?.phone || '').toString(),
+      gender: (GENDERS as readonly string[]).includes(profile?.gender ?? '') ? (profile!.gender as Gender) : '',
+      postal_code: (profile?.postal_code || '').toString(),
     },
     vitals: {
       height_cm: profile?.height_cm ? formatHeight(profile.height_cm) : '',
