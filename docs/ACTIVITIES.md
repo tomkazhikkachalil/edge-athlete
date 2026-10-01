@@ -143,6 +143,8 @@ The import routes, the link's mint, the inbound route and Polar's two connect ro
 
 ## Connected apps (Oct 1 2026, mig 247)
 
+> **PAUSED Oct 2 2026 (Tom) — built, tested, HIDDEN IN PRODUCTION.** The surface flag is off there; it stays on in CI, Preview and locally. Watch connections return with the native apps — `docs/ROADMAP_2026-10.md`. Activities inside Vitals and the file import are not part of the pause.
+
 Tom: *"You're supposed to connect permanently so anything you do with your smart watch will then populate on the app … you connect to the applications in settings."* A **connection** is a watch or an app the athlete links ONCE in Settings → Connected apps (`/settings?tab=connections`); every workout it records then arrives by itself, lands in Vitals, and is shared only when the athlete taps Share.
 
 **The table.** `activity_connections` (247, posture A): one row per athlete per source — `provider`, `status` (`active | revoked | error`), `provider_user_id` (how a webhook finds the row), `secret_ciphertext` (the OAuth tokens, sealed by the app), `token_hash` (the personal upload link, sha256 — the calendar feed token's shape), `connected_at`, `last_sync_at`, `last_error`. Classified `goes`; the deletion engine removes it by name. Disconnecting **deletes the row**; the activities it delivered stay — they are the athlete's.

@@ -1,5 +1,15 @@
 # Development Log
 
+## October 2, 2026 — Connected apps paused and hidden in production; the native apps go on the roadmap
+
+Tom, after seeing that the free Apple Watch route needs a paid third-party app and that a browser cannot reach a watch (no Web Bluetooth on any iPhone browser; workouts live in Apple Health, which only a native app may read): *"I think this will be the route we will take later. Let's for now pause this section and hide it from production… We'll need to officially have an Apple app and Google app, Android app, that goes in the store. So that should be on the roadmap."*
+
+- **Hidden in production.** `NEXT_PUBLIC_FEATURE_CONNECTED_APPS` removed from Vercel → Production; this merge's build is the one without it. Settings shows no Connected apps tab, Vitals and the import screen show no "Connect a watch", and the dashboard's Polar setup panel now sits behind the same flag (it was unconditional — a paused feature should not ask the owner for a setup nobody can use).
+- **Nothing is removed.** The code, migration 247 and `activity_connections` stay. The flag stays ON in CI's smoke build, in Preview and locally, so the connection specs keep running. The routes still answer for themselves (the flag is a surface switch); with no screen in production nothing reaches them. `CONNECTIONS_ENC_KEY` stays set.
+- **Not part of the pause:** activities inside Vitals and the file import — live for everyone.
+- **`docs/ROADMAP_2026-10.md`** (new): install the web app on a phone (the manifest is already there; the prompt and the instructions are not); the App Store and Google Play apps, staged — a companion app that reads the phone's health store first, recording from the wrist second; and Connected apps as built-and-paused, with how to resume.
+- **Tom's list from part 3 is dropped for now:** the Polar client, the three provider applications, the real Apple Watch test.
+
 ## October 2, 2026 — Migration 247 is on production; Connected apps switched on
 
 Tom ran `247_activity_connections.sql` on production. `npm run check:schema:prod`: OK on every facet, ledger head 247 — staging and production agree again.

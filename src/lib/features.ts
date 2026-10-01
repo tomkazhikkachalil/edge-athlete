@@ -53,6 +53,11 @@ export const FEATURE_FLAGS = {
    * its entry points; the routes answer for themselves (247 present, the
    * sealing key set, the supervised refusal) whatever this says. On for
    * production only once 247 has run there and CONNECTIONS_ENC_KEY is set.
+   *
+   * PAUSED IN PRODUCTION (Tom, Oct 2 2026): the flag is OFF there — watch
+   * connections come back with the native apps (docs/ROADMAP_2026-10.md).
+   * It stays ON in CI's smoke build, in Preview and locally, so the code
+   * keeps being tested while it waits.
    */
   FEATURE_CONNECTED_APPS: process.env.NEXT_PUBLIC_FEATURE_CONNECTED_APPS === '1',
 
