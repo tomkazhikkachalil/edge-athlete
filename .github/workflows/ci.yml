@@ -103,6 +103,9 @@ jobs:
       # match the prod build so guardian-console.spec.ts arms instead of
       # green-skipping on its flag probe.
       NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES: '1'
+      # Connected apps (mig 247, on staging since Oct 1 2026): a surface flag —
+      # on here so the smoke build renders Settings → Connected apps.
+      NEXT_PUBLIC_FEATURE_CONNECTED_APPS: '1'
       # Media-proxy token secret — throwaway for CI (signed+verified in-run).
       MEDIA_PROXY_SECRET: ci-media-proxy-secret-placeholder
     steps:

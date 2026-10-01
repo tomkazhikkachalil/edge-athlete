@@ -11,6 +11,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
 import { formatDistance, formatDuration, formatPace, readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
 import type { WeekTotal } from '@/lib/activities/totals';
@@ -39,6 +41,8 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
   // a viewer's way: nothing to show renders nothing (no "not available" line
   // under somebody else's Vitals).
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const { user } = useAuth();
+  const isSelf = user?.id === profileId;
   const [unit] = useState<DistanceUnit>(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -97,16 +101,26 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
 
   return (
     <div className="space-y-4 scroll-mt-24" id="vitals-activities" data-activities-tab>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold text-primary">Activities</h3>
           <p className="text-xs text-muted mt-0.5">Runs, rides, swims and hikes from your watch or app.</p>
         </div>
         {state.isOwner && (
-          <Link href="/activities/import" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-import-link>
-            <i className="fas fa-file-arrow-up text-xs" aria-hidden="true" />
-            Import activity
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Connections are the account's own (Settings): offered to the
+                athlete, never to a guardian looking at their athlete's Vitals. */}
+            {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
+              <Link href="/settings?tab=connections" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-connect-link>
+                <i className="fas fa-link text-xs" aria-hidden="true" />
+                Connect a watch
+              </Link>
+            )}
+            <Link href="/activities/import" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-import-link>
+              <i className="fas fa-file-arrow-up text-xs" aria-hidden="true" />
+              Import activity
+            </Link>
+          </div>
         )}
       </div>
 

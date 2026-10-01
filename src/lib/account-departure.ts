@@ -204,6 +204,7 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'approved_contacts.child_profile_id': 'goes',
   'approved_contacts.contact_profile_id': 'goes',
   'activities.profile_id': 'goes',
+  'activity_connections.profile_id': 'goes',
   'athlete_achievements.profile_id': 'goes',
   'athlete_claim_invites.profile_id': 'goes',
   'athlete_equipment.profile_id': 'goes',
