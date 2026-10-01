@@ -1,5 +1,27 @@
 # Development Log
 
+## October 1, 2026 — Fix round, part 3 (PR 1): activities are part of Vitals
+
+Tom: *"The Strava, Apple Watch etc. integration was supposed to be a part of the Vitals app. You're supposed to connect permanently so anything you do with your smart watch will then populate on the app. Because it's part of the Vitals section, the way it posts and displays will follow suit. Also you connect to the applications in Settings."* Four PRs; this is the one that needs no provider and no migration.
+
+**What a web-only product can connect to today** (a research run over the providers' own pages, Oct 1 — the facts the plan rests on, re-read at each PR):
+- **Strava — left out (Tom).** Its API Agreement and Policy (effective Jun 1 2026) allow an athlete's data to be shown only to that athlete, cached at most seven days, and not combined into our dataset. A permanent Vitals history, a shareable post and the recruiting dataset are all outside it.
+- **Apple Watch has no web or server API.** Something must run on the iPhone. Tom's route: a third-party bridge app (Health Auto Export, a one-time purchase for the athlete) posts each workout to a personal upload link — PR 3. Its export format is documented (id, type, start / end, duration, distance, heart-rate samples, a GPS route).
+- **Polar is open and self-serve** — PR 4. Its API agreement (Aug 22 2025) allows data to go to others only with the member's explicit permission and requires crediting Polar; tokens do not expire; an exercise is retrievable for 30 days.
+- **Garmin and Fitbit / Pixel are closed to new developers** (Garmin's application form is reported paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). Wahoo, COROS and Suunto take an application.
+- Tom's other decisions: the free route (no aggregator); a synced workout appears in Vitals at once and the athlete taps Share.
+
+**The gap this PR closes.** Vitals counted ONE thing: a completed `workout_sessions` row. An imported run moved no weekly bar, no streak, no active day, and lived on a separate profile tab.
+- `src/lib/vitals/session-math.ts`: `VitalsSession` (a completed workout or an activity) and the ONE week rule — summary, streak, active days, bars. The workout-only helpers in `workouts/dashboard.ts` and `vitals/derive.ts` now delegate to it (their 28 tests pass unchanged — the proof the rule did not move). `workouts/week.ts` holds `startOfWeek` so neither module imports the other.
+- `VitalsTab` merges both (`vitals/sessions.ts mergeSessions`): the hero, the weekly bars, the streak, the active-days ring and the 12-week overlay count both kinds; "Recent workouts" is **Recent sessions**; the hero reads "Sessions this week". A run in a week with no gym session keeps the streak alive.
+- **The Activities tab is a section of Vitals.** `?tab=activities` still works — it opens Vitals at that section, on `/athlete/[id]` and `/u/[username]`. Owners get Import Activity in the Vitals header.
+- `GET /api/profile/[profileId]/activities?sessions=1`: the last year as the seven fields the maths needs. **The Vitals "Workouts" privacy aspect now hides the activity listing** from a viewer (both forms of the read answer `hidden: true`); a single activity's page keeps its own gate, so a shared post still opens.
+- **A shared activity is a training post** (`post_category: 'training'`, set by the posts route), so it lists under Vitals → Training Activity.
+
+**Proof.** `vitals-sessions.test.ts` (merge, the week across kinds, a streak bridged by a run). `activities-profile.spec` (`@mobile`, Chromium + WebKit): an athlete with NO gym workout shows a session this week, an active day and two activities in Recent sessions; the old deep link lands in Vitals on both routes; no Activities tab; the shared activity is a training post under Training Activity; with Workouts hidden the listing and the section are gone for a viewer, the owner still reads everything and the shared activity still opens. 10/10 with `activities-ui`, `activities-api`, `vitals` and `vitals-mobile`. `npm run verify` exit 0: 4,234 tests in 454 files, 222 client chunks inside the floor; guardrails pass. 375 px and desktop screenshots.
+
+**Next:** PR 2 — migration 247 (the connections table, the wider `source` list), the token secret box and Settings → Connected apps; PR 3 — the Apple Watch upload link; PR 4 — Polar.
+
 ## October 1, 2026 — Maintenance after fix-round parts 1 and 2: the full checklist, all green
 
 **On main at `dde55615`** (#1025). Since the Sep 30 maintenance entry: migration 246 recorded (#1012), the Next advisory upgrade (#1020), fix round part 1 — Edit Profile opens filled in and an edit shows everywhere (#1021), the sign-up details in Edit Profile and height / weight on the Vitals timeline (#1022) — and part 2 — the theme schedule works and is the default (#1023), saves in order and the look kept through sign-out (#1024), club and league sites follow the visitor (#1025). Zero DDL across both parts.
