@@ -48,7 +48,7 @@ test('vitals: seed → hero → PBs → chart → log → visitor', { tag: '@smo
   await page.getByRole('button', { name: /vitals/i }).first().click();
 
   // Hero: 1 workout this week, exact volume math, streak >= 1, PB spotlight.
-  await expect(page.getByText('Workouts this week', { exact: false })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Sessions this week', { exact: false })).toBeVisible({ timeout: 15_000 });
   const volume = 5 * 185 + 3 * 205; // 1540
   await expect(page.getByText(`${volume.toLocaleString('en-US')} lbs`).first()).toBeVisible();
   await expect(page.getByText('Latest personal best')).toBeVisible();
@@ -77,7 +77,7 @@ test('vitals: seed → hero → PBs → chart → log → visitor', { tag: '@smo
 
   // The month-grouped diary opens from the Recent Workouts bubble; expanding
   // a session still shows its set line.
-  await page.getByRole('button', { name: /Recent workouts/i }).click();
+  await page.getByRole('button', { name: /Recent sessions/i }).click();
   const workoutsDialog = page.getByRole('dialog', { name: 'Workouts' });
   const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   await expect(workoutsDialog.getByRole('heading', { name: month })).toBeVisible();

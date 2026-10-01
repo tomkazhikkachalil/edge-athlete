@@ -2,8 +2,7 @@
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import ActivitiesTab from './activities/ActivitiesTab';
-import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Route } from 'lucide-react';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
@@ -35,7 +34,7 @@ const ALL_YEARS: number[] = (() => {
   return years;
 })();
 
-type TabType = 'all' | 'stats' | 'activities' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
+type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
@@ -61,10 +60,16 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
-const TAB_IDS: TabType[] = ['all', 'stats', 'activities', 'tagged', 'equipment', 'vitals', 'achievements'];
+const TAB_IDS: TabType[] = ['all', 'stats', 'tagged', 'equipment', 'vitals', 'achievements'];
+
+/** Activities were their own tab until Oct 1 2026; they are a section of
+ *  Vitals now. The old deep link (`?tab=activities` — the import page, the
+ *  activity screen and shared links use it) opens Vitals at that section. */
+export const ACTIVITIES_TAB_ALIAS = 'activities';
 
 /** `?tab=` values arrive from the URL, so anything unrecognised degrades to 'all'. */
 export function parseProfileTab(value: string | null | undefined): TabType {
+  if (value === ACTIVITIES_TAB_ALIAS) return 'vitals';
   return TAB_IDS.includes(value as TabType) ? (value as TabType) : 'all';
 }
 
@@ -425,13 +430,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
-    { id: 'activities' as TabType, label: 'Activities', icon: Route, count: counts.activities ?? 0 },
     { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
     { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
     { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
-    // Activities show to others only when there is one (a deep link still opens it).
-  ].filter(t => t.id !== 'activities' || isOwnProfile || t.count > 0 || activeTab === 'activities');
+  ];
 
   return (
     // scroll-mt clears the sticky AppHeader when the deep-link pin scrolls
@@ -516,11 +519,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           profileId={profileId}
           currentUserId={currentUserId}
           isOwnProfile={isOwnProfile}
+          focusSection={initialTab === ACTIVITIES_TAB_ALIAS ? 'activities' : undefined}
         />
       )}
-
-      {/* Activities tab (245) — its own gated fetch */}
-      {activeTab === 'activities' && <ActivitiesTab profileId={profileId} />}
 
       {/* Achievements tab */}
       {activeTab === 'achievements' && (

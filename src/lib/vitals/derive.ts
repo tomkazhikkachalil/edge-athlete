@@ -5,100 +5,40 @@
  * (that stays in workouts/dashboard.ts and workouts/pr-detection.ts).
  */
 
-import {
-  startOfWeek,
-  sessionSeconds,
-  sessionVolumeLbs,
-  type VitalEntryLike,
-} from '@/lib/workouts/dashboard';
+import { workoutSessions, type VitalEntryLike } from '@/lib/workouts/dashboard';
+import { sessionsActiveDays, sessionsWeeklyBars, type WeekBar } from './session-math';
 import { VITAL_METRICS_MAP, formatSecondsToDisplay } from '@/lib/vitals-config';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 const DAY_MS = 24 * 3600 * 1000;
 
-// ── Active days ──────────────────────────────────────────────────────────────
+// ── Active days and weekly bars — the workout-only views ─────────────────────
+// The rule itself is session-math.ts (it counts activities too once Vitals
+// has merged them in); these keep the workout-only callers and their tests.
+
+export type { WeekBar } from './session-math';
 
 /**
  * Distinct local days with at least one COMPLETED workout in the current
- * Monday-anchored week — the hero ring's fill (n of 7). Two sessions on one
- * day count once.
+ * Monday-anchored week — two sessions on one day count once.
  */
 export function activeDaysThisWeek(
   sessions: ServerWorkoutSession[],
   now: Date = new Date()
 ): number {
-  const weekStart = startOfWeek(now).getTime();
-  const weekEnd = weekStart + 7 * DAY_MS;
-  const days = new Set<string>();
-  for (const session of sessions) {
-    if (session.status !== 'completed') continue;
-    const d = new Date(session.started_at);
-    const t = d.getTime();
-    if (t < weekStart || t >= weekEnd) continue;
-    days.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-  }
-  return Math.min(7, days.size);
-}
-
-// ── Weekly bars ──────────────────────────────────────────────────────────────
-
-export interface WeekBar {
-  /** Local Monday of the week, YYYY-MM-DD. */
-  weekStart: string;
-  workouts: number;
-  volumeLbs: number;
-  seconds: number;
-  isCurrent: boolean;
-}
-
-function localDateKey(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
+  return sessionsActiveDays(workoutSessions(sessions), now);
 }
 
 /**
  * The last `weeks` Monday-anchored weeks (oldest first, current week last),
- * each with totals from COMPLETED sessions. Empty weeks render honestly as
- * zeros — a gap is part of the story. Week boundaries step by calendar date,
- * not fixed milliseconds, so DST shifts can't smear a bucket.
+ * each with totals from COMPLETED sessions.
  */
 export function weeklyBars(
   sessions: ServerWorkoutSession[],
   weeks: number,
   now: Date = new Date()
 ): WeekBar[] {
-  const starts: Date[] = [];
-  let cursor = startOfWeek(now);
-  for (let i = 0; i < weeks; i++) {
-    starts.unshift(cursor);
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() - 7);
-  }
-
-  const barByStart = new Map<number, WeekBar>();
-  const bars = starts.map((start, i) => {
-    const bar: WeekBar = {
-      weekStart: localDateKey(start),
-      workouts: 0,
-      volumeLbs: 0,
-      seconds: 0,
-      isCurrent: i === starts.length - 1,
-    };
-    barByStart.set(start.getTime(), bar);
-    return bar;
-  });
-
-  for (const session of sessions) {
-    if (session.status !== 'completed') continue;
-    const bar = barByStart.get(startOfWeek(new Date(session.started_at)).getTime());
-    if (!bar) continue;
-    bar.workouts += 1;
-    bar.volumeLbs += sessionVolumeLbs(session);
-    bar.seconds += sessionSeconds(session);
-  }
-
-  for (const bar of bars) bar.volumeLbs = Math.round(bar.volumeLbs);
-  return bars;
+  return sessionsWeeklyBars(workoutSessions(sessions), weeks, now);
 }
 
 // ── Milestones ───────────────────────────────────────────────────────────────

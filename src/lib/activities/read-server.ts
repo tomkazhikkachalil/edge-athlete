@@ -17,6 +17,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProfileRole } from '@/lib/auth-server';
 import { hiddenAuthorsFor } from '@/lib/mutes';
 import { canViewProfile } from '@/lib/privacy';
+import type { ActivitySession } from '@/lib/vitals/sessions';
+import { isActivityType } from './catalog';
 import { mondayOf, weeklyTotals, type WeekTotal } from './totals';
 import type { ActivityStream } from './types';
 import { ACTIVITY_COLUMNS, audienceFor, projectActivity, type ActivityAudience, type ActivityRow, type ActivityView } from './visibility';
@@ -100,6 +102,54 @@ export function decodeCursor(c: string | null): { startedAt: string; id: string 
   } catch {
     return null;
   }
+}
+
+/** How far back Vitals reads activity sessions (its weekly overlay shows 12
+ *  weeks; the streak walks back until a gap). */
+export const SESSIONS_WEEKS = 52;
+const SESSIONS_MAX = 500;
+
+/**
+ * The profile's recent activities as VITALS SESSIONS — id, type, name, start
+ * and the three numbers the week maths needs, nothing else (no route, no
+ * heart rate). Newest first. "Only me" is the owner's, as everywhere.
+ */
+export async function listActivitySessions(
+  admin: Admin,
+  profileId: string,
+  audience: ActivityAudience,
+  now: number = Date.now()
+): Promise<{ ok: true; sessions: ActivitySession[] } | { ok: false }> {
+  const since = new Date(now - SESSIONS_WEEKS * 7 * 86_400_000).toISOString();
+  let q = admin
+    .from('activities')
+    .select('id, activity_type, name, started_at, elapsed_s, moving_s, distance_m')
+    .eq('profile_id', profileId)
+    .gte('started_at', since)
+    .order('started_at', { ascending: false })
+    .limit(SESSIONS_MAX);
+  if (audience !== 'owner') q = q.eq('only_me', false);
+  const { data, error } = await q;
+  if (error) {
+    console.error('[activities] sessions read failed:', error.message);
+    return { ok: false };
+  }
+  const num = (v: unknown): number | null => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    ok: true,
+    sessions: ((data ?? []) as Array<Record<string, unknown>>).map(r => ({
+      id: r.id as string,
+      type: isActivityType(r.activity_type) ? r.activity_type : 'other',
+      name: (r.name as string) ?? '',
+      startedAt: r.started_at as string,
+      elapsedS: num(r.elapsed_s) ?? 0,
+      movingS: num(r.moving_s),
+      distanceM: num(r.distance_m),
+    })),
+  };
 }
 
 export async function listActivities(

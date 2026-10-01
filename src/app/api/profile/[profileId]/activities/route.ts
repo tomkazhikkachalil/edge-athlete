@@ -2,10 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isUuid } from '@/lib/uuid';
 import { reportRouteError } from '@/lib/observability/report';
-import { countActivities, decodeCursor, listActivities, readWeeklyTotals, resolveActivityAccess } from '@/lib/activities/read-server';
+import { countActivities, decodeCursor, listActivities, listActivitySessions, readWeeklyTotals, resolveActivityAccess } from '@/lib/activities/read-server';
+import { aspectHidden } from '@/lib/vitals-privacy';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 
 /**
- * GET /api/profile/[profileId]/activities — the profile's Activities tab.
+ * GET /api/profile/[profileId]/activities — the profile's activities, which
+ * live inside VITALS since Oct 1 2026 (they were their own tab).
+ *
+ * ?sessions=1 answers the Vitals week maths instead of a page: every
+ * activity of the last year as { id, type, name, startedAt, elapsedS,
+ * movingS, distanceM } — what the bars, the streak and the active-days ring
+ * count alongside workouts.
+ *
+ * VITALS PRIVACY applies to both forms: an athlete who hides Vitals, or its
+ * Workouts aspect, hides this listing from everyone but themselves and their
+ * guardians (`hidden: true`, the workouts route's own answer). A single
+ * activity's page keeps the activity gate alone — a post the athlete shared
+ * must still open.
  *
  * ?cursor=<opaque> pages the list (20, newest first); the first page also
  * carries the count and the last 12 weeks of totals. The gate is the
@@ -27,6 +41,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!access.ok) return NextResponse.json({ error: 'Profile not found' }, { status: 404, headers: NO_STORE });
 
     const url = new URL(request.url);
+    const isOwner = access.audience === 'owner';
+    const wantsSessions = url.searchParams.get('sessions') === '1';
+    if (!isOwner && aspectHidden(await fetchVitalsPrivacy(admin, profileId), 'workouts', isOwner)) {
+      return NextResponse.json(
+        wantsSessions ? { sessions: [], hidden: true } : { items: [], next: null, totals: [], count: 0, isOwner: false, hidden: true },
+        { headers: NO_STORE }
+      );
+    }
+    if (wantsSessions) {
+      const read = await listActivitySessions(admin, profileId, access.audience);
+      if (!read.ok) return NextResponse.json({ error: 'Could not load activities' }, { status: 500, headers: NO_STORE });
+      return NextResponse.json({ sessions: read.sessions }, { headers: NO_STORE });
+    }
     const rawCursor = url.searchParams.get('cursor');
     const cursor = decodeCursor(rawCursor);
     if (rawCursor && !cursor) return NextResponse.json({ error: 'Invalid cursor' }, { status: 400, headers: NO_STORE });
@@ -39,7 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ]);
     if (!list.ok) return NextResponse.json({ error: 'Could not load activities' }, { status: 500, headers: NO_STORE });
     return NextResponse.json(
-      { items: list.items, next: list.next, totals, count, isOwner: access.audience === 'owner' },
+      { items: list.items, next: list.next, totals, count, isOwner },
       { headers: NO_STORE }
     );
   } catch (error) {

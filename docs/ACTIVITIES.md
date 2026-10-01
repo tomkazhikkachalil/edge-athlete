@@ -16,7 +16,8 @@ and the pages `/activities/import` and `/activities/[id]`.
 - **Phase 1 is file import only.** Strava, Google Health (Fitbit / Pixel) and Garmin come in later rounds.
 - **Apple Watch uses file export for now** (HealthFit and similar). A companion iOS app is deferred.
 - **Route privacy.** Everyone except the owner sees the route with its **first and last ~200 m trimmed**. On a **supervised** athlete, only the athlete and their guardians see the map; everyone else gets the stats and charts with no position at all.
-- **The feed is the athlete's choice.** Imports land on the profile's Activities tab, and the athlete taps **Share to feed**.
+- **The feed is the athlete's choice.** Imports land in the athlete's Vitals, and the athlete taps **Share to feed**.
+- **Activities are part of Vitals (Oct 1 2026).** They were their own profile tab; see "Inside Vitals" below.
 - **FIT decoding uses Garmin's official `@garmin/fitsdk`**, server-side only (see the license note below).
 
 ## The entity
@@ -77,6 +78,33 @@ parties. A browser bundle would ship its source to every visitor, so:
 
 Every response is `private, no-store`, since it is viewer-dependent (the edge-cache trap).
 
+## Inside Vitals (Oct 1 2026)
+
+Tom: the watch integration "was supposed to be a part of the Vitals app". Until
+then Vitals counted one thing — a completed gym workout — and an imported run
+moved no weekly bar, no streak, no active day.
+
+- **One session shape.** `src/lib/vitals/session-math.ts` `VitalsSession` is a
+  completed workout or an activity; `sessionsWeeklySummary`, `sessionsStreakWeeks`,
+  `sessionsActiveDays` and `sessionsWeeklyBars` are the ONE week rule. The
+  workout-only helpers (`weeklySummary`, `streakWeeks`, `activeDaysThisWeek`,
+  `weeklyBars`) delegate to them. `src/lib/vitals/sessions.ts mergeSessions` is
+  what `VitalsTab` renders from.
+- **The read.** `GET /api/profile/[profileId]/activities?sessions=1` answers the
+  last year as `{ id, type, name, startedAt, elapsedS, movingS, distanceM }` —
+  no route, no heart rate. The page form (the Activities section's list) is
+  unchanged.
+- **Vitals privacy applies to the LISTING.** An athlete who hides Vitals, or its
+  Workouts aspect, hides both forms of that read from everyone but themselves and
+  their guardians (`hidden: true`). A single activity's page keeps the activity
+  gate alone, so a post the athlete shared still opens.
+- **The tab is gone; the link is not.** `?tab=activities` (the import page, the
+  activity screen and shared links use it) opens Vitals at its Activities section
+  on both profile routes (`ProfileMediaTabs.tsx parseProfileTab`, `u/[username]`).
+- **A shared activity is a training post** (`post_category: 'training'`, set by
+  the posts route), so it lists under Vitals → Training Activity like a shared
+  workout.
+
 ## Share to feed
 
 The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}`. That is a **request**:
@@ -93,7 +121,7 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 | `POST /api/activities/fit` | same | multipart: `file`, `tz`, `type?`, `targetProfileId?` |
 | `GET /api/activities/[id]` | the one gate | the detail projection + the athlete's name / handle |
 | `PATCH` / `DELETE /api/activities/[id]` | owner audience | name, type, Only me (refused while on the feed); delete takes the stream and the post |
-| `GET /api/profile/[profileId]/activities` | the one gate | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals |
+| `GET /api/profile/[profileId]/activities` | the one gate, then the Vitals privacy aspect for a viewer | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals; `?sessions=1` = the Vitals week maths' read |
 
 Both import routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
 
