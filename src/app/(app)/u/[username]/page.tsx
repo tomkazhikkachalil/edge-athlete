@@ -534,7 +534,7 @@ export default function PublicProfilePage() {
           </div>
         )}
         {activeSection === 'tagged' && (
-          <div className="mt-4" data-u-tagged="">
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-tagged="">
             <TaggedTab profileId={profile.id} currentUserId={user?.id} isOwnProfile={false} />
           </div>
         )}
@@ -556,7 +556,9 @@ export default function PublicProfilePage() {
             come from the aggregate's skillCards. Keyed on the sport so a
             strip-tap from Overview lands on that sport's layer. */}
         {activeSection === 'stats' && (
-          <div className="mt-4">
+          // In the card every other section sits in (Oct 2 2026): bare on the
+          // canvas it had half the inset and its sport chips ran to the screen edge.
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-stats="">
             <StatsHub
               key={statsSport ?? 'all'}
               profileId={profile.id}

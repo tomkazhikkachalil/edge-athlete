@@ -46,7 +46,7 @@ export default function EquipmentToolbar({
   isOwnProfile, onAdd, onOpenSettings,
 }: EquipmentToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <input
         type="search"
         value={search}

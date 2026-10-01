@@ -22,6 +22,12 @@ interface FilterBarProps {
  * a controls row (filters left, count pill + actions right) and the gray
  * status strip with the active-filter count and "Clear all filters" reset.
  * Markup/styling matches the original ProfileMediaTabs filter rows exactly.
+ *
+ * ONE block that carries its own spacing (Oct 2 2026). It used to return two
+ * bare rows and lean on a `space-y-6` parent for the gap between them — the
+ * Stats tab's parent had none, so the controls sat flush on the strip's
+ * border and the strip flush on the grid. A shared block never depends on
+ * its host for its own insides; the host only spaces what comes after it.
  */
 export default function FilterBar({
   children,
@@ -35,8 +41,8 @@ export default function FilterBar({
   const hasActive = activeCount > 0;
 
   return (
-    <>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="space-y-6" data-filter-bar="">
+      <div className="flex items-center justify-between gap-4 flex-wrap" data-filter-controls="">
         <div className="flex items-center gap-3 flex-wrap">{children}</div>
 
         <div className="flex items-center gap-3">
@@ -51,7 +57,7 @@ export default function FilterBar({
 
       {/* Filter status + clear-all — always visible so the reset affordance
           is discoverable. Muted when idle, brand-colored when active. */}
-      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-muted border border-border rounded-lg">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-muted border border-border rounded-lg" data-filter-status="">
         <div className="flex items-center gap-2 text-sm">
           <Filter
             className={`w-4 h-4 ${hasActive ? 'text-brand-fg' : 'text-faint'}`}
@@ -78,6 +84,6 @@ export default function FilterBar({
           Clear all filters
         </button>
       </div>
-    </>
+    </div>
   );
 }

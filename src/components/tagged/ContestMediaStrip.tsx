@@ -65,7 +65,7 @@ export default function ContestMediaStrip({ profileId }: { profileId: string }) 
 
   return (
     <section aria-label="Team media">
-      <h3 className="text-sm font-semibold text-secondary mb-2">
+      <h3 className="text-sm font-semibold text-secondary mb-3">
         <i className="fas fa-shield-halved mr-1.5 text-brand-fg" aria-hidden="true"></i>
         Team media
       </h3>

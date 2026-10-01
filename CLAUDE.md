@@ -302,6 +302,18 @@ runs against a directory of downloaded chunks (`node scripts/check-browser-synta
 - **24px** (`space-base`) - Intra-section gaps
 - **48px** (`space-section`) - Section gutters
 
+**As practised** (measured Oct 2 2026 across the feed, Settings, events, the org
+page and the profile tabs): heading → card `mb-3` / `mb-4` (12–16px); a filter or
+chip row → its content 16–24px; card ↔ card 16–24px; sections inside a tab
+`space-y-8`. Nothing leaves 0px between two bordered blocks.
+
+**A shared block carries its own spacing — never its parent's.** `FilterBar` used
+to return two bare rows and lean on a `space-y-6` host; the Stats tab's host had
+none, so the controls sat flush on the status strip and the strip flush on the
+grid. A fragment that needs its host to space its insides is a bug waiting for
+the next host. `e2e/profile-spacing.spec.ts` holds the RENDERED gap
+(`e2e/helpers/layout.ts`) on every tab that uses the bar, on both profile routes.
+
 ### Typography Scale
 - **H1:** 32px
 - **H2:** 24px

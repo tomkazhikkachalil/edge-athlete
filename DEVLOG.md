@@ -1,5 +1,26 @@
 # Development Log
 
+## October 2, 2026 — Fix round, part 5: nothing on the profile tabs sits flush on the next box
+
+Tom: on the profile, moving through the tabs, headers, buttons and filters sometimes sit right on top of the border of the next section — "there is no space" — while the rest of the app is spaced well.
+
+**Measured first, not guessed.** A throwaway spec walked every tab (Media, Stats, Vitals, Tagged, Equipment, Achievements) on `/athlete`, a visitor's `/athlete/[id]` and `/u/[username]`, at 1280 px and 390 px, and reported every vertical gap under 12 px beside a bordered box (36 screenshots; a content-rich public staging profile viewed as a visitor, the QA athlete as the owner).
+
+**What it found:**
+- **The Stats tab, 0 px twice** — on every route and width: the filter controls sat flush on the grey "No filters applied" strip, and the strip flush on the photo grid. Cause: `FilterBar` returned two bare rows and relied on a `space-y-6` parent. Media, Tagged and Achievements gave it one; `StatsHub`'s root had none.
+- 8 px between stacked action pills on a phone (Vitals: Start Workout / Log Past Workout / Import Activity; the Activities section's two links; the Equipment toolbar's wrapped rows).
+- From the code read, not present in the measured data: the Tagged "Team media" heading and the badge shelves' headings at 8 px above their grids, and the Progress group labels at 4 px above their bordered chips.
+- **`/u/[username]`**: Stats and Tagged sat bare on the page while Vitals and Equipment sat in a padded card — half the inset, and the sport chips ran to the screen edge on a phone.
+
+**Fixes (classes only; zero DDL):**
+- `FilterBar` is ONE block that spaces its own two rows (`space-y-6` — the look the three good tabs already had) — a host can no longer collapse it.
+- `StatsHub`: the bar and the results under it share one `space-y-6` stack (the shape TaggedTab and AchievementsTab use).
+- To the house values: the wrapped pill / toolbar rows `gap-2` → `gap-3`; the two headings `mb-2` → `mb-3`; the Progress labels `mb-1` → `mb-2`.
+- `/u`: Stats and Tagged sit in the same card as the route's other sections.
+- Left alone on purpose: the 8 px gutters between photo tiles (a grid gutter), and the tab bar → panel / section ↔ section gaps (already 24 / 32 px).
+
+**Proof.** The same measurement after the change: clean on every tab, route and width, on Chromium and WebKit. Kept: `e2e/profile-spacing.spec.ts` + `e2e/helpers/layout.ts` — on each tab that uses the filter bar, on `/athlete` and on `/u` (seen by a second signed-in athlete: the owner's own `/u` link redirects to `/athlete`, and a signed-out visitor meets the launch gate on production), the controls, the strip and the block under it are each at least 16 px apart, with no sideways scroll. The specs that drive these tabs still pass (`stats-hub-mobile`, `skill-cards-mobile`, `tagged`, `vitals`, `vitals-mobile`, `activities-profile`, `play-badges`, `play-rivals`, `play-challenges`, `performance-rollups`, `results-hide`, `achievements`): 33 of 34 in the batches — the one miss was `play-rivals` on WebKit, stuck on "Loading profile…" late in a nine-minute run on this Mac; it passed 4 of 4 re-run alone on both phone engines, and it does not read the code this PR changes. `npm run verify` and the guardrails pass.
+
 ## October 2, 2026 — Fix round, part 4: Edit Profile opens where you are
 
 Tom: choosing Edit Profile from the top-right menu on any page but his profile took him to the profile page, where he had to choose it again. "Settings and other settings seem to work fine. It's just the edit profile. I think that's because the edit profile comes up as a pop up." He was right about why.
