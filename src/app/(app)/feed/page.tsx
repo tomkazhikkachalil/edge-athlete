@@ -31,7 +31,6 @@ import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const EditPostModal = dynamic(() => import('@/components/EditPostModal'), { ssr: false });
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
-const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 interface Post {
   id: string;
@@ -120,7 +119,6 @@ export default function FeedPage() {
     }
   }, []);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
@@ -482,7 +480,6 @@ export default function FeedPage() {
       <AppHeader
         showSearch={true}
         onCreatePost={() => setIsCreatePostModalOpen(true)}
-        onEditProfile={() => setIsEditProfileModalOpen(true)}
       />
 
       {/* Main Layout */}
@@ -847,16 +844,6 @@ export default function FeedPage() {
         />
       )}
 
-      {/* Edit Profile Modal */}
-      <EditProfileTabs
-        isOpen={isEditProfileModalOpen}
-        onClose={() => setIsEditProfileModalOpen(false)}
-        profile={profile}
-        onSave={() => {
-          // The modal has already re-read the shared profile (useAuth).
-          setIsEditProfileModalOpen(false);
-        }}
-      />
 
       {/* Toast Container */}
     </div>

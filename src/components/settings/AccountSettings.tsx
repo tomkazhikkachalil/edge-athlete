@@ -3,15 +3,14 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
+import { useEditProfile } from '@/components/EditProfileHost';
 import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
 import { COPY } from '@/lib/copy';
 
-interface AccountSettingsProps {
-  onEditProfile?: () => void;
-}
-
-export default function AccountSettings({ onEditProfile }: AccountSettingsProps) {
+export default function AccountSettings() {
   const { profile } = useAuth();
+  // The shared editor (EditProfileHost) — opened over Settings, in place.
+  const editProfile = useEditProfile();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   return (
@@ -154,14 +153,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
 
           <div className="mt-8 pt-6 border-t border-border">
             <button
-              onClick={() => {
-                if (onEditProfile) {
-                  onEditProfile();
-                } else {
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- fallback exit from a settings surface; full reload keeps profile state honest
-                  window.location.href = '/athlete';
-                }
-              }}
+              onClick={() => editProfile.open()}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white font-semibold rounded-lg hover:bg-brand-hover transition-colors shadow-sm"
             >
               <i className="fas fa-edit"></i>

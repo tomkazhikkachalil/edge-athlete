@@ -121,8 +121,9 @@ export default defineConfig([
   //   src/app/invite/[token]/page.tsx           new guardian access row
   //   src/app/goodbye/page.tsx                  post sign-out
   //   src/components/settings/DeleteAccountModal.tsx  account no longer exists
-  //   src/components/settings/AccountSettings.tsx     exit to profile
   //   src/components/MultiSportActivity.tsx     route self-redirects per sport
+  //   (AccountSettings' "exit to profile" left the list on Oct 2 2026: its
+  //   button opens the shared editor in place — EditProfileHost.)
   //   src/app/error.tsx, src/app/global-error.tsx     boundary recovery
   //
   // The rule's suggested fix (router.push) is WRONG for all of them: the whole

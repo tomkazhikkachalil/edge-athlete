@@ -11,6 +11,7 @@ import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ModerationBanner from "@/components/ModerationBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import TabBar from '@/components/TabBar';
+import { EditProfileProvider } from '@/components/EditProfileHost';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -117,6 +118,9 @@ export default async function RootLayout({
           <ThemeApplier />
           <NotificationsProvider>
             <MessagesProvider>
+              {/* The ONE Edit Profile pop-up, opened from anywhere over the
+                  page the user is on (useEditProfile). */}
+              <EditProfileProvider>
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />
@@ -131,6 +135,7 @@ export default async function RootLayout({
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />
+              </EditProfileProvider>
             </MessagesProvider>
           </NotificationsProvider>
         </AuthProvider>

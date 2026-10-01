@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -17,8 +16,6 @@ import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettin
 import ConnectedApps from '@/components/settings/ConnectedApps';
 import { FEATURE_FLAGS } from '@/lib/features';
 
-// 1091-line modal — only loaded on demand
-const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
 
@@ -46,10 +43,9 @@ function TabParamReader({ onTab }: { onTab: (tab: SettingsTab) => void }) {
 }
 
 export default function SettingsPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const handleTabParam = useCallback((tab: SettingsTab) => setActiveTab(tab), []);
 
   // Six tabs are ~670px of intrinsic width against ~358px on a 390px phone,
@@ -197,7 +193,7 @@ export default function SettingsPage() {
           {/* Tab Content */}
           <div className="p-4 sm:p-6">
             {activeTab === 'account' && (
-              <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
+              <AccountSettings />
             )}
             {activeTab === 'privacy' && (
               <>
@@ -217,16 +213,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      <EditProfileTabs
-        isOpen={isEditProfileModalOpen}
-        onClose={() => setIsEditProfileModalOpen(false)}
-        profile={profile}
-        onSave={() => {
-          // The modal has already re-read the shared profile (useAuth).
-          setIsEditProfileModalOpen(false);
-        }}
-      />
     </div>
   );
 }
