@@ -156,10 +156,11 @@ fi
 # ── Advisory (never fails the build) ────────────────────────────────────────
 echo "▸ Advisories (review, non-blocking)"
 
-# dark: utilities under (public) are inert (the tree never stamps
-# data-theme) but signal a copy-paste from the app tree — worth a glance.
-adv=$(scan "dark:(bg|text|border|divide|shadow|from|to|via|ring|hover)-" 'src/app/(public)/**/*.tsx' | wc -l | tr -d ' ')
-[ "$adv" != "0" ] && note "$adv dark: utility sites under src/app/(public)/ — inert there; likely copy-paste from the app tree"
+# (public) follows its visitor's theme since Oct 1 2026: a hardcoded palette
+# colour there needs a dark: twin on the same line (tokens flip by
+# themselves; white-on-accent and photo overlays are theme-proof).
+adv=$(scan "(bg|text|border)-(amber|sky|emerald|red|gray)-(50|100|200|300|700|800|900)([^0-9]|$)" 'src/app/(public)/**/*.tsx' | grep -v "dark:" | grep -v "bg-red-700\|border-red-800" | wc -l | tr -d ' ')
+[ "$adv" != "0" ] && note "$adv hardcoded light colour(s) under src/app/(public)/ with no dark: twin on the line — a dark visitor sees them as they are"
 
 # Count-by-fetching: .select('id'|'*') whose result is measured with .length.
 adv=$(scan "\.select\('(id|\*)'\)" 'src/app/api/**/*.ts' | wc -l | tr -d ' ')
