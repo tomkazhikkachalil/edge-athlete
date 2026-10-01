@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVITY_TYPE_DEFS, ACTIVITY_TYPES, type ActivityType } from '@/lib/activities/catalog';
 
 const MAX_FILES = 10;
@@ -189,6 +190,17 @@ export default function ImportActivities() {
         <p className="text-secondary mt-1">
           Add runs, rides, hikes and more from your watch or app{activeProfile ? ` for ${activeProfile.first_name ?? activeProfile.full_name ?? 'your athlete'}` : ''}.
         </p>
+        {/* The standing alternative to a file (mig 247) — the account's own,
+            so never offered while acting for an athlete. */}
+        {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && !activeProfile && (
+          <p className="text-sm text-tertiary mt-1" data-import-connect-hint>
+            Tired of files?{' '}
+            <Link href="/settings?tab=connections" className="font-medium text-brand-fg underline">
+              Connect your watch
+            </Link>{' '}
+            once and workouts arrive by themselves.
+          </p>
+        )}
       </div>
 
       <label className="ea-surface flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-8 text-center cursor-pointer ea-interactive">

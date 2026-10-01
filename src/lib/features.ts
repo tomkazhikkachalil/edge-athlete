@@ -47,6 +47,15 @@ export const FEATURE_FLAGS = {
    */
   FEATURE_ORG_REGISTRATION: process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION === '1',
 
+  /**
+   * Connected apps (fix round part 3, mig 247): Settings → Connected apps.
+   * A pure SURFACE switch (the flag doctrine above): off hides the tab and
+   * its entry points; the routes answer for themselves (247 present, the
+   * sealing key set, the supervised refusal) whatever this says. On for
+   * production only once 247 has run there and CONNECTIONS_ENC_KEY is set.
+   */
+  FEATURE_CONNECTED_APPS: process.env.NEXT_PUBLIC_FEATURE_CONNECTED_APPS === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,

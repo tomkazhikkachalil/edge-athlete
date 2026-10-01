@@ -5,12 +5,16 @@
 // implausible with the reason, and writes the stream to storage BEFORE the
 // row (a row never points at a missing stream; a failed row write removes
 // the object it just wrote). A re-import of the same activity (the dedupe
-// key: the start second) refreshes the data and keeps what the athlete
-// chose — the name, the type, "Only me", the feed post.
+// key: the source's own id, for a file the start second) refreshes the data
+// and keeps what the athlete chose — the name, the type, "Only me", the feed
+// post. The SAME activity arriving from a second source (mig 247: a
+// provider, the upload link, a file) is still one activity — dedupe.ts.
 
 import { gzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidTimeZone } from '@/lib/calendar/time-zones';
+import type { ActivitySource } from './catalog';
+import { DEDUPE_START_WINDOW_S, findDuplicate, incomingIsRicher } from './dedupe';
 import { cleanPoints, defaultActivityName, fileExternalId, implausibility, localParts, summarize } from './normalize';
 import { buildStream, routePreview } from './stream';
 import type { NormalizedActivity } from './types';
@@ -33,7 +37,14 @@ export async function importActivity(
   admin: Admin,
   profileId: string,
   n: NormalizedActivity,
-  opts: { timeZone: string | null; now?: number }
+  opts: {
+    timeZone: string | null;
+    now?: number;
+    /** Where it came from. Default: a file import. */
+    source?: ActivitySource;
+    /** The source's own id for the activity. Default (and a file's): the start second. */
+    externalId?: string | null;
+  }
 ): Promise<ImportOutcome> {
   const cleaned = cleanPoints(n);
   if (cleaned.length < 2) return { ok: false, status: 422, error: 'This file has too few samples to be an activity.' };
@@ -43,18 +54,54 @@ export async function importActivity(
 
   const timeZone = opts.timeZone && isValidTimeZone(opts.timeZone) ? opts.timeZone : null;
   const local = localParts(summary.startedAt, n.tzOffsetMin, timeZone);
-  const externalId = fileExternalId(summary.startedAt);
+  const source: ActivitySource = opts.source ?? 'file';
+  const externalId = (opts.externalId && opts.externalId.trim().slice(0, 200)) || fileExternalId(summary.startedAt);
 
-  const { data: existing, error: readError } = await admin
+  // 1. The same source delivering the same id: a refresh.
+  const { data: exact, error: readError } = await admin
     .from('activities')
     .select('id')
     .eq('profile_id', profileId)
-    .eq('source', 'file')
+    .eq('source', source)
     .eq('external_id', externalId)
     .maybeSingle();
   if (readError) {
     console.error('[activities] dedupe read failed:', readError.message);
     return { ok: false, status: 500, error: 'Could not save the activity.' };
+  }
+  let existing: { id: string } | null = exact ? { id: exact.id as string } : null;
+
+  // 2. The same activity from ANOTHER delivery (dedupe.ts): one row. Its data
+  //    is replaced only by a richer copy; otherwise what is stored stands.
+  if (!existing) {
+    const windowMs = DEDUPE_START_WINDOW_S * 1000;
+    const { data: near, error: nearError } = await admin
+      .from('activities')
+      .select('id, started_at, elapsed_s, has_route, avg_hr')
+      .eq('profile_id', profileId)
+      .gte('started_at', new Date(summary.startedAt - windowMs).toISOString())
+      .lte('started_at', new Date(summary.startedAt + windowMs).toISOString())
+      .limit(20);
+    if (nearError) {
+      console.error('[activities] cross-source dedupe read failed:', nearError.message);
+      return { ok: false, status: 500, error: 'Could not save the activity.' };
+    }
+    const twin = findDuplicate(
+      (near ?? []).map(r => ({
+        id: r.id as string,
+        startedAt: Date.parse(r.started_at as string),
+        elapsedS: Number(r.elapsed_s) || 0,
+        hasRoute: r.has_route === true,
+        hasHeartRate: r.avg_hr != null,
+      })),
+      { startedAt: summary.startedAt, elapsedS: summary.elapsedS }
+    );
+    if (twin) {
+      if (!incomingIsRicher(twin, { hasRoute: summary.hasRoute, hasHeartRate: summary.avgHr != null })) {
+        return { ok: true, id: twin.id, duplicate: true };
+      }
+      existing = { id: twin.id };
+    }
   }
 
   const id: string = existing?.id ?? crypto.randomUUID();
@@ -101,7 +148,7 @@ export async function importActivity(
     id,
     profile_id: profileId,
     activity_type: n.type,
-    source: 'file',
+    source,
     external_id: externalId,
     name: (n.name && n.name.trim()) || defaultActivityName(n.type, local.hour),
     ...data,
@@ -115,7 +162,7 @@ export async function importActivity(
         .from('activities')
         .select('id')
         .eq('profile_id', profileId)
-        .eq('source', 'file')
+        .eq('source', source)
         .eq('external_id', externalId)
         .maybeSingle();
       if (winner?.id) return { ok: true, id: winner.id as string, duplicate: true };

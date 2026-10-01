@@ -132,13 +132,31 @@ Both import routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPO
 - **The storage sweep never touches `activities/`** (`PROTECTED_PREFIXES`). Streams leave only through the two paths above, and the QA teardown removes a QA athlete's streams.
 - **Retention:** an activity lives until the athlete deletes it or leaves (HARDENING B5: owner-controlled personal data, no timed purge).
 
-## Adding a provider (the seam)
+## Connected apps (Oct 1 2026, mig 247)
 
-1. **A connection table** for the provider's tokens, encrypted at rest (the app has no at-rest encryption helper yet, so build one; OAuth refresh tokens must be recoverable, unlike the hashed calendar feed tokens). Classify it `goes`.
-2. **An adapter** from the provider's payload to a `NormalizedActivity`. FIT deliveries (Garmin) reuse `parse-fit-server.ts`.
-3. **Widen `activities_source_check`** (a migration) and write through `importActivity` with the provider's own `external_id`. Cross-source dedupe (the same run from Strava and from a file) is a decision for that round.
-4. **Strava's API agreement** forbids showing one athlete's Strava data to other users. Strava-sourced rows must be **owner-only** at the projection (a `source` term in `visibility.ts`), and "Share to feed" must be refused for them.
-5. **Google Health API**, not the retired Fitbit Web API. **Garmin:** the Connect Developer Program (business approval).
+Tom: *"You're supposed to connect permanently so anything you do with your smart watch will then populate on the app … you connect to the applications in settings."* A **connection** is a watch or an app the athlete links ONCE in Settings → Connected apps (`/settings?tab=connections`); every workout it records then arrives by itself, lands in Vitals, and is shared only when the athlete taps Share.
+
+**The table.** `activity_connections` (247, posture A): one row per athlete per source — `provider`, `status` (`active | revoked | error`), `provider_user_id` (how a webhook finds the row), `secret_ciphertext` (the OAuth tokens, sealed by the app), `token_hash` (the personal upload link, sha256 — the calendar feed token's shape), `connected_at`, `last_sync_at`, `last_error`. Classified `goes`; the deletion engine removes it by name. Disconnecting **deletes the row**; the activities it delivered stay — they are the athlete's.
+
+**The vocabulary** (`catalog.ts ACTIVITY_SOURCES` ≡ 247's `activities_source_check`; `connections.ts CONNECTION_PROVIDERS` ≡ the provider CHECK = the sources without `file`; all pinned by test): `file`, `upload_link`, `polar`, `wahoo`, `coros`, `suunto`, `garmin`, `google_health`. Being named connects nothing — `PROVIDER_DEFS[provider].stage` says where each stands, and a card offers Connect only when it is `live`:
+
+| Source | What it is | Stage (Oct 1 2026) |
+|---|---|---|
+| `upload_link` | Apple Watch: a bridge app on the iPhone posts each workout to the athlete's personal upload link (Apple has no web or server API). | building — PR 3 |
+| `polar` | Polar AccessLink: self-serve OAuth, webhooks, FIT download. | building — PR 4 |
+| `wahoo` · `coros` · `suunto` | Open after the provider's own review. | applying |
+| `garmin` · `google_health` | Closed to new developers for now (Garmin's programme is paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). | closed |
+| Strava | **Left out (Tom).** Its API agreement (effective Jun 1 2026) lets an athlete's data be shown only to that athlete, kept at most seven days, and never combined into our dataset — a permanent Vitals history and a shareable post are not possible under it. | — |
+
+**The rules, each with its owner:**
+- **No response ever carries a secret.** `connections-server.ts` is the ONE reader and writer; its reader names the five display columns; `connections.ts projectConnections` builds the screen's entry key by key (a test serialises a too-wide row).
+- **Provider tokens are sealed** by `src/lib/crypto/secret-box-server.ts` (AES-256-GCM; `CONNECTIONS_ENC_KEY`, 32 random bytes in base64, plus `CONNECTIONS_ENC_KEY_PREVIOUS` during a rotation). The row and column are bound as additional data, so a box copied to another row does not open. **No key → sealing throws and opening answers null** — a connection is refused, never stored in the clear. Staging and production hold DIFFERENT keys.
+- **One activity, however many times it arrives** (`dedupe.ts`, applied by `importActivity`): the same source delivering the same id refreshes the row (the 245 rule); ANY delivery whose start is within 60 s of an activity the athlete already has, with a duration within 10%, IS that activity — the row keeps the identity of whoever delivered it first and its data is replaced only when the newcomer is richer (it has the route, or the heart rate, the first lacked).
+- **A supervised athlete cannot hold a connection** (the calendar feed link's rule: a standing delivery nobody in the guardian console can see). A guardian still imports files. A guardian connecting on an athlete's behalf is a later decision.
+- **Disconnect is not behind the moderation write gate** — withdrawing a standing delivery is always allowed.
+- **`NEXT_PUBLIC_FEATURE_CONNECTED_APPS`** is a SURFACE switch (the tab and its two entry points: the Vitals Activities section and the import screen). The routes answer for themselves: `GET /api/connections` says `supported` (247 has run), `ready` (the key is set) and `supervised`.
+
+**Adding a provider** is now: an adapter from its payload to a `NormalizedActivity` (FIT deliveries reuse `parse-fit-server.ts`); its connect / callback / webhook routes writing through `connections-server.ts` and `importActivity({ source, externalId })` with the provider's own id; `stage: 'live'` in `PROVIDER_DEFS`; its attribution wherever its brand rules ask. Read the provider's current agreement FIRST — a term that forbids showing an activity to followers stops the adapter (Strava's did).
 
 ## Not in phase 1 (decided)
 

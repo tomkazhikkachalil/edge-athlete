@@ -81,6 +81,8 @@ export const RATE_LIMITS = {
   challenge: { max: 20, windowSeconds: 86_400, keyBy: 'user' },
   // Activities (245): a file import — a batch of ten is one sitting; a whole season is several.
   'activity-import': { max: 60, windowSeconds: 3600, keyBy: 'user' },
+  // Connected apps (247): connect, rotate the upload link, disconnect — a handful of deliberate taps, never a loop.
+  'connection-write': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   follow: { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'conversation-create': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },

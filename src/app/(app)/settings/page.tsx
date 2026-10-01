@@ -14,13 +14,21 @@ import SecuritySettings from '@/components/settings/SecuritySettings';
 import SupportSettings from '@/components/settings/SupportSettings';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettings';
+import ConnectedApps from '@/components/settings/ConnectedApps';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // 1091-line modal — only loaded on demand
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
-type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'messaging' | 'notifications' | 'security' | 'support';
+type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
 
-const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'routines', 'messaging', 'notifications', 'security', 'support'];
+// Connected apps (fix round part 3, mig 247) is a flagged SURFACE: with the
+// flag off the tab is neither listed nor reachable by ?tab=connections.
+const CONNECTED_APPS = FEATURE_FLAGS.FEATURE_CONNECTED_APPS;
+
+const SETTINGS_TABS: SettingsTab[] = (
+  ['account', 'privacy', 'appearance', 'routines', 'connections', 'messaging', 'notifications', 'security', 'support'] as SettingsTab[]
+).filter(tab => tab !== 'connections' || CONNECTED_APPS);
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // honours ?tab=<id> so other surfaces can deep-link to a section (the chat
@@ -116,6 +124,8 @@ export default function SettingsPage() {
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
     { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'routines', label: 'Routines', icon: 'fa-dumbbell' },
+    // Beside Routines on purpose: both feed Vitals.
+    ...(CONNECTED_APPS ? [{ id: 'connections' as const, label: 'Connected apps', icon: 'fa-link' }] : []),
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
     { id: 'security', label: 'Security', icon: 'fa-lock' },
@@ -198,6 +208,7 @@ export default function SettingsPage() {
             )}
             {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'routines' && <WorkoutRoutinesSettings />}
+            {activeTab === 'connections' && CONNECTED_APPS && <ConnectedApps />}
             {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'security' && <SecuritySettings />}

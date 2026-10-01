@@ -25,6 +25,32 @@ export const ACTIVITY_TYPES = [
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
+/**
+ * Every way an activity can ARRIVE (mig 247) — mirrored by
+ * activities_source_check, pinned equal by the catalog test. `file` is the
+ * import sheet; `upload_link` is the athlete's personal upload link (the
+ * Apple Watch bridge); the rest are providers connected in Settings. Naming
+ * a provider here connects nothing — it is the word its adapter writes with
+ * once that provider's programme has admitted us (connections.ts says which
+ * are live).
+ */
+export const ACTIVITY_SOURCES = [
+  'file',
+  'upload_link',
+  'polar',
+  'wahoo',
+  'coros',
+  'suunto',
+  'garmin',
+  'google_health',
+] as const;
+
+export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
+
+export function isActivitySource(v: unknown): v is ActivitySource {
+  return typeof v === 'string' && (ACTIVITY_SOURCES as readonly string[]).includes(v);
+}
+
 /** How a type's speed reads: a pace (time per distance) or a speed. */
 export type PaceStyle = 'pace' | 'speed' | 'swim_pace';
 
