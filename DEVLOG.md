@@ -1,5 +1,12 @@
 # Development Log
 
+## September 30, 2026 — Advisory: next 16.3.4 → 16.3.8 (next/og ImageResponse, critical)
+
+`npm audit` began reporting **GHSA-vcvr-r3jv-pc5j** (critical): remote code execution in `next/og` `ImageResponse`, affecting next 16.2.0 – 16.3.5. We ship two `next/og` routes (`/r/[postId]/card.png`, `/org/[slug]/card.png`), and the hardening guardrail fails CI on any high advisory, so every open PR went red — found while closing the Edit Profile fix, landed first.
+
+- `npm update next eslint-config-next` inside the existing `^16.2.12` range: **16.3.8**, lockfile only (the #598 shape). `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm run verify` exit 0 (4,166 tests in 448 files; 221 client chunks inside the floor); guardrails pass; on staging `play-share-card` (the image itself, desktop + both phone engines), `org-site-share-card`, health, login and feed-post: 8/8.
+
 ## September 30, 2026 — Migration 246 ran on prod: the pg_cron jobs call edgeathlete.ca (go-live Phase 7)
 
 Tom ran 246 in the prod SQL editor: `246 APPLIED | 2 | 2 | 0 | 246` — `calendar-reminders` and `urgent-emails` now call `https://edgeathlete.ca/api/cron/…`, none call the vercel.app host, the secret was never re-typed. Staging: `246 APPLIED | 0 | 0 | 0 | 246` (no pg_cron there, the ledger row landed). `check:schema` on both: 245 rows, head 246, every file run. #1012 merged. The go-live checklist's Phase 7 cron item is done; the baseline regenerates at 246 with the next schema change (246 is data-only, so the baseline at 245 still describes the schema).
