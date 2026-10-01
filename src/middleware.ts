@@ -338,9 +338,13 @@ async function syncThemeCookie(
   const existing = request.cookies.get(THEME_COOKIE)?.value
 
   if (!userId) {
-    // Signed out: drop the server's copy. The device keeps its own look via
-    // the localStorage mirror rather than snapping back to light.
-    if (existing) response.cookies.delete(THEME_COOKIE)
+    // Signed out: LEAVE the cookie. It is this device's last-known look, and
+    // the sign-in page (and every other signed-out page) paints from it. It
+    // used to be deleted here, leaving only the localStorage mirror — which
+    // Safari evicts after seven idle days (script-written storage), so a
+    // device that had chosen dark came back to a sign-in page with no memory
+    // of it (Oct 1 2026). A display preference, never a credential; the next
+    // sign-in overwrites it with that account's own.
     return
   }
 

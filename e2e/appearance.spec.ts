@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { adminClient, createQaUser, deleteQaUser, mintStorageState, type QaUser } from './helpers/qa-user';
+import { adminClient, createQaUser, deleteQaUser, mintStorageState, previewBypassCookies, type QaUser } from './helpers/qa-user';
 
 // Appearance: the schedule works and is the default (Oct 1 2026).
 //
@@ -195,6 +195,105 @@ test('the top-menu switch pins the theme and turns the schedule off; Schedule br
     await option(page, 'Schedule').click();
     await expect(startField(page)).toHaveValue(hhmm(hours.start));
     await expect.poll(() => theme(page), { timeout: 10_000 }).toBe('dark');
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('two edits in quick succession are saved in order, even when the first save is slow @mobile', async ({ browser }) => {
+  // The first production probe caught this (Oct 1 2026): each save is a PATCH
+  // of the whole prefs object, two overlapping ones are last-write-wins on
+  // arrival, and the OLDER one arrived last. Staging's round trip is too fast
+  // to cross, so the first save is held on the wire here.
+  const { ctx, page } = await open(browser);
+  try {
+    await page.goto('/settings?tab=appearance');
+    const now = await minutesNow(page);
+    await setPrefs({ mode: 'scheduled', schedule: around(now) });
+    await page.reload();
+    await expect(startField(page)).toHaveValue(hhmm(around(now).start), { timeout: 20_000 });
+
+    let held = false;
+    let answered = 0;
+    await page.route('**/api/settings/theme', async route => {
+      if (!held) {
+        held = true;
+        await new Promise(resolve => setTimeout(resolve, 2_000));
+      }
+      await route.continue();
+    });
+    page.on('response', res => {
+      if (res.url().includes('/api/settings/theme')) answered += 1;
+    });
+
+    const target = ahead(now);
+    await startField(page).fill(hhmm(target.start));
+    await endField(page).fill(hhmm(target.end)); // leaving the start field saves it; this is the second edit
+    await endField(page).blur();
+
+    await expect.poll(() => answered, { timeout: 20_000 }).toBe(2);
+    expect(await storedPrefs()).toEqual({ mode: 'scheduled', schedule: target });
+    await expect(startField(page)).toHaveValue(hhmm(target.start));
+    await expect(endField(page)).toHaveValue(hhmm(target.end));
+  } finally {
+    await ctx.close();
+  }
+});
+
+// ── The signed-out pages keep the look (PR 2) ───────────────────────────────
+
+test('the device keeps the account\'s theme through sign-out: the sign-in page and coming-soon are dark @mobile', async ({ browser }) => {
+  await setPrefs({ mode: 'on' });
+  const { ctx, page } = await open(browser);
+  try {
+    await page.goto('/settings?tab=appearance');
+    await expect(option(page, 'Dark')).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+    expect(await theme(page)).toBe('dark');
+
+    // Sign out from the menu. The app does a full document load to `/` while
+    // the page's own signed-out redirect soft-navigates there too; WebKit
+    // reports the loser as "Frame load interrupted", so the URL is polled
+    // rather than awaited as a navigation, and the checks continue in a
+    // FRESH page of the same context (cookies and storage are per context —
+    // the house rule after a soft navigation on WebKit).
+    await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
+    await page.getByRole('button', { name: 'Sign Out' }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).not.toMatch(/^\/settings/);
+    await expect
+      .poll(async () => (await ctx.cookies()).some(c => /^sb-.*-auth-token/.test(c.name)), { timeout: 15_000 })
+      .toBe(false);
+    await page.close();
+    const out = await ctx.newPage();
+
+    // The server's copy survives sign-out — it used to be deleted on the
+    // first signed-out request, leaving only script-written storage.
+    for (const path of ['/?signin=1', '/auth/coming-soon', '/privacy']) {
+      await out.goto(path);
+      expect(await theme(out), path).toBe('dark');
+      expect((await ctx.cookies()).some(c => c.name === 'ea-theme'), `${path}: ea-theme cookie`).toBe(true);
+    }
+
+    // …and holds with the device's script-written storage gone (Safari
+    // evicts it after seven idle days): the cookie alone paints dark.
+    await out.evaluate(() => window.localStorage.clear());
+    await out.goto('/?signin=1');
+    expect(await theme(out)).toBe('dark');
+  } finally {
+    await ctx.close();
+    // The sign-out revoked this session; the later tests need a fresh one.
+    state = await mintStorageState(user!);
+  }
+});
+
+test('a device that has never signed in follows the schedule on the sign-in page @mobile', async ({ browser }) => {
+  // Truly empty: no theme cookie, no mirror (the shared signed-out state is pinned to light).
+  const ctx = await browser.newContext({ storageState: { cookies: await previewBypassCookies(), origins: [] } });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/?signin=1');
+    const now = await minutesNow(page);
+    test.skip([DEFAULT.start, DEFAULT.end].some(b => Math.abs(now - b) <= 1), 'on a schedule boundary');
+    expect(await theme(page)).toBe(inWindow(DEFAULT, now) ? 'dark' : 'light');
   } finally {
     await ctx.close();
   }

@@ -59,7 +59,10 @@ type Edge = 'start' | 'end';
 export default function AppearanceSettings() {
   const { prefs, ready, savePrefs } = useTheme();
   const { showSuccess, showError } = useToast();
-  const [saving, setSaving] = useState(false);
+  // A count, not a flag: saves queue (use-theme.ts), so a second can start
+  // before the first has finished.
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const saving = pendingSaves > 0;
   // The hours being typed. A time field used to save on EVERY change and was
   // disabled while saving — typing "21" lost focus after the "2". The typed
   // value now lives here, the field is never disabled, and it is committed
@@ -73,9 +76,9 @@ export default function AppearanceSettings() {
   const schedule = prefs.schedule ?? DEFAULT_SCHEDULE;
 
   const persist = async (next: Parameters<typeof savePrefs>[0], successMessage: string) => {
-    setSaving(true);
+    setPendingSaves(n => n + 1);
     const ok = await savePrefs(next);
-    setSaving(false);
+    setPendingSaves(n => n - 1);
     if (ok) showSuccess('Success', successMessage);
     else showError('Error', 'Failed to save appearance settings');
   };

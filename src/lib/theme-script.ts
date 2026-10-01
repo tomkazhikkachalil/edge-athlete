@@ -12,7 +12,7 @@
  *      the middleware on every document navigation (see theme-cookie.ts).
  *      Using it first is what removes the swap on a device whose stored copy
  *      is out of date, e.g. after the theme was changed on another device.
- *   2. the localStorage mirror — this device's memory, for signed-out and
+ *   2. the localStorage mirror — this device's memory, for never-signed-in and
  *      offline loads where no cookie is present.
  * When the cookie wins, its value is written back into the mirror so the
  * runtime evaluator (use-theme.ts, which reads the mirror) starts from the

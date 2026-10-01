@@ -12,7 +12,10 @@
  *
  * The head script reads this via document.cookie (hence NOT HttpOnly — it is
  * a display preference, never a credential) and falls back to the localStorage
- * mirror when the cookie is absent, which is the signed-out / offline case.
+ * mirror when the cookie is absent — a device that has never signed in, or
+ * an offline load. The cookie SURVIVES sign-out (the middleware no longer
+ * deletes it): it is the device's last-known look, and the sign-in page
+ * paints from it.
  *
  * Deliberately NOT read in the root layout via next/headers: doing so would
  * opt every route out of static rendering (32 prerendered routes at the time
