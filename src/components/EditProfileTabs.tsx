@@ -13,11 +13,17 @@ import {
   SCHOOL_MAX,
   TARGET_LEVELS,
   TARGET_LEVEL_LABEL,
-  isTargetLevel,
-  parseRecruitingStatus,
-  type RecruitingStatus,
   type TargetLevel,
 } from '@/lib/recruiting/profile';
+import {
+  UNSEEDED,
+  formsFromProfile,
+  justOpened,
+  recruitingAcademics,
+  seedKeyChanged,
+  shouldSeed,
+  type SeedKey,
+} from '@/lib/profiles/edit-forms';
 import { getSportDefinition, getAllSports, type SportKey } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import {
@@ -33,13 +39,11 @@ import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
-import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
-import { placeToProfileFields, profileToPlace } from '@/lib/geo/profile-place';
+import PlacePicker from '@/components/PlacePicker';
+import { placeToProfileFields } from '@/lib/geo/profile-place';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
-  formatHeight,
   getInitials,
-  formatSocialHandle,
   validateHeight
 } from '@/lib/formatters';
 
@@ -127,7 +131,7 @@ export default function EditProfileTabs({
   targetProfileId,
   initialTab
 }: EditProfileTabsProps) {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const actingAs = !!targetProfileId;
   // The visibility toggle is honest only for unsupervised self-edits: the
@@ -142,61 +146,64 @@ export default function EditProfileTabs({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Deep-link tab, applied on the open transition only. Render-phase state
-  // sync (house idiom — see the profile seeding below), so the deep-linked
-  // tab never paints a frame of 'basic' first.
-  const [syncedOpen, setSyncedOpen] = useState(isOpen);
-  if (syncedOpen !== isOpen) {
-    setSyncedOpen(isOpen);
-    if (isOpen && initialTab && visibleTabs.some(t => t.id === initialTab && t.enabled)) {
-      setActiveTab(initialTab as TabId);
-    }
-  }
-
-  // Form states - Initialize with empty strings to prevent controlled/uncontrolled warnings
-  const [basicForm, setBasicForm] = useState({
-    first_name: '',
-    middle_name: '',
-    last_name: '',
-    full_name: '', // Fallback display name (NOT editable, NOT a handle)
-    handle: '', // Unique @handle identifier (user-editable @username)
-    bio: '',
-    avatar_file: null as File | null,
-    visibility: 'public' as 'public' | 'private',
-  });
+  // Form states — the empty forms (never undefined: controlled inputs). The
+  // seeding block below fills them; shapes and the fill live in
+  // `src/lib/profiles/edit-forms.ts`.
+  const [basicForm, setBasicForm] = useState(() => formsFromProfile(null).basic);
 
   // Sport selection (order matters: first = primary). initialSports is the
   // loaded baseline for diffing adds/removes on save.
   const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
   const [initialSports, setInitialSports] = useState<SportKey[]>([]);
+  // The selection is loaded asynchronously (the effect below). Until it has
+  // landed, an EMPTY selection means "not loaded", not "no sports": a Basic
+  // save in that window used to send `sport: ''` and clear the primary sport
+  // (caught on WebKit by e2e/edit-profile.spec.ts, Sep 30 2026).
+  const [sportsLoaded, setSportsLoaded] = useState(false);
 
-  const [vitalsForm, setVitalsForm] = useState({
-    height_cm: '',
-    weight_kg: '',
-    weight_unit: 'lbs' as 'lbs' | 'kg' | 'stone',
-    dob: '',
-    location: '',
-    // Structured place behind the location text (migration 108). Null =
-    // free text only; the picker fills it when a suggestion is chosen.
-    place: null as PlaceValue | null,
-    class_year: '' as string | number,
-  });
+  const [vitalsForm, setVitalsForm] = useState(() => formsFromProfile(null).vitals);
 
-  const [socialsForm, setSocialsForm] = useState({
-    social_twitter: '',
-    social_instagram: '',
-    social_facebook: '',
-    social_tiktok: '',
-  });
+  const [socialsForm, setSocialsForm] = useState(() => formsFromProfile(null).socials);
 
   // Recruiting (R1): saved through its own gated route, never the profile PUT.
-  const [recruitingForm, setRecruitingForm] = useState({
-    status: 'closed' as RecruitingStatus,
-    school: '',
-    gpa: '',
-    academic_notes: '',
-    target_level: '' as '' | TargetLevel,
-  });
+  const [recruitingForm, setRecruitingForm] = useState(() => formsFromProfile(null).recruiting);
+  // Acting-as only: the profile GET strips `recruiting_profile` for a
+  // non-owner, so the academics arrive from the recruiting GET (effect
+  // below). Until they do, a Recruiting save would null them — Save waits.
+  const [academicsReady, setAcademicsReady] = useState(true);
+
+  // Bumped by every seed; the dirty-close baselines and the acting-as
+  // academics load key on it.
+  const [seedVersion, setSeedVersion] = useState(0);
+
+  // Fill the forms when the modal OPENS, and when the profile it edits
+  // becomes a different profile — never on a same-profile refresh while open
+  // (a save's refresh, the token refresh), which used to wipe unsaved typing
+  // in the other tabs. The tracker starts at a SENTINEL, not the mount-time
+  // props: every host mounts this modal with the profile already loaded, and
+  // a tracker that started equal to it never filled anything (Sep 30 2026 —
+  // Edit Profile opened blank on production; the deep-link tab was lost the
+  // same way). Render-phase state sync (house idiom), so neither the empty
+  // form nor the 'basic' tab paints for a frame.
+  const seedKey: SeedKey = { isOpen, profileId: profile?.id ?? null };
+  const [syncedSeed, setSyncedSeed] = useState<SeedKey>(UNSEEDED);
+  if (seedKeyChanged(syncedSeed, seedKey)) {
+    setSyncedSeed(seedKey);
+    // Deep-link tab, on the open transition only.
+    if (justOpened(syncedSeed, seedKey) && initialTab && visibleTabs.some(t => t.id === initialTab && t.enabled)) {
+      setActiveTab(initialTab as TabId);
+    }
+    if (shouldSeed(syncedSeed, seedKey)) {
+      const loaded = formsFromProfile(profile);
+      setBasicForm(loaded.basic);
+      setVitalsForm(loaded.vitals);
+      setSocialsForm(loaded.socials);
+      setRecruitingForm(loaded.recruiting);
+      setAcademicsReady(!actingAs);
+      setSeedVersion(v => v + 1);
+      // Sport settings come from /api/sport-settings (the effects below).
+    }
+  }
 
   // One entry per sport that has a settings schema, keyed by sport key.
   // Replaces the old hand-written `golfForm`/`equipmentForm` pair — every
@@ -316,6 +323,7 @@ export default function EditProfileTabs({
         for (const key of settingsKeys) if (!ordered.includes(key)) ordered.push(key);
         setSelectedSports(ordered);
         setInitialSports(ordered);
+        setSportsLoaded(true);
         snapRef.current.sports = JSON.stringify(ordered);
       } catch (e) {
         console.error('Error loading sports:', e);
@@ -326,68 +334,46 @@ export default function EditProfileTabs({
 
   // No conversion - save exactly what user enters
 
-  // Initialize forms when profile changes
-  // Seeding the form is state synchronisation — done during render so the
-  // previous values never paint for a frame.
-  const [syncedProfileTabs, setSyncedProfileTabs] = useState({ profile });
-  if (syncedProfileTabs.profile !== profile) {
-    setSyncedProfileTabs({ profile });
-    const loadedBasic = {
-      first_name: (profile?.first_name || '').toString(),
-      middle_name: (profile?.middle_name || '').toString(),
-      last_name: (profile?.last_name || '').toString(),
-      full_name: (profile?.full_name || '').toString(), // fallback display name (not editable)
-      handle: (profile?.handle || '').toString(), // unique @handle identifier
-      bio: (profile?.bio || '').toString(),
-      avatar_file: null as File | null,
-      visibility: (profile?.visibility || 'public') as 'public' | 'private',
-    };
-    setBasicForm(loadedBasic);
-
-    // Initialize weight with user's saved values - no conversion
-    const savedUnit = (profile?.weight_unit || 'lbs') as 'lbs' | 'kg' | 'stone';
-    const loadedVitals = {
-      height_cm: profile?.height_cm ? formatHeight(profile.height_cm) : '',
-      weight_kg: profile?.weight_display ? String(profile.weight_display) : '',
-      weight_unit: savedUnit,
-      dob: (profile?.dob || '').toString(),
-      location: (profile?.location || '').toString(),
-      place: profileToPlace(profile),
-      class_year: profile?.class_year ? String(profile.class_year) : '',
-    };
-    setVitalsForm(loadedVitals);
-
-    const loadedSocials = {
-      social_twitter: formatSocialHandle(profile?.social_twitter),
-      social_instagram: formatSocialHandle(profile?.social_instagram),
-      social_facebook: formatSocialHandle(profile?.social_facebook),
-      social_tiktok: formatSocialHandle(profile?.social_tiktok),
-    };
-    setSocialsForm(loadedSocials);
-
-    const rp = profile?.recruiting_profile ?? null;
-    setRecruitingForm({
-      status: parseRecruitingStatus(profile?.recruiting_status),
-      school: profile?.school ?? '',
-      gpa: typeof rp?.gpa === 'number' ? String(rp.gpa) : '',
-      academic_notes: rp?.academic_notes ?? '',
-      target_level: isTargetLevel(rp?.target_level) ? rp.target_level : '',
-    });
-
-    // Golf and equipment settings are now loaded from sport_settings API
-    // (see useEffect above that fetches from /api/sport-settings)
-  }
-
   // Dirty-close baselines are written to a REF, which must not happen during
-  // render. This effect runs right after the seeding render above, so it
-  // snapshots exactly the values that were just applied.
+  // render. This effect runs right after a seeding render (the block near the
+  // top bumps `seedVersion`), so it snapshots exactly the values that were
+  // just applied.
   useEffect(() => {
     snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
     snapRef.current.vitals = JSON.stringify(vitalsForm);
     snapRef.current.socials = JSON.stringify(socialsForm);
     snapRef.current.recruiting = JSON.stringify(recruitingForm);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the seed, not on every keystroke
+  }, [seedVersion]);
+
+  // Acting-as: load the athlete's academics from the recruiting GET (the
+  // guardian is `canEdit` there). Without this the Recruiting tab opened
+  // with GPA / notes / level blank and a save wrote the blanks —
+  // `recruitingPatchToUpdate` merges explicit nulls over the stored values.
+  useEffect(() => {
+    if (!isOpen || !targetProfileId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/profile/${targetProfileId}/recruiting`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.canEdit) return;
+        const academics = recruitingAcademics(data.profile);
+        setRecruitingForm(prev => ({ ...prev, ...academics }));
+        // The loaded academics are the baseline, not an unsaved edit (same
+        // key order as the form, so the dirty comparison holds).
+        const baseline = snapRef.current.recruiting ? JSON.parse(snapRef.current.recruiting) : {};
+        snapRef.current.recruiting = JSON.stringify({ ...baseline, ...academics });
+        setAcademicsReady(true);
+      } catch {
+        // Save stays disabled; reopening retries.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, targetProfileId, seedVersion]);
 
   // B8 (Sep 2026): removing a sport DELETES its sport_settings row — an
   // accidental uncheck silently loses per-sport settings and drops the
@@ -413,6 +399,12 @@ export default function EditProfileTabs({
     setIsSubmitting(true);
     setErrors({});
 
+    // `wrote`: something reached the server (even if a later step failed) —
+    // the shared profile is re-read either way. `saved`: the whole tab saved
+    // — the host is told. Both are settled in `finally`.
+    let wrote = false;
+    let saved = false;
+
     try {
       // Values may also be '' — the server's clear-to-null convention
       let updateData: Record<string, unknown> = {};
@@ -423,6 +415,9 @@ export default function EditProfileTabs({
           // Handle avatar upload if present
           if (basicForm.avatar_file) {
             await uploadAvatar(basicForm.avatar_file);
+            wrote = true;
+            // Uploaded: a later save must not send the same file again.
+            setBasicForm(prev => ({ ...prev, avatar_file: null }));
           }
 
           // Validate required fields
@@ -451,6 +446,7 @@ export default function EditProfileTabs({
                 // supervised PII guard) — err.error alone lost that copy.
                 throw new Error(err.message || err.error || 'Failed to update handle');
               }
+              wrote = true;
             }
           }
 
@@ -459,7 +455,8 @@ export default function EditProfileTabs({
           // theirs. Diffed against the loaded baseline. SKIPPED in acting-as
           // mode: /api/sport-settings is session-anchored and would silently
           // write the GUARDIAN's own sports (the picker is hidden there too).
-          if (!actingAs) {
+          // Skipped too while the selection has not loaded (see sportsLoaded).
+          if (!actingAs && sportsLoaded) {
             const added = selectedSports.filter(k => !initialSports.includes(k));
             const removed = initialSports.filter(k => !selectedSports.includes(k));
             await Promise.all([
@@ -474,6 +471,7 @@ export default function EditProfileTabs({
                 fetch(`/api/sport-settings?sport=${key}`, { method: 'DELETE' })
               ),
             ]);
+            if (added.length > 0 || removed.length > 0) wrote = true;
             setInitialSports(selectedSports);
           }
 
@@ -485,10 +483,12 @@ export default function EditProfileTabs({
             first_name: basicForm.first_name.trim(),
             middle_name: basicForm.middle_name.trim(),
             last_name: basicForm.last_name.trim(),
-            full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
+            // full_name / display_name are NOT sent: the server derives them
+            // from the name parts (src/lib/profiles/derive-names.ts). Sending
+            // the loaded full_name back is what kept the old name alive.
             bio: basicForm.bio.trim(),
             ...(hideVisibility ? {} : { visibility: basicForm.visibility }),
-            ...(actingAs
+            ...(actingAs || !sportsLoaded
               ? {}
               : { sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '' }),
           };
@@ -569,10 +569,10 @@ export default function EditProfileTabs({
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || 'Failed to save recruiting details');
           }
+          wrote = true;
+          saved = true;
           snapRef.current.recruiting = JSON.stringify(recruitingForm);
           showSuccess('Recruiting saved', 'Your recruiting details are up to date.');
-          onSave();
-          setIsSubmitting(false);
           return;
         }
 
@@ -629,7 +629,8 @@ export default function EditProfileTabs({
             storedSportSettingsRef.current[tabId] = merged;
             snapRef.current[sportSnapKey(tabId)] = serializeSportSettings(tabId);
             showSuccess('Changes Saved', `${sportName} settings updated successfully!`);
-            onSave(); // Refresh parent data
+            wrote = true;
+            saved = true;
           }
           return; // Exit early - don't update profiles table
       }
@@ -653,15 +654,21 @@ export default function EditProfileTabs({
         }
 
         await response.json();
+        wrote = true;
+        saved = true;
 
-        // The profile PUT covers basic/vitals/socials plus sports — refresh
-        // those snapshots so a saved tab no longer reads as unsaved.
-        snapRef.current.basic = serializeGroup.basic();
-        snapRef.current.vitals = serializeGroup.vitals();
-        snapRef.current.socials = serializeGroup.socials();
-        snapRef.current.sports = serializeGroup.sports();
+        // Only the SAVED tab's group becomes clean. This used to refresh all
+        // three snapshots, so saving Vitals marked unsaved Basic edits as
+        // saved and the modal closed on them without asking.
+        if (tabId === 'basic') {
+          snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
+          snapRef.current.sports = serializeGroup.sports();
+        } else if (tabId === 'vitals') {
+          snapRef.current.vitals = serializeGroup.vitals();
+        } else if (tabId === 'socials') {
+          snapRef.current.socials = serializeGroup.socials();
+        }
         showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
-        onSave(); // Refresh parent data
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save changes';
@@ -673,7 +680,14 @@ export default function EditProfileTabs({
       }
     } finally {
       sportRemovalOkRef.current = false;
+      // The shared profile (useAuth) is what the header, the chat dock, the
+      // feed card, /athlete and Settings render — re-read it HERE so no host
+      // can forget to. Three of them used to close under a comment saying
+      // useAuth refreshes itself; it does not. Acting-as edits someone else:
+      // that host re-reads the athlete in its onSave.
+      if (wrote && !actingAs) await refreshProfile();
       setIsSubmitting(false);
+      if (saved) onSave();
     }
   };
 
@@ -704,6 +718,10 @@ export default function EditProfileTabs({
     }
   };
 
+  // The name as the form holds it (avatar alt + initials) — the loaded
+  // full_name only when both parts are empty.
+  const formFullName = `${basicForm.first_name} ${basicForm.last_name}`.trim() || basicForm.full_name;
+
   const renderBasicTab = () => (
     <div className="space-y-6">
       {/* Avatar Upload */}
@@ -711,7 +729,7 @@ export default function EditProfileTabs({
         <div className="relative">
           <LazyImage
             src={profile?.avatar_url}
-            alt={`${basicForm.full_name || 'User'} avatar`}
+            alt={`${formFullName || 'User'} avatar`}
             className="w-20 h-20 rounded-full object-cover border-3 border-border-strong"
             width={80}
             height={80}
@@ -720,10 +738,10 @@ export default function EditProfileTabs({
               <div 
                 className="w-20 h-20 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-3 border-border-strong"
                 role="img"
-                aria-label={`${basicForm.full_name || 'User'} avatar`}
+                aria-label={`${formFullName || 'User'} avatar`}
               >
                 <span className="text-tertiary font-semibold text-xl" aria-hidden="true">
-                  {getInitials(basicForm.full_name)}
+                  {getInitials(formFullName)}
                 </span>
               </div>
             }
@@ -1402,7 +1420,7 @@ export default function EditProfileTabs({
           <div className="shrink-0 bg-surface-muted px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
               onClick={() => saveTab(activeTab)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (activeTab === 'recruiting' && !academicsReady)}
               className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-brand text-base font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (

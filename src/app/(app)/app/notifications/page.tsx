@@ -399,7 +399,7 @@ export default function NotificationsPage() {
         onClose={() => setIsEditProfileModalOpen(false)}
         profile={profile}
         onSave={() => {
-          // Profile will be refreshed automatically by useAuth
+          // The modal has already re-read the shared profile (useAuth).
           setIsEditProfileModalOpen(false);
         }}
       />
