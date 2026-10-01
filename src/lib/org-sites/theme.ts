@@ -1,4 +1,4 @@
-import { readableOn } from './accent-contrast';
+import { APP_SURFACE_DARK, readableOn } from './accent-contrast';
 import type { CSSProperties } from 'react';
 import { parseThemeTokens, resolveAccentPair, type ThemeTypeface } from './validate';
 import { templateSpec, type TemplateSpec } from './templates';
@@ -105,6 +105,9 @@ export function allFontFaceCss(): string {
 
 export interface ThemeAttrs {
   style?: CSSProperties;
+  /** Present only on a site with a FIXED look. A site that follows the
+   *  visitor wears nothing: the page's <html> carries the visitor's theme. */
+  'data-theme'?: 'light' | 'dark';
   'data-typeface': ThemeTypeface;
   'data-surface': string;
   'data-template': string;
@@ -125,10 +128,19 @@ export function themeAttrs(site: ThemeSource): ThemeAttrs {
     // for white on the accent (the hero), not 4.5:1 for the accent on white.
     // `.org-scope` points --brand-fg at this; the fills keep the accent.
     style['--org-accent-fg'] = readableOn(strong, '#ffffff') ?? strong;
+    // …and on the DARK surface, where a deep accent falls far under 4.5:1
+    // (violet-600 is ~2.9:1). The dark twin of `.org-scope` reads this one;
+    // the in-app org page derives its dark link colour the same way (brand.ts).
+    style['--org-accent-fg-dark'] = readableOn(accent, APP_SURFACE_DARK) ?? accent;
   }
   if (font) style['--org-heading-font'] = `'${font.family}', ${font.fallback}`;
   return {
     ...(Object.keys(style).length > 0 ? { style: style as CSSProperties } : {}),
+    // A fixed look is SERVER-rendered on the themed root — CSS only, so it
+    // holds for every visitor and across soft navigation (globals.css: the
+    // dark block applies to any element carrying the attribute, and
+    // [data-theme="light"] is a light island inside a dark page).
+    ...(tokens.appearance ? { 'data-theme': tokens.appearance } : {}),
     'data-typeface': tokens.typeface,
     'data-surface': tokens.surface,
     'data-template': templateSpec(site.template_id).id,
