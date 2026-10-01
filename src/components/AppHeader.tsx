@@ -17,6 +17,7 @@ import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
 import { useTheme } from '@/lib/use-theme';
+import { useEditProfile } from '@/components/EditProfileHost';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
@@ -84,6 +85,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const pathname = usePathname();
   const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const { theme, toggleNow: toggleTheme } = useTheme();
+  const editProfile = useEditProfile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   // Events program: the header's Create button opens a two-door sheet (Post | Event).
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -94,6 +96,12 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const [managedOrgs, setManagedOrgs] = useState<
     { kind: OrgKind; id: string; name: string }[] | null
   >(null);
+  // Either account menu just opened: fetch the Edit Profile editor's code now,
+  // so the tap on its entry is not waiting on it.
+  const preloadEditProfile = editProfile.preload;
+  useEffect(() => {
+    if (user?.id && (isProfileDropdownOpen || isMobileMenuOpen)) preloadEditProfile();
+  }, [user?.id, isProfileDropdownOpen, isMobileMenuOpen, preloadEditProfile]);
   useEffect(() => {
     if (!user?.id || managedOrgs !== null) return;
     if (!isProfileDropdownOpen && !isMobileMenuOpen) return;
@@ -694,11 +702,11 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       <div className="py-1">
                         <button
                           onClick={() => {
-                            if (onEditProfile) {
-                              onEditProfile();
-                            } else {
-                              router.push('/athlete');
-                            }
+                            // The page's own editor when it has one (the
+                            // profile page); else the shared one, opened over
+                            // THIS page — never a navigation to /athlete.
+                            if (onEditProfile) onEditProfile();
+                            else editProfile.open();
                             setIsProfileDropdownOpen(false);
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
@@ -1053,11 +1061,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
 
             <button
               onClick={() => {
-                if (onEditProfile) {
-                  onEditProfile();
-                } else {
-                  router.push('/athlete');
-                }
+                if (onEditProfile) onEditProfile();
+                else editProfile.open();
                 setIsMobileMenuOpen(false);
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"

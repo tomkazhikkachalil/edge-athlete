@@ -1,5 +1,21 @@
 # Development Log
 
+## October 2, 2026 — Fix round, part 4: Edit Profile opens where you are
+
+Tom: choosing Edit Profile from the top-right menu on any page but his profile took him to the profile page, where he had to choose it again. "Settings and other settings seem to work fine. It's just the edit profile. I think that's because the edit profile comes up as a pop up." He was right about why.
+
+**Cause.** The editor (`EditProfileTabs`) is a pop-up each page had to mount for itself, and the header opened it only when the page handed it a handler — else `router.push('/athlete')`. Three of ~65 pages that render the header did (feed, notifications, the profile page). Everywhere else the entry was a plain navigation to the profile with the editor closed. Both the desktop dropdown and the phone drawer.
+
+**Fix — one editor, mounted once at the app root** (`src/components/EditProfileHost.tsx`; the tab bar's and the chat dock's pattern):
+- `useEditProfile().open(tab?)` opens it over the page the user is on; closing or saving leaves them there. The header's two entries call it; the fallback navigation is gone.
+- Fetched on first use, not on page load; `preload()` runs when either account menu opens, so the tap is not waiting on ~1,000 lines.
+- A route change closes it (render-phase sync on `usePathname`) — a root-mounted pop-up must not follow the user to another page.
+- At the root it is also outside the header, whose `backdrop-blur` would clip a `fixed` pop-up to the header's own box.
+- **Three duplicate mounts removed** (feed, notifications, Settings — each did exactly what the host does); Settings → Account's "Edit Profile Details" opens the shared editor (its old fallback, a hard navigation to `/athlete`, went with its lint exemption).
+- **Kept their own, on purpose:** the profile page (reloads its own data after a save; owns `?edit=sport`) and the guardian's athlete page (a different profile). While acting as an athlete, the header's entry still edits the guardian's own profile — unchanged.
+
+**Proof.** `edit-profile.spec`, two new cases: from the account menu on `/calendar` and `/sports/explore` the editor opens filled in with the URL unchanged, closes in place, and a save from `/settings?tab=appearance` closes it there with the change stored; on a phone (Chromium + WebKit) the drawer opens it in place and Back — asserted to be a route change inside the same document — closes it. 48 of 48 with the neighbours (the guardian's acting-as editor, the `?edit=sport` deep link, the feed, Settings, the tab bar). `npm run verify` and the guardrails pass; desktop and 375 px screenshots.
+
 ## October 2, 2026 — Connected apps paused and hidden in production; the native apps go on the roadmap
 
 Tom, after seeing that the free Apple Watch route needs a paid third-party app and that a browser cannot reach a watch (no Web Bluetooth on any iPhone browser; workouts live in Apple Health, which only a native app may read): *"I think this will be the route we will take later. Let's for now pause this section and hide it from production… We'll need to officially have an Apple app and Google app, Android app, that goes in the store. So that should be on the roadmap."*

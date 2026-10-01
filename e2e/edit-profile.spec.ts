@@ -280,3 +280,73 @@ test('a height changed in Edit Profile lands on the Vitals timeline; an untouche
     .eq('id', alpha.id);
   expect(error).toBeNull();
 });
+
+// ── Part 4 (Oct 2 2026): Edit Profile opens where you are ────────────────────
+// The header's entry used to open the editor on three pages only (the ones
+// that mounted it) and NAVIGATE to /athlete everywhere else — a second tap
+// was needed there. The editor is mounted once at the app root now
+// (EditProfileHost) and opens over the page the user is on.
+
+const editDialog = (page: Page) => page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+
+test('the account menu opens Edit Profile over the page you are on — no trip to the profile page', async ({ page }) => {
+  const alpha = loadQaUser('user.json');
+
+  // Two pages whose header never had an editor of its own.
+  for (const path of ['/calendar', '/sports/explore']) {
+    await page.goto(path);
+    await page.locator('[data-profile-menu-trigger]').click();
+    await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
+    await expect(editDialog(page)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#first_name')).toHaveValue(String(prior!.first_name), { timeout: 20_000 });
+    await expect(page.locator('#bio')).toHaveValue(SEED.bio);
+    expect(new URL(page.url()).pathname, 'the editor opens in place').toBe(path);
+
+    // Closing leaves you where you were.
+    await page.getByRole('button', { name: 'Close modal' }).click();
+    await expect(editDialog(page)).toBeHidden();
+    expect(new URL(page.url()).pathname).toBe(path);
+  }
+
+  // A save from another page: the editor closes, you stay, the change is real.
+  const newBio = `Edited from Settings ${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await page.goto('/settings?tab=appearance');
+    await page.locator('[data-profile-menu-trigger]').click();
+    await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
+    await expect(page.locator('#bio')).toHaveValue(SEED.bio, { timeout: 20_000 });
+    await page.locator('#bio').fill(newBio);
+    await page.getByRole('button', { name: 'Save Basic' }).click();
+    await expect(editDialog(page)).toBeHidden({ timeout: 20_000 });
+    expect(page.url()).toContain('/settings?tab=appearance');
+    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible();
+    const res = await page.request.get(`/api/profile?id=${alpha.id}`);
+    expect((await res.json()).profile.bio).toBe(newBio);
+  } finally {
+    await adminClient().from('profiles').update({ bio: SEED.bio }).eq('id', alpha.id);
+  }
+});
+
+test('the phone menu opens Edit Profile in place; leaving the page closes it @mobile', async ({ page }) => {
+  // A client-side step first, so Back is a route change inside the app (the
+  // case a root-mounted pop-up must not survive).
+  await page.goto('/feed');
+  await page.locator('[data-tab-bar] [data-tab="calendar"]').click();
+  await page.waitForURL('**/calendar', { timeout: 20_000 });
+
+  await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
+  await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
+  await expect(editDialog(page)).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('#first_name')).toHaveValue(String(prior!.first_name), { timeout: 20_000 });
+  expect(new URL(page.url()).pathname).toBe('/calendar');
+  // Nothing spills sideways at phone width.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  // Marked so the assertion below knows Back was a route change INSIDE the
+  // app (a full reload would hide any pop-up and prove nothing).
+  await page.evaluate(() => { (window as unknown as { __eaSameDocument?: boolean }).__eaSameDocument = true; });
+  await page.goBack();
+  await page.waitForURL('**/feed', { timeout: 20_000 });
+  expect(await page.evaluate(() => (window as unknown as { __eaSameDocument?: boolean }).__eaSameDocument)).toBe(true);
+  await expect(editDialog(page)).toBeHidden();
+});

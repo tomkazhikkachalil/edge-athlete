@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -12,14 +11,12 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 
-// 1091-line modal — only loaded when user opens Edit Profile
-const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 type Tab = 'all' | 'unread' | 'follow' | 'engagement' | 'system';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -38,7 +35,6 @@ export default function NotificationsPage() {
   // always had — deletion is permanent and the trash icon sits next to the
   // tap target for opening the notification.
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -155,7 +151,6 @@ export default function NotificationsPage() {
       {/* Unified Header */}
       <AppHeader
         showSearch={false}
-        onEditProfile={() => setIsEditProfileModalOpen(true)}
       />
 
       {/* Notifications Page Header */}
@@ -393,16 +388,6 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Edit Profile Modal */}
-      <EditProfileTabs
-        isOpen={isEditProfileModalOpen}
-        onClose={() => setIsEditProfileModalOpen(false)}
-        profile={profile}
-        onSave={() => {
-          // The modal has already re-read the shared profile (useAuth).
-          setIsEditProfileModalOpen(false);
-        }}
-      />
     </div>
   );
 }
