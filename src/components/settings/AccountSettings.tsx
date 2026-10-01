@@ -109,8 +109,8 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
                   Date of Birth
                 </label>
                 <p className="text-base font-medium text-primary">
-                  {profile?.dob
-                    ? parseDateLocal(profile.dob).toLocaleDateString('en-US', {
+                  {(profile?.dob || profile?.birthday)
+                    ? parseDateLocal((profile.dob || profile.birthday) as string).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric'

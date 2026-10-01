@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { revalidatePublicHead } from '@/lib/profiles/public-head';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     // creation).
     const { data: target } = await supabaseAdmin
       .from('profiles')
-      .select('supervision_state, first_name, last_name, dob')
+      .select('supervision_state, first_name, last_name, dob, handle')
       .eq('id', profileId)
       .maybeSingle();
     const targetSupervised = target?.supervision_state === 'supervised';
@@ -123,6 +124,11 @@ export async function POST(request: NextRequest) {
         metadata: { fields: ['handle'] },
       }, user.id);
     }
+
+    // Both handles' cached /u/ heads: the old one no longer names this
+    // profile, the new one may hold a cached "no such athlete".
+    revalidatePublicHead(target?.handle as string | null | undefined);
+    revalidatePublicHead(result.new_handle as string | null | undefined);
 
     return NextResponse.json({
       success: true,
