@@ -1,5 +1,20 @@
 # Development Log
 
+## October 2, 2026 — Phone notifications: the keys are live, and the feed card asks until you choose
+
+**The keys.** Tom added the three VAPID values in Vercel, but production still answered `enabled: false` after a redeploy and a second one. The values are Sensitive, so they could not be read back. With Tom's go-ahead they were removed and set again from the CLI, exactly as generated: the public key and the subject plain, the private key Sensitive, Production only. After a redeploy, `/api/push/config` answers `enabled: true` with the public key.
+
+**"On by default" for existing accounts — what is possible.** Every account's `push_enabled` was already on: 2 of 2, none off. A DEVICE cannot be turned on for anyone. Apple and Google send nothing to a web app until the person taps Allow on that phone, and on an iPhone only inside the home-screen app. Tom chose option 1: make sure everyone is asked.
+
+**The change (zero DDL).** The feed card **stays until the person chooses**:
+- "Turn on notifications" ends it.
+- "Not now" — a new button, and the X now means the same — puts it away for **a week** on that device, then it asks again (`src/lib/push/card.ts`, pure, unit-tested).
+- A device blocked in the phone's settings is never asked.
+
+It used to be closable for good.
+
+**Proof:** 19 push unit cases. `e2e/push.spec.ts` on phone Chromium and WebKit: "Not now" hides the card, a reload keeps it hidden, the stored snooze is seven days, and a lapsed snooze brings it back. The neighbours `install-app` and `get-started-mobile` are green. One `install-app` desktop case timed out once (5 s) on the first test after a fresh server start, waiting for the lazily loaded install guide, then passed 3/3 alone. That code is untouched here.
+
 ## October 2, 2026 — Phone notifications: merged and checked on production
 
 **#1047 merged** (main `8d4192ad`) and production serves it. **Tom had already run 248** in the SQL editor (ledger: 14:53 UTC). `check:schema:prod` is OK at head 248, and `push_subscriptions` is live and empty.

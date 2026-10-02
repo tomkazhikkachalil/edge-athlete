@@ -165,3 +165,19 @@ describe('migration 248 and the code agree', () => {
     expect(sw).not.toMatch(/addEventListener\('fetch'/);
   });
 });
+
+describe('the feed card waits a week after "Not now", then asks again', () => {
+  it('snoozes for exactly seven days', async () => {
+    const { isSnoozed, parseSnooze, snoozeUntil, PUSH_CARD_SNOOZE_DAYS } = await import('../card');
+    const now = Date.parse('2026-10-02T12:00:00.000Z');
+    const until = parseSnooze(snoozeUntil(now));
+    expect(until).toBe(now + PUSH_CARD_SNOOZE_DAYS * 86_400_000);
+    expect(isSnoozed(until, now + 6 * 86_400_000)).toBe(true);
+    expect(isSnoozed(until, now + 7 * 86_400_000)).toBe(false);
+  });
+  it('never snoozed, or an unreadable value, asks', async () => {
+    const { isSnoozed, parseSnooze } = await import('../card');
+    expect(isSnoozed(parseSnooze(null), Date.now())).toBe(false);
+    expect(isSnoozed(parseSnooze('not a date'), Date.now())).toBe(false);
+  });
+});
