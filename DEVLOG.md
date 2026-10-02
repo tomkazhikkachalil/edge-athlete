@@ -1,5 +1,35 @@
 # Development Log
 
+## October 2, 2026 — Maintenance after fix-round parts 3, 4 and 5: the full checklist, all green
+
+**On main at `ee315ee7`** (#1035). Since the Oct 1 maintenance entry (`193dac8c`):
+- **Part 3 — watch and app activity** (#1027–#1033, migration 247): activities are a section of Vitals (#1027, live); Connected apps — the connections table, sealed tokens, one activity from many deliveries (#1028), the Apple Watch upload link (#1029), Polar (#1030) — built, proven, then **paused by Tom and hidden in production** (#1033) until the native apps; `docs/ROADMAP_2026-10.md` records the store apps and the installable web app.
+- **Part 4 — Edit Profile opens where you are** (#1034): one editor at the app root instead of one per page.
+- **Part 5 — profile tab spacing** (#1035): the Stats tab's filter rows no longer sit flush on each other; a measured, kept spacing check.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,297 tests in 458 files** (4,226 in 453 on Oct 1);
+- the production build (next 16.3.8);
+- 220 client chunks inside the iOS 15 / Safari 15 floor (222 on Oct 1 — three pages no longer carry their own copy of the profile editor).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes are unchanged: 104 `.select('id'|'*')` sites, 14 raw-error-shaped bodies.
+- **`npm audit --omit=dev`: 0 vulnerabilities.**
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 246 rows, head **247**, every file run — staging and production agree.
+- **Production:** health `ok`, database `ok`, serving main's head (`ee315ee7`); main's own CI (verify, guardrails, smoke) green on that commit; the launch gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+- **Vercel settings, as left:** Production holds `NEXT_PUBLIC_LAUNCH_GATE` and `CONNECTIONS_ENC_KEY` and NOT the Connected apps flag (the pause); Preview holds the flag and the staging key, so the paused code keeps its tests.
+- **Production probes since Oct 1** (signed-in, one at a time): Vitals + activities 5/5 (`f9766e47`); the import path 5/5 (`8b1b719e`, `72eeec0b`) and 10/10 (`9eb0a691`); connections + the upload link 7/7 with the flag on (`b63f7e56`), then hidden — no tab, no entry points, import and Vitals intact — 8 passed (`c6feb2e5`); Edit Profile 15/15 (`5f99d39e`); the spacing check + Vitals 5/5 (`ee315ee7`). Chromium and WebKit at phone width throughout.
+
+**Known, not owed to this pass:**
+- Everything under "Known" on Oct 1 still stands (the signed-out site tests proven on staging only while gated; the light site 404; `org-site-news-cover` failing locally on any branch; the `org-site*` specs starving this Mac in one run).
+- The Polar code has only ever met a stand-in server, and the Apple Watch adapter only fixtures — both are behind the pause; a real device is the first thing to do when they resume.
+- `play-rivals` on WebKit stalled once on "Loading profile…" late in a nine-minute local batch and passed 4 of 4 alone. If it recurs in CI it is a real slow-load to look at, not noise.
+- My own slip, recorded Oct 1: a staging migration during a CI smoke run failed that smoke. The rule since — read the head's check-runs before ANY staging work — was followed for every staging run in parts 4 and 5.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. Deferred finds from part 1 are unchanged (the profile header's Position / Team slots read columns that do not exist; a Google account with no last name cannot save the Basic tab; a guardian approving a parked sign-up keeps only name, DOB, handle and sport). Tom still owes from Sep 30: the Supabase "Allow new users to sign up" switch OFF while gated, and Vercel Pro. Nothing is owed for Connected apps while it is paused.
+
 ## October 2, 2026 — Fix round, part 5: nothing on the profile tabs sits flush on the next box
 
 Tom: on the profile, moving through the tabs, headers, buttons and filters sometimes sit right on top of the border of the next section — "there is no space" — while the rest of the app is spaced well.
