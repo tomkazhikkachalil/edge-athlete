@@ -1230,8 +1230,17 @@ export async function GET(request: NextRequest) {
     // posts.status exists since migration 051.
     // The org lens takes the strict published-only arm even for the author —
     // pending posts have no place in an org schedule of public content.
+    // Results hidden from the profile (241) are the one exception to "the
+    // author sees their own": migration 241 assumed a status alone would hide
+    // them, and this arm handed every hidden result straight back to its
+    // owner — in the feed, unmarked ("Hide doesn't work", Tom, Oct 2026).
+    // They are returned in ONE place: the owner's own profile list, where the
+    // card says it is hidden and offers the way back.
+    const ownProfileList = !!userId && userId === currentUserId && !pinnedOnly;
     query = currentUserId && !orgScope && !contestFilter
-      ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)  // hardening-ok: session UUID
+      ? query.or(ownProfileList
+          ? `status.eq.published,profile_id.eq.${currentUserId}`  // hardening-ok: session UUID
+          : `status.eq.published,and(profile_id.eq.${currentUserId},status.neq.profile_hidden)`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
 
     if (pinnedOnly) {

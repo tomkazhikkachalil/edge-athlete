@@ -5,7 +5,7 @@ import { resolveProfileAction } from '@/lib/profile-roles';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/uuid';
-import { readHiddenResults, setResultHidden } from '@/lib/results/hide-server';
+import { readHiddenResults, setWholeResultHidden } from '@/lib/results/hide-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -46,7 +46,8 @@ export async function PATCH(request: NextRequest) {
     if (!owner) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
     const allowed = owner === user.id || resolveProfileAction(await getProfileRole(user.id, owner), 'write_content');
     if (!allowed) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
-    const out = await setResultHidden(admin, { kind, id }, hidden, owner);
+    // The whole result: the post AND the owner's stats row move together.
+    const out = await setWholeResultHidden(admin, { kind, id }, hidden, owner);
     if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status, headers: NO_STORE });
     return NextResponse.json(out, { headers: NO_STORE });
   } catch (error) {

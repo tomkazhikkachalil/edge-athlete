@@ -128,11 +128,16 @@ export const COPY = {
     // stays on the record and keeps counting. Only an unplayed round deletes.
     HIDE_RESULT_TITLE: 'Hide from your profile?',
     HIDE_RESULT_CONFIRM:
-      'It leaves your profile and the feed, but stays on the record — it still counts toward your stats and handicap. You can show it again under Settings → Privacy.',
+      'It leaves the feed and nobody else sees it on your profile, but it stays on the record — it still counts toward your stats and handicap. You can show it again from your own profile or Settings → Privacy.',
     HIDE_ROUND_CONFIRM_PARTNERS: (n: number) =>
-      `It leaves your profile and the feed, but stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again under Settings → Privacy.`,
+      `It leaves the feed and nobody else sees it on your profile, but it stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again from your own profile or Settings → Privacy.`,
     HIDE_RESULT_ACTION: 'Hide',
     HIDE_RESULT_LABEL: 'Hide from profile',
+    // The way back, on the owner's own profile (Oct 2026).
+    PROFILE_HIDDEN_BANNER: 'Hidden from your profile — only you can see this. It still counts toward your stats.',
+    SHOW_RESULT_LABEL: 'Show on profile',
+    SHOWN_AGAIN_TITLE: 'Back on your profile',
+    SHOWN_AGAIN_BODY: 'Everyone who can see your profile can see it again.',
   },
 
   // Error Messages

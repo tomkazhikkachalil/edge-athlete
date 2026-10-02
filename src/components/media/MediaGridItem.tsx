@@ -36,6 +36,8 @@ export interface MediaItem {
   hashtags?: string[] | null;
   is_own_post: boolean;
   is_tagged: boolean;
+  /** Only ever set for the owner on their own grid: hidden from the profile (241). */
+  profile_hidden?: boolean;
   media?: Array<{
     id: string;
     media_url: string;
@@ -358,6 +360,16 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
           </div>
         </div>
       </div>
+
+      {/* Hidden from the profile — the owner's own grid only. */}
+      {item.profile_hidden && (
+        <div className="absolute top-2 left-2" data-tile-profile-hidden="">
+          <span className="px-2 py-1 bg-black/70 text-white text-xs font-semibold rounded-full">
+            <i className="fas fa-eye-slash mr-1" aria-hidden="true"></i>
+            Hidden
+          </span>
+        </div>
+      )}
 
       {/* Tagged indicator */}
       {item.is_tagged && !item.is_own_post && (

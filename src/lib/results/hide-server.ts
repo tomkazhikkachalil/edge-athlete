@@ -8,6 +8,7 @@
 // log against its event (Tom: both sides accountable).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { pairHiddenResults, type HiddenPostRow, type HiddenResultsList, type HiddenRoundRow } from './hidden-list';
 import { recordAuthority } from '@/lib/authority/audit-server';
 import { resolveResultOrigin } from './origin-server';
 
@@ -64,14 +65,66 @@ export async function setResultHidden(admin: Admin, target: HideTarget, hidden: 
   return { ok: true, hidden, official: origin.official };
 }
 
-/** The owner's hidden results (Settings → Privacy): rounds and result posts, newest first. */
-export async function readHiddenResults(admin: Admin, profileId: string): Promise<{ rounds: Array<{ id: string; date: string; course: string | null; gross_score: number | null; hidden_at: string }>; posts: Array<{ id: string; caption: string | null; sport_key: string | null; created_at: string; hidden_at: string }> }> {
+/**
+ * Hide or show the WHOLE result (fix round, Oct 2026). A round is two rows to
+ * the people looking at it — its feed post and the owner's stats row — and
+ * hiding one left the other in plain sight: "Hide" on the round page kept the
+ * post published for everyone, and Settings listed the pair as two things to
+ * show again. Every door goes through here; `setResultHidden` stays the one
+ * row writer underneath.
+ *
+ * The named row must succeed. Its partner is the same owner's row only (a
+ * playing partner hiding THEIR round never touches the creator's post) and
+ * follows best-effort: a post waiting for a guardian cannot change status,
+ * and that must not undo the hide the person asked for.
+ */
+export async function setWholeResultHidden(admin: Admin, target: HideTarget, hidden: boolean, ownerId: string): Promise<HideOutcome> {
+  const first = await setResultHidden(admin, target, hidden, ownerId);
+  if (!first.ok) return first;
+  try {
+    if (target.kind === 'post') {
+      const { data: post } = await admin.from('posts').select('group_post_id, round_id').eq('id', target.id).maybeSingle();
+      const p = post as { group_post_id: string | null; round_id: string | null } | null;
+      const roundIds = new Set<string>();
+      if (p?.group_post_id) {
+        const { data: mirrors } = await admin.from('golf_rounds').select('id').eq('group_post_id', p.group_post_id).eq('profile_id', ownerId);
+        for (const r of (mirrors ?? []) as { id: string }[]) roundIds.add(r.id);
+      }
+      if (p?.round_id) {
+        const { data: own } = await admin.from('golf_rounds').select('id').eq('id', p.round_id).eq('profile_id', ownerId).maybeSingle();
+        if (own) roundIds.add((own as { id: string }).id);
+      }
+      for (const id of roundIds) await setResultHidden(admin, { kind: 'golf_round', id }, hidden, ownerId);
+    } else {
+      const { data: round } = await admin.from('golf_rounds').select('group_post_id').eq('id', target.id).maybeSingle();
+      const groupPostId = (round as { group_post_id: string | null } | null)?.group_post_id ?? null;
+      const postIds = new Set<string>();
+      if (groupPostId) {
+        const { data: posts } = await admin.from('posts').select('id').eq('group_post_id', groupPostId).eq('profile_id', ownerId);
+        for (const row of (posts ?? []) as { id: string }[]) postIds.add(row.id);
+      }
+      const { data: legacy } = await admin.from('posts').select('id').eq('round_id', target.id).eq('profile_id', ownerId);
+      for (const row of (legacy ?? []) as { id: string }[]) postIds.add(row.id);
+      for (const id of postIds) await setResultHidden(admin, { kind: 'post', id }, hidden, ownerId);
+    }
+  } catch (error) {
+    console.error(`${TAG} pairing failed:`, error instanceof Error ? error.message : error);
+  }
+  return first;
+}
+
+/**
+ * The owner's hidden results (Settings → Privacy), newest first — ONE row per
+ * result: a round whose post is hidden too is listed as that post (carrying
+ * the course and the score), never as a second thing to show again.
+ */
+export async function readHiddenResults(admin: Admin, profileId: string): Promise<HiddenResultsList> {
   const [rounds, posts] = await Promise.all([
-    admin.from('golf_rounds').select('id, date, course, gross_score, profile_hidden_at').eq('profile_id', profileId).not('profile_hidden_at', 'is', null).order('profile_hidden_at', { ascending: false }).limit(100),
-    admin.from('posts').select('id, caption, sport_key, created_at, profile_hidden_at').eq('profile_id', profileId).eq('status', 'profile_hidden').order('profile_hidden_at', { ascending: false }).limit(100),
+    admin.from('golf_rounds').select('id, date, course, gross_score, profile_hidden_at, group_post_id').eq('profile_id', profileId).not('profile_hidden_at', 'is', null).order('profile_hidden_at', { ascending: false }).limit(100),
+    admin.from('posts').select('id, caption, sport_key, created_at, profile_hidden_at, group_post_id, round_id').eq('profile_id', profileId).eq('status', 'profile_hidden').order('profile_hidden_at', { ascending: false }).limit(100),
   ]);
-  return {
-    rounds: ((rounds.data ?? []) as Array<{ id: string; date: string; course: string | null; gross_score: number | null; profile_hidden_at: string }>).map(r => ({ id: r.id, date: r.date, course: r.course, gross_score: r.gross_score, hidden_at: r.profile_hidden_at })),
-    posts: ((posts.data ?? []) as Array<{ id: string; caption: string | null; sport_key: string | null; created_at: string; profile_hidden_at: string }>).map(p => ({ id: p.id, caption: p.caption, sport_key: p.sport_key, created_at: p.created_at, hidden_at: p.profile_hidden_at })),
-  };
+  return pairHiddenResults(
+    (rounds.data ?? []) as HiddenRoundRow[],
+    (posts.data ?? []) as HiddenPostRow[],
+  );
 }

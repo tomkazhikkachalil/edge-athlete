@@ -29,6 +29,7 @@ import TrackBreakdown from './TrackBreakdown';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { useToast } from '../Toast';
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 
 // Aspirational year catalog (whole range, not just posted years) — same
@@ -260,11 +261,17 @@ export default function StatsHub({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete post');
       }
-      setItems(prevItems => prevItems.filter(item => item.id !== postId));
+      // A result comes back hidden, not deleted (241): it stays on your own
+      // grid, marked — and the toast says which happened.
+      const body = await response.json().catch(() => ({}));
+      setItems(prevItems => body.hidden
+        ? prevItems.map(item => (item.id === postId ? { ...item, profile_hidden: true } : item))
+        : prevItems.filter(item => item.id !== postId));
       setIsModalOpen(false);
       setSelectedPostIndex(null);
       onCountsChanged?.();
-      showSuccess('Success', 'Post deleted successfully');
+      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }

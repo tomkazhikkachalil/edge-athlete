@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
         total_putts,
         is_complete,
         round_type,
-        created_at
+        created_at,
+        profile_hidden_at
       `)
       .eq('profile_id', profileId)
       .order('date', { ascending: false });
@@ -117,7 +118,11 @@ export async function GET(request: NextRequest) {
     const highlights = aggregateGolfHighlights(allRoundLikes);
 
     // Build recent activity (for getRecentActivity)
-    const recentRounds = scopedRounds.slice(0, 10).map(round => ({
+    // Hidden rounds (241) count in the aggregates above for everyone; they
+    // leave LISTS for other viewers — this one listed them and then answered
+    // a 404 when the row was opened.
+    const listed = viewer.id === profileId ? scopedRounds : scopedRounds.filter(r => !r.profile_hidden_at);
+    const recentRounds = listed.slice(0, 10).map(round => ({
       id: round.id,
       date: round.date,
       course: round.course,
