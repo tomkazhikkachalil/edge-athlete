@@ -111,7 +111,9 @@ test.afterAll(async () => {
   if (!groupPostId) return;
   const api = await apiAs('state.json');
   try {
-    await api.delete(`/api/group-posts/${groupPostId}`); // teardown's user delete is the backstop
+    // By name: the last test scores this round, and a bare DELETE of a scored
+    // round only hides it. Teardown's user delete is the backstop.
+    await api.delete(`/api/group-posts/${groupPostId}?mode=delete`);
   } finally {
     await api.dispose();
   }

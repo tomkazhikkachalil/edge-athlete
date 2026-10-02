@@ -266,3 +266,26 @@ describe('nextHoleForScores', () => {
     expect(nextHoleForScores([], 18, 1, null)).toEqual({ hole: 1, par: null, yardage: null });
   });
 });
+
+// ── holeNumberAtPosition (the scorer hands its hole to the map) ─────────────
+
+import { holeNumberAtPosition } from '../score-entry';
+
+describe('holeNumberAtPosition', () => {
+  it('is the hole the scorer is ON: position 1 of a front-nine start is hole 1', () => {
+    expect(holeNumberAtPosition(1, 1)).toBe(1);
+    expect(holeNumberAtPosition(1, 7)).toBe(7);
+  });
+  it('numbers a back-nine round from 10', () => {
+    expect(holeNumberAtPosition(10, 1)).toBe(10);
+    expect(holeNumberAtPosition(10, 9)).toBe(18);
+  });
+  it('never answers a hole before the start', () => {
+    expect(holeNumberAtPosition(1, 0)).toBe(1);
+  });
+  it('is not the NEXT unscored hole — scoring hole 1 does not move the map to hole 2', () => {
+    // What the map used before: the first hole with no saved score.
+    expect(nextHoleForScores([{ hole_number: 1 }], 18, 1, null)?.hole).toBe(2);
+    expect(holeNumberAtPosition(1, 1)).toBe(1);
+  });
+});

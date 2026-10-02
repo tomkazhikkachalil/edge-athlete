@@ -83,6 +83,25 @@ const targetIcon = () =>
     iconAnchor: [22, 22],
   });
 
+// The green's flag. No pin position exists in any course data — this marks
+// the END of the hole's line, the centre of the green — but a 6px green dot
+// on satellite grass was "hard to tell where the pin is" (Tom, Oct 2026).
+// A red flag on a white-cased pole, anchored at the pole's foot ON the point;
+// never interactive, so a tap on the green still places the target.
+const FLAG_H = 36;
+// The live page's control column over the map's top-right corner: three 44px
+// buttons, then the distance pill (~170px wide), from 12px in.
+const CONTROL_COLUMN_W = 190;
+const CONTROL_COLUMN_H = 264;
+
+const flagIcon = () =>
+  L.divIcon({
+    className: '',
+    html: '<svg data-green-flag="" width="30" height="36" viewBox="0 0 30 36" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))"><path d="M5 34V3" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/><path d="M5 34V3" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/><path d="M6 3.5 26 10 6 16.5Z" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    iconSize: [30, FLAG_H],
+    iconAnchor: [5, 34],
+  });
+
 export default function CourseMapInner({
   lat,
   lng,
@@ -171,6 +190,7 @@ export default function CourseMapInner({
   // ── Per-hole geometry layers (OSM golf=hole ways) ─────────────────────────
   const holeLabelsRef = useRef<L.LayerGroup | null>(null);
   const focusLineRef = useRef<L.LayerGroup | null>(null);
+  const lastFitRef = useRef<string | null>(null);
   const onHoleTapRef = useRef(onHoleTap);
   useEffect(() => {
     onHoleTapRef.current = onHoleTap;
@@ -214,7 +234,12 @@ export default function CourseMapInner({
     focusLineRef.current?.remove();
     focusLineRef.current = null;
     const h = focusHole != null ? holes?.find(x => x.hole === focusHole) : null;
-    if (!h) return;
+    if (!h) {
+      // Nothing focused (the Map tab is not showing, or the hole has no
+      // line): the next focus fits afresh.
+      lastFitRef.current = null;
+      return;
+    }
     const group = L.layerGroup();
     group.addLayer(
       L.circleMarker(h.line[h.line.length - 1], {
@@ -225,17 +250,42 @@ export default function CourseMapInner({
         fillOpacity: 1,
       })
     );
+    group.addLayer(L.marker(h.line[h.line.length - 1], { icon: flagIcon(), interactive: false, keyboard: false }));
     group.addTo(map);
     focusLineRef.current = group;
-    // Ref-only: the Re-center button's visibility derives from focusActive
-    // in render (setState here trips react-hooks/set-state-in-effect).
-    followRef.current = false;
-    map.fitBounds(L.latLngBounds(h.line), { padding: [60, 60], maxZoom: 18 });
+    // Fit when the focus MOVES — another hole, or this hole's line arriving
+    // or changing — never because `holes` is a new array: the page rebuilds
+    // it on every score poll, and each one yanked the view back to the hole
+    // (and took Re-center's follow away again).
+    const fitKey = `${h.hole}:${h.line.map(p => `${p[0]},${p[1]}`).join(';')}`;
+    if (lastFitRef.current !== fitKey) {
+      lastFitRef.current = fitKey;
+      // Ref-only: the Re-center button's visibility derives from focusActive
+      // in render (setState here trips react-hooks/set-state-in-effect).
+      followRef.current = false;
+      // Taller padding top and bottom than at the sides: the live page lays
+      // its hole chip over the top of the map and "Score hole N" over the
+      // bottom, and a hole that runs straight up the screen put its green —
+      // and now its flag — underneath the chip (found by gps-hole-flag.spec).
+      const bounds = L.latLngBounds(h.line);
+      const fit = (rightPad: number) =>
+        map.fitBounds(bounds, { paddingTopLeft: [50, 116], paddingBottomRight: [rightPad, 104], maxZoom: 18, animate: false });
+      fit(50);
+      // The control column (layers, tracking, re-center, then the "yds to
+      // green" pill) hangs down the map's top-right corner. A green that
+      // lands under it loses its flag behind the very pill that names it —
+      // so that hole is fitted again with the column's width kept clear.
+      if (overlayControls) {
+        const green = map.latLngToContainerPoint(h.line[h.line.length - 1]);
+        const underColumn = green.x > map.getSize().x - CONTROL_COLUMN_W && green.y - FLAG_H < CONTROL_COLUMN_H;
+        if (underColumn) fit(CONTROL_COLUMN_W);
+      }
+    }
     return () => {
       focusLineRef.current?.remove();
       focusLineRef.current = null;
     };
-  }, [focusHole, holes]);
+  }, [focusHole, holes, overlayControls]);
 
   // Blank-tiles guard: a map shown from a hidden tab must re-measure.
   useEffect(() => {
