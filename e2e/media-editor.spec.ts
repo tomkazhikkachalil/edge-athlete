@@ -30,7 +30,7 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   const undoBtn = page.getByRole('button', { name: 'Undo', exact: true });
   await expect(undoBtn).toBeVisible();
   await undoBtn.click();
-  // Undo restored 'free' → the Original chip is the active one again.
+  // Undo restored 'free' → the Free chip is the active one again.
   await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled();
 
   // Re-apply the crop.

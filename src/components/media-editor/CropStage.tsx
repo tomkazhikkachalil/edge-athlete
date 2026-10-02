@@ -27,9 +27,15 @@ interface CropStageProps {
 }
 
 /**
- * Crop tool: react-easy-crop stage (pinch/drag, touch-first) + ratio chips,
- * quarter-turn rotate, straighten slider. 'free' behaves as the image's own
- * ratio (react-easy-crop is fixed-aspect by design) — labeled "Original".
+ * The FIXED-FRAME crop tool: react-easy-crop stage (pinch/drag the picture
+ * under a frame of one ratio) + quarter-turn rotate, flip, straighten slider.
+ *
+ * Since Oct 2026 this serves only the surfaces that ENFORCE a ratio (avatar,
+ * cover, org logo — MediaEditorModal picks it on `config.enforcedRatio`),
+ * where placing the picture inside a given frame is the right gesture.
+ * Everywhere else the person shapes the crop box by hand: FreeCropStage.
+ * (The ratio chips and the 'free' = "Original" branch below are unreachable
+ * from those surfaces; they stay so the component is still whole on its own.)
  */
 export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch }: CropStageProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });

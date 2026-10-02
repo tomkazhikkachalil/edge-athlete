@@ -25,6 +25,15 @@ describe('labelForKeys', () => {
     expect(labelForKeys('clips')).toBe('Clips');
   });
 
+  it('labels the hands-on crop: every gesture is a Crop, reset and flip say so', () => {
+    expect(labelForKeys('crop.1')).toBe('Crop');
+    expect(labelForKeys('crop.42')).toBe('Crop');
+    expect(labelForKeys('crop.key.se')).toBe('Crop');
+    expect(labelForKeys('crop.reset')).toBe('Reset crop');
+    expect(labelForKeys('flipH')).toBe('Flip');
+    expect(labelForKeys('flipV')).toBe('Flip');
+  });
+
   it('degrades unknown keys to a generic label, never throws', () => {
     expect(labelForKeys('future.tool')).toBe('Edit');
     expect(labelForKeys('')).toBe('Edit');

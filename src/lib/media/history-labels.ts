@@ -12,6 +12,9 @@ const LABELS: Record<string, string> = {
   aspect: 'Crop ratio',
   rotate: 'Rotate',
   straighten: 'Straighten',
+  flipH: 'Flip',
+  flipV: 'Flip',
+  'crop.reset': 'Reset crop',
   // Light
   'light.exposure': 'Exposure',
   'light.highlights': 'Highlights',
@@ -67,5 +70,8 @@ export function labelForKeys(keys: string | null): string {
   if (keys === 'overlay.add') return 'Add text';
   if (keys === 'overlay.delete') return 'Remove text';
   if (keys.startsWith('overlay.')) return 'Text';
+  // Hands-on crop: one key per gesture ('crop.7') or per nudged handle
+  // ('crop.key.se'), so each drag is its own undo step.
+  if (keys.startsWith('crop.') && !(keys in LABELS)) return 'Crop';
   return LABELS[keys] ?? 'Edit';
 }
