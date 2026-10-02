@@ -1,5 +1,26 @@
 # Development Log
 
+## October 2, 2026 — Phone notifications: merged and checked on production
+
+**#1047 merged** (main `8d4192ad`) and production serves it. **Tom had already run 248** in the SQL editor (ledger: 14:53 UTC). `check:schema:prod` is OK at head 248, and `push_subscriptions` is live and empty.
+
+**Production, before the keys exist:**
+- `/api/push/config` answers `enabled: false`, so no switch and no card show anywhere.
+- `/sw.js` answers 200 with `no-cache` and `Service-Worker-Allowed: /`.
+- The nonce policy carries `worker-src 'self'`.
+- The sweep refuses a call without its secret (401), and a signed-out subscribe gets 401.
+- The launch gate, the manifest and the icons are unchanged.
+
+**The every-minute job runs.** The production case of `e2e/push.spec.ts` now asserts the CLAIM even without keys: the sweep stamps every row it considers. A QA notification was stamped by the job about 6 s after it was written. The device half of that case (a failed try on an unreachable endpoint) turns on by itself once the keys exist.
+
+**The probe: 47 passed, 3 skipped, 0 failed** — desktop 13, phone Chromium 17, phone WebKit 17, no retries. Specs: health, push, feed-post, edit-profile, install-app, get-started-mobile, messaging-notifications, comment-author-link, crop-freeform, vitals.
+- The three skipped are the push cases that need the stand-in or the keys. The phone ones ran their worker-registration and CSP checks first, which passed, then skipped at the missing keys.
+- Afterwards production held no QA accounts and no push rows.
+
+**Owed by Tom:**
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in Vercel, then a redeploy. After that, re-run `push.spec` against production.
+- His iPhone: the app from the icon → Settings → Notifications → Phone notifications → Allow → "Send a test notification".
+
 ## October 2, 2026 — Phone notifications and the app icon's number (mig 248)
 
 Tom: "Add an app icon indicator on mobile to signal when new or relevant activity is available while the user is outside the app. Tapping into the app should open the relevant area, where the user can view the full details."

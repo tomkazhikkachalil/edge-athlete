@@ -146,7 +146,7 @@ test('phone notifications: a new notification is pushed once, decrypts to the ri
   }
 });
 
-test('phone notifications on production: the every-minute job claims a new notification and tries the device by itself', async ({ page }) => {
+test('phone notifications on production: the every-minute job claims a new notification by itself (and tries the device once the keys exist)', async ({ page }) => {
   test.setTimeout(180_000);
   test.skip(E2E_TARGET !== 'prod', 'the push-sweep pg_cron job runs on production only');
   const user = loadQaUser('user.json');
@@ -155,18 +155,21 @@ test('phone notifications on production: the every-minute job claims a new notif
   try {
     await page.goto('/feed');
     const config = await (await page.request.get('/api/push/config')).json();
-    test.skip(config.enabled !== true, 'the deployment holds no VAPID keys yet');
-    // A device that can never be reached (an .invalid host): the job must
-    // still claim the row and record the failed try.
+    // With keys: a device that can never be reached (an .invalid host) — the
+    // job must still record its failed try. Without keys there is no device
+    // to try, and the job must still CLAIM the row (it stamps everything it
+    // considers), which is what proves it runs.
     const device = {
       endpoint: `https://push.e2e.invalid/s/prod-${Date.now()}`,
       p256dh: 'BOYdFSS2g7umny-o552Z5dPq8wyGTLxFeaYk7Hltx5Xc8tXFYbiTzsaTyrGsWRqWUeIZL1heJBmVH9UHUHTn41Y',
       auth: 'AAAAAAAAAAAAAAAAAAAAAA',
     };
-    const on = await page.request.post('/api/push/subscriptions', {
-      data: { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } },
-    });
-    expect(on.status()).toBe(201);
+    if (config.enabled === true) {
+      const on = await page.request.post('/api/push/subscriptions', {
+        data: { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } },
+      });
+      expect(on.status()).toBe(201);
+    }
     const id = await insertNotification(user.id);
     created.push(id);
     await expect
@@ -178,8 +181,10 @@ test('phone notifications on production: the every-minute job claims a new notif
         { timeout: 150_000, intervals: [5_000] }
       )
       .toBe(true);
-    const { data: sub } = await admin.from('push_subscriptions').select('failure_count').eq('endpoint', device.endpoint).maybeSingle();
-    expect(sub?.failure_count ?? 0).toBeGreaterThanOrEqual(1);
+    if (config.enabled === true) {
+      const { data: sub } = await admin.from('push_subscriptions').select('failure_count').eq('endpoint', device.endpoint).maybeSingle();
+      expect(sub?.failure_count ?? 0).toBeGreaterThanOrEqual(1);
+    }
   } finally {
     await cleanup(user.id, created);
   }
