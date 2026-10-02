@@ -10,12 +10,6 @@ import { celebratePR } from '@/lib/celebrate';
 import { celebrationFor } from '@/lib/play/celebration';
 import { useToast } from '@/components/Toast';
 
-// Web Notification API is missing in some runtimes (older iOS Safari, in-app
-// browsers, embedded WebViews, some Brave / enterprise configurations).
-// Centralize the support check so we never reference the global blindly.
-const isNotificationAPISupported = () =>
-  typeof window !== 'undefined' && typeof Notification !== 'undefined';
-
 export interface NotificationActor {
   id: string;
   first_name?: string;
@@ -443,21 +437,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Optional: Play notification sound
         // playNotificationSound();
 
-        // Optional: Show browser notification. Guarded so that runtimes
-        // without the Notification global (some embedded WebViews, older
-        // iOS Safari, etc.) don't throw and cascade up to the route-level
-        // error boundary.
-        if (isNotificationAPISupported() && Notification.permission === 'granted') {
-          const notification = payload.new as Notification;
-          try {
-            new Notification(notification.title, {
-              body: notification.message || '',
-              icon: '/icon-192x192.png',
-            });
-          } catch (err) {
-            console.warn('Failed to show browser notification:', err);
-          }
-        }
+        // No in-tab `new Notification(...)` here any more (Oct 2026, mig
+        // 248): the phone-notification service worker is the ONE place a
+        // system notification comes from (src/lib/push/), turned on by the
+        // person from a tap. Showing one here as well would double every
+        // alert on a device that has it on.
       })
       // Listen for notification updates (e.g., action_status changes)
       .on('postgres_changes', {
@@ -508,11 +492,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         }
       });
 
-    // Request notification permission. requestPermission is async and can
-    // reject silently in non-secure contexts; swallow rejections.
-    if (isNotificationAPISupported() && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => { /* permission denied / unsupported context */ });
-    }
+    // The system permission is asked for ONLY from a tap now (Settings →
+    // Notifications → Phone notifications, or the feed's card) — iOS ignores
+    // a prompt no tap started, and Chrome quiets sites that prompt on load.
 
     return () => {
       if (retryTimerRef.current) {

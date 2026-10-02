@@ -519,6 +519,8 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   // Connected apps (247): the standing deliveries — the sealed provider
   // tokens and the upload link's hash leave with the person.
   await mustDelete('activity_connections', 'profile_id');
+  // Phone notifications (248): the person's devices stop buzzing.
+  await mustDelete('push_subscriptions', 'profile_id');
   await mustDelete('athlete_equipment', 'profile_id');
   await mustDelete('athlete_vitals', 'profile_id');
   await mustDelete('user_media_presets', 'profile_id');

@@ -21,6 +21,7 @@ import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { reportRouteError } from '@/lib/observability/report';
 import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
+import { runPushSweep } from '@/lib/push/sweep-server';
 
 export const maxDuration = 60;
 
@@ -227,6 +228,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] risk sweep phase failed:', e);
     summary.riskSweep = { ok: false };
+  }
+  try {
+    // Phone notifications (248): the every-minute pg_cron job is the sender;
+    // this pass is the safety net (staging runs no pg_cron jobs, and a stopped
+    // job would otherwise leave rows unconsidered).
+    summary.push = await runPushSweep(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] push sweep phase failed:', e);
+    summary.push = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));

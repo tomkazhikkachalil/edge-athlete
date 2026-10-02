@@ -396,6 +396,18 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Oct 2 2026 (phone notifications, mig 248)** — five routes:
+  - `POST/DELETE /api/push/subscriptions`: session; the `push-subscribe` user bucket; https endpoints only; DELETE scoped to the caller.
+  - `POST /api/push/test`: session; the same bucket; the caller's own devices only.
+  - `POST /api/push/sweep`: CRON_SECRET, fails closed.
+  - `GET /api/push/config`: public by design — only whether keys exist plus the VAPID PUBLIC key; in `PUBLIC_ROUTES`.
+
+  Other changes:
+  - `push_subscriptions` is posture A.
+  - A tap's target passes `safeAppPath` (same-origin path only) on the server AND in the worker.
+  - A DM's text never reaches a lock screen.
+  - CSP: `worker-src 'self'` on the nonce policy only.
+  - New dependency `web-push` 3.6.7 (MPL-2.0; `npm audit` 0).
 - **Sep 22 2026 (Round 3 — the scale cliffs, #873–#881, migs 229 + 230)** —
   follower counts by trigger + the notifications.metadata GIN (229: the
   org-announcement scan 1 585 ms → 29 ms; followers 12 ms → 0.17 ms on a

@@ -11,6 +11,7 @@ import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ModerationBanner from "@/components/ModerationBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import TabBar from '@/components/TabBar';
+import PushHost from '@/components/push/PushHost';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ThemeApplier from "@/components/ThemeApplier";
@@ -133,6 +134,9 @@ export default async function RootLayout({
               {/* The phone tab bar (below lg) — the first app-wide chrome;
                   mounted once so it never remounts on navigation. */}
               <TabBar />
+              {/* Phone notifications (248): the app icon's number follows the
+                  bell; this device's subscription stays current. */}
+              <PushHost />
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}
               <ChatDock />

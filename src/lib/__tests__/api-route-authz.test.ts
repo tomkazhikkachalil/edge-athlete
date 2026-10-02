@@ -57,6 +57,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
     'fix round part 3 PR 4 (Oct 1 2026): Polar AccessLink is the caller — no session; the gate is Polar-Webhook-Signature (HMAC-SHA256 of the raw body under POLAR_WEBHOOK_SECRET, constant-time); the creation PING is answered without one and does nothing; the exercise is fetched from OUR configured base by id, never the payload url; 404 while Polar is not configured',
   'activities/inbound/[token]':
     'fix round part 3 PR 3 (Oct 1 2026): the personal upload link — no session by design (a phone automation has none); the 256-bit token (sha256 at rest, shown once, rotated / removed in Settings) IS the authorization; a supervised profile is the same 404; the moderation write gate, an IP bucket and a per-link bucket apply; every activity goes through the one writer',
+  'push/config':
+    'phone notifications (248, Oct 2026): whether this deployment can send them and the VAPID PUBLIC key a browser subscribes against — public by design (every subscribing browser holds it); no user data, no-store',
   places: 'geo autocomplete over public place data',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
   'media/org-logo/[siteId]':

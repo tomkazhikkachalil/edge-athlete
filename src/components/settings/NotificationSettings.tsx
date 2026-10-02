@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import Toggle from '@/components/settings/Toggle';
+import PhoneNotificationsSection from '@/components/push/PhoneNotificationsSection';
 
 // In-app notification type preferences. Enforced at creation time inside
 // create_notification's preference gate — turning one off means the row is
-// never created. (push_enabled/email_enabled exist in the table but those
-// delivery channels aren't built yet — no dishonest toggles for them.)
+// never created, so it reaches neither the bell nor a phone. Delivery has two
+// channels on top: phone notifications (248 — per DEVICE, the section below
+// owns it) and email.
 interface Preferences {
   follow_requests_enabled: boolean;
   follow_accepted_enabled: boolean;
@@ -53,28 +56,6 @@ const GROUPS: Array<{ title: string; items: Array<{ key: PrefKey; label: string;
     ],
   },
 ];
-
-function Toggle({ on, disabled, onChange, label }: { on: boolean; disabled: boolean; onChange: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onChange}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 disabled:opacity-50 ${
-        on ? 'bg-brand' : 'bg-gray-300 dark:bg-stone-700'
-      }`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-          on ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-}
 
 export default function NotificationSettings() {
   const { showError } = useToast();
@@ -159,6 +140,9 @@ export default function NotificationSettings() {
         Turn off any notification type you don&apos;t want. Changes apply to new notifications
         immediately.
       </p>
+
+      {/* Phone notifications (248) — this device, the icon's number */}
+      <PhoneNotificationsSection />
 
       {/* Email delivery — a separate channel from the in-app toggles below */}
       <div className="mb-8">

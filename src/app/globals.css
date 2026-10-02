@@ -519,10 +519,12 @@ body {
   );
 }
 
-/* The feed's "Download the app" card waits while the Get Started card is
- * showing: a new account gets one card, not two (InstallCard.tsx — the feed
- * renders it as that card's NEXT sibling). */
-[data-testid="get-started-card"] + [data-install-card] {
+/* The feed's "Download the app" card — and, in the installed app, the
+ * "Turn on notifications" card (248) — wait while the Get Started card is
+ * showing: a new account gets one card, not two (InstallCard.tsx, PushCard.tsx
+ * — the feed renders them after that card). */
+[data-testid="get-started-card"] + [data-install-card],
+[data-testid="get-started-card"] ~ [data-push-card] {
   display: none;
 }
 
