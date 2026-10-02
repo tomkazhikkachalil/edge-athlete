@@ -41,7 +41,7 @@ async function phoneContext(browser: Browser, at: LatLng) {
 // `live-rangefinder.spec.ts` needs the seeded Eagle Creek geometry, which staging and
 // CI do not have. Its own file for the same reason: that fixture's
 // `beforeAll` skips every test beside it when the geometry is missing.
-test('gps: the map opens on the hole the scorer is ON, with a flag on the green @mobile', async ({ browser }) => {
+test('gps: the map opens on the hole the scorer is ON, with a flag on the green — and Scorecard is one tap back to scoring @mobile', async ({ browser }) => {
   test.setTimeout(150_000);
   const admin = adminClient();
   const api = await apiAs('state.json');
@@ -139,6 +139,48 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await page.getByRole('button', { name: 'Next hole' }).click();
     await expect(page.getByText(/^Hole 2\b/)).toBeVisible();
     await expect(flag).toHaveCount(1);
+
+    // ── GPS ⇄ scoring, one tap each way (Tom, Oct 2026) ──────────────────
+    // "When you press scorecard from the GPS map… you have to press continue
+    // scoring." Scorecard now IS score entry for someone scoring — on the
+    // hole they LEFT (1), though the map has since been stepped to hole 2.
+    const scorecardTab = page.getByRole('tab', { name: 'Scorecard' });
+    const continueScoring = page.getByRole('button', { name: 'Continue scoring' });
+    await scorecardTab.click();
+    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
+    await expect(continueScoring).toHaveCount(0);
+
+    // …and the way to the map is a labelled button, not a bare icon.
+    const mapButton = page.locator('[data-scorer-map]');
+    await expect(mapButton).toHaveText(/Map/);
+    expect((await mapButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await mapButton.click();
+    await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 15_000 });
+    await expect(page.getByText(/^Hole 1\b/)).toBeVisible();
+
+    // The map's own button still scores the hole being LOOKED at.
+    await page.getByRole('button', { name: 'Next hole' }).click();
+    await page.getByRole('button', { name: 'Next hole' }).click();
+    await page.getByRole('button', { name: 'Score hole 3' }).click();
+    await expect(page.getByText('Hole 3 media')).toBeVisible({ timeout: 15_000 });
+
+    // Score entry opened FROM the map closes back to the map…
+    const closeScorer = page.getByRole('button', { name: 'Close', exact: true }).first();
+    await closeScorer.click();
+    await expect(page.getByText('Hole 3 media')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.locator('[aria-label="Previous hole"]')).toBeVisible();
+    // …and with no hole handed over, Scorecard resumes on the first hole with
+    // no score (2).
+    await scorecardTab.click();
+    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
+
+    // Closing THAT one shows the live leaderboard, Continue scoring still on
+    // it — and the Scorecard tab is the same door from there.
+    await closeScorer.click();
+    await expect(continueScoring).toBeVisible({ timeout: 15_000 });
+    await expect(scorecardTab).toHaveAttribute('aria-selected', 'true');
+    await scorecardTab.click();
+    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
   } finally {
     await ctx.close();
     if (roundId) await api.delete(`/api/group-posts/${roundId}?mode=delete`);
