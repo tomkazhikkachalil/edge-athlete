@@ -1,5 +1,24 @@
 # Development Log
 
+## October 2, 2026 — Live round: one tap between the GPS map and scoring
+
+Tom, after the GPS fix: "When you press scorecard from the GPS map, you return to the live screen… then you have to press 'continue scoring'… Make it easy to toggle back and forth." Asked what Scorecard should land on, he chose **straight back to scoring**.
+
+**How it was.** The live round page has two tabs — Scorecard (the live leaderboard) and Map — and score entry is a pop-up over them. Scorer → map was a bare map icon beside the X; map → Scorecard only switched the tab, so it was leaderboard, then "Continue scoring", then the scorer: two taps one way, and an icon nobody reads as "GPS" the other.
+
+**The change (zero DDL):**
+- **Scorecard IS score entry for someone who is scoring.** Selecting the tab (from the map, or from the leaderboard with the scorer closed) opens score entry — refreshed first and shown second, so the leaderboard never flashes by. It opens on **the hole you left**: the scorer already hands its hole to the map (`onShowMap(hole)`), the page now remembers it, and `reopenHole` (`src/lib/golf/score-entry.ts`, pure) answers that hole when it belongs to this round, else "resume at the first unscored hole". Stepping the map to another hole does not move it.
+- **A labelled Map button in score entry** — icon + "Map", on the "Hole N of M" row, a 44 px target, the same `aria-label` the specs already use.
+- Unchanged on purpose: the map's "Score hole N" still scores the hole being LOOKED at; closing score entry (X) shows the leaderboard with "Continue scoring" (or the map, when it was opened from the map); watchers, a finished card and event rounds (their group card is inline on the Scorecard tab) behave as before.
+
+**Proof:**
+- Unit: `reopenHole` (the hole left; resume when none; the round's own holes — a back nine is 10 to 18).
+- `e2e/gps-hole-flag.spec.ts` on phone Chromium and phone WebKit: Scorecard from the map → score entry on hole 1 with no "Continue scoring" (the map had been stepped to hole 2); the Map button reads "Map" and is 44 px tall; "Score hole 3" scores hole 3; closing a scorer opened from the map returns to the map; Scorecard then resumes on hole 2; closing that one shows the leaderboard, and the tab opens the scorer again.
+- Neighbours, 16 of 16: `sport-events-scorecard`, `sport-events-tournament-page` (event rounds share the tabs), `round-delete`, `round-lifecycle`.
+- 375 px by eye: the score-entry header with the Map pill.
+
+**One unexplained failure, recorded.** In the first neighbour batch `round-delete` "completed round: deleting the feed post deletes the round underneath" found the round still there after 15 s; it then passed three times alone and in the full batch re-run. It does not touch this change's code. The case now waits for the DELETE's own response and asserts it, so a recurrence names its cause instead of timing out.
+
 ## October 2, 2026 — Quick fixes, PR 3: the Get Started suggestions, once closed, stay closed
 
 Tom: "When a user first creates an account, the feed shows suggestions for completing their profile. If the user closes the suggestions, they should stay closed, and the suggestions pop-up should not appear again."

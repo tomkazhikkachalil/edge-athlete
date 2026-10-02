@@ -677,28 +677,6 @@ export default function ScoreEntryModal({
               )}
             </div>
             <div className="flex items-center shrink-0">
-              {onShowMap && (
-                <button
-                  onClick={async () => {
-                    // Same save-state path as the X — a failed flush keeps
-                    // the scorer open instead of stranding it over the map.
-                    if (isLive) {
-                      setSaving(true);
-                      const ok = await persistHole(currentHole);
-                      setSaving(false);
-                      if (!ok) return;
-                    }
-                    onClose();
-                    // After onClose on purpose: the page's close clears its
-                    // viewed hole, and this sets the one the player is on.
-                    onShowMap(holeNumberAtPosition(startingHoleNumber, currentHole));
-                  }}
-                  className="text-white hover:text-white/80 text-lg min-w-[44px] min-h-[44px] -my-2 flex items-center justify-center"
-                  aria-label="Open course map"
-                >
-                  <i className="fas fa-map-location-dot"></i>
-                </button>
-              )}
               <button
                 onClick={isLive ? () => handleDone(false) : onClose}
                 className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center"
@@ -715,6 +693,34 @@ export default function ScoreEntryModal({
             )}
             {isLive && savingHole !== currentHole && savedHoles.has(currentHole) && !dirtyHoles.has(currentHole) && (
               <span className="text-xs font-normal opacity-90"><i className="fas fa-check mr-1"></i>Saved</span>
+            )}
+            {/* The way to the GPS map, said in a word (Oct 2026): it was a bare
+                icon beside the X. The live page's Scorecard tab is the way
+                back — one tap each way. */}
+            {onShowMap && (
+              <button
+                type="button"
+                onClick={async () => {
+                  // Same save-state path as the X — a failed flush keeps
+                  // the scorer open instead of stranding it over the map.
+                  if (isLive) {
+                    setSaving(true);
+                    const ok = await persistHole(currentHole);
+                    setSaving(false);
+                    if (!ok) return;
+                  }
+                  onClose();
+                  // After onClose on purpose: the page's close clears its
+                  // viewed hole, and this sets the one the player is on.
+                  onShowMap(holeNumberAtPosition(startingHoleNumber, currentHole));
+                }}
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/30 px-3 min-h-[44px] -my-2 text-sm font-bold text-white transition-colors"
+                aria-label="Open course map"
+                data-scorer-map=""
+              >
+                <i className="fas fa-map-location-dot" aria-hidden="true"></i>
+                Map
+              </button>
             )}
           </div>
         </div>

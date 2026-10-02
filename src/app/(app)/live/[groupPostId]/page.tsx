@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -16,7 +16,7 @@ import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import CourseMap from '@/components/golf/CourseMap';
-import { nextHoleForScores } from '@/lib/golf/score-entry';
+import { nextHoleForScores, reopenHole } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import { polylineYards, trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/golf/hole-geometry';
@@ -112,6 +112,33 @@ export default function LiveRoundPage() {
     const picked = groupParam && isRecorder ? roundGroups.find(g => g.id === groupParam) ?? null : null;
     return picked ?? eventCtx?.group ?? (isRecorder ? roundGroups[0] ?? null : null);
   }, [groupParam, isRecorder, roundGroups, eventCtx]);
+
+  // GPS ⇄ scoring, one tap each way (Oct 2026). The scorer hands its hole to
+  // the map; this remembers it, so the Scorecard tab can bring the player
+  // straight back to score entry on the hole they LEFT — it used to land on
+  // the leaderboard, one "Continue scoring" away.
+  const [scorerHole, setScorerHole] = useState<number | null>(null);
+  const reopening = useRef(false);
+  const backToScoring = useCallback(
+    async (participantId: string, hole: number | null) => {
+      if (reopening.current) return;
+      reopening.current = true;
+      try {
+        // Refreshed FIRST, shown second: the scorer seeds itself from the
+        // saved scores when it mounts, and the leaderboard never flashes by.
+        await refresh();
+      } catch {
+        // The scorer still opens on what the page already has.
+      } finally {
+        reopening.current = false;
+      }
+      setScoringHole(hole);
+      setScoringParticipantId(participantId);
+      setShowFullCard(false);
+      setTab('score');
+    },
+    [refresh]
+  );
 
   const openScorer = useCallback(
     async (participantId: string, hole?: number) => {
@@ -321,7 +348,16 @@ export default function LiveRoundPage() {
                 type="button"
                 role="tab"
                 aria-selected={tab === id}
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  // Scorecard, for someone who is scoring, IS score entry —
+                  // from the map and from the leaderboard alike. (An event's
+                  // group card is already inline on this tab.)
+                  if (id === 'score' && entry.mode === 'score' && !groupCard && !scoringParticipantId) {
+                    void backToScoring(entry.participantId, reopenHole(scorerHole, startHole, holesPlayedN));
+                    return;
+                  }
+                  setTab(id);
+                }}
                 className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                   tab === id
                     ? 'bg-brand text-white border-brand'
@@ -571,7 +607,7 @@ export default function LiveRoundPage() {
           courseName={scorecard.golf_data.course_name}
           uploaderId={user.id}
           // The scorer's hole goes with it: the map opens where the player is.
-          onShowMap={mapAvailable ? (hole: number) => { setViewedHole(hole); setTab('map'); } : undefined}
+          onShowMap={mapAvailable ? (hole: number) => { setViewedHole(hole); setScorerHole(hole); setTab('map'); } : undefined}
           players={
             isCreator
               ? scorecard.participants
@@ -630,8 +666,11 @@ export default function LiveRoundPage() {
           onClose={() => {
             setScoringParticipantId(null);
             // Any explicit hole-peek is done once scoring closes — the map
-            // snaps back to following the (freshly advanced) next hole.
+            // snaps back to following the (freshly advanced) next hole. The
+            // remembered scorer hole goes too: a plain close means the next
+            // open resumes (the map button sets both again right after this).
             setViewedHole(null);
+            setScorerHole(null);
             void refresh();
           }}
         />

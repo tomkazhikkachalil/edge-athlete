@@ -85,7 +85,14 @@ test('completed round: deleting the feed post deletes the round underneath', asy
       .first()
       .click();
     await expect(page.getByText('Delete this round?')).toBeVisible();
+    // The server's own answer, not only the state after it: this case failed
+    // once in a long batch (the round still there after 15 s) and passed
+    // every other time — if it ever recurs, this line says what was answered.
+    const answered = page.waitForResponse(r => r.url().includes(`/api/posts?postId=${postId}`) && r.request().method() === 'DELETE', { timeout: 45_000 });
     await page.getByRole('button', { name: 'Delete Round', exact: true }).click();
+    const res = await answered;
+    expect(res.status(), await res.text()).toBe(200);
+    expect((await res.json()).hidden, 'an unscored round deletes — it is not hidden').toBeUndefined();
 
     // Round AND post both gone.
     await expect
