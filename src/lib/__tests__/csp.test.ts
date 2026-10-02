@@ -46,6 +46,10 @@ describe('buildCsp', () => {
     expect(prod).toContain("base-uri 'self'");
     expect(prod).toContain("form-action 'self'");
   });
+
+  it("admits the same-origin service worker only (248) — 'strict-dynamic' would ignore script-src's 'self'", () => {
+    expect(prod.split('; ')).toContain("worker-src 'self'");
+  });
 });
 
 describe('the static CSP (V3)', () => {
@@ -56,6 +60,8 @@ describe('the static CSP (V3)', () => {
     expect(buildStaticCsp({ dev: true }).split('; ').find(d => d.startsWith('script-src'))).toBe("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
     // The island's feed is same-origin: connect-src keeps 'self'.
     expect(buildStaticCsp().split('; ').find(d => d.startsWith('connect-src'))).toContain("'self'");
+    // Public sites register no worker.
+    expect(buildStaticCsp()).not.toContain('worker-src');
   });
 });
 

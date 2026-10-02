@@ -1,5 +1,69 @@
 # Development Log
 
+## October 2, 2026 — Phone notifications and the app icon's number (mig 248)
+
+Tom: "Add an app icon indicator on mobile to signal when new or relevant activity is available while the user is outside the app. Tapping into the app should open the relevant area, where the user can view the full details."
+
+**What it needed.** A number on the icon while the app is CLOSED can only arrive by **push**: our server tells the phone's push service, which wakes our service worker. On an iPhone that works only in the app opened from the home-screen icon (iOS 16.4+), the permission must come from a tap, and every push must show a banner — Apple allows no silent badge for web apps.
+
+**Tom's decisions:**
+- Everything the bell gets is pushed (the per-type switches still apply; likes on a post replace each other).
+- A tap opens the exact item.
+- Opening from the icon lands on the feed with the bells lit.
+- Add `web-push`.
+
+**How it was.**
+- No service worker, no push.
+- The only system notification was an in-tab `new Notification` that:
+  - fired only while a tab was open;
+  - pointed at a missing icon (`/icon-192x192.png`);
+  - asked for permission on page load with no tap — iOS ignores that, and Chrome quiets sites that do it.
+
+**The change:**
+- **Migration 248** (the only DDL; staging ran it — 10/10 grid rows OK, `check:schema` OK at head 248):
+  - `push_subscriptions` (one row per device, posture A);
+  - `notifications.pushed_at` (every existing row stamped);
+  - the `push-sweep` pg_cron job, every minute, scheduled only where `urgent-emails` already runs. It copies that job's Authorization header, so the file carries no secret.
+- **The ONE sender:** `src/lib/push/sweep-server.ts`. About sixty notification writers and seven triggers stay untouched.
+  - The sweep CLAIMS fresh rows by stamping `pushed_at` first (a second sweep finds nothing) and stamps rows older than 15 minutes without sending.
+  - It sends the newest row per tag, at most three per person per minute, each carrying the bell's unread count.
+  - `send-server.ts` lets `web-push` build the encrypted request and sends it with `fetch`. It prunes a device on 404/410 or after five failures.
+- **`public/sw.js`:** push + notificationclick only.
+  - **No fetch handler, no cache** — pages load exactly as before.
+  - The tap opens the row's own `action_url` (same-origin only, checked twice), marks it read and lowers the icon number.
+  - `buildCsp` gains `worker-src 'self'`; `vercel.json` serves the worker `no-cache`.
+- **The doors** (none show without the VAPID keys):
+  - Settings → Notifications → **On this device → Phone notifications**: a switch plus "Send a test notification". In an iPhone Safari tab it says to use the home-screen app and offers the install guide; blocked, it says where to undo that.
+  - A one-time **"Know when something happens"** card on the feed, only in the installed app. It never shows beside Get Started.
+- **The icon follows the bell inside the app** (`PushHost`). Sign-out turns the device off first.
+- **The in-tab notification and the tap-less permission prompt are gone.** The worker is the one notifier.
+- **Privacy:** a direct message's words never reach a lock screen ("Tap to read").
+
+**Proof:**
+- Unit: 17 cases in `src/lib/push/__tests__/push.test.ts`.
+- `e2e/push.spec.ts`, against a stand-in push service that **decrypts** what the sweep sent:
+  - one push per new notification, never twice, the right page and the unread number;
+  - a DM shows no words;
+  - a "gone" device is pruned;
+  - the sweep refuses without its secret.
+- On phone Chromium and phone WebKit (3× each, green):
+  - the worker registers under the enforced policy;
+  - an iPhone tab is told to use the home-screen app;
+  - a blocked device shows no switch;
+  - the installed app shows the card and the switch;
+  - the icon's number follows the bell down to zero.
+- Neighbours green: install-app, get-started-mobile, feed-post, edit-profile, messaging-notifications, direct-message, sport-events-notifications, polar, health.
+- 390 px by eye: the card, the Settings section, the iPhone-tab message.
+
+**Found on the way:**
+- Playwright's WebKit hangs a `register()` after an `unregister()` on the same origin. The spec never unregisters, and neither does the app.
+- Headless Chromium answers `Notification.permission` with 'denied' whatever the context grants, so the spec plays the not-yet-asked state.
+
+**Owed by Tom:**
+- Run 248 on production (no edits needed).
+- Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in Vercel, then redeploy.
+- On his iPhone: the app from the icon → Settings → Notifications → Phone notifications → Allow → "Send a test notification".
+
 ## October 2, 2026 — Maintenance after the hands-on crop: the full checklist, all green
 
 **On main at `9b2097a1`** (#1045). Since the last maintenance entry (#1044, `4a12e1fe`):

@@ -21,6 +21,7 @@ import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
 import InstallCard from '@/components/install/InstallCard';
+import PushCard from '@/components/push/PushCard';
 
 /** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
 const NEW_POSTS_POLL_MS = 60_000;
@@ -596,6 +597,9 @@ export default function FeedPage() {
                 SIBLING of the card above: globals.css hides it while that
                 card shows, so a new account never gets two cards at once. */}
             <InstallCard />
+            {/* Phone notifications (248) — only in the installed app, where
+                the install card never shows; also waits behind Get Started. */}
+            <PushCard />
 
             <div className="flex gap-2 mb-4 sm:mb-6" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (

@@ -211,6 +211,10 @@ export const RATE_LIMITS = {
   // media in one load. Forged tokens die on the HMAC check before any DB hit,
   // and public bytes are CDN-cached, so this mainly caps bandwidth abuse.
   media: { max: 600, windowSeconds: 60, keyBy: 'ip' },
+  // Phone notifications (248): a device turning them on or off. A browser
+  // re-subscribes on every app start when its endpoint rotated; 30/h is
+  // several devices' worth of normal use.
+  'push-subscribe': { max: 30, windowSeconds: 3600, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

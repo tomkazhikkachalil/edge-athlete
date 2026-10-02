@@ -20,9 +20,9 @@ import type { InstallMode } from '@/lib/install/platform';
 //                   // page the person is on.
 //
 // The rule for what a device can do is src/lib/install/platform.ts; the live
-// browser signals are src/lib/install/store.ts. There is NO service worker —
-// installing needs none. Offline and push are their own later rounds (a
-// worker also needs `worker-src 'self'` in buildCsp first).
+// browser signals are src/lib/install/store.ts. Installing needs no service
+// worker; the one that exists (public/sw.js, mig 248) does phone
+// notifications only — offline is its own later round (docs/PUSH.md).
 
 const InstallAppSheet = dynamic(() => import('./InstallAppSheet'), { ssr: false });
 

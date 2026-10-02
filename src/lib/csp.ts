@@ -24,8 +24,11 @@
 //   own object URLs back via fetch (caught by the enforced-CSP e2e run —
 //   blob content is locally created, not an exfil channel). Dev adds
 //   localhost/ws for HMR.
-// * worker-src: no `new Worker` in the codebase (grep-verified Aug 2026) —
-//   deliberately omitted; default-src 'self' governs if one appears.
+// * worker-src 'self' (Oct 2026, mig 248): the phone-notification service
+//   worker at /sw.js. Without it the browser falls back to script-src,
+//   where 'strict-dynamic' makes 'self' IGNORED — the registration would be
+//   refused. Same-origin only: no blob:, no other host. The nonce-free
+//   policy below has none on purpose (public sites register no worker).
 // * frame-src (Site Builder phase 6): the embed widget's three providers,
 //   from the one list the renderer builds frame URLs against
 //   (EMBED_FRAME_HOSTS — pinned equal by test). Before it there was no
@@ -66,6 +69,7 @@ export function buildCsp(nonce: string, opts?: { dev?: boolean; scriptHashes?: r
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,
     `font-src 'self' data:`,
+    `worker-src 'self'`,
     FRAME_SRC,
     `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
     `frame-ancestors 'none'`,

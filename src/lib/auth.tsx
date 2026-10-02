@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 import type { Profile } from './supabase';
 import { FEATURE_FLAGS } from './features';
 import { setChatDockHidden } from './chat-dock-visibility';
+import { disablePush, setIconBadge } from './push/client';
 
 const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
@@ -308,6 +309,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Phone notifications (248): this device stops buzzing for this person
+      // BEFORE the session ends (the DELETE needs it) — a shared phone must
+      // not keep showing the last person's messages. Bounded: a slow push
+      // service never holds the sign-out up.
+      await Promise.race([
+        disablePush().then(() => setIconBadge(0)),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]).catch(() => undefined);
+
       // Sign out from Supabase
       await supabase.auth.signOut();
 
