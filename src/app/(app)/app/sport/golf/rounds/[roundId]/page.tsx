@@ -1,6 +1,7 @@
 'use client';
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { backOr } from '@/lib/nav-back';
 import { COPY } from '@/lib/copy';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -255,7 +256,7 @@ export default function GolfRoundDetailPage() {
             <h1 className="text-2xl sm:text-4xl font-bold text-primary mb-4">Round Not Found</h1>
             <p className="text-tertiary mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
             <button
-              onClick={() => router.back()}
+              onClick={() => backOr(router, '/athlete')}
               className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>
@@ -291,7 +292,7 @@ export default function GolfRoundDetailPage() {
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <button
-              onClick={() => router.back()}
+              onClick={() => backOr(router, '/athlete')}
               className="inline-flex items-center min-h-[44px] text-sm text-tertiary hover:text-primary transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>

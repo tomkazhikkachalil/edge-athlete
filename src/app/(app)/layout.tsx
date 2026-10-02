@@ -12,6 +12,7 @@ import ModerationBanner from "@/components/ModerationBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import TabBar from '@/components/TabBar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
+import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -121,6 +122,9 @@ export default async function RootLayout({
               {/* The ONE Edit Profile pop-up, opened from anywhere over the
                   page the user is on (useEditProfile). */}
               <EditProfileProvider>
+              {/* "Download the app": the install signals + the one guide,
+                  for every page (the sign-in page included). */}
+              <InstallAppProvider>
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />
@@ -135,6 +139,7 @@ export default async function RootLayout({
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />
+              </InstallAppProvider>
               </EditProfileProvider>
             </MessagesProvider>
           </NotificationsProvider>

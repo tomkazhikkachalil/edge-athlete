@@ -519,6 +519,13 @@ body {
   );
 }
 
+/* The feed's "Download the app" card waits while the Get Started card is
+ * showing: a new account gets one card, not two (InstallCard.tsx — the feed
+ * renders it as that card's NEXT sibling). */
+[data-testid="get-started-card"] + [data-install-card] {
+  display: none;
+}
+
 /* The ONE loud control. Gradient is deliberately shallow — it should read as
  * depth, not as a 2010 button. */
 .ea-cta {

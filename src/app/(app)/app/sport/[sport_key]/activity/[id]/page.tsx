@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { backOr } from '@/lib/nav-back';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
@@ -112,7 +113,7 @@ export default function SportActivityDetailPage() {
           <h1 className="text-4xl font-bold text-primary mb-4">Activity Not Found</h1>
           <p className="text-tertiary mb-8">This activity does not exist or the sport is not supported yet.</p>
           <button
-            onClick={() => router.back()}
+            onClick={() => backOr(router, '/athlete')}
             className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
           >
             <i className="fas fa-arrow-left mr-2"></i>
@@ -134,7 +135,7 @@ export default function SportActivityDetailPage() {
       <div className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <button
-            onClick={() => router.back()}
+            onClick={() => backOr(router, '/athlete')}
             className="inline-flex items-center text-sm text-tertiary hover:text-primary transition-colors"
           >
             <i className="fas fa-arrow-left mr-2"></i>

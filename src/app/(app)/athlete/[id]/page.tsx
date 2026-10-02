@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -312,7 +313,7 @@ export default function AthleteProfilePage() {
           <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4">
             <div className="flex items-center gap-2 min-w-0">
               <button
-                onClick={() => router.back()}
+                onClick={() => backOr(router, '/feed')}
                 className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-secondary hover:text-primary"
                 aria-label="Go back"
               >

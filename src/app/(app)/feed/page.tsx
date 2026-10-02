@@ -20,6 +20,7 @@ import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy
 import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
+import InstallCard from '@/components/install/InstallCard';
 
 /** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
 const NEW_POSTS_POLL_MS = 60_000;
@@ -575,6 +576,10 @@ export default function FeedPage() {
             {/* First-run checklist for new accounts — the day-one golfer's
                 guidance (self-hiding: age gate, dismissal, all-steps-done). */}
             <GetStartedCard onLogRound={() => setIsCreatePostModalOpen(true)} />
+            {/* "Download the app" — phones and tablets, once. Kept the NEXT
+                SIBLING of the card above: globals.css hides it while that
+                card shows, so a new account never gets two cards at once. */}
+            <InstallCard />
 
             <div className="flex gap-2 mb-4 sm:mb-6" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
