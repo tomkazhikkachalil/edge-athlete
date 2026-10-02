@@ -313,8 +313,25 @@ test('phone notifications: the worker registers, an iPhone tab is sent to the ho
       await expect.poll(lastBadge, { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
 
       if (browserName === 'chromium') {
-        // The installed app invites once, on the feed…
-        await expect(p.locator('[data-push-card]')).toBeVisible({ timeout: 20_000 });
+        // The installed app invites on the feed, and keeps inviting until the
+        // person chooses: "Not now" puts it away for a week (a reload keeps
+        // it away), and a week later it asks again.
+        const card = p.locator('[data-push-card]');
+        await expect(card).toBeVisible({ timeout: 20_000 });
+        await card.locator('[data-push-not-now]').click();
+        await expect(card).toHaveCount(0);
+        await p.reload();
+        await expect(p.getByRole('button', { name: /Notifications/ }).first()).toBeVisible({ timeout: 20_000 });
+        await expect(card).toHaveCount(0);
+        const snoozed = await p.evaluate(() => window.localStorage.getItem('ea:push-card:snoozed-until:v1'));
+        const days = (Date.parse(snoozed ?? '') - Date.now()) / 86_400_000;
+        expect(days).toBeGreaterThan(6.9);
+        expect(days).toBeLessThanOrEqual(7);
+        await p.evaluate(() =>
+          window.localStorage.setItem('ea:push-card:snoozed-until:v1', new Date(Date.now() - 1000).toISOString())
+        );
+        await p.reload();
+        await expect(card).toBeVisible({ timeout: 20_000 });
         // …and Settings carries the switch.
         await p.goto('/settings?tab=notifications');
         await expect(p.locator('[data-push-settings]')).toHaveAttribute('data-push-settings', 'available', { timeout: 20_000 });

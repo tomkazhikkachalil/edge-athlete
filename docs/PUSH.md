@@ -13,7 +13,7 @@ Tom's decisions (Oct 2 2026):
 ## What the person sees
 
 - **Turning it on:**
-  - The installed app's feed shows a one-time card, "Know when something happens → Turn on notifications".
+  - The installed app's feed shows a "Know when something happens" card. Tom (Oct 2, option 1): it **stays until the person chooses** — "Turn on notifications", or "Not now" (the X too), which puts it away for a week on that device before it asks again (`src/lib/push/card.ts`). A device blocked in the phone's settings is never asked.
   - Settings → Notifications → **On this device → Phone notifications** is the switch, with "Send a test notification" once it is on.
 - **Per device:** a person can have their phone buzz and their laptop not.
 - **When something happens** (a message, a comment, a fan request, an event invite, a result…): a notification arrives within about a minute. The app icon carries the bell's unread count.
