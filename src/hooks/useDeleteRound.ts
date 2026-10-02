@@ -11,14 +11,18 @@ import { useToast } from '@/components/Toast';
  * implementation shared by the quick-view footer and the full-card header,
  * same shape as useEndRound.
  */
-export function useDeleteRound(groupPostId: string, onDone?: () => void) {
+export function useDeleteRound(groupPostId: string, onDone?: () => void, opts: { eventRound?: boolean } = {}) {
+  // Oct 2026: the live Delete is a real discard of an unfinished casual round
+  // (it used to hide the post and leave the round running). An EVENT's round
+  // is the organizer's record — it keeps the Sep 26 behaviour (hidden).
+  const eventRound = !!opts.eventRound;
   const [deleting, setDeleting] = useState(false);
   const { showError, showSuccess } = useToast();
 
   const deleteRound = useCallback(async () => {
     setDeleting(true);
     try {
-      const response = await fetch(`/api/group-posts/${groupPostId}`, {
+      const response = await fetch(`/api/group-posts/${groupPostId}${eventRound ? '' : '?mode=delete'}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -28,6 +32,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void) {
       // Results-kept (241): a round anyone scored comes back HIDDEN, not deleted — say so.
       const body = await response.json().catch(() => ({}));
       if (body && body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else showSuccess('Round deleted', 'Nothing from it was recorded.');
       onDone?.();
       return true;
     } catch (err) {
@@ -37,7 +42,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void) {
     } finally {
       setDeleting(false);
     }
-  }, [groupPostId, onDone, showError, showSuccess]);
+  }, [groupPostId, onDone, showError, showSuccess, eventRound]);
 
   return { deleteRound, deleting };
 }

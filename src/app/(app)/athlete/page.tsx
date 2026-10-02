@@ -1,6 +1,7 @@
 'use client';
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { COPY } from '@/lib/copy';
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
@@ -1097,9 +1098,9 @@ export default function AthleteProfilePage() {
         }}
         currentUserId={user?.id}
         // Without onDelete the owner's trash renders and silently no-ops.
-        onDelete={async (postId) => {
+        onDelete={async (postId, mode) => {
           try {
-            const response = await fetch(`/api/posts?postId=${postId}`, {
+            const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
               method: 'DELETE',
               credentials: 'include',
             });
@@ -1115,10 +1116,12 @@ export default function AthleteProfilePage() {
             // Results-kept (241): a result comes back hidden, not deleted.
             const body = await response.json().catch(() => ({}));
             if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+            else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
             else showSuccess('Success', 'Post deleted successfully');
           } catch (e) {
             console.error('Failed to delete post:', e);
-            showError('Error', 'Failed to delete post');
+            // The server's own words when it has some (a refusal names its reason).
+            showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
           }
         }}
       />

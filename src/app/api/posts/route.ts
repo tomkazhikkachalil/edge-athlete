@@ -1,5 +1,6 @@
 import { HIDDEN_NOTICE, isResultPost, type PostResultFacts } from '@/lib/results/kinds';
 import { setResultHidden } from '@/lib/results/hide-server';
+import { deleteResultPost, deleteRoundResult } from '@/lib/results/delete-server';
 import { resolveResultOrigin } from '@/lib/results/origin-server';
 import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { naturalKey } from '@/lib/performance/types';
@@ -1964,6 +1965,29 @@ export async function DELETE(request: NextRequest) {
     // Ownership or guardianship of the post's profile (Round C parity)
     if (!(await sessionMayManagePostContent(user.id, post.profile_id))) {
       return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+    }
+
+    // A REAL delete, asked for by name (Tom, Oct 2 2026: a for-fun result
+    // may be deleted; official ones only hidden). Everything below this
+    // block is the Sep 26 default — a result is HIDDEN — and stays the
+    // answer to a bare DELETE, so a tab opened before the deploy can never
+    // destroy what its confirm promised to keep.
+    if (searchParams.get('mode') === 'delete') {
+      const out = post.group_post_id
+        ? await deleteRoundResult(supabase, post.group_post_id, post.profile_id)
+        : await deleteResultPost(supabase, postId, post.profile_id);
+      if (out.status === 'deleted') return NextResponse.json({ success: true, deleted: true, message: 'Deleted for good.' });
+      if (out.status === 'refused') return NextResponse.json({ error: out.message }, { status: 409 }); // hardening-ok: crafted strings, see results/delete-rule.ts
+      if (out.status === 'error') return NextResponse.json({ error: out.message }, { status: 500 }); // hardening-ok: crafted strings, see results/delete-server.ts
+      if (out.status === 'forbidden') return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+      // not_found (a round row already gone): the caller still owns THIS
+      // post — plain post deletion proceeds below.
+      if (post.group_post_id) {
+        const orphan = await deletePostCascade(supabase, postId);
+        if (!orphan.ok) return NextResponse.json({ error: orphan.error }, { status: 500 });
+        return NextResponse.json({ success: true, deleted: true, message: 'Deleted for good.' });
+      }
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     // A round's post IS the round (Tom's call, Aug 19): deleting it deletes

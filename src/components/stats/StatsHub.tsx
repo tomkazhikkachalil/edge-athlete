@@ -12,6 +12,7 @@
  */
 
 import RivalsPanel from '@/components/play/RivalsPanel';
+import { COPY } from '@/lib/copy';
 import ChallengesPanel from '@/components/play/ChallengesPanel';
 import { challengeMetrics } from '@/lib/play/challenges';
 import { useEffect, useRef, useState } from 'react';
@@ -251,9 +252,9 @@ export default function StatsHub({
     }
   };
 
-  const handleDelete = async (postId: string) => {
+  const handleDelete = async (postId: string, mode?: 'delete') => {
     try {
-      const response = await fetch(`/api/posts?postId=${postId}`, {
+      const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -271,6 +272,7 @@ export default function StatsHub({
       setSelectedPostIndex(null);
       onCountsChanged?.();
       if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
       else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');

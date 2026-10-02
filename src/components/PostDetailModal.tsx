@@ -49,7 +49,7 @@ interface PostDetailModalProps {
   currentUserId?: string;
   showNavigation?: boolean;
   onEdit?: (postId: string) => void;
-  onDelete?: (postId: string) => void;
+  onDelete?: (postId: string, mode?: 'delete') => void;
   /** Open the viewer's own score entry as soon as the shared-round scorecard
    *  is available (the feed's "continue scoring" banner). */
 }
@@ -308,6 +308,8 @@ export default function PostDetailModal({
               onLike={handleLike}
               onEdit={onEdit}
               onDelete={onDelete}
+              // The live card's own Delete removed the round: nothing left to show.
+              onRemoved={onClose}
               onCommentCountChange={handleCommentCountChange}
               showActions={true}
             />

@@ -117,7 +117,9 @@ export default function SharedRoundFullCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
-  const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted);
+  // An event's round is the organizer's record: its Delete keeps hiding.
+  const isEventRound = !!(group_post as { sport_event_round_id?: string | null }).sport_event_round_id;
+  const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted, { eventRound: isEventRound });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [courseOpen, setCourseOpen] = useState(false);
 
@@ -1163,16 +1165,22 @@ export default function SharedRoundFullCard({
       {/* Delete Round confirmation */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title={anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_TITLE : COPY.FORMS.DELETE_ROUND_TITLE}
+        title={isEventRound && anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_TITLE : COPY.FORMS.DELETE_ROUND_TITLE}
         message={
-          /* Results-kept (241): a round anyone scored is hidden from the creator's profile, never deleted. */
+          /* An unfinished casual round is DISCARDED (Oct 2026): nothing is
+             recorded until it completes. An EVENT's scored round keeps the
+             Sep 26 rule — hidden from the creator's profile, never deleted. */
           !anyScoreRecorded(participants)
             ? COPY.FORMS.DELETE_ROUND_CONFIRM
-            : countPartnersWithScores(participants, group_post.creator_id) > 0
-              ? COPY.FORMS.HIDE_ROUND_CONFIRM_PARTNERS(countPartnersWithScores(participants, group_post.creator_id))
-              : COPY.FORMS.HIDE_RESULT_CONFIRM
+            : isEventRound
+              ? countPartnersWithScores(participants, group_post.creator_id) > 0
+                ? COPY.FORMS.HIDE_ROUND_CONFIRM_PARTNERS(countPartnersWithScores(participants, group_post.creator_id))
+                : COPY.FORMS.HIDE_RESULT_CONFIRM
+              : countPartnersWithScores(participants, group_post.creator_id) > 0
+                ? COPY.FORMS.DISCARD_ROUND_CONFIRM_PARTNERS(countPartnersWithScores(participants, group_post.creator_id))
+                : COPY.FORMS.DISCARD_ROUND_CONFIRM
         }
-        confirmText={anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_ACTION : COPY.FORMS.DELETE_ROUND_ACTION}
+        confirmText={isEventRound && anyScoreRecorded(participants) ? COPY.FORMS.HIDE_RESULT_ACTION : COPY.FORMS.DELETE_ROUND_ACTION}
         onConfirm={() => {
           setShowDeleteConfirm(false);
           deleteRound();

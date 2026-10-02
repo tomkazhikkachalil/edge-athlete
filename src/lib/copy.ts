@@ -133,6 +133,22 @@ export const COPY = {
       `It leaves the feed and nobody else sees it on your profile, but it stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again from your own profile or Settings → Privacy.`,
     HIDE_RESULT_ACTION: 'Hide',
     HIDE_RESULT_LABEL: 'Hide from profile',
+    // A REAL delete (Tom, Oct 2 2026): a result that is not from a tournament,
+    // a club or a league may be deleted by its player — it stops counting.
+    // An unfinished casual round is discarded whole: nothing was recorded.
+    DISCARD_ROUND_CONFIRM:
+      'The round and every score entered so far are deleted. Nothing is recorded, and this cannot be undone.',
+    DISCARD_ROUND_CONFIRM_PARTNERS: (n: number) =>
+      `The round is deleted for everyone in it — including scores entered by ${n} playing partner${n === 1 ? '' : 's'}. Nothing is recorded, and this cannot be undone.`,
+    DELETE_RESULT_LABEL: 'Delete for good',
+    DELETE_RESULT_TITLE: 'Delete it for good?',
+    DELETE_RESULT_CONFIRM:
+      'It is removed everywhere and stops counting toward your handicap and stats. This cannot be undone. To keep the numbers and only take it off your profile, choose Hide instead.',
+    DELETE_RESULT_CONFIRM_PARTNERS: (n: number) =>
+      `Your result is removed and stops counting toward your handicap and stats, and the round’s post goes with it. Your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. This cannot be undone.`,
+    DELETE_RESULT_ACTION: 'Delete for good',
+    DELETED_RESULT_TITLE: 'Deleted',
+    DELETED_RESULT_BODY: 'It no longer counts toward your handicap or stats.',
     // The way back, on the owner's own profile (Oct 2026).
     PROFILE_HIDDEN_BANNER: 'Hidden from your profile — only you can see this. It still counts toward your stats.',
     SHOW_RESULT_LABEL: 'Show on profile',

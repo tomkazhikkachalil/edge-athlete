@@ -184,6 +184,20 @@ rollups for a while.
 
 ## Results are never lost (migration 241, Sep 26 2026)
 
+> **Amended Oct 2 2026 (Tom).** A result that is NOT from a tournament, a club
+> or a league may now be DELETED by its player — it stops counting toward the
+> handicap, the stats and this dataset — and Hide stays beside it for anyone
+> who only wants it off their profile. Official results and every event round
+> remain hide-only, exactly as described below. The rule is
+> `src/lib/results/delete-rule.ts planResultDelete`; the one writer is
+> `src/lib/results/delete-server.ts`; a delete is asked for by name
+> (`?mode=delete`), and a bare DELETE still hides. In a shared round a delete
+> removes the requester's result only (their `athlete_performances` row with
+> it); a round that is still being played has recorded nothing and its creator
+> may discard it. What follows is the Sep 26 text, still true of every
+> official result and of Hide.
+
+
 Tom: *"I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."*
 
 - **A person hides; nobody but support removes.** "Delete" on a golf round, a stat line, an event post or a scored shared round is a HIDE (`src/lib/results/hide-server.ts setResultHidden`, the one writer): `golf_rounds.profile_hidden_at`, or `posts.status = 'profile_hidden'`. It never touches this table, the handicap or the leaderboards. Ordinary posts (photos, notions, vitals) still delete. The event opt-out (`hide_from_profile`) is the same profile hide.

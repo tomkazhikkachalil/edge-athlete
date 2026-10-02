@@ -438,25 +438,40 @@ export default function FeedPage() {
     showSuccess('Success', 'Post updated successfully!');
   };
 
-  const handleDelete = async (postId: string) => {
+  const handleDelete = async (postId: string, mode?: 'delete') => {
+    // Optimistic (Oct 2026): the card leaves at the tap. It used to stay
+    // until the server answered — seconds on a slow connection, which read
+    // as "nothing happened". A refusal or a failure puts it back in place.
+    const before = postsRef.current;
+    const index = before.findIndex(post => post.id === postId);
+    const removed = index >= 0 ? before[index] : null;
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
     try {
-      const response = await fetch(`/api/posts?postId=${postId}`, {
+      const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
         method: 'DELETE',
         credentials: 'include'
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to delete post');
       }
 
-      // Remove post from local state
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-      // Results-kept (241): a result comes back hidden, not deleted.
+      // Results-kept (241): a bare delete of a result comes back hidden; a
+      // delete asked for by name (Oct 2026) is gone for good.
       const body = await response.json().catch(() => ({}));
       if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
       else showSuccess('Success', 'Post deleted successfully');
     } catch (e) {
+      if (removed) {
+        setPosts(prevPosts => {
+          if (prevPosts.some(post => post.id === postId)) return prevPosts;
+          const next = [...prevPosts];
+          next.splice(Math.min(index, next.length), 0, removed);
+          return next;
+        });
+      }
       console.error('Failed to delete post:', e);
       // The server's own words when it has some (a refusal names its reason).
       showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
@@ -832,8 +847,8 @@ export default function FeedPage() {
           // End Round lands here (/feed?post=). Without onDelete the trash
           // used to render and silently no-op — the "delete after end round
           // won't let me" bug. Reuses the list's handler, then closes.
-          onDelete={(postId) => {
-            handleDelete(postId);
+          onDelete={(postId, mode) => {
+            handleDelete(postId, mode);
             setDeepLinkPostId(null);
             window.history.replaceState(null, '', '/feed');
           }}

@@ -32,6 +32,7 @@ import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
 import { anyScoreRecorded, isResultPost } from '@/lib/results/kinds';
+import { offersDelete } from '@/lib/results/delete-rule';
 import { COPY } from '@/lib/copy';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -147,7 +148,11 @@ interface PostCardProps {
   currentUserId?: string;
   onLike?: (postId: string) => void;
   onComment?: (postId: string) => void;
-  onDelete?: (postId: string) => void;
+  /** `mode: 'delete'` asks for a REAL delete of a result (Oct 2026); without
+   *  it the server hides a result and deletes an ordinary post. */
+  onDelete?: (postId: string, mode?: 'delete') => void;
+  /** The card's own round was deleted from inside it (the live card's Delete). */
+  onRemoved?: (postId: string) => void;
   onEdit?: (postId: string) => void;
   onCommentCountChange?: (postId: string, newCount: number) => void;
   showActions?: boolean;
@@ -163,6 +168,7 @@ function PostCard({
   onLike,
   onComment,
   onDelete,
+  onRemoved,
   onEdit,
   onCommentCountChange,
   showActions = true,
@@ -423,8 +429,17 @@ function PostCard({
   };
 
   const handleDeleteClick = () => {
+    setDeleteForGood(false);
     setShowDeleteConfirm(true);
   };
+  // The REAL delete of a result (Oct 2026) — its own confirm, its own words.
+  const [deleteForGood, setDeleteForGood] = useState(false);
+  const handleDeleteForGoodClick = () => {
+    setDeleteForGood(true);
+    setShowDeleteConfirm(true);
+  };
+  // The live card's own Delete removed the round under this card.
+  const [roundGone, setRoundGone] = useState(false);
 
   // Results-kept round (241): a round anyone has scored, an event post or a stat
   // line is HIDDEN from the profile by the server, never deleted — say so here.
@@ -462,9 +477,17 @@ function PostCard({
     }
   };
 
+  // A round still being played has recorded nothing: there is nothing to
+  // hide, only a round to discard (the live card carries that Delete).
+  const roundUnfinished = !!post.group_scorecard && post.group_scorecard.group_post.status !== 'completed' && post.group_scorecard.group_post.status !== 'cancelled';
+  // Both doors on a finished for-fun result: Hide (keeps counting, undoable)
+  // and Delete for good. The server has the last word on "official".
+  const offersHide = hidesInstead && !roundUnfinished;
+  const offersDeleteForGood = hidesInstead && offersDelete({ eventRound: !!post.sport_event_round_id, contestLinked: !!post.contest_id });
+
   const handleDeleteConfirm = () => {
     if (onDelete) {
-      onDelete(post.id);
+      onDelete(post.id, deleteForGood ? 'delete' : undefined);
     }
     setShowDeleteConfirm(false);
   };
@@ -506,7 +529,7 @@ function PostCard({
   return (
     <div
       data-testid="post-card"
-      className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6"
+      className={`bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6${roundGone ? ' hidden' : ''}`}
     >
       {/* Round D: a held/rejected post is visible to its author — say what
           state it's in instead of letting it look published. */}
@@ -698,7 +721,7 @@ function PostCard({
               {/* Only when the mount actually wired onDelete — the confirm
                   handler no-ops without it, and a trash icon that silently
                   does nothing already shipped once (the /feed?post= mount). */}
-              {onDelete && !isProfileHidden && (
+              {onDelete && !isProfileHidden && (!hidesInstead || offersHide) && (
                 <button
                   onClick={handleDeleteClick}
                   className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
@@ -709,6 +732,18 @@ function PostCard({
                   <i className={`fas ${hidesInstead ? 'fa-eye-slash' : 'fa-trash'} text-sm`}></i>
                 </button>
               )}
+              {/* A for-fun result can also be deleted for good (Oct 2026). */}
+              {onDelete && offersDeleteForGood && (
+                <button
+                  onClick={handleDeleteForGoodClick}
+                  className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
+                  title={COPY.FORMS.DELETE_RESULT_LABEL}
+                  aria-label={COPY.FORMS.DELETE_RESULT_LABEL}
+                  data-post-delete="for-good"
+                >
+                  <i className="fas fa-trash text-sm"></i>
+                </button>
+              )}
             </div>
           )}
           {isOwner && (
@@ -717,8 +752,9 @@ function PostCard({
               pinBusy={pinBusy}
               onTogglePin={handleTogglePin}
               onEdit={() => onEdit?.(post.id)}
-              onDelete={onDelete && !isProfileHidden ? handleDeleteClick : undefined}
+              onDelete={onDelete && !isProfileHidden && (!hidesInstead || offersHide) ? handleDeleteClick : undefined}
               deleteLabel={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : undefined}
+              onDeleteForGood={onDelete && offersDeleteForGood ? handleDeleteForGoodClick : undefined}
               onShowAgain={isProfileHidden ? () => void handleShowOnProfile() : undefined}
             />
           )}
@@ -994,6 +1030,12 @@ function PostCard({
             currentUserId={currentUserId}
             stale={scorecardStale}
             onStatusChange={refreshScorecard}
+            // The live card's Delete (Oct 2026): a round still being played
+            // can be discarded from the feed, not only from /live.
+            onDeleted={() => {
+              setRoundGone(true);
+              onRemoved?.(post.id);
+            }}
           />
         )}
 
@@ -1121,7 +1163,23 @@ function PostCard({
           round delete (server cascades group post, scores, mirrors), so the
           copy says so — including partners' scores when they have any. */}
       <ConfirmModal
-        isOpen={showDeleteConfirm}
+        isOpen={showDeleteConfirm && deleteForGood}
+        title={roundUnfinished ? COPY.FORMS.DELETE_ROUND_TITLE : COPY.FORMS.DELETE_RESULT_TITLE}
+        message={(() => {
+          const partners = post.group_scorecard
+            ? countPartnersWithScores(post.group_scorecard.participants, post.group_scorecard.group_post.creator_id)
+            : 0;
+          if (roundUnfinished) return partners > 0 ? COPY.FORMS.DISCARD_ROUND_CONFIRM_PARTNERS(partners) : COPY.FORMS.DISCARD_ROUND_CONFIRM;
+          return partners > 0 ? COPY.FORMS.DELETE_RESULT_CONFIRM_PARTNERS(partners) : COPY.FORMS.DELETE_RESULT_CONFIRM;
+        })()}
+        confirmText={roundUnfinished ? COPY.FORMS.DELETE_ROUND_ACTION : COPY.FORMS.DELETE_RESULT_ACTION}
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+      <ConfirmModal
+        isOpen={showDeleteConfirm && !deleteForGood}
         title={hidesInstead ? COPY.FORMS.HIDE_RESULT_TITLE : post.group_scorecard ? COPY.FORMS.DELETE_ROUND_TITLE : 'Delete Post'}
         message={
           post.group_scorecard

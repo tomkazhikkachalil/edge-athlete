@@ -4,6 +4,7 @@ import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
+import { deleteRoundResult } from '@/lib/results/delete-server';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -261,6 +262,26 @@ export async function DELETE(
     if (!isUuid(id)) {
       return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
     }
+    // A REAL delete, asked for by name (Oct 2 2026): an unfinished casual
+    // round is discarded whatever has been scored (nothing is recorded until
+    // it completes — the only way out used to be End Round, which records
+    // it); a finished one follows the delete rule (results/delete-rule.ts).
+    if (new URL(request.url).searchParams.get('mode') === 'delete') {
+      const out = await deleteRoundResult(getSupabaseAdmin(), id, user.id);
+      switch (out.status) {
+        case 'deleted':
+          return NextResponse.json({ deleted: true, message: 'Round deleted' });
+        case 'refused':
+          return NextResponse.json({ error: out.message }, { status: 409 }); // hardening-ok: crafted strings, see results/delete-rule.ts
+        case 'not_found':
+          return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+        case 'forbidden':
+          return NextResponse.json({ error: 'Only someone who played this round can delete it' }, { status: 403 });
+        case 'error':
+          return NextResponse.json({ error: out.message }, { status: 500 }); // hardening-ok: crafted strings, see results/delete-server.ts
+      }
+    }
+
     // Results-kept (241): a round with any score is HIDDEN, never deleted; an unplayed one deletes.
     const result = await deleteOrHideRound(getSupabaseAdmin(), id, user.id);
 
