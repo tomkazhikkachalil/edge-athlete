@@ -482,6 +482,13 @@ export default function LiveRoundPage() {
                     <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
                   )}
                 </span>
+                {/* The course's map data has no line for this hole: say so,
+                    or the map just sits on the course pin looking broken. */}
+                {!displayGeoHole && (
+                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-unmapped="">
+                    Not mapped yet
+                  </span>
+                )}
                 {displayHoleDetail?.yardage != null && (
                   <span className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm">
                     <span className="hidden sm:inline"> · </span>
@@ -563,7 +570,8 @@ export default function LiveRoundPage() {
           holeData={scorecard.golf_data.hole_data ?? null}
           courseName={scorecard.golf_data.course_name}
           uploaderId={user.id}
-          onShowMap={mapAvailable ? () => setTab('map') : undefined}
+          // The scorer's hole goes with it: the map opens where the player is.
+          onShowMap={mapAvailable ? (hole: number) => { setViewedHole(hole); setTab('map'); } : undefined}
           players={
             isCreator
               ? scorecard.participants

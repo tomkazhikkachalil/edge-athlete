@@ -1,5 +1,25 @@
 # Development Log
 
+## October 2, 2026 — Quick fixes, PR 4: GPS opens on your hole, and a flag stands on the green
+
+Tom: "When you're playing a golf round and select GPS to view the holes, selecting it on the first hole doesn't take you to the first hole… It's also hard to tell where the pin is. Please add a flag icon at the pin location."
+
+**Cause.** The scorer's map button never told the map which hole it was on — `onShowMap()` took no argument and only switched the tab. The map then chose its own hole: the first one with no SAVED score. And that button saves the hole it is on before it leaves. So from hole 1, with a score on the wheel, hole 1 was saved, became "scored", and the map opened on hole 2. Going back to an already-scored hole 1 did the same.
+
+**The fix (zero DDL):**
+- **The scorer hands over its hole** — `holeNumberAtPosition(startingHoleNumber, position)` (`src/lib/golf/score-entry.ts`, pure; a back-nine round's first position is hole 10) goes through `onShowMap(holeNumber)`, and the live page sets it as the viewed hole before switching to the map.
+- **A flag on the green** — `flagIcon` in `CourseMapInner.tsx`: a red flag on a white-cased pole, its foot on the point, over the existing green dot; never interactive, so a tap on the green still places the target. Honest limit, unchanged: no course data carries the day's pin position — the flag marks the END of the hole's line, the centre of the green.
+- **The flag is never under the app's own controls.** Two things the new spec found: a hole running straight up the screen put its green under the hole chip (the fit's padding was 60 px all round; it is now 116 top / 104 bottom), and a green in the top-right landed behind the very "yds to green" pill that names it — that hole is fitted again with the control column's width kept clear.
+- **The view is fitted when the focus MOVES, not on every poll.** The page rebuilds its `holes` array whenever the scorecard refreshes; each refresh re-ran the fit, yanked the map back to the hole and took Re-center's follow away. The fit is keyed on the hole and its line now.
+- A hole the course's map data has no line for says "Not mapped yet" on the chip instead of leaving the map on the course pin.
+
+**Proof:**
+- Unit: `holeNumberAtPosition` (front nine, back nine, and that it is NOT the next unscored hole).
+- `e2e/gps-hole-flag.spec.ts` (new, self-seeded — it brings its own mapped QA course, because the existing rangefinder fixture needs the seeded Eagle Creek geometry that staging and CI do not have, and skips there): hole 1 is scored, the scorer walked back to it, the map opened from there → the chip reads Hole 1, one flag stands with its foot on the green dot, clear of the chip and of the distance pill, a tap on the green still places the target, and stepping to hole 2 moves the flag. Phone Chromium and phone WebKit.
+- 375 px by eye on satellite: the flag reads clearly against grass and water.
+
+**What only the course can prove:** the flag against real greens and tree cover — Tom's next round.
+
 ## October 2, 2026 — Quick fixes, PR 2: Delete, for real — for-fun results, and any round still being played
 
 Tom: "Users should be able to delete any round or activity that doesn't come from an official tournament or club stats. Right now the only way to close a round is by pressing End Round, but a round that isn't tied to a tournament should always be deletable." Asked which rule he wanted against his own Sep 26 "results are never lost", he chose **both Hide and Delete**: Hide keeps counting and can be undone; Delete is gone for good and stops counting; official results can only be hidden. This amends convention 27.

@@ -12,6 +12,7 @@ import {
   removeHoleFromDraft,
   clearDraft,
   mergeDraftIntoHoles,
+  holeNumberAtPosition,
   type DraftHole,
 } from '@/lib/golf/score-entry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -107,7 +108,8 @@ interface ScoreEntryModalProps {
    *  save-state path as the X) and hands off to the caller's map view. The
    *  live portal's Map tab is otherwise invisible behind the auto-opened
    *  scorer — this is its discoverability affordance mid-round. */
-  onShowMap?: () => void;
+  /** Opens the course map ON the hole the scorer is showing (a hole NUMBER). */
+  onShowMap?: (holeNumber: number) => void;
 }
 
 export default function ScoreEntryModal({
@@ -687,7 +689,9 @@ export default function ScoreEntryModal({
                       if (!ok) return;
                     }
                     onClose();
-                    onShowMap();
+                    // After onClose on purpose: the page's close clears its
+                    // viewed hole, and this sets the one the player is on.
+                    onShowMap(holeNumberAtPosition(startingHoleNumber, currentHole));
                   }}
                   className="text-white hover:text-white/80 text-lg min-w-[44px] min-h-[44px] -my-2 flex items-center justify-center"
                   aria-label="Open course map"

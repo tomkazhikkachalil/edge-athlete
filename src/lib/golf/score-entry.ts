@@ -45,6 +45,18 @@ export interface NextHoleInfo {
   yardage: number | null;
 }
 
+/**
+ * The scorer works in POSITIONS (1..holesPlayed); everything else speaks hole
+ * NUMBERS (a back-nine round's first position is hole 10). This is the hand-
+ * over: the scorer's map button passes the hole it is ON, so the map opens
+ * there — it used to open on "the first hole with no saved score", and
+ * tapping the map on hole 1 saved hole 1 first, so it opened on hole 2
+ * (Tom, Oct 2026).
+ */
+export function holeNumberAtPosition(startingHoleNumber: number, position: number): number {
+  return startingHoleNumber + Math.max(1, Math.trunc(position)) - 1;
+}
+
 export function nextHoleForScores(
   existingScores: Array<{ hole_number: number }>,
   holesPlayed: number,
