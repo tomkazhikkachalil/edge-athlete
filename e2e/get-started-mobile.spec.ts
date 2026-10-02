@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loadQaUser, resetGetStarted } from './helpers/qa-user';
 
 /**
  * First-run Get Started checklist (#344) at phone width (Web & Mobile Ship
@@ -87,4 +88,51 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
     timeout: 15_000,
   });
   await expect(feed.getByTestId('get-started-card')).toHaveCount(0);
+});
+
+// Quick fixes, PR 3 (Oct 2026). Tom: "If the user closes the suggestions,
+// they should stay closed." The X was remembered in one browser's
+// localStorage, so any fresh storage — a second device, a private window, the
+// app installed from the home screen — showed the card again. No stub here:
+// the card is closed for real in one browser context, and a SECOND context
+// with empty storage (the same account) must not be offered it.
+test('@mobile the checklist, once closed, stays closed in a browser that never saw it', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const alpha = loadQaUser('user.json');
+  await resetGetStarted(alpha.id);
+  const viewport = { width: 390, height: 844 };
+  const first = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport });
+  const second = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport });
+  try {
+    const page = await first.newPage();
+    await page.goto('/feed');
+    const card = page.getByTestId('get-started-card');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const saved = page.waitForResponse(r => r.url().includes('/api/profile/getting-started') && r.request().method() === 'POST');
+    await card.getByRole('button', { name: 'Dismiss get started checklist' }).click();
+    await expect(card).toHaveCount(0);
+    expect((await saved).ok()).toBe(true);
+
+    // Another browser, same account, nothing in storage: the account remembers.
+    const other = await second.newPage();
+    const asked = other.waitForResponse(r => r.url().includes('/api/profile/getting-started') && r.request().method() === 'GET');
+    await other.goto('/feed');
+    expect((await (await asked).json()).dismissed).toBe(true);
+    await expect(other.getByRole('tab', { name: 'Following' })).toBeVisible({ timeout: 20_000 });
+    await expect(other.getByTestId('get-started-card')).toHaveCount(0);
+    // …and that browser now knows too: no request on its next visit.
+    const again = await second.newPage();
+    let askedAgain = false;
+    again.on('request', r => {
+      if (r.url().includes('/api/profile/getting-started')) askedAgain = true;
+    });
+    await again.goto('/feed');
+    await expect(again.getByRole('tab', { name: 'Following' })).toBeVisible({ timeout: 20_000 });
+    await expect(again.getByTestId('get-started-card')).toHaveCount(0);
+    expect(askedAgain).toBe(false);
+  } finally {
+    await first.close().catch(() => null);
+    await second.close().catch(() => null);
+    await resetGetStarted(alpha.id);
+  }
 });

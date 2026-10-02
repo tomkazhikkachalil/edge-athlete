@@ -1,5 +1,24 @@
 # Development Log
 
+## October 2, 2026 — Quick fixes, PR 3: the Get Started suggestions, once closed, stay closed
+
+Tom: "When a user first creates an account, the feed shows suggestions for completing their profile. If the user closes the suggestions, they should stay closed, and the suggestions pop-up should not appear again."
+
+**Cause — two things, both of our own making:**
+- The X was remembered in ONE browser's `localStorage`, under a key that was not even per account. Any fresh storage showed the card again for the rest of its 14-day window: a second device, a private window — and the app installed from the home screen the day before ("Download the app"), because an installed web app keeps its own storage, separate from Safari's. Sign-in and sign-out were never the cause (nothing clears the key).
+- On a phone the "Download the app" card was hidden only WHILE Get Started showed — so closing Get Started slid a different card into the same slot at once, which reads as "the pop-up came back".
+
+**The fix (zero DDL):**
+- **The dismissal lives on the ACCOUNT.** `POST /api/profile/getting-started { dismiss: true }` stamps `get_started_dismissed_at` on the auth user's metadata (written server-side with the admin client, existing keys kept, idempotent); the GET answers `dismissed`, read FRESH from the auth server rather than from the session's own copy (which is as old as its token). No migration: the card lives 14 days, and the account's own metadata is the store that already follows the person everywhere.
+- **The card honours it.** `GetStartedCard` writes the browser key (now per account — `ea:get-started:dismissed:v1:<id>`; the old shared key is still honoured) AND calls the POST; a browser that never saw the card asks once, is told `dismissed`, stays closed, and remembers — no request on its next visit. The rule's pure half is `src/lib/get-started.ts`.
+- **Closing one card never summons another.** `InstallCard` waits for the next visit after Get Started is closed.
+
+**Proof:**
+- Unit: the per-account key and the metadata reader (`get-started.test.ts`).
+- e2e, 13 of 13 locally (desktop, phone Chromium, phone WebKit): `get-started-mobile.spec.ts` closes the card for real in one browser context and a SECOND context with empty storage — the same account — is not offered it (the GET answers `dismissed`, and that browser's next visit asks nothing); `install-app.spec.ts` holds that closing Get Started does not reveal the install card until the next visit. Both put the shared QA account back (`resetGetStarted`) — the dismissal outlives a browser now.
+
+**For Tom's own phone:** the card he closed in Safari before this fix was never stamped on his account, so the installed app shows it one more time; closing it there is the last time.
+
 ## October 2, 2026 — Quick fixes, PR 4: GPS opens on your hole, and a flag stands on the green
 
 Tom: "When you're playing a golf round and select GPS to view the holes, selecting it on the first hole doesn't take you to the first hole… It's also hard to tell where the pin is. Please add a flag icon at the pin location."

@@ -5,18 +5,22 @@
  * sweep found: a day-one golfer lands on a populated global feed with zero
  * guidance. Four steps derived from real data (no new tables, see
  * /api/profile/getting-started), shown only while the account is young AND
- * steps remain, dismissible (localStorage), and gone for good once every
- * step is done.
+ * steps remain, dismissible, and gone for good once every step is done.
+ *
+ * Closed stays closed (Oct 2026): the X is stamped on the ACCOUNT through the
+ * same route, so the card does not come back on another device, in a private
+ * window or in the app installed from the home screen. The browser key is
+ * the fast path only. See src/lib/get-started.ts.
  */
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { firstActivityCopy } from '@/lib/sports/first-activity-copy';
 import { useAuth } from '@/lib/auth';
+import { GET_STARTED_DISMISSED_EVENT, LEGACY_DISMISS_KEY, dismissKeyFor } from '@/lib/get-started';
 
 /** Accounts older than this never see the card, even with unmet steps. */
 const NEW_ACCOUNT_WINDOW_DAYS = 14;
-const DISMISS_KEY = 'ea:get-started:dismissed:v1';
 
 const FOLLOW_TARGET = 3;
 
@@ -29,11 +33,19 @@ interface ChecklistState {
   hasCompetitive: boolean;
 }
 
-function safeGetDismissed(): boolean {
+function safeGetDismissed(userId: string): boolean {
   try {
-    return localStorage.getItem(DISMISS_KEY) === '1';
+    return localStorage.getItem(dismissKeyFor(userId)) === '1' || localStorage.getItem(LEGACY_DISMISS_KEY) === '1';
   } catch {
     return false;
+  }
+}
+
+function rememberDismissed(userId: string): void {
+  try {
+    localStorage.setItem(dismissKeyFor(userId), '1');
+  } catch {
+    // Storage unavailable — the account's own stamp still holds.
   }
 }
 
@@ -54,12 +66,19 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
     // Age gate lives HERE (Date.now is impure for render, fine in effects).
     const age = Date.now() - new Date(createdAtIso).getTime();
     if (age >= NEW_ACCOUNT_WINDOW_DAYS * 86_400_000) return;
-    if (safeGetDismissed()) return;
+    if (safeGetDismissed(user.id)) return;
+    const userId = user.id;
     let cancelled = false;
     fetch('/api/profile/getting-started')
       .then(res => (res.ok ? res.json() : null))
       .then(body => {
         if (cancelled || !body) return;
+        // Closed on another device (or before this storage existed): stay
+        // closed, and save the next visit the request.
+        if (body.dismissed) {
+          rememberDismissed(userId);
+          return;
+        }
         setState(body);
         setDismissed(false);
       })
@@ -129,11 +148,18 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
         <button
           type="button"
           onClick={() => {
-            try {
-              localStorage.setItem(DISMISS_KEY, '1');
-            } catch {
-              // Storage unavailable — dismiss for this visit only.
-            }
+            rememberDismissed(user.id);
+            // The account remembers it — every device, not just this browser.
+            void fetch('/api/profile/getting-started', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dismiss: true }),
+              keepalive: true,
+            }).catch(() => {
+              // Offline: this browser still remembers; the next close retries.
+            });
+            // Closing one card must not make another appear in its place.
+            window.dispatchEvent(new Event(GET_STARTED_DISMISSED_EVENT));
             setDismissed(true);
           }}
           aria-label="Dismiss get started checklist"

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
+import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
 import { useInstallApp } from './InstallAppProvider';
 
 /**
@@ -11,6 +12,9 @@ import { useInstallApp } from './InstallAppProvider';
  * itself once the app is installed. It never stacks on the Get Started card
  * (a new account has enough to do): globals.css hides it while that card is
  * its previous sibling, so the feed renders the two side by side in the DOM.
+ * And it never takes that card's place the moment it is closed — closing a
+ * card and watching another slide into the same slot read as "the pop-up
+ * came back" (Tom, Oct 2026). It waits for the next visit.
  */
 
 const DISMISS_KEY = 'ea:install-card:dismissed:v1';
@@ -28,8 +32,15 @@ export default function InstallCard() {
   const { user } = useAuth();
   const app = useInstallApp();
   const [dismissed, setDismissed] = useState(readDismissed);
+  const [waiting, setWaiting] = useState(false);
 
-  if (!user || dismissed || !app.canInvite || !app.handheld) return null;
+  useEffect(() => {
+    const wait = () => setWaiting(true);
+    window.addEventListener(GET_STARTED_DISMISSED_EVENT, wait);
+    return () => window.removeEventListener(GET_STARTED_DISMISSED_EVENT, wait);
+  }, []);
+
+  if (!user || dismissed || waiting || !app.canInvite || !app.handheld) return null;
 
   return (
     <section

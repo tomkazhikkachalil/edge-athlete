@@ -153,6 +153,21 @@ export async function resetRateBucket(
  *  matters when a run reuses ids — but it costs one statement). Keys are
  *  `${action}:${identifier}` and a uuid never spells an IP, so the LIKE is
  *  exact enough. */
+/**
+ * The Get Started card's dismissal lives on the ACCOUNT since Oct 2026 (the
+ * auth user's metadata), and the QA users are shared by the whole run — a
+ * spec that really closes the card must put it back, or every later spec
+ * (and the same spec on the next engine) meets an account that closed it.
+ */
+export async function resetGetStarted(userId: string): Promise<void> {
+  const admin = adminClient();
+  const { data, error: readError } = await admin.auth.admin.getUserById(userId);
+  if (readError || !data?.user) throw new Error(`resetGetStarted(${userId}) could not read the user: ${readError?.message ?? 'no user'}`);
+  // Every other key kept, whatever the auth server does with a partial object.
+  const { error } = await admin.auth.admin.updateUserById(userId, { user_metadata: { ...(data.user.user_metadata ?? {}), get_started_dismissed_at: null } });
+  if (error) throw new Error(`resetGetStarted(${userId}) failed: ${error.message}`);
+}
+
 export async function resetQaBuckets(admin: SupabaseClient, userIds: readonly string[]): Promise<void> {
   for (const id of userIds) {
     const { error } = await admin.from('rate_limits').delete().like('key', `%:${id}%`);
