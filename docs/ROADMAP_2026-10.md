@@ -12,7 +12,24 @@ width alongside desktop (CLAUDE.md "Web & Mobile Ship Together"). Tom: "we're in
 a good place with the web friendly mobile app." Production is live behind the
 launch gate while the fix round runs, one issue at a time.
 
-## 1. Install the web app on a phone — soon
+## 1. Install the web app on a phone — BUILT (Oct 2 2026, "Download the app")
+
+**Status:** the Download button shipped — the account menu ("Get the app"),
+Settings → Account, a one-time card on the feed on phones and tablets, and a
+line on the sign-in page. Android and desktop Chromium install in one tap;
+an iPhone is shown the three taps (Share → Add to Home Screen → Add), because
+Apple gives a website no install API; another app's browser is told to open
+Safari / Chrome first. Every invitation leaves once the app is installed.
+CLAUDE.md convention 31 has the rules; DEVLOG Oct 2 2026 the record.
+
+**Still open here, each its own later round:** an offline shell and push
+notifications (both need a service worker, and `worker-src 'self'` in
+`buildCsp` before one can register; iOS allows web push only for an INSTALLED
+web app), an iOS splash image, and a QR code on the desktop guide (needs a
+dependency). Tom's own phone is the proof no test can give — "Continue with
+Google" inside the installed iPhone app is the one thing to try and report.
+
+What this section said before the build:
 
 The site already has what a phone needs to install it: a web manifest
 (`src/app/manifest.webmanifest/route.ts` — standalone, themed, the icons), so

@@ -235,6 +235,56 @@ export const COPY = {
     GENERIC_ERROR: 'Failed to save changes',
   },
 
+  // Download the app (Oct 2026) — the web app installed from the browser,
+  // no store. One platform rule decides which steps a device is shown
+  // (src/lib/install/platform.ts); the limits named here are Apple's and
+  // Google's, said plainly.
+  INSTALL: {
+    MENU: 'Get the app',
+    CTA: 'Download the app',
+    SHOW_STEPS: 'Show me how',
+    SHEET_TITLE: 'Get the Edge Athlete app',
+    SHEET_SUBTITLE: 'An icon on your phone. No app store.',
+    CARD_TITLE: 'Get the Edge Athlete app',
+    CARD_BODY: 'Put Edge Athlete on your home screen. It opens full screen, like any app.',
+    CARD_DISMISS: 'Dismiss the app invitation',
+    SETTINGS_TITLE: 'Edge Athlete app',
+    SETTINGS_BODY: 'Add Edge Athlete to your home screen. It opens full screen like any app, with everything you have here.',
+    USING_APP: "You're using the Edge Athlete app.",
+    INSTALLED_HERE: 'Edge Athlete is installed on this device. Open it from your home screen.',
+    SAME_APP: 'It is the full Edge Athlete: the same account and every feature.',
+    SIGN_IN_ONCE: "You'll sign in once inside the app.",
+    PROMPT_BODY: 'One tap, and the Edge Athlete icon appears on your home screen.',
+    PROMPT_BUTTON: 'Install Edge Athlete',
+    IOS_SAFARI_STEPS: [
+      'Tap the Share button at the bottom of Safari.',
+      'Scroll down and tap "Add to Home Screen".',
+      'Tap "Add" in the top corner.',
+    ],
+    IOS_BROWSER_STEPS: [
+      'Tap the Share button beside the address bar.',
+      'Tap "Add to Home Screen".',
+      'Tap "Add".',
+    ],
+    IOS_BROWSER_NOTE: (host: string) =>
+      `No "Add to Home Screen" in the list? Open ${host} in Safari and follow the same steps there.`,
+    ANDROID_MENU_STEPS: [
+      'Tap the menu (three dots) at the top of your browser.',
+      'Tap "Install app" or "Add to Home screen".',
+      'Tap "Install".',
+    ],
+    IN_APP_BODY: "You're inside another app's browser, and it can't add apps to a phone.",
+    IN_APP_STEPS: (browser: string, host: string) => [
+      `Open ${host} in ${browser}. This screen's menu usually has "Open in ${browser}".`,
+      'Sign in there.',
+      'Tap "Download the app".',
+    ],
+    COPY_LINK: 'Copy the link',
+    LINK_COPIED: 'Link copied',
+    DESKTOP_BODY: (host: string) =>
+      `The app is for a phone or tablet. On your phone, open ${host}, sign in and tap "Download the app".`,
+  },
+
   // FEATURES (per-sport label sets) and ROUTES were deleted August 2026:
   // zero consumers. Sport-specific field labels live in
   // src/lib/sports/settings-schemas.ts; sport activity routing goes through

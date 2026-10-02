@@ -1,5 +1,34 @@
 # Development Log
 
+## October 2, 2026 — Download the app: Edge Athlete as an icon on the phone, no store
+
+Tom: people should be able to download Edge Athlete so it is an icon on their phone and opens like an app — every feature, "not through the web" — without the App Store or Google Play. Asked which route, he chose: **a Download button now, the store apps later** (`docs/ROADMAP_2026-10.md` item 1 is this; item 2 is the stores).
+
+**What already existed.** The manifest (standalone, 192 / 512 / maskable icons), the Apple tags and touch icon, `viewport-fit=cover` and the safe-area classes on the header, tab bar and drawer. So the app could ALREADY be added to a home screen — by anyone who knew the browser trick. Nothing in the app said so, and nothing knew whether it had happened: zero hits for `beforeinstallprompt`, `display-mode` or `navigator.standalone`.
+
+**The limits are the platforms', and the app now says them plainly:**
+- Android and desktop Chromium hand a page an install prompt — one tap.
+- An iPhone gives a website no install API at all. It is Share → Add to Home Screen → Add: Safari always, Chrome / Edge from iOS 16.4.
+- Another app's browser (Instagram, Facebook, LinkedIn…) cannot add anything to a home screen; the person opens Safari or Chrome first.
+- An installed iPhone app keeps its own sign-in — people sign in once inside it.
+
+**What was built (zero DDL, zero dependencies, no CSP change, no service worker):**
+- **One rule** — `src/lib/install/platform.ts installMode` (pure): `installed · prompt · ios-safari · ios-browser · ios-in-app · android-menu · android-in-app · desktop`, pinned with real user-agent strings (an iPad asking for the desktop site reads as iOS; a bare WKWebView reads as in-app).
+- **One store, one provider** — `src/lib/install/store.ts` listens (wired when the module loads, because the prompt event fires once, early) and `InstallAppProvider` at the app root reads it through `useSyncExternalStore`; `useInstallApp()` gives `canInvite`, `install()` (the browser's dialog where there is one, else the guide) and `openGuide()`.
+- **The guide** — `InstallAppSheet` in the house `LargerWindow`: the device's own numbered steps, and "You'll sign in once inside the app."
+- **The doors** (all gone once installed): "Get the app" in the header dropdown and the phone drawer; a card in Settings → Account that also says "You're using the Edge Athlete app" or "installed on this device"; a card on the feed on phones and tablets, dismissed for good, never beside the Get Started card; a line on the sign-in page.
+- **Manifest**: `id: '/feed'` (today's implicit identity made explicit), `scope`, `lang`, `categories`.
+- **Back is never dead** — `src/lib/nav-back.ts backOr(router, fallback)` at the eight `router.back()` sites. The installed window has no browser Back button and Android opens our links inside it; a page opened cold has no history, and those buttons did nothing (true of a link opened in a new tab as well).
+
+**Not in this round, by design:** offline use and lock-screen notifications (both need a service worker, and `worker-src 'self'` in `buildCsp` before one could register — `script-src` carries `'strict-dynamic'`, so `'self'` does not cover a worker), an iOS splash image, a QR code on the desktop guide (a dependency).
+
+**Proof:**
+- Unit: `installMode` (9 cases), `backOr`, and the launch-gate pin that a signed-out phone can read the manifest and the touch icon.
+- `e2e/install-app.spec.ts`, 9 of 9 locally (desktop, phone Chromium, phone WebKit). A real install cannot be automated, so each device state is played: an Android user agent + a synthetic prompt event (the button calls the browser's prompt exactly once; after `appinstalled` the card and the menu entry are gone, and stay gone); iPhone Safari / Chrome-on-iOS / Instagram user agents (each its own steps); `navigator.standalone` + Chromium's emulated `display-mode` (nothing invites, Settings says "You're using the app"); a new account sees Get Started and not two cards; the manifest and every icon answer 200; a cold-opened Settings page goes Back to the feed.
+- 375 px by eye, light and dark: the feed card, the guide, the drawer entry, the Settings card, the sign-in line.
+
+**What only a phone can prove — Tom's two minutes:** install from Safari, open from the icon (full screen, the tab bar clear of the home indicator), sign in, close and reopen (still signed in), and try "Continue with Google" inside the installed app — the one flow that may behave differently there; email and password are unaffected.
+
 ## October 2, 2026 — Fix round, part 6: a commenter's picture and name open their profile
 
 Tom: when someone comments on your post, you cannot tap through to their profile from the comment on the feed — on his phone, and probably in a browser too.

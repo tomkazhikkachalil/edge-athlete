@@ -6,6 +6,7 @@ import DeleteAccountModal from './DeleteAccountModal';
 import { useEditProfile } from '@/components/EditProfileHost';
 import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
 import { COPY } from '@/lib/copy';
+import InstallSettingsCard from '@/components/install/InstallSettingsCard';
 
 export default function AccountSettings() {
   const { profile } = useAuth();
@@ -162,6 +163,9 @@ export default function AccountSettings() {
           </div>
         </div>
       </div>
+
+      {/* Download the app — the door that is always here. */}
+      <InstallSettingsCard />
 
       {/* Danger Zone Section */}
       <div className="border-t border-border pt-8">

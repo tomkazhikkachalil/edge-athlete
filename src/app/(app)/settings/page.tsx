@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
+import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -140,7 +141,7 @@ export default function SettingsPage() {
         {/* Page Header */}
         <div className="mb-6">
           <button
-            onClick={() => router.back()}
+            onClick={() => backOr(router, '/feed')}
             className="text-tertiary hover:text-primary mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
           >
             <i className="fas fa-arrow-left"></i>

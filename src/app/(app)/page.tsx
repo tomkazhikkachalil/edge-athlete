@@ -11,6 +11,7 @@ import { safeInternalPath } from '@/lib/safe-internal-path';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
+import InstallLink from '@/components/install/InstallLink';
 import RegistrationSteps from '@/components/signup/RegistrationSteps';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -697,6 +698,7 @@ export default function Home() {
               </button>
             </form>
             <OAuthButtons onError={setError} />
+            <InstallLink className="mt-4 text-center" />
           </div>
 
           {/* Sign Up Section — the launch gate (Sep 30 2026) replaces it with

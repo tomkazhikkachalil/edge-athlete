@@ -21,6 +21,10 @@ describe('launchGateRedirect (signed-out visitors while the gate is up)', () => 
   it('lets static files through but never the crawler files (the middleware answers those)', () => {
     expect(launchGateRedirect('/logo-mark.png', '')).toBeNull();
     expect(launchGateRedirect('/fonts/x.woff2', '')).toBeNull();
+    // "Download the app": a signed-out phone must still read the manifest
+    // and its icons, or the home-screen icon is a screenshot of a page.
+    expect(launchGateRedirect('/manifest.webmanifest', '')).toBeNull();
+    expect(launchGateRedirect('/apple-touch-icon.png', '')).toBeNull();
     expect(launchGateRedirect('/robots.txt', '')).toBe(COMING_SOON_PATH);
     expect(launchGateRedirect('/sitemap.xml', '')).toBe(COMING_SOON_PATH);
   });
