@@ -45,6 +45,7 @@ import {
 import ExportSettingsSheet from './ExportSettingsSheet';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
+import FreeCropStage from './FreeCropStage';
 import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
 import HistoryRail from './HistoryRail';
@@ -550,7 +551,16 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             </>
           )}
         </div>
-        <h2 className="text-label font-semibold text-white">Edit media</h2>
+        {/* Phone: once Undo / Redo / History appear the row is full, and the
+            title used to wrap onto two lines — there it stays for screen
+            readers only. */}
+        <h2
+          className={`text-label font-semibold text-white whitespace-nowrap ${
+            canUndo(active.id) || canRedo(active.id) ? 'sr-only sm:not-sr-only' : ''
+          }`}
+        >
+          Edit media
+        </h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -597,7 +607,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             videoUrl={activeUrl}
             recipe={videoRecipe}
             config={config}
-            onPatch={patch => patchRecipe(active.id, patch)}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
           />
         ) : (
           <VideoStage
@@ -613,14 +623,28 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       ) : !isGif && imageRecipe ? (
         <>
           {activeTool === 'crop' ? (
-            <CropStage
-              key={active.id}
-              imageUrl={activeUrl}
-              recipe={imageRecipe}
-              config={config}
-              cssFilter={liveFilter}
-              onPatch={patch => patchRecipe(active.id, patch)}
-            />
+            // A surface that ENFORCES a ratio (avatar, cover, logo) keeps the
+            // fixed frame the picture moves under; everywhere else the person
+            // shapes the crop box by hand.
+            config.enforcedRatio ? (
+              <CropStage
+                key={active.id}
+                imageUrl={activeUrl}
+                recipe={imageRecipe}
+                config={config}
+                cssFilter={liveFilter}
+                onPatch={patch => patchRecipe(active.id, patch)}
+              />
+            ) : (
+              <FreeCropStage
+                key={active.id}
+                imageUrl={activeUrl}
+                recipe={imageRecipe}
+                config={config}
+                cssFilter={liveFilter}
+                onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+              />
+            )
           ) : (
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
               {/* WebGL preview of the FULL recipe (geometry + engine color);

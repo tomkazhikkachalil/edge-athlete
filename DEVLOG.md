@@ -1,5 +1,31 @@
 # Development Log
 
+## October 2, 2026 — Photo editing on phones: shape the crop by hand
+
+Tom: "Photo editing on the phone should feel more hands-on. Instead of the fixed options we have now, users should be able to drag with their fingertips and set their own custom edit area. We still need the full set of editing tools for video, especially for longer content and on larger devices."
+
+**How it was.** The Crop tool was react-easy-crop: a FIXED frame of one ratio that the picture was dragged and pinched under. The person could only pick a chip (Original, 1:1, 4:5, 9:16, 16:9) and could not shape the area itself. Video's Crop was the same.
+
+**The change (zero DDL, zero new deps, the recipe unchanged — `CropRect` in the same rotated-frame space):**
+- **The picture sits still and the crop box moves.** `CropCanvas.tsx` lays a box over the picture with four corner brackets, four edge grips and an inside area. A **corner** resizes two sides, an **edge** resizes one side, a drag **inside** moves the box, and **two fingers** scale it about its centre. Any area can be cropped. The handles have 44 px targets and the arrow keys nudge a focused handle (shift = ×5). Outside the box is dimmed, with lighter dimming and brighter thirds while a finger is down. A line above the stage reads "Drag the corners or edges to crop" until the first crop, then shows the crop's size in pixels.
+- **One gesture is one undo step** (`crop.<n>` keys; the history rail calls each one "Crop"). The box is local state during a drag and is committed when the last finger lifts.
+- **The chips are now shortcuts.** "Free" (was "Original") is the default and leaves the box free. Picking a ratio snaps the box to that shape, centred on what was already framed, and the box keeps that ratio while it is resized. **Reset** gives back the whole photo.
+- **A straightened picture never exports a black wedge.** The box always stays on the picture. Straightening shrinks an untouched crop to the largest box of the photo's shape, and the box grows back when the slider returns to level. A crop the person shaped is only shrunk when it has to be, and keeps its place relative to the picture's centre. A quarter turn carries the crop with the picture.
+- **Video gets the same box** (`VideoCropStage.tsx`). The rest of the video tools are unchanged: clips (trim, split, reorder, volume, speed), frame step, cover, and the desktop layout.
+- **The avatar, cover photo and org logo keep the fixed frame** (`CropStage`). They enforce a ratio, so placing the picture inside the given frame is still the right gesture there. `MediaEditorModal` decides on `config.enforcedRatio`.
+- At phone width the header's "Edit media" title no longer wraps to two lines once Undo/Redo appear. It stays available to screen readers.
+
+**Where the rules live:** `src/lib/media/crop-box.ts` (pure): `dragCrop`, `scaleCrop`, `ratioCrop`, `refitCrop` (the frame grows round the picture's centre, so a box keeps its offset from that centre), `rotateCropQuarter`, `shrinkToFit`, `insidePicture` (all four corners on the turned picture; the valid set is convex, so the boundary is found by bisection), and `normalizeCrop` (nearest pixel, inward only on a tilt; the whole unturned frame is `null`, so an untouched photo still uploads untouched).
+
+**Proof:**
+- `crop-box.test.ts`: 28 cases (corners, edges, move, minimum, ratio lock, pinch, tilt fit against the closed form at 45°, slide along a tilted edge, quarter-turn round trip, rounding). `history-labels.test.ts`: the new keys.
+- `e2e/crop-freeform.spec.ts`, 9 of 9 on desktop, phone Chromium and phone WebKit. Corner, edge, move, undo/redo of one gesture, a synthetic two-finger pinch, a keyboard nudge, 1:1 snap and lock, Free; the **exported file's pixel size equals the box**; re-edit reopens the same box; Reset; straighten fit, push past the tilted edge, level again, quarter turn; video crop.
+- Neighbours, unchanged and green: `media-editor` (the ratio chip, undo, history rail, flip, every engine tool, export), `media-reedit`, `capture-attach`, `diag-media`, `in-app-camera` (skips on WebKit as before). 20 passed, 1 skipped.
+- 390 px by eye on both engines, with the fixture and with a 3024×4032 portrait.
+- `npm run verify` exit 0: 4,369 tests in 463 files, lint 0, 222 chunks within the iOS 15 floor. Guardrails pass.
+
+**Owed by a phone:** how the drag feels under a real finger. Headless tests drive pointer events, not a touchscreen.
+
 ## October 2, 2026 — Maintenance after the quick fixes, Download the app and the GPS toggle: the full checklist, all green
 
 **On main at `070e5e8d`** (#1043). Since the last maintenance entry (`9e328fb7`, #1036) — seven PRs, 73 files outside this log, zero DDL:
