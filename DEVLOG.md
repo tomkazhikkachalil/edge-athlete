@@ -1,5 +1,39 @@
 # Development Log
 
+## October 2, 2026 — Maintenance after the hands-on crop: the full checklist, all green
+
+**On main at `9b2097a1`** (#1045). Since the last maintenance entry (#1044, `4a12e1fe`):
+- **#1019** (the restore-to-staging drill) MERGED minutes after that entry was written. It said "#1019 is still an open PR", which was already out of date. Correcting it here.
+- **Photo editing on phones: shape the crop by hand** (#1045): drag the corners and edges to any area, move the box from inside, pinch with two fingers. Video gets the same box. Zero DDL.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,369 tests in 463 files** (4,340 in 462 on the last pass — the crop geometry and history labels);
+- the production build (next 16.3.8);
+- 222 client chunks within the iOS 15 / Safari 15 floor.
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes are unchanged: 105 `.select('id'|'*')` sites and 14 raw-error-shaped bodies.
+- **`npm audit --omit=dev`: 0 vulnerabilities.**
+- **Schema:** `check:schema` (staging) and `check:schema:prod` OK on every facet. Both ledgers have 246 rows, head **247**, and every file has run.
+- **GitHub:** main is in sync with origin. Main's CI (verify, guardrails, smoke) is green on `9b2097a1`. **Zero open PRs.**
+- **Production (edgeathlete.ca):** health `ok`, database `ok`, serving `9b2097a1`. The launch gate holds: a signed-out `/` and `/feed` answer 307 to `/auth/coming-soon`, the sign-in door (`/?signin=1`) answers 200, robots disallow everything, and `POST /api/signup` answers 403.
+- **The downloaded app's own files, signed out:** the manifest answers 200 (`id` and `start_url` `/feed`, `scope` `/`, standalone). The 192, 512 and maskable 512 icons, the Apple touch icon and the favicon all answer 200.
+
+**One production probe, signed in, 74 of 74 passed** — 26 on desktop (1280), 24 on phone Chromium (390) and 24 on phone WebKit (390), in a single run, no retries, 35.9 min. Specs: `health`, `feed-post`, `edit-profile`, `profile-spacing`, `vitals`, `install-app`, `get-started-mobile`, `comment-author-link`, `results-hide`, `round-delete`, `gps-hole-flag`, `live-rangefinder` (on a real course), and the media set: `crop-freeform`, `media-editor`, `media-reedit`, `capture-attach`. Afterwards production held no QA accounts and no QA course rows.
+
+**What a test cannot be, said plainly:** the downloaded app is proven as far as a browser can play it (an emulated user agent, install event and `navigator.standalone`). The crop is driven by pointer events, not a real touchscreen. Tom's phone confirmed the crop "works" after #1045. Still waiting on his phone: "Continue with Google" inside the installed app, and the map's flag on a real course.
+
+**Known, not owed to this pass:**
+- `round-delete`, `results-hide` and `live-rangefinder` stand as recorded in the last pass. All three passed first time here.
+- `in-app-camera.spec.ts` skips itself on WebKit (no fake camera device there), as before.
+
+**Open — from Tom:**
+- The rest of "Fix 4" (his pasted list was cut off).
+- What "the full set of editing tools for video, especially for longer content and on larger devices" should add beyond today's clips, trim, split, reorder, volume, speed, frame step, cover and the new crop box.
+- Unchanged from Sep 30: the Supabase "Allow new users to sign up" switch OFF while gated, and Vercel Pro.
+
 ## October 2, 2026 — Photo editing on phones: shape the crop by hand
 
 Tom: "Photo editing on the phone should feel more hands-on. Instead of the fixed options we have now, users should be able to drag with their fingertips and set their own custom edit area. We still need the full set of editing tools for video, especially for longer content and on larger devices."
