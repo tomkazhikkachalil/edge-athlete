@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { loadQaUser, resetGetStarted } from './helpers/qa-user';
 
 // Download the app (Oct 2026) — Edge Athlete on the home screen, no store.
 // A real install cannot be automated (it is the browser's own dialog, or on
@@ -167,17 +168,31 @@ test('download the app: an iPhone gets the Share steps for ITS browser; the card
   }
 });
 
-test('download the app: a new account sees Get Started first, never two cards @mobile', async ({ browser }) => {
+test('download the app: a new account sees Get Started first, never two cards — and closing it never summons the other @mobile', async ({ browser }) => {
+  const alpha = loadQaUser('user.json');
+  await resetGetStarted(alpha.id);
   const ctx = await phone(browser, UA.iphoneSafari, { getStarted: true });
   try {
     const page = await ctx.newPage();
     await page.goto('/feed');
     await expect(page.getByTestId('get-started-card')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-install-card]')).toBeHidden();
+    // Closing one card must not slide another into its place ("the pop-up
+    // came back", Tom, Oct 2026): the install card waits for the next visit.
+    const saved = page.waitForResponse(r => r.url().includes('/api/profile/getting-started') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Dismiss get started checklist' }).click();
-    await expect(page.locator('[data-install-card]')).toBeVisible();
+    await expect(page.getByTestId('get-started-card')).toHaveCount(0);
+    await expect(page.locator('[data-install-card]')).toHaveCount(0);
+    expect((await saved).ok()).toBe(true);
+
+    const next = await ctx.newPage();
+    await next.goto('/feed');
+    await expect(next.locator('[data-install-card]')).toBeVisible({ timeout: 20_000 });
+    await expect(next.getByTestId('get-started-card')).toHaveCount(0);
   } finally {
     await ctx.close().catch(() => null);
+    // The dismissal is the ACCOUNT's now — put the shared QA user back.
+    await resetGetStarted(alpha.id);
   }
 });
 
