@@ -1,5 +1,40 @@
 # Development Log
 
+## October 2, 2026 — Maintenance after the quick fixes, Download the app and the GPS toggle: the full checklist, all green
+
+**On main at `070e5e8d`** (#1043). Since the last maintenance entry (`9e328fb7`, #1036) — seven PRs, 73 files outside this log, zero DDL:
+- **Fix round part 6 — a commenter's picture and name open their profile** (#1037); a private commenter no longer reads "Unknown User".
+- **Download the app** (#1038): the web app installed from the browser — an icon on the phone, no store; Tom installed it on his own phone ("it worked").
+- **Quick fixes** — Hide really hides, with the way back on your profile (#1039); Delete for real for for-fun results and any round still being played, which amends convention 27 (#1040); the Get Started suggestions stay closed, on the account (#1042); GPS opens on your hole with a flag on the green (#1041).
+- **GPS ⇄ scoring, one tap each way** (#1043).
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,340 tests in 462 files** (4,297 in 458 on the last pass);
+- the production build (next 16.3.8);
+- 222 client chunks inside the iOS 15 / Safari 15 floor (220 on the last pass — the install guide and the install card).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes: 105 `.select('id'|'*')` sites (104 on the last pass; the new ones in `results/delete-server.ts` and `results/hide-server.ts` fetch ids to act on, none counts by `.length`), 14 raw-error-shaped bodies (unchanged).
+- **`npm audit --omit=dev`: 0 vulnerabilities.**
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 246 rows, head **247**, every file run — staging and production agree. Nothing in this stretch touched the database.
+- **GitHub:** main in sync with origin; main's own CI (verify, guardrails, smoke) green on `070e5e8d`.
+- **Production (edgeathlete.ca):** health `ok`, database `ok`, serving main's head (`070e5e8d`). The launch gate holds: a signed-out visitor is answered a 307 to `/auth/coming-soon`, the sign-in door (`/?signin=1`) answers 200, robots forbid everything, `POST /api/signup` answers 403.
+- **The downloaded app's own files, signed out:** the manifest answers 200 (`id` and `start_url` `/feed`, `scope` `/`, standalone) and all five icons (192, 512, maskable 512, the Apple touch icon, the 32 px favicon) answer 200 — a phone can install and draw its icon while the site is gated.
+
+**One production probe, signed in, 57 of 57 passed** — 19 each on desktop (1280), phone Chromium (390) and phone WebKit (390), in a single run, no retries: `health`, `feed-post`, `edit-profile`, `profile-spacing`, `vitals`, `install-app` (the Android one-tap path, the iPhone steps, "opened from the icon", the manifest, the sign-in line), `get-started-mobile`, `comment-author-link`, `results-hide`, `round-delete`, `gps-hole-flag`, and `live-rangefinder` on a real course. Afterwards production held no QA accounts and no QA course rows.
+
+**What a test cannot be, said plainly:** "the downloaded app" is proven here as far as a browser can play it — the device states are emulated (a user agent, the browser's install event, `navigator.standalone`). The real install was Tom's own, on his phone, after #1038. Two things still wait for his phone: "Continue with Google" inside the installed app, and the map's flag on a real course.
+
+**Known, not owed to this pass:**
+- Everything under "Known" on the last pass still stands.
+- `round-delete` "completed round: deleting the feed post deletes the round underneath" failed ONCE in a long local batch (the round still there after 15 s) and passed every other time, here and on production. Not explained. The case now asserts the DELETE's own response, so a recurrence names its cause.
+- `results-hide` on phone WebKit ran past a fixed 15 s window once on production (#1039's probe) and passed on the retry; the card now leaves at the tap and the spec waits for the server's answer. It passed first time in this pass.
+- `live-rangefinder.spec.ts` skips on staging and in CI (no mapped courses there); it runs on production. `gps-hole-flag.spec.ts` brings its own course and runs everywhere.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. From Tom: the rest of "Fix 4" (his pasted list was cut off mid-sentence), and — unchanged from Sep 30 — the Supabase "Allow new users to sign up" switch OFF while gated, and Vercel Pro. Found and left for a later part: a shared post inside a DOCKED chat is a button that does nothing; the deferred finds from part 1.
+
 ## October 2, 2026 — Live round: one tap between the GPS map and scoring
 
 Tom, after the GPS fix: "When you press scorecard from the GPS map, you return to the live screen… then you have to press 'continue scoring'… Make it easy to toggle back and forth." Asked what Scorecard should land on, he chose **straight back to scoring**.
