@@ -1,5 +1,42 @@
 # Development Log
 
+## October 2, 2026 — Maintenance after the speed round: the full checklist, all green, and the after numbers
+
+**On main at `82b70940`** (#1050), with the day's push work (#1047–#1049) and the speed round (#1050) all merged and deployed. **Zero open PRs.**
+
+**The gate (`npm run verify`) exited 0:** typecheck, lint at 0 warnings, **4,396 tests**, the production build (next 16.3.8), and 221 client chunks inside the iOS 15 / Safari 15 floor. Guardrails pass (the two standing informational notes unchanged); `npm audit --omit=dev` 0. `check:schema` (staging) and `check:schema:prod` are OK, with both ledgers at head **248**.
+
+**Production (edgeathlete.ca):**
+- **Health:** `ok`, serving `82b70940`.
+- **The launch gate holds:** `/` and `/feed` signed out → 307, `/?signin=1` 200, robots Disallow, `POST /api/signup` 403.
+- **The downloaded app's files answer 200:** manifest, the five icons, `/sw.js`.
+- **Phone notifications are live:** `/api/push/config` enabled.
+
+**One signed-in production probe: 82 passed, 1 skipped, 0 failed, no retries** — desktop 30, phone Chromium 26, phone WebKit 26, 15.6 min.
+- **Specs:** perf-feed, health, feed-post, edit-profile, profile-spacing, vitals, install-app, get-started-mobile, comment-author-link, results-hide, round-delete, gps-hole-flag, live-rangefinder (real course), crop-freeform, media-editor, media-reedit, capture-attach, push, messaging-notifications.
+- **The skip** is the push case that needs the local stand-in push service.
+- **Cleanup:** afterwards production held no QA accounts and no QA courses. It holds ONE push subscription, a real device (Tom's phone notifications are on).
+
+**The speed round's after numbers, same spec, production:**
+
+| | Before (#1049) | After (#1050) |
+| --- | --- | --- |
+| First post — desktop | 3.4 s | 2.8 s |
+| First post — phone Chromium (CPU ×4) | 4.2 s | 1.6 s |
+| First post — phone WebKit | 6.2 s | 1.4 s |
+| Feed reloads after a token refresh | 1 | 0 |
+| Profile re-reads after a token refresh | 1 | 0 |
+| `/api/notifications` on load | 2 | 1 |
+| `/api/calendar/events` on load | 2 | 1 |
+| Feed + shell JS (gzipped, from the build) | ~625 KB | 459 KB |
+
+These are single runs against a live service, so the timings carry noise; the counts and the bytes do not. After a token refresh the bell still re-reads 2–5 times on the test's fast-forwarded clock. That is its live connection reconnecting after the clock starves its heartbeat, which is correct behaviour. The perf spec asserts the feed and the profile, not that.
+
+**Still owed / open:**
+- **Tom's phone:** does the installed app feel faster and keep its place when you come back; a real push banner.
+- **The two server-side costs that code alone cannot remove** (recorded in the speed-round entry): database round trips of 136 ms–1.2 s on the current Supabase compute, and the per-call Auth check. Both are Tom's decisions.
+- **Unchanged from earlier:** Fix 4's text; the Supabase "Allow new users to sign up" switch while gated; Vercel Pro.
+
 ## October 2, 2026 — The speed round: the app stops rebuilding itself, and every page downloads less
 
 Tom: "the app runs very slow, especially the mobile version that is downloaded… make the application run much faster, especially the production version… without breaking anything."
