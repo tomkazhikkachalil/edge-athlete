@@ -3,10 +3,9 @@
 import { useMemo } from 'react';
 import VitalsOverlay from './VitalsOverlay';
 import RoundedBarChart from './RoundedBarChart';
-import { weeklyBars } from '@/lib/vitals/derive';
+import { sessionsWeeklyBars, type VitalsSession } from '@/lib/vitals/sessions';
 import { formatVolume, formatDuration } from '@/lib/workouts/summary';
 import { parseDateLocal } from '@/lib/formatters';
-import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 /**
  * The larger window behind the Weekly Activity bubble: a 12-week view with
@@ -15,7 +14,8 @@ import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
  */
 
 interface WeeklyActivityOverlayProps {
-  sessions: ServerWorkoutSession[];
+  /** Workouts AND activities (src/lib/vitals/sessions.ts mergeSessions). */
+  sessions: VitalsSession[];
   onClose: () => void;
 }
 
@@ -23,7 +23,7 @@ const weekLabel = (weekStart: string) =>
   parseDateLocal(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 export default function WeeklyActivityOverlay({ sessions, onClose }: WeeklyActivityOverlayProps) {
-  const bars = useMemo(() => weeklyBars(sessions, 12), [sessions]);
+  const bars = useMemo(() => sessionsWeeklyBars(sessions, 12), [sessions]);
   const trained = bars.filter(b => b.workouts > 0).length;
 
   return (
@@ -40,11 +40,11 @@ export default function WeeklyActivityOverlay({ sessions, onClose }: WeeklyActiv
             label: i === 0 || b.isCurrent ? weekLabel(b.weekStart) : '',
             value: b.workouts,
             highlight: b.isCurrent,
-            meta: `Week of ${weekLabel(b.weekStart)} — ${b.workouts} workout${b.workouts !== 1 ? 's' : ''}`,
+            meta: `Week of ${weekLabel(b.weekStart)} — ${b.workouts} session${b.workouts !== 1 ? 's' : ''}`,
           }))}
           color="var(--brand-fg)"
           height={140}
-          ariaLabel="Workouts per week, last 12 weeks"
+          ariaLabel="Sessions per week, last 12 weeks"
           valueLabels="all"
         />
       </div>
@@ -62,7 +62,7 @@ export default function WeeklyActivityOverlay({ sessions, onClose }: WeeklyActiv
               {bar.isCurrent && <span className="ml-2 text-xs font-bold text-brand-fg">This week</span>}
             </span>
             <span className="text-xs text-muted text-right">
-              {bar.workouts} workout{bar.workouts !== 1 ? 's' : ''}
+              {bar.workouts} session{bar.workouts !== 1 ? 's' : ''}
               {bar.volumeLbs > 0 && <> · {formatVolume(bar.volumeLbs)}</>}
               {bar.seconds > 0 && <> · {formatDuration(bar.seconds)}</>}
             </span>

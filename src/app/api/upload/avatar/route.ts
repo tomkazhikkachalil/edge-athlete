@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { revalidatePublicHead } from '@/lib/profiles/public-head';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     // swap (every upload used to orphan the prior file forever).
     const { data: currentProfile } = await supabaseAdmin
       .from('profiles')
-      .select('avatar_url')
+      .select('avatar_url, handle')
       .eq('id', userId)
       .maybeSingle();
     const previousAvatarUrl: string | null = currentProfile?.avatar_url || null;
@@ -129,6 +130,9 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.storage.from(successBucket).remove([filePath]);
       return NextResponse.json({ error: 'Failed to update profile with new avatar' }, { status: 500 });
     }
+
+    // The avatar is the /u/ page's social image (cached per handle).
+    revalidatePublicHead(currentProfile?.handle as string | null | undefined);
 
     // Best-effort cleanup of the previous avatar file (only files we manage:
     // same bucket, avatars/ prefix — never touch external URLs).

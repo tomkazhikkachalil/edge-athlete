@@ -153,6 +153,21 @@ export async function resetRateBucket(
  *  matters when a run reuses ids — but it costs one statement). Keys are
  *  `${action}:${identifier}` and a uuid never spells an IP, so the LIKE is
  *  exact enough. */
+/**
+ * The Get Started card's dismissal lives on the ACCOUNT since Oct 2026 (the
+ * auth user's metadata), and the QA users are shared by the whole run — a
+ * spec that really closes the card must put it back, or every later spec
+ * (and the same spec on the next engine) meets an account that closed it.
+ */
+export async function resetGetStarted(userId: string): Promise<void> {
+  const admin = adminClient();
+  const { data, error: readError } = await admin.auth.admin.getUserById(userId);
+  if (readError || !data?.user) throw new Error(`resetGetStarted(${userId}) could not read the user: ${readError?.message ?? 'no user'}`);
+  // Every other key kept, whatever the auth server does with a partial object.
+  const { error } = await admin.auth.admin.updateUserById(userId, { user_metadata: { ...(data.user.user_metadata ?? {}), get_started_dismissed_at: null } });
+  if (error) throw new Error(`resetGetStarted(${userId}) failed: ${error.message}`);
+}
+
 export async function resetQaBuckets(admin: SupabaseClient, userIds: readonly string[]): Promise<void> {
   for (const id of userIds) {
     const { error } = await admin.from('rate_limits').delete().like('key', `%:${id}%`);
@@ -185,7 +200,23 @@ export interface QaUserOptions {
    *  random address can join. Addresses outside edgeqa-* are NOT swept —
    *  the spec that creates one deletes it in its own finally. */
   email?: string;
+  /** profiles.theme_prefs. Default `{ mode: 'off' }` — see QA_THEME_PREFS.
+   *  `null` leaves the column NULL (the product default: the schedule),
+   *  which only the appearance spec wants. */
+  themePrefs?: Record<string, unknown> | null;
 }
+
+/**
+ * The QA users are PINNED TO LIGHT (Oct 1 2026). An account with no stored
+ * theme follows the schedule — dark from 6 PM to 9 AM — so without this pin
+ * every spec's look would depend on the hour it runs at (and CI runs at all
+ * hours). The middleware delivers it as the `ea-theme` cookie on each
+ * document load; `e2e/appearance.spec.ts` is the spec that tests the theme,
+ * with its own unpinned user.
+ */
+export const QA_THEME_PREFS = { mode: 'off' } as const;
+/** The device mirror's key (src/lib/theme-storage-keys.ts) — for the signed-out state. */
+const THEME_MIRROR_KEY = 'ea:theme:v1';
 
 /**
  * The address a spec may create to sit on the target build's ADMIN_EMAILS —
@@ -271,6 +302,7 @@ export async function createQaChild(
       created_at: now,
       updated_at: now,
       handle_change_count: 0,
+      theme_prefs: QA_THEME_PREFS,
     },
     p_guardian: guardianUserId,
   });
@@ -312,6 +344,7 @@ export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {
     last_name: lastName,
     visibility: 'private',
     onboarded_at: new Date().toISOString(),
+    theme_prefs: opts.themePrefs === undefined ? QA_THEME_PREFS : opts.themePrefs,
   });
   if (profileError) {
     await admin.auth.admin.deleteUser(id).catch(() => {});
@@ -413,9 +446,17 @@ export function previewBypassCookies() {
   return bypassCookiePromise;
 }
 
-/** A signed-out storage state that still passes the preview's protection. */
-export async function previewStorageState(): Promise<{ cookies: Awaited<ReturnType<typeof previewBypassCookies>>; origins: never[] }> {
-  return { cookies: await previewBypassCookies(), origins: [] };
+/** A signed-out storage state that still passes the preview's protection.
+ *  It carries the light pin in the device mirror (QA_THEME_PREFS): a signed-out
+ *  device has no account to read, so the mirror is its only stored theme. */
+export async function previewStorageState(): Promise<{
+  cookies: Awaited<ReturnType<typeof previewBypassCookies>>;
+  origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }>;
+}> {
+  return {
+    cookies: await previewBypassCookies(),
+    origins: [{ origin: E2E_BASE_URL, localStorage: [{ name: THEME_MIRROR_KEY, value: JSON.stringify(QA_THEME_PREFS) }] }],
+  };
 }
 
 /**

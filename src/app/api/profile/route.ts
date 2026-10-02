@@ -9,6 +9,10 @@ import {
   describeIdentityFields,
 } from '@/lib/profile-identity';
 import { notifyGuardians } from '@/lib/guardian-notify';
+import { derivedNameUpdate, mirrorDob } from '@/lib/profiles/derive-names';
+import { revalidatePublicHead } from '@/lib/profiles/public-head';
+import { PRIVATE_DETAIL_FIELDS, cleanPrivateDetails } from '@/lib/profiles/private-details';
+import { isValidRecordedDate, measurementFromProfileEdit } from '@/lib/body-measurement';
 import { reportRouteError } from '@/lib/observability/report';
 
 // Fields stripped for any viewer who is NOT the profile owner: contact
@@ -194,14 +198,16 @@ export async function PUT(request: NextRequest) {
 
     // ONE pre-update read: the supervised/dob_locked gate facts plus the
     // identity fields (Round H needs the old values to diff for the
-    // guardian "profile changed" bell).
+    // guardian "profile changed" bell) plus what the derived names read
+    // (nickname, handle) and what the Vitals timeline diffs against (the
+    // stored height / weight) — all baseline columns.
     let oldRow: Record<string, unknown> | null = null;
     {
       // Dynamic select string defeats supabase-js's template-literal query
       // parser — the row shape is asserted instead.
       const { data: fetched } = await supabaseAdmin
         .from('profiles')
-        .select(`dob_locked, supervision_state, ${IDENTITY_FIELDS.join(', ')}`)
+        .select(`dob_locked, supervision_state, nickname, handle, height_cm, weight_display, weight_unit, ${IDENTITY_FIELDS.join(', ')}`)
         .eq('id', userId)
         .maybeSingle();
       oldRow = (fetched ?? null) as Record<string, unknown> | null;
@@ -225,6 +231,9 @@ export async function PUT(request: NextRequest) {
     ] as const;
     if (oldRow?.supervision_state === 'supervised') {
       for (const f of SUPERVISED_LOCKED_FIELDS) delete cleanedProfileData[f];
+      // The private sign-up details (phone, postal code, gender, nickname)
+      // are never offered for a supervised profile — strip, same posture.
+      for (const f of PRIVATE_DETAIL_FIELDS) delete cleanedProfileData[f];
     } else if (oldRow?.dob_locked) {
       delete cleanedProfileData.dob;
       delete cleanedProfileData.birthday;
@@ -274,8 +283,49 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    
-    
+
+    // The private sign-up details: trimmed, '' → null, refused by name when
+    // they cannot be stored (the gender CHECK, a length cap).
+    const privateDetails = cleanPrivateDetails(cleanedProfileData);
+    if (privateDetails.error) {
+      return NextResponse.json({ error: privateDetails.error }, { status: 400 });
+    }
+    Object.assign(cleanedProfileData, privateDetails.update);
+
+    // Height / weight changed in Edit Profile land on the Vitals timeline
+    // too (the modal sends its local day as `measured_on`; no other caller
+    // does). Appended BEFORE the profile update and removed again if that
+    // fails — the body-measurement route's own rule: the chart and Current
+    // Vitals never disagree. For the TARGET profile, so a guardian's edit
+    // lands on the athlete's timeline.
+    const measuredOn =
+      typeof body.measured_on === 'string' && isValidRecordedDate(body.measured_on) ? (body.measured_on as string) : null;
+    const measurement = measurementFromProfileEdit(cleanedProfileData, oldRow, userId, measuredOn);
+    if (measurement.error) {
+      return NextResponse.json({ error: measurement.error }, { status: 400 });
+    }
+    let timelineIds: string[] = [];
+    if (measurement.rows.length > 0) {
+      const { data: inserted, error: timelineError } = await supabaseAdmin
+        .from('athlete_vitals')
+        .insert(measurement.rows)
+        .select('id');
+      if (timelineError || !inserted) {
+        reportRouteError('Profile API: vitals timeline insert error:', timelineError);
+        return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+      }
+      timelineIds = inserted.map(row => row.id as string);
+    }
+
+    // One value, two columns: a `dob` that survived the strip above is
+    // written to `birthday` too (org eligibility reads that one).
+    Object.assign(cleanedProfileData, mirrorDob(cleanedProfileData));
+
+    // The derived names follow every name write — never the client's copy
+    // of full_name (the modal used to send the LOADED one back, which is how
+    // a renamed athlete kept the old name across the app).
+    Object.assign(cleanedProfileData, derivedNameUpdate(cleanedProfileData, oldRow));
+
     // Update profile in database using admin client
     const { data, error } = await supabaseAdmin
       .from('profiles')
@@ -285,6 +335,10 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
+      // Nothing was saved — take the timeline rows back out.
+      if (timelineIds.length > 0) {
+        await supabaseAdmin.from('athlete_vitals').delete().in('id', timelineIds);
+      }
       reportRouteError('Profile API: Database error:', error);
       reportRouteError('Profile API: Error details:', JSON.stringify(error, null, 2));
       return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
@@ -309,6 +363,9 @@ export async function PUT(request: NextRequest) {
         }, user.id);
       }
     }
+
+    // The /u/ page's <head> (name, bio, sport, visibility) is cached per handle.
+    revalidatePublicHead(data?.handle as string | null | undefined);
 
     const response = {
       success: true,

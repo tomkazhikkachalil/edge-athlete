@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -14,13 +14,19 @@ import SecuritySettings from '@/components/settings/SecuritySettings';
 import SupportSettings from '@/components/settings/SupportSettings';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettings';
+import ConnectedApps from '@/components/settings/ConnectedApps';
+import { FEATURE_FLAGS } from '@/lib/features';
 
-// 1091-line modal — only loaded on demand
-const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
-type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'messaging' | 'notifications' | 'security' | 'support';
+type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
 
-const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'routines', 'messaging', 'notifications', 'security', 'support'];
+// Connected apps (fix round part 3, mig 247) is a flagged SURFACE: with the
+// flag off the tab is neither listed nor reachable by ?tab=connections.
+const CONNECTED_APPS = FEATURE_FLAGS.FEATURE_CONNECTED_APPS;
+
+const SETTINGS_TABS: SettingsTab[] = (
+  ['account', 'privacy', 'appearance', 'routines', 'connections', 'messaging', 'notifications', 'security', 'support'] as SettingsTab[]
+).filter(tab => tab !== 'connections' || CONNECTED_APPS);
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // honours ?tab=<id> so other surfaces can deep-link to a section (the chat
@@ -38,10 +44,9 @@ function TabParamReader({ onTab }: { onTab: (tab: SettingsTab) => void }) {
 }
 
 export default function SettingsPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const handleTabParam = useCallback((tab: SettingsTab) => setActiveTab(tab), []);
 
   // Six tabs are ~670px of intrinsic width against ~358px on a 390px phone,
@@ -116,6 +121,8 @@ export default function SettingsPage() {
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
     { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'routines', label: 'Routines', icon: 'fa-dumbbell' },
+    // Beside Routines on purpose: both feed Vitals.
+    ...(CONNECTED_APPS ? [{ id: 'connections' as const, label: 'Connected apps', icon: 'fa-link' }] : []),
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
     { id: 'security', label: 'Security', icon: 'fa-lock' },
@@ -134,7 +141,7 @@ export default function SettingsPage() {
         {/* Page Header */}
         <div className="mb-6">
           <button
-            onClick={() => router.back()}
+            onClick={() => backOr(router, '/feed')}
             className="text-tertiary hover:text-primary mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
           >
             <i className="fas fa-arrow-left"></i>
@@ -187,7 +194,7 @@ export default function SettingsPage() {
           {/* Tab Content */}
           <div className="p-4 sm:p-6">
             {activeTab === 'account' && (
-              <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
+              <AccountSettings />
             )}
             {activeTab === 'privacy' && (
               <>
@@ -198,6 +205,7 @@ export default function SettingsPage() {
             )}
             {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'routines' && <WorkoutRoutinesSettings />}
+            {activeTab === 'connections' && CONNECTED_APPS && <ConnectedApps />}
             {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'security' && <SecuritySettings />}
@@ -206,16 +214,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      <EditProfileTabs
-        isOpen={isEditProfileModalOpen}
-        onClose={() => setIsEditProfileModalOpen(false)}
-        profile={profile}
-        onSave={() => {
-          // Profile will be refreshed automatically by useAuth
-          setIsEditProfileModalOpen(false);
-        }}
-      />
     </div>
   );
 }

@@ -185,7 +185,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
       <div role="group" aria-label="Tracking" className="space-y-2.5 mb-4">
         {groups.map(group => (
           <div key={group.key}>
-            <div className="text-[11px] font-semibold text-faint uppercase tracking-wide mb-1">
+            <div className="text-[11px] font-semibold text-faint uppercase tracking-wide mb-2">
               {group.label}
             </div>
             <div className="flex flex-wrap gap-1.5">

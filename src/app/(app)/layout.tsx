@@ -11,6 +11,8 @@ import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ModerationBanner from "@/components/ModerationBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import TabBar from '@/components/TabBar';
+import { EditProfileProvider } from '@/components/EditProfileHost';
+import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -97,8 +99,9 @@ export default async function RootLayout({
     // is expected, not a bug.
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* BLOCKING on purpose — resolves the stored theme (including the
-            schedule and any override) and stamps <html> before first paint,
+        {/* BLOCKING on purpose — resolves the stored theme (the schedule
+            included — and the default schedule when nothing is stored) and
+            stamps <html> before first paint,
             so there is no flash of the wrong theme. Must stay ahead of any
             stylesheet-dependent paint; see src/lib/theme-script.ts. */}
         {/* Also blocking, and FIRST: installs the globals the iOS 15 floor lacks
@@ -116,6 +119,12 @@ export default async function RootLayout({
           <ThemeApplier />
           <NotificationsProvider>
             <MessagesProvider>
+              {/* The ONE Edit Profile pop-up, opened from anywhere over the
+                  page the user is on (useEditProfile). */}
+              <EditProfileProvider>
+              {/* "Download the app": the install signals + the one guide,
+                  for every page (the sign-in page included). */}
+              <InstallAppProvider>
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />
@@ -130,6 +139,8 @@ export default async function RootLayout({
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />
+              </InstallAppProvider>
+              </EditProfileProvider>
             </MessagesProvider>
           </NotificationsProvider>
         </AuthProvider>

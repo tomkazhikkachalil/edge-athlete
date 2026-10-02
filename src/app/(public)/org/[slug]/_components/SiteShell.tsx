@@ -38,8 +38,8 @@ import { SiteMenu, SiteNavInline, type SiteNavLink } from './SiteNav';
 // L4: the notice band's tones as LITERAL classes (Tailwind sees them; the
 // tone itself is a validated enum from parseHeroConfig / activeBanner).
 const BANNER_TONE_CLASS = {
-  warning: 'bg-amber-50 border-b border-amber-200 text-amber-900',
-  info: 'bg-sky-50 border-b border-sky-200 text-sky-900',
+  warning: 'bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200',
+  info: 'bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-200',
   alert: 'bg-red-700 border-b border-red-800 text-white',
 } as const;
 

@@ -49,3 +49,29 @@ export function tcxOf(points: ReturnType<typeof line>, opts: { sport?: string; l
 ${tps}
 </Track></Lap><Notes>Lunch &amp; laps</Notes></Activity></Activities></TrainingCenterDatabase>`;
 }
+
+/** A timestamp as Health Auto Export writes it, at -0400. */
+export function exportStamp(ms: number): string {
+  const d = new Date(ms - 4 * 3_600_000).toISOString();
+  return `${d.slice(0, 10)} ${d.slice(11, 19)} -0400`;
+}
+
+/** An outdoor run as Health Auto Export v2 writes it (adapters/health-export.ts):
+ *  `minutes` long from `t0`, 3 m per second, heart rate once a minute. */
+export function healthWorkout(t0: number, over: Record<string, unknown> = {}, minutes = 30): Record<string, unknown> {
+  const seconds = minutes * 60;
+  const pts = line(seconds, { t0, stepM: 3 });
+  return {
+    id: '5F0E3C4A-9B1D-4E2F-8A77-0C1D2E3F4A5B',
+    name: 'Outdoor Run',
+    start: exportStamp(t0),
+    end: exportStamp(t0 + seconds * 1000),
+    duration: seconds,
+    distance: { qty: (seconds * 3) / 1000, units: 'km' },
+    activeEnergyBurned: { qty: 410, units: 'kcal' },
+    elevationUp: { qty: 12, units: 'm' },
+    heartRateData: Array.from({ length: minutes }, (_, i) => ({ date: exportStamp(t0 + i * 60_000), Min: 140, Avg: 150 + (i % 3), Max: 160, units: 'bpm', source: 'Apple Watch' })),
+    route: pts.map(p => ({ latitude: p.lat, longitude: p.lng, altitude: 90, timestamp: exportStamp(p.t), speed: 3 })),
+    ...over,
+  };
+}

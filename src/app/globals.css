@@ -3,10 +3,21 @@
 /* The dark: variant is keyed to the data-theme ATTRIBUTE, not to
  * prefers-color-scheme — the four theme modes (off/on/scheduled/system) are
  * resolved in JS (theme-prefs.ts + the head script in layout.tsx) and stamped
- * on <html>, so a media-query variant would disagree with three of them. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+ * on <html>, so a media-query variant would disagree with three of them.
+ *
+ * It EXCLUDES a [data-theme="light"] subtree (Oct 1 2026): a club or league
+ * site fixed to "Always light" is a light island inside a dark page, and a
+ * dark: utility must not reach into it. `:where` keeps the specificity at
+ * zero, as before. Nothing in the app itself carries data-theme="light" —
+ * the theme scripts REMOVE the attribute for light — so app rendering is
+ * unchanged. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *):not(:where([data-theme="light"], [data-theme="light"] *)));
 
-:root {
+/* The light palette is the default AND what a light island re-declares:
+ * [data-theme="light"] on an element inside a dark page puts every token
+ * back to its light value for that subtree. */
+:root,
+[data-theme="light"] {
   /* Native UI (date/time pickers, selects, scrollbars, <video> controls,
    * checkboxes) follows this — the dark block flips it, which is what themes
    * every native control without per-input work. */
@@ -269,7 +280,8 @@ body {
  * `ea-` prefix matches the convention already established in this file.
  */
 
-:root {
+:root,
+[data-theme="light"] {
   /* Motion constants — one source so timings cannot drift apart. */
   --ea-hover-ms: 150ms;
   --ea-press-ms: 100ms;
@@ -507,6 +519,13 @@ body {
   );
 }
 
+/* The feed's "Download the app" card waits while the Get Started card is
+ * showing: a new account gets one card, not two (InstallCard.tsx — the feed
+ * renders it as that card's NEXT sibling). */
+[data-testid="get-started-card"] + [data-install-card] {
+  display: none;
+}
+
 /* The ONE loud control. Gradient is deliberately shallow — it should read as
  * depth, not as a 2010 button. */
 .ea-cta {
@@ -734,15 +753,25 @@ body {
 .vt-fade-in { animation: ea-fade-in 400ms ease-out 500ms backwards; }
 
 /* ── ORG-SITE ACCENT ("org-") — phase 3 R3 ──────────────────────────────────
- * The (public) org segment re-points the --brand family per site. LIGHT-ONLY
- * by design: that segment never stamps data-theme, so unlike .vt-scope above
- * there is deliberately NO dark twin. The defaults ARE the pre-R3 violet
- * hero (violet-500 → violet-600); a site's theme_token_set.accent overrides
- * them via an inline style on the segment root — the hex is server-validated
- * at write AND re-validated at render (parseThemeAccent), so nothing
- * unvalidated ever reaches a style attribute. The Tailwind @theme bridge
- * dereferences var(--brand*), so text-brand-fg etc. re-point automatically
- * inside this scope. Shared-class contract holds: no display/width here. */
+ * The (public) org segment re-points the --brand family per site. The
+ * defaults ARE the pre-R3 violet hero (violet-500 → violet-600); a site's
+ * theme_token_set.accent overrides them via an inline style on the segment
+ * root — the hex is server-validated at write AND re-validated at render
+ * (parseThemeAccent), so nothing unvalidated ever reaches a style attribute.
+ * The Tailwind @theme bridge dereferences var(--brand*), so text-brand-fg
+ * etc. re-point automatically inside this scope. Shared-class contract
+ * holds: no display/width here.
+ *
+ * LIGHT AND DARK (Oct 1 2026 — light-only until then). A site follows the
+ * visitor unless its manager fixes the look (theme token `appearance`):
+ *   • follows the visitor — the scope root wears nothing; the page's <html>
+ *     carries the visitor's theme (the read-only head script in the
+ *     (public) layout; the editor canvas inherits the app's);
+ *   • Always dark  — data-theme="dark" on the scope root, server-rendered;
+ *   • Always light — data-theme="light" on the scope root: a light island
+ *     (the palette block at the top re-declares the light values, and the
+ *     dark: variant stops at it).
+ * The dark twin below therefore has two triggers, and never a light island. */
 .org-scope {
   --org-accent: #8b5cf6;        /* violet-500 — gradient start */
   --org-accent-strong: #7c3aed; /* violet-600 — gradient end, links */
@@ -754,6 +783,26 @@ body {
   --brand-fg-strong: var(--org-accent-fg, var(--org-accent-strong));
   --brand-soft: color-mix(in srgb, var(--org-accent) 10%, white);
 }
+.org-scope[data-theme="dark"],
+[data-theme="dark"] .org-scope:not([data-theme="light"]) {
+  /* Link text on the dark surface at 4.5:1 (--org-accent-fg-dark, set with
+   * the accent by themeAttrs; the default is the app's dark brand-fg). */
+  --brand-fg: var(--org-accent-fg-dark, #a78bfa);
+  --brand-fg-strong: var(--org-accent-fg-dark, #a78bfa);
+  /* The wash mixes toward the dark surface, never toward white. */
+  --brand-soft: color-mix(in srgb, var(--org-accent) 22%, #1f1a16);
+}
+/* A fixed look is an ISLAND in a page of the other theme, and `color`
+ * inherits as a COMPUTED value: without this the island's text would keep
+ * the page's colour (light text on a light island). Re-evaluate it here. */
+.org-scope[data-theme] {
+  color: var(--text-primary);
+}
+/* A fixed-dark site under a light page: the scope covers the viewport
+ * (min-h-screen), this covers the overscroll behind it. */
+html:has(.org-scope[data-theme="dark"]) body {
+  background-color: #171310;
+}
 /* Phase 6b B1 brand tokens — zero payload by design: typefaces are CSS
  * stacks (the public segment never loads a per-site webfont) and the
  * surface tint is a color-mix of the accent. Both ride data attributes
@@ -763,8 +812,15 @@ body {
 .org-scope[data-typeface='serif'] h3 {
   font-family: Georgia, 'Times New Roman', Times, serif;
 }
+/* The tint re-points --background, which is what `bg-canvas` compiles to.
+ * (It used to set --color-canvas, which nothing reads once @theme inline has
+ * dereferenced it — the "Tinted" background was inert until Oct 1 2026.) */
 .org-scope[data-surface='tinted'] {
-  --color-canvas: color-mix(in srgb, var(--org-accent) 4%, white);
+  --background: color-mix(in srgb, var(--org-accent) 4%, white);
+}
+.org-scope[data-surface='tinted'][data-theme="dark"],
+[data-theme="dark"] .org-scope[data-surface='tinted']:not([data-theme="light"]) {
+  --background: color-mix(in srgb, var(--org-accent) 7%, #171310);
 }
 /* Site Builder phase 7 — a chosen heading face: a self-hosted OFL woff2 the
  * site loads only when it picks one (SiteShell emits its @font-face and a

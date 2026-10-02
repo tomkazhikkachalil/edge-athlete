@@ -128,11 +128,32 @@ export const COPY = {
     // stays on the record and keeps counting. Only an unplayed round deletes.
     HIDE_RESULT_TITLE: 'Hide from your profile?',
     HIDE_RESULT_CONFIRM:
-      'It leaves your profile and the feed, but stays on the record — it still counts toward your stats and handicap. You can show it again under Settings → Privacy.',
+      'It leaves the feed and nobody else sees it on your profile, but it stays on the record — it still counts toward your stats and handicap. You can show it again from your own profile or Settings → Privacy.',
     HIDE_ROUND_CONFIRM_PARTNERS: (n: number) =>
-      `It leaves your profile and the feed, but stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again under Settings → Privacy.`,
+      `It leaves the feed and nobody else sees it on your profile, but it stays on the record — your scores still count, and your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. You can show it again from your own profile or Settings → Privacy.`,
     HIDE_RESULT_ACTION: 'Hide',
     HIDE_RESULT_LABEL: 'Hide from profile',
+    // A REAL delete (Tom, Oct 2 2026): a result that is not from a tournament,
+    // a club or a league may be deleted by its player — it stops counting.
+    // An unfinished casual round is discarded whole: nothing was recorded.
+    DISCARD_ROUND_CONFIRM:
+      'The round and every score entered so far are deleted. Nothing is recorded, and this cannot be undone.',
+    DISCARD_ROUND_CONFIRM_PARTNERS: (n: number) =>
+      `The round is deleted for everyone in it — including scores entered by ${n} playing partner${n === 1 ? '' : 's'}. Nothing is recorded, and this cannot be undone.`,
+    DELETE_RESULT_LABEL: 'Delete for good',
+    DELETE_RESULT_TITLE: 'Delete it for good?',
+    DELETE_RESULT_CONFIRM:
+      'It is removed everywhere and stops counting toward your handicap and stats. This cannot be undone. To keep the numbers and only take it off your profile, choose Hide instead.',
+    DELETE_RESULT_CONFIRM_PARTNERS: (n: number) =>
+      `Your result is removed and stops counting toward your handicap and stats, and the round’s post goes with it. Your ${n === 1 ? 'playing partner keeps theirs' : `${n} playing partners keep theirs`}. This cannot be undone.`,
+    DELETE_RESULT_ACTION: 'Delete for good',
+    DELETED_RESULT_TITLE: 'Deleted',
+    DELETED_RESULT_BODY: 'It no longer counts toward your handicap or stats.',
+    // The way back, on the owner's own profile (Oct 2026).
+    PROFILE_HIDDEN_BANNER: 'Hidden from your profile — only you can see this. It still counts toward your stats.',
+    SHOW_RESULT_LABEL: 'Show on profile',
+    SHOWN_AGAIN_TITLE: 'Back on your profile',
+    SHOWN_AGAIN_BODY: 'Everyone who can see your profile can see it again.',
   },
 
   // Error Messages
@@ -233,6 +254,56 @@ export const COPY = {
     SETTINGS_SAVED: (category: string) => `${category} settings saved successfully!`,
     GENERIC_SUCCESS: 'Changes saved successfully!',
     GENERIC_ERROR: 'Failed to save changes',
+  },
+
+  // Download the app (Oct 2026) — the web app installed from the browser,
+  // no store. One platform rule decides which steps a device is shown
+  // (src/lib/install/platform.ts); the limits named here are Apple's and
+  // Google's, said plainly.
+  INSTALL: {
+    MENU: 'Get the app',
+    CTA: 'Download the app',
+    SHOW_STEPS: 'Show me how',
+    SHEET_TITLE: 'Get the Edge Athlete app',
+    SHEET_SUBTITLE: 'An icon on your phone. No app store.',
+    CARD_TITLE: 'Get the Edge Athlete app',
+    CARD_BODY: 'Put Edge Athlete on your home screen. It opens full screen, like any app.',
+    CARD_DISMISS: 'Dismiss the app invitation',
+    SETTINGS_TITLE: 'Edge Athlete app',
+    SETTINGS_BODY: 'Add Edge Athlete to your home screen. It opens full screen like any app, with everything you have here.',
+    USING_APP: "You're using the Edge Athlete app.",
+    INSTALLED_HERE: 'Edge Athlete is installed on this device. Open it from your home screen.',
+    SAME_APP: 'It is the full Edge Athlete: the same account and every feature.',
+    SIGN_IN_ONCE: "You'll sign in once inside the app.",
+    PROMPT_BODY: 'One tap, and the Edge Athlete icon appears on your home screen.',
+    PROMPT_BUTTON: 'Install Edge Athlete',
+    IOS_SAFARI_STEPS: [
+      'Tap the Share button at the bottom of Safari.',
+      'Scroll down and tap "Add to Home Screen".',
+      'Tap "Add" in the top corner.',
+    ],
+    IOS_BROWSER_STEPS: [
+      'Tap the Share button beside the address bar.',
+      'Tap "Add to Home Screen".',
+      'Tap "Add".',
+    ],
+    IOS_BROWSER_NOTE: (host: string) =>
+      `No "Add to Home Screen" in the list? Open ${host} in Safari and follow the same steps there.`,
+    ANDROID_MENU_STEPS: [
+      'Tap the menu (three dots) at the top of your browser.',
+      'Tap "Install app" or "Add to Home screen".',
+      'Tap "Install".',
+    ],
+    IN_APP_BODY: "You're inside another app's browser, and it can't add apps to a phone.",
+    IN_APP_STEPS: (browser: string, host: string) => [
+      `Open ${host} in ${browser}. This screen's menu usually has "Open in ${browser}".`,
+      'Sign in there.',
+      'Tap "Download the app".',
+    ],
+    COPY_LINK: 'Copy the link',
+    LINK_COPIED: 'Link copied',
+    DESKTOP_BODY: (host: string) =>
+      `The app is for a phone or tablet. On your phone, open ${host}, sign in and tap "Download the app".`,
   },
 
   // FEATURES (per-sport label sets) and ROUTES were deleted August 2026:

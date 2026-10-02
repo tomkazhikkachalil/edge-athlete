@@ -121,6 +121,18 @@ The (public) segment serves ANONYMOUS, CDN-cached documents; its invariants
 are different in kind from the app's and each one is load-bearing:
 1. **Viewer independence** — nothing under `src/lib/org-sites/` may branch on
    a session; one cached render serves everyone (the standings contract).
+   Since Oct 1 2026 a site follows the VISITOR's light / dark theme, and the
+   rule holds because the theme is not in the render: the document carries
+   none, and `PUBLIC_THEME_SCRIPT` (one inline, read-only script in the
+   (public) root layout's head — `src/lib/theme-script.ts`) stamps `<html>`
+   on the visitor's own device from the app's `ea-theme` cookie, then its
+   localStorage mirror, else the default schedule. It writes no cookie and
+   no storage, nothing is read on the server, and there is no `Vary`. A
+   site fixed to Always light / Always dark carries `data-theme` on its own
+   root — server-rendered, the same for everyone. Sweep: the script stays
+   read-only (`theme-script.test.ts` pins that it sets nothing), and a
+   default site's HTML still contains no `data-theme`
+   (`e2e/org-site.spec.ts`).
 2. **Never-throw readers** — a throw inside `unstable_cache` 500s the page;
    every reader degrades to empty (`isMissingTableError` + `'42703'`).
 3. **The ISR contract** — every DYNAMIC page under `(public)` exports

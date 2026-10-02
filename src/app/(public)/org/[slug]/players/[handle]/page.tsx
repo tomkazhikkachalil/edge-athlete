@@ -216,7 +216,7 @@ export default async function OrgSitePlayerPage({ params }: PageParams) {
               <dd className="font-semibold text-primary">
                 {comp.rank === null ? '—' : `${ordinal(comp.rank)} of ${comp.of}`}
                 {comp.movement !== null && comp.movement !== 0 ? (
-                  <span className={`ml-1 text-xs ${comp.movement > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <span className={`ml-1 text-xs ${comp.movement > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
                     {comp.movement > 0 ? `▲${comp.movement}` : `▼${Math.abs(comp.movement)}`}
                   </span>
                 ) : null}

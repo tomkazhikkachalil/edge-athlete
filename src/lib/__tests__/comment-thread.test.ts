@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   flattenReplies,
   collectDescendantIds,
+  commentAuthorHref,
   MAX_VISUAL_DEPTH,
 } from '../comment-thread';
 
@@ -85,5 +86,28 @@ describe('collectDescendantIds', () => {
 
   it('empty for a leaf', () => {
     expect(collectDescendantIds('a1x', map).size).toBe(0);
+  });
+});
+
+describe('commentAuthorHref', () => {
+  const bravo = { id: 'b-1', handle: 'bravo' };
+
+  it("leads a signed-in viewer to the commenter's profile by id — the post header's destination", () => {
+    expect(commentAuthorHref(bravo, 'a-1')).toBe('/athlete/b-1');
+  });
+
+  it('leads the viewer to their own profile page for their own comment', () => {
+    expect(commentAuthorHref(bravo, 'b-1')).toBe('/athlete');
+  });
+
+  it('leads a signed-out viewer to the public page, handle first', () => {
+    expect(commentAuthorHref(bravo, null)).toBe('/u/@bravo');
+    expect(commentAuthorHref({ id: 'b-1', handle: null }, undefined)).toBe('/athlete/b-1');
+  });
+
+  it('answers no link when the row carries no author', () => {
+    expect(commentAuthorHref(null, 'a-1')).toBeNull();
+    expect(commentAuthorHref(undefined, null)).toBeNull();
+    expect(commentAuthorHref({ handle: 'ghost' }, 'a-1')).toBeNull();
   });
 });

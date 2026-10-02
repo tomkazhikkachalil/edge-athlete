@@ -167,7 +167,7 @@ function Shelves({ shelves, onOpen }: { shelves: ReturnType<typeof badgeShelves>
     <div className="space-y-5">
       {shelves.map(shelf => (
         <div key={shelf.sportKey ?? 'all'}>
-          <h4 className="text-label font-semibold text-secondary mb-2">{sportName(shelf.sportKey)}</h4>
+          <h4 className="text-label font-semibold text-secondary mb-3">{sportName(shelf.sportKey)}</h4>
           <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
             {shelf.badges.map(v => (
               <li key={v.key}>

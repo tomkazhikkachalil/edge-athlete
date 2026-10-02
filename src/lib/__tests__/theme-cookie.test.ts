@@ -11,8 +11,9 @@ describe('theme cookie encoding', () => {
       { mode: 'off' },
       { mode: 'system' },
       { mode: 'scheduled', schedule: DEFAULT_SCHEDULE },
-      { mode: 'scheduled', schedule: { start: 1290, end: 400 },
-        override: { theme: 'light', setAt: '2026-08-06T01:00:00.000Z' } },
+      { mode: 'scheduled', schedule: { start: 1290, end: 400 } },
+      // A pinned theme keeps the hours, so the schedule comes back as it was.
+      { mode: 'on', schedule: { start: 1290, end: 400 } },
     ];
     for (const prefs of shapes) {
       expect(decodeThemeCookie(encodeThemeCookie(prefs))).toEqual(prefs);
@@ -23,7 +24,6 @@ describe('theme cookie encoding', () => {
     const value = encodeThemeCookie({
       mode: 'scheduled',
       schedule: { start: 1290, end: 400 },
-      override: { theme: 'dark', setAt: '2026-08-06T01:02:03.456Z' },
     });
     expect(value).toMatch(/^[A-Za-z0-9_-]+$/);
   });

@@ -10,24 +10,17 @@ import { EXERCISE_MAP } from '@/lib/workout-config';
 import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
 import { serverToEntries, type ServerWorkoutSession } from './serialize';
 import { toLbs } from './summary';
+import {
+  sessionsStreakWeeks,
+  sessionsWeeklySummary,
+  type VitalsSession,
+  type WeeklySummary,
+} from '@/lib/vitals/session-math';
 
 // ── Weeks ────────────────────────────────────────────────────────────────────
 
-/**
- * Training weeks start MONDAY 00:00 local (ISO-8601 and the near-universal
- * training-app convention). All week math below flows through here.
- */
-export function startOfWeek(d: Date): Date {
-  const result = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = result.getDay(); // 0 = Sunday
-  const back = day === 0 ? 6 : day - 1;
-  result.setDate(result.getDate() - back);
-  return result;
-}
-
-function sessionDate(session: ServerWorkoutSession): Date {
-  return new Date(session.started_at);
-}
+// Training weeks start MONDAY 00:00 local — the rule lives in ./week.
+export { startOfWeek } from './week';
 
 /** Stored duration when present, else ended−started; 0 for open sessions. */
 export function sessionSeconds(session: ServerWorkoutSession): number {
@@ -54,68 +47,43 @@ export function sessionVolumeLbs(session: ServerWorkoutSession): number {
   return volume;
 }
 
-export interface WeekTotals {
-  workouts: number;
-  volumeLbs: number;
-  seconds: number;
+export type { WeekTotals, WeeklySummary } from '@/lib/vitals/session-math';
+
+/** A COMPLETED workout as a Vitals session (the shape the week maths takes). */
+export function workoutToSession(session: ServerWorkoutSession): VitalsSession {
+  return {
+    id: session.id,
+    kind: 'workout',
+    startedAt: session.started_at,
+    seconds: sessionSeconds(session),
+    volumeLbs: sessionVolumeLbs(session),
+    title: session.title || 'Workout',
+  };
 }
 
-export interface WeeklySummary extends WeekTotals {
-  /** The immediately preceding week, for delta arrows. */
-  prior: WeekTotals;
+/** The completed workouts of a list, as sessions. */
+export function workoutSessions(sessions: readonly ServerWorkoutSession[]): VitalsSession[] {
+  return sessions.filter(s => s.status === 'completed').map(workoutToSession);
 }
 
-/** This week vs last week — COMPLETED sessions only. */
+/** This week vs last week — COMPLETED workouts only (the workout-only view;
+ *  Vitals merges activities in first, see src/lib/vitals/sessions.ts). */
 export function weeklySummary(
   sessions: ServerWorkoutSession[],
   now: Date = new Date()
 ): WeeklySummary {
-  const thisWeekStart = startOfWeek(now).getTime();
-  const priorWeekStart = thisWeekStart - 7 * 24 * 3600 * 1000;
-
-  const totals: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0 };
-  const prior: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0 };
-
-  for (const session of sessions) {
-    if (session.status !== 'completed') continue;
-    const t = sessionDate(session).getTime();
-    const bucket =
-      t >= thisWeekStart ? totals : t >= priorWeekStart ? prior : null;
-    if (!bucket) continue;
-    bucket.workouts += 1;
-    bucket.volumeLbs += sessionVolumeLbs(session);
-    bucket.seconds += sessionSeconds(session);
-  }
-
-  totals.volumeLbs = Math.round(totals.volumeLbs);
-  prior.volumeLbs = Math.round(prior.volumeLbs);
-  return { ...totals, prior };
+  return sessionsWeeklySummary(workoutSessions(sessions), now);
 }
 
 /**
  * Consecutive weeks with at least one completed workout, counting back from
- * the current week. An empty CURRENT week doesn't break the streak (on
- * Monday morning every streak would read zero otherwise); an empty PRIOR
- * week does.
+ * the current week (the rule is sessionsStreakWeeks').
  */
 export function streakWeeks(
   sessions: ServerWorkoutSession[],
   now: Date = new Date()
 ): number {
-  const weeks = new Set<number>();
-  for (const session of sessions) {
-    if (session.status !== 'completed') continue;
-    weeks.add(startOfWeek(sessionDate(session)).getTime());
-  }
-  const weekMs = 7 * 24 * 3600 * 1000;
-  let cursor = startOfWeek(now).getTime();
-  let streak = 0;
-  if (!weeks.has(cursor)) cursor -= weekMs; // current week may still be in progress
-  while (weeks.has(cursor)) {
-    streak += 1;
-    cursor -= weekMs;
-  }
-  return streak;
+  return sessionsStreakWeeks(workoutSessions(sessions), now);
 }
 
 // ── Personal bests ───────────────────────────────────────────────────────────

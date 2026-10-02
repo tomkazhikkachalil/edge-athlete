@@ -11,6 +11,8 @@ import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
 import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
 import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
+import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel';
+import { FEATURE_FLAGS } from '@/lib/features';
 import SupportQueueTile from '@/components/admin/SupportQueueTile';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
@@ -363,6 +365,12 @@ export default function AdminDashboardPage() {
 
         {/* Departed accounts (Sep 24 2026): purge a parked account now — the door. */}
         <AccountPurgePanel />
+
+        {/* Connected apps (mig 247, PR 4): Polar's one-time setup — the door.
+            Behind the same surface flag as Settings → Connected apps: while the
+            feature is paused (Oct 2 2026) the owner's dashboard does not ask
+            for a setup nobody can use. */}
+        {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && <ConnectedAppsSetupPanel />}
 
         {/* Phase 6b C1: custom domains — the lifecycle list + retry actions. */}
         {orgDomains.length > 0 && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { backOr } from '@/lib/nav-back';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -327,7 +328,7 @@ function FollowersContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center gap-2 mb-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => backOr(router, '/athlete')}
               className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-tertiary hover:text-primary"
               aria-label="Go back"
             >

@@ -40,7 +40,9 @@ export interface DeviceTotals {
 }
 
 export interface NormalizedActivity {
-  format: SourceFormat;
+  /** The FILE format it was read from; null when it never was a file (a
+   *  bridge app's workout JSON — adapters/health-export.ts). */
+  format: SourceFormat | null;
   type: ActivityType;
   /** The file's own name for it, if any ("Morning Run"). */
   name: string | null;

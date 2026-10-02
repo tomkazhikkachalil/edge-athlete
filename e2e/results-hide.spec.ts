@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { purgeGolfRound, purgePost } from './helpers/results';
+import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 
 // ── Results-kept round PR 2 (241, Sep 26 2026): hide, never delete ──────────
 // Tom: "I eventually want the information taken about the athlete to be
@@ -80,8 +81,12 @@ test('a result is hidden, never deleted: the record stays, others lose sight of 
     plainId = '';
 
     // The owner's list, and "Show again" at phone width.
-    const list = (await (await alphaApi.get('/api/results/visibility')).json()) as { rounds: Array<{ id: string }>; posts: Array<{ id: string }> };
-    expect(list.rounds.map(r => r.id)).toContain(roundId);
+    const list = (await (await alphaApi.get('/api/results/visibility')).json()) as { rounds: Array<{ id: string }>; posts: Array<{ id: string; course?: string | null }> };
+    // One row per result (Oct 2026): hiding the round hid its post too, and
+    // the pair is listed ONCE — as the post, carrying the course.
+    expect((await admin.from('posts').select('status').eq('id', roundPostId).single()).data?.status).toBe('profile_hidden');
+    expect(list.rounds.map(r => r.id)).not.toContain(roundId);
+    expect(list.posts.find(p => p.id === roundPostId)?.course).toBe(`QA Hide Links ${stamp}`);
     expect(list.posts.map(p => p.id)).toContain(lineId);
     // Nobody else can flip it.
     expect((await bravoApi.patch('/api/results/visibility', { data: { kind: 'post', id: lineId, hidden: false } })).status()).toBe(404);
@@ -111,4 +116,122 @@ test('a result is hidden, never deleted: the record stays, others lose sight of 
     await alphaApi.dispose();
     await bravoApi.dispose();
   }
+});
+
+// ── Fix round (Oct 2026): a hide has to be SEEN to have happened ────────────
+// Tom: "the hide function doesn't work… when you hide a post, it still
+// appears on your athlete profile, but there is no way to unhide it." The
+// server hid; the feed and the profile handed the post straight back to its
+// owner, unmarked. A for-fun round is played and ended, then hidden from the
+// FEED CARD: it leaves the owner's feed for good, stays on their own profile
+// marked "Hidden", and "Show on profile" there brings it back. Hiding from
+// the round page takes the post with it, and Settings lists the pair once.
+
+async function hideSeenToHappen(browser: import('@playwright/test').Browser, viewport: { width: number; height: number }) {
+  const admin = adminClient();
+  const alpha = loadQaUser('user.json');
+  const api = await apiAs('state.json');
+  await resetRateBucket(admin, 'post-create', alpha.id);
+  await resetRateBucket(admin, 'result-visibility', alpha.id);
+  const stamp = Date.now();
+  const course = `QA Seen Links ${stamp}`;
+  let groupPostId = '';
+  let postId = '';
+  let mirrorId = '';
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport });
+  try {
+    // A for-fun round, alone: scored, then ended (the mirror and the post).
+    let res = await api.post('/api/group-posts', {
+      data: { type: 'golf_round', title: `QA Seen Round ${stamp}`, date: new Date().toISOString().split('T')[0], visibility: 'public', participant_ids: [], golf_data: { course_name: course, round_type: 'outdoor', holes_played: 9 } },
+    });
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+    groupPostId = (await res.json()).group_post.id as string;
+    const card = await readScorecard(api, groupPostId);
+    await scoreHoles(api, cardRowFor(card, alpha.id), Array.from({ length: 9 }, (_, i) => ({ hole_number: i + 1, strokes: 5 })));
+    res = await api.patch(`/api/group-posts/${groupPostId}`, { data: { status: 'completed' } });
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+    postId = ((await admin.from('group_posts').select('post_id').eq('id', groupPostId).single()).data?.post_id as string) ?? '';
+    expect(postId).toBeTruthy();
+    await expect.poll(async () => (await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId).eq('profile_id', alpha.id)).data?.length ?? 0).toBe(1);
+    mirrorId = (await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId).eq('profile_id', alpha.id).single()).data!.id as string;
+
+    const inFeed = async () => {
+      const feed = await api.get('/api/posts?limit=50');
+      expect(feed.ok(), await readErrorBody(feed)).toBe(true);
+      return ((await feed.json()).posts as Array<{ id: string }>).some(p => p.id === postId);
+    };
+    expect(await inFeed()).toBe(true);
+
+    // Hide it from the feed card — the owner's own control at this width.
+    const page = await ctx.newPage();
+    await page.goto('/feed');
+    const feedCard = page.locator('[data-testid="post-card"]').filter({ hasText: course }).first();
+    await expect(feedCard).toBeVisible({ timeout: 20_000 });
+    const menu = feedCard.getByRole('button', { name: 'Post options' });
+    if (await menu.isVisible()) {
+      await menu.click();
+      await page.locator('[data-menu-item="delete"]').click();
+    } else {
+      await feedCard.locator('[data-post-delete="hide"]').click();
+    }
+    await expect(page.getByText('Hide from your profile?')).toBeVisible();
+    // The card leaves at the tap (optimistic); the SERVER's answer is what the
+    // checks below depend on — a slow first attempt on prod WebKit once ran
+    // past a fixed 15 s window here.
+    const answered = page.waitForResponse(r => r.url().includes(`/api/posts?postId=${postId}`) && r.request().method() === 'DELETE', { timeout: 45_000 });
+    await page.getByRole('button', { name: 'Hide', exact: true }).click();
+    await expect(feedCard).toHaveCount(0, { timeout: 15_000 });
+    expect((await answered).status()).toBe(200);
+
+    // It STAYS gone: the feed no longer hands it back to its owner…
+    expect((await admin.from('posts').select('status').eq('id', postId).single()).data?.status).toBe('profile_hidden');
+    expect((await admin.from('golf_rounds').select('profile_hidden_at').eq('id', mirrorId).single()).data?.profile_hidden_at).toBeTruthy();
+    expect(await inFeed()).toBe(false);
+    const again = await ctx.newPage();
+    await again.goto('/feed');
+    await expect(again.locator('[data-testid="post-card"]').first()).toBeVisible({ timeout: 20_000 });
+    await expect(again.locator('[data-testid="post-card"]').filter({ hasText: course })).toHaveCount(0);
+    await again.close();
+    // …and Settings lists the result once (the post, carrying the course).
+    const list = (await (await api.get('/api/results/visibility')).json()) as { rounds: Array<{ id: string }>; posts: Array<{ id: string; course?: string | null }> };
+    expect(list.rounds.map(r => r.id)).not.toContain(mirrorId);
+    expect(list.posts.find(p => p.id === postId)?.course).toBe(course);
+
+    // On the owner's own profile it is still there — marked, with the way back.
+    const profile = await ctx.newPage();
+    await profile.goto('/athlete');
+    const tile = profile.locator('button:has([data-tile-profile-hidden])').first();
+    await expect(tile).toBeVisible({ timeout: 20_000 });
+    await tile.click();
+    const popup = profile.locator('[data-post-detail]');
+    await expect(popup.locator('[data-post-profile-hidden]')).toBeVisible({ timeout: 20_000 });
+    await expect(popup.locator('[data-post-delete="hide"]')).toHaveCount(0);
+    await popup.locator('[data-post-show-again]').click();
+    await expect(popup.locator('[data-post-profile-hidden]')).toHaveCount(0, { timeout: 15_000 });
+    expect((await admin.from('posts').select('status').eq('id', postId).single()).data?.status).toBe('published');
+    expect((await admin.from('golf_rounds').select('profile_hidden_at').eq('id', mirrorId).single()).data?.profile_hidden_at).toBeNull();
+    expect(await inFeed()).toBe(true);
+
+    // Hiding from the ROUND page takes the post with it (it stayed published).
+    res = await api.delete(`/api/golf/rounds/${mirrorId}`);
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+    expect((await admin.from('posts').select('status').eq('id', postId).single()).data?.status).toBe('profile_hidden');
+    expect(await inFeed()).toBe(false);
+  } finally {
+    await ctx.close().catch(() => null);
+    if (mirrorId) await purgeGolfRound(mirrorId);
+    if (postId) await purgePost(postId);
+    if (groupPostId) await admin.from('group_posts').delete().eq('id', groupPostId);
+    await api.dispose();
+  }
+}
+
+test('a hidden round leaves the owner’s feed for good, stays on their profile marked, and "Show on profile" brings it back', async ({ browser }) => {
+  test.setTimeout(180_000);
+  await hideSeenToHappen(browser, { width: 1280, height: 800 });
+});
+
+test('a hidden round leaves the owner’s feed for good and comes back from the profile, at phone width @mobile', async ({ browser }) => {
+  test.setTimeout(180_000);
+  await hideSeenToHappen(browser, { width: 390, height: 844 });
 });

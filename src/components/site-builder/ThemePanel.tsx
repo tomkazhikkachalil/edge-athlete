@@ -75,6 +75,7 @@ export function themeDraftFrom(site: { template_id: string; theme_token_set: unk
   if (t.typeface !== 'sans') tokens.typeface = t.typeface;
   if (t.wordmark) tokens.wordmark = t.wordmark;
   for (const k of ['header', 'hero', 'density', 'teams'] as const) if (t[k]) tokens[k] = t[k];
+  if (t.appearance) tokens.appearance = t.appearance;
   return { templateId: templateSpec(site.template_id).id, tokens };
 }
 
@@ -153,6 +154,8 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
         hero: tokens.hero,
         density: tokens.density,
         teams: tokens.teams,
+        // The fixed look: null = follow the visitor.
+        appearance: tokens.appearance,
       });
       await onSaved();
       showSuccess('Website', 'Theme saved to your draft');
@@ -259,6 +262,22 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label className={LABEL} htmlFor="sb-theme-appearance">
+          Light and dark
+        </label>
+        <select id="sb-theme-appearance" value={tokens.appearance ?? ''} onChange={e => set({ appearance: e.target.value || null })} className={INPUT}>
+          <option value="">Follow the visitor</option>
+          <option value="light">Always light</option>
+          <option value="dark">Always dark</option>
+        </select>
+        <p className="mt-1 text-xs text-tertiary">
+          {tokens.appearance
+            ? `Every visitor sees the ${tokens.appearance} site, whatever their own setting.`
+            : 'Each visitor sees their own Edge Athlete theme — otherwise dark from 6 PM to 9 AM by their clock, light in the day.'}
+        </p>
       </div>
 
       <fieldset>

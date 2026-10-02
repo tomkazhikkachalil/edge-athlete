@@ -516,6 +516,9 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   // Activities (245): the person's own imports and their GPS streams (the
   // stream objects were collected in step 1) — never a result.
   await mustDelete('activities', 'profile_id');
+  // Connected apps (247): the standing deliveries — the sealed provider
+  // tokens and the upload link's hash leave with the person.
+  await mustDelete('activity_connections', 'profile_id');
   await mustDelete('athlete_equipment', 'profile_id');
   await mustDelete('athlete_vitals', 'profile_id');
   await mustDelete('user_media_presets', 'profile_id');

@@ -53,8 +53,8 @@ export default async function OrgSitePagePreview({ params }: { params: Promise<{
 
   return (
     <SiteShell site={site} pages={links} notices={notices} navTeams={navTeams} newsBanner={newsBanner}>
-      <div className="bg-amber-100 border-b border-amber-300">
-        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900">
+      <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800">
+        <p className="site-container px-4 py-2 text-sm font-medium text-amber-900 dark:text-amber-200">
           Draft preview of “{page.title}” — not public. This link expires; publish from the editor or the console to go live.
         </p>
       </div>

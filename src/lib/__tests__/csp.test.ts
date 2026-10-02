@@ -58,3 +58,21 @@ describe('the static CSP (V3)', () => {
     expect(buildStaticCsp().split('; ').find(d => d.startsWith('connect-src'))).toContain("'self'");
   });
 });
+
+describe('the public theme script is admitted by HASH under the nonce policy (Oct 1 2026)', () => {
+  it('the hash source is the sha256 of the script text, base64', async () => {
+    const { createHash } = await import('node:crypto');
+    const { inlineScriptHashSource } = await import('../csp');
+    const { PUBLIC_THEME_SCRIPT } = await import('../theme-script');
+    const expected = `'sha256-${createHash('sha256').update(PUBLIC_THEME_SCRIPT, 'utf8').digest('base64')}'`;
+    expect(await inlineScriptHashSource(PUBLIC_THEME_SCRIPT)).toBe(expected);
+  });
+
+  it('a hash rides script-src beside the nonce; without one the policy is byte-identical to before', async () => {
+    const { buildCsp } = await import('../csp');
+    const plain = buildCsp('n0nce').split('; ').find(d => d.startsWith('script-src'))!;
+    expect(plain).toBe("script-src 'self' 'nonce-n0nce' 'strict-dynamic' 'unsafe-inline' https:");
+    const hashed = buildCsp('n0nce', { scriptHashes: ["'sha256-abc='"] }).split('; ').find(d => d.startsWith('script-src'))!;
+    expect(hashed).toBe("script-src 'self' 'nonce-n0nce' 'sha256-abc=' 'strict-dynamic' 'unsafe-inline' https:");
+  });
+});

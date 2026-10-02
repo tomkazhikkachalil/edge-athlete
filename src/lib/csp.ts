@@ -38,11 +38,30 @@ export const CSP_REPORT_PATH = '/api/csp-report';
 
 const FRAME_SRC = `frame-src ${EMBED_FRAME_HOSTS.join(' ')}`;
 
-export function buildCsp(nonce: string, opts?: { dev?: boolean }): string {
+/**
+ * The `'sha256-…'` source for ONE inline script whose text is a build-time
+ * constant. Web Crypto, so it runs in the edge middleware and in node.
+ *
+ * Why (Oct 1 2026): the (public) root layout carries a blocking inline theme
+ * script, and that layout is static — it can never hold a per-request nonce.
+ * Its pages that are NOT on a static-CSP path (/clubs, /leagues, the root
+ * 404) are served the nonce policy below, which blocked the script: the
+ * directories stayed light for a dark-themed visitor. A hash admits exactly
+ * that script and nothing else, and is honoured alongside 'strict-dynamic'.
+ */
+export async function inlineScriptHashSource(script: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(script));
+  let binary = '';
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return `'sha256-${btoa(binary)}'`;
+}
+
+export function buildCsp(nonce: string, opts?: { dev?: boolean; scriptHashes?: readonly string[] }): string {
   const dev = opts?.dev === true;
+  const hashes = (opts?.scriptHashes ?? []).map(h => ` ${h}`).join('');
   return [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}'${hashes} 'strict-dynamic' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,

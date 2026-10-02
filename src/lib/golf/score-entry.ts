@@ -45,6 +45,33 @@ export interface NextHoleInfo {
   yardage: number | null;
 }
 
+/**
+ * The scorer works in POSITIONS (1..holesPlayed); everything else speaks hole
+ * NUMBERS (a back-nine round's first position is hole 10). This is the hand-
+ * over: the scorer's map button passes the hole it is ON, so the map opens
+ * there — it used to open on "the first hole with no saved score", and
+ * tapping the map on hole 1 saved hole 1 first, so it opened on hole 2
+ * (Tom, Oct 2026).
+ */
+export function holeNumberAtPosition(startingHoleNumber: number, position: number): number {
+  return startingHoleNumber + Math.max(1, Math.trunc(position)) - 1;
+}
+
+/**
+ * The hole score entry REOPENS on when the player comes back from the map by
+ * the Scorecard tab (Oct 2026: that tab used to land on the leaderboard, one
+ * "Continue scoring" away from the scorer). It is the hole the scorer handed
+ * to the map — the hole they LEFT, whatever they stepped the map to since —
+ * when that is a hole of this round; otherwise null, which is "resume at the
+ * first unscored hole". The map's own "Score hole N" stays the explicit way to
+ * score the hole being looked at.
+ */
+export function reopenHole(handedToMap: number | null | undefined, startingHoleNumber: number, holesPlayed: number): number | null {
+  if (typeof handedToMap !== 'number' || !Number.isInteger(handedToMap)) return null;
+  if (handedToMap < startingHoleNumber || handedToMap > startingHoleNumber + holesPlayed - 1) return null;
+  return handedToMap;
+}
+
 export function nextHoleForScores(
   existingScores: Array<{ hole_number: number }>,
   holesPlayed: number,

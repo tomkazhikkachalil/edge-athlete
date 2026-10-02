@@ -1,5 +1,531 @@
 # Development Log
 
+## October 2, 2026 — Maintenance after the quick fixes, Download the app and the GPS toggle: the full checklist, all green
+
+**On main at `070e5e8d`** (#1043). Since the last maintenance entry (`9e328fb7`, #1036) — seven PRs, 73 files outside this log, zero DDL:
+- **Fix round part 6 — a commenter's picture and name open their profile** (#1037); a private commenter no longer reads "Unknown User".
+- **Download the app** (#1038): the web app installed from the browser — an icon on the phone, no store; Tom installed it on his own phone ("it worked").
+- **Quick fixes** — Hide really hides, with the way back on your profile (#1039); Delete for real for for-fun results and any round still being played, which amends convention 27 (#1040); the Get Started suggestions stay closed, on the account (#1042); GPS opens on your hole with a flag on the green (#1041).
+- **GPS ⇄ scoring, one tap each way** (#1043).
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,340 tests in 462 files** (4,297 in 458 on the last pass);
+- the production build (next 16.3.8);
+- 222 client chunks inside the iOS 15 / Safari 15 floor (220 on the last pass — the install guide and the install card).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes: 105 `.select('id'|'*')` sites (104 on the last pass; the new ones in `results/delete-server.ts` and `results/hide-server.ts` fetch ids to act on, none counts by `.length`), 14 raw-error-shaped bodies (unchanged).
+- **`npm audit --omit=dev`: 0 vulnerabilities.**
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 246 rows, head **247**, every file run — staging and production agree. Nothing in this stretch touched the database.
+- **GitHub:** main in sync with origin; main's own CI (verify, guardrails, smoke) green on `070e5e8d`.
+- **Production (edgeathlete.ca):** health `ok`, database `ok`, serving main's head (`070e5e8d`). The launch gate holds: a signed-out visitor is answered a 307 to `/auth/coming-soon`, the sign-in door (`/?signin=1`) answers 200, robots forbid everything, `POST /api/signup` answers 403.
+- **The downloaded app's own files, signed out:** the manifest answers 200 (`id` and `start_url` `/feed`, `scope` `/`, standalone) and all five icons (192, 512, maskable 512, the Apple touch icon, the 32 px favicon) answer 200 — a phone can install and draw its icon while the site is gated.
+
+**One production probe, signed in, 57 of 57 passed** — 19 each on desktop (1280), phone Chromium (390) and phone WebKit (390), in a single run, no retries: `health`, `feed-post`, `edit-profile`, `profile-spacing`, `vitals`, `install-app` (the Android one-tap path, the iPhone steps, "opened from the icon", the manifest, the sign-in line), `get-started-mobile`, `comment-author-link`, `results-hide`, `round-delete`, `gps-hole-flag`, and `live-rangefinder` on a real course. Afterwards production held no QA accounts and no QA course rows.
+
+**What a test cannot be, said plainly:** "the downloaded app" is proven here as far as a browser can play it — the device states are emulated (a user agent, the browser's install event, `navigator.standalone`). The real install was Tom's own, on his phone, after #1038. Two things still wait for his phone: "Continue with Google" inside the installed app, and the map's flag on a real course.
+
+**Known, not owed to this pass:**
+- Everything under "Known" on the last pass still stands.
+- `round-delete` "completed round: deleting the feed post deletes the round underneath" failed ONCE in a long local batch (the round still there after 15 s) and passed every other time, here and on production. Not explained. The case now asserts the DELETE's own response, so a recurrence names its cause.
+- `results-hide` on phone WebKit ran past a fixed 15 s window once on production (#1039's probe) and passed on the retry; the card now leaves at the tap and the spec waits for the server's answer. It passed first time in this pass.
+- `live-rangefinder.spec.ts` skips on staging and in CI (no mapped courses there); it runs on production. `gps-hole-flag.spec.ts` brings its own course and runs everywhere.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. From Tom: the rest of "Fix 4" (his pasted list was cut off mid-sentence), and — unchanged from Sep 30 — the Supabase "Allow new users to sign up" switch OFF while gated, and Vercel Pro. Found and left for a later part: a shared post inside a DOCKED chat is a button that does nothing; the deferred finds from part 1.
+
+## October 2, 2026 — Live round: one tap between the GPS map and scoring
+
+Tom, after the GPS fix: "When you press scorecard from the GPS map, you return to the live screen… then you have to press 'continue scoring'… Make it easy to toggle back and forth." Asked what Scorecard should land on, he chose **straight back to scoring**.
+
+**How it was.** The live round page has two tabs — Scorecard (the live leaderboard) and Map — and score entry is a pop-up over them. Scorer → map was a bare map icon beside the X; map → Scorecard only switched the tab, so it was leaderboard, then "Continue scoring", then the scorer: two taps one way, and an icon nobody reads as "GPS" the other.
+
+**The change (zero DDL):**
+- **Scorecard IS score entry for someone who is scoring.** Selecting the tab (from the map, or from the leaderboard with the scorer closed) opens score entry — refreshed first and shown second, so the leaderboard never flashes by. It opens on **the hole you left**: the scorer already hands its hole to the map (`onShowMap(hole)`), the page now remembers it, and `reopenHole` (`src/lib/golf/score-entry.ts`, pure) answers that hole when it belongs to this round, else "resume at the first unscored hole". Stepping the map to another hole does not move it.
+- **A labelled Map button in score entry** — icon + "Map", on the "Hole N of M" row, a 44 px target, the same `aria-label` the specs already use.
+- Unchanged on purpose: the map's "Score hole N" still scores the hole being LOOKED at; closing score entry (X) shows the leaderboard with "Continue scoring" (or the map, when it was opened from the map); watchers, a finished card and event rounds (their group card is inline on the Scorecard tab) behave as before.
+
+**Proof:**
+- Unit: `reopenHole` (the hole left; resume when none; the round's own holes — a back nine is 10 to 18).
+- `e2e/gps-hole-flag.spec.ts` on phone Chromium and phone WebKit: Scorecard from the map → score entry on hole 1 with no "Continue scoring" (the map had been stepped to hole 2); the Map button reads "Map" and is 44 px tall; "Score hole 3" scores hole 3; closing a scorer opened from the map returns to the map; Scorecard then resumes on hole 2; closing that one shows the leaderboard, and the tab opens the scorer again.
+- Neighbours, 16 of 16: `sport-events-scorecard`, `sport-events-tournament-page` (event rounds share the tabs), `round-delete`, `round-lifecycle`.
+- 375 px by eye: the score-entry header with the Map pill.
+
+**One unexplained failure, recorded.** In the first neighbour batch `round-delete` "completed round: deleting the feed post deletes the round underneath" found the round still there after 15 s; it then passed three times alone and in the full batch re-run. It does not touch this change's code. The case now waits for the DELETE's own response and asserts it, so a recurrence names its cause instead of timing out.
+
+## October 2, 2026 — Quick fixes, PR 3: the Get Started suggestions, once closed, stay closed
+
+Tom: "When a user first creates an account, the feed shows suggestions for completing their profile. If the user closes the suggestions, they should stay closed, and the suggestions pop-up should not appear again."
+
+**Cause — two things, both of our own making:**
+- The X was remembered in ONE browser's `localStorage`, under a key that was not even per account. Any fresh storage showed the card again for the rest of its 14-day window: a second device, a private window — and the app installed from the home screen the day before ("Download the app"), because an installed web app keeps its own storage, separate from Safari's. Sign-in and sign-out were never the cause (nothing clears the key).
+- On a phone the "Download the app" card was hidden only WHILE Get Started showed — so closing Get Started slid a different card into the same slot at once, which reads as "the pop-up came back".
+
+**The fix (zero DDL):**
+- **The dismissal lives on the ACCOUNT.** `POST /api/profile/getting-started { dismiss: true }` stamps `get_started_dismissed_at` on the auth user's metadata (written server-side with the admin client, existing keys kept, idempotent); the GET answers `dismissed`, read FRESH from the auth server rather than from the session's own copy (which is as old as its token). No migration: the card lives 14 days, and the account's own metadata is the store that already follows the person everywhere.
+- **The card honours it.** `GetStartedCard` writes the browser key (now per account — `ea:get-started:dismissed:v1:<id>`; the old shared key is still honoured) AND calls the POST; a browser that never saw the card asks once, is told `dismissed`, stays closed, and remembers — no request on its next visit. The rule's pure half is `src/lib/get-started.ts`.
+- **Closing one card never summons another.** `InstallCard` waits for the next visit after Get Started is closed.
+
+**Proof:**
+- Unit: the per-account key and the metadata reader (`get-started.test.ts`).
+- e2e, 13 of 13 locally (desktop, phone Chromium, phone WebKit): `get-started-mobile.spec.ts` closes the card for real in one browser context and a SECOND context with empty storage — the same account — is not offered it (the GET answers `dismissed`, and that browser's next visit asks nothing); `install-app.spec.ts` holds that closing Get Started does not reveal the install card until the next visit. Both put the shared QA account back (`resetGetStarted`) — the dismissal outlives a browser now.
+
+**For Tom's own phone:** the card he closed in Safari before this fix was never stamped on his account, so the installed app shows it one more time; closing it there is the last time.
+
+## October 2, 2026 — Quick fixes, PR 4: GPS opens on your hole, and a flag stands on the green
+
+Tom: "When you're playing a golf round and select GPS to view the holes, selecting it on the first hole doesn't take you to the first hole… It's also hard to tell where the pin is. Please add a flag icon at the pin location."
+
+**Cause.** The scorer's map button never told the map which hole it was on — `onShowMap()` took no argument and only switched the tab. The map then chose its own hole: the first one with no SAVED score. And that button saves the hole it is on before it leaves. So from hole 1, with a score on the wheel, hole 1 was saved, became "scored", and the map opened on hole 2. Going back to an already-scored hole 1 did the same.
+
+**The fix (zero DDL):**
+- **The scorer hands over its hole** — `holeNumberAtPosition(startingHoleNumber, position)` (`src/lib/golf/score-entry.ts`, pure; a back-nine round's first position is hole 10) goes through `onShowMap(holeNumber)`, and the live page sets it as the viewed hole before switching to the map.
+- **A flag on the green** — `flagIcon` in `CourseMapInner.tsx`: a red flag on a white-cased pole, its foot on the point, over the existing green dot; never interactive, so a tap on the green still places the target. Honest limit, unchanged: no course data carries the day's pin position — the flag marks the END of the hole's line, the centre of the green.
+- **The flag is never under the app's own controls.** Two things the new spec found: a hole running straight up the screen put its green under the hole chip (the fit's padding was 60 px all round; it is now 116 top / 104 bottom), and a green in the top-right landed behind the very "yds to green" pill that names it — that hole is fitted again with the control column's width kept clear.
+- **The view is fitted when the focus MOVES, not on every poll.** The page rebuilds its `holes` array whenever the scorecard refreshes; each refresh re-ran the fit, yanked the map back to the hole and took Re-center's follow away. The fit is keyed on the hole and its line now.
+- A hole the course's map data has no line for says "Not mapped yet" on the chip instead of leaving the map on the course pin.
+
+**Proof:**
+- Unit: `holeNumberAtPosition` (front nine, back nine, and that it is NOT the next unscored hole).
+- `e2e/gps-hole-flag.spec.ts` (new, self-seeded — it brings its own mapped QA course, because the existing rangefinder fixture needs the seeded Eagle Creek geometry that staging and CI do not have, and skips there): hole 1 is scored, the scorer walked back to it, the map opened from there → the chip reads Hole 1, one flag stands with its foot on the green dot, clear of the chip and of the distance pill, a tap on the green still places the target, and stepping to hole 2 moves the flag. Phone Chromium and phone WebKit.
+- 375 px by eye on satellite: the flag reads clearly against grass and water.
+
+**What only the course can prove:** the flag against real greens and tree cover — Tom's next round.
+
+## October 2, 2026 — Quick fixes, PR 2: Delete, for real — for-fun results, and any round still being played
+
+Tom: "Users should be able to delete any round or activity that doesn't come from an official tournament or club stats. Right now the only way to close a round is by pressing End Round, but a round that isn't tied to a tournament should always be deletable." Asked which rule he wanted against his own Sep 26 "results are never lost", he chose **both Hide and Delete**: Hide keeps counting and can be undone; Delete is gone for good and stops counting; official results can only be hidden. This amends convention 27.
+
+**What was wrong beyond the rule:**
+- A scored LIVE round's "Delete" hid the post and left the round running — still in Live Now and the resume banner — and when it later completed, its stats row appeared unhidden. The only real way out was End Round, which RECORDS the round.
+- On the feed / profile card a live round offered End Round only; Delete existed on `/live` alone.
+- The feed card stayed on screen until the server answered — seconds on a slow connection, which read as "nothing happened".
+
+**The rule — `src/lib/results/delete-rule.ts planResultDelete` (pure, 11 tests):**
+- official (the origin resolver, which fails closed) or an event round → **refuse**, in words that name Hide;
+- a casual round still pending or live → its **creator discards it whole**, whatever has been scored (nothing is recorded until a round completes); a playing partner cannot;
+- finished, and nobody else played → **the whole round**: post, card, stats row, dataset row;
+- finished and shared → **the requester's result only**: their stats row, their dataset row and their scores on the card (the scores too — a later re-mirror would write the stats row back from them), plus the round's post when they created it. Partners keep everything.
+
+**The writer — `src/lib/results/delete-server.ts`**, behind three doors that must ask BY NAME (`?mode=delete` on `DELETE /api/posts`, `/api/group-posts/[id]`, `/api/golf/rounds/[id]`). A bare DELETE keeps its Sep 26 meaning — a result is hidden — so a tab opened before the deploy can never destroy what its confirm promised to keep.
+
+**The doors people see:**
+- a finished for-fun result: **Hide from profile** and **Delete for good**, side by side — two buttons from `sm` up, two rows in the phone menu; the delete confirm says it stops counting and points at Hide for anyone who only wants it off their profile; with partners it says they keep theirs;
+- a round still being played: **Delete** on the card itself (feed, profile, the post pop-up) as well as on `/live`, with words that say the scores so far go — partners' too;
+- the round page: a Delete button beside Hide;
+- an event's round keeps the Sep 26 behaviour (the organizer's record).
+- The feed removes the card at the tap and puts it back if the server refuses, with the server's own words.
+
+**Proof:**
+- Unit: `results-delete.test.ts` (the rule, the doors ask by name, the writer reads the origin before removing anything, own-result deletes are keyed by the requester); the `.delete()` allowlist names the new writer.
+- `e2e/round-delete.spec.ts` + `results-hide.spec.ts`, 14 of 14 locally (desktop, phone Chromium, phone WebKit): a SCORED live round deleted from `/live` and from its card (404, not in Live Now, nothing recorded); a finished round offers both doors and Delete removes the post, the round, the stats row and the dataset row; in a shared round the creator's delete leaves the partner's round, stats and scores, and the partner then deletes their own; an official result answers 409 in plain words and can still be hidden; a bare DELETE still hides.
+- 375 px by eye: the phone menu's two rows, the confirm, the round page's three buttons (no sideways scroll).
+
+**The production probe of PR 1** (recorded here because it shaped this PR): 4 of 5 passed outright; the fifth — phone WebKit — ran past a fixed 15 s window on its first attempt and passed on the retry. The hide spec now waits for the server's answer rather than a clock, and the card's removal no longer waits for it at all.
+
+## October 2, 2026 — Quick fixes, PR 1: Hide really hides, and the way back is on your profile
+
+Tom: "The hide function doesn't work… when you hide a post, it still appears on your athlete profile, but there is no way to unhide it." And of a for-fun round he deleted: "it is neither deleted nor hidden."
+
+**Cause — the writer worked; the readers never changed.** Migration 241 made `profile_hidden` a post STATUS "so every published-only reader skips it with no reader change". But the feed and the profile grid are not published-only for the author: both read "published OR mine" (`/api/posts` GET; the profile media RPCs since 074). So a hidden result went straight back to its owner — in the feed, looking published, still offering a "Hide from profile" that was now a no-op. Three smaller faults sat beside it:
+- "Hide" on the round page stamped only the `golf_rounds` row — the round's feed post stayed published for everyone.
+- `/api/golf/stats` listed hidden rounds to other viewers in Recent, then answered a 404 when one was opened.
+- Settings → Privacy listed a round and its post as two separate things to show again.
+
+**The fix (zero DDL):**
+- **Feed** — the owner arm is now `published OR (mine AND NOT profile_hidden)`. A hidden result is returned to its owner in ONE place: their own profile list.
+- **The owner's profile** — the hidden result stays there, marked: a "Hidden" pill on the tile (the media route marks hidden ids for the owner only) and a banner on the opened post — "Hidden from your profile — only you can see this. It still counts toward your stats." — with **Show on profile**; the owner menu offers "Show on profile" in place of the dead Hide. Hiding from the grid keeps the tile, marked, instead of dropping it only for it to return.
+- **One act hides the whole result** — `setWholeResultHidden` (`src/lib/results/hide-server.ts`; `setResultHidden` stays the one row writer underneath): the post and the SAME owner's stats row move together, both ways. The round page and `PATCH /api/results/visibility` go through it. A playing partner hiding their round never touches the creator's post.
+- **One row per result** in Settings — `pairHiddenResults` (`src/lib/results/hidden-list.ts`, pure) folds a hidden round into its hidden post, carrying the course and the score.
+- Other viewers' Recent rounds skip a hidden round; the Stats tab says "hidden" when the server hid; the feed shows the server's own words on a failure; the hide copy names the profile as a way back.
+
+**Not in this PR:** Delete. Tom decided this session that a for-fun result gets BOTH Hide and a real Delete (official results: Hide only) — that amends convention 27 and is PR 2, with the live-round discard.
+
+**Proof:**
+- Unit: 21 rule tests in `results-hide.test.ts` (the feed arm, the doors, the pairing, the owner-only tile mark).
+- `e2e/results-hide.spec.ts` 5 of 5 (desktop, phone Chromium, phone WebKit): a for-fun round is scored and ended, hidden from the FEED CARD, gone from the owner's feed after a reload, listed once in Settings, shown "Hidden" on the owner's grid, brought back by "Show on profile", and hidden again from the round page — which now takes the post with it.
+- Neighbours green: `round-delete`, `performance-data`, `sport-events-results`, `results-official-lock`, `feed-post` (7 of 7).
+- 375 px by eye: the tile pill, the banner, the owner menu.
+
+## October 2, 2026 — Download the app: Edge Athlete as an icon on the phone, no store
+
+Tom: people should be able to download Edge Athlete so it is an icon on their phone and opens like an app — every feature, "not through the web" — without the App Store or Google Play. Asked which route, he chose: **a Download button now, the store apps later** (`docs/ROADMAP_2026-10.md` item 1 is this; item 2 is the stores).
+
+**What already existed.** The manifest (standalone, 192 / 512 / maskable icons), the Apple tags and touch icon, `viewport-fit=cover` and the safe-area classes on the header, tab bar and drawer. So the app could ALREADY be added to a home screen — by anyone who knew the browser trick. Nothing in the app said so, and nothing knew whether it had happened: zero hits for `beforeinstallprompt`, `display-mode` or `navigator.standalone`.
+
+**The limits are the platforms', and the app now says them plainly:**
+- Android and desktop Chromium hand a page an install prompt — one tap.
+- An iPhone gives a website no install API at all. It is Share → Add to Home Screen → Add: Safari always, Chrome / Edge from iOS 16.4.
+- Another app's browser (Instagram, Facebook, LinkedIn…) cannot add anything to a home screen; the person opens Safari or Chrome first.
+- An installed iPhone app keeps its own sign-in — people sign in once inside it.
+
+**What was built (zero DDL, zero dependencies, no CSP change, no service worker):**
+- **One rule** — `src/lib/install/platform.ts installMode` (pure): `installed · prompt · ios-safari · ios-browser · ios-in-app · android-menu · android-in-app · desktop`, pinned with real user-agent strings (an iPad asking for the desktop site reads as iOS; a bare WKWebView reads as in-app).
+- **One store, one provider** — `src/lib/install/store.ts` listens (wired when the module loads, because the prompt event fires once, early) and `InstallAppProvider` at the app root reads it through `useSyncExternalStore`; `useInstallApp()` gives `canInvite`, `install()` (the browser's dialog where there is one, else the guide) and `openGuide()`.
+- **The guide** — `InstallAppSheet` in the house `LargerWindow`: the device's own numbered steps, and "You'll sign in once inside the app."
+- **The doors** (all gone once installed): "Get the app" in the header dropdown and the phone drawer; a card in Settings → Account that also says "You're using the Edge Athlete app" or "installed on this device"; a card on the feed on phones and tablets, dismissed for good, never beside the Get Started card; a line on the sign-in page.
+- **Manifest**: `id: '/feed'` (today's implicit identity made explicit), `scope`, `lang`, `categories`.
+- **Back is never dead** — `src/lib/nav-back.ts backOr(router, fallback)` at the eight `router.back()` sites. The installed window has no browser Back button and Android opens our links inside it; a page opened cold has no history, and those buttons did nothing (true of a link opened in a new tab as well).
+
+**Not in this round, by design:** offline use and lock-screen notifications (both need a service worker, and `worker-src 'self'` in `buildCsp` before one could register — `script-src` carries `'strict-dynamic'`, so `'self'` does not cover a worker), an iOS splash image, a QR code on the desktop guide (a dependency).
+
+**Proof:**
+- Unit: `installMode` (9 cases), `backOr`, and the launch-gate pin that a signed-out phone can read the manifest and the touch icon.
+- `e2e/install-app.spec.ts`, 9 of 9 locally (desktop, phone Chromium, phone WebKit). A real install cannot be automated, so each device state is played: an Android user agent + a synthetic prompt event (the button calls the browser's prompt exactly once; after `appinstalled` the card and the menu entry are gone, and stay gone); iPhone Safari / Chrome-on-iOS / Instagram user agents (each its own steps); `navigator.standalone` + Chromium's emulated `display-mode` (nothing invites, Settings says "You're using the app"); a new account sees Get Started and not two cards; the manifest and every icon answer 200; a cold-opened Settings page goes Back to the feed.
+- 375 px by eye, light and dark: the feed card, the guide, the drawer entry, the Settings card, the sign-in line.
+
+**What only a phone can prove — Tom's two minutes:** install from Safari, open from the icon (full screen, the tab bar clear of the home indicator), sign in, close and reopen (still signed in), and try "Continue with Google" inside the installed app — the one flow that may behave differently there; email and password are unaffected.
+
+## October 2, 2026 — Fix round, part 6: a commenter's picture and name open their profile
+
+Tom: when someone comments on your post, you cannot tap through to their profile from the comment on the feed — on his phone, and probably in a browser too.
+
+**Cause.** Nothing was swallowing the tap: the commenter's picture and name were never links. `CommentSection` is the one place comments are drawn (the feed card and the post pop-up both reach it through `PostCard`), and in it the picture was a bare image and the name a bare `<span>`, at every width, on comments and replies. Only @mentions inside the text linked anywhere.
+
+**The fix (zero DDL):**
+- **One rule, `commentAuthorHref` in `src/lib/comment-thread.ts`** (pure, unit-tested): your own comment → `/athlete`; a signed-in viewer → `/athlete/<id>`; a signed-out viewer → the public page, handle first (`getProfileUrl`); no author on the row → no link. `/athlete/<id>` is the post header's destination, chosen over `/u/@handle` on purpose: it runs the follower-aware privacy check, while `/u/` answers "Private Profile" even to an approved follower.
+- **`CommentSection`**: the picture and the name are `<Link>`s (`data-comment-author="avatar" | "name"`). The name is the one link a keyboard or screen reader meets; the picture is the same destination for a finger (`aria-hidden`, out of the tab order). The picture's target is 44 px through padding with a matching negative margin — nothing moves. The name truncates (`min-w-0` on its group, `shrink-0` on the Pin / Delete / menu cluster), so a long name no longer competes with the buttons on a 375 px card. The "via <guardian>" line stays plain text, as "Posted by" does on a post.
+
+**Found by the new spec, fixed in the same PR: a private commenter was "Unknown User".** The QA users are private and do not follow each other, and the first run drew bravo's comment on alpha's post as "UU · Unknown User". `GET /api/comments` embeds the author through the SESSION client, so RLS strips the embed whenever the commenter's profile is private and the viewer does not follow them — any private person commenting on a public post. The route's own note already states the rule ("every comment already ships its AUTHOR's first/last/full name to every viewer"), and name, handle and picture are the minimal card anyone gets for a private profile (`/api/profile`'s `MINIMAL_FIELDS`). The read now fills exactly those fields, through the admin client, only for rows that came back without an author.
+
+**Planned, checked, not needed: closing the pop-up on a route change.** The plan assumed the chat window's post pop-up lived above the page. It does not — `ChatWindow` belongs to the `/messages` page, and every one of the 14 hosts unmounts with its page. The remaining doubt was the same route with another id (`/athlete/<a>` → `/athlete/<b>`): the spec's third case holds that the pop-up does not carry over, with no code for it. `PostDetailModal` gained only its test hook (`data-post-detail`).
+
+**Proof:**
+- `npm run verify` exit 0 (4,301 tests in 458 files; 220 client chunks inside the floor).
+- `e2e/comment-author-link.spec.ts`, 4 of 4 locally (desktop ×2, phone Chromium, phone WebKit): the name and the picture on the feed card, your own name on a reply, the name inside the feed's pop-up (profile shown, no pop-up left), and the pop-up on a profile page leading to a third person. Each step runs in its own page (the WebKit hard-navigation trap).
+- At 375 px, measured with a 50-character name: picture targets 44 × 44, name targets 36 px tall, the name truncated beside Pinned / Pin / the menu, no sideways scroll.
+
+**Found, not fixed:** a shared post inside a DOCKED chat is a button that does nothing — `MiniChatWindow` passes no `onViewPost`, so only the full `/messages` page opens it.
+
+## October 2, 2026 — Maintenance after fix-round parts 3, 4 and 5: the full checklist, all green
+
+**On main at `ee315ee7`** (#1035). Since the Oct 1 maintenance entry (`193dac8c`):
+- **Part 3 — watch and app activity** (#1027–#1033, migration 247): activities are a section of Vitals (#1027, live); Connected apps — the connections table, sealed tokens, one activity from many deliveries (#1028), the Apple Watch upload link (#1029), Polar (#1030) — built, proven, then **paused by Tom and hidden in production** (#1033) until the native apps; `docs/ROADMAP_2026-10.md` records the store apps and the installable web app.
+- **Part 4 — Edit Profile opens where you are** (#1034): one editor at the app root instead of one per page.
+- **Part 5 — profile tab spacing** (#1035): the Stats tab's filter rows no longer sit flush on each other; a measured, kept spacing check.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,297 tests in 458 files** (4,226 in 453 on Oct 1);
+- the production build (next 16.3.8);
+- 220 client chunks inside the iOS 15 / Safari 15 floor (222 on Oct 1 — three pages no longer carry their own copy of the profile editor).
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes are unchanged: 104 `.select('id'|'*')` sites, 14 raw-error-shaped bodies.
+- **`npm audit --omit=dev`: 0 vulnerabilities.**
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 246 rows, head **247**, every file run — staging and production agree.
+- **Production:** health `ok`, database `ok`, serving main's head (`ee315ee7`); main's own CI (verify, guardrails, smoke) green on that commit; the launch gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+- **Vercel settings, as left:** Production holds `NEXT_PUBLIC_LAUNCH_GATE` and `CONNECTIONS_ENC_KEY` and NOT the Connected apps flag (the pause); Preview holds the flag and the staging key, so the paused code keeps its tests.
+- **Production probes since Oct 1** (signed-in, one at a time): Vitals + activities 5/5 (`f9766e47`); the import path 5/5 (`8b1b719e`, `72eeec0b`) and 10/10 (`9eb0a691`); connections + the upload link 7/7 with the flag on (`b63f7e56`), then hidden — no tab, no entry points, import and Vitals intact — 8 passed (`c6feb2e5`); Edit Profile 15/15 (`5f99d39e`); the spacing check + Vitals 5/5 (`ee315ee7`). Chromium and WebKit at phone width throughout.
+
+**Known, not owed to this pass:**
+- Everything under "Known" on Oct 1 still stands (the signed-out site tests proven on staging only while gated; the light site 404; `org-site-news-cover` failing locally on any branch; the `org-site*` specs starving this Mac in one run).
+- The Polar code has only ever met a stand-in server, and the Apple Watch adapter only fixtures — both are behind the pause; a real device is the first thing to do when they resume.
+- `play-rivals` on WebKit stalled once on "Loading profile…" late in a nine-minute local batch and passed 4 of 4 alone. If it recurs in CI it is a real slow-load to look at, not noise.
+- My own slip, recorded Oct 1: a staging migration during a CI smoke run failed that smoke. The rule since — read the head's check-runs before ANY staging work — was followed for every staging run in parts 4 and 5.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. Deferred finds from part 1 are unchanged (the profile header's Position / Team slots read columns that do not exist; a Google account with no last name cannot save the Basic tab; a guardian approving a parked sign-up keeps only name, DOB, handle and sport). Tom still owes from Sep 30: the Supabase "Allow new users to sign up" switch OFF while gated, and Vercel Pro. Nothing is owed for Connected apps while it is paused.
+
+## October 2, 2026 — Fix round, part 5: nothing on the profile tabs sits flush on the next box
+
+Tom: on the profile, moving through the tabs, headers, buttons and filters sometimes sit right on top of the border of the next section — "there is no space" — while the rest of the app is spaced well.
+
+**Measured first, not guessed.** A throwaway spec walked every tab (Media, Stats, Vitals, Tagged, Equipment, Achievements) on `/athlete`, a visitor's `/athlete/[id]` and `/u/[username]`, at 1280 px and 390 px, and reported every vertical gap under 12 px beside a bordered box (36 screenshots; a content-rich public staging profile viewed as a visitor, the QA athlete as the owner).
+
+**What it found:**
+- **The Stats tab, 0 px twice** — on every route and width: the filter controls sat flush on the grey "No filters applied" strip, and the strip flush on the photo grid. Cause: `FilterBar` returned two bare rows and relied on a `space-y-6` parent. Media, Tagged and Achievements gave it one; `StatsHub`'s root had none.
+- 8 px between stacked action pills on a phone (Vitals: Start Workout / Log Past Workout / Import Activity; the Activities section's two links; the Equipment toolbar's wrapped rows).
+- From the code read, not present in the measured data: the Tagged "Team media" heading and the badge shelves' headings at 8 px above their grids, and the Progress group labels at 4 px above their bordered chips.
+- **`/u/[username]`**: Stats and Tagged sat bare on the page while Vitals and Equipment sat in a padded card — half the inset, and the sport chips ran to the screen edge on a phone.
+
+**Fixes (classes only; zero DDL):**
+- `FilterBar` is ONE block that spaces its own two rows (`space-y-6` — the look the three good tabs already had) — a host can no longer collapse it.
+- `StatsHub`: the bar and the results under it share one `space-y-6` stack (the shape TaggedTab and AchievementsTab use).
+- To the house values: the wrapped pill / toolbar rows `gap-2` → `gap-3`; the two headings `mb-2` → `mb-3`; the Progress labels `mb-1` → `mb-2`.
+- `/u`: Stats and Tagged sit in the same card as the route's other sections.
+- Left alone on purpose: the 8 px gutters between photo tiles (a grid gutter), and the tab bar → panel / section ↔ section gaps (already 24 / 32 px).
+
+**Proof.** The same measurement after the change: clean on every tab, route and width, on Chromium and WebKit. Kept: `e2e/profile-spacing.spec.ts` + `e2e/helpers/layout.ts` — on each tab that uses the filter bar, on `/athlete` and on `/u` (seen by a second signed-in athlete: the owner's own `/u` link redirects to `/athlete`, and a signed-out visitor meets the launch gate on production), the controls, the strip and the block under it are each at least 16 px apart, with no sideways scroll. The specs that drive these tabs still pass (`stats-hub-mobile`, `skill-cards-mobile`, `tagged`, `vitals`, `vitals-mobile`, `activities-profile`, `play-badges`, `play-rivals`, `play-challenges`, `performance-rollups`, `results-hide`, `achievements`): 33 of 34 in the batches — the one miss was `play-rivals` on WebKit, stuck on "Loading profile…" late in a nine-minute run on this Mac; it passed 4 of 4 re-run alone on both phone engines, and it does not read the code this PR changes. `npm run verify` and the guardrails pass.
+
+## October 2, 2026 — Fix round, part 4: Edit Profile opens where you are
+
+Tom: choosing Edit Profile from the top-right menu on any page but his profile took him to the profile page, where he had to choose it again. "Settings and other settings seem to work fine. It's just the edit profile. I think that's because the edit profile comes up as a pop up." He was right about why.
+
+**Cause.** The editor (`EditProfileTabs`) is a pop-up each page had to mount for itself, and the header opened it only when the page handed it a handler — else `router.push('/athlete')`. Three of ~65 pages that render the header did (feed, notifications, the profile page). Everywhere else the entry was a plain navigation to the profile with the editor closed. Both the desktop dropdown and the phone drawer.
+
+**Fix — one editor, mounted once at the app root** (`src/components/EditProfileHost.tsx`; the tab bar's and the chat dock's pattern):
+- `useEditProfile().open(tab?)` opens it over the page the user is on; closing or saving leaves them there. The header's two entries call it; the fallback navigation is gone.
+- Fetched on first use, not on page load; `preload()` runs when either account menu opens, so the tap is not waiting on ~1,000 lines.
+- A route change closes it (render-phase sync on `usePathname`) — a root-mounted pop-up must not follow the user to another page.
+- At the root it is also outside the header, whose `backdrop-blur` would clip a `fixed` pop-up to the header's own box.
+- **Three duplicate mounts removed** (feed, notifications, Settings — each did exactly what the host does); Settings → Account's "Edit Profile Details" opens the shared editor (its old fallback, a hard navigation to `/athlete`, went with its lint exemption).
+- **Kept their own, on purpose:** the profile page (reloads its own data after a save; owns `?edit=sport`) and the guardian's athlete page (a different profile). While acting as an athlete, the header's entry still edits the guardian's own profile — unchanged.
+
+**Proof.** `edit-profile.spec`, two new cases: from the account menu on `/calendar` and `/sports/explore` the editor opens filled in with the URL unchanged, closes in place, and a save from `/settings?tab=appearance` closes it there with the change stored; on a phone (Chromium + WebKit) the drawer opens it in place and Back — asserted to be a route change inside the same document — closes it. 48 of 48 with the neighbours (the guardian's acting-as editor, the `?edit=sport` deep link, the feed, Settings, the tab bar). `npm run verify` and the guardrails pass; desktop and 375 px screenshots.
+
+## October 2, 2026 — Connected apps paused and hidden in production; the native apps go on the roadmap
+
+Tom, after seeing that the free Apple Watch route needs a paid third-party app and that a browser cannot reach a watch (no Web Bluetooth on any iPhone browser; workouts live in Apple Health, which only a native app may read): *"I think this will be the route we will take later. Let's for now pause this section and hide it from production… We'll need to officially have an Apple app and Google app, Android app, that goes in the store. So that should be on the roadmap."*
+
+- **Hidden in production.** `NEXT_PUBLIC_FEATURE_CONNECTED_APPS` removed from Vercel → Production; this merge's build is the one without it. Settings shows no Connected apps tab, Vitals and the import screen show no "Connect a watch", and the dashboard's Polar setup panel now sits behind the same flag (it was unconditional — a paused feature should not ask the owner for a setup nobody can use).
+- **Nothing is removed.** The code, migration 247 and `activity_connections` stay. The flag stays ON in CI's smoke build, in Preview and locally, so the connection specs keep running. The routes still answer for themselves (the flag is a surface switch); with no screen in production nothing reaches them. `CONNECTIONS_ENC_KEY` stays set.
+- **Not part of the pause:** activities inside Vitals and the file import — live for everyone.
+- **`docs/ROADMAP_2026-10.md`** (new): install the web app on a phone (the manifest is already there; the prompt and the instructions are not); the App Store and Google Play apps, staged — a companion app that reads the phone's health store first, recording from the wrist second; and Connected apps as built-and-paused, with how to resume.
+- **Tom's list from part 3 is dropped for now:** the Polar client, the three provider applications, the real Apple Watch test.
+
+## October 2, 2026 — Migration 247 is on production; Connected apps switched on
+
+Tom ran `247_activity_connections.sql` on production. `npm run check:schema:prod`: OK on every facet, ledger head 247 — staging and production agree again.
+
+- **The deletion engine's tolerance is gone.** `mustDelete` no longer excuses a missing `activity_connections` (`NOT_EVERYWHERE_YET` existed only for the days 247 was on staging alone).
+- **Vercel** (set from the linked CLI, the way the launch gate's flag was on Sep 30): `CONNECTIONS_ENC_KEY` for Production — generated on Tom's Mac, stored as a sensitive variable, never displayed or written anywhere else — and `NEXT_PUBLIC_FEATURE_CONNECTED_APPS=1`. Preview got the flag and the STAGING key (Preview reads staging; the two environments never share a key). The flag is inlined at build time, so this merge's production build is the one that carries it.
+- **If the production key is ever lost** nothing is unrecoverable: upload links do not use it; a sealed Polar token stops opening and that athlete connects again. To rotate, set the new key and move the old one to `CONNECTIONS_ENC_KEY_PREVIOUS`.
+
+**Production, before the flag's build** (`4bf5969f`): the two API tests pass — `connections.spec` (own rows only, never a hash in a response, disconnect, one activity from several deliveries) and `upload-link.spec` (mint, the bridge JSON, a raw GPX and FIT, the duplicate rule, rotate, every refusal). **A spec defect of mine surfaced there:** with the flag off the two Settings tests FAILED instead of skipping — `getByRole('button', { name: 'Account' })` also matches "Delete my account" on the Account tab, which is where a flag-off build lands. The locators are exact now (three specs); the product was not at fault.
+
+**Still Tom's:** one real Apple Watch workout through Health Auto Export; the Polar client (clause 2.2 first); the Wahoo / COROS / Suunto applications.
+
+## October 1, 2026 — Fix round, part 3: closed in code; what production still needs
+
+Part 3 (Tom: the watch and app integrations belong to Vitals, are connected once in Settings, and deliver by themselves) is merged in four pull requests: **#1027** activities inside Vitals · **#1028** migration 247, the sealed-token box, one activity from many deliveries, Settings → Connected apps · **#1029** the Apple Watch upload link · **#1030** Polar. Main is `9eb0a691`.
+
+**Production after each merge** (edgeathlete.ca, signed-in specs; one probe at a time):
+- #1027 at `f9766e47`: Vitals + activities 5 of 5.
+- #1028 at `8b1b719e`: the import specs 5 of 5; the connections specs skip until 247 runs there.
+- #1029 at `72eeec0b`: 5 of 5, 6 skipped (pre-247); a random upload token answers 404, a signed-out mint 401.
+- #1030 at `9eb0a691`: activities + Vitals 10 of 10, the Polar spec skipped (its stand-in exists only beside a local server); the Polar webhook answers 404 (not configured), a signed-out Connect goes to the sign-in door, the owner's setup route answers 401 signed out; health `ok`.
+
+**What is live on production today:** activities inside Vitals (PR 1) and the duplicate rule on file imports. **What is built and dark:** Connected apps, the Apple Watch link and Polar — each waits on a step only Tom can take.
+
+**Tom's steps, in order:**
+1. Run `database/migrations/247_activity_connections.sql` in the production SQL editor (expected row: `247 APPLIED | 1 | 1 | 0 | 8 | 247`).
+2. In Vercel → Production, set `CONNECTIONS_ENC_KEY` (`openssl rand -base64 32`; use a different value for Preview) and `NEXT_PUBLIC_FEATURE_CONNECTED_APPS=1`, then redeploy (the flag is inlined at build time). The Apple Watch card is then usable.
+3. Send one Apple Watch workout through Health Auto Export on the iPhone — the adapter is built from the app's published format; the real export is the last check.
+4. Polar: decide on licence clause 2.2, create the client with the callback URL the dashboard panel shows, set `POLAR_CLIENT_ID` / `POLAR_CLIENT_SECRET`, press "Create the webhook", set `POLAR_WEBHOOK_SECRET`.
+5. Send the Wahoo, COROS and Suunto applications (`docs/CONNECTIONS_APPLICATIONS.md`).
+
+**Mine, once 247 is on production:** `check:schema:prod`; run `connections.spec` and `upload-link.spec` there; remove `activity_connections` from `NOT_EVERYWHERE_YET` in `account-deletion.ts`.
+
+**Left out, on purpose:** Strava (its terms forbid showing an activity to anyone but the athlete); a QR code for the upload link (needs a new dependency); a guardian connecting for a supervised athlete; device vitals (resting heart rate, VO₂ max) into `athlete_vitals`; `athlete_performances` rows for activities.
+
+## October 1, 2026 — Fix round, part 3 (PR 4): Polar — connect once, a signed webhook, the daily net
+
+The first provider reached over OAuth. An athlete taps Connect Polar in Settings → Connected apps, agrees at Polar, and comes back to a Vitals that already holds their recent workouts; after that Polar tells us when a workout is finished and we fetch it. **Dark until Tom creates a Polar client** — without `POLAR_CLIENT_ID` / `POLAR_CLIENT_SECRET` (and the sealing key) the card reads "Coming soon" and every Polar route answers "not available".
+
+**The terms, read first (Polar API License Agreement, 22 Aug 2025).** Nothing forbids showing an activity to followers: 3.1.1 asks for the member's explicit permission (the consent line on the card, shown BEFORE they leave for Polar), 3.1.5 asks for a credit ("Recorded with Polar" — plain words; 7.4 forbids the logo without written consent), 3.3 asks that a disconnect revokes and deletes the token (it does). **One clause is Tom's call, not mine:** 2.2 — the client may not be used "in creating a service similar to or competing with Polar Ecosystem". Creating the client is where that agreement is accepted. `docs/CONNECTIONS_APPLICATIONS.md` quotes the clauses.
+
+**The code** (`src/lib/activities/providers/`):
+- `polar.ts` (pure): the webhook signature (HMAC-SHA256 of the raw body, hex, constant-time), the webhook payload (ids must match `POLAR_ID_RE` — they become part of a URL; the payload's own `url` is never used), Polar's sport words through an explicit list, and an exercise SUMMARY → a bare activity for a session Polar has no FIT for (start = local time + its offset; no offset, no activity).
+- `polar-server.ts`: every call to Polar, one owner for hosts, credentials and timeouts. `POLAR_MOCK_BASE` points the hosts at the e2e stand-in and is ignored when `VERCEL_ENV=production`.
+- `oauth-state-server.ts`: the `state` is SIGNED, names the account and the provider, and lasts ten minutes (key derived from `CONNECTIONS_ENC_KEY`) — a code cannot be attached to someone else's session.
+- `connections-server.ts`: `connectProvider` seals the token under the row's context; one Polar account feeds ONE athlete (247's unique → "already connected to another Edge Athlete account"); `markRevoked` when Polar answers 401 (the athlete withdrew consent there): the sealed token is cleared and the card says "Connect again". Disconnect de-registers at Polar first, then deletes the row.
+- `polar-sync-server.ts`: one exercise, one path — FIT → `parseFit` → `importActivity({ source: 'polar', externalId })`, the summary when there is no FIT. The first sync runs in the callback (ten exercises); `runPolarSync` is a new phase of the daily cron (the last 30 days — all Polar keeps — skipping ids already imported; five new per athlete per run). **A connection outlives the moment it was made:** an account that has since become supervised, or that moderation holds, receives nothing (found on my own review pass, before the PR; the upload link already had both refusals).
+- Routes: `GET /api/connections/polar/start` and `/callback` (navigations — every refusal is a redirect back to Settings with the reason in words; both on THE write-gate list, 24 routes now), `POST /api/webhooks/polar` (the signature is the gate; the creation PING is answered without one because it arrives before the key exists; always 200 once signed — the daily run is the net; no rate bucket, an unsigned body costs one HMAC), `GET` / `POST /api/admin/connections/polar-webhook` behind the dashboard's new **"Connected apps — Polar setup"** panel (the callback URL to register, whether the credentials are set, Create the webhook — Polar returns the signature key once and the panel hands it over without storing it).
+- The credit travels with the activity (`ActivityView.credit`, the feed card's `credit`, the name alone on a Recent sessions row).
+- `docs/CONNECTIONS_APPLICATIONS.md`: what Wahoo, COROS and Suunto ask and the text to paste; Garmin and Fitbit / Pixel are closed for now.
+
+**Proof.** Unit (21 new): the signature and its refusals, the payload, the summary adapter over Polar's own example, the configuration (the stand-in ignored in production), the authorize URL, the state (another account, another provider, expiry, forgery, a foreign key, no key), the unconfigured-provider projection, the credit. e2e on staging against a STAND-IN Polar (`e2e/helpers/polar-mock.ts` — the real hosts are never called), `polar.spec` 4 of 4 with `connections.spec` and `upload-link.spec` (10 of 10; Chromium + WebKit at phone width): the state is the lock (denied, no state, a forged one, A's state in B's session, a code Polar never issued) → connect → the sealed token, never in a response → first sync (a run from its FIT, a gym session from its summary) → the credit → the webhook (ping; unsigned, wrongly signed, signed-for-another-body all 401; signed → imported; the retry → one; a stranger; another event type; a now-supervised and a now-limited account refused) → a second athlete cannot take the same Polar account → revoked at Polar → "needs attention" → connect again picks up what was missed → the refusals at the door → disconnect calls Polar's de-registration and keeps the activities; the phone flow out to the consent screen and back; the owner's panel creates the webhook once. `activities-*` and `vitals*` unchanged (12 of 12 with the screenshot pass). `npm run verify` exit 0; guardrails pass; 375 px screenshots.
+
+**What only real credentials can prove:** Polar's actual hosts and a real watch. Everything here is built from Polar's published API and proven against a stand-in that speaks the same calls.
+
+**Tom's actions for Polar:** (1) decide on clause 2.2; (2) create a client at admin.polaraccesslink.com with the callback URL the dashboard panel shows; (3) set `POLAR_CLIENT_ID` and `POLAR_CLIENT_SECRET` in Vercel and redeploy; (4) press "Create the webhook" on the dashboard and set the key it shows as `POLAR_WEBHOOK_SECRET`, then redeploy.
+
+## October 1, 2026 — Fix round, part 3 (PR 3): the Apple Watch upload link
+
+Apple has no web or server API for Health data — something must run on the iPhone. Tom's route (the free one): a third-party bridge app, **Health Auto Export**, whose "REST API" automation POSTs each workout to a URL the athlete pastes in. This PR is that URL: the athlete's **personal upload link**, made in Settings → Connected apps. With it the Apple Watch card is the first source that is `live`.
+
+**On production this needs migration 247 (PR 2's) and the flag; until then the routes answer "not available" and the screen is hidden.**
+
+- **`POST /api/connections/upload-link`** — mint or replace. 256 random bits, returned ONCE as `…/api/activities/inbound/<token>?tz=<zone>`; only the sha256 is stored (the calendar feed token's shape). A second call replaces the hash: the old link stops at once, the connection's history stays. Write-gated; refused for a supervised account. The link is built from the host the request arrived on — the token exists only in that environment's database (a first draft used the configured app URL, which made a preview's link point at production).
+- **`POST /api/activities/inbound/[token]`** — NO session by design (a phone's automation has none; `PUBLIC_ROUTES` carries the reason). The token is the authorization: an unknown, replaced, malformed or supervised link is one 404; the moderation write gate is applied to the account the token names; an IP bucket before the lookup and a per-link bucket after it. Both routes joined THE write-gate list (22 routes now).
+- **What the link takes** (`inbound-server.ts` — sniffed, never trusted to its Content-Type): the bridge app's workout JSON, or a raw `.fit` / `.gpx` / `.tcx` (also as a multipart file), so a Shortcut or a script can post the file a watch exports.
+- **`adapters/health-export.ts`** (pure; the app's documented v2 format, and v1's `lat` / `lon` / `qty` shapes): a timestamp with no offset is refused; Apple's workout names map through an explicit list ("Stair Climbing" is not a climb; unknown → `other`, still a Vitals session); unknown units are dropped; the route is the timeline and each fix takes the nearest heart rate; no route → the heart rate is the timeline; a bare workout is its start and end. `NormalizedActivity.format` may now be null.
+- **One writer, one activity.** Every delivery goes through `importActivity` as `source: 'upload_link'` with the workout's own id; the app's re-send and the athlete's hand import of the same run are the same activity (PR 2's rule).
+- **The answer is a 200 whenever the body was read** — `{ received, imported, duplicates, refused, skipped }` — because a bridge app retries a non-2xx and an implausible workout does not improve on a retry. A body the link does not take is a 413 / 415 / 422, marks the connection "needs attention" with the reason, and the next good delivery heals it.
+- **The card** (Settings → Connected apps → Apple Watch): Create my link → the link with Copy and "this is the only time it is shown"; the six setup steps in the app's own labels; Make a new link (asks first); Disconnect. Two things found in the 375 px screenshots and fixed: "Create my link" stayed tappable for a moment after the link appeared (a second tap would have replaced it), and the two actions sat on two rows.
+- **Left out, said plainly:** the QR code from the plan — it needs a new dependency (the house rule: none without approval). The athlete opens Settings on the iPhone and taps Copy. Say the word and I add one.
+
+**Proof.** Unit (20 new): the export's dates, Apple's names, an outdoor run / a gym session / a bare workout / a treadmill run through the SAME summary maths as a file, the v1 shape, the distrusted inputs, the delivery cap, and what the link refuses. e2e on staging (`upload-link.spec` + `connections.spec`, 6 of 6; Chromium + WebKit at phone width): mint → the bridge JSON becomes a run with its route and heart rate and no feed post → the re-send and a hand import of the same run stay ONE → a raw GPX and a raw FIT (and the FIT again as a form) → `?tz=` places the file → an implausible workout refused by name inside a 200 → a junk body marks the card and a good delivery heals it → dead, limited, supervised, replaced and disconnected links; in the UI the link is shown once, replaced on confirm, and the delivery shows in Vitals' Recent sessions. `activities-api`, `activities-ui`, `activities-profile` unchanged (9 of 9 with the screenshot pass). `npm run verify` exit 0 (4,276 tests in 457 files; 222 chunks inside the floor); guardrails pass. PR 2 on production (`8b1b719e`): the import specs 5 of 5, the connections specs skipped until 247 runs there.
+
+**What only a real device can prove:** one Apple Watch workout through Health Auto Export on Tom's iPhone. The adapter is built from the app's published format and fixtures; the real export is the last check.
+
+**Next:** PR 4 — Polar (needs Tom's AccessLink client id and secret); the applications to Wahoo, COROS and Suunto.
+
+## October 1, 2026 — Fix round, part 3 (PR 2): connected apps — migration 247, sealed tokens, one activity from many deliveries
+
+Tom: *"You're supposed to connect permanently so anything you do with your smart watch will then populate on the app … you connect to the applications in settings."* PR 1 put activities inside Vitals; this PR builds what a permanent connection stands on. Nothing is connectable yet — the Apple Watch upload link is PR 3 and Polar is PR 4 — so the screen ships behind a surface flag.
+
+**Migration 247 (the part's only DDL; on staging, NOT yet on production):**
+- `activity_connections` — posture A, one row per athlete per source: `provider`, `status` (`active | revoked | error`), `provider_user_id`, `secret_ciphertext` (sealed OAuth tokens), `token_hash` (the personal upload link, sha256 — the calendar feed token's shape), `connected_at`, `last_sync_at`, `last_error`. A parts CHECK: an upload link IS its token and holds no provider secret; an ACTIVE provider connection always has its secret. Unique on the token hash and on (provider, provider_user_id) — one provider account feeds one athlete.
+- `activities_source_check` widened from `('file')` to `file, upload_link, polar, wahoo, coros, suunto, garmin, google_health`. Naming a provider connects nothing; Strava is absent by decision.
+- Classified `goes`; the deletion engine deletes it by name. Because 247 runs on production by hand, `mustDelete` tolerates THIS table's absence (`NOT_EVERYWHERE_YET`) — **remove that entry once 247 has run on production.**
+
+**The code:**
+- `src/lib/crypto/secret-box-server.ts` — the app's first at-rest encryption helper: AES-256-GCM under `CONNECTIONS_ENC_KEY` (32 random bytes, base64; `_PREVIOUS` opens during a rotation), the row bound as additional data so a box copied to another row does not open. **Fail closed:** no key → sealing throws, opening answers null.
+- `importActivity` takes `{ source, externalId }` (default: a file and its start second — today's behaviour). **One activity, however many times it arrives** (`activities/dedupe.ts`): a delivery that starts within 60 s of an activity the athlete already has, with a duration within 10%, IS that activity. The row keeps the first delivery's identity; its data is replaced only when the newcomer is richer (it has the route, or the heart rate, the first lacked) — a thin copy from a phone never overwrites a full file.
+- `activities/connections.ts` (pure): the provider list ≡ 247's CHECK ≡ the sources without `file` (pinned), each provider's honest `stage` (`live | building | applying | closed`), and the projection the screen receives — built key by key, so a row selected too widely still cannot leak a secret (a test serialises one). `connections-server.ts` is the ONE reader and writer and names only the five display columns.
+- `GET /api/connections` (`supported` = 247 has run, `ready` = the key is set, `supervised`, one entry per provider) and `DELETE /api/connections/[provider]` (the row goes, the activities stay; deliberately NOT behind the moderation write gate — withdrawing a standing delivery is always allowed; bucket `connection-write`).
+- **Settings → Connected apps** (`/settings?tab=connections`, beside Routines): one card per source with what is true today, Disconnect behind the house confirm, and the file import as the way in for every watch. Entry points: "Connect a watch" in the Vitals Activities section (the athlete only, never a guardian looking at their athlete) and a line on the import screen. A supervised account is told it cannot connect (the calendar feed link's rule).
+- `NEXT_PUBLIC_FEATURE_CONNECTED_APPS` — a SURFACE switch (tab + entry points). On in CI's smoke build and locally; off on production until 247 has run there and the key is set.
+
+**A mistake of mine, recorded.** I applied 247 to staging and ran `check:schema` while main's post-merge smoke for #1027 was still running against staging; that smoke failed (`vitals.spec` timed out in exactly that window, and its retry cannot pass after a half-run seed). The same code had passed the PR's smoke and 5 of 5 on production. I re-ran the job and stayed off staging until it finished — see the proof line. The rule is now explicit: read the head's check-runs BEFORE any staging work, migrations included.
+
+**Proof.** Unit: the secret box (round trip, a fresh nonce per seal, a box moved to another row refused, tamper part by part, no key = fail closed, rotation); `ACTIVITY_SOURCES` and `CONNECTION_PROVIDERS` ≡ 247's two CHECKs; the projection never carries a secret, a hash or the provider's user id; the duplicate rule at its edges (60 s, 10%, the closest start, richer-only replacement). 247 on staging: result row `247 APPLIED | 1 | 1 | 0 | 8 | 247`, the twin 12 of 12 OK, `check:schema` clean (ledger head 247). e2e on staging, 17 of 17: `connections.spec` (API: own rows only, the hash never in a response, another account cannot see or remove it, `needs_attention`, supervised, disconnect twice; then one run imported three ways stays ONE activity and takes the heart rate from the richer copy, while a warm-up beside it and a run twenty minutes later are their own; UI `@mobile` on Chromium + WebKit: seven cards, no button on a source that cannot connect, Cancel keeps / Disconnect removes, the two entry points) plus `activities-api`, `activities-ui`, `activities-profile`, `vitals`, `vitals-mobile`, `tickets-user-ui` unchanged. `npm run verify` exit 0 (4,256 tests in 456 files; 222 client chunks inside the floor); guardrails pass; 375 px screenshots light and dark. Main's smoke on `f9766e47`: the re-run is green.
+
+**Tom's actions before this is visible on production:** run `247_activity_connections.sql` in the production SQL editor (expected result row: `247 APPLIED | 1 | 1 | 0 | 8 | 247`); set `CONNECTIONS_ENC_KEY` in Vercel for Production (`openssl rand -base64 32`; a DIFFERENT value for Preview). The flag stays off until PR 3 gives the screen something to connect.
+
+**Next:** PR 3 — the Apple Watch personal upload link (mint / rotate in Settings, the inbound route, the bridge app's workout JSON → `NormalizedActivity`); PR 4 — Polar.
+
+## October 1, 2026 — Fix round, part 3 (PR 1): activities are part of Vitals
+
+Tom: *"The Strava, Apple Watch etc. integration was supposed to be a part of the Vitals app. You're supposed to connect permanently so anything you do with your smart watch will then populate on the app. Because it's part of the Vitals section, the way it posts and displays will follow suit. Also you connect to the applications in Settings."* Four PRs; this is the one that needs no provider and no migration.
+
+**What a web-only product can connect to today** (a research run over the providers' own pages, Oct 1 — the facts the plan rests on, re-read at each PR):
+- **Strava — left out (Tom).** Its API Agreement and Policy (effective Jun 1 2026) allow an athlete's data to be shown only to that athlete, cached at most seven days, and not combined into our dataset. A permanent Vitals history, a shareable post and the recruiting dataset are all outside it.
+- **Apple Watch has no web or server API.** Something must run on the iPhone. Tom's route: a third-party bridge app (Health Auto Export, a one-time purchase for the athlete) posts each workout to a personal upload link — PR 3. Its export format is documented (id, type, start / end, duration, distance, heart-rate samples, a GPS route).
+- **Polar is open and self-serve** — PR 4. Its API agreement (Aug 22 2025) allows data to go to others only with the member's explicit permission and requires crediting Polar; tokens do not expire; an exercise is retrievable for 30 days.
+- **Garmin and Fitbit / Pixel are closed to new developers** (Garmin's application form is reported paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). Wahoo, COROS and Suunto take an application.
+- Tom's other decisions: the free route (no aggregator); a synced workout appears in Vitals at once and the athlete taps Share.
+
+**The gap this PR closes.** Vitals counted ONE thing: a completed `workout_sessions` row. An imported run moved no weekly bar, no streak, no active day, and lived on a separate profile tab.
+- `src/lib/vitals/session-math.ts`: `VitalsSession` (a completed workout or an activity) and the ONE week rule — summary, streak, active days, bars. The workout-only helpers in `workouts/dashboard.ts` and `vitals/derive.ts` now delegate to it (their 28 tests pass unchanged — the proof the rule did not move). `workouts/week.ts` holds `startOfWeek` so neither module imports the other.
+- `VitalsTab` merges both (`vitals/sessions.ts mergeSessions`): the hero, the weekly bars, the streak, the active-days ring and the 12-week overlay count both kinds; "Recent workouts" is **Recent sessions**; the hero reads "Sessions this week". A run in a week with no gym session keeps the streak alive.
+- **The Activities tab is a section of Vitals.** `?tab=activities` still works — it opens Vitals at that section, on `/athlete/[id]` and `/u/[username]`. Owners get Import Activity in the Vitals header.
+- `GET /api/profile/[profileId]/activities?sessions=1`: the last year as the seven fields the maths needs. **The Vitals "Workouts" privacy aspect now hides the activity listing** from a viewer (both forms of the read answer `hidden: true`); a single activity's page keeps its own gate, so a shared post still opens.
+- **A shared activity is a training post** (`post_category: 'training'`, set by the posts route), so it lists under Vitals → Training Activity.
+
+**Proof.** `vitals-sessions.test.ts` (merge, the week across kinds, a streak bridged by a run). `activities-profile.spec` (`@mobile`, Chromium + WebKit): an athlete with NO gym workout shows a session this week, an active day and two activities in Recent sessions; the old deep link lands in Vitals on both routes; no Activities tab; the shared activity is a training post under Training Activity; with Workouts hidden the listing and the section are gone for a viewer, the owner still reads everything and the shared activity still opens. 10/10 with `activities-ui`, `activities-api`, `vitals` and `vitals-mobile`. `npm run verify` exit 0: 4,234 tests in 454 files, 222 client chunks inside the floor; guardrails pass. 375 px and desktop screenshots.
+
+**Next:** PR 2 — migration 247 (the connections table, the wider `source` list), the token secret box and Settings → Connected apps; PR 3 — the Apple Watch upload link; PR 4 — Polar.
+
+## October 1, 2026 — Maintenance after fix-round parts 1 and 2: the full checklist, all green
+
+**On main at `dde55615`** (#1025). Since the Sep 30 maintenance entry: migration 246 recorded (#1012), the Next advisory upgrade (#1020), fix round part 1 — Edit Profile opens filled in and an edit shows everywhere (#1021), the sign-up details in Edit Profile and height / weight on the Vitals timeline (#1022) — and part 2 — the theme schedule works and is the default (#1023), saves in order and the look kept through sign-out (#1024), club and league sites follow the visitor (#1025). Zero DDL across both parts.
+
+**The gate (`npm run verify`) exited 0:**
+- the typecheck;
+- lint at 0 warnings;
+- **4,226 tests in 453 files**;
+- the production build (next 16.3.8);
+- 222 client chunks inside the iOS 15 / Safari 15 floor.
+
+**Other checks:**
+- **Hardening guardrails pass.** The two standing informational notes: **104** `.select('id'|'*')` sites (one more than Sep 30 — the profile PUT's Vitals-timeline insert returns the ids it may have to take back out; it counts nothing) and 14 raw-error-shaped bodies, unchanged. The new advisory for the public tree — a hardcoded light colour with no `dark:` twin — reports none.
+- **`npm audit --omit=dev`: 0 vulnerabilities** (next 16.3.8 since #1020, for GHSA-vcvr-r3jv-pc5j).
+- **Schema:** `check:schema` on staging and `check:schema:prod` OK on every facet; both ledgers 245 rows, head 246, every file run.
+- **Production:** health `ok`, database `ok`, serving main's head (`dde55615`); main's own CI (verify, guardrails, smoke) green on that commit; the gate answers a 307 to `/auth/coming-soon` for a signed-out visitor.
+- **Production probes since Sep 30:** `edit-profile` + `vitals` 13/13 (`b7b477d9`); `appearance` + the site editor's Light-and-dark control 15/15 (`dde55615`), Chromium and WebKit at phone width.
+
+**Known, not owed to this pass:**
+- The signed-out site tests of #1025 (a site follows its visitor; Always light / Always dark; the directories) are proven on STAGING only — the launch gate sends a signed-out visitor to coming-soon on production. Re-run `e2e/org-site-appearance.spec.ts` there when the gate opens.
+- The site 404 stays light for a dark-themed visitor (Next draws it in the browser; an inline script never runs there).
+- `e2e/org-site-news-cover.spec.ts` fails LOCALLY on any branch: `.env.local` carries the production host in `NEXT_PUBLIC_APP_URL`, so the spec asks production for an og:image that exists only on staging.
+- Every `org-site*` spec in ONE local run starves this 8 GB Mac (a 90-minute run was stopped; a browser took three minutes to launch). Run them in batches, with `caffeinate -i`.
+
+**Open:** #1019 (the restore-to-staging drill, from Sep 30) is still an open PR. Found during the fix round and left for a later part: the profile header's Position / Team slots read columns that do not exist; a Google account with no last name cannot save the Basic tab; a guardian approving a parked sign-up keeps only name, DOB, handle and sport. Tom still owes from Sep 30: the Supabase "Allow new users to sign up" switch (OFF while gated), Vercel Pro, one real watch file on his iPhone.
+
+## October 1, 2026 — Fix round, part 2 (PR 3): club and league sites follow the visitor, unless the site fixes its look
+
+PR 2 (#1024) merged; `appearance.spec` 14/14 on `edgeathlete.ca` at `0bb49dd9`, both engines, no retries — the two save races are closed on production. Tom's third ask: *"All other pages, including club and league sites follow suit unless they opt out and have it fixed with either a light or dark mode."* His decision for a visitor with no Edge Athlete preference: the same schedule, by their own clock. Zero DDL (`theme_token_set` is JSONB).
+
+**The setting.** `theme_token_set.appearance`: absent = follow the visitor; `light` | `dark` = the site's fixed look (`validate.ts`: `ThemeTokens`, `parseThemeTokens`, the `set_theme` schema). It is a colour decision, not a template design key: `set_theme` carries it over like `iconPath` (the console and the Settings panel save the whole theme without naming it), and it survives `set_template` and `apply_gallery`. The editor's Theme panel gets **Light and dark — Follow the visitor · Always light · Always dark**, previewed live on the canvas.
+
+**The render stays viewer-independent.** Sites were light-only by design: no theme script, one cached document. That holds — the theme is not IN the document:
+- *Follows the visitor:* the `.org-scope` root wears nothing. `PUBLIC_THEME_SCRIPT` — the read-only variant of the app's head script (`buildThemeInitScript({ writeBack: false })`) in the (public) root layout — stamps `<html>` on the visitor's device from the app's `ea-theme` cookie, then its mirror, else the default schedule. It writes no cookie and no storage. On a custom domain neither source exists, so a visitor gets the schedule.
+- *Always light / Always dark:* `themeAttrs` puts `data-theme` on the site's root, server-rendered — CSS only, the same for everyone, and it holds across soft navigation.
+
+**The stylesheet.** The light palette is now `:root, [data-theme="light"]` — a light ISLAND re-declares every token inside a dark page — and the `dark:` variant excludes a `[data-theme="light"]` subtree (zero specificity, as before; nothing in the app carries that attribute, so the app renders exactly as it did — checked by screenshot, dark and light). `.org-scope` gets its dark twin: `--brand-soft` mixes toward the dark surface, and link text reads `--org-accent-fg-dark` (`readableOn(accent, APP_SURFACE_DARK)`; a deep navy is ~2:1 on the dark surface). An island sets its own `color` — `color` inherits as a COMPUTED value, so an Always-light site under a dark page would otherwise have kept the page's light text. Thirteen lines of hardcoded light colours in the public tree and four shared tables got their `dark:` twins; the guardrails advisory now counts the ones that lack one. Found on the way: the "Tinted" background re-pointed `--color-canvas`, which nothing reads once `@theme inline` has dereferenced it — it was inert; it re-points `--background` now, so the option does what it says.
+
+**Two traps the e2e caught.**
+- `/clubs` and `/leagues` are (public) pages served with the app's NONCE policy (they are not on the static-CSP path), which blocked the inline script — a static layout can never hold a per-request nonce. The middleware now admits exactly that script by its sha256 (`csp.ts inlineScriptHashSource`, one digest per cold start; honoured beside `'strict-dynamic'`).
+- The site 404 does NOT follow the visitor: for an unknown address Next sends an error shell (`<html id="__next_error__">`) and draws the page in the browser, where an inline script never executes. Theming it would take a client component, which the (public) tree forbids — left light, as it was.
+
+**Proof.** `e2e/org-site-appearance.spec.ts`: a site that follows is ONE document with no `data-theme` in it, dark for a dark visitor (canvas, text and a link colour that reads) and light for a light one; Always light is a light island for a dark visitor; Always dark is dark for a light visitor; the directories follow; the editor's control previews, saves, and survives a template change. 5/5 (desktop, 390 Chromium, 390 WebKit). Unit: the read-only script over the full matrix from both sources, writing nothing; `themeAttrs`, `parseThemeTokens`, the reducer's carry-over; the hash. The earlier default-site assertions (`not.toContain('data-theme')`) still hold. `npm run verify` exit 0: 4,224 tests in 453 files, 222 client chunks inside the floor; guardrails pass. 375 px screenshots of the four combinations and of the app in both themes.
+
+**The wider sweep, honestly.** A 90-minute run of every `org-site*` spec was stopped at its time limit with 7 failures — the 8 GB Mac starved (a browser took 3 min to launch; a 5-min test ran 32). Re-run alone with the Mac kept awake (`caffeinate -i`), 6 of the 7 pass. The seventh, `org-site-news-cover`, fails locally on ANY branch: the local build's `NEXT_PUBLIC_APP_URL` is the production host, so the spec asks production for an og:image that exists only on staging. Not touched here.
+
+**Consequence:** every club and league site turns dark in the evening for its visitors unless its manager picks Always light. Not themed: share-card and site og images, emails, the crash page, the site 404.
+
+## October 1, 2026 — Fix round, part 2 (PR 2): the signed-out pages keep the look; two save races
+
+PR 1 (#1023) merged; its production probe passed 8/8 — but one test, typing the schedule's hours, failed its FIRST attempt on both engines and passed on retry. That is a defect, not a flake, and reading the stored value found two.
+
+**1. Two saves could cross on the wire (introduced by #1023).** A theme save is a PATCH of the whole prefs object, last-write-wins on arrival. #1023 stopped disabling the time fields while saving — which had been serialising the saves by accident — so two edits a moment apart sent two overlapping requests, and on production's latency the OLDER one arrived last and won. Staging's round trip is too fast to cross: 24/24 there. Saves now go through `src/lib/serial-queue.ts createSerialQueue()` — one at a time, in the order they were made; a failed save rolls back only if no newer edit has been applied since.
+
+**2. A profile load mid-save undid the edit (older).** `ThemeApplier` adopts `profile.theme_prefs` whenever the profile arrives. A read that lands while a save is in flight carries what the server STILL has, so the device went back to the old theme while the server took the new one. `adoptServerThemePrefs` now stands down while saves are pending and for ten seconds after the last one settles (a read that started before the save can still land then); later loads adopt as before. Found by the new e2e that HOLDS the first save on the wire (`page.route`), which is how either race is reproduced where the network is fast.
+
+**The signed-out pages (Tom: "it gets reflected in the sign in page as well").** By reading, the sign-in page already followed the theme — same layout and head script as the app, 93% tokens — from the copy last stored on that device, and the run confirmed it. What was fragile is where that copy lived: the middleware deleted the `ea-theme` cookie on the first signed-out request, leaving only localStorage, which Safari evicts after seven idle days (script-written storage). The cookie now survives sign-out — the device's last-known look, a display preference, overwritten by the next sign-in. The Google button took the neutral surface tokens (it was the one light element on a dark sign-in card); the Apple button gets its light-on-dark twin. A device that has never signed in follows the schedule (PR 1).
+
+**Proof.** `use-theme.test.ts` (the evaluator runs in node on three stubs): a second save is not SENT until the first has answered; a failed save rolls back unless a newer edit stands; a server read is ignored mid-save and in the grace, adopted after it. `serial-queue.test.ts`. `appearance.spec` gains: two quick edits with the first save held 2 s are stored in order; Dark → sign out → `/?signin=1`, `/auth/coming-soon` and `/privacy` are dark with the cookie present, and still dark with localStorage cleared; a never-signed-in context follows the schedule. 28/28 (every test twice, Chromium + WebKit) plus login, feed-post, chat dock and edit-profile on staging. `npm run verify` exit 0: 4,217 tests in 453 files, 222 client chunks inside the floor; guardrails pass. 375 px screenshots of the sign-in page and coming-soon, dark and light.
+
+**WebKit note for specs:** sign-out does a full load to `/` while the page's own signed-out redirect soft-navigates there; WebKit reports the loser as "Frame load interrupted". Poll the URL and continue in a fresh page of the same context.
+
+## October 1, 2026 — Fix round, part 2 (PR 1): the theme schedule works, and is the default
+
+Tom, on gated production: *"Select day or night works. However, the schedule is broken … Match system is also broken. Nothing happens when you select either."* And the direction: the schedule should be ON by default — dark from 6 PM to 9 AM, light in the day — so everyone meets both themes; a person can keep one permanently until they turn the schedule back on. Zero DDL (`theme_prefs` is JSONB).
+
+**Why both modes looked dead.** Both SAVED. `use-theme.ts applyResolved` notified its hooks only when the RESOLVED theme flipped. Light and Dark always flip it; Scheduled picked in the daytime, or Match system on a device that already matches, flips nothing — so Settings → Appearance never redrew: the option was not shown as selected and the schedule's hours never rendered. Hooks are now notified when the theme OR the prefs change. Behind it sat a second fault: each time field saved on every change and was `disabled` while saving, so typing "21" lost focus after the "2". The typed hours now live in a local draft, the field is never disabled, and one save happens on leaving the field or a second after the last change (a phone's time picker never blurs the field when it closes).
+
+**The default is the schedule.** "Nothing stored = light" was decided in four places that shared no code — the resolver, the first-paint script, the sanitizer (an override survived only under an explicit `scheduled`), the quick switch. `theme-prefs.ts` now owns it: `DEFAULT_MODE = 'scheduled'`, `DEFAULT_SCHEDULE = 18:00–09:00`, and `effectiveMode(prefs)` is the ONE reading of "what mode is this". The head script resolves an absent or unknown mode as the schedule and takes the default hours by interpolation (it carried its own `1200` / `420`); a missing key, garbage JSON and disabled storage are all "nothing stored". NULL rows need no backfill — they already reach the device as `{}`.
+
+**The quick switch pins (Tom's decision).** The top-menu switch used to write an override that lapsed at the next scheduled change. It now sets the mode to Light or Dark whatever it was (`prefsAfterQuickSwitch`) and that stays until Schedule is chosen again in Settings. The hours ride along in every mode, so the schedule comes back as it was. The override is retired: `ThemeOverride`, `isOverrideActive`, `prevTransition`, `nextTransition` and the script's override branch are gone; a stored `override` key is simply not carried.
+
+**Settings → Appearance.** Schedule leads (it is what an account has until it chooses otherwise), then Light, Dark, Match system; each option carries `aria-pressed`; nothing is shown as selected until the stored prefs are read (`useTheme().ready`), so an empty placeholder never flashes as a choice.
+
+**The suite stays deterministic.** With a time-based default every spec's look would depend on the hour it runs at. The shared QA users, the managed child and the signed-out state are pinned to light (`helpers/qa-user.ts QA_THEME_PREFS`); `e2e/appearance.spec.ts` tests the theme with its own unpinned user and NO fake clock (a shifted `Date` makes the Supabase client think its session expired) — the default is asserted against the real hour, and both sides of a window are reached by moving the hours around now.
+
+**Proof.** `appearance.spec` (`@mobile`, Chromium + WebKit): nothing stored shows Schedule selected with 6:00 PM – 9:00 AM and the theme the hour calls for; typed hours save once, keep focus, and flip the theme both ways; Match system and Schedule show as selected when the theme does not move, and Match system follows a live device change; the top-menu switch pins, survives a reload inside the window, and Schedule restores the hours. 24/24 on staging with `edit-profile`, login, feed-post and the first-run checklist. 61 unit tests on the rule, the script matrix and the cookie. `npm run verify` exit 0: 4,210 tests in 451 files, 222 client chunks inside the floor; guardrails pass. 375 px screenshots of the four states read correctly.
+
+**Consequence:** an account that never chose a theme turns dark at 6 PM. Next: the signed-out pages keep the look (PR 2), then club and league sites follow the visitor with a per-site opt-out (PR 3).
+
+## September 30, 2026 — Fix round, part 1 (PR B): the sign-up details in Edit Profile; height and weight on the Vitals timeline
+
+PR A (#1021) is merged and proven on production: `edit-profile.spec` 8/8 on `edgeathlete.ca` at `f091479e`, both phone engines. Tom chose two of the related gaps the investigation found to ship in the same part. Zero DDL.
+
+**The sign-up details are editable.** Sign-up collects a nickname, a phone number, a gender and a postal code; no screen showed or edited them afterwards. Edit Profile's Basic tab now carries them as a "Private details" group, pre-filled (`formsFromProfile`), marked "Only you can see these" — all four are already `OWNER_ONLY_FIELDS` on read.
+- Never for a supervised profile and never in acting-as: the group is hidden and the PUT strips the four there.
+- `src/lib/profiles/private-details.ts` (pure, pinned): trimmed, `''` → null, and a value the column cannot hold is a 400 naming the field (`profiles_gender_check` used to answer a 500) — never truncated. Gender has a "Not set" choice so it can be cleared.
+- A nickname leads `display_name` (signup's rule; PR A's derivation keeps it current), and the field says so.
+
+**A height or weight changed in Edit Profile is a timeline entry.** That tab updated the profile snapshot only, so the Vitals chart never showed the change; only the Vitals gear appended a row.
+- `heightRow` / `weightRow` moved into `src/lib/body-measurement.ts`; the body-measurement route calls them (same rows as before). `measurementFromProfileEdit` is the PUT's decision: a row only for a value that is present, non-empty and DIFFERENT from the stored one; outside the chart's bounds is refused by name.
+- The modal sends height / weight only when their INPUT changed from the loaded value (an untouched 5'10" no longer round-trips through centimetres on every save) and, with them, `measured_on` — the viewer's local day (`localDayKey`). No other PUT caller sends it, so nothing else changes.
+- The rows are appended before the profile update and removed if it fails; they are written for the TARGET profile, so a guardian's edit lands on the athlete's timeline. The Vitals tab reloads when the owner's current height / weight change.
+
+**Proof.** Two more tests in `e2e/edit-profile.spec.ts`: the details open pre-filled, save, and a nickname leads `display_name` (a bad gender is a 400 by name); an untouched height adds no entry and keeps its stored centimetres, a changed one adds exactly one, a second untouched save still one. 38/38 on staging with the Vitals specs, the guardian console, the first-run checklist and login (Chromium + WebKit at 390). 375 px and desktop screenshots of the group read correctly. `npm run verify` exit 0: 4,202 tests in 451 files, 222 client chunks inside the floor; guardrails pass.
+
+## September 30, 2026 — Fix round, part 1 (PR A): Edit Profile opens filled in, and an edit shows everywhere
+
+Tom, on gated production: *"The edit profile doesn't have the existing information populated. When you go and make changes in the settings to your profile, it doesn't translate to the rest of the app."* The stored data was fine. Four faults, each read off the code before anything changed; zero DDL.
+
+**1. The form was never filled.** `EditProfileTabs` seeded its forms in a render-phase sync whose tracker started EQUAL to the mount-time profile (`useState({ profile })`, then `if (synced.profile !== profile)`). Every host mounts the modal after auth has resolved, so the first comparison was always equal: blank Basic / Vitals / Socials / Recruiting, and a save of a blank Vitals or Socials tab wrote the blanks. It dates from `01c40d43` (Jul 31), which replaced an effect that ran on mount with a check that does not; on `/athlete` a later `refreshProfile()` masked it, which is why it read as intermittent. The same check also refilled every form whenever the profile OBJECT changed (a save's refresh, the 15-minute token refresh), wiping unsaved typing in the other tabs.
+- The rule now lives in `src/lib/profiles/edit-forms.ts` (pure, pinned): `formsFromProfile` is the fill; `shouldSeed` fills on OPEN and when the profile becomes a different profile, never on a same-profile refresh while open; the tracker starts at the sentinel `UNSEEDED`. One tracker also carries the deep-link tab, which was lost the same way (`/athlete?edit=sport` opened on Basic on a cold load).
+- A reopen always refills, so Discard discards. A save marks only ITS tab clean (it used to mark all three, so a Vitals save let the modal close on unsaved Basic edits).
+- Acting-as: the profile GET strips `recruiting_profile` for a non-owner, so a guardian's Recruiting tab opened with GPA / notes / level blank and a save nulled them. The modal now loads them from the recruiting GET; Save waits for it.
+- A Basic save that beat the async sports list sent `sport: ''` and cleared the primary sport (the new spec caught it on WebKit). The selection now has a loaded flag; until it lands the save leaves sports alone.
+
+**1b. The same fault elsewhere.** The Privacy tab showed "Public" for a private profile and Messaging "Everyone" for any choice (state now starts from the profile); `/athlete/<id>?post=<postId>` never opened the post (state now starts from the URL). The other 31 render-phase trackers were audited: each either starts at a constant the input cannot equal or initialises its state from the same input. `eslint.config.mjs` records the trap beside the idiom.
+
+**2. A save did not reach the shared profile.** Settings, Feed and Notifications closed the modal under the comment "Profile will be refreshed automatically by useAuth" — nothing does that. The modal now awaits `refreshProfile()` itself after any write (a partial save included) and then tells the host; the Vitals gear and Add Vital do the same; the guardian page refreshes the managed-profiles list. `refreshProfile` keeps the profile it has when the re-read FAILS (it used to null it, which sends a signed-in page through the no-profile redirects).
+
+**3. A name edit never reached `full_name` / `display_name`.** The modal sent the loaded `full_name` back, the trigger fills it only when empty, and nothing rewrote `display_name` — so the old name lived on in the `/u/` title, message notifications, the composer, the tag picker, search and the guardian screens. `PUT /api/profile` now derives both on every name write with signup's rule (`src/lib/profiles/derive-names.ts`: first + last; nickname, else full name, else handle) and ignores the client's copy.
+
+**4. Date of birth was two values.** Edit Profile wrote `dob`, org eligibility reads `birthday`; Google sign-up checked the date for the age gate and stored neither. The PUT mirrors a `dob` that survived the supervised / locked strip; `complete-profile` stores the validated date on the athlete branch; readers fall back `dob || birthday`.
+
+**Also:** the `/u/` head cache (an hour per handle) is tagged and dropped by the profile PUT, the handle update and the avatar upload.
+
+**Proof.** `e2e/edit-profile.spec.ts` (`@mobile`, Chromium + WebKit at 390): a fresh load of `/settings` and `/feed` opens the form filled; a first-name change shows on Settings → Account with no reload and reaches `full_name` + `display_name`; Privacy opens on Private; the deep link opens the sport tab, Vitals typing survives a Basic save, Discard discards. Run against the OLD source the first two fail with the reported symptom (`Expected "Edge"`, received `""`). 34/34 on staging with `get-started-mobile`, `recruiting-optin`, login, feed-post and the guardian console (the acting-as edit path), on next 16.3.8; 375 px screenshots of Settings, the three tabs and Privacy read correctly. `npm run verify` exit 0: 4,188 tests in 450 files, 221 client chunks inside the floor.
+
+**Found, not in this part:** the profile header's Position / Team slots read columns that do not exist (the values live in `sport_settings`); a Google account with no last name cannot save the Basic tab; a guardian approving a parked sign-up keeps only name, DOB, handle and sport. PR B follows: the sign-up details (nickname, phone, gender, postal code) in Edit Profile, and height / weight edits on the Vitals timeline.
+## September 30, 2026 — Advisory: next 16.3.4 → 16.3.8 (next/og ImageResponse, critical)
+
+`npm audit` began reporting **GHSA-vcvr-r3jv-pc5j** (critical): remote code execution in `next/og` `ImageResponse`, affecting next 16.2.0 – 16.3.5. We ship two `next/og` routes (`/r/[postId]/card.png`, `/org/[slug]/card.png`), and the hardening guardrail fails CI on any high advisory, so every open PR went red — found while closing the Edit Profile fix, landed first.
+
+- `npm update next eslint-config-next` inside the existing `^16.2.12` range: **16.3.8**, lockfile only (the #598 shape). `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm run verify` exit 0 (4,166 tests in 448 files; 221 client chunks inside the floor); guardrails pass; on staging `play-share-card` (the image itself, desktop + both phone engines), `org-site-share-card`, health, login and feed-post: 8/8.
+
 ## September 30, 2026 — The Sep 30 snapshot restored into staging (the restore drill; Tom's old data on localhost)
 
 Tom asked how to see his old data. It went into **staging** (the project localhost and previews use), so he signs in at `http://localhost:3000` and browses it as it was; production stays clean and gated.

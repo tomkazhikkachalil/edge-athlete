@@ -29,10 +29,17 @@ export async function GET(request: NextRequest) {
   const colors = manifestColorsFor(request.cookies.get(THEME_RESOLVED_COOKIE)?.value);
 
   const manifest: MetadataRoute.Manifest = {
+    // The app's identity, made explicit (Oct 2026): a browser derives it from
+    // start_url when absent, so naming today's value keeps every existing
+    // install the SAME app if the start page ever changes.
+    id: '/feed',
     name: 'Edge Athlete',
     short_name: 'Edge Athlete',
     description: 'Track your stats and trends, share your game, and connect with other athletes.',
     start_url: '/feed',
+    scope: '/',
+    lang: 'en',
+    categories: ['sports', 'social', 'health'],
     display: 'standalone',
     background_color: colors.background,
     theme_color: colors.theme,

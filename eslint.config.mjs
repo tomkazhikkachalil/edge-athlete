@@ -85,6 +85,24 @@ export default defineConfig([
   //
   // Do not silence this by wrapping calls in `void (async () => …)()`. That
   // satisfies the analyzer without changing when anything executes.
+  //
+  // THE TRAP in the other fix — the render-phase sync (Sep 30 2026). Several
+  // sites replaced `useEffect(() => seed(prop), [prop])` with
+  //     const [synced, setSynced] = useState(prop);
+  //     if (synced !== prop) { setSynced(prop); seed(prop); }
+  // The effect ran ON MOUNT; this block does not — the tracker starts EQUAL
+  // to the mount-time prop. When the component mounts with the prop already
+  // at its meaningful value, the seeded state keeps its empty defaults:
+  // Edit Profile opened blank on production (every host mounts it with the
+  // profile loaded; the change dated from Jul 31), the Privacy tab showed "Public" for
+  // private profiles, and a shared ?post= link never opened its post. Two
+  // safe shapes, pick one:
+  //   • start the tracker at a SENTINEL the prop can never equal
+  //     (src/lib/profiles/edit-forms.ts `UNSEEDED`), or
+  //   • initialise the seeded state from the same input
+  //     (`useState(() => derive(prop))`), so skipping the block at mount
+  //     changes nothing.
+  // The 31 other trackers were audited that day and are one of the two.
   {
     rules: {
       'react-hooks/set-state-in-effect': 'error',
@@ -103,8 +121,9 @@ export default defineConfig([
   //   src/app/invite/[token]/page.tsx           new guardian access row
   //   src/app/goodbye/page.tsx                  post sign-out
   //   src/components/settings/DeleteAccountModal.tsx  account no longer exists
-  //   src/components/settings/AccountSettings.tsx     exit to profile
   //   src/components/MultiSportActivity.tsx     route self-redirects per sport
+  //   (AccountSettings' "exit to profile" left the list on Oct 2 2026: its
+  //   button opens the shared editor in place — EditProfileHost.)
   //   src/app/error.tsx, src/app/global-error.tsx     boundary recovery
   //
   // The rule's suggested fix (router.push) is WRONG for all of them: the whole

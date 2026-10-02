@@ -1,14 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/lib/use-theme';
 import {
   DEFAULT_SCHEDULE,
+  effectiveMode,
   formatMinutes,
-  isOverrideActive,
   minutesToTimeValue,
-  nextTransition,
   timeValueToMinutes,
   type ThemeMode,
 } from '@/lib/theme-prefs';
@@ -21,27 +20,30 @@ interface ModeOption {
   iconColor: string;
 }
 
+// The schedule leads: it is what an account has until it chooses otherwise
+// (theme-prefs.ts DEFAULT_MODE). Light and Dark are the two ways to keep one
+// theme in place; they stay until the schedule is chosen again.
 const options: ModeOption[] = [
   {
+    value: 'scheduled',
+    label: 'Schedule',
+    description: 'Dark in the evening and overnight, light in the day. You choose the hours.',
+    icon: 'fa-clock',
+    iconColor: 'text-success-fg',
+  },
+  {
     value: 'off',
-    label: 'Off',
+    label: 'Light',
     description: 'Light theme, always.',
     icon: 'fa-sun',
     iconColor: 'text-warning-fg',
   },
   {
     value: 'on',
-    label: 'On',
+    label: 'Dark',
     description: 'Dark theme, always.',
     icon: 'fa-moon',
     iconColor: 'text-brand-fg',
-  },
-  {
-    value: 'scheduled',
-    label: 'Scheduled',
-    description: 'Dark theme between the hours you choose.',
-    icon: 'fa-clock',
-    iconColor: 'text-success-fg',
   },
   {
     value: 'system',
@@ -52,49 +54,91 @@ const options: ModeOption[] = [
   },
 ];
 
-export default function AppearanceSettings() {
-  const { prefs, savePrefs } = useTheme();
-  const { showSuccess, showError } = useToast();
-  const [saving, setSaving] = useState(false);
+type Edge = 'start' | 'end';
 
-  const mode: ThemeMode = prefs.mode ?? 'off';
+export default function AppearanceSettings() {
+  const { prefs, ready, savePrefs } = useTheme();
+  const { showSuccess, showError } = useToast();
+  // A count, not a flag: saves queue (use-theme.ts), so a second can start
+  // before the first has finished.
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const saving = pendingSaves > 0;
+  // The hours being typed. A time field used to save on EVERY change and was
+  // disabled while saving — typing "21" lost focus after the "2". The typed
+  // value now lives here, the field is never disabled, and it is committed
+  // when the field is left or a moment after the last change (a phone's
+  // time picker never blurs the field when it closes).
+  const [draft, setDraft] = useState<Partial<Record<Edge, string>>>({});
+
+  // Until the stored prefs are read (the first effect), nothing is selected —
+  // an empty placeholder must not read as "Schedule".
+  const mode: ThemeMode | null = ready ? effectiveMode(prefs) : null;
   const schedule = prefs.schedule ?? DEFAULT_SCHEDULE;
-  const overrideActive =
-    mode === 'scheduled' &&
-    prefs.override !== undefined &&
-    isOverrideActive(prefs.override, schedule, new Date());
 
   const persist = async (next: Parameters<typeof savePrefs>[0], successMessage: string) => {
-    setSaving(true);
+    setPendingSaves(n => n + 1);
     const ok = await savePrefs(next);
-    setSaving(false);
+    setPendingSaves(n => n - 1);
     if (ok) showSuccess('Success', successMessage);
     else showError('Error', 'Failed to save appearance settings');
   };
 
   const handleModeChange = (newMode: ThemeMode) => {
-    if (newMode === mode || saving) return;
-    // A deliberate mode change supersedes any manual override
-    const next = { ...prefs, mode: newMode };
-    delete next.override;
-    persist(next, 'Appearance updated');
+    if (!ready || newMode === mode || saving) return;
+    // The hours ride along in every mode, so the schedule comes back as it was.
+    void persist({ ...prefs, mode: newMode }, 'Appearance updated');
   };
 
-  const handleScheduleChange = (edge: 'start' | 'end', value: string) => {
-    const minutes = timeValueToMinutes(value);
-    if (minutes === null || saving) return;
-    const nextSchedule = { ...schedule, [edge]: minutes };
-    if (nextSchedule.start === nextSchedule.end) {
-      showError('Error', 'Start and end times must differ');
+  // `leaving`: the field lost focus — an emptied or half-typed value is
+  // dropped and the stored hour shows again. While still in the field an
+  // unfinished value is left alone (never snapped back mid-typing).
+  const commitDraft = (leaving: boolean) => {
+    if (draft.start === undefined && draft.end === undefined) return;
+    const start = draft.start !== undefined ? timeValueToMinutes(draft.start) : schedule.start;
+    const end = draft.end !== undefined ? timeValueToMinutes(draft.end) : schedule.end;
+    if (start === null || end === null) {
+      if (leaving) setDraft({});
       return;
     }
-    persist({ ...prefs, schedule: nextSchedule }, 'Schedule updated');
+    if (start === end) {
+      if (leaving) {
+        setDraft({});
+        showError('Error', 'Start and end times must differ');
+      }
+      return;
+    }
+    setDraft({});
+    if (start === schedule.start && end === schedule.end) return;
+    void persist({ ...prefs, schedule: { start, end } }, 'Schedule updated');
   };
+
+  useEffect(() => {
+    if (draft.start === undefined && draft.end === undefined) return;
+    const id = setTimeout(() => commitDraft(false), 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a debounce keyed on the typed value only; commitDraft is re-created every render
+  }, [draft]);
+
+  const timeField = (edge: Edge, label: string) => (
+    <label className="block">
+      <span className="block text-sm font-medium text-secondary mb-1">{label}</span>
+      <input
+        type="time"
+        value={draft[edge] ?? minutesToTimeValue(schedule[edge])}
+        onChange={(e) => setDraft(prev => ({ ...prev, [edge]: e.target.value }))}
+        onBlur={() => commitDraft(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+        className="w-full px-3 py-2 bg-surface border border-border-strong rounded-md"
+      />
+    </label>
+  );
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-2">Dark Mode</h3>
+        <h3 className="text-lg font-semibold text-primary mb-2">Theme</h3>
         <p className="text-tertiary text-sm mb-6">
           Choose how Edge Athlete decides between the light and dark theme. This is saved to your
           account and applies on every device you sign in on.
@@ -106,6 +150,7 @@ export default function AppearanceSettings() {
               key={opt.value}
               onClick={() => handleModeChange(opt.value)}
               disabled={saving}
+              aria-pressed={mode === opt.value}
               className={`w-full text-left p-4 rounded-lg border-2 transition-all disabled:opacity-60 ${
                 mode === opt.value
                   ? 'border-brand bg-brand-soft'
@@ -136,41 +181,12 @@ export default function AppearanceSettings() {
       {mode === 'scheduled' && (
         <div className="rounded-lg border border-border p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block">
-              <span className="block text-sm font-medium text-secondary mb-1">Dark from</span>
-              <input
-                type="time"
-                value={minutesToTimeValue(schedule.start)}
-                onChange={(e) => handleScheduleChange('start', e.target.value)}
-                disabled={saving}
-                className="w-full px-3 py-2 bg-surface border border-border-strong rounded-md"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-secondary mb-1">Until</span>
-              <input
-                type="time"
-                value={minutesToTimeValue(schedule.end)}
-                onChange={(e) => handleScheduleChange('end', e.target.value)}
-                disabled={saving}
-                className="w-full px-3 py-2 bg-surface border border-border-strong rounded-md"
-              />
-            </label>
+            {timeField('start', 'Dark from')}
+            {timeField('end', 'Until')}
           </div>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted" data-testid="schedule-summary">
             Dark from {formatMinutes(schedule.start)} to {formatMinutes(schedule.end)}
             {schedule.start > schedule.end ? ', across midnight' : ''}.
-            {overrideActive && prefs.override && (
-              <>
-                {' '}
-                Manually switched to {prefs.override.theme} until{' '}
-                {formatMinutes(
-                  nextTransition(schedule, new Date()).getHours() * 60 +
-                    nextTransition(schedule, new Date()).getMinutes()
-                )}
-                .
-              </>
-            )}
           </p>
         </div>
       )}
@@ -184,9 +200,8 @@ export default function AppearanceSettings() {
                 on desktop and the hamburger drawer on mobile. Naming the
                 profile menu was wrong on phones, where it does not exist. */}
             <p className="text-sm text-secondary">
-              You can flip the theme any time from the menu in the top bar. During a scheduled
-              window, a manual switch lasts until the next scheduled change, then the schedule
-              resumes.
+              You can switch between light and dark any time from the menu in the top bar. That
+              keeps the theme you picked until you choose Schedule here again.
             </p>
           </div>
         </div>

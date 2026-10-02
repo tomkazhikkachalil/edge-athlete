@@ -475,6 +475,7 @@ export default function GuardianAthletePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       setAthlete({ ...athlete, avatar_url: data.avatar_url });
+      void refreshManagedProfiles();
       showSuccess('Photo updated', `${athlete.first_name || 'Their'} profile photo is live.`);
     } catch (e) {
       showError('Photo not updated', e instanceof Error ? e.message : 'Please try again');
@@ -1442,6 +1443,8 @@ export default function GuardianAthletePage() {
         onSave={() => {
           setRetryKey(k => k + 1);
           void refreshChildProfile();
+          // The header's acting-as menu reads the managed-profiles list.
+          void refreshManagedProfiles();
         }}
       />
 

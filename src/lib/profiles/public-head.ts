@@ -13,7 +13,7 @@
  * same-origin and viewer-gated — not a crawler's image).
  */
 import type { Metadata } from 'next';
-import { unstable_cache } from 'next/cache';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { appBaseUrl } from '@/lib/org-sites/urls';
@@ -58,6 +58,24 @@ export function buildPublicHead(p: PublicHeadProfile | null): Metadata {
 
 const COLUMNS = 'id, handle, display_name, full_name, first_name, last_name, bio, sport, school, avatar_url, visibility, updated_at';
 
+/** The cache tag of one handle's head. */
+export const publicHeadTag = (handle: string): string => `public-head:${handle.toLowerCase()}`;
+
+/**
+ * Drop the cached head of a handle — called by the three writers of what the
+ * head shows (PUT /api/profile, the handle update, the avatar upload).
+ * Without it a renamed athlete's page title kept the old name for the hour.
+ * Best-effort: never throws, and a null handle (parents, organizers) is a no-op.
+ */
+export function revalidatePublicHead(handle: string | null | undefined): void {
+  if (!handle) return;
+  try {
+    revalidateTag(publicHeadTag(handle), { expire: 0 });
+  } catch {
+    // Outside a request scope (a script, a test) there is nothing to drop.
+  }
+}
+
 /** The head's profile row for a handle (case-insensitive), cached an hour; null when absent. Never throws. */
 export const readPublicHead = (handle: string): Promise<PublicHeadProfile | null> =>
   unstable_cache(
@@ -70,7 +88,7 @@ export const readPublicHead = (handle: string): Promise<PublicHeadProfile | null
       }
     },
     ['public-head', handle.toLowerCase()],
-    { revalidate: 3600 }
+    { revalidate: 3600, tags: [publicHeadTag(handle)] }
   )();
 
 export interface SitemapAthlete { handle: string; lastModified: string | null }

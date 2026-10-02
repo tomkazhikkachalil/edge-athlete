@@ -111,7 +111,9 @@ test.afterAll(async () => {
   if (!groupPostId) return;
   const api = await apiAs('state.json');
   try {
-    await api.delete(`/api/group-posts/${groupPostId}`); // teardown's user delete is the backstop
+    // By name: the last test scores this round, and a bare DELETE of a scored
+    // round only hides it. Teardown's user delete is the backstop.
+    await api.delete(`/api/group-posts/${groupPostId}?mode=delete`);
   } finally {
     await api.dispose();
   }
@@ -206,10 +208,13 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     const gb2 = await settledBox(greenDot);
     await page.mouse.click(gb2.x + gb2.width / 2, gb2.y + gb2.height / 2);
     await expect(targetPill).toBeVisible({ timeout: 5_000 });
-    // A Scorecard↔Map tab flip is NOT a hole step: the target survives it.
+    // A Scorecard↔Map flip is NOT a hole step: the target survives it. Since
+    // Oct 2026 the Scorecard tab brings a scoring player straight back to
+    // score entry, and its labelled Map button is the way back.
     await page.getByRole('tab', { name: 'Scorecard' }).click();
-    await page.getByRole('tab', { name: 'Map' }).click();
-    await expect(targetPill).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expect(targetPill).toBeVisible({ timeout: 5_000 });
 
     // Couch peek from downtown Ottawa: the to-green pill hides (1500-yd
     // cap); the deliberately placed target keeps counting.

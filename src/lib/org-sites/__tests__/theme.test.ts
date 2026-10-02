@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contrastRatio } from '../accent-contrast';
+import { APP_SURFACE_DARK, contrastRatio } from '../accent-contrast';
 import { THEME_TYPEFACES } from '../validate';
 import { HEADING_FONTS, TYPEFACE_LABEL, allFontFaceCss, effectiveSpec, fontFaceCss, fontHref, headingFont, themeAttrs } from '../theme';
 
@@ -49,7 +49,8 @@ describe('themeAttrs — what a themed root wears', () => {
   });
   it('an accent sets both vars; a heading face sets the property + the attribute; junk is dropped', () => {
     const a = themeAttrs({ template_id: 'bold', theme_token_set: { accent: '#0B3D91', typeface: 'lora', surface: 'tinted' } });
-    expect(a.style).toEqual({ '--org-accent': '#0b3d91', '--org-accent-strong': '#09347b', '--org-accent-fg': '#09347b', '--org-heading-font': "'EA Lora', Georgia, 'Times New Roman', serif" });
+    expect(a.style).toMatchObject({ '--org-accent': '#0b3d91', '--org-accent-strong': '#09347b', '--org-accent-fg': '#09347b', '--org-heading-font': "'EA Lora', Georgia, 'Times New Roman', serif" });
+    expect(Object.keys(a.style as object).sort()).toEqual(['--org-accent', '--org-accent-fg', '--org-accent-fg-dark', '--org-accent-strong', '--org-heading-font']);
     expect(a['data-typeface']).toBe('lora');
     expect(a['data-surface']).toBe('tinted');
     expect(a['data-template']).toBe('bold');
@@ -61,6 +62,26 @@ describe('themeAttrs — what a themed root wears', () => {
     expect(junk.style).toBeUndefined();
     expect(junk['data-heading-font']).toBeUndefined();
     expect(junk['data-template']).toBe('classic');
+  });
+});
+
+describe('themeAttrs — light and dark (Oct 1 2026)', () => {
+  it('a site that follows the visitor wears NO data-theme; a fixed look is server-rendered on the root', () => {
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: {} })['data-theme']).toBeUndefined();
+    expect('data-theme' in themeAttrs({ template_id: 'classic', theme_token_set: { appearance: 'auto' } })).toBe(false);
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: { appearance: 'dark' } })['data-theme']).toBe('dark');
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: { appearance: 'light' } })['data-theme']).toBe('light');
+    // Junk never reaches the attribute.
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: { appearance: 'sepia" onload="x' } })['data-theme']).toBeUndefined();
+  });
+  it('link text gets a second colour that reads at 4.5:1 on the DARK surface', () => {
+    // A deep navy is fine on white and nearly invisible on the dark surface.
+    const navy = themeAttrs({ template_id: 'classic', theme_token_set: { accent: '#0b3d91' } }).style as Record<string, string>;
+    expect(contrastRatio(navy['--org-accent-fg'], '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(navy['--org-accent'], APP_SURFACE_DARK)).toBeLessThan(4.5);
+    expect(contrastRatio(navy['--org-accent-fg-dark'], APP_SURFACE_DARK)).toBeGreaterThanOrEqual(4.5);
+    // A default-themed site sets neither: the stylesheet's own pair stands.
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: { appearance: 'dark' } }).style).toBeUndefined();
   });
 });
 

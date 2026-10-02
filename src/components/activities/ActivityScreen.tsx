@@ -167,6 +167,7 @@ function ActivityBody({
             </h1>
             <p className="text-sm text-secondary">
               {def.label} · {formatStart(a.startedAt, a.timezone)}
+              {a.credit && <span data-activity-credit> · {a.credit}</span>}
               {a.owner?.onlyMe && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-secondary"><i className="fas fa-lock" aria-hidden="true" /> Only me</span>}
             </p>
           </div>

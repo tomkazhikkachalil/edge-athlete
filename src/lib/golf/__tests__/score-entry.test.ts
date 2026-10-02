@@ -266,3 +266,53 @@ describe('nextHoleForScores', () => {
     expect(nextHoleForScores([], 18, 1, null)).toEqual({ hole: 1, par: null, yardage: null });
   });
 });
+
+// ── holeNumberAtPosition (the scorer hands its hole to the map) ─────────────
+
+import { holeNumberAtPosition } from '../score-entry';
+
+describe('holeNumberAtPosition', () => {
+  it('is the hole the scorer is ON: position 1 of a front-nine start is hole 1', () => {
+    expect(holeNumberAtPosition(1, 1)).toBe(1);
+    expect(holeNumberAtPosition(1, 7)).toBe(7);
+  });
+  it('numbers a back-nine round from 10', () => {
+    expect(holeNumberAtPosition(10, 1)).toBe(10);
+    expect(holeNumberAtPosition(10, 9)).toBe(18);
+  });
+  it('never answers a hole before the start', () => {
+    expect(holeNumberAtPosition(1, 0)).toBe(1);
+  });
+  it('is not the NEXT unscored hole — scoring hole 1 does not move the map to hole 2', () => {
+    // What the map used before: the first hole with no saved score.
+    expect(nextHoleForScores([{ hole_number: 1 }], 18, 1, null)?.hole).toBe(2);
+    expect(holeNumberAtPosition(1, 1)).toBe(1);
+  });
+});
+
+// ── reopenHole (the Scorecard tab brings the player back to score entry) ────
+
+import { reopenHole } from '../score-entry';
+
+describe('reopenHole', () => {
+  it('is the hole the scorer handed to the map — the hole the player LEFT', () => {
+    expect(reopenHole(1, 1, 18)).toBe(1);
+    expect(reopenHole(7, 1, 18)).toBe(7);
+    expect(reopenHole(18, 1, 18)).toBe(18);
+  });
+  it('resumes (null) when the scorer never handed a hole over', () => {
+    expect(reopenHole(null, 1, 18)).toBeNull();
+    expect(reopenHole(undefined, 1, 18)).toBeNull();
+  });
+  it('holds to the holes of THIS round — a back nine is 10 to 18', () => {
+    expect(reopenHole(10, 10, 9)).toBe(10);
+    expect(reopenHole(18, 10, 9)).toBe(18);
+    expect(reopenHole(9, 10, 9)).toBeNull();
+    expect(reopenHole(19, 10, 9)).toBeNull();
+    expect(reopenHole(10, 1, 9)).toBeNull();
+  });
+  it('never answers a fraction or a non-number', () => {
+    expect(reopenHole(2.5, 1, 18)).toBeNull();
+    expect(reopenHole(Number.NaN, 1, 18)).toBeNull();
+  });
+});

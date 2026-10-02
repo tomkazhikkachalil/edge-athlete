@@ -144,7 +144,7 @@ reported user — a report closed with no action is never announced.
 `follow/route.ts` (POST) · `tags/route.ts` (POST) · `upload/route.ts` · `upload/post-media/route.ts` ·
 `upload/avatar/route.ts` · `upload/cover/route.ts` · `upload/equipment/route.ts` (POST) ·
 `profile/route.ts` (PUT) · `sport-events/route.ts` (POST) · `sport-events/[id]/participants/join/route.ts` (POST) ·
-`clubs/requests/route.ts` (POST) · `leagues/requests/route.ts` (POST) · `challenges/route.ts` (POST — a friend challenge reaches another person; Play, 244) · `activities/route.ts` + `activities/fit/route.ts` (POST — an activity import is the athlete's content; Activities, 245).
+`clubs/requests/route.ts` (POST) · `leagues/requests/route.ts` (POST) · `challenges/route.ts` (POST — a friend challenge reaches another person; Play, 244) · `activities/route.ts` + `activities/fit/route.ts` (POST — an activity import is the athlete's content; Activities, 245) · `connections/upload-link/route.ts` (POST — the personal upload link is a way to create content; Connected apps, 247) · `activities/inbound/[token]/route.ts` (POST — the link itself has no session: the token names the account and the gate is applied to THAT account) · `connections/polar/start/route.ts` + `connections/polar/callback/route.ts` (GET — connecting a provider is a standing way to create content; checked when the athlete leaves for the provider and again when they come back).
 Adding a route is a deliberate decision: extend the test's list and this one together.
 
 ## Spec 3 — the Help Center (migration 224)

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
 import {
-  convertHeight,
   convertWeight,
+  heightRow,
+  weightRow,
   isNewestEntry,
   isValidRecordedDate,
   WEIGHT_UNITS,
@@ -120,18 +120,7 @@ export async function POST(request: NextRequest) {
 
     if (hasHeight) {
       const isNewest = await newestFor('height');
-      const conv = convertHeight(heightCm as number);
-      rows.push({
-        profile_id: user.id,
-        metric_key: 'height',
-        metric_category: 'body',
-        metric_label: VITAL_METRICS_MAP['height'].label,
-        value: conv.valueIn,
-        value_display: conv.display,
-        unit: 'in',
-        source: 'manual',
-        recorded_at: recordedAt,
-      });
+      rows.push(heightRow(user.id, recordedAt, heightCm as number));
       if (isNewest) {
         profileUpdate.height_cm = Math.round(heightCm as number);
         profileUpdated.height = true;
@@ -141,17 +130,7 @@ export async function POST(request: NextRequest) {
     if (hasWeight) {
       const isNewest = await newestFor('weight');
       const conv = convertWeight(weightDisplay as number, weightUnit as WeightUnit);
-      rows.push({
-        profile_id: user.id,
-        metric_key: 'weight',
-        metric_category: 'body',
-        metric_label: VITAL_METRICS_MAP['weight'].label,
-        value: conv.valueLbs,
-        value_display: conv.displayText,
-        unit: 'lbs',
-        source: 'manual',
-        recorded_at: recordedAt,
-      });
+      rows.push(weightRow(user.id, recordedAt, weightDisplay as number, weightUnit as WeightUnit));
       if (isNewest) {
         profileUpdate.weight_display = weightDisplay;
         profileUpdate.weight_unit = weightUnit;

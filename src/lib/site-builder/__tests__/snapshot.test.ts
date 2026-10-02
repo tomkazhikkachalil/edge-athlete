@@ -270,6 +270,25 @@ describe('applySiteAction', () => {
     expect(bare.layout).toBeUndefined();
   });
 
+  it('the fixed look (appearance) carries over a whole-object save, survives a template change and a gallery pick, and null clears it', () => {
+    let s = base();
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', appearance: 'dark' }), ctx);
+    expect(s.theme).toEqual({ accent: '#0f766e', appearance: 'dark' });
+    // The console and the Settings panel save the theme without naming it.
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', surface: 'tinted', typeface: 'oswald', wordmark: 'W' }), ctx);
+    expect(s.theme.appearance).toBe('dark');
+    // A colour decision, not a template design key.
+    s = applySiteAction(s, patch({ action: 'set_template', templateId: 'bold' }), ctx);
+    expect(s.theme.appearance).toBe('dark');
+    s = applySiteAction(s, patch({ action: 'apply_gallery', entryId: 'golf-tour' }), { ...ctx, sportKey: 'golf' });
+    expect(s.theme.appearance).toBe('dark');
+    // A value replaces it; null is "follow the visitor" (the key goes).
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', appearance: 'light' }), ctx);
+    expect(s.theme.appearance).toBe('light');
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', appearance: null }), ctx);
+    expect('appearance' in s.theme).toBe(false);
+  });
+
   it('phase 7: set_theme carries the design overrides the console never sends; null clears; set_template resets them', () => {
     let s = base();
     s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', typeface: 'oswald', header: 'band', density: 'compact' }), ctx);

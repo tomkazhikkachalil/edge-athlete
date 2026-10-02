@@ -8,7 +8,7 @@ import { formatDateRange, formatIsoDate } from '@/lib/competitions/golf-weeks';
 function Chip({ state }: { state: PublicGolfRound['state'] }) {
   if (state === 'open') {
     return (
-      <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+      <span className="inline-block rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
         open now
       </span>
     );

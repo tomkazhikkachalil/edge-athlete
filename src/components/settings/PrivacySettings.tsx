@@ -10,7 +10,12 @@ import SupervisedSettingCard from './SupervisedSettingCard';
 export default function PrivacySettings() {
   const { profile, refreshProfile } = useAuth();
   const { showSuccess, showError } = useToast();
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  // Starts from the profile: this tab mounts with it already loaded, and the
+  // sync below only runs when it CHANGES — a private profile used to open
+  // this tab showing "Public" (Sep 30 2026).
+  const [visibility, setVisibility] = useState<'public' | 'private'>(
+    profile?.visibility === 'private' ? 'private' : 'public'
+  );
   const [saving, setSaving] = useState(false);
   // Going public exposes everything instantly (indexed, seen, screenshotted)
   // — irreversible in effect, so it's never a single tap (dummy-proofing
@@ -82,6 +87,7 @@ export default function PrivacySettings() {
           <button
             onClick={() => visibility !== 'public' && setConfirmingPublic(true)}
             disabled={saving}
+            aria-pressed={visibility === 'public'}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'public'
                 ? 'border-brand bg-brand-soft'
@@ -114,6 +120,7 @@ export default function PrivacySettings() {
           <button
             onClick={() => handleVisibilityChange('private')}
             disabled={saving}
+            aria-pressed={visibility === 'private'}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'private'
                 ? 'border-brand bg-brand-soft'

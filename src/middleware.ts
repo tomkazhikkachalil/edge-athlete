@@ -33,7 +33,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
+import { buildCsp, buildStaticCsp, inlineScriptHashSource, CSP_REPORT_PATH } from '@/lib/csp'
+import { PUBLIC_THEME_SCRIPT } from '@/lib/theme-script'
 import { computeSubdomainRedirect } from '@/lib/org-sites/subdomain'
 import {
   bareHost,
@@ -72,6 +73,13 @@ const ORG_SITE_PATH_RE = /^\/org\//
 // full supabase.auth.getUser() round trip (the matcher doesn't exclude
 // .txt/.xml, and that regex is too fragile to grow).
 const CRAWLER_PATH_RE = /^\/(robots\.txt|sitemap\.xml)$/
+
+// One digest per cold start: the script's text is a build-time constant.
+let publicThemeHash: Promise<string> | null = null
+function publicThemeScriptHash(): Promise<string> {
+  publicThemeHash ??= inlineScriptHashSource(PUBLIC_THEME_SCRIPT)
+  return publicThemeHash
+}
 
 /** The static-CSP fast path's headers (phase 6b C2 factored the four
  *  copies): no nonce, no auth round trip — the ISR renderer owns caching. */
@@ -255,7 +263,12 @@ export async function middleware(request: NextRequest) {
   // root layout stamp the theme script. Both response constructions below
   // must carry these request headers or the nonce never reaches the render.
   const nonce = btoa(crypto.randomUUID())
-  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production' })
+  const csp = buildCsp(nonce, {
+    dev: process.env.NODE_ENV !== 'production',
+    // The (public) layout's theme script is static (no nonce possible) and
+    // some of its pages come through here — /clubs, /leagues, the root 404.
+    scriptHashes: [await publicThemeScriptHash()],
+  })
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('content-security-policy', csp)
@@ -338,9 +351,13 @@ async function syncThemeCookie(
   const existing = request.cookies.get(THEME_COOKIE)?.value
 
   if (!userId) {
-    // Signed out: drop the server's copy. The device keeps its own look via
-    // the localStorage mirror rather than snapping back to light.
-    if (existing) response.cookies.delete(THEME_COOKIE)
+    // Signed out: LEAVE the cookie. It is this device's last-known look, and
+    // the sign-in page (and every other signed-out page) paints from it. It
+    // used to be deleted here, leaving only the localStorage mirror — which
+    // Safari evicts after seven idle days (script-written storage), so a
+    // device that had chosen dark came back to a sign-in page with no memory
+    // of it (Oct 1 2026). A display preference, never a credential; the next
+    // sign-in overwrites it with that account's own.
     return
   }
 

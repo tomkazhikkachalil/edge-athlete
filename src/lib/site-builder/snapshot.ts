@@ -353,11 +353,15 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       }
       // Program 2, C: the icon carries over unless the input names it (null clears).
       const iconPath = 'iconPath' in input ? input.iconPath : s.theme.iconPath;
+      // Oct 1 2026: the fixed look carries over the same way — the console
+      // and the Settings panel save the whole theme without naming it.
+      const appearance = 'appearance' in input ? input.appearance : s.theme.appearance;
       return {
         ...s,
         theme: {
           ...design,
           ...(typeof iconPath === 'string' && iconPath ? { iconPath } : {}),
+          ...(appearance === 'light' || appearance === 'dark' ? { appearance } : {}),
           ...(input.accent ? { accent: input.accent.toLowerCase() } : {}),
           ...(input.accentStrong ? { accentStrong: input.accentStrong.toLowerCase() } : {}),
           ...(input.surface && input.surface !== 'plain' ? { surface: input.surface } : {}),

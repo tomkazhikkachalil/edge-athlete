@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -42,7 +43,10 @@ export default function AthleteProfilePage() {
   const athleteId = params.id as string;
   // Share links point to /athlete/<id>?post=<postId> — open that post.
   // Without this reader every shared post link just showed the profile.
-  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
+  // Starts from the URL: the page MOUNTS with ?post= already there, and the
+  // sync below only runs when the params change afterwards — so a shared
+  // link used to open the profile and never the post (Sep 30 2026).
+  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(() => searchParams.get('post'));
 
   // Reading the query string is synchronisation, not a side effect.
   const [syncedParams, setSyncedParams] = useState(searchParams);
@@ -309,7 +313,7 @@ export default function AthleteProfilePage() {
           <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4">
             <div className="flex items-center gap-2 min-w-0">
               <button
-                onClick={() => router.back()}
+                onClick={() => backOr(router, '/feed')}
                 className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-secondary hover:text-primary"
                 aria-label="Go back"
               >

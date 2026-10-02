@@ -12,6 +12,7 @@
  */
 
 import RivalsPanel from '@/components/play/RivalsPanel';
+import { COPY } from '@/lib/copy';
 import ChallengesPanel from '@/components/play/ChallengesPanel';
 import { challengeMetrics } from '@/lib/play/challenges';
 import { useEffect, useRef, useState } from 'react';
@@ -29,6 +30,7 @@ import TrackBreakdown from './TrackBreakdown';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { useToast } from '../Toast';
+import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 
 // Aspirational year catalog (whole range, not just posted years) — same
@@ -250,9 +252,9 @@ export default function StatsHub({
     }
   };
 
-  const handleDelete = async (postId: string) => {
+  const handleDelete = async (postId: string, mode?: 'delete') => {
     try {
-      const response = await fetch(`/api/posts?postId=${postId}`, {
+      const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -260,11 +262,18 @@ export default function StatsHub({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete post');
       }
-      setItems(prevItems => prevItems.filter(item => item.id !== postId));
+      // A result comes back hidden, not deleted (241): it stays on your own
+      // grid, marked — and the toast says which happened.
+      const body = await response.json().catch(() => ({}));
+      setItems(prevItems => body.hidden
+        ? prevItems.map(item => (item.id === postId ? { ...item, profile_hidden: true } : item))
+        : prevItems.filter(item => item.id !== postId));
       setIsModalOpen(false);
       setSelectedPostIndex(null);
       onCountsChanged?.();
-      showSuccess('Success', 'Post deleted successfully');
+      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
+      else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }
@@ -366,7 +375,11 @@ export default function StatsHub({
       )}
 
       {/* Filter row — search + sort + media type + years in the shared
-          FilterBar (controls + count pill + Clear all strip). */}
+          FilterBar (controls + count pill + Clear all strip). The bar and
+          the results under it share ONE spaced stack (TaggedTab's and
+          AchievementsTab's shape): without it the strip sat flush on the
+          grid — this root has no space-y of its own. */}
+      <div className="space-y-6" data-stats-results="">
       <FilterBar
         resultCount={visibleItems.length}
         activeCount={selectedYears.length + (trimmedQuery ? 1 : 0)}
@@ -470,6 +483,7 @@ export default function StatsHub({
 
       {/* Intersection observer target */}
       <div ref={observerTarget} className="h-4" />
+      </div>
 
       {/* Post Detail Modal */}
       <PostDetailModal

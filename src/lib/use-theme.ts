@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
-  DEFAULT_SCHEDULE,
-  isOverrideActive,
+  prefsAfterQuickSwitch,
   resolveTheme,
   sanitizeThemePrefs,
   type ResolvedTheme,
@@ -12,6 +11,7 @@ import {
 import { readStoredThemePrefs, writeStoredThemePrefs, subscribeThemePrefs } from './theme';
 import { writeThemeCookie, writeResolvedThemeCookie } from './theme-cookie';
 import { THEME_COLOR } from './theme-colors';
+import { createSerialQueue } from './serial-queue';
 
 /**
  * The one theme evaluator. Module-level singleton, not a context provider,
@@ -21,7 +21,7 @@ import { THEME_COLOR } from './theme-colors';
  *
  * ThemeApplier (mounted in the root layout) keeps a permanent subscription,
  * so the listeners below are alive for the whole app session:
- *  - 30s interval        → scheduled windows flip while the tab sits open
+ *  - 30s interval        → the schedule flips while the tab sits open
  *  - visibilitychange    → a backgrounded tab catches up on foreground
  *  - storage/CustomEvent → another tab (or this one) changed the prefs
  *  - matchMedia change   → live OS appearance flips in 'system' mode
@@ -34,6 +34,10 @@ const EVAL_MS = 30_000;
 
 let prefs: ThemePrefs | null = null; // null = mirror not read yet
 let theme: ResolvedTheme = 'light';
+// What the hooks were last told. Subscribers hold BOTH the resolved theme and
+// the prefs, so a prefs change that leaves the theme where it is still has
+// to reach them (see applyResolved).
+let notifiedPrefs = '';
 const subscribers = new Set<() => void>();
 let detachListeners: (() => void) | null = null;
 
@@ -50,11 +54,20 @@ function getPrefs(): ThemePrefs {
   return prefs;
 }
 
-/** Stamp <html> and notify hooks. Idempotent. */
+/** Stamp <html> and notify hooks. Idempotent.
+ *
+ *  Hooks are notified when the theme OR the prefs changed. It used to be the
+ *  theme alone, which is why Scheduled and Match system looked dead (Oct 1
+ *  2026): picked in the daytime, or on a device that already matched, they
+ *  saved but flipped nothing, so Settings → Appearance never redrew — the
+ *  option was not shown as selected and the hours never appeared. */
 function applyResolved() {
-  const next = resolveTheme(getPrefs(), new Date(), systemPrefersDark());
-  const changed = next !== theme;
+  const current = getPrefs();
+  const next = resolveTheme(current, new Date(), systemPrefersDark());
+  const prefsKey = JSON.stringify(current);
+  const changed = next !== theme || prefsKey !== notifiedPrefs;
   theme = next;
+  notifiedPrefs = prefsKey;
   try {
     if (next === 'dark') document.documentElement.dataset.theme = 'dark';
     else delete document.documentElement.dataset.theme;
@@ -93,25 +106,8 @@ function persistToServer(next: ThemePrefs): Promise<Response> {
   });
 }
 
-/** Re-resolve now; also lazily strip an override once a boundary passes.
- *  Correctness never depends on the strip (isOverrideActive computes expiry
- *  identically everywhere) — it is hygiene so stale overrides don't sit in
- *  the mirror and the DB forever. */
+/** Re-resolve now (the interval, a foregrounded tab, an OS appearance flip). */
 function evaluate() {
-  const current = getPrefs();
-  if (
-    current.mode === 'scheduled' &&
-    current.override &&
-    !isOverrideActive(current.override, current.schedule ?? DEFAULT_SCHEDULE, new Date())
-  ) {
-    const next = { ...current };
-    delete next.override;
-    setLocalPrefs(next);
-    persistToServer(next).catch(() => {
-      // signed-out or offline — the computed expiry already handled the theme
-    });
-    return;
-  }
   applyResolved();
 }
 
@@ -145,40 +141,53 @@ function attachListeners() {
   };
 }
 
-/** Optimistic save with rollback: applies immediately, then persists; on
- *  failure restores the previous prefs and returns false. */
-export async function saveThemePrefs(next: ThemePrefs): Promise<boolean> {
+// Saves go to the server ONE AT A TIME, in the order they were made. Each is
+// a PATCH of the whole prefs object, so two that overlap are last-write-wins
+// on arrival — and the older one can arrive last (see serial-queue.ts).
+const enqueueSave = createSerialQueue();
+
+// A server read (the profile arriving in ThemeApplier) that lands while a
+// local save is in flight — or just after one — may PREDATE that save. It
+// used to be adopted anyway, which reverted the edit the person had just
+// made: the device went back to the old theme while the server took the new
+// one (Oct 1 2026, caught by holding a save on the wire). While saves are
+// pending, and for a short grace after the last one settles, the device's
+// own copy stands; the next profile load after that adopts as before.
+let pendingSaves = 0;
+let lastSaveSettledAt = 0;
+const ADOPT_GRACE_MS = 10_000;
+
+/** Optimistic save with rollback: applies immediately, then persists (in
+ *  order, behind any save still in flight); on failure restores the previous
+ *  prefs and returns false — unless a NEWER edit has been applied since, in
+ *  which case that edit stands and only the failure is reported. */
+export function saveThemePrefs(next: ThemePrefs): Promise<boolean> {
   const clean = sanitizeThemePrefs(next);
   const previous = getPrefs();
   setLocalPrefs(clean);
-  try {
-    const res = await persistToServer(clean);
-    if (!res.ok) throw new Error(`theme save ${res.status}`);
-    return true;
-  } catch {
-    setLocalPrefs(previous);
-    return false;
-  }
+  pendingSaves += 1;
+  return enqueueSave(async () => {
+    try {
+      const res = await persistToServer(clean);
+      if (!res.ok) throw new Error(`theme save ${res.status}`);
+      return true;
+    } catch {
+      if (prefs === clean) setLocalPrefs(previous);
+      return false;
+    } finally {
+      pendingSaves -= 1;
+      lastSaveSettledAt = Date.now();
+    }
+  });
 }
 
-/** The quick toggle. Off↔On for the simple modes; in Scheduled it writes the
- *  until-next-transition override; in System it switches to an explicit
- *  mode, because "follow the OS, except not right now" isn't a state the
- *  schedule can resume from. */
+/** The quick switch (the top menu) — pins the theme; the rule is
+ *  `prefsAfterQuickSwitch` (theme-prefs.ts). */
 export function toggleThemeNow(): Promise<boolean> {
   const current = getPrefs();
-  const opposite: ResolvedTheme =
-    resolveTheme(current, new Date(), systemPrefersDark()) === 'dark' ? 'light' : 'dark';
-  let next: ThemePrefs;
-  if ((current.mode ?? 'off') === 'scheduled') {
-    next = {
-      ...current,
-      override: { theme: opposite, setAt: new Date().toISOString() },
-    };
-  } else {
-    next = { ...current, mode: opposite === 'dark' ? 'on' : 'off' };
-  }
-  return saveThemePrefs(next);
+  return saveThemePrefs(
+    prefsAfterQuickSwitch(current, resolveTheme(current, new Date(), systemPrefersDark()))
+  );
 }
 
 /** Server truth arriving (ThemeApplier): overwrite the device copies iff they
@@ -189,6 +198,8 @@ export function toggleThemeNow(): Promise<boolean> {
  *  settings, a cleared jar) gets it back without waiting for a preference
  *  change. */
 export function adoptServerThemePrefs(raw: unknown) {
+  // This read may predate a save of ours — see pendingSaves above.
+  if (pendingSaves > 0 || Date.now() - lastSaveSettledAt < ADOPT_GRACE_MS) return;
   const clean = sanitizeThemePrefs(raw);
   if (JSON.stringify(clean) === JSON.stringify(getPrefs())) {
     writeThemeCookie(clean);
@@ -203,18 +214,23 @@ export interface UseThemeResult {
    *  script) is never waiting on this — only JS consumers are. */
   theme: ResolvedTheme;
   prefs: ThemePrefs;
+  /** False during SSR and the hydration render, when `prefs` is still the
+   *  empty placeholder — a consumer that shows WHICH mode is chosen must not
+   *  read `{}` as a choice (it would flash the default as selected). */
+  ready: boolean;
   savePrefs: (next: ThemePrefs) => Promise<boolean>;
   toggleNow: () => Promise<boolean>;
 }
 
 export function useTheme(): UseThemeResult {
-  const [snapshot, setSnapshot] = useState<{ theme: ResolvedTheme; prefs: ThemePrefs }>({
+  const [snapshot, setSnapshot] = useState<{ theme: ResolvedTheme; prefs: ThemePrefs; ready: boolean }>({
     theme: 'light',
     prefs: {},
+    ready: false,
   });
 
   useEffect(() => {
-    const update = () => setSnapshot({ theme, prefs: getPrefs() });
+    const update = () => setSnapshot({ theme, prefs: getPrefs(), ready: true });
     subscribers.add(update);
     if (subscribers.size === 1) attachListeners();
     evaluate();
@@ -228,6 +244,7 @@ export function useTheme(): UseThemeResult {
   return {
     theme: snapshot.theme,
     prefs: snapshot.prefs,
+    ready: snapshot.ready,
     savePrefs: saveThemePrefs,
     toggleNow: toggleThemeNow,
   };

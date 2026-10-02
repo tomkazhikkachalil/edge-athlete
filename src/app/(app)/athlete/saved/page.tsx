@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { backOr } from '@/lib/nav-back';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -290,7 +291,7 @@ export default function SavedPostsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center gap-4 mb-2">
             <button
-              onClick={() => router.back()}
+              onClick={() => backOr(router, '/athlete')}
               className="text-tertiary hover:text-primary"
             >
               <i className="fas fa-arrow-left text-xl"></i>

@@ -447,8 +447,13 @@ describe('parseThemeTokens', () => {
       density: null,
       teams: null,
       width: null,
+      appearance: null,
     });
     expect(parseThemeTokens('garbage')).toMatchObject({ accent: null, typeface: 'sans' });
+    // The fixed look: light | dark, anything else is "follow the visitor".
+    expect(parseThemeTokens({ appearance: 'dark' }).appearance).toBe('dark');
+    expect(parseThemeTokens({ appearance: 'light' }).appearance).toBe('light');
+    for (const junk of ['auto', 'DARK', 1, null, {}]) expect(parseThemeTokens({ appearance: junk }).appearance).toBeNull();
     const parsed = parseThemeTokens({
       accent: '#0F766E',
       accentStrong: 'javascript:alert(1)',
@@ -468,6 +473,7 @@ describe('parseThemeTokens', () => {
       density: null,
       teams: null,
       width: null,
+      appearance: null,
     });
   });
 

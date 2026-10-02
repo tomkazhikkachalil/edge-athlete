@@ -1,6 +1,5 @@
 'use client';
 
-import ActivitiesTab from '@/components/activities/ActivitiesTab';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -118,7 +117,7 @@ interface ProfileData {
   skillCards?: SportSkillCard[];
 }
 
-type ProfileSection = 'overview' | 'stats' | 'activities' | 'vitals' | 'equipment' | 'tagged';
+type ProfileSection = 'overview' | 'stats' | 'vitals' | 'equipment' | 'tagged';
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -145,8 +144,14 @@ export default function PublicProfilePage() {
   const [activeSection, setActiveSection] = useState<ProfileSection>(() => {
     if (typeof window === 'undefined') return 'overview';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'vitals' || tab === 'stats' || tab === 'activities' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
+    // Activities are a section of Vitals since Oct 1 2026; the old deep link
+    // (`?tab=activities`) opens Vitals at that section.
+    if (tab === 'activities') return 'vitals';
+    return tab === 'vitals' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
   });
+  const [focusActivities] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'activities'
+  );
   // ?sport= companion for ?tab=stats — the hub's sport layer (validated
   // against the athlete's active sports inside the hub).
   const [statsSport, setStatsSport] = useState<string | null>(() =>
@@ -502,7 +507,7 @@ export default function PublicProfilePage() {
             overflow-hidden is the Vitals lesson (CLAUDE.md). */}
         <div className="mt-4 -mx-4 px-4 overflow-x-auto">
           <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl whitespace-nowrap" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['stats', 'Stats'], ['activities', 'Activities'], ['vitals', 'Vitals'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
+            {([['overview', 'Overview'], ['stats', 'Stats'], ['vitals', 'Vitals'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}
@@ -528,15 +533,8 @@ export default function PublicProfilePage() {
             <EquipmentSection profileId={profile.id} isOwnProfile={false} />
           </div>
         )}
-        {/* Activities (245): its own gated fetch — the route trimmed or
-            withheld per viewer by the server, never by this page. */}
-        {activeSection === 'activities' && (
-          <div className="mt-4" data-u-activities="">
-            <ActivitiesTab profileId={profile.id} />
-          </div>
-        )}
         {activeSection === 'tagged' && (
-          <div className="mt-4" data-u-tagged="">
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-tagged="">
             <TaggedTab profileId={profile.id} currentUserId={user?.id} isOwnProfile={false} />
           </div>
         )}
@@ -547,6 +545,7 @@ export default function PublicProfilePage() {
               profileId={profile.id}
               currentUserId={user?.id}
               isOwnProfile={false}
+              focusSection={focusActivities ? 'activities' : undefined}
             />
           </div>
         )}
@@ -557,7 +556,9 @@ export default function PublicProfilePage() {
             come from the aggregate's skillCards. Keyed on the sport so a
             strip-tap from Overview lands on that sport's layer. */}
         {activeSection === 'stats' && (
-          <div className="mt-4">
+          // In the card every other section sits in (Oct 2 2026): bare on the
+          // canvas it had half the inset and its sport chips ran to the screen edge.
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-stats="">
             <StatsHub
               key={statsSport ?? 'all'}
               profileId={profile.id}

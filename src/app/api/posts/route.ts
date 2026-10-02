@@ -1,5 +1,6 @@
 import { HIDDEN_NOTICE, isResultPost, type PostResultFacts } from '@/lib/results/kinds';
 import { setResultHidden } from '@/lib/results/hide-server';
+import { deleteResultPost, deleteRoundResult } from '@/lib/results/delete-server';
 import { resolveResultOrigin } from '@/lib/results/origin-server';
 import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { naturalKey } from '@/lib/performance/types';
@@ -131,7 +132,12 @@ export async function POST(request: NextRequest) {
     if ('error' in identity) {
       return NextResponse.json({ error: identity.error }, { status: 400 });
     }
-    const { postType, postCategory } = identity;
+    const { postType } = identity;
+    // An activity shared from Vitals is a TRAINING post (Oct 1 2026) — it
+    // lists under Vitals → Training Activity like a shared workout. The
+    // client need not say so.
+    const postCategory =
+      identity.postCategory ?? (isActivityShareRequest(incomingStatsData) ? ('training' as const) : null);
 
     // Content owner: the session user, or — guardian-profiles — a managed
     // athlete via targetProfileId. The shared gate (guardian-gate.ts) is
@@ -1225,8 +1231,17 @@ export async function GET(request: NextRequest) {
     // posts.status exists since migration 051.
     // The org lens takes the strict published-only arm even for the author —
     // pending posts have no place in an org schedule of public content.
+    // Results hidden from the profile (241) are the one exception to "the
+    // author sees their own": migration 241 assumed a status alone would hide
+    // them, and this arm handed every hidden result straight back to its
+    // owner — in the feed, unmarked ("Hide doesn't work", Tom, Oct 2026).
+    // They are returned in ONE place: the owner's own profile list, where the
+    // card says it is hidden and offers the way back.
+    const ownProfileList = !!userId && userId === currentUserId && !pinnedOnly;
     query = currentUserId && !orgScope && !contestFilter
-      ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)  // hardening-ok: session UUID
+      ? query.or(ownProfileList
+          ? `status.eq.published,profile_id.eq.${currentUserId}`  // hardening-ok: session UUID
+          : `status.eq.published,and(profile_id.eq.${currentUserId},status.neq.profile_hidden)`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
 
     if (pinnedOnly) {
@@ -1950,6 +1965,29 @@ export async function DELETE(request: NextRequest) {
     // Ownership or guardianship of the post's profile (Round C parity)
     if (!(await sessionMayManagePostContent(user.id, post.profile_id))) {
       return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+    }
+
+    // A REAL delete, asked for by name (Tom, Oct 2 2026: a for-fun result
+    // may be deleted; official ones only hidden). Everything below this
+    // block is the Sep 26 default — a result is HIDDEN — and stays the
+    // answer to a bare DELETE, so a tab opened before the deploy can never
+    // destroy what its confirm promised to keep.
+    if (searchParams.get('mode') === 'delete') {
+      const out = post.group_post_id
+        ? await deleteRoundResult(supabase, post.group_post_id, post.profile_id)
+        : await deleteResultPost(supabase, postId, post.profile_id);
+      if (out.status === 'deleted') return NextResponse.json({ success: true, deleted: true, message: 'Deleted for good.' });
+      if (out.status === 'refused') return NextResponse.json({ error: out.message }, { status: 409 }); // hardening-ok: crafted strings, see results/delete-rule.ts
+      if (out.status === 'error') return NextResponse.json({ error: out.message }, { status: 500 }); // hardening-ok: crafted strings, see results/delete-server.ts
+      if (out.status === 'forbidden') return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+      // not_found (a round row already gone): the caller still owns THIS
+      // post — plain post deletion proceeds below.
+      if (post.group_post_id) {
+        const orphan = await deletePostCascade(supabase, postId);
+        if (!orphan.ok) return NextResponse.json({ error: orphan.error }, { status: 500 });
+        return NextResponse.json({ success: true, deleted: true, message: 'Deleted for good.' });
+      }
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     // A round's post IS the round (Tom's call, Aug 19): deleting it deletes

@@ -24,11 +24,11 @@ function meta(week: PublicGolfWeek): string {
 
 function Chip({ status }: { status: 'posted' | 'final' }) {
   return status === 'posted' ? (
-    <span className="inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+    <span className="inline-block rounded-full bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
       posted
     </span>
   ) : (
-    <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+    <span className="inline-block rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
       final
     </span>
   );
@@ -90,7 +90,7 @@ function ResultsTable({ week, competitionId, basePath }: { week: PublicGolfWeek;
               )}
               <td className="py-1.5 pl-2 text-right">
                 <Chip status={r.status} />
-                {r.disputed ? <span className="ml-1 text-[11px] text-amber-700">disputed</span> : null}
+                {r.disputed ? <span className="ml-1 text-[11px] text-amber-700 dark:text-amber-300">disputed</span> : null}
               </td>
             </tr>
           ))}

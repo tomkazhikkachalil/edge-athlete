@@ -155,6 +155,31 @@ export async function GET(request: NextRequest) {
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
+    // A commenter whose profile is PRIVATE reaches a viewer who does not
+    // follow them with the author embed stripped by RLS: the comment drew as
+    // "Unknown User", with nothing to lead to its author (found Oct 2026 by
+    // the author-link spec). The name, handle and picture are the minimal
+    // card every viewer already gets for a private profile (/api/profile's
+    // MINIMAL_FIELDS) — the rule the mention note above states — so fill
+    // exactly those, and only for the rows that came back without one.
+    const authorless = [
+      ...new Set(
+        pageRows
+          .filter((c: { profile?: unknown }) => !c.profile)
+          .map((c: { profile_id: string }) => c.profile_id)
+      ),
+    ];
+    if (authorless.length > 0) {
+      const { data: authors } = await getSupabaseAdmin()
+        .from('profiles')
+        .select('id, first_name, middle_name, last_name, full_name, handle, avatar_url')
+        .in('id', authorless);
+      const byId = new Map((authors ?? []).map((a) => [a.id as string, a]));
+      for (const c of pageRows) {
+        if (!c.profile) c.profile = byId.get(c.profile_id as string) ?? null;
+      }
+    }
+
     // Hydrate mentioned profiles: id + handle + chosen name (see
     // MentionProfile). The handle confirms which tokens are real mentions;
     // the name is what the link renders. No avatars.

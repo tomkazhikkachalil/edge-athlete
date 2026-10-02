@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { THEME_INIT_SCRIPT } from '../theme-script';
+import { PUBLIC_THEME_SCRIPT, THEME_INIT_SCRIPT } from '../theme-script';
 import { THEME_PREFS_KEY } from '../theme-storage-keys';
 import { THEME_COOKIE, THEME_RESOLVED_COOKIE, encodeThemeCookie } from '../theme-cookie';
 import { THEME_COLOR } from '../theme-colors';
-import { resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
+import { DEFAULT_SCHEDULE, resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
 
 /**
  * THEME_INIT_SCRIPT duplicates resolveTheme() in inline ES5 so first paint
@@ -55,6 +55,8 @@ function run(opts: {
   cookie?: string | null;
   now: Date;
   systemPrefersDark?: boolean;
+  /** Which variant to execute — the app's by default. */
+  script?: string;
 }): RunResult {
   const metas = makeMetaStubs();
   const written: string[] = [];
@@ -69,6 +71,7 @@ function run(opts: {
     },
     documentElement: { dataset: {} as Record<string, string | undefined> },
     querySelectorAll: () => metas,
+    addEventListener: () => {},
   };
   let mirror = opts.stored ?? null;
   const localStorageStub = {
@@ -83,7 +86,7 @@ function run(opts: {
     }),
     location: { protocol: 'http:' },
   };
-  new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+  new Function('localStorage', 'window', 'document', 'Date', 'atob', opts.script ?? THEME_INIT_SCRIPT)(
     localStorageStub,
     windowStub,
     documentStub,
@@ -110,8 +113,7 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
   const daytime = { start: 540, end: 1020 };
 
   // Every stored payload the mirror can legally contain (it writes only
-  // sanitized prefs), across times chosen to hit both sides of every window
-  // and both fates of an override.
+  // sanitized prefs), across times chosen to hit both sides of every window.
   const cases: Array<{ name: string; prefs: unknown; now: Date; sys: boolean }> = [
     { name: 'no prefs at night', prefs: {}, now: aug5(23), sys: true },
     { name: 'off at night', prefs: { mode: 'off' }, now: aug5(23), sys: true },
@@ -121,8 +123,10 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     { name: 'scheduled default, evening', prefs: { mode: 'scheduled' }, now: aug5(23), sys: false },
     { name: 'scheduled default, after midnight', prefs: { mode: 'scheduled' }, now: aug6(3), sys: false },
     { name: 'scheduled default, noon', prefs: { mode: 'scheduled' }, now: aug5(12), sys: false },
-    { name: 'scheduled default, start boundary', prefs: { mode: 'scheduled' }, now: aug5(20), sys: false },
-    { name: 'scheduled default, end boundary', prefs: { mode: 'scheduled' }, now: aug6(7), sys: false },
+    { name: 'scheduled default, start boundary', prefs: { mode: 'scheduled' }, now: aug5(18), sys: false },
+    { name: 'scheduled default, end boundary', prefs: { mode: 'scheduled' }, now: aug6(9), sys: false },
+    { name: 'scheduled custom overnight, start boundary', prefs: { mode: 'scheduled', schedule: overnight }, now: aug5(20), sys: false },
+    { name: 'scheduled custom overnight, end boundary', prefs: { mode: 'scheduled', schedule: overnight }, now: aug6(7), sys: false },
     {
       name: 'scheduled custom same-day window, inside',
       prefs: { mode: 'scheduled', schedule: daytime },
@@ -135,66 +139,20 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
       now: aug5(18),
       sys: false,
     },
-    {
-      name: 'override to light, still active late evening',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'light', setAt: aug5(21).toISOString() },
-      },
-      now: aug5(23, 59),
-      sys: false,
-    },
-    {
-      name: 'override to light, still active pre-dawn',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'light', setAt: aug5(21).toISOString() },
-      },
-      now: aug6(6, 59),
-      sys: false,
-    },
-    {
-      name: 'override expired at the end boundary',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'light', setAt: aug5(21).toISOString() },
-      },
-      now: aug6(7),
-      sys: false,
-    },
-    {
-      name: 'override expired, next evening resumes dark',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'light', setAt: aug5(21).toISOString() },
-      },
-      now: aug6(21),
-      sys: false,
-    },
-    {
-      name: 'daytime override to dark, active before window',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'dark', setAt: aug5(14).toISOString() },
-      },
-      now: aug5(19, 59),
-      sys: false,
-    },
-    {
-      name: 'daytime override to dark, expired at window start',
-      prefs: {
-        mode: 'scheduled',
-        schedule: overnight,
-        override: { theme: 'dark', setAt: aug5(14).toISOString() },
-      },
-      now: aug5(20),
-      sys: false,
-    },
+    // Nothing stored = the default schedule (18:00–09:00), on both sides of
+    // both boundaries — the script carries its own copy of the hours.
+    { name: 'no prefs, 17:59', prefs: {}, now: aug5(17, 59), sys: false },
+    { name: 'no prefs, 18:00', prefs: {}, now: aug5(18), sys: false },
+    { name: 'no prefs, after midnight', prefs: {}, now: aug6(3), sys: false },
+    { name: 'no prefs, 08:59', prefs: {}, now: aug6(8, 59), sys: false },
+    { name: 'no prefs, 09:00', prefs: {}, now: aug6(9), sys: true },
+    { name: 'no prefs at noon, OS dark', prefs: {}, now: aug5(12), sys: true },
+    // Hours with no mode: still the schedule, on the stored hours.
+    { name: 'hours only, inside', prefs: { schedule: daytime }, now: aug5(10), sys: false },
+    { name: 'hours only, outside', prefs: { schedule: daytime }, now: aug5(18), sys: false },
+    // A pin keeps its hours and ignores them.
+    { name: 'pinned light with hours, in the window', prefs: { mode: 'off', schedule: overnight }, now: aug5(23), sys: true },
+    { name: 'pinned dark with hours, outside the window', prefs: { mode: 'on', schedule: overnight }, now: aug5(12), sys: false },
   ];
 
   for (const { name, prefs, now, sys } of cases) {
@@ -226,6 +184,46 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
       // starts from server truth and has nothing to correct
       expect(JSON.parse(mirror as string), name).toEqual(sanitized);
     }
+  });
+
+  it('the PUBLIC variant resolves the same matrix from both sources — and writes nothing', () => {
+    // Club and league sites (Oct 1 2026): one cached, viewer-independent
+    // document; the visitor's device reads the app's cookie, then its mirror,
+    // else the default schedule — and leaves no cookie and no storage behind.
+    const staleMirror = JSON.stringify({ mode: 'on' });
+    for (const { name, prefs, now, sys } of cases) {
+      const sanitized = sanitizeThemePrefs(prefs);
+      const expected = resolveTheme(sanitized, now, sys);
+
+      const fromMirror = run({ script: PUBLIC_THEME_SCRIPT, stored: JSON.stringify(sanitized), now, systemPrefersDark: sys });
+      expect(fromMirror.theme, `${name} (mirror)`).toBe(expected);
+      expect(fromMirror.cookieWrites, name).toEqual([]);
+
+      const fromCookie = run({ script: PUBLIC_THEME_SCRIPT, stored: staleMirror, cookie: encodeThemeCookie(sanitized), now, systemPrefersDark: sys });
+      expect(fromCookie.theme, `${name} (cookie)`).toBe(expected);
+      expect(fromCookie.cookieWrites, name).toEqual([]);
+      // The cookie wins but is NOT written back into the mirror here.
+      expect(fromCookie.mirror, name).toBe(staleMirror);
+    }
+  });
+
+  it('the PUBLIC variant with nothing to read (a custom domain) is the default schedule', () => {
+    expect(run({ script: PUBLIC_THEME_SCRIPT, now: aug5(23), systemPrefersDark: false }).theme).toBe('dark');
+    expect(run({ script: PUBLIC_THEME_SCRIPT, now: aug5(12), systemPrefersDark: true }).theme).toBe('light');
+  });
+
+  it('the PUBLIC variant darkens the chrome colour and leaves a light site\'s alone', () => {
+    const dark = run({ script: PUBLIC_THEME_SCRIPT, cookie: encodeThemeCookie({ mode: 'on' }), now: aug5(12) });
+    expect(dark.metaColors).toEqual([THEME_COLOR.dark, THEME_COLOR.dark]);
+    const light = run({ script: PUBLIC_THEME_SCRIPT, cookie: encodeThemeCookie({ mode: 'off' }), now: aug5(23) });
+    expect(light.metaColors).toEqual([THEME_COLOR.light, THEME_COLOR.dark]); // untouched stubs
+  });
+
+  it('neither variant carries the literal attribute name (the public pages are asserted free of it)', () => {
+    expect(THEME_INIT_SCRIPT).not.toContain('data-theme');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('data-theme');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('localStorage.setItem');
+    expect(PUBLIC_THEME_SCRIPT).not.toContain('document.cookie=');
   });
 
   it('points the browser-chrome metas at the resolved theme, not the OS', () => {
@@ -264,8 +262,11 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     const truncated = btoa('{"mode":"o').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     expect(run({ stored: darkMirror, cookie: truncated, now: aug5(12) }).theme).toBe('dark');
     // An EMPTY cookie is server truth meaning "no preference" — it must beat a
-    // stale dark mirror rather than being treated as absent.
+    // stale dark mirror rather than being treated as absent. No preference is
+    // the default schedule: light at noon, and dark at night over a stale
+    // LIGHT mirror.
     expect(run({ stored: darkMirror, cookie: encodeThemeCookie({}), now: aug5(12) }).theme).toBe('light');
+    expect(run({ stored: JSON.stringify({ mode: 'off' }), cookie: encodeThemeCookie({}), now: aug5(23) }).theme).toBe('dark');
   });
 
   it('clears a previously-stamped attribute when it resolves to light', () => {
@@ -284,20 +285,30 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     expect(documentStub.documentElement.dataset.theme).toBeUndefined();
   });
 
-  it('falls back to light on missing key, garbage JSON, and throwing storage', () => {
-    expect(runScript(null, aug5(23), true)).toBe('light');
-    expect(runScript('{not json', aug5(23), true)).toBe('light');
-    expect(runScript('"a string"', aug5(23), true)).toBe('light');
-    expect(runScript(JSON.stringify([1, 2]), aug5(23), true)).toBe('light');
+  it('a missing key, garbage JSON and throwing storage are all "nothing stored": the default schedule', () => {
+    for (const stored of [null, '{not json', '"a string"', JSON.stringify([1, 2])]) {
+      // The OS setting is deliberately the opposite each time — it is not consulted.
+      expect(runScript(stored, aug5(23), false), String(stored)).toBe('dark');
+      expect(runScript(stored, aug5(12), true), String(stored)).toBe('light');
+    }
 
-    const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> }, querySelectorAll: () => makeMetaStubs() };
-    new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
-      { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
-      { matchMedia: () => ({ matches: true }), location: { protocol: 'http:' } },
-      documentStub,
-      makeFrozenDate(aug5(23)),
-      (b64: string) => Buffer.from(b64, 'base64').toString('binary')
-    );
-    expect(documentStub.documentElement.dataset.theme).toBeUndefined();
+    const at = (now: Date) => {
+      const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> }, querySelectorAll: () => makeMetaStubs() };
+      new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+        { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
+        { matchMedia: () => ({ matches: false }), location: { protocol: 'http:' } },
+        documentStub,
+        makeFrozenDate(now),
+        (b64: string) => Buffer.from(b64, 'base64').toString('binary')
+      );
+      return documentStub.documentElement.dataset.theme;
+    };
+    expect(at(aug5(23))).toBe('dark');
+    expect(at(aug5(12))).toBeUndefined();
+  });
+
+  it('carries the default hours from theme-prefs, not its own copy', () => {
+    expect(THEME_INIT_SCRIPT).toContain(`st=ok?s.start:${DEFAULT_SCHEDULE.start};`);
+    expect(THEME_INIT_SCRIPT).toContain(`en=ok?s.end:${DEFAULT_SCHEDULE.end};`);
   });
 });

@@ -151,11 +151,13 @@ export function parseThemeAccent(themeTokenSet: unknown): string | null {
 }
 
 // ── Brand tokens (phase 6b B1) ──────────────────────────────────────────────
-// The masterplan's token set, bounded for a LIGHT-ONLY site that loads no
-// per-site fonts: accent (+ an explicit strong companion), a surface tint,
-// a typeface pair of CSS STACKS, and a wordmark. `text`/`primary`/
-// `secondary` are deliberately absent — a user-set text colour on white
-// is a contrast liability, and the primaries collapse into the accents.
+// The masterplan's token set, bounded for a site that loads no per-site
+// fonts: accent (+ an explicit strong companion), a surface tint, a
+// typeface pair of CSS STACKS, and a wordmark. `text`/`primary`/
+// `secondary` are deliberately absent — a user-set text colour is a
+// contrast liability on either theme, and the primaries collapse into the
+// accents. (Sites were LIGHT-ONLY until Oct 1 2026; `appearance` below is
+// how one stays that way.)
 
 /** 'sans' | 'serif' are CSS stacks (zero payload); the rest are self-hosted
  *  OFL heading faces a site loads only when it picks one (Site Builder
@@ -176,6 +178,12 @@ export const THEME_DENSITIES = ['comfortable', 'compact'] as const;
 export const THEME_TEAMS = ['chips', 'tiles'] as const;
 export const THEME_WIDTHS = ['standard', 'wide'] as const;
 export const THEME_DESIGN_KEYS = ['header', 'hero', 'density', 'teams', 'width'] as const;
+/** A site's FIXED look (Oct 1 2026). Absent = follow the visitor: their Edge
+ *  Athlete theme on this device, else the default schedule by their clock.
+ *  A colour decision like the accent — not a template design key, so it
+ *  survives a template change and a gallery pick. */
+export const THEME_APPEARANCES = ['light', 'dark'] as const;
+export type ThemeAppearance = (typeof THEME_APPEARANCES)[number];
 
 export interface ThemeTokens {
   /** Program 2, C (Sep 11 2026): the chosen site icon — an org-media/{siteId}/ image; null = the logo, else the generated favicon. */
@@ -193,6 +201,8 @@ export interface ThemeTokens {
   density: (typeof THEME_DENSITIES)[number] | null;
   teams: (typeof THEME_TEAMS)[number] | null;
   width: (typeof THEME_WIDTHS)[number] | null;
+  /** null = follow the visitor; 'light' | 'dark' = the site's fixed look. */
+  appearance: ThemeAppearance | null;
 }
 
 /** Defensive render-side parse of the whole token set — every key is
@@ -223,6 +233,7 @@ export function parseThemeTokens(themeTokenSet: unknown): ThemeTokens {
     density: pick(THEME_DENSITIES, raw.density),
     teams: pick(THEME_TEAMS, raw.teams),
     width: pick(THEME_WIDTHS, raw.width),
+    appearance: pick(THEME_APPEARANCES, raw.appearance),
   };
 }
 
@@ -764,6 +775,8 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     density: z.enum(THEME_DENSITIES).nullable().optional(),
     teams: z.enum(THEME_TEAMS).nullable().optional(),
     width: z.enum(THEME_WIDTHS).nullable().optional(),
+    // The fixed look: a value sets, null clears (follow the visitor), absent carries over.
+    appearance: z.enum(THEME_APPEARANCES).nullable().optional(),
   }),
   z.object({
     action: z.literal('set_template'),

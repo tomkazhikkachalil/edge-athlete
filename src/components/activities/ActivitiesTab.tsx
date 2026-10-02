@@ -1,6 +1,7 @@
 'use client';
 
-// The profile's Activities tab (both /athlete/[id] and /u/[username]).
+// The profile's activities — a SECTION OF VITALS since Oct 1 2026 (it was its
+// own profile tab; `?tab=activities` still lands here, see VitalsTab).
 // It fetches its OWN gated endpoint (the /u/ payload is CDN-cached as a
 // stranger's view; the Vitals tab's pattern) and renders what came back:
 // this week, twelve weeks of distance, the list (newest first, "Load more"
@@ -10,6 +11,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
 import { formatDistance, formatDuration, formatPace, readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
 import type { WeekTotal } from '@/lib/activities/totals';
@@ -22,6 +25,8 @@ interface Page {
   totals: WeekTotal[] | null;
   count: number | null;
   isOwner: boolean;
+  /** The athlete hides Vitals (or its Workouts aspect) from this viewer. */
+  hidden?: boolean;
 }
 
 type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'hidden' } | { kind: 'ready'; items: ActivityView[]; next: string | null; totals: WeekTotal[]; count: number; isOwner: boolean };
@@ -32,7 +37,12 @@ const shortDate = (iso: string) => {
 };
 
 export default function ActivitiesTab({ profileId }: { profileId: string }) {
+  // Inside Vitals the section explains itself to its owner and stays out of
+  // a viewer's way: nothing to show renders nothing (no "not available" line
+  // under somebody else's Vitals).
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const { user } = useAuth();
+  const isSelf = user?.id === profileId;
   const [unit] = useState<DistanceUnit>(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -57,7 +67,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
     let live = true;
     void fetchPage(null).then(p => {
       if (!live) return;
-      if (p === 'hidden') setState({ kind: 'hidden' });
+      if (p === 'hidden' || (p && p.hidden)) setState({ kind: 'hidden' });
       else if (!p) setState({ kind: 'error' });
       else setState({ kind: 'ready', items: p.items, next: p.next, totals: p.totals ?? [], count: p.count ?? p.items.length, isOwner: p.isOwner });
     });
@@ -81,23 +91,38 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
       </div>
     );
   }
-  if (state.kind === 'hidden') return <p className="py-8 text-center text-secondary">Activities are not available.</p>;
+  if (state.kind === 'hidden') return null;
   if (state.kind === 'error') return <p className="py-8 text-center text-secondary">Could not load activities. Check your connection and try again.</p>;
+  if (!state.isOwner && state.count === 0) return null;
 
   const thisWeek = state.totals.length > 0 ? state.totals[state.totals.length - 1] : null;
   const maxDist = state.totals.reduce((m, w) => (w.distanceM > m ? w.distanceM : m), 0);
   const span = state.totals.reduce((t, w) => ({ distanceM: t.distanceM + w.distanceM, count: t.count + w.count }), { distanceM: 0, count: 0 });
 
   return (
-    <div className="space-y-6" data-activities-tab>
-      {state.isOwner && (
-        <div className="flex justify-end">
-          <Link href="/activities/import" className="ea-cta inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold min-h-[44px]" data-activities-import-link>
-            <i className="fas fa-file-arrow-up" aria-hidden="true" />
-            Import activity
-          </Link>
+    <div className="space-y-4 scroll-mt-24" id="vitals-activities" data-activities-tab>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold text-primary">Activities</h3>
+          <p className="text-xs text-muted mt-0.5">Runs, rides, swims and hikes from your watch or app.</p>
         </div>
-      )}
+        {state.isOwner && (
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Connections are the account's own (Settings): offered to the
+                athlete, never to a guardian looking at their athlete's Vitals. */}
+            {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
+              <Link href="/settings?tab=connections" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-connect-link>
+                <i className="fas fa-link text-xs" aria-hidden="true" />
+                Connect a watch
+              </Link>
+            )}
+            <Link href="/activities/import" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-import-link>
+              <i className="fas fa-file-arrow-up text-xs" aria-hidden="true" />
+              Import activity
+            </Link>
+          </div>
+        )}
+      </div>
 
       {state.count === 0 ? (
         <div className="ea-surface rounded-lg p-8 text-center">
@@ -152,6 +177,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                       </p>
                       <p className="text-xs text-muted">
                         {def.label} · {shortDate(a.occurredOn)}
+                        {a.credit && <span data-activity-credit> · {a.credit}</span>}
                       </p>
                       <p className="mt-1 text-sm text-secondary tabular-nums">
                         {formatDistance(a.distanceM, unit)} · {formatDuration(a.movingS ?? a.elapsedS)} · {pace.value}

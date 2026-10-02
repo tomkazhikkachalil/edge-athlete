@@ -37,4 +37,4 @@ export function anyScoreRecorded(participants: ReadonlyArray<{ scores?: { holes_
 }
 
 /** The words a successful "delete" of a result answers with. */
-export const HIDDEN_NOTICE = 'Hidden from your profile. It still counts toward your stats — you can show it again under Settings → Privacy.';
+export const HIDDEN_NOTICE = 'Hidden from your profile. It still counts toward your stats — show it again from your own profile or Settings → Privacy.';

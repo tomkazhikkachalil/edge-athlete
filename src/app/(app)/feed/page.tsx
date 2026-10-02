@@ -20,6 +20,7 @@ import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy
 import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
+import InstallCard from '@/components/install/InstallCard';
 
 /** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
 const NEW_POSTS_POLL_MS = 60_000;
@@ -31,7 +32,6 @@ import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const EditPostModal = dynamic(() => import('@/components/EditPostModal'), { ssr: false });
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
-const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 interface Post {
   id: string;
@@ -120,7 +120,6 @@ export default function FeedPage() {
     }
   }, []);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
@@ -439,27 +438,43 @@ export default function FeedPage() {
     showSuccess('Success', 'Post updated successfully!');
   };
 
-  const handleDelete = async (postId: string) => {
+  const handleDelete = async (postId: string, mode?: 'delete') => {
+    // Optimistic (Oct 2026): the card leaves at the tap. It used to stay
+    // until the server answered — seconds on a slow connection, which read
+    // as "nothing happened". A refusal or a failure puts it back in place.
+    const before = postsRef.current;
+    const index = before.findIndex(post => post.id === postId);
+    const removed = index >= 0 ? before[index] : null;
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
     try {
-      const response = await fetch(`/api/posts?postId=${postId}`, {
+      const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
         method: 'DELETE',
         credentials: 'include'
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to delete post');
       }
 
-      // Remove post from local state
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-      // Results-kept (241): a result comes back hidden, not deleted.
+      // Results-kept (241): a bare delete of a result comes back hidden; a
+      // delete asked for by name (Oct 2026) is gone for good.
       const body = await response.json().catch(() => ({}));
       if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
       else showSuccess('Success', 'Post deleted successfully');
     } catch (e) {
+      if (removed) {
+        setPosts(prevPosts => {
+          if (prevPosts.some(post => post.id === postId)) return prevPosts;
+          const next = [...prevPosts];
+          next.splice(Math.min(index, next.length), 0, removed);
+          return next;
+        });
+      }
       console.error('Failed to delete post:', e);
-      showError('Error', 'Failed to delete post');
+      // The server's own words when it has some (a refusal names its reason).
+      showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
     }
   };
 
@@ -482,7 +497,6 @@ export default function FeedPage() {
       <AppHeader
         showSearch={true}
         onCreatePost={() => setIsCreatePostModalOpen(true)}
-        onEditProfile={() => setIsEditProfileModalOpen(true)}
       />
 
       {/* Main Layout */}
@@ -578,6 +592,10 @@ export default function FeedPage() {
             {/* First-run checklist for new accounts — the day-one golfer's
                 guidance (self-hiding: age gate, dismissal, all-steps-done). */}
             <GetStartedCard onLogRound={() => setIsCreatePostModalOpen(true)} />
+            {/* "Download the app" — phones and tablets, once. Kept the NEXT
+                SIBLING of the card above: globals.css hides it while that
+                card shows, so a new account never gets two cards at once. */}
+            <InstallCard />
 
             <div className="flex gap-2 mb-4 sm:mb-6" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
@@ -829,8 +847,8 @@ export default function FeedPage() {
           // End Round lands here (/feed?post=). Without onDelete the trash
           // used to render and silently no-op — the "delete after end round
           // won't let me" bug. Reuses the list's handler, then closes.
-          onDelete={(postId) => {
-            handleDelete(postId);
+          onDelete={(postId, mode) => {
+            handleDelete(postId, mode);
             setDeepLinkPostId(null);
             window.history.replaceState(null, '', '/feed');
           }}
@@ -847,16 +865,6 @@ export default function FeedPage() {
         />
       )}
 
-      {/* Edit Profile Modal */}
-      <EditProfileTabs
-        isOpen={isEditProfileModalOpen}
-        onClose={() => setIsEditProfileModalOpen(false)}
-        profile={profile}
-        onSave={() => {
-          // Profile will be refreshed automatically by useAuth
-          setIsEditProfileModalOpen(false);
-        }}
-      />
 
       {/* Toast Container */}
     </div>
