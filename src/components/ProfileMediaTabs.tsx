@@ -1,6 +1,7 @@
 'use client';
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { COPY } from '@/lib/copy';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
 import PostDetailModal from './PostDetailModal';
@@ -310,9 +311,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     }
   };
 
-  const handleDelete = async (postId: string) => {
+  const handleDelete = async (postId: string, mode?: 'delete') => {
     try {
-      const response = await fetch(`/api/posts?postId=${postId}`, {
+      const response = await fetch(`/api/posts?postId=${postId}${mode === 'delete' ? '&mode=delete' : ''}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -339,6 +340,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       fetchCountsRef.current();
 
       if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
       else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');

@@ -175,8 +175,13 @@ async function hideSeenToHappen(browser: import('@playwright/test').Browser, vie
       await feedCard.locator('[data-post-delete="hide"]').click();
     }
     await expect(page.getByText('Hide from your profile?')).toBeVisible();
+    // The card leaves at the tap (optimistic); the SERVER's answer is what the
+    // checks below depend on — a slow first attempt on prod WebKit once ran
+    // past a fixed 15 s window here.
+    const answered = page.waitForResponse(r => r.url().includes(`/api/posts?postId=${postId}`) && r.request().method() === 'DELETE', { timeout: 45_000 });
     await page.getByRole('button', { name: 'Hide', exact: true }).click();
     await expect(feedCard).toHaveCount(0, { timeout: 15_000 });
+    expect((await answered).status()).toBe(200);
 
     // It STAYS gone: the feed no longer hands it back to its owner…
     expect((await admin.from('posts').select('status').eq('id', postId).single()).data?.status).toBe('profile_hidden');

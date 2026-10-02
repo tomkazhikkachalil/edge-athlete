@@ -1,5 +1,6 @@
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { setWholeResultHidden } from '@/lib/results/hide-server';
+import { deleteRoundResult, deleteSoloRound } from '@/lib/results/delete-server';
 import { resolveResultOrigin } from '@/lib/results/origin-server';
 import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { NextRequest, NextResponse } from 'next/server';
@@ -295,7 +296,7 @@ export async function DELETE(
 
     const { data: round } = await supabase
       .from('golf_rounds')
-      .select('id, profile_id')
+      .select('id, profile_id, group_post_id')
       .eq('id', roundId)
       .maybeSingle();
 
@@ -304,6 +305,19 @@ export async function DELETE(
     }
     if (round.profile_id !== user.id) {
       return NextResponse.json({ error: 'Only the round owner can delete it' }, { status: 403 });
+    }
+
+    // A REAL delete, asked for by name (Oct 2 2026): a for-fun round may be
+    // deleted by its player; an official one is refused and can be hidden.
+    if (new URL(request.url).searchParams.get('mode') === 'delete') {
+      const out = round.group_post_id
+        ? await deleteRoundResult(supabase, round.group_post_id as string, user.id)
+        : await deleteSoloRound(supabase, roundId, user.id);
+      if (out.status === 'deleted') return NextResponse.json({ success: true, deleted: true, message: 'Round deleted' });
+      if (out.status === 'refused') return NextResponse.json({ error: out.message }, { status: 409 }); // hardening-ok: crafted strings, see results/delete-rule.ts
+      if (out.status === 'error') return NextResponse.json({ error: out.message }, { status: 500 }); // hardening-ok: crafted strings, see results/delete-server.ts
+      if (out.status === 'forbidden') return NextResponse.json({ error: 'Only the round owner can delete it' }, { status: 403 });
+      return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
     // The whole result — the round's feed post goes with it (it stayed

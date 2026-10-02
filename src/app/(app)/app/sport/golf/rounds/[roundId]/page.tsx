@@ -206,6 +206,30 @@ export default function GolfRoundDetailPage() {
     }
   };
 
+  // Delete for good (Tom, Oct 2 2026): a round that is not from a tournament,
+  // a club or a league may be deleted by its player — it stops counting.
+  const [showDeleteForGood, setShowDeleteForGood] = useState(false);
+  const handleDeleteForGood = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/golf/rounds/${roundId}?mode=delete`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError('Could not delete it', data.error || 'Please try again.');
+        return;
+      }
+      showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
+      backOr(router, '/athlete');
+    } catch (e) {
+      console.error('Failed to delete the round:', e);
+      showError('Something went wrong', 'Please try again.');
+    } finally {
+      setDeleting(false);
+      setShowDeleteForGood(false);
+    }
+  };
+
   // Results-kept round (241, Tom: "hide only, no delete"): a round is hidden
   // from the profile — it stays on the record and keeps counting. The owner can
   // show it again from here or Settings → Privacy.
@@ -315,6 +339,18 @@ export default function GolfRoundDetailPage() {
                 >
                   <i className={`fas ${round.profile_hidden_at ? 'fa-eye' : 'fa-eye-slash'} mr-1`}></i>
                   {round.profile_hidden_at ? 'Show on profile' : 'Hide'}
+                </button>
+                {/* A for-fun round can be deleted for good (Oct 2026); an
+                    official one is refused by the server, in its own words. */}
+                <button
+                  onClick={() => setShowDeleteForGood(true)}
+                  disabled={deleting}
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-red-600 rounded-md text-sm font-medium text-red-600 bg-surface hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-60"
+                  data-round-delete=""
+                  aria-label={COPY.FORMS.DELETE_RESULT_LABEL}
+                >
+                  <i className="fas fa-trash sm:mr-1" aria-hidden="true"></i>
+                  <span className="hidden sm:inline">Delete</span>
                 </button>
               </div>
             )}
@@ -628,6 +664,15 @@ export default function GolfRoundDetailPage() {
         confirmButtonClass="bg-brand hover:bg-brand-hover text-white"
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <ConfirmModal
+        isOpen={showDeleteForGood}
+        title={COPY.FORMS.DELETE_RESULT_TITLE}
+        message={COPY.FORMS.DELETE_RESULT_CONFIRM}
+        confirmText={deleting ? 'Deleting…' : COPY.FORMS.DELETE_RESULT_ACTION}
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        onConfirm={handleDeleteForGood}
+        onCancel={() => setShowDeleteForGood(false)}
       />
     </div>
   );

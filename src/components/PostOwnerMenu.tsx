@@ -20,14 +20,17 @@ interface Props {
   deleteLabel?: string;
   /** The result is hidden from the profile: the row that brings it back. */
   onShowAgain?: () => void;
+  /** A for-fun result can be deleted for real (Oct 2026) — beside Hide, never instead of it. */
+  onDeleteForGood?: () => void;
 }
 
-export default function PostOwnerMenu({ isPinned, pinBusy, onTogglePin, onEdit, onDelete, deleteLabel, onShowAgain }: Props) {
+export default function PostOwnerMenu({ isPinned, pinBusy, onTogglePin, onEdit, onDelete, deleteLabel, onShowAgain, onDeleteForGood }: Props) {
   const items: ActionMenuItem[] = [
     { key: 'pin', label: isPinned ? 'Unpin from profile' : 'Pin to profile', icon: 'fa-thumbtack', onSelect: onTogglePin, disabled: pinBusy },
     { key: 'edit', label: 'Edit post', icon: 'fa-edit', onSelect: onEdit },
     ...(onShowAgain ? [{ key: 'show', label: 'Show on profile', icon: 'fa-eye', onSelect: onShowAgain }] : []),
-    ...(onDelete ? [{ key: 'delete', label: deleteLabel ?? 'Delete post', icon: deleteLabel ? 'fa-eye-slash' : 'fa-trash', onSelect: onDelete, tone: 'danger' as const }] : []),
+    ...(onDelete ? [{ key: 'delete', label: deleteLabel ?? 'Delete post', icon: deleteLabel ? 'fa-eye-slash' : 'fa-trash', onSelect: onDelete, ...(deleteLabel ? {} : { tone: 'danger' as const }) }] : []),
+    ...(onDeleteForGood ? [{ key: 'delete-for-good', label: 'Delete for good', icon: 'fa-trash', onSelect: onDeleteForGood, tone: 'danger' as const }] : []),
   ];
   return <ActionMenu items={items} ariaLabel="Post options" triggerClassName="sm:hidden" />;
 }

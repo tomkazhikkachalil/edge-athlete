@@ -1,5 +1,36 @@
 # Development Log
 
+## October 2, 2026 — Quick fixes, PR 2: Delete, for real — for-fun results, and any round still being played
+
+Tom: "Users should be able to delete any round or activity that doesn't come from an official tournament or club stats. Right now the only way to close a round is by pressing End Round, but a round that isn't tied to a tournament should always be deletable." Asked which rule he wanted against his own Sep 26 "results are never lost", he chose **both Hide and Delete**: Hide keeps counting and can be undone; Delete is gone for good and stops counting; official results can only be hidden. This amends convention 27.
+
+**What was wrong beyond the rule:**
+- A scored LIVE round's "Delete" hid the post and left the round running — still in Live Now and the resume banner — and when it later completed, its stats row appeared unhidden. The only real way out was End Round, which RECORDS the round.
+- On the feed / profile card a live round offered End Round only; Delete existed on `/live` alone.
+- The feed card stayed on screen until the server answered — seconds on a slow connection, which read as "nothing happened".
+
+**The rule — `src/lib/results/delete-rule.ts planResultDelete` (pure, 11 tests):**
+- official (the origin resolver, which fails closed) or an event round → **refuse**, in words that name Hide;
+- a casual round still pending or live → its **creator discards it whole**, whatever has been scored (nothing is recorded until a round completes); a playing partner cannot;
+- finished, and nobody else played → **the whole round**: post, card, stats row, dataset row;
+- finished and shared → **the requester's result only**: their stats row, their dataset row and their scores on the card (the scores too — a later re-mirror would write the stats row back from them), plus the round's post when they created it. Partners keep everything.
+
+**The writer — `src/lib/results/delete-server.ts`**, behind three doors that must ask BY NAME (`?mode=delete` on `DELETE /api/posts`, `/api/group-posts/[id]`, `/api/golf/rounds/[id]`). A bare DELETE keeps its Sep 26 meaning — a result is hidden — so a tab opened before the deploy can never destroy what its confirm promised to keep.
+
+**The doors people see:**
+- a finished for-fun result: **Hide from profile** and **Delete for good**, side by side — two buttons from `sm` up, two rows in the phone menu; the delete confirm says it stops counting and points at Hide for anyone who only wants it off their profile; with partners it says they keep theirs;
+- a round still being played: **Delete** on the card itself (feed, profile, the post pop-up) as well as on `/live`, with words that say the scores so far go — partners' too;
+- the round page: a Delete button beside Hide;
+- an event's round keeps the Sep 26 behaviour (the organizer's record).
+- The feed removes the card at the tap and puts it back if the server refuses, with the server's own words.
+
+**Proof:**
+- Unit: `results-delete.test.ts` (the rule, the doors ask by name, the writer reads the origin before removing anything, own-result deletes are keyed by the requester); the `.delete()` allowlist names the new writer.
+- `e2e/round-delete.spec.ts` + `results-hide.spec.ts`, 14 of 14 locally (desktop, phone Chromium, phone WebKit): a SCORED live round deleted from `/live` and from its card (404, not in Live Now, nothing recorded); a finished round offers both doors and Delete removes the post, the round, the stats row and the dataset row; in a shared round the creator's delete leaves the partner's round, stats and scores, and the partner then deletes their own; an official result answers 409 in plain words and can still be hidden; a bare DELETE still hides.
+- 375 px by eye: the phone menu's two rows, the confirm, the round page's three buttons (no sideways scroll).
+
+**The production probe of PR 1** (recorded here because it shaped this PR): 4 of 5 passed outright; the fifth — phone WebKit — ran past a fixed 15 s window on its first attempt and passed on the retry. The hide spec now waits for the server's answer rather than a clock, and the card's removal no longer waits for it at all.
+
 ## October 2, 2026 — Quick fixes, PR 1: Hide really hides, and the way back is on your profile
 
 Tom: "The hide function doesn't work… when you hide a post, it still appears on your athlete profile, but there is no way to unhide it." And of a for-fun round he deleted: "it is neither deleted nor hidden."

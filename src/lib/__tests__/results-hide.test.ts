@@ -51,8 +51,11 @@ describe('the doors hide instead of deleting', () => {
     expect(del).not.toMatch(/\.delete\(\)/);
   });
   it('DELETE /api/posts hides a result post and a scored round; an ordinary post still deletes', () => {
-    const del = code('src/app/api/posts/route.ts').split('export async function DELETE')[1];
-    expect(del).toMatch(/deleteOrHideRound\(supabase, post\.group_post_id, post\.profile_id\)/);
+    // The BARE delete — everything after the named-delete block (Oct 2026:
+    // `?mode=delete` is the only door that removes a result; results-delete.test.ts).
+    const whole = code('src/app/api/posts/route.ts').split('export async function DELETE')[1];
+    const del = whole.slice(whole.indexOf('deleteOrHideRound('));
+    expect(whole).toMatch(/deleteOrHideRound\(supabase, post\.group_post_id, post\.profile_id\)/);
     expect(del.indexOf('isResultPost(')).toBeGreaterThan(-1);
     expect(del.indexOf('isResultPost(')).toBeLessThan(del.indexOf('deletePostCascade('));
   });
@@ -112,6 +115,7 @@ describe('the delete allowlist (a new deleting path fails the gate)', () => {
   const ALLOWED: Record<string, string> = {
     'src/lib/account-deletion.ts': 'the account-erasure path (the departure rules decide what survives)',
     'src/lib/golf/round-delete-server.ts': 'an UNPLAYED round only (deleteOrHideRound decides)',
+    'src/lib/results/delete-server.ts': 'the player’s own for-fun result, asked for by name (Oct 2026; delete-rule.ts decides — official and event results are refused)',
     'src/lib/golf/post-write.ts': 'the rollback of a round whose holes failed to save, before any post exists',
     'src/lib/sport-events/opt-out.ts': 'removeMirrorFor — support’s mistaken-result removal (results-kept PR 4); no user door calls it',
     'src/lib/performance/write-server.ts': 'the dataset writer itself (a row whose origin is gone)',
