@@ -28,13 +28,18 @@ export async function applyMatchResults(admin: Admin, labels: Map<string, PostSp
       admin.from('sport_events').select(EVENT_COLUMNS).in('id', eventIds),
     ]);
     const events = new Map(((eventRows ?? []) as SportEventRow[]).map(e => [e.id, e]));
-    for (const round of (roundRows ?? []) as SportEventRoundRow[]) {
-      const label = labels.get(round.id);
-      const event = events.get(round.sport_event_id);
-      if (!label || !event) continue;
-      const matches = await fetchRoundMatches(admin, event, round);
-      label.match_results = matchResultsFor(matches.map(projectMatch));
-    }
+    // The rounds' matches are read side by side, not one after another
+    // (speed round, Oct 2026) — a page with several finished match rounds
+    // waited for each in turn.
+    await Promise.all(
+      ((roundRows ?? []) as SportEventRoundRow[]).map(async round => {
+        const label = labels.get(round.id);
+        const event = events.get(round.sport_event_id);
+        if (!label || !event) return;
+        const matches = await fetchRoundMatches(admin, event, round);
+        label.match_results = matchResultsFor(matches.map(projectMatch));
+      })
+    );
     for (const e of wanting) if (e.match_results === undefined) e.match_results = null;
   } catch (err) {
     console.error('[sport-events feed] match results failed:', err);

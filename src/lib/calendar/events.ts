@@ -11,10 +11,9 @@ import { UUID_RE } from '@/lib/uuid';
 import { isValidTimeZone } from './time-zones';
 import { orgRefFromBody } from '@/lib/orgs/org-ref';
 
-export const EVENT_CATEGORIES = [
-  'general', 'practice', 'game', 'tournament', 'training', 'social', 'other', 'workout',
-] as const;
-export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+import { EVENT_CATEGORIES, type EventCategory } from './event-categories';
+
+export { EVENT_CATEGORIES, type EventCategory };
 
 export const MAX_TITLE = 120;
 export const MAX_DESCRIPTION = 2000;

@@ -12,8 +12,23 @@
 // Zod's compiled fast path. Imported for its side effect from AuthProvider
 // (src/lib/auth.tsx), which is in every client bundle and evaluates before
 // any schema parse runs.
-import { z } from 'zod';
+//
+// WITHOUT importing zod (speed round, Oct 2026): `import { z } from 'zod'`
+// here put the whole library (~287 KB) into EVERY page's bundle, though most
+// pages never parse a schema in the browser. Zod keeps its global settings on
+// `globalThis.__zod_globalConfig` and creates that object only if it is
+// absent (zod/v4/core/core.js), so writing the flag there first is the same
+// `z.config({ jitless: true })` — and if zod happened to load earlier, the
+// write lands on its live object. Pinned against the installed zod by
+// src/lib/__tests__/zod-client-config.test.ts.
+
+type ZodGlobal = { __zod_globalConfig?: Record<string, unknown> };
+
+export function applyZodJitless(target: ZodGlobal = globalThis as ZodGlobal): void {
+  const current = target.__zod_globalConfig ?? (target.__zod_globalConfig = {});
+  current.jitless = true;
+}
 
 if (typeof window !== 'undefined') {
-  z.config({ jitless: true });
+  applyZodJitless();
 }

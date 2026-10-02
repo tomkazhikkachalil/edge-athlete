@@ -366,17 +366,30 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Whether the list has been fetched since this user's channel was set up —
+  // the ONE initial read (speed round, Oct 2026: it used to be two, one on
+  // mount and one when the realtime channel went live).
+  const initialFetchedRef = useRef(false);
+
   // Initial fetch on mount and cleanup on logout
   useEffect(() => {
     if (user) {
-      // One request on mount, not two: fetchNotifications' response already
-      // carries unread_count and sets it (see :191), so the separate
-      // refreshUnreadCount() call was redundant. The SUBSCRIBED handler still
-      // re-fetches once to close the mount→subscription gap.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchNotifications({ reset: true });
+      // ONE request: the read waits for the realtime channel to go live
+      // (the SUBSCRIBED handler below), so no row can fall into the gap
+      // between the read and the subscription — the reason a second read
+      // used to follow. If the channel is slow or fails, this fallback reads
+      // anyway after 2.5 s (and SUBSCRIBED, if it comes later, reads again to
+      // close that gap). fetchNotifications' response carries unread_count.
+      initialFetchedRef.current = false;
+      const fallback = setTimeout(() => {
+        if (initialFetchedRef.current) return;
+        initialFetchedRef.current = true;
+        void fetchNotifications({ reset: true });
+      }, 2500);
+      return () => clearTimeout(fallback);
     } else {
       // Clear notifications when user logs out
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the sign-out reset is the effect's job (the per-user state is owned here)
       setNotifications([]);
       setUnreadCount(0);
       setHasMore(false);
@@ -475,9 +488,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Track connection status
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
-          // Close the gap: rows created between the initial fetch and the
-          // subscription becoming live would otherwise be missed until the
-          // next manual refresh.
+          // The initial read happens HERE, once the channel is live — no row
+          // can be missed between the read and the subscription. (After a
+          // reconnect, the same read closes the reconnect's gap.)
+          initialFetchedRef.current = true;
           fetchNotificationsRef.current?.({ reset: true });
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');

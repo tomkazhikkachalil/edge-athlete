@@ -178,6 +178,11 @@ export async function middleware(request: NextRequest) {
   // which would otherwise serve a stranger a public page. A signed-in
   // account falls through to the app unchanged. The session read costs the
   // round trip the normal path pays anyway; only gated paths pay it here.
+  // The gate's session read, kept for the session refresh below (speed
+  // round, Oct 2026): a signed-in navigation used to ask Supabase Auth TWICE
+  // — here, then again for the refresh. `undefined` = the gate did not read.
+  let gateUser: Awaited<ReturnType<ReturnType<typeof createServerClient>['auth']['getUser']>>['data']['user'] | undefined
+  const gateCookies: { name: string; value: string; options?: Record<string, unknown> }[] = []
   if (isLaunchGateOn()) {
     if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
       const robots = request.nextUrl.pathname === '/robots.txt'
@@ -188,12 +193,26 @@ export async function middleware(request: NextRequest) {
     }
     const target = launchGateRedirect(request.nextUrl.pathname, request.nextUrl.search)
     if (target) {
+      // A refreshed session's cookies are KEPT (they reach the request now
+      // and the response below) — the same work the refresh client does, so
+      // the refresh client need not ask again.
       const gateClient = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
+        {
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: cookiesToSet => {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                request.cookies.set(name, value)
+                gateCookies.push({ name, value, options: options as Record<string, unknown> | undefined })
+              })
+            },
+          },
+        }
       )
-      const { data: { user: gateUser } } = await gateClient.auth.getUser()
+      const { data } = await gateClient.auth.getUser()
+      gateUser = data.user
       if (!gateUser) return NextResponse.redirect(new URL(target, request.url), 307)
     }
   }
@@ -304,8 +323,18 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired - required for SSR
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session if expired - required for SSR. When the launch gate
+  // already read (and, if needed, refreshed) this session, its answer and
+  // its cookies are used — one Auth round trip per navigation, not two.
+  let user = gateUser
+  if (user === undefined) {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } else {
+    for (const { name, value, options } of gateCookies) {
+      response.cookies.set({ name, value, ...(options ?? {}) })
+    }
+  }
 
   await syncThemeCookie(request, response, supabase, user?.id)
 

@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Theme } from 'emoji-picker-react';
+// A TYPE import only (speed round, Oct 2026): a value import of the enum
+// pulled the whole picker and its emoji data into every page's bundle; the
+// picker itself is loaded on demand below.
+import type { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import { useTheme } from '@/lib/use-theme';
 import { placePanel } from '@/lib/panel-placement';
@@ -164,7 +167,7 @@ export default function EmojiPickerButton({
   const panel = (
     <EmojiPicker
       onEmojiClick={handleEmojiClick}
-      theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
+      theme={(theme === 'dark' ? 'dark' : 'light') as Theme}
       lazyLoadEmojis
       height={350}
       width={`min(${PANEL_WIDTH_PX}px, calc(100vw - 2rem))`}
