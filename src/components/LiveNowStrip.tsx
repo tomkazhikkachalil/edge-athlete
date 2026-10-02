@@ -58,7 +58,9 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   // guaranteed 401 every minute.
   useEffect(() => {
     let cancelled = false;
+    let lastRun = 0;
     const run = async () => {
+      lastRun = Date.now();
       // Phase 4: live EVENTS answer signed out too (a public event is a place anyone can watch).
       try {
         const res = await fetch('/api/sport-events/live-now', { credentials: 'include' });
@@ -73,12 +75,17 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       } catch { /* strip is a nicety — never break the page */ }
     };
     run();
-    // A hidden tab does not poll (Round 3); returning to it catches up.
+    // A hidden tab does not poll (Round 3); returning to it catches up — but
+    // only when what it shows is older than 30 s (speed round, Oct 2026: a
+    // phone switching apps every few seconds refetched both lists each time).
     const tick = () => { if (document.visibilityState === 'visible') run(); };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRun > 30_000) run();
+    };
     const interval = setInterval(tick, REFRESH_MS);
-    document.addEventListener('visibilitychange', tick);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      document.removeEventListener('visibilitychange', tick);
+      document.removeEventListener('visibilitychange', onVisible);
       cancelled = true;
       clearInterval(interval);
     };

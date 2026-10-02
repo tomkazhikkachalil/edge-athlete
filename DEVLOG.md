@@ -1,5 +1,48 @@
 # Development Log
 
+## October 2, 2026 — The speed round: the app stops rebuilding itself, and every page downloads less
+
+Tom: "the app runs very slow, especially the mobile version that is downloaded… make the application run much faster, especially the production version… without breaking anything."
+
+**Measured first, on production** (new `e2e/perf-feed.spec.ts`, signed-in QA account, cold `/feed`). Time to the first post visible:
+
+| Engine | First post | Requests on load |
+| --- | --- | --- |
+| Desktop | 3.4 s | 23 |
+| Phone Chromium (CPU slowed ×4) | 4.2 s | 23 |
+| Phone WebKit | 6.2 s | 24 |
+
+- **About 695 KB of JS transferred.**
+- **One session token refresh** (every 15 min, and on the spot when a phone reopens the app after a while) reloaded the feed, refetched `/api/notifications` four times and re-read the profile.
+
+**The causes, and the changes (zero DDL):**
+1. **The app rebuilt itself on every auth event.** `onAuthStateChange` handed React a NEW user object and re-read the profile on every TOKEN_REFRESHED / refocus SIGNED_IN / INITIAL_SESSION. The context value was a fresh object every render, so about 19 `[user]` effects re-ran: the feed dropped to its skeleton and reloaded, the bell resubscribed and the inbox reloaded.
+   - The rule is now `src/lib/auth-events.ts` `planAuthEvent` (pure, tested). The SAME person keeps the same object and their profile is read once per person; a different person, a sign-out or USER_UPDATED still change everything.
+   - The context value is memoized and its functions are stable.
+   - Result: after a token refresh the feed reloads 0 times (was 1) and the profile is read 0 times (was 1).
+2. **Two big libraries were on every page by accident:**
+   - **The emoji picker:** a VALUE import of its `Theme` enum in three message/comment files. It is now a type import.
+   - **zod:** the jitless config imported it, and so did the feed's calendar widget for one list. The config now writes zod's global flag without importing zod (pinned against the installed zod); the list lives in `src/lib/calendar/event-categories.ts`.
+   - The feed + shell JS is **459 KB gzipped, down from about 625 KB (−27%)**.
+   - `src/lib/__tests__/bundle-guard.test.ts` walks the shell's and the feed's static imports and fails if zod, the emoji picker, mediabunny, leaflet or react-grid-layout come back.
+3. **Duplicate and serial requests:**
+   - **The bell** reads once, when its live channel connects (a 2.5 s fallback if it is slow), instead of once on mount and again on connect.
+   - **The middleware:** with the launch gate on, it asked Supabase Auth twice per signed-in navigation; the gate's answer and refreshed cookies now serve the session refresh too.
+   - **The feed calendar** waits for the household roster and reads once, not twice.
+   - **The live strip** refetches on return only when older than 30 s.
+   - **The feed's match results** are read side by side, not one after another.
+
+**Tried and taken back out:** caching the app's hashed build files in the service worker (for the installed app's cold starts). With the worker answering requests, Playwright's WebKit stalled its notification and registration calls. That may be a test-engine quirk, but it cannot be told apart from a real iPhone problem without a device, and Tom's rule was "without breaking anything". The worker stays push-only. It is a candidate for a round with a device test.
+
+**Not ours to fix in code (reported to Tom):**
+- The production database answers a one-row read in 136 ms to 1.2 s (the health check), which is consistent with small shared Supabase compute — a plan decision.
+- Each API call checks the session with Supabase Auth over the network. Verifying it locally would save 100–300 ms per call, but a suspended account would keep working until its token expired.
+
+**Proof:**
+- Unit: `planAuthEvent` (4 cases), zod's flag against the installed zod (2), the bundle guard.
+- `perf-feed` now HOLDS: no feed reload and no notification refetch when the app comes back, no profile re-read on a token refresh, one `/api/notifications` on load.
+- Local e2e on desktop, phone Chromium and phone WebKit: **74 passed, 1 skipped** (the production-only push case). Specs: perf-feed, push, install-app, get-started-mobile, feed-post, edit-profile, messaging-notifications, direct-message, comment-author-link, crop-freeform, media-editor, capture-attach, vitals, results-hide, org-site-csp, follow-request, health, auth-login, sport-events-notifications.
+
 ## October 2, 2026 — Phone notifications: the keys are live, and the feed card asks until you choose
 
 **The keys.** Tom added the three VAPID values in Vercel, but production still answered `enabled: false` after a redeploy and a second one. The values are Sensitive, so they could not be read back. With Tom's go-ahead they were removed and set again from the CLI, exactly as generated: the public key and the subject plain, the private key Sensitive, Production only. After a redeploy, `/api/push/config` answers `enabled: true` with the public key.

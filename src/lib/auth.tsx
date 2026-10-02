@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import '@/lib/zod-client-config';
 import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
@@ -8,6 +8,7 @@ import type { Profile } from './supabase';
 import { FEATURE_FLAGS } from './features';
 import { setChatDockHidden } from './chat-dock-visibility';
 import { disablePush, setIconBadge } from './push/client';
+import { planAuthEvent } from './auth-events';
 
 const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
@@ -51,6 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
   const [managedProfiles, setManagedProfiles] = useState<Profile[]>([]);
   const [activeProfile, setActiveProfileState] = useState<Profile | null>(null);
+  // Speed round (Oct 2026): who is signed in, and whose profile read has
+  // started — refs, so the long-lived auth listener reads the CURRENT values.
+  // Written only where the user changes (never during render).
+  const userIdRef = useRef<string | null>(null);
+  const profileRequestedForRef = useRef<string | null>(null);
+  const applyUser = useCallback((next: User | null) => {
+    userIdRef.current = next?.id ?? null;
+    if (!next) profileRequestedForRef.current = null;
+    setUser(next);
+  }, []);
 
   const setActiveProfile = useCallback((p: Profile | null) => {
     setActiveProfileState(p);
@@ -105,7 +116,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveProfileState(null);
     }
   }, [user, refreshManagedProfiles]);
-  const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map()); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // `keepOnError` (refreshProfile): a re-read that FAILS keeps the profile
+  // the page already has. Nulling it on a dropped request would send a
+  // signed-in page through the no-profile redirects. A confirmed absence
+  // (the row is gone) still clears it, on every path.
+  const fetchProfileInner = useCallback(async (userId: string, keepOnError: boolean) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // Error fetching profile
+        if (!keepOnError) setProfile(null);
+        return;
+      }
+
+      if (!data) {
+        // Authenticated session but no profile row. Almost always a STALE
+        // session for a deleted account: getSession() trusts browser storage,
+        // so a JWT can outlive its user. Ask the auth server — a deleted
+        // user's token fails getUser() — and drop the dead session, otherwise
+        // the landing page spins on "Welcome back" forever (user set,
+        // profile forever null, redirect never fires).
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          await supabase.auth.signOut().catch(() => {});
+          applyUser(null);
+        }
+        setProfile(null);
+        return;
+      }
+
+      setProfile(data);
+    } catch {
+      // Error in fetchProfile
+      if (!keepOnError) setProfile(null);
+    }
+  }, [applyUser]);
+
+  const fetchProfile = useCallback(async (userId: string, keepOnError = false) => {
+    profileRequestedForRef.current = userId;
+    try {
+      await fetchProfileInner(userId, keepOnError);
+    } finally {
+      // Every exit — a row, a confirmed absence, an error — is a completed
+      // check for THIS user; the redirect effects gate on it.
+      setProfileCheckedFor(userId);
+    }
+  }, [fetchProfileInner]);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Clear session silently
             await supabase.auth.signOut().catch(() => {});
             // Reset state
-            setUser(null);
+            applyUser(null);
             setProfile(null);
             if (isMounted) {
               setLoading(false);
@@ -136,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
 
         const currentUser = session?.user || null;
-        setUser(currentUser);
+        applyUser(currentUser);
 
         if (currentUser) {
           // Fetch profile (simplified, no background refresh)
@@ -153,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Graceful fallback on error
         console.warn('Auth initialization error:', error);
         if (isMounted) {
-          setUser(null);
+          applyUser(null);
           setProfile(null);
           setLoading(false);
           setInitialAuthCheckComplete(true);
@@ -184,17 +245,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // token here closes that race for every channel in the app.
         supabase.realtime.setAuth(session?.access_token ?? null);
 
-        setUser(session?.user || null);
-        
-        if (session?.user && event !== 'SIGNED_OUT') {
-          await fetchProfile(session.user.id);
-        } else {
+        // The same person stays the same object; their profile is read once
+        // (src/lib/auth-events.ts). A token refresh or a refocus SIGNED_IN
+        // touches no state at all — nothing downstream re-runs.
+        const nextUser = session?.user ?? null;
+        const plan = planAuthEvent({
+          event,
+          currentUserId: userIdRef.current,
+          nextUserId: nextUser?.id ?? null,
+          profileRequestedFor: profileRequestedForRef.current,
+        });
+        if (plan.clear || !nextUser) {
+          applyUser(null);
           setProfile(null);
+          if (isMounted) {
+            setLoading(false);
+            setInitialAuthCheckComplete(true);
+          }
+          return;
         }
-        
-        if (isMounted) {
-          setLoading(false);
-          setInitialAuthCheckComplete(true);
+        if (!plan.keepUser) applyUser(nextUser);
+        if (plan.fetchProfile) {
+          await fetchProfile(nextUser.id);
+          if (isMounted) {
+            setLoading(false);
+            setInitialAuthCheckComplete(true);
+          }
         }
       }
     );
@@ -215,7 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const errorMessage = error.message?.toLowerCase() || '';
             if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
               await supabase.auth.signOut();
-              setUser(null);
+              applyUser(null);
               setProfile(null);
               return;
             }
@@ -234,62 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hoisted function declaration, not a `const` arrow: an effect above calls it,
-  // and react-hooks/immutability flags a reference to a binding declared later
-  // in the body. Function declarations are hoisted, so there is no TDZ.
-  async function fetchProfile(userId: string, keepOnError = false) {
-    try {
-      await fetchProfileInner(userId, keepOnError);
-    } finally {
-      // Every exit — a row, a confirmed absence, an error — is a completed
-      // check for THIS user; the redirect effects gate on it.
-      setProfileCheckedFor(userId);
-    }
-  }
-
-  // `keepOnError` (refreshProfile): a re-read that FAILS keeps the profile
-  // the page already has. Nulling it on a dropped request would send a
-  // signed-in page through the no-profile redirects. A confirmed absence
-  // (the row is gone) still clears it, on every path.
-  async function fetchProfileInner(userId: string, keepOnError: boolean) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        // Error fetching profile
-        if (!keepOnError) setProfile(null);
-        return;
-      }
-
-      if (!data) {
-        // Authenticated session but no profile row. Almost always a STALE
-        // session for a deleted account: getSession() trusts browser storage,
-        // so a JWT can outlive its user. Ask the auth server — a deleted
-        // user's token fails getUser() — and drop the dead session, otherwise
-        // the landing page spins on "Welcome back" forever (user set,
-        // profile forever null, redirect never fires).
-        const { error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          await supabase.auth.signOut().catch(() => {});
-          setUser(null);
-        }
-        setProfile(null);
-        return;
-      }
-
-      setProfile(data);
-      setProfileCache(prev => new Map(prev.set(userId, data)));
-    } catch {
-      // Error in fetchProfile
-      if (!keepOnError) setProfile(null);
-    }
-  }
-
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -305,9 +326,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return { error };
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       // Phone notifications (248): this device stops buzzing for this person
       // BEFORE the session ends (the DELETE needs it) — a shared phone must
@@ -322,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
 
       // Clear local state
-      setUser(null);
+      applyUser(null);
       setProfile(null);
       setProfileCheckedFor(null);
 
@@ -335,9 +356,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- sign-out error path must still reload to guarantee clean state
       window.location.href = '/';
     }
-  };
+  }, [applyUser]);
 
-  const updateProfile = async (profileData: Partial<Profile>) => {
+  const updateProfile = useCallback(async (profileData: Partial<Profile>) => {
     if (!user) return { error: 'No user logged in' };
 
     try {
@@ -354,29 +375,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return { error };
     }
-  };
+  }, [user, fetchProfile]);
 
-  const refreshProfile = async () => {
-    if (user?.id) {
-      await fetchProfile(user.id, true);
+  const userId = user?.id;
+  const refreshProfile = useCallback(async () => {
+    if (userId) {
+      await fetchProfile(userId, true);
     }
-  };
+  }, [userId, fetchProfile]);
 
-  const value: AuthContextType = {
-    user,
-    profile,
-    loading,
-    initialAuthCheckComplete,
-    profileChecked: !!user && profileCheckedFor === user.id,
-    managedProfiles,
-    activeProfile,
-    setActiveProfile,
-    refreshManagedProfiles,
-    signIn,
-    signOut,
-    updateProfile,
-    refreshProfile,
-  };
+  // One object per real change — every useAuth() consumer re-renders only
+  // when something it could read actually changed.
+  const profileChecked = !!user && profileCheckedFor === user.id;
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      profile,
+      loading,
+      initialAuthCheckComplete,
+      profileChecked,
+      managedProfiles,
+      activeProfile,
+      setActiveProfile,
+      refreshManagedProfiles,
+      signIn,
+      signOut,
+      updateProfile,
+      refreshProfile,
+    }),
+    [
+      user,
+      profile,
+      loading,
+      initialAuthCheckComplete,
+      profileChecked,
+      managedProfiles,
+      activeProfile,
+      setActiveProfile,
+      refreshManagedProfiles,
+      signIn,
+      signOut,
+      updateProfile,
+      refreshProfile,
+    ]
+  );
 
   return (
     <AuthContext.Provider value={value}>

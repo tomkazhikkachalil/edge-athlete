@@ -3,7 +3,10 @@
 import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Theme } from 'emoji-picker-react';
+// A TYPE import only (speed round, Oct 2026): a value import of the enum
+// pulled the whole picker and its emoji data into every page's bundle; the
+// picker itself is loaded on demand below.
+import type { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import { useTheme } from '@/lib/use-theme';
 import LazyImage from '@/components/LazyImage';
@@ -336,7 +339,7 @@ export default function MessageBubble({
               >
                 <EmojiPicker
                   onEmojiClick={handleFullPickerEmoji}
-                  theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
+                  theme={(theme === 'dark' ? 'dark' : 'light') as Theme}
                   lazyLoadEmojis
                   height={350}
                   width="min(300px, calc(100vw - 2rem))"

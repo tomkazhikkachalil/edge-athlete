@@ -7,7 +7,7 @@ import { sportEventHref } from '@/lib/calendar/sport-event-overlay';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
 import { monthMatrix, eventOverlapsDay, localDayKey } from '@/lib/calendar/grid';
 import { categoryColor, CATEGORY_LABELS } from '@/lib/calendar/categories';
-import { EVENT_CATEGORIES } from '@/lib/calendar/events';
+import { EVENT_CATEGORIES } from '@/lib/calendar/event-categories';
 import { ME, mergeLayeredEvents, filterLayeredEvents, personDotClass, type LayeredEvent } from '@/lib/calendar/layers';
 import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +15,7 @@ import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import type { EventListItem } from './types';
 import FilterChip from './FilterChip';
 import { useHouseholdRoster } from './useHouseholdRoster';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
@@ -201,6 +202,11 @@ export default function FeedCalendarWidget() {
   // failure is the Retry path; a child's failure only logs (family-week
   // doctrine: a child's fetch never blanks the widget). Retry bumps refetchKey.
   useEffect(() => {
+    // Wait for the household roster (null = not read yet) so the calendar is
+    // read ONCE with every layer, not once bare and again when the roster
+    // lands (speed round, Oct 2026). Without the guardian feature the roster
+    // is never read, so there is nothing to wait for.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && people === null) return;
     let cancelled = false;
     (async () => {
       const base = `/api/calendar/events?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
