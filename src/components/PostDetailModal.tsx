@@ -236,7 +236,7 @@ export default function PostDetailModal({
   if (!isOpen) return null;
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div ref={rootRef} data-post-detail className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/75"

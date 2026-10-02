@@ -1,5 +1,26 @@
 # Development Log
 
+## October 2, 2026 — Fix round, part 6: a commenter's picture and name open their profile
+
+Tom: when someone comments on your post, you cannot tap through to their profile from the comment on the feed — on his phone, and probably in a browser too.
+
+**Cause.** Nothing was swallowing the tap: the commenter's picture and name were never links. `CommentSection` is the one place comments are drawn (the feed card and the post pop-up both reach it through `PostCard`), and in it the picture was a bare image and the name a bare `<span>`, at every width, on comments and replies. Only @mentions inside the text linked anywhere.
+
+**The fix (zero DDL):**
+- **One rule, `commentAuthorHref` in `src/lib/comment-thread.ts`** (pure, unit-tested): your own comment → `/athlete`; a signed-in viewer → `/athlete/<id>`; a signed-out viewer → the public page, handle first (`getProfileUrl`); no author on the row → no link. `/athlete/<id>` is the post header's destination, chosen over `/u/@handle` on purpose: it runs the follower-aware privacy check, while `/u/` answers "Private Profile" even to an approved follower.
+- **`CommentSection`**: the picture and the name are `<Link>`s (`data-comment-author="avatar" | "name"`). The name is the one link a keyboard or screen reader meets; the picture is the same destination for a finger (`aria-hidden`, out of the tab order). The picture's target is 44 px through padding with a matching negative margin — nothing moves. The name truncates (`min-w-0` on its group, `shrink-0` on the Pin / Delete / menu cluster), so a long name no longer competes with the buttons on a 375 px card. The "via <guardian>" line stays plain text, as "Posted by" does on a post.
+
+**Found by the new spec, fixed in the same PR: a private commenter was "Unknown User".** The QA users are private and do not follow each other, and the first run drew bravo's comment on alpha's post as "UU · Unknown User". `GET /api/comments` embeds the author through the SESSION client, so RLS strips the embed whenever the commenter's profile is private and the viewer does not follow them — any private person commenting on a public post. The route's own note already states the rule ("every comment already ships its AUTHOR's first/last/full name to every viewer"), and name, handle and picture are the minimal card anyone gets for a private profile (`/api/profile`'s `MINIMAL_FIELDS`). The read now fills exactly those fields, through the admin client, only for rows that came back without an author.
+
+**Planned, checked, not needed: closing the pop-up on a route change.** The plan assumed the chat window's post pop-up lived above the page. It does not — `ChatWindow` belongs to the `/messages` page, and every one of the 14 hosts unmounts with its page. The remaining doubt was the same route with another id (`/athlete/<a>` → `/athlete/<b>`): the spec's third case holds that the pop-up does not carry over, with no code for it. `PostDetailModal` gained only its test hook (`data-post-detail`).
+
+**Proof:**
+- `npm run verify` exit 0 (4,301 tests in 458 files; 220 client chunks inside the floor).
+- `e2e/comment-author-link.spec.ts`, 4 of 4 locally (desktop ×2, phone Chromium, phone WebKit): the name and the picture on the feed card, your own name on a reply, the name inside the feed's pop-up (profile shown, no pop-up left), and the pop-up on a profile page leading to a third person. Each step runs in its own page (the WebKit hard-navigation trap).
+- At 375 px, measured with a 50-character name: picture targets 44 × 44, name targets 36 px tall, the name truncated beside Pinned / Pin / the menu, no sideways scroll.
+
+**Found, not fixed:** a shared post inside a DOCKED chat is a button that does nothing — `MiniChatWindow` passes no `onViewPost`, so only the full `/messages` page opens it.
+
 ## October 2, 2026 — Maintenance after fix-round parts 3, 4 and 5: the full checklist, all green
 
 **On main at `ee315ee7`** (#1035). Since the Oct 1 maintenance entry (`193dac8c`):
