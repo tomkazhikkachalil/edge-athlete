@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, useReducer } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -19,7 +20,7 @@ import {
   composerTextareaHeight,
   initialLeadingOpen,
 } from '@/components/messages/composer-layout';
-import { flattenReplies, collectDescendantIds } from '@/lib/comment-thread';
+import { flattenReplies, collectDescendantIds, commentAuthorHref } from '@/lib/comment-thread';
 import MentionText, { type MentionResolvedProfile } from '@/components/MentionText';
 import MentionSuggestions from '@/components/MentionSuggestions';
 import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
@@ -500,6 +501,25 @@ export default function CommentSection({
       comment.profile?.last_name,
       comment.profile?.full_name
     );
+    // The commenter's picture and name lead to their profile (they were plain
+    // text until Oct 2026 — only @mentions linked). One rule, in comment-thread.
+    const authorHref = commentAuthorHref(
+      comment.profile ? { id: comment.profile_id, handle: comment.profile.handle } : null,
+      user?.id
+    );
+    const avatar = comment.profile?.avatar_url ? (
+      <Image
+        src={comment.profile.avatar_url}
+        alt={displayName}
+        width={avatarSize}
+        height={avatarSize}
+        className={`${avatarClass} object-cover`}
+      />
+    ) : (
+      <div className={`${avatarClass} bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold ${isReply ? 'text-[10px]' : 'text-xs'}`}>
+        {getInitials(displayName)}
+      </div>
+    );
     const isLiked = comment.comment_likes?.some(like => like.profile_id === user?.id) ?? false;
     const replyCount = repliesByParent[comment.id]?.length || 0;
 
@@ -507,37 +527,52 @@ export default function CommentSection({
       <div key={comment.id} data-depth={depth} className="flex gap-3">
         {/* Avatar */}
         <div className="flex-shrink-0">
-          {comment.profile?.avatar_url ? (
-            <Image
-              src={comment.profile.avatar_url}
-              alt={displayName}
-              width={avatarSize}
-              height={avatarSize}
-              className={`${avatarClass} object-cover`}
-            />
+          {authorHref ? (
+            // The name beside it is the link a keyboard or screen reader
+            // meets; this one is the same destination for a finger. Padding
+            // with a matching negative margin: a 44px target, nothing moves.
+            <Link
+              href={authorHref}
+              data-comment-author="avatar"
+              aria-hidden="true"
+              tabIndex={-1}
+              className={`block rounded-full ${isReply ? 'p-2.5 -m-2.5' : 'p-1.5 -m-1.5'}`}
+            >
+              {avatar}
+            </Link>
           ) : (
-            <div className={`${avatarClass} bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold ${isReply ? 'text-[10px]' : 'text-xs'}`}>
-              {getInitials(displayName)}
-            </div>
+            avatar
           )}
         </div>
 
         {/* Comment content */}
         <div className="flex-1 min-w-0">
           <div className="bg-surface-muted rounded-lg px-3 py-2">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-primary">
-                  {displayName}
-                </span>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              {/* min-w-0 + truncate: a long name shrinks rather than push
+                  Pin / Delete / the menu off a 375px card. */}
+              <div className="flex items-center gap-2 min-w-0">
+                {authorHref ? (
+                  <Link
+                    href={authorHref}
+                    data-comment-author="name"
+                    className="font-semibold text-sm text-primary hover:text-brand-fg transition-colors truncate py-2 -my-2"
+                  >
+                    {displayName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-sm text-primary truncate">
+                    {displayName}
+                  </span>
+                )}
                 {comment.is_pinned && (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="flex items-center gap-1 flex-shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium">
                     <i className="fas fa-thumbtack text-[10px]" />
                     Pinned
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Pin/Unpin button (post owner only, root comments only) */}
                 {isPostOwner && depth === 0 && (
                   <button

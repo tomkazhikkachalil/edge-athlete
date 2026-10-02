@@ -11,6 +11,8 @@
  * rather than another indent.
  */
 
+import { getProfileUrl } from './profile-display';
+
 /** Deepest visual indent level. Data depth is uncapped. */
 export const MAX_VISUAL_DEPTH = 2;
 
@@ -79,4 +81,22 @@ export function collectDescendantIds<T extends ThreadNode>(
     }
   }
   return out;
+}
+
+/**
+ * Where a commenter's picture and name lead (fix round part 6, Oct 2026 —
+ * they were plain text; only @mentions linked). The post header's
+ * destination, on purpose: `/athlete/<id>` runs the follower-aware privacy
+ * check, while `/u/@handle` answers "Private Profile" even to an approved
+ * follower. A signed-out viewer has no `/athlete` page to land on, so a
+ * guest goes handle-first to the public page. No author on the row → no
+ * link (the caller renders plain text).
+ */
+export function commentAuthorHref(
+  author: { id?: string | null; handle?: string | null } | null | undefined,
+  viewerId: string | null | undefined
+): string | null {
+  if (!author?.id) return null;
+  if (!viewerId) return getProfileUrl({ id: author.id, handle: author.handle });
+  return viewerId === author.id ? '/athlete' : `/athlete/${author.id}`;
 }
