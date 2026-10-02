@@ -458,7 +458,8 @@ export default function FeedPage() {
       else showSuccess('Success', 'Post deleted successfully');
     } catch (e) {
       console.error('Failed to delete post:', e);
-      showError('Error', 'Failed to delete post');
+      // The server's own words when it has some (a refusal names its reason).
+      showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
     }
   };
 

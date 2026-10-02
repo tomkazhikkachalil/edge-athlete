@@ -1,5 +1,5 @@
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
-import { setResultHidden } from '@/lib/results/hide-server';
+import { setWholeResultHidden } from '@/lib/results/hide-server';
 import { resolveResultOrigin } from '@/lib/results/origin-server';
 import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { NextRequest, NextResponse } from 'next/server';
@@ -306,7 +306,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Only the round owner can delete it' }, { status: 403 });
     }
 
-    const hid = await setResultHidden(supabase, { kind: 'golf_round', id: roundId }, true, user.id);
+    // The whole result — the round's feed post goes with it (it stayed
+    // published for everyone until Oct 2026).
+    const hid = await setWholeResultHidden(supabase, { kind: 'golf_round', id: roundId }, true, user.id);
     if (!hid.ok) return NextResponse.json({ error: hid.error }, { status: hid.status });
     return NextResponse.json({ success: true, hidden: true, message: HIDDEN_NOTICE });
   } catch (error) {

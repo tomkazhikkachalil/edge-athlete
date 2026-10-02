@@ -12,7 +12,8 @@ import Link from 'next/link';
 
 interface Hidden {
   rounds: Array<{ id: string; date: string; course: string | null; gross_score: number | null; hidden_at: string }>;
-  posts: Array<{ id: string; caption: string | null; sport_key: string | null; created_at: string; hidden_at: string }>;
+  /** A round whose post is hidden too is ONE row — the post, carrying the course and score. */
+  posts: Array<{ id: string; caption: string | null; sport_key: string | null; created_at: string; hidden_at: string; course?: string | null; gross_score?: number | null }>;
 }
 
 export default function HiddenResults() {
@@ -66,7 +67,7 @@ export default function HiddenResults() {
     <section className="ea-surface rounded-lg p-4 sm:p-6 mt-6" aria-labelledby="hidden-results-title" data-hidden-results="">
       <h2 id="hidden-results-title" className="text-lg font-semibold text-primary">Hidden from your profile</h2>
       <p className="text-sm text-tertiary mt-1 mb-3">
-        Results you hid stay on the record — they still count toward your stats and handicap — but nobody else sees them on your profile. Show any of them again here.
+        Results you hid stay on the record — they still count toward your stats and handicap — but nobody else sees them on your profile or in the feed. Show any of them again here, or from your own profile.
       </p>
       {status === 'loading' && <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>}
       {status === 'error' && <p role="alert" className="text-sm text-tertiary">Couldn&apos;t load your hidden results.</p>}
@@ -88,8 +89,8 @@ export default function HiddenResults() {
           {data.posts.map(p => (
             <li key={p.id} className={row} data-hidden-post={p.id}>
               <span className="flex-1 min-w-0 text-sm text-primary break-words">
-                {p.caption?.trim() ? p.caption.slice(0, 120) : 'A result'}
-                <span className="text-muted"> · {new Date(p.created_at).toLocaleDateString()}</span>
+                {p.course ?? (p.caption?.trim() ? p.caption.slice(0, 120) : 'A result')}
+                <span className="text-muted"> · {new Date(p.created_at).toLocaleDateString()}{p.gross_score != null ? ` · ${p.gross_score}` : ''}</span>
               </span>
               <button type="button" className={btn} disabled={busy !== null} onClick={() => void show('post', p.id)} data-show-result={p.id}>
                 {busy === p.id ? 'Showing…' : 'Show again'}

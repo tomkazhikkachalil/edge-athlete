@@ -30,6 +30,8 @@ interface MediaItem {
   hashtags: string[] | null;
   is_own_post: boolean;
   is_tagged: boolean;
+  /** Set for the owner on their own grid only (241): hidden from the profile. */
+  profile_hidden?: boolean;
 }
 
 /** The slice of a shared round a TILE needs: course, and who scored what.
@@ -504,6 +506,21 @@ export async function GET(
           ? sharedPostByPostId.get(repostLinkByPostId.get(item.id)!) ?? null
           : null
       }));
+    }
+
+    // The owner's own grid keeps the results they hid from their profile
+    // (the RPCs' owner arm) — mark them, so the tile and the opened post can
+    // say so and offer "Show on profile". Nobody else is ever sent one.
+    if (viewerId === profileId && items.length > 0) {
+      const { data: hiddenRows } = await supabaseAdmin
+        .from('posts')
+        .select('id')
+        .in('id', items.map((item: MediaItem) => item.id))
+        .eq('status', 'profile_hidden');
+      const hiddenIds = new Set(((hiddenRows ?? []) as { id: string }[]).map(r => r.id));
+      if (hiddenIds.size > 0) {
+        items = items.map((item: MediaItem) => (hiddenIds.has(item.id) ? { ...item, profile_hidden: true } : item));
+      }
     }
 
     // Calculate hasMore for pagination — from the raw (pre-filter) page size

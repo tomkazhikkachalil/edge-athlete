@@ -33,6 +33,7 @@ import { startingHoleNumber } from '@/lib/golf/holes';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
 import { anyScoreRecorded, isResultPost } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
+import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
@@ -97,6 +98,8 @@ interface Post {
    *  their own author (or a guardian via the single-post gate), so the
    *  banners below need no viewer check. */
   status?: string;
+  /** The round this post is the card of (a result — see results/kinds.ts). */
+  group_post_id?: string | null;
   /** Guardian send-back note (129) — only non-null while changes_requested. */
   review_note?: string | null;
   media: PostMedia[];
@@ -427,7 +430,37 @@ function PostCard({
   // line is HIDDEN from the profile by the server, never deleted — say so here.
   const hidesInstead = post.group_scorecard
     ? anyScoreRecorded(post.group_scorecard.participants) || !!post.sport_event_round_id
-    : isResultPost({ sport_event_round_id: post.sport_event_round_id ?? null, stats_data: post.stats_data });
+    : isResultPost({ group_post_id: post.group_post_id ?? null, sport_event_round_id: post.sport_event_round_id ?? null, stats_data: post.stats_data });
+
+  // Hidden from the profile (241): only its owner is ever sent one, and only
+  // on their own profile. The card says so and carries the way back — it used
+  // to look published and offer a Hide that did nothing (Tom, Oct 2026).
+  const { showSuccess, showError } = useToast();
+  const [shownAgainId, setShownAgainId] = useState<string | null>(null);
+  const [showBusy, setShowBusy] = useState(false);
+  const isProfileHidden = post.status === 'profile_hidden' && shownAgainId !== post.id;
+  const handleShowOnProfile = async () => {
+    if (showBusy) return;
+    setShowBusy(true);
+    try {
+      const res = await fetch('/api/results/visibility', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'post', id: post.id, hidden: false }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Could not show it', typeof body.error === 'string' ? body.error : 'Please try again.');
+        return;
+      }
+      setShownAgainId(post.id);
+      showSuccess(COPY.FORMS.SHOWN_AGAIN_TITLE, COPY.FORMS.SHOWN_AGAIN_BODY);
+    } catch {
+      showError('Could not show it', 'Please try again.');
+    } finally {
+      setShowBusy(false);
+    }
+  };
 
   const handleDeleteConfirm = () => {
     if (onDelete) {
@@ -488,6 +521,23 @@ function PostCard({
         <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2" data-post-hidden="">
           <i className="fas fa-eye-slash" aria-hidden="true"></i>
           Hidden while a report is reviewed — not visible to anyone else. Check Settings → Support.
+        </div>
+      )}
+      {isProfileHidden && (
+        <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2" data-post-profile-hidden="">
+          <i className="fas fa-eye-slash" aria-hidden="true"></i>
+          <span className="min-w-0">{COPY.FORMS.PROFILE_HIDDEN_BANNER}</span>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => void handleShowOnProfile()}
+              disabled={showBusy}
+              data-post-show-again=""
+              className="ml-auto shrink-0 font-semibold text-brand-fg hover:text-brand-fg-strong min-h-[44px] -my-2 px-1 disabled:opacity-60"
+            >
+              {showBusy ? 'Showing…' : COPY.FORMS.SHOW_RESULT_LABEL}
+            </button>
+          )}
         </div>
       )}
       {post.status === 'rejected' && (
@@ -648,7 +698,7 @@ function PostCard({
               {/* Only when the mount actually wired onDelete — the confirm
                   handler no-ops without it, and a trash icon that silently
                   does nothing already shipped once (the /feed?post= mount). */}
-              {onDelete && (
+              {onDelete && !isProfileHidden && (
                 <button
                   onClick={handleDeleteClick}
                   className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
@@ -667,8 +717,9 @@ function PostCard({
               pinBusy={pinBusy}
               onTogglePin={handleTogglePin}
               onEdit={() => onEdit?.(post.id)}
-              onDelete={onDelete ? handleDeleteClick : undefined}
+              onDelete={onDelete && !isProfileHidden ? handleDeleteClick : undefined}
               deleteLabel={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : undefined}
+              onShowAgain={isProfileHidden ? () => void handleShowOnProfile() : undefined}
             />
           )}
           {/* Spec 2: every signed-in NON-owner gets a menu — Report opens the

@@ -322,8 +322,14 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         throw new Error(errorData.error || 'Failed to delete post');
       }
 
-      // Remove post from local state
-      setItems(prevItems => prevItems.filter(item => item.id !== postId));
+      // Results-kept (241): a result comes back hidden, not deleted. On your
+      // own grid a hidden result STAYS, marked, with the way back on it —
+      // dropping the tile here only for it to return on the next load was
+      // the "hide doesn't work" report.
+      const body = await response.json().catch(() => ({}));
+      setItems(prevItems => body.hidden
+        ? prevItems.map(item => (item.id === postId ? { ...item, profile_hidden: true } : item))
+        : prevItems.filter(item => item.id !== postId));
 
       // Close modals
       setIsModalOpen(false);
@@ -332,8 +338,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       // Refresh counts
       fetchCountsRef.current();
 
-      // Results-kept (241): a result comes back hidden, not deleted.
-      const body = await response.json().catch(() => ({}));
       if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
       else showSuccess('Success', 'Post deleted successfully');
     } catch (err) {

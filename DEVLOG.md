@@ -1,5 +1,29 @@
 # Development Log
 
+## October 2, 2026 — Quick fixes, PR 1: Hide really hides, and the way back is on your profile
+
+Tom: "The hide function doesn't work… when you hide a post, it still appears on your athlete profile, but there is no way to unhide it." And of a for-fun round he deleted: "it is neither deleted nor hidden."
+
+**Cause — the writer worked; the readers never changed.** Migration 241 made `profile_hidden` a post STATUS "so every published-only reader skips it with no reader change". But the feed and the profile grid are not published-only for the author: both read "published OR mine" (`/api/posts` GET; the profile media RPCs since 074). So a hidden result went straight back to its owner — in the feed, looking published, still offering a "Hide from profile" that was now a no-op. Three smaller faults sat beside it:
+- "Hide" on the round page stamped only the `golf_rounds` row — the round's feed post stayed published for everyone.
+- `/api/golf/stats` listed hidden rounds to other viewers in Recent, then answered a 404 when one was opened.
+- Settings → Privacy listed a round and its post as two separate things to show again.
+
+**The fix (zero DDL):**
+- **Feed** — the owner arm is now `published OR (mine AND NOT profile_hidden)`. A hidden result is returned to its owner in ONE place: their own profile list.
+- **The owner's profile** — the hidden result stays there, marked: a "Hidden" pill on the tile (the media route marks hidden ids for the owner only) and a banner on the opened post — "Hidden from your profile — only you can see this. It still counts toward your stats." — with **Show on profile**; the owner menu offers "Show on profile" in place of the dead Hide. Hiding from the grid keeps the tile, marked, instead of dropping it only for it to return.
+- **One act hides the whole result** — `setWholeResultHidden` (`src/lib/results/hide-server.ts`; `setResultHidden` stays the one row writer underneath): the post and the SAME owner's stats row move together, both ways. The round page and `PATCH /api/results/visibility` go through it. A playing partner hiding their round never touches the creator's post.
+- **One row per result** in Settings — `pairHiddenResults` (`src/lib/results/hidden-list.ts`, pure) folds a hidden round into its hidden post, carrying the course and the score.
+- Other viewers' Recent rounds skip a hidden round; the Stats tab says "hidden" when the server hid; the feed shows the server's own words on a failure; the hide copy names the profile as a way back.
+
+**Not in this PR:** Delete. Tom decided this session that a for-fun result gets BOTH Hide and a real Delete (official results: Hide only) — that amends convention 27 and is PR 2, with the live-round discard.
+
+**Proof:**
+- Unit: 21 rule tests in `results-hide.test.ts` (the feed arm, the doors, the pairing, the owner-only tile mark).
+- `e2e/results-hide.spec.ts` 5 of 5 (desktop, phone Chromium, phone WebKit): a for-fun round is scored and ended, hidden from the FEED CARD, gone from the owner's feed after a reload, listed once in Settings, shown "Hidden" on the owner's grid, brought back by "Show on profile", and hidden again from the round page — which now takes the post with it.
+- Neighbours green: `round-delete`, `performance-data`, `sport-events-results`, `results-official-lock`, `feed-post` (7 of 7).
+- 375 px by eye: the tile pill, the banner, the owner menu.
+
 ## October 2, 2026 — Download the app: Edge Athlete as an icon on the phone, no store
 
 Tom: people should be able to download Edge Athlete so it is an icon on their phone and opens like an app — every feature, "not through the web" — without the App Store or Google Play. Asked which route, he chose: **a Download button now, the store apps later** (`docs/ROADMAP_2026-10.md` item 1 is this; item 2 is the stores).

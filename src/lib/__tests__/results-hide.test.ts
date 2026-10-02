@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { anyScoreRecorded, isResultPost } from '../results/kinds';
+import { pairHiddenResults } from '../results/hidden-list';
 
 // Results-kept round PR 2 (241, Sep 26 2026). Tom: "hide only, no delete …
 // any data metrics recorded will go towards understanding what the athlete's
@@ -46,7 +47,7 @@ describe('the one hide writer never touches the record', () => {
 describe('the doors hide instead of deleting', () => {
   it('DELETE /api/golf/rounds/[id] hides the round', () => {
     const del = code('src/app/api/golf/rounds/[roundId]/route.ts').split('export async function DELETE')[1];
-    expect(del).toMatch(/setResultHidden\(supabase, \{ kind: 'golf_round', id: roundId \}, true, user\.id\)/);
+    expect(del).toMatch(/setWholeResultHidden\(supabase, \{ kind: 'golf_round', id: roundId \}, true, user\.id\)/);
     expect(del).not.toMatch(/\.delete\(\)/);
   });
   it('DELETE /api/posts hides a result post and a scored round; an ordinary post still deletes', () => {
@@ -131,5 +132,47 @@ describe('the delete allowlist (a new deleting path fails the gate)', () => {
     const callers = walk(path.join(ROOT, 'src')).filter(f => !f.endsWith('opt-out.ts') && /removeMirrorFor\(/.test(code(path.relative(ROOT, f))));
     // PR 4: only support's mistaken-result removal (owner-only, on a ticket) calls it.
     expect(callers.map(f => path.relative(ROOT, f))).toEqual(['src/lib/results/correction-server.ts']);
+  });
+});
+
+// ── Fix round (Oct 2026): a hide has to be SEEN to have happened ────────────
+describe('hidden means hidden — and one result is one thing', () => {
+  it('the feed never hands a hidden result back to its owner; their own profile list does', () => {
+    const src = code('src/app/api/posts/route.ts');
+    expect(src).toMatch(/const ownProfileList = !!userId && userId === currentUserId && !pinnedOnly;/);
+    expect(src).toMatch(/and\(profile_id\.eq\.\$\{currentUserId\},status\.neq\.profile_hidden\)/);
+  });
+  it('every door hides or shows the WHOLE result (the post and the stats row together)', () => {
+    expect(code('src/app/api/results/visibility/route.ts')).toMatch(/setWholeResultHidden\(admin, \{ kind, id \}, hidden, owner\)/);
+    const whole = code('src/lib/results/hide-server.ts').split('export async function setWholeResultHidden')[1];
+    // The partner row is the SAME owner's only: a playing partner hiding their
+    // round never hides the creator's post.
+    expect(whole.match(/\.eq\('profile_id', ownerId\)/g)?.length).toBe(4);
+  });
+  it("other viewers' recent-rounds list skips a hidden round; the owner's keeps it", () => {
+    expect(code('src/app/api/golf/stats/route.ts')).toMatch(/viewer\.id === profileId \? scopedRounds : scopedRounds\.filter\(r => !r\.profile_hidden_at\)/);
+  });
+  it('only the owner is told which of their own tiles are hidden', () => {
+    expect(code('src/app/api/profile/[profileId]/media/route.ts')).toMatch(/if \(viewerId === profileId && items\.length > 0\)/);
+  });
+
+  const round = (id: string, group: string | null) => ({ id, date: '2026-10-01', course: 'Pine Hills', gross_score: 84, profile_hidden_at: '2026-10-02T00:00:00Z', group_post_id: group });
+  const post = (id: string, group: string | null, roundId: string | null = null) => ({ id, caption: null, sport_key: 'golf', created_at: '2026-10-01T18:00:00Z', profile_hidden_at: '2026-10-02T00:00:00Z', group_post_id: group, round_id: roundId });
+
+  it('folds a hidden round into its hidden post, carrying the course and the score', () => {
+    const out = pairHiddenResults([round('r1', 'g1')], [post('p1', 'g1')]);
+    expect(out.rounds).toEqual([]);
+    expect(out.posts).toHaveLength(1);
+    expect(out.posts[0]).toMatchObject({ id: 'p1', course: 'Pine Hills', gross_score: 84 });
+  });
+  it('pairs a legacy post by its round_id', () => {
+    const out = pairHiddenResults([round('r1', null)], [post('p1', null, 'r1')]);
+    expect(out.rounds).toEqual([]);
+    expect(out.posts[0].course).toBe('Pine Hills');
+  });
+  it("keeps a round with no hidden post (a partner's round on someone else's card) and a post with no round (a stat line)", () => {
+    const out = pairHiddenResults([round('r1', 'g1')], [post('p2', null)]);
+    expect(out.rounds.map(r => r.id)).toEqual(['r1']);
+    expect(out.posts[0]).toMatchObject({ id: 'p2', course: null, gross_score: null });
   });
 });
