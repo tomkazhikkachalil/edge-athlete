@@ -23,7 +23,8 @@ import { reportRouteError } from '@/lib/observability/report';
 // the OAuth identity is real; the page just shows the error and retries.
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    // fresh: user_metadata as the account holds it now, not as the token did.
+    const user = await requireAuth(request, { fresh: true });
     const body = await request.json().catch(() => ({}));
     const first_name = typeof body.first_name === 'string' ? body.first_name.trim() : '';
     const last_name = typeof body.last_name === 'string' ? body.last_name.trim() : '';

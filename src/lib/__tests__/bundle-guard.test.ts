@@ -11,7 +11,7 @@ import path from 'path';
 
 const ROOT = process.cwd();
 const ENTRIES = ['src/app/(app)/layout.tsx', 'src/app/(app)/feed/page.tsx'];
-const FORBIDDEN = ['zod', 'emoji-picker-react', 'mediabunny', 'leaflet', 'react-grid-layout'];
+const FORBIDDEN = ['zod', 'emoji-picker-react', 'mediabunny', 'leaflet', 'react-grid-layout', 'jose'];
 
 function resolve(spec: string, from: string): string | null {
   let base: string;
