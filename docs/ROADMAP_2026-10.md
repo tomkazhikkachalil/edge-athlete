@@ -57,8 +57,12 @@ Not started; a program of its own, after the fix round.
   the athlete.
 - **Stage 2 — record from the wrist:** a watch app that starts Edge Athlete
   things (a Vitals workout, a golf round, an event) — sport-specific recording
-  the stock fitness apps do not do. Not a general run / ride recorder: athletes
-  already own one, and that is Strava's and Apple's home ground.
+  the stock fitness apps do not do. **Superseded in part on Oct 4 2026 (Live
+  Activities):** the web app now IS a run / ride / walk recorder
+  (`/activities/record` — foreground, screen on, a map, segments, photos; see
+  `docs/ACTIVITIES.md` "Recording live"). What stays native: recording with
+  the screen OFF or the app in the background, a real step count from the
+  health store, and the watch itself.
 - **Costs to plan for:** Apple Developer Program US$99 / year, Google Play
   US$25 once; a Mac with Xcode, a real iPhone and Watch to test on; App Store
   and Play review; a third surface to keep working beside web and phone-width

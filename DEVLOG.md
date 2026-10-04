@@ -1,5 +1,17 @@
 # Development Log
 
+## October 4, 2026 — Live Activities PR 8: the docs, and the program's close
+
+**The program in one evening (PR 0–7, migs 250 · 251, the baseline at 251):** Tom's "when I walk, it's recorded the same way as a workout … reps and sets" became a live recorder for 26 timed activities at `/activities/record` — a timer, GPS, a map drawing as you go, Mark for sprints and climbs, photos as tiles — saved into the Activities pipeline as `source 'live'`, edited after on the activity page (notes, segments, photos with pins on the route), reachable from Vitals, the Activities section and Create; the workout catalog's walk / hike / elliptical and the distance into Vitals closed the gym-path half of the complaint; the Vitals set-photo bug (broken thumbnails since Aug 25, proxied links stored by an edit) is fixed; the 249 regression that broke every activity import is fixed (250); and four endurance sports — swimming, cycling, running, rowing — exist as stat-line sports an activity may be POSTED as, the athlete's choice at share time. Proven on production: `activities-api` 3/3, `activities-live-api` 1/1, `activities-record` 3/3 (the recorder itself), `activities-after` on the way as PR 5 deployed.
+
+**What this entry changes:** `docs/ACTIVITIES.md` gains "Recording live", "Segments, steps, notes, photos" and "Activities as sports — the share-time bridge"; CLAUDE.md's convention 30 gains the Live Activities paragraph and the Sport Adapter Pattern list moves swimming to the enabled stat-line sports beside the three new ones; `docs/ROADMAP_2026-10.md` §2's "not a general run / ride recorder" is superseded in part — the web app records with the screen on, the native apps add background recording, a real step count and the watch.
+
+**Decisions on record (Tom, Oct 4):** steps are an estimate labelled "est."; a screen-on recorder now; segments marked during AND edited after; swims, rows and indoor sessions on a timer with the distance typed at finish; a broad grouped type list; four sports; the bridge is a choice at share time — an activity is not a sport until it is posted as one.
+
+**Traps this program met, for the next one:** a parenthesis inside a CHECK's inline SQL comment breaks the catalog pin's regex; `crypto.randomUUID` is Safari 15.4+ and the floor gate catches it; a badge key holds no dot (whole-number milestones); the smoke job keeps ONE pending run per group and GitHub cancels older pending runs when several PRs queue or a PR is retargeted — re-run the cancelled run through the Actions API, one at a time (`ci-wait.py` judges the latest run per check); a stacked branch that needs main is merged, never force-pushed; `getByRole` names beside "Edit photo" / "Remove photo" need `exact: true`.
+
+**Still Tom's:** a real walk from the installed app with the screen on — the map drawing, Mark, a photo tile, Finish landing in Vitals, Share as training and as a Running result.
+
 ## October 4, 2026 — Live Activities PR 5: after the recording — the activity page edits, shows segments and photos
 
 **Zero DDL.** Tom: "save the draft and then go back in after." The recording is saved at Finish; everything about it is edited here, after — the name, the type, the notes, the segments, the photos. Stacked on PR 4.

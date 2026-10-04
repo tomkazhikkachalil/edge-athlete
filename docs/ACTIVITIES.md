@@ -195,6 +195,122 @@ Read from Polar's own pages on Oct 1 2026 (the API reference; the API License Ag
 
 **Adding a provider** is now: an adapter from its payload to a `NormalizedActivity` (FIT deliveries reuse `parse-fit-server.ts`); its connect / callback / webhook routes writing through `connections-server.ts` and `importActivity({ source, externalId })` with the provider's own id; `stage: 'live'` in `PROVIDER_DEFS`; its attribution wherever its brand rules ask. Read the provider's current agreement FIRST — a term that forbids showing an activity to followers stops the adapter (Strava's did).
 
+## Recording live (Live Activities program, Oct 4 2026)
+
+Tom: "When I walk, it's recorded the same way as a workout … reps and sets. Not
+30 mins of one exercise." Walks, runs, rides, swims, rows and every other timed
+activity are recorded LIVE from the phone (the installed web app) at
+`/activities/record` — into THIS pipeline as `source 'live'`, never as a
+workout kind. Decisions (Tom, Oct 4): a screen-on recorder now (a web page gets
+GPS only in the foreground with the screen on; a wake lock keeps it on where the
+browser has one; background recording is the native apps'); steps are an
+ESTIMATE labelled "est."; segments are marked during and edited after; indoor
+types record on a timer with the distance typed at finish; a broad, grouped type
+list. `docs/ROADMAP_2026-10.md` §2's "not a general run / ride recorder" is
+superseded for the web app.
+
+- **The catalog** (`src/lib/activities/catalog.ts`, mig 251): 26 types in
+  three groups — outdoor GPS (walk, hike, run, trail run, ride, mountain bike,
+  open-water swim, paddle, ski, cross-country ski, snowboard, skate), indoor
+  timer (pool swim, row, indoor ride, treadmill, elliptical, stair climber),
+  duration only (yoga, pilates, stretching, HIIT, martial arts, dance, climb,
+  other). Each def says how it `recording`s (`gps | timer | duration`). The
+  order mirrors the chain's LAST `activities_activity_type_check`.
+- **The recorder owns no rule.** `src/lib/activities/record/recording.ts` is the
+  pure state machine (idle → recording ⇄ paused → finished; `admitFix` drops a
+  fix with accuracy > 50 m, a hop faster than the type's `maxSpeed × 1.5`, or
+  out of order — nothing is admitted while paused, so a pause IS a gap the
+  server's 30 s rule keeps out of moving time; `liveTotals` for the screen —
+  elapsed from clock deltas, never an interval counter; `toRecordingWire` →
+  the ONE import payload with `format: 'live'`, `recordingId`, `segments`).
+  `record/storage.ts` keeps the recording in IndexedDB as it goes (points in
+  batches of 10 fixes / 15 s, the pending photo blobs; 48 h) — a reload or a
+  killed app offers "Resume your walk?" and the time away becomes a pause.
+  `record/geolocation.ts` is the rangefinder's `watchPosition` policy (only
+  PERMISSION_DENIED stops the watch); `record/wake-lock.ts` is feature-detected
+  and re-requested on return. A hidden page opens a gap the return toast names.
+- **The screen** (`src/components/activities/record/`): the grouped picker,
+  the live numbers (distance, the last-30 s pace, average pace, elevation,
+  "~N steps (est.)" for the step types, a GPS chip), a LIVE Leaflet map (one
+  polyline extended per admitted fix, the player marker + accuracy circle,
+  segment spans, camera pins, follow / Re-center), Start → Pause · Mark ·
+  Finish. **Mark** opens a segment and ends it AT THE SECOND TAP; the kind
+  (sprint · climb · interval · recovery · lap) and a name are picked after; a
+  dismissed sheet keeps an interval; a pause ends an open segment. Photos are
+  tiles at once (capture v2) and upload in the background — no editor while
+  moving; the pencil lives on the activity page. Finish → a name, the distance
+  for a timer type, Save → `POST /api/activities` (`format: 'live'`) → one
+  `…/media` POST per photo → the activity page. The route owns its edges (no
+  header, no tab bar).
+- **The import door is the recorder's door.** `POST /api/activities` with
+  `format: 'live'`: `source 'live'`, `external_id 'live:<recordingId>'` (a
+  retry is a 200 duplicate, never a second row), the segments re-clamped to
+  the SERVER's elapsed seconds, steps estimated on the server (`normalize.ts
+  estimateSteps` — stride 0.413 × height walking, 0.65 × running, 0.75 m /
+  1.0 m without a height; the average moving speed, 2 m/s, decides which;
+  the step types only) from the acting profile's `height_cm`, for EVERY
+  source. A watch recording the same walk is still ONE row: `incomingIsRicher`
+  picks the stream, and the recorder's segments MERGE onto the twin when the
+  twin has none.
+
+## Segments, steps, notes, photos (mig 251)
+
+- **Segments** (`activities.segments` jsonb, boundaries only — `{id, kind,
+  from_s, to_s, label?}`, ≤ 50, ≥ 5 s, overlap allowed; the shape is
+  `src/lib/activities/segments.ts`, the DB holds the array and the cap). What a
+  segment MEASURES is computed from the stream at read time (`stream.ts
+  segmentStats` — distance, time, elevation gain, heart rate, the stream
+  indexes to highlight), never stored (the splits precedent). Segments reach
+  EVERY audience whole: a time range on an intact `s / d / ele / hr` stream
+  reveals no place; only the map highlight uses the viewer's trimmed
+  positions. `PATCH /api/activities/[id]` takes `segments` (a full replace,
+  clamped) and `notes` (≤ 2000).
+- **Steps** (`steps`, `steps_source estimated | device`): the web has no
+  pedometer; the estimate shows as "~4,200 steps (est.)"; a device count
+  arrives with the native apps.
+- **Photos** (`activity_media`, the 216 `sport_event_media` pattern): the
+  owner only (the athlete or a guardian through the acting gate); the URL must
+  be a file THIS profile uploaded through the one upload door
+  (`posts/<profile>/…`); ≤ 20; UNIQUE `(activity_id, media_url)` — a retried
+  attach never duplicates. `at_s` is the offset into the recording, and the
+  photo's **pin is derived at read time** from the VIEWER's projected stream
+  (`visibility.ts pinFor`): a viewer's photo inside the trimmed 200 m has no
+  pin, a supervised athlete's viewers have none — no second place to trim. The
+  bytes go through the media proxy as `activity` entities
+  (`authorizeActivityMedia` re-runs the activity's gate). On "Share to feed"
+  the photos mirror into the post's `post_media` (`mirrorActivityMedia`,
+  `mirrored_at`). Routes: `POST /api/activities/[id]/media`, `PATCH / DELETE
+  …/media/[mediaId]` (a caption, a moment, or the pencil's re-render).
+- **The page after** (`ActivityScreen.tsx`): "Steps (est.)" in the stats, the
+  notes, a Photos grid with pins on the route, a Segments table — tap a row and
+  the span lights up on the route and shades the charts; the owner's form
+  edits name, type, notes and the segments (m:ss; refused by name in the form
+  before the PATCH), adds / re-edits / removes photos. The feed card gains "1
+  segment · 1 photo · ~N steps (est.)". The doors: Vitals' **Record Activity**
+  pill (+ `RecordingResumeBanner`), the Activities section's link, the header's
+  Create sheet ("Record an activity" / "Import an activity") and the drawer.
+
+## Activities as sports — the share-time bridge (Oct 4 2026)
+
+Tom: "a bike ride could also be considered a sport, same as swimming." An
+activity is NOT a sport until the athlete POSTS it as one — the bridge is a
+CHOICE on share, never automatic. `src/lib/activities/sport-bridge.ts`:
+swim / open-water swim → **swimming**, ride / mountain bike / indoor ride →
+**cycling**, run / trail run / treadmill → **running** (road and trail; track
+events stay Track & Field), row → **rowing**; walks, hikes, skis and the rest
+stay training. The four are `StatLinePostAdapter` sports sharing ONE stat line
+(`stat-schemas.ts enduranceSchema`: distance in km for the land sports and m
+for the water ones, moving / elapsed time, a pace that is better lower,
+elevation, heart rate, cadence, calories, power for cycling, the pool length
+for swimming; milestones become Play badges by data). On share the sheet
+offers **Training** (the activity card) or **A Cycling result**: the posts
+route takes `postType` = the sport, `buildActivitySportLine` builds the line
+from the ROW (a client's stats are ignored; a type that does not map to the
+sport asked for is refused by name), `validateStatLine` checks it like every
+stat line, `fromStatLinePost` writes the performance row (`post:<id>`,
+`self_reported`), `linkActivityPost` keeps one post per activity, the photos
+mirror as before. The walk itself still writes no `athlete_performances` row.
+
 ## Not in phase 1 (decided)
 
 - `athlete_performances` rows;
