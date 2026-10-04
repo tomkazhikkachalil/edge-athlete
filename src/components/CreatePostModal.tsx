@@ -28,7 +28,7 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
-import { uploadPostMedia } from '@/lib/media/upload';
+import { attachOriginalInBackground, uploadPostMedia } from '@/lib/media/upload';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
 import { planPickAttach, usableDuration } from '@/lib/media/capture-attach';
 import { uploadingLine, weightedProgress } from '@/lib/media/upload-progress';
@@ -542,10 +542,18 @@ export default function CreatePostModal({
   // one, + the untouched ORIGINAL when the render differs — non-destructive
   // media, migration 120; a missing original degrades to re-editing the
   // render, never fails the post).
+  //
+  // `deferOriginal` (Oct 4 2026): an edited VIDEO's original is big and the
+  // post needs only the render — the caller creates the post, then hands the
+  // returned File to attachOriginalInBackground. Photos and the golf share
+  // path keep the original inline (small, or a flow that owns its own
+  // attach step).
   const uploadMediaWithPoster = async (
-    mediaFile: MediaFile
-  ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string }> => {
+    mediaFile: MediaFile,
+    options: { deferOriginal?: boolean } = {}
+  ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string; deferredOriginal?: File }> => {
     if (!mediaFile.file) return { url: mediaFile.url };
+    const defer = !!options.deferOriginal && mediaFile.type === 'video' && !!mediaFile.edited && !!mediaFile.sourceFile;
     // Acting-as: media belongs to the athlete's post, so it must land under
     // the ATHLETE's storage prefix (server validates via the acting-as gate).
     const targetId = activeProfile?.id;
@@ -553,7 +561,7 @@ export default function CreatePostModal({
     // then the original when the render differs); the poster is noise.
     const parts = [
       { bytes: mediaFile.file.size, fraction: 0 },
-      ...(mediaFile.edited && mediaFile.sourceFile ? [{ bytes: mediaFile.sourceFile.size, fraction: 0 }] : []),
+      ...(mediaFile.edited && mediaFile.sourceFile && !defer ? [{ bytes: mediaFile.sourceFile.size, fraction: 0 }] : []),
     ];
     const report = (index: number, fraction: number) => {
       parts[index].fraction = fraction;
@@ -573,6 +581,10 @@ export default function CreatePostModal({
       }
     }
     let sourceUrl: string | undefined;
+    if (defer) {
+      report(parts.length - 1, 1);
+      return { url, thumbnailUrl, deferredOriginal: mediaFile.sourceFile };
+    }
     if (mediaFile.edited && mediaFile.sourceFile) {
       try {
         sourceUrl = (await uploadPostMedia(mediaFile.sourceFile, targetId, { onProgress: f => report(1, f) })).url;
@@ -676,9 +688,13 @@ export default function CreatePostModal({
       // One at a time (Capture v2): nothing heavy runs client-side any more,
       // but one file in flight is the safe default on a phone.
       const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
-      for (const file of mediaFiles) {
-        const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
+      // An edited video's ORIGINAL follows after the post exists (by index —
+      // the server orders post_media by the sortOrder sent below).
+      const deferredOriginals: Array<{ index: number; file: File }> = [];
+      for (const [index, file] of mediaFiles.entries()) {
+        const { url, thumbnailUrl, sourceUrl, deferredOriginal } = await uploadMediaWithPoster(file, { deferOriginal: true });
         uploadedMedia.push({ ...file, url, thumbnailUrl, sourceUrl });
+        if (deferredOriginal) deferredOriginals.push({ index, file: deferredOriginal });
       }
 
       // Prepare post data (userId comes from auth)
@@ -731,6 +747,14 @@ export default function CreatePostModal({
       }
 
       const result = await response.json();
+
+      // The originals leave the device in the background — the post is
+      // already up; a closed tab means re-edit starts from the render.
+      const createdMedia: Array<{ id: string }> = Array.isArray(result.post?.media) ? result.post.media : [];
+      for (const { index, file } of deferredOriginals) {
+        const mediaId = createdMedia[index]?.id;
+        if (mediaId) void attachOriginalInBackground(result.post.id, mediaId, file, activeProfile?.id);
+      }
 
       showSuccess('Post created successfully! 🎉');
 

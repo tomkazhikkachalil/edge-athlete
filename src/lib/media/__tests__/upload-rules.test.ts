@@ -7,6 +7,7 @@ import {
   parseIncomingKey,
   postsKey,
   storedTypeMatches,
+  isOwnPostsUploadUrl,
 } from '../upload-rules';
 import { ALLOWED_IMAGE_MIME, ALLOWED_VIDEO_MIME } from '../validation';
 
@@ -69,5 +70,18 @@ describe('direct upload rules', () => {
     expect(storedTypeMatches('image/jpeg', 'IMAGE/JPEG; charset=binary')).toBe(true);
     expect(storedTypeMatches('image/jpeg', 'text/html')).toBe(false);
     expect(storedTypeMatches('image/jpeg', null)).toBe(false);
+  });
+
+  it('the background original is accepted only as the owner\'s own finished upload', () => {
+    const base = 'https://abc.supabase.co/storage/v1/object/public/uploads/posts';
+    expect(isOwnPostsUploadUrl(`${base}/${OWNER}/${ID}.mov`, OWNER)).toBe(true);
+    expect(isOwnPostsUploadUrl(`${base}/${OWNER}/${ID}.mov`, OWNER.toUpperCase())).toBe(true);
+    expect(isOwnPostsUploadUrl(`${base}/${OTHER}/${ID}.mov`, OWNER)).toBe(false);
+    expect(isOwnPostsUploadUrl(`${base}/${OWNER}/${ID}.svg`, OWNER)).toBe(false);
+    expect(isOwnPostsUploadUrl(`https://abc.supabase.co/storage/v1/object/public/uploads/incoming/${OWNER}/${ID}.mov`, OWNER)).toBe(false);
+    expect(isOwnPostsUploadUrl(`${base}/${OWNER}/${ID}.mov?x=1#y`, OWNER)).toBe(true);
+    expect(isOwnPostsUploadUrl('javascript:alert(1)', OWNER)).toBe(false);
+    expect(isOwnPostsUploadUrl(`posts/${OWNER}/${ID}.mov`, OWNER)).toBe(false);
+    expect(isOwnPostsUploadUrl(null, OWNER)).toBe(false);
   });
 });
