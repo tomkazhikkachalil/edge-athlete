@@ -1,4 +1,4 @@
-import { privateTokenExpiry, signMediaToken, type MediaEntityType } from './token';
+import { privateTokenExpiry, signMediaToken, verifyMediaToken, type MediaEntityType } from './token';
 
 /**
  * Rewrite a stored media URL into the authenticated media-proxy path, so
@@ -104,4 +104,40 @@ export function toProxyUrl(
 /** True when a bucket's bytes are served through the proxy. */
 export function isProtectedBucket(bucket: string): boolean {
   return PROTECTED_BUCKETS.has(bucket);
+}
+
+/**
+ * The reverse of `toProxyUrl` (Oct 4 2026): a proxied path back to the
+ * stored public URL, or null when the token does not verify. Needed because
+ * normalize-on-READ hands clients proxied paths, and two clients SEND media
+ * URLs back — the workout editor's entries PUT (a set's photos ride inside
+ * the set snapshot) and a shared workout's media list to the posts route.
+ * Both used to store the proxied path as-is, which the storage sweep and the
+ * deletion engine cannot parse — the files looked unused and were swept.
+ * Every write sink heals through `healStoredMediaUrl` first.
+ */
+export function fromProxyUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const prefix = url.startsWith(OPTIMIZABLE_PROXY_PREFIX)
+    ? OPTIMIZABLE_PROXY_PREFIX
+    : url.startsWith(PROXY_PREFIX)
+      ? PROXY_PREFIX
+      : null;
+  if (!prefix) return null;
+  let token = url.slice(prefix.length);
+  const cut = token.search(/[?#]/);
+  if (cut !== -1) token = token.slice(0, cut);
+  const payload = verifyMediaToken(token);
+  if (!payload) return null;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
+  if (!base) return null;
+  const key = payload.k.split('/').map(encodeURIComponent).join('/');
+  return `${base}/storage/v1/object/public/${payload.b}/${key}`;
+}
+
+/** A proxied path becomes its stored URL (or null — unverifiable, never
+ *  stored); anything else is returned unchanged. Server-only (the secret). */
+export function healStoredMediaUrl(url: string): string | null {
+  if (url.startsWith(PROXY_PREFIX)) return fromProxyUrl(url);
+  return url;
 }

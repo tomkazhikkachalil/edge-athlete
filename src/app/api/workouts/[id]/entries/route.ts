@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload } from '@/lib/workouts/entries';
+import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -36,7 +37,9 @@ export async function PUT(
     if (!Number.isFinite(savedAt) || savedAt <= 0) {
       return NextResponse.json({ error: 'savedAt is required' }, { status: 400 });
     }
-    const validated = validateEntriesPayload(body.exercises ?? []);
+    // The editor sends back the proxied paths the GET handed it — heal them to
+    // the stored storage URLs before the pure validator (Oct 4 2026).
+    const validated = validateEntriesPayload(healEntriesMedia(body.exercises ?? []));
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }

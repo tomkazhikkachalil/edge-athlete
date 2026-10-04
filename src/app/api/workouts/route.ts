@@ -3,8 +3,9 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
-import { toProxyUrl } from '@/lib/media/proxy-url';
+import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
+import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
 import { routineToEntries, type ServerRoutineRow } from '@/lib/workouts/routines';
 import {
   buildRoutineSnapshot,
@@ -248,10 +249,12 @@ export async function GET(request: NextRequest) {
       for (const exercise of session.exercises ?? []) {
         for (const set of exercise.sets ?? []) {
           if (Array.isArray(set.media)) {
-            set.media = set.media.map(m => ({
-              ...m,
-              url: (m?.url ? toProxyUrl(m.url, { type: 'workout', id: profileId }) : m?.url) ?? m?.url,
-            }));
+            // A row written before the Oct 4 heal may hold a proxied path:
+            // heal it on read, so it renders and the next save stores it right.
+            set.media = set.media.map(m => {
+              const stored = m?.url ? (healStoredMediaUrl(m.url) ?? m.url) : m?.url;
+              return { ...m, url: (stored ? toProxyUrl(stored, { type: 'workout', id: profileId }) : stored) ?? stored };
+            });
           }
         }
       }
@@ -440,7 +443,7 @@ export async function POST(request: NextRequest) {
         typeof body.notes === 'string' && body.notes.trim().length > 0
           ? body.notes.trim().slice(0, 1000)
           : null;
-      const validated = validateEntriesPayload(body.exercises ?? []);
+      const validated = validateEntriesPayload(healEntriesMedia(body.exercises ?? []));
       if (!validated.ok) {
         return NextResponse.json({ error: validated.error }, { status: 400 });
       }

@@ -131,3 +131,36 @@ describe('validateEntriesPayload', () => {
     });
   });
 });
+
+describe('set media URLs — a media-proxy path is never the stored value (Oct 4 2026)', () => {
+  it('refuses /api/media/… by name and keeps same-origin paths and storage URLs', async () => {
+    const { isAllowedMediaUrl } = await import('../workouts/entries');
+    expect(isAllowedMediaUrl('/api/media/abc.def')).toBe(false);
+    expect(isAllowedMediaUrl('/api/media/o/abc.def')).toBe(false);
+    expect(isAllowedMediaUrl('https://proj.supabase.co/storage/v1/object/public/uploads/posts/u/a.jpg')).toBe(true);
+    expect(isAllowedMediaUrl('/uploads/x.jpg')).toBe(true);
+    expect(isAllowedMediaUrl('//evil.example/x.jpg')).toBe(false);
+  });
+
+  it('healEntriesMedia rewrites proxied set-media URLs and leaves the rest of the payload untouched', async () => {
+    process.env.MEDIA_PROXY_SECRET = 'test-secret-bbbbbbbbbbbbbbbbbbbbbbbb';
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://proj.supabase.co';
+    try {
+      const { toProxyUrl } = await import('../media/proxy-url');
+      const { healEntriesMedia, healSetMediaValue } = await import('../workouts/entries-heal-server');
+      const stored = 'https://proj.supabase.co/storage/v1/object/public/uploads/posts/u/a.jpg';
+      const proxied = toProxyUrl(stored, { type: 'workout', id: 'p' })!;
+      const healed = healEntriesMedia([
+        { name: 'Squat', exerciseKey: 'squat', category: 'strength', notes: null, sets: [{ setNumber: 1, media: [{ url: proxied, type: 'image' }, { url: stored, type: 'image' }] }] },
+      ]) as Array<{ sets: Array<{ media: Array<{ url: string }> }> }>;
+      expect(healed[0].sets[0].media.map(m => m.url)).toEqual([stored, stored]);
+      expect(healSetMediaValue([{ url: proxied, type: 'image' }])).toEqual([{ url: stored, type: 'image' }]);
+      // An unverifiable proxied path stays as it is — the validator refuses it.
+      expect(healSetMediaValue([{ url: '/api/media/forged.x', type: 'image' }])).toEqual([{ url: '/api/media/forged.x', type: 'image' }]);
+      expect(healSetMediaValue('not an array')).toBe('not an array');
+    } finally {
+      delete process.env.MEDIA_PROXY_SECRET;
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    }
+  });
+});
