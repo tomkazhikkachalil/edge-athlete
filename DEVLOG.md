@@ -1,5 +1,17 @@
 # Development Log
 
+## October 4, 2026 — A library video attaches at once, and uploading shows its number (zero DDL)
+
+**The second half of "uploading is incredibly slow"** (the first half was the direct upload, below). The composer opened the EDITOR on every library pick — for a video that was three `<video>` loads, eight thumbnail seeks and a container parse before anything showed, then a probe and a poster capture on Done, all before a byte left the phone. Capture v2 (Sep 3) had removed that for the camera only.
+
+**Now:** `planPickAttach(files, source)` (`capture-attach.ts`) — a CAMERA capture attaches everything, as before; a LIBRARY pick attaches its **videos** at once (the tile, the poster effect and the metadata read the camera path already had; the editor on the tile's pencil) and keeps **photos** editor-first (a library photo is usually cropped — the editor IS the pick). HEIC always re-encodes. `planCaptureAttach` is the camera case.
+
+**Progress:** `upload-progress.ts` (pure) — `weightedProgress` is byte-weighted over the parts a file sends (the render, then the original when it differs; the poster is noise) and `uploadingLine` names the item in flight with ITS percent ("Uploading 2 of 3 · 45%" — an overall number over a 2 KB poster and a 40 MB video barely moves). `uploadMediaWithPoster` reports through `uploadPostMedia`'s `onProgress` into `MediaFile.uploadProgress`; the tile wears a bar + the number (`role="progressbar"`) and the Post button carries the line while it submits. The golf share path gets both for free (it takes the same uploader).
+
+**Proof:** `capture-attach.test.ts` (library vs camera plans), `upload-progress.test.ts`; `npm run verify` green (4,410). e2e: `capture-attach.spec` now picks the same clip through the LIBRARY input and expects the tile with no editor; `media-editor.spec` and `crop-freeform.spec` open the editor from the tile's Edit button (they used to expect it to open itself) — 17/17 across desktop and both phone projects.
+
+---
+
 ## October 4, 2026 — Uploads go straight to storage: a phone video no longer passes through a function (zero DDL)
 
 **Tom:** a video picked from the phone's library "is now incredibly slow" to upload. The research for the video-editor round found the deeper fault first: **every upload carried the whole file through a Vercel function** (`/api/upload/post-media`, FormData), and **Vercel refuses a function request body over 4.5 MB on every plan, Pro included** (413 `FUNCTION_PAYLOAD_TOO_LARGE` — the Aug 1 2026 entry recorded it on an image). The app said "50 MB"; most phone videos never reached storage, and the ones that did travelled phone → `iad1` → a full in-memory re-mux → `ca-central-1`.

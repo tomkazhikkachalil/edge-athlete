@@ -447,6 +447,9 @@ test('video editor: clips/crop/cover tools, frame step, split within the asset',
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(webm) });
 
+  // Oct 4 2026: a library video attaches as a tile first; the editor is the
+  // tile's Edit button (capture-attach.spec pins the attach itself).
+  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
   // The three video tools.
   await expect(page.getByRole('button', { name: 'Clips', exact: true })).toBeVisible();

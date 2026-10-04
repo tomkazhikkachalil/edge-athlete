@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planCaptureAttach, usableDuration } from '../capture-attach';
+import { planCaptureAttach, planPickAttach, usableDuration } from '../capture-attach';
 
 const f = (name: string, type: string) => new File([new Uint8Array([1, 2, 3])], name, { type });
 
@@ -17,6 +17,21 @@ describe('planCaptureAttach', () => {
     const plan = planCaptureAttach([f('h.heic', 'image/heic'), f('i.heif', 'image/heif'), f('j.jpg', 'image/jpeg')]);
     expect(plan.editor.map(x => x.name)).toEqual(['h.heic', 'i.heif']);
     expect(plan.attach.map(x => x.name)).toEqual(['j.jpg']);
+  });
+});
+
+describe('planPickAttach', () => {
+  it('a LIBRARY pick attaches its videos at once and keeps photos editor-first', () => {
+    const plan = planPickAttach(
+      [f('a.jpg', 'image/jpeg'), f('d.mp4', 'video/mp4'), f('e.mov', 'video/quicktime'), f('h.heic', 'image/heic')],
+      'library'
+    );
+    expect(plan.attach.map(x => x.name)).toEqual(['d.mp4', 'e.mov']);
+    expect(plan.editor.map(x => x.name)).toEqual(['a.jpg', 'h.heic']);
+  });
+  it('a CAMERA capture is the old plan', () => {
+    const files = [f('a.jpg', 'image/jpeg'), f('d.mp4', 'video/mp4'), f('h.heic', 'image/heic')];
+    expect(planPickAttach(files, 'camera')).toEqual(planCaptureAttach(files));
   });
 });
 
