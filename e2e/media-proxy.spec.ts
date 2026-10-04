@@ -64,8 +64,15 @@ test('media proxy: post media authorized at the byte layer', { tag: '@smoke' }, 
       expect((await bystanderCtx.get(base + publicProxy)).status()).toBe(200);
       expect((await anonCtx.get(base + publicProxy)).status()).toBe(200);
       // Speed round 2: one CDN copy for everyone — public, long-lived, NO Vary.
-      expect(ownerPub.headers()['cache-control']).toMatch(/^public, max-age=\d+, s-maxage=\d+, stale-while-revalidate=\d+$/);
+      // Vercel's edge CONSUMES s-maxage / stale-while-revalidate and hands the
+      // browser `public, max-age=3600` (DEVLOG #804); locally the route's full
+      // header arrives. Either way: public, an hour for the browser, no Vary.
+      expect(ownerPub.headers()['cache-control']).toMatch(/^public, max-age=3600(, s-maxage=\d+, stale-while-revalidate=\d+)?$/);
       expect(ownerPub.headers()['vary'] ?? '').not.toMatch(/cookie/i);
+      // On a deployment the second fetch is the CDN's copy.
+      const again = await anonCtx.get(base + publicProxy);
+      const edge = again.headers()['x-vercel-cache'];
+      if (edge) expect(['HIT', 'STALE']).toContain(edge);
 
       // PRIVATE post media: 200 for owner; 404 for bystander and anonymous.
       const ownerPriv = await ownerCtx.get(base + privateProxy);
