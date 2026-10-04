@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { useNotifications } from '@/lib/notifications';
 import type { Conversation, Message } from '@/types/messages';
 
 interface MessagesContextType {
@@ -30,6 +31,9 @@ const MessagesContext = createContext<MessagesContextType | undefined>(undefined
 
 export function MessagesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  // Mounted inside NotificationsProvider (src/app/(app)/layout.tsx): a read
+  // conversation clears its bells there too.
+  const { absorbConversationRead } = useNotifications();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   // Live mirror of `conversations` for callbacks that consumers capture once
   // at mount (e.g. ChatWindow's realtime handler) — reading the state directly
@@ -310,6 +314,10 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         console.error('Failed to mark conversation read — status:', res.status);
         return;
       }
+      // The conversation's bells went read with it (the route); the bell's
+      // count, the loaded rows and the phone's notification follow.
+      const body = (await res.json().catch(() => ({}))) as { notifications_read?: unknown };
+      absorbConversationRead(conversationId, typeof body.notifications_read === 'number' ? body.notifications_read : 0);
       // Read the CURRENT unread count from the ref, not the `conversations`
       // closure — consumers capture this callback once at mount, so a state
       // read here could be arbitrarily stale and over-decrement the total.
@@ -328,7 +336,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error('Failed to mark conversation read:', e);
     }
-  }, []);
+  }, [absorbConversationRead]);
 
   const addOptimisticMessage = useCallback((conversationId: string, message: Message) => {
     setConversations(prev =>

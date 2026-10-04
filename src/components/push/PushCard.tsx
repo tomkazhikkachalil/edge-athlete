@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
-import { isSnoozed, parseSnooze, PUSH_CARD_SNOOZE_KEY, snoozeUntil } from '@/lib/push/card';
+import { cardDecision, isSnoozed, parseSnooze, PUSH_CARD_SNOOZE_KEY, snoozeUntil } from '@/lib/push/card';
 import { usePhoneNotifications } from './usePhoneNotifications';
 
 /**
@@ -15,8 +15,14 @@ import { usePhoneNotifications } from './usePhoneNotifications';
  *
  * Tom (Oct 2 2026, "option 1"): it STAYS until the person chooses. "Turn on"
  * ends it; "Not now" (the button and the X alike) puts it away for a week on
- * THIS device, then it asks again (src/lib/push/card.ts). Blocked in the
- * phone's settings → never asked; the Settings row says where to undo it.
+ * THIS device, then it asks again. Blocked in the phone's settings → never
+ * asked; the Settings row says where to undo it.
+ *
+ * Oct 4 2026: it asks ONCE per device per account. The choice is remembered
+ * on the device (either answer hides the card for good — Settings is the
+ * door), and a device that said yes and lost its subscription is repaired
+ * silently before this reads it. The whole rule is `cardDecision`
+ * (src/lib/push/card.ts), pure and unit-tested.
  *
  * It is the install card's successor — that card shows only before the app
  * is installed, this one only after — so the two never meet; and like it, it
@@ -59,16 +65,22 @@ export default function PushCard() {
     setSnoozedUntil(Date.parse(until));
   };
 
-  if (!user || isSnoozed(snoozedUntil, now) || waiting || mode !== 'installed') return null;
-  // 'granted' without a subscription is a device that allowed notifications
-  // but is not turned on here (turned off, or allowed before this round):
-  // the tap then subscribes without a prompt.
-  if (!phone.ready || !phone.offered || phone.on) return null;
-  if (phone.support !== 'available' && phone.support !== 'granted') return null;
+  const show = cardDecision({
+    signedIn: !!user,
+    installed: mode === 'installed',
+    waiting,
+    snoozed: isSnoozed(snoozedUntil, now),
+    choice: phone.choice,
+    ready: phone.ready,
+    offered: phone.offered,
+    on: phone.on,
+    support: phone.support,
+  });
+  if (!show) return null;
 
   const turnOn = async () => {
     const result = await phone.turnOn();
-    if (result === 'on') return; // the card leaves by itself (phone.on)
+    if (result === 'on') return; // the card leaves by itself (the choice is recorded)
     if (result === 'denied') {
       // Blocked: the card leaves by itself (the device can no longer be asked).
       showError('Notifications are blocked', 'You can allow them later in your phone’s settings.');

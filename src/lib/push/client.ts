@@ -11,14 +11,26 @@
  *                   tap did not start): permission → the worker → subscribe
  *                   → tell the server
  *   disablePush()   unsubscribe this device and tell the server
- *   syncPush()      on every app start with permission granted: make sure the
- *                   worker is registered and the server holds this device's
- *                   CURRENT endpoint (push services rotate them)
+ *   syncPush()      on every app start, signed in, permission granted: make
+ *                   sure the server holds this device's CURRENT endpoint
+ *                   (push services rotate them) — and, when this device CHOSE
+ *                   on for this account but holds no subscription (a sign-out
+ *                   turned it off, iOS dropped it), subscribe again silently.
+ *                   Granted permission needs no gesture to subscribe.
  *   setIconBadge()  the number on the app icon (installed apps)
+ *   closeShownNotifications()  take read items off the phone's notification
+ *                   center (the worker only ever closes the one tapped)
  */
 
 import { staticCacheEnabled, swUrl } from '@/lib/sw/static-cache';
 import { urlBase64ToUint8Array } from './keys';
+import {
+  deviceChoiceFor,
+  parseDeviceChoice,
+  serializeDeviceChoice,
+  PUSH_DEVICE_CHOICE_KEY,
+  type DeviceChoice,
+} from './card';
 
 export type PushSupport =
   /** No service worker / PushManager / Notification here at all. */
@@ -92,6 +104,29 @@ export function loadPushConfig(): Promise<PushConfig> {
   return configPromise;
 }
 
+// ── The device's choice, remembered per account (src/lib/push/card.ts) ─────
+
+/** What this account chose on this device, or null when never asked-and-answered. */
+export function readDeviceChoice(userId: string | null): DeviceChoice | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return deviceChoiceFor(parseDeviceChoice(window.localStorage.getItem(PUSH_DEVICE_CHOICE_KEY)), userId);
+  } catch {
+    return null;
+  }
+}
+
+/** Written by the two doors (the feed card, the Settings switch) — never by
+ *  sign-out, so the same person is repaired on their next sign-in. */
+export function rememberDeviceChoice(userId: string, choice: DeviceChoice): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PUSH_DEVICE_CHOICE_KEY, serializeDeviceChoice(userId, choice, Date.now()));
+  } catch {
+    // Storage unavailable — the card may ask again next visit; never an error.
+  }
+}
+
 async function registration(): Promise<ServiceWorkerRegistration> {
   const existing = await navigator.serviceWorker.getRegistration('/');
   if (existing) return existing;
@@ -107,6 +142,24 @@ async function postSubscription(sub: PushSubscription): Promise<boolean> {
     body: JSON.stringify({ endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } }),
   });
   return response.ok;
+}
+
+/** Subscribe this device (permission already granted) and tell the server. */
+async function subscribeHere(config: PushConfig): Promise<boolean> {
+  if (!config.enabled || !config.publicKey) return false;
+  const reg = await registration();
+  await navigator.serviceWorker.ready;
+  const key = urlBase64ToUint8Array(config.publicKey);
+  let sub = await reg.pushManager.getSubscription();
+  // A subscription made against an older key cannot be reused.
+  if (sub && !sameKey(sub.options?.applicationServerKey ?? null, key)) {
+    await sub.unsubscribe().catch(() => false);
+    sub = null;
+  }
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  }
+  return postSubscription(sub);
 }
 
 export type EnableResult = 'on' | 'denied' | 'unavailable' | 'failed';
@@ -127,19 +180,7 @@ export async function enablePush(): Promise<EnableResult> {
   if (permission === 'denied') return 'denied';
   if (permission !== 'granted') return 'failed';
   try {
-    const reg = await registration();
-    await navigator.serviceWorker.ready;
-    const key = urlBase64ToUint8Array(config.publicKey);
-    let sub = await reg.pushManager.getSubscription();
-    // A subscription made against an older key cannot be reused.
-    if (sub && !sameKey(sub.options?.applicationServerKey ?? null, key)) {
-      await sub.unsubscribe().catch(() => false);
-      sub = null;
-    }
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-    }
-    return (await postSubscription(sub)) ? 'on' : 'failed';
+    return (await subscribeHere(config)) ? 'on' : 'failed';
   } catch {
     return 'failed';
   }
@@ -177,20 +218,34 @@ export async function disablePush(): Promise<void> {
   }).catch(() => undefined);
 }
 
+let syncFor: { userId: string; promise: Promise<void> } | null = null;
+
 /**
- * On app start, signed in, permission already granted: keep the worker
- * registered and the server holding this device's current endpoint. Silent;
- * never prompts.
+ * On app start, signed in: keep the server holding this device's current
+ * endpoint, and REPAIR a device that chose on for this account but holds no
+ * subscription. Silent; never prompts; ONE run per account per page load (the
+ * host and every door await the same promise, so no door reads the device
+ * before the repair). Never throws.
  */
-export async function syncPush(): Promise<void> {
+export function syncPush(userId: string): Promise<void> {
+  if (syncFor?.userId === userId) return syncFor.promise;
+  const promise = runSync(userId).catch(() => undefined);
+  syncFor = { userId, promise };
+  return promise;
+}
+
+async function runSync(userId: string): Promise<void> {
   if (!hasPushApis() || Notification.permission !== 'granted') return;
-  try {
-    const sub = await currentSubscription();
-    if (!sub) return; // permission without a subscription: the person turned it off here
+  const sub = await currentSubscription();
+  if (sub) {
     await postSubscription(sub);
-  } catch {
-    /* the next start tries again */
+    return;
   }
+  // Allowed, not subscribed. The person turned it off here (choice 'off'), or
+  // was never asked (null) — leave it. Only a device that said ON for THIS
+  // account is repaired: the subscription went with a sign-out or the phone.
+  if (readDeviceChoice(userId) !== 'on') return;
+  await subscribeHere(await loadPushConfig());
 }
 
 /** The number on the app icon. Feature-detected; a no-op where unsupported. */
@@ -205,6 +260,33 @@ export function setIconBadge(count: number): void {
       void nav.setAppBadge(count).catch(() => undefined);
     } else if (count <= 0 && typeof nav.clearAppBadge === 'function') {
       void nav.clearAppBadge().catch(() => undefined);
+    }
+  } catch {
+    /* a nicety — never an error */
+  }
+}
+
+export type ShownFilter = { all: true } | { id: string } | { tag: string };
+
+/**
+ * Take read items off the phone's notification center. The worker closes only
+ * the notification that was TAPPED; something read inside the app (a row, the
+ * bell opened, a conversation read) would otherwise sit there until the phone
+ * cleared it. Matches by the worker's own `data.id` and `tag`
+ * (src/lib/push/payload.ts). Feature-detected; never throws.
+ */
+export async function closeShownNotifications(filter: ShownFilter): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    if (!reg || typeof reg.getNotifications !== 'function') return;
+    const shown = await reg.getNotifications();
+    for (const n of shown) {
+      const matches =
+        'all' in filter ||
+        ('id' in filter && (n.data as { id?: unknown } | null)?.id === filter.id) ||
+        ('tag' in filter && n.tag === filter.tag);
+      if (matches) n.close();
     }
   } catch {
     /* a nicety — never an error */

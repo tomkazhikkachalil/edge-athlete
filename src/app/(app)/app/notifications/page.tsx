@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -12,7 +12,12 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 
 
-type Tab = 'all' | 'unread' | 'follow' | 'engagement' | 'system';
+// Opening this screen IS seeing it (Tom, Oct 4 2026 — Instagram's rule):
+// everything unread is marked read once the list has landed, so the bell's
+// dot and the app icon's number go to zero together. The rows that were new
+// at that moment keep the "new" styling for this visit (`freshIds`). There is
+// no Unread tab any more — it could never hold anything.
+type Tab = 'all' | 'follow' | 'engagement' | 'system';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -30,6 +35,19 @@ export default function NotificationsPage() {
   } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<Tab>('all');
+  // New for this visit: the unread rows at the moment the list landed.
+  const [freshIds, setFreshIds] = useState<Set<string>>(() => new Set());
+  const seenRef = useRef(false);
+
+  // Open = seen, once per visit, when the first list read has landed (the
+  // count comes with it). A row arriving later by realtime stays unread
+  // until the next visit — the same rule as the bell.
+  useEffect(() => {
+    if (seenRef.current || loading || !user || unreadCount === 0) return;
+    seenRef.current = true;
+    setFreshIds(new Set(notifications.filter(n => !n.is_read).map(n => n.id)));
+    void markAllAsRead();
+  }, [loading, user, unreadCount, notifications, markAllAsRead]);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   // C1 (Sep 2026): single-delete gets the same confirm treatment clear-all
   // always had — deletion is permanent and the trash icon sits next to the
@@ -47,7 +65,6 @@ export default function NotificationsPage() {
   // registry (src/lib/notification-registry.ts); a type the registry doesn't
   // know yet maps to no named tab, so it stays reachable via All/Unread.
   const filteredNotifications = notifications.filter(notification => {
-    if (activeTab === 'unread') return !notification.is_read;
     if (activeTab === 'all') return true;
     return notificationTab(notification.type) === activeTab;
   });
@@ -134,7 +151,7 @@ export default function NotificationsPage() {
   };
 
   const handleLoadMore = () => {
-    fetchNotifications({ unreadOnly: activeTab === 'unread' });
+    fetchNotifications();
   };
 
   const handleClearAll = async () => {
@@ -159,21 +176,13 @@ export default function NotificationsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-bold text-primary">Notifications</h1>
-              <p className="text-sm text-tertiary mt-1">
-                {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
+              <p className="text-sm text-tertiary mt-1" data-notifications-new={freshIds.size}>
+                {freshIds.size > 0 ? `${freshIds.size} new` : 'All caught up!'}
               </p>
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="px-4 py-2 text-sm font-medium text-brand-fg hover:text-brand-fg-strong transition-colors"
-                >
-                  Mark all read
-                </button>
-              )}
               {notifications.length > 0 && (
                 <button
                   onClick={() => setShowClearConfirm(true)}
@@ -189,7 +198,6 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-1 mt-6 border-b border-border overflow-x-auto scrollbar-hide">
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
-              { id: 'unread' as Tab, label: 'Unread', count: unreadCount },
               { id: 'follow' as Tab, label: 'Fans', icon: 'fa-user-plus' },
               { id: 'engagement' as Tab, label: 'Engagement', icon: 'fa-heart' },
               { id: 'system' as Tab, label: 'System', icon: 'fa-bullhorn' }
@@ -227,9 +235,7 @@ export default function NotificationsPage() {
             <i className="fas fa-bell-slash text-5xl text-gray-300 mb-4"></i>
             <h3 className="text-lg font-medium text-primary mb-2">No notifications</h3>
             <p className="text-tertiary">
-              {activeTab === 'unread'
-                ? "You're all caught up! No unread notifications."
-                : "When you receive notifications, they'll appear here."}
+              When you receive notifications, they&apos;ll appear here.
             </p>
           </div>
         ) : (
@@ -245,10 +251,11 @@ export default function NotificationsPage() {
                       <div
                         key={notification.id}
                         className={`p-4 hover:bg-surface-muted transition-colors cursor-pointer ${
-                          !notification.is_read ? 'bg-brand-soft' : ''
+                          freshIds.has(notification.id) || !notification.is_read ? 'bg-brand-soft' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
                         data-notification-card={notification.id}
+                        data-notification-fresh={freshIds.has(notification.id) || !notification.is_read ? '' : undefined}
                         data-notification-type={notification.type}
                       >
                         <div className="flex items-start gap-4">
@@ -303,7 +310,7 @@ export default function NotificationsPage() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-2">
-                            {!notification.is_read && (
+                            {(freshIds.has(notification.id) || !notification.is_read) && (
                               <div className="w-2 h-2 bg-brand rounded-full"></div>
                             )}
                             <button

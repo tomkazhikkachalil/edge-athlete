@@ -64,6 +64,9 @@ export async function runPushSweep(admin: SupabaseClient, now: Date = new Date()
     .from('notifications')
     .update({ pushed_at: stamp })
     .is('pushed_at', null)
+    // Read before the sweep got to it (the bell opened, the chat read): no
+    // buzz about it. It ages into the stale stamp below.
+    .eq('is_read', false)
     .gte('created_at', since)
     .select('id, user_id, type, title, message, action_url, post_id, metadata, created_at');
   if (claimError) {
