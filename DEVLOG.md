@@ -1,5 +1,26 @@
 # Development Log
 
+## October 4, 2026 — Speed round 2, D: fewer calls per screen, less churn on the client (zero DDL)
+
+**The finding (the request-path audit):** screens chained calls that did not depend on each other, and the client re-rendered more than it needed to. Each sequential server call is 134–334 ms on production, so the chains were the time.
+
+**Server:**
+- **`/api/calendar/events`** ran its three read-time overlays — the org merge (~4 reads), the activity overlay (2) and the sport-event overlay (~5) — one after another though none depends on another. They run TOGETHER now (`Promise.all` over a best-effort `settle` that keeps each one's "a failure never takes the calendar down" rule).
+- **`GET /api/posts`** read the viewer's mutes + blocks (`hiddenAuthorsFor`) only AFTER the page came back; it depends on nothing the page returns, so it is read alongside the page.
+- **`/api/profile`** read `season_highlights` and `performances` on every profile load — two sequential queries the page never displayed (its own comment said so). Gone; the keys stay in the answer, empty, for cached clients. The answer now carries **`canView`** (the privacy rule already ran to shape it), so `/athlete/[id]` no longer makes the separate `/api/privacy/check` round trip (a cached answer without the field falls back to it, one release).
+- **`/api/follow/stats`** was asked twice per profile view — by the page and by `FollowButton`. The button now hands what it loaded to the page (`onStatsLoaded`, published on a ref so its loader effect keeps its deps); the page's own fetch is gone.
+
+**Client:**
+- **`PostCard` is `memo`, but every callback the feed passed it was a new function each render** — `handleLike`, `handleEdit`, `handleDelete`, `handleCommentCountChange`, an inline `onComment`, an inline `onReposted` — so a like or a toast re-rendered every card on the page. `useCallback` with the real deps (`handleEdit` reads `postsRef`, never `posts`), a module `noop`, a memoized `handleReposted`.
+- **The chat dock is desktop-only yet every phone downloaded it** (the dock, its panel, the mini thread, presence) from the root layout. `ChatDockMount` decides with the same `useIsDesktop` and `dynamic()`-loads the dock only where it renders.
+- **`MessagesProvider` polled two endpoints every 30 s on every page.** Realtime carries every new message to a focused tab and the visibility catch-up covers a return; the poll is only the net under a dropped socket — **2 minutes** now.
+
+**Not done, by decision:** Font Awesome's `font-display: block` (the prebuilt CSS cannot be overridden by a rule; subsetting is its own round) and deferring Sentry's init (it would miss early errors for a small saving).
+
+**Proof:** `npm run verify` green; e2e `calendar-layers`, `feed-calendar-widget`, `feed-following`, `feed-post`, `feed-since`, `follow-request`, `perf-feed`, `profile-orgs`, `profile-spacing`, `chat-dock` green on staging (one ordering clash when `follow-request` ran after `feed-following` in the same bundle — A already followed B; green alone, as in the suite's own order).
+
+---
+
 ## October 4, 2026 — Speed round 2, C4: an unedited photo is resized at Post, and its original follows behind (zero DDL)
 
 **The finding:** the editor already renders an EDITED photo at the composer's 2048 px cap, but a photo the person never opened — most of them — uploaded at its full size (a 12 MP camera JPEG, several MB), and that is what every viewer and the optimizer's source fetch then paid for.

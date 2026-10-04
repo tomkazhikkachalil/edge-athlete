@@ -86,38 +86,29 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Read-time org merge: the reader's leagues'/clubs' events, minus any
-    // they hold a guest row on. Best-effort like the overlay below — a
-    // failure must not take the calendar down. Guardian reads (readAs)
-    // naturally merge the CHILD's orgs.
-    let orgEvents: Awaited<ReturnType<typeof fetchOrgEventsForViewer>> = [];
-    try {
-      orgEvents = await fetchOrgEventsForViewer(admin, readAs, fromMs, toMs, {
-        fields: EVENT_FIELDS,
-      });
-    } catch (e) {
-      reportRouteError('[CALENDAR] org merge failed:', e);
-    }
-
-    // Completed-activity overlay (read-time, self-scoped, in-app only —
-    // never in the ICS feed). A source-table failure must not take the
-    // calendar down with it.
-    let overlay: Awaited<ReturnType<typeof fetchActivityOverlay>> = [];
-    try {
-      overlay = await fetchActivityOverlay(admin, readAs, fromMs, toMs);
-    } catch (e) {
-      reportRouteError('[CALENDAR] activity overlay failed:', e);
-    }
-
-    // Sport events (phase 2b): the reader's upcoming and live event rounds,
-    // read-time like the activity overlay (never rows, never the ICS feed);
-    // a tap goes to the event's page. Best-effort like the two above.
-    let sportEvents: Awaited<ReturnType<typeof fetchSportEventOverlay>> = [];
-    try {
-      sportEvents = await fetchSportEventOverlay(admin, readAs, fromMs, toMs);
-    } catch (e) {
-      reportRouteError('[CALENDAR] sport event overlay failed:', e);
-    }
+    // Three read-time overlays, each best-effort (a source-table failure must
+    // not take the calendar down) and each independent of the others — so
+    // they run TOGETHER (speed round 2: they used to run one after another,
+    // ~11 sequential reads at 134–334 ms each on production):
+    //   - the org merge: the reader's leagues'/clubs' events, minus any they
+    //     hold a guest row on (guardian reads naturally merge the CHILD's orgs);
+    //   - the completed-activity overlay (self-scoped, in-app only — never
+    //     the ICS feed);
+    //   - sport events (phase 2b): the reader's upcoming and live event
+    //     rounds (never rows, never the ICS feed; a tap goes to the event).
+    const settle = async <T,>(label: string, work: () => Promise<T>, empty: T): Promise<T> => {
+      try {
+        return await work();
+      } catch (e) {
+        reportRouteError(`[CALENDAR] ${label} failed:`, e);
+        return empty;
+      }
+    };
+    const [orgEvents, overlay, sportEvents] = await Promise.all([
+      settle('org merge', () => fetchOrgEventsForViewer(admin, readAs, fromMs, toMs, { fields: EVENT_FIELDS }), [] as Awaited<ReturnType<typeof fetchOrgEventsForViewer>>),
+      settle('activity overlay', () => fetchActivityOverlay(admin, readAs, fromMs, toMs), [] as Awaited<ReturnType<typeof fetchActivityOverlay>>),
+      settle('sport event overlay', () => fetchSportEventOverlay(admin, readAs, fromMs, toMs), [] as Awaited<ReturnType<typeof fetchSportEventOverlay>>),
+    ]);
 
     return NextResponse.json({ events: [...events, ...orgEvents.map(publicEventRow), ...overlay, ...sportEvents] });
   } catch (error) {

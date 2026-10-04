@@ -1,7 +1,7 @@
 'use client';
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -27,6 +27,9 @@ import PushCard from '@/components/push/PushCard';
 const NEW_POSTS_POLL_MS = 60_000;
 const NEW_POSTS_MIN_GAP_MS = 20_000;
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
+
+/** A stable no-op for PostCard's unused onComment (the card is memo'd). */
+const noop = () => {};
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
 // loaded only when the user opens them. Cuts First Load JS on /feed.
@@ -336,7 +339,7 @@ export default function FeedPage() {
     }
   }
 
-  const handleLike = async (postId: string) => {
+  const handleLike = useCallback(async (postId: string) => {
     if (!user) {
       showError('Authentication Required', 'Please log in to like posts');
       return;
@@ -377,14 +380,21 @@ export default function FeedPage() {
       console.error('Failed to like post:', e);
       showError('Error', 'Failed to like post');
     }
-  };
+  }, [user, showError]);
 
   // Comments are handled within CommentSection component
   // const handleComment = (postId: string) => {
   //   // Reserved for future use
   // };
 
-  const handleCommentCountChange = (postId: string, newCount: number) => {
+  // Speed round 2: PostCard is memo'd, but every callback here used to be a
+  // new function each render, so any feed state change (a like, a toast)
+  // re-rendered every card. Stable now — deps are the real ones.
+  const handleReposted = useCallback((created: unknown) => {
+    const repost = created as Post;
+    setPosts(prev => (prev.some(p => p.id === repost.id) ? prev : [repost, ...prev]));
+  }, []);
+  const handleCommentCountChange = useCallback((postId: string, newCount: number) => {
     // Update the local state with new comment count
     setPosts(prevPosts =>
       prevPosts.map(post =>
@@ -393,7 +403,7 @@ export default function FeedPage() {
           : post
       )
     );
-  };
+  }, []);
 
   const handlePostCreated = async (newPost: unknown) => {
 
@@ -423,13 +433,13 @@ export default function FeedPage() {
     showSuccess('Success', 'Post created successfully!');
   };
 
-  const handleEdit = (postId: string) => {
-    const post = posts.find(p => p.id === postId);
+  const handleEdit = useCallback((postId: string) => {
+    const post = postsRef.current.find(p => p.id === postId);
     if (post) {
       setEditingPost(post);
       setIsEditPostModalOpen(true);
     }
-  };
+  }, []);
 
   const handlePostUpdated = () => {
     // Refresh the feed when a post is updated
@@ -439,7 +449,7 @@ export default function FeedPage() {
     showSuccess('Success', 'Post updated successfully!');
   };
 
-  const handleDelete = async (postId: string, mode?: 'delete') => {
+  const handleDelete = useCallback(async (postId: string, mode?: 'delete') => {
     // Optimistic (Oct 2026): the card leaves at the tap. It used to stay
     // until the server answered — seconds on a slow connection, which read
     // as "nothing happened". A refusal or a failure puts it back in place.
@@ -477,7 +487,7 @@ export default function FeedPage() {
       // The server's own words when it has some (a refusal names its reason).
       showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
     }
-  };
+  }, [showError, showSuccess]);
 
   // Show loading state
   if (loading || !user) {
@@ -745,17 +755,12 @@ export default function FeedPage() {
                       post={post}
                       currentUserId={user.id}
                       onLike={handleLike}
-                      onComment={() => {}}
+                      onComment={noop}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onCommentCountChange={handleCommentCountChange}
                       showActions={true}
-                      onReposted={(created) => {
-                        const repost = created as Post;
-                        setPosts(prev =>
-                          prev.some(p => p.id === repost.id) ? prev : [repost, ...prev]
-                        );
-                      }}
+                      onReposted={handleReposted}
                     />
                   ))}
                   

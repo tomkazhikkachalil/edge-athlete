@@ -9,7 +9,7 @@ import ActingAsBanner from "@/components/ActingAsBanner";
 import TransferBanner from "@/components/TransferBanner";
 import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ModerationBanner from "@/components/ModerationBanner";
-import ChatDock from "@/components/chat-dock/ChatDock";
+import ChatDockMount from "@/components/chat-dock/ChatDockMount";
 import TabBar from '@/components/TabBar';
 import PushHost from '@/components/push/PushHost';
 import { EditProfileProvider } from '@/components/EditProfileHost';
@@ -139,7 +139,7 @@ export default async function RootLayout({
               <PushHost />
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}
-              <ChatDock />
+              <ChatDockMount />
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />

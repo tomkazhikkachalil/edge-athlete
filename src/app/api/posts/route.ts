@@ -1259,7 +1259,13 @@ export async function GET(request: NextRequest) {
       query = query.eq('sport_key', sportKey);
     }
 
-    const { data: posts, error } = await query;
+    // The viewer's mutes + blocks (Spec 2, mig 223) depend on nothing the
+    // page returns, so they are read ALONGSIDE the page (speed round 2 —
+    // one fewer sequential round trip at 134–334 ms each on production).
+    const [{ data: posts, error }, hiddenAuthors] = await Promise.all([
+      query,
+      hiddenAuthorsFor(supabase, currentUserId),
+    ]);
 
     if (error) {
       // Pre-181: the contest filter names a column that is not there yet —
@@ -1270,11 +1276,6 @@ export async function GET(request: NextRequest) {
       reportRouteError('Posts fetch error:', error);
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
-
-    // Get follow relationships for current user (if authenticated).
-    // Spec 2 (mig 223): the viewer's mutes + blocks in both directions — the
-    // feed READ never filtered blocks before; one helper now hides both.
-    const hiddenAuthors = await hiddenAuthorsFor(supabase, currentUserId);
 
     // The viewer's accepted follows AMONG THIS PAGE'S AUTHORS (and, below,
     // the quoted originals' owners) — bounded by the page, never the whole

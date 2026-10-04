@@ -171,24 +171,22 @@ export default function AthleteProfilePage() {
       // Can be added to UI in future: setSeasonHighlights(profileData.seasonHighlights || []);
       // Can be added to UI in future: setPerformances(profileData.performances || []);
 
-      // Check privacy access via API
-      const privacyResponse = await fetch(`/api/privacy/check?profileId=${athleteId}`);
-      if (seq !== requestSeqRef.current) return; // stale response
+      // Access comes WITH the profile (speed round 2): /api/profile already
+      // ran the privacy rule to shape its answer and now says so, so the
+      // separate /api/privacy/check round trip is gone. A cached answer
+      // without the field (one release) falls back to that check.
       let canView = false;
-      if (privacyResponse.ok) {
-        const privacyCheck = await privacyResponse.json();
-        canView = privacyCheck.canView;
-        setHasAccess(canView);
+      if (typeof profileData.canView === 'boolean') {
+        canView = profileData.canView;
       } else {
-        // If privacy check fails, default to no access
-        setHasAccess(false);
+        const privacyResponse = await fetch(`/api/privacy/check?profileId=${athleteId}`);
+        if (seq !== requestSeqRef.current) return; // stale response
+        if (privacyResponse.ok) canView = (await privacyResponse.json()).canView === true;
       }
+      setHasAccess(canView);
 
-      // Only load additional data if user has access
-      if (canView) {
-        // Load follow stats
-        await loadFollowStats();
-      }
+      // Follow stats arrive through FollowButton's own load (onStatsLoaded)
+      // — this page used to ask /api/follow/stats a second time (speed round 2).
 
     } catch (e) {
       if (seq !== requestSeqRef.current) return; // stale response
@@ -199,25 +197,6 @@ export default function AthleteProfilePage() {
     }
   }
 
-  const loadFollowStats = async () => {
-    try {
-      const params = new URLSearchParams({ profileId: athleteId });
-      if (user?.id) {
-        params.append('currentUserId', user.id);
-      }
-
-      const response = await fetch(`/api/follow/stats?${params}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setFollowStats(data);
-      } else {
-        console.error('Failed to load follow stats — status:', response.status);
-      }
-    } catch (e) {
-      console.error('Failed to load follow stats:', e);
-    }
-  };
 
   const handleFollowChange = (isFollowing: boolean, followersCount: number) => {
     setFollowStats(prev => ({
@@ -330,6 +309,7 @@ export default function AthleteProfilePage() {
                   profileId={athleteId}
                   currentUserId={user?.id}
                   onFollowChange={handleFollowChange}
+                  onStatsLoaded={stats => setFollowStats(stats as typeof followStats)}
                   size="md"
                 />
                 {/* Spec 2: report this profile (Block + Mute are offered after). */}
