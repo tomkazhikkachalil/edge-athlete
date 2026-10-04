@@ -20,6 +20,11 @@ import { importActivity } from '@/lib/activities/write-server';
  * imports for their athlete through the shared acting gate.
  * 201 { id, duplicate: false } · 200 { id, duplicate: true } (a re-import
  * refreshed the existing activity) · 400 / 413 / 422 with the reason.
+ *
+ * `format: 'live'` (Live Activities, 251) is the phone recorder's finished
+ * recording through the SAME door: source 'live', external_id the
+ * recording's own id (a retry is a 200 duplicate, never a second row), the
+ * segments it marked, and a step estimate from the acting profile's height.
  */
 const MAX_BODY_BYTES = 3_000_000;
 
@@ -51,7 +56,17 @@ export async function POST(request: NextRequest) {
     const parsed = parseWireActivity(activity);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-    const outcome = await importActivity(getSupabaseAdmin(), gate.actorId, fromWire(parsed.value), { timeZone: parsed.value.tz });
+    const admin = getSupabaseAdmin();
+    const { data: prof } = await admin.from('profiles').select('height_cm').eq('id', gate.actorId).maybeSingle();
+    const heightCm = typeof prof?.height_cm === 'number' ? prof.height_cm : null;
+    const live = parsed.value.format === 'live';
+    const outcome = await importActivity(admin, gate.actorId, fromWire(parsed.value), {
+      timeZone: parsed.value.tz,
+      heightCm,
+      ...(live
+        ? { source: 'live' as const, externalId: `live:${parsed.value.recordingId}`, live: { segments: parsed.value.segments ?? [] } }
+        : {}),
+    });
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ id: outcome.id, duplicate: outcome.duplicate }, { status: outcome.duplicate ? 200 : 201 });
   } catch (error) {

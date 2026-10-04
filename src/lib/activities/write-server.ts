@@ -15,7 +15,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidTimeZone } from '@/lib/calendar/time-zones';
 import type { ActivitySource } from './catalog';
 import { DEDUPE_START_WINDOW_S, findDuplicate, incomingIsRicher } from './dedupe';
-import { cleanPoints, defaultActivityName, fileExternalId, implausibility, localParts, summarize } from './normalize';
+import { cleanPoints, defaultActivityName, estimateSteps, fileExternalId, implausibility, localParts, summarize } from './normalize';
+import { normalizeSegments, segmentsFromRow, type ActivitySegment } from './segments';
 import { buildStream, routePreview } from './stream';
 import type { NormalizedActivity } from './types';
 
@@ -44,6 +45,10 @@ export async function importActivity(
     source?: ActivitySource;
     /** The source's own id for the activity. Default (and a file's): the start second. */
     externalId?: string | null;
+    /** The phone recorder (251): the segments marked during the recording. */
+    live?: { segments: ActivitySegment[] };
+    /** The acting profile's height, for the step estimate (null → the fallback stride). */
+    heightCm?: number | null;
   }
 ): Promise<ImportOutcome> {
   const cleaned = cleanPoints(n);
@@ -56,6 +61,15 @@ export async function importActivity(
   const local = localParts(summary.startedAt, n.tzOffsetMin, timeZone);
   const source: ActivitySource = opts.source ?? 'file';
   const externalId = (opts.externalId && opts.externalId.trim().slice(0, 200)) || fileExternalId(summary.startedAt);
+  // 251: the recorder's annotations — segments clamped to the SERVER's
+  // elapsed seconds; steps estimated here, never taken from a client.
+  const segments = opts.live ? normalizeSegments(opts.live.segments, summary.elapsedS) : null;
+  const steps = estimateSteps(n.type, summary.distanceM, summary.movingS, opts.heightCm ?? null);
+  const annotations: Record<string, unknown> = {
+    ...(segments ? { segments } : {}),
+    steps,
+    steps_source: steps === null ? null : 'estimated',
+  };
 
   // 1. The same source delivering the same id: a refresh.
   const { data: exact, error: readError } = await admin
@@ -77,7 +91,7 @@ export async function importActivity(
     const windowMs = DEDUPE_START_WINDOW_S * 1000;
     const { data: near, error: nearError } = await admin
       .from('activities')
-      .select('id, started_at, elapsed_s, has_route, avg_hr')
+      .select('id, started_at, elapsed_s, has_route, avg_hr, segments')
       .eq('profile_id', profileId)
       .gte('started_at', new Date(summary.startedAt - windowMs).toISOString())
       .lte('started_at', new Date(summary.startedAt + windowMs).toISOString())
@@ -97,10 +111,21 @@ export async function importActivity(
       { startedAt: summary.startedAt, elapsedS: summary.elapsedS }
     );
     if (twin) {
+      // A recording and a watch recorded the same walk: ONE activity. The
+      // richer stream stands (dedupe.ts); the recorder's segments land on
+      // the twin when the twin has none — the two starts differ by ≤ 60 s,
+      // a skew the segments table absorbs.
+      const twinRow = (near ?? []).find(r => r.id === twin.id) as { segments?: unknown } | undefined;
+      const twinHasSegments = segmentsFromRow(twinRow?.segments).length > 0;
       if (!incomingIsRicher(twin, { hasRoute: summary.hasRoute, hasHeartRate: summary.avgHr != null })) {
+        if (segments && segments.length > 0 && !twinHasSegments) {
+          const { error: annErr } = await admin.from('activities').update({ segments }).eq('id', twin.id).eq('profile_id', profileId);
+          if (annErr) console.error('[activities] twin segments merge failed:', annErr.message);
+        }
         return { ok: true, id: twin.id, duplicate: true };
       }
       existing = { id: twin.id };
+      if (twinHasSegments) delete annotations.segments;
     }
   }
 
@@ -133,6 +158,7 @@ export async function importActivity(
     has_route: summary.hasRoute,
     route_preview: summary.hasRoute ? routePreview(stream) : null,
     stream_path: path,
+    ...annotations,
   };
 
   if (existing) {
@@ -152,6 +178,7 @@ export async function importActivity(
     external_id: externalId,
     name: (n.name && n.name.trim()) || defaultActivityName(n.type, local.hour),
     ...data,
+    ...(segments ? {} : { segments: [] }),
   });
   if (insErr) {
     // The object we just wrote belongs to no row now.

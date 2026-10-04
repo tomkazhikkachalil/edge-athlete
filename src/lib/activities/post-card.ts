@@ -23,6 +23,13 @@ export interface ActivityPostStats {
   /** The provider credit its terms require ("Recorded with Polar"); absent
    *  on cards written before PR 4 and for files / the upload link. */
   credit?: string | null;
+  /** Live Activities (251): the segments as the card shows them — absent on
+   *  cards written before, and when the activity has none. */
+  segments?: Array<{ kind: string; label: string | null; distance_m: number; seconds: number }>;
+  /** 251: the step estimate ("est.") — absent when none. */
+  steps?: number | null;
+  /** 251: how many photos rode along (the post's own media carry them). */
+  photo_count?: number;
 }
 
 /** A composer's request to share an activity: `{ type: 'activity', activity_id }`. */

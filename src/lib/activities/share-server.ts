@@ -10,6 +10,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
 import type { ActivityPostStats } from './post-card';
+import { segmentsFromRow } from './segments';
+import { segmentStats } from './stream';
+import { readStream } from './read-server';
 
 type Admin = SupabaseClient;
 
@@ -22,7 +25,7 @@ export async function buildActivityPostStats(
   const [actRes, profRes] = await Promise.all([
     admin
       .from('activities')
-      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, route_preview, post_id, only_me')
+      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path')
       .eq('id', activityId)
       .maybeSingle(),
     admin.from('profiles').select('supervision_state').eq('id', authorId).maybeSingle(),
@@ -34,6 +37,22 @@ export async function buildActivityPostStats(
   if (a.post_id) return { ok: false, status: 409, error: 'This activity is already on your feed.' };
   const supervised = profRes.data?.supervision_state === 'supervised';
   const num = (v: unknown) => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  // 251: the segments as the card shows them (measured from the stream, once,
+  // here — the card is a denormalized snapshot by design) and the photo count.
+  const segments = segmentsFromRow(a.segments);
+  let segmentLines: NonNullable<ActivityPostStats['segments']> = [];
+  if (segments.length > 0) {
+    const stream = await readStream(admin, (a.stream_path as string | null) ?? null);
+    if (stream) {
+      segmentLines = segments
+        .map(seg => {
+          const stat = segmentStats(stream, seg);
+          return stat ? { kind: seg.kind, label: seg.label ?? null, distance_m: stat.distanceM, seconds: stat.seconds } : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+    }
+  }
+  const { count: photoCount } = await admin.from('activity_media').select('id', { count: 'exact', head: true }).eq('activity_id', activityId);
   return {
     ok: true,
     activityId,
@@ -50,6 +69,9 @@ export async function buildActivityPostStats(
       avg_hr: a.avg_hr as number | null,
       route_preview: supervised ? null : ((a.route_preview as string | null) ?? null),
       credit: sourceCredit(a.source as string),
+      ...(segmentLines.length > 0 ? { segments: segmentLines } : {}),
+      ...(typeof a.steps === 'number' ? { steps: a.steps } : {}),
+      ...(photoCount ? { photo_count: photoCount } : {}),
     },
   };
 }

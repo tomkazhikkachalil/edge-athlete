@@ -4,7 +4,9 @@ import { getServerAuth, getSupabaseAdmin, requireAuth } from '@/lib/auth-server'
 import { isUuid } from '@/lib/uuid';
 import { reportRouteError } from '@/lib/observability/report';
 import { ACTIVITY_TYPES } from '@/lib/activities/catalog';
+import { readActivityMedia } from '@/lib/activities/media-server';
 import { readActivityForViewer, readStream } from '@/lib/activities/read-server';
+import { normalizeSegments, SegmentsSchema } from '@/lib/activities/segments';
 import { ACTIVITY_COLUMNS, projectActivity, projectActivityDetail } from '@/lib/activities/visibility';
 import { deleteActivity } from '@/lib/activities/write-server';
 
@@ -18,9 +20,11 @@ import { deleteActivity } from '@/lib/activities/write-server';
  * position). Viewer-dependent → `private, no-store`. Signed-out viewers of
  * a public athlete are welcome.
  *
- * PATCH { name?, type?, onlyMe? } and DELETE: the owner audience only (the
- * athlete or their guardian). DELETE removes the stream and the feed post
- * too — the page's confirm says so.
+ * PATCH { name?, type?, onlyMe?, segments?, notes? } and DELETE: the owner
+ * audience only (the athlete or their guardian). Segments (251) are a full
+ * replace, clamped to the activity's seconds; notes ≤ 2000. DELETE removes
+ * the stream, the photos (the FK cascades; the sweep reclaims the files)
+ * and the feed post too — the page's confirm says so.
  */
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 const notFound = () => NextResponse.json({ error: 'Activity not found' }, { status: 404, headers: NO_STORE });
@@ -35,9 +39,10 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     const admin = getSupabaseAdmin();
     const read = await readActivityForViewer(admin, user?.id ?? null, id);
     if (!read.ok) return notFound();
-    const [stream, athleteRes] = await Promise.all([
+    const [stream, athleteRes, media] = await Promise.all([
       readStream(admin, read.row.stream_path),
       admin.from('profiles').select('id, full_name, first_name, last_name, handle').eq('id', read.row.profile_id).maybeSingle(),
+      readActivityMedia(admin, read.row.id),
     ]);
     // The viewer may see this profile (the gate said so), so its own name and
     // handle are what its profile page already shows them.
@@ -45,7 +50,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     const athlete = p
       ? { id: p.id as string, name: (p.full_name as string | null) || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Athlete', handle: (p.handle as string | null) ?? null }
       : null;
-    return NextResponse.json({ activity: projectActivityDetail(read.row, stream, read.audience), athlete }, { headers: NO_STORE });
+    return NextResponse.json({ activity: projectActivityDetail(read.row, stream, read.audience, media), athlete }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[activities/[id]] GET error:', error);
@@ -58,6 +63,8 @@ const PatchSchema = z
     name: z.string().trim().min(1).max(120).optional(),
     type: z.enum(ACTIVITY_TYPES).optional(),
     onlyMe: z.boolean().optional(),
+    segments: SegmentsSchema.optional(),
+    notes: z.string().trim().max(2000).nullable().optional(),
   })
   .strict();
 
@@ -78,7 +85,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     }
     const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid changes' }, { status: 400 });
-    const { name, type, onlyMe } = parsed.data;
+    const { name, type, onlyMe, segments, notes } = parsed.data;
     if (onlyMe === true && read.row.post_id) {
       return NextResponse.json(
         { error: 'This activity is on your feed. Delete that post first, then set the activity to Only me.' },
@@ -89,6 +96,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     if (name !== undefined) patch.name = name;
     if (type !== undefined) patch.activity_type = type;
     if (onlyMe !== undefined) patch.only_me = onlyMe;
+    if (segments !== undefined) patch.segments = normalizeSegments(segments, read.row.elapsed_s);
+    if (notes !== undefined) patch.notes = notes && notes.length > 0 ? notes : null;
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ activity: projectActivity(read.row, 'owner') }, { headers: NO_STORE });
     }

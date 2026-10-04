@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { audienceFor, projectActivity, projectActivityDetail, type ActivityRow } from '../visibility';
+import { audienceFor, pinFor, projectActivity, projectActivityDetail, type ActivityMediaRow, type ActivityRow } from '../visibility';
 import { buildStream, routePreview } from '../stream';
 import { cleanPoints } from '../normalize';
 import { line } from './fixtures';
@@ -33,9 +33,19 @@ const row: ActivityRow = {
   stream_path: 'activities/00000000-0000-4000-8000-000000000002/00000000-0000-4000-8000-000000000001.json.gz',
   post_id: null,
   only_me: false,
+  segments: [{ id: 'seg-1', kind: 'sprint', from_s: 600, to_s: 660 }],
+  steps: null,
+  steps_source: null,
+  notes: 'Felt good.',
   created_at: '2026-09-20T13:00:00+00:00',
   updated_at: '2026-09-20T13:00:00+00:00',
 };
+
+/** A photo at the very start (inside a viewer's trimmed 200 m) and one in the middle. */
+const media: ActivityMediaRow[] = [
+  { id: 'm-start', activity_id: row.id, media_url: '/api/media/t1', media_type: 'image', thumbnail_url: null, duration_seconds: null, caption: 'Door', at_s: 3, display_order: 1, created_at: '2026-09-20T12:00:03+00:00' },
+  { id: 'm-mid', activity_id: row.id, media_url: '/api/media/t2', media_type: 'image', thumbnail_url: null, duration_seconds: null, caption: null, at_s: 1000, display_order: 2, created_at: '2026-09-20T12:16:40+00:00' },
+];
 
 describe('audienceFor', () => {
   it('self or guardian → owner; a supervised athlete’s other viewers → no positions', () => {
@@ -79,6 +89,28 @@ describe('the projections (the access rule)', () => {
     expect(v.stream!.hr).toEqual(stream.hr);
     expect(Object.keys(v.stream!).sort()).toEqual(['d', 'ele', 'hr', 's', 'v']);
     expect(projectActivity(row, 'supervised_viewer').routePreview).toBeNull();
+  });
+
+  it('251: segments, steps and notes reach every audience; a photo pin follows the VIEWER\'s stream', () => {
+    const owner = projectActivityDetail(row, stream, 'owner', media);
+    expect(owner.segments).toEqual([{ id: 'seg-1', kind: 'sprint', from_s: 600, to_s: 660 }]);
+    expect(owner.notes).toBe('Felt good.');
+    expect(owner.steps).toBeNull();
+    expect(owner.media.map(m => m.id)).toEqual(['m-start', 'm-mid']);
+    expect(owner.media[0].pin).not.toBeNull(); // the owner sees the door
+    expect(owner.media[1].pin).not.toBeNull();
+    const viewer = projectActivityDetail(row, stream, 'viewer', media);
+    expect(viewer.segments).toEqual(owner.segments); // a time range reveals no place
+    expect(viewer.media[0].pin).toBeNull(); // inside the trimmed 200 m
+    expect(viewer.media[1].pin).not.toBeNull();
+    const supervised = projectActivityDetail(row, stream, 'supervised_viewer', media);
+    expect(supervised.media.every(m => m.pin === null)).toBe(true);
+    expect(JSON.stringify(supervised)).not.toMatch(/"lat"|"lng"/);
+    // The row's garbage never ships: an unreadable segments value is [].
+    expect(projectActivity({ ...row, segments: 'nope' }, 'owner').segments).toEqual([]);
+    expect(projectActivity({ ...row, steps: 4200, steps_source: 'estimated' }, 'viewer')).toMatchObject({ steps: 4200, stepsSource: 'estimated' });
+    expect(pinFor(null, 10)).toBeNull();
+    expect(pinFor(stream, null)).toBeNull();
   });
 
   it('a viewer of a route shorter than the trims gets no route', () => {

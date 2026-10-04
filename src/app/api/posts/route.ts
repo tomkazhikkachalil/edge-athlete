@@ -435,6 +435,9 @@ export async function POST(request: NextRequest) {
         await supabase.from('posts').delete().eq('id', post.id).eq('profile_id', userId);
         return NextResponse.json({ error: 'This activity is already on your feed.' }, { status: 409 });
       }
+      // Live Activities (251): the activity's photos ride the card (best-effort).
+      const { mirrorActivityMedia } = await import('@/lib/activities/media-server');
+      await mirrorActivityMedia(supabase, shareActivityId, post.id);
     }
 
     if (post?.id && statsData && postType !== 'golf') {
