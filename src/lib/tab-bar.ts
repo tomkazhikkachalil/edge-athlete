@@ -30,7 +30,8 @@ export const TAB_BAR_LINKS: ReadonlyArray<TabBarLink> = [
 const PLACES = ['/feed', '/sports', '/events', '/calendar', '/athlete', '/u', '/app', '/live', '/messages', '/notifications', '/settings', '/league', '/club', '/event', '/explore', '/dashboard'] as const;
 
 /** Screens that own their bottom edge (or render BrandBar): no bar. */
-const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/app/diag', '/app/transfer', '/app/guardian/consent', '/app/guardian/add-athlete', '/app/guardian/credentials'] as const;
+// Live Activities (Oct 4 2026): the recorder owns its bottom edge (Start / Pause / Mark / Finish).
+const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/activities/record', '/app/diag', '/app/transfer', '/app/guardian/consent', '/app/guardian/add-athlete', '/app/guardian/credentials'] as const;
 
 /** Phase 4: the live stat screen owns its bottom edge too (the entry strip) — a pattern, since the id sits in the middle. */
 const HIDDEN_PATTERNS: ReadonlyArray<RegExp> = [/^\/events\/[^/]+\/live$/];

@@ -12,7 +12,7 @@ describe('the phone tab bar', () => {
     }
   });
   it('hides on the screens that own their bottom edge and on the funnels', () => {
-    for (const p of ['/live/gp1', '/messages/c1', '/sports/events/new', '/app/diag/media', '/app/transfer/p1', '/app/guardian/consent/p1', '/app/guardian/add-athlete', '/app/guardian/credentials/p1', '/', '/privacy', '/terms', '/onboarding', '/auth/complete-profile', '/invite/t', '/org/slug', '/reset-password']) {
+    for (const p of ['/live/gp1', '/messages/c1', '/sports/events/new', '/app/diag/media', '/app/transfer/p1', '/app/guardian/consent/p1', '/app/guardian/add-athlete', '/app/guardian/credentials/p1', '/', '/privacy', '/terms', '/onboarding', '/auth/complete-profile', '/invite/t', '/org/slug', '/reset-password', '/activities/record']) {
       expect(showsTabBar(p), p).toBe(false);
     }
     expect(showsTabBar(null)).toBe(false);

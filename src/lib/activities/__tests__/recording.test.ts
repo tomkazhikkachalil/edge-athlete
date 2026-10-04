@@ -4,6 +4,7 @@ import {
   elapsedS,
   lastGapS,
   liveTotals,
+  newId,
   MAX_ACCURACY_M,
   newRecording,
   recordsGps,
@@ -170,5 +171,13 @@ describe('the recorder\'s store — the pure parts', () => {
     expect(flushDue(0, T0, T0 + FLUSH_EVERY_MS * 3)).toBe(false);
     expect(isExpired(meta, T0 + 25_000 + RECORDING_TTL_MS)).toBe(false);
     expect(isExpired(meta, T0 + 25_000 + RECORDING_TTL_MS + 1)).toBe(true);
+  });
+});
+
+describe('newId — a v4 uuid on every browser the app supports', () => {
+  it('is a uuid with the version and variant bits, and never repeats in a burst', () => {
+    const ids = new Set(Array.from({ length: 200 }, () => newId()));
+    expect(ids.size).toBe(200);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
