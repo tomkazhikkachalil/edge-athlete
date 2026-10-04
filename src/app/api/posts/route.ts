@@ -474,18 +474,32 @@ export async function POST(request: NextRequest) {
       // Non-destructive media (120): recipes are validated, never trusted —
       // a malformed envelope stores as null (the media itself still posts).
       const { recipeEnvelope, parseRecipeEnvelope } = await import('@/lib/media/recipes');
+      // A composer may send back the media-proxy paths a GET handed it (a
+      // shared workout's set photos) — the STORED value is the storage URL
+      // (Oct 4 2026; the sweep parses `public/uploads/…`). Heal, and refuse an
+      // unverifiable proxied path by name rather than store it.
+      const { healStoredMediaUrl } = await import('@/lib/media/proxy-url');
+      const healOrNull = (value: unknown): string | null | undefined => {
+        if (typeof value !== 'string' || !value) return value as string | undefined;
+        return healStoredMediaUrl(value);
+      };
+      for (const file of media as Array<{ url: string }>) {
+        if (healStoredMediaUrl(file.url) === null) {
+          return NextResponse.json({ error: 'A media URL could not be verified' }, { status: 400 });
+        }
+      }
       const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
         const recipe = parseRecipeEnvelope(file.editRecipe);
         return {
           post_id: post.id,
-          media_url: file.url,
+          media_url: healStoredMediaUrl(file.url) ?? file.url,
           media_type: file.type,
           display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
-          thumbnail_url: file.thumbnailUrl || null,
+          thumbnail_url: healOrNull(file.thumbnailUrl) || null,
           width: dim(file.width),
           height: dim(file.height),
           duration: dim(file.duration),
-          source_url: typeof file.sourceUrl === 'string' && file.sourceUrl ? file.sourceUrl : null,
+          source_url: typeof file.sourceUrl === 'string' && file.sourceUrl ? (healStoredMediaUrl(file.sourceUrl) ?? file.sourceUrl) : null,
           edit_recipe: recipe ? recipeEnvelope(recipe) : null
         };
       });

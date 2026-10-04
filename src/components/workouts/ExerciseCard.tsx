@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import { Camera, Check, Copy, Play, Plus, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
+import { Camera, Check, Copy, Pencil, Plus, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
+import SetMediaThumb from './SetMediaThumb';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
@@ -87,6 +87,21 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   // entirely — HEIC/oversize used to fail only after the upload). Orphaned
   // files from discarded workouts are handled by the admin storage sweep.
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+  // The editor is replacing THIS tile (the pencil) rather than appending.
+  const [replacing, setReplacing] = useState<number | null>(null);
+  // The upload's local preview per stored URL — the tile shows it the
+  // instant a photo is attached (the stored URL is a private-bucket path
+  // the browser cannot show on its own). Revoked when the tile goes.
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const previewsRef = useRef(previews);
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+  useEffect(() => {
+    return () => {
+      Object.values(previewsRef.current).forEach(u => URL.revokeObjectURL(u));
+    };
+  }, []);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -112,26 +127,69 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   };
 
   const handleEditorDone = async (results: EditedMedia[]) => {
+    const replaceAt = replacing;
     setEditorAssets(null);
+    setReplacing(null);
     setUploading(true);
     const added: SetMedia[] = [];
+    const freshPreviews: Record<string, string> = {};
     try {
       for (const result of results) {
         const uploaded = await uploadPostMedia(result.file);
         added.push({ url: uploaded.url, type: uploaded.type });
-        URL.revokeObjectURL(result.previewUrl);
+        // Kept, not revoked: the tile shows it until the row is re-read.
+        freshPreviews[uploaded.url] = result.previewUrl;
       }
     } catch (err) {
       showError('Upload failed', err instanceof Error ? err.message : 'Could not upload media');
     } finally {
       // One onChange with everything that succeeded (partial success kept)
       // The one genuinely async patch: read the LATEST set, not this closure's.
-      if (added.length > 0) onChange({ ...setRef.current, media: [...setRef.current.media, ...added] });
+      if (added.length > 0) {
+        setPreviews(prev => ({ ...prev, ...freshPreviews }));
+        const current = setRef.current.media;
+        const media =
+          replaceAt !== null && replaceAt < current.length
+            ? [...current.slice(0, replaceAt), added[0], ...current.slice(replaceAt + 1), ...added.slice(1)]
+            : [...current, ...added];
+        onChange({ ...setRef.current, media: media.slice(0, MAX_MEDIA_PER_SET) });
+      }
+      setUploading(false);
+    }
+  };
+
+  // The pencil (Oct 4 2026): a stored photo or clip re-opens in the shared
+  // editor — fetched through the proxy path the GET handed us (the viewer's
+  // cookie goes with it) — and the edit REPLACES the tile.
+  const reEditMedia = async (index: number) => {
+    const item = set.media[index];
+    if (!item) return;
+    setUploading(true);
+    try {
+      const res = await fetch(previews[item.url] ?? item.url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Could not open the media');
+      const blob = await res.blob();
+      const ext = blob.type.split('/')[1] || (item.type === 'video' ? 'mp4' : 'jpg');
+      const file = new File([blob], `set-media.${ext}`, { type: blob.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg') });
+      setReplacing(index);
+      setEditorAssets([{ id: `re-edit-${index}-${item.url}`, file, kind: item.type }]);
+    } catch (err) {
+      showError('Could not open the media', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
       setUploading(false);
     }
   };
 
   const removeMedia = (index: number) => {
+    const gone = set.media[index];
+    if (gone && previews[gone.url]) {
+      URL.revokeObjectURL(previews[gone.url]);
+      setPreviews(prev => {
+        const next = { ...prev };
+        delete next[gone.url];
+        return next;
+      });
+    }
     patch({ media: set.media.filter((_, i) => i !== index) });
   };
 
@@ -320,17 +378,17 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
     {set.media.length > 0 && (
       <div className="flex items-center gap-2 mt-1.5 ml-8 flex-wrap">
         {set.media.map((media, index) => (
-          <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group">
-            {media.type === 'video' ? (
-              <>
-                <video src={media.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                  <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
-                </span>
-              </>
-            ) : (
-              <Image src={media.url} alt="Set media" width={48} height={48} className="w-full h-full object-cover" />
-            )}
+          <div key={`${media.url}-${index}`} data-set-media-tile="" className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group">
+            <SetMediaThumb url={media.url} type={media.type} preview={previews[media.url]} />
+            <button
+              type="button"
+              onClick={() => reEditMedia(index)}
+              disabled={uploading}
+              className="absolute bottom-0 left-0 w-5 h-5 bg-black/60 text-white rounded-tr-lg flex items-center justify-center hover:bg-violet-600 transition-colors disabled:opacity-50"
+              aria-label="Edit media"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
             <button
               type="button"
               onClick={() => removeMedia(index)}
@@ -348,7 +406,10 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         assets={editorAssets}
         config={SET_MEDIA_EDITOR_CONFIG}
         onDone={handleEditorDone}
-        onCancel={() => setEditorAssets(null)}
+        onCancel={() => {
+          setEditorAssets(null);
+          setReplacing(null);
+        }}
       />
     )}
     </div>

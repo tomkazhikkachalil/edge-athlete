@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
-import { Play } from 'lucide-react';
 import type { SetMedia } from '@/lib/workouts/entries';
+import SetMediaThumb from './SetMediaThumb';
 
 /**
  * Read-only thumbnail strip for a set's media (workout history cards and
@@ -21,16 +20,7 @@ export default function SetMediaStrip({ media }: { media: SetMedia[] }) {
           className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken block hover:ring-2 hover:ring-violet-400 transition-shadow"
           aria-label={item.type === 'video' ? 'Watch set video' : 'View set photo'}
         >
-          {item.type === 'video' ? (
-            <>
-              <video src={item.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-              <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
-              </span>
-            </>
-          ) : (
-            <Image src={item.url} alt="Set media" width={48} height={48} className="w-full h-full object-cover" />
-          )}
+          <SetMediaThumb url={item.url} type={item.type} />
         </a>
       ))}
     </div>

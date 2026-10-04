@@ -42,8 +42,14 @@ const MEDIA_TYPES = ['image', 'video'] as const;
  * set media renders in raw <video>/<a> tags with no host gate, so an
  * arbitrary https URL here would make every viewer's browser fetch it.
  */
-function isAllowedMediaUrl(url: string): boolean {
+export function isAllowedMediaUrl(url: string): boolean {
   if (url.length === 0 || url.length > 2048) return false;
+  // A media-proxy path is a VIEW of a stored file, never the stored value:
+  // the sweep and the deletion engine parse `public/uploads/…`, so a stored
+  // proxied path made the file look unused (Oct 4 2026). The server heals a
+  // proxied path back to its storage URL BEFORE validating (entries-heal-
+  // server.ts); one that reaches here is unverifiable and refused by name.
+  if (url.startsWith('/api/media/')) return false;
   // Same-origin path; '//host' would be protocol-relative, not same-origin.
   if (url.startsWith('/')) return !url.startsWith('//');
   let parsed: URL;
