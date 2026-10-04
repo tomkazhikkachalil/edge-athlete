@@ -13,6 +13,7 @@ import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5'],
@@ -20,7 +21,7 @@ const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
   maxAssets: MAX_MEDIA_PER_SET,
   output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
 };
-const SET_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // server cap on /api/upload/post-media
+const SET_MEDIA_MAX_BYTES = MAX_UPLOAD_BYTES; // the one upload cap (upload-rules.ts)
 
 export function emptySet(setNumber: number): EntrySet {
   return {

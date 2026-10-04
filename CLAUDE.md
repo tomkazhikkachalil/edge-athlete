@@ -413,6 +413,11 @@ const { canView } = await response.json();
    scrubbed **server-side** in `/api/upload/post-media`; the client JPEG strip
    keeps the Orientation tag. See `src/lib/media/capture-attach.ts` and DEVLOG
    Sep 3 2026 round 11 before touching the capture path.
+   **Uploads go DIRECT to storage (Oct 4 2026):** `uploadPostMedia` is
+   intent → a signed PUT from the device to Supabase Storage → complete
+   (`src/lib/media/upload-rules.ts`); a Vercel function refuses a body over
+   4.5 MB on every plan, so NO route may ever take a media file as its body.
+   `MAX_UPLOAD_BYTES` is the one cap and tracks the Supabase project limit.
 9. **Org authority is capabilities, not a role string (Org Staff Program,
    Sep 2026, mig 178)** — `src/lib/orgs/authz.ts` answers every "may this
    profile do X to this org" question: the ladder (owner > manager > member,

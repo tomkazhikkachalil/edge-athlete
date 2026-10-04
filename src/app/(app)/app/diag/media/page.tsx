@@ -25,6 +25,7 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import InAppCamera, { hasCameraStreamApi } from '@/components/media/InAppCamera';
 import { validateFiles } from '@/lib/media/validation';
 import { MAX_CANVAS_DIM, PREVIEW_MAX_DIM } from '@/lib/media/limits';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 const LOG_KEY = 'ea:diag-media:v1';
 const BOOT_ID = Math.random().toString(36).slice(2, 8);
@@ -284,7 +285,7 @@ export default function MediaDiagPage() {
     append(`[change] ${source}: ${files.length} file(s)${tapped !== null ? ` · ${ms(tapped)} after the tap` : ''}`);
     const list = Array.from(files);
     for (const f of list) append(`[file] ${f.name} · ${f.type || 'no type'} · ${kb(f.size)} · modified ${new Date(f.lastModified).toISOString()}`);
-    const { accepted, rejected } = validateFiles(list, { maxBytes: 50 * 1024 * 1024, allowVideo: true, maxCount: 10 });
+    const { accepted, rejected } = validateFiles(list, { maxBytes: MAX_UPLOAD_BYTES, allowVideo: true, maxCount: 10 });
     for (const r of rejected) append(`[validate] REJECTED ${r.file.name}: ${r.message}`);
     append(`[validate] accepted ${accepted.length}`);
     const first = accepted[0];

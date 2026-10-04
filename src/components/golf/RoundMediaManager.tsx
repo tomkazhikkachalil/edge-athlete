@@ -26,6 +26,7 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import ConfirmModal from '@/components/ConfirmModal';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { SportKey } from '@/lib/sports';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 interface RoundMediaManagerProps {
   groupPostId: string;
@@ -39,7 +40,7 @@ interface RoundMediaManagerProps {
 }
 
 const MAX_FILES = 5;
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 
 // Same shape as the live-capture surface (ScoreEntryModal) — after-the-fact
 // media now goes through the same editor instead of straight to upload.
