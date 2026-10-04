@@ -47,6 +47,17 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
             </div>
           ))}
         </dl>
+        {(s.segments?.length || s.photo_count || typeof s.steps === 'number') && (
+          <p className="mt-2 text-xs text-secondary" data-activity-card-extras>
+            {[
+              s.segments?.length ? `${s.segments.length} segment${s.segments.length === 1 ? '' : 's'}` : null,
+              s.photo_count ? `${s.photo_count} photo${s.photo_count === 1 ? '' : 's'}` : null,
+              typeof s.steps === 'number' ? `~${s.steps.toLocaleString()} steps (est.)` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
         {s.credit && <p className="mt-2 text-xs text-muted" data-activity-credit>{s.credit}</p>}
       </div>
     </Link>

@@ -19,9 +19,11 @@ interface Props {
   formatX: (m: number) => string;
   hoverIndex: number | null;
   onHover: (i: number | null) => void;
+  /** Live Activities (251): a segment's sample range, shaded on the plot. */
+  highlightRange?: [number, number] | null;
 }
 
-export default function ActivityStreamChart({ series, formatY, formatX, hoverIndex, onHover }: Props) {
+export default function ActivityStreamChart({ series, formatY, formatX, hoverIndex, onHover, highlightRange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const { path, area, lo, hi, maxX } = useMemo(() => {
     const vals = series.y.filter((v): v is number => v !== null);
@@ -114,6 +116,27 @@ export default function ActivityStreamChart({ series, formatY, formatX, hoverInd
         >
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block w-full h-28">
             <path d={area} fill={series.color} opacity={0.12} />
+            {highlightRange && series.x.length > 0 && (
+
+              <rect
+
+                x={((series.x[Math.max(0, Math.min(highlightRange[0], series.x.length - 1))] / (series.x[series.x.length - 1] || 1)) * W).toFixed(1)}
+
+                y={0}
+
+                width={Math.max(2, ((series.x[Math.min(series.x.length - 1, Math.max(highlightRange[0], highlightRange[1]))] - series.x[Math.max(0, Math.min(highlightRange[0], highlightRange[1]))]) / (series.x[series.x.length - 1] || 1)) * W).toFixed(1)}
+
+                height={H}
+
+                fill="#dc2626"
+
+                opacity={0.15}
+
+                data-chart-highlight=""
+
+              />
+
+            )}
             <path d={path} fill="none" stroke={series.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
           </svg>
           {hoverLeft !== null && (

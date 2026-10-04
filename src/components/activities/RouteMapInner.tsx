@@ -20,6 +20,10 @@ export interface RouteMapInnerProps {
   showEnds: boolean;
   /** The chart's hovered sample, marked on the route. */
   highlightIndex?: number | null;
+  /** Live Activities (251): a segment's span, drawn over the route. */
+  highlightRange?: [number, number] | null;
+  /** Live Activities (251): the photos' pins (already resolved for THIS viewer). */
+  pins?: Array<{ id: string; at: [number, number] }>;
 }
 
 const dot = (bg: string, size: number) =>
@@ -48,11 +52,20 @@ function segments(lat: (number | null)[], lng: (number | null)[]): L.LatLngTuple
   return out;
 }
 
-export default function RouteMapInner({ lat, lng, showEnds, highlightIndex }: RouteMapInnerProps) {
+const cameraIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:24px;height:24px;border-radius:6px;background:white;border:2px solid #7c3aed;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.3)">📷</div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, highlightRange, pins }: RouteMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const rangeRef = useRef<L.Polyline | null>(null);
+  const pinsRef = useRef<L.LayerGroup | null>(null);
   const [layer, setLayer] = useState<'osm' | 'satellite'>('osm');
 
   useEffect(() => {
@@ -91,6 +104,35 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex }: Ro
     tileRef.current?.remove();
     tileRef.current = L.tileLayer(t.url, { maxZoom: t.maxZoom, attribution: t.attribution }).addTo(map);
   }, [layer]);
+
+  // A segment's span (251): one overlay polyline, redrawn when the range changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    rangeRef.current?.remove();
+    rangeRef.current = null;
+    if (!highlightRange) return;
+    const [from, to] = highlightRange;
+    const pts: L.LatLngTuple[] = [];
+    for (let i = Math.max(0, Math.min(from, to)); i <= Math.min(lat.length - 1, Math.max(from, to)); i++) {
+      const a = lat[i];
+      const b = lng[i];
+      if (a !== null && b !== null && a !== undefined && b !== undefined) pts.push([a, b]);
+    }
+    if (pts.length > 1) rangeRef.current = L.polyline(pts, { color: '#dc2626', weight: 6, opacity: 0.9 }).addTo(map);
+  }, [highlightRange, lat, lng]);
+
+  // Photo pins (251): where each photo was taken — resolved by the server for this viewer.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    pinsRef.current?.remove();
+    pinsRef.current = null;
+    if (!pins || pins.length === 0) return;
+    const group = L.layerGroup().addTo(map);
+    for (const p of pins) L.marker(p.at, { icon: cameraIcon, title: 'Photo', interactive: false }).addTo(group);
+    pinsRef.current = group;
+  }, [pins]);
 
   useEffect(() => {
     const map = mapRef.current;
