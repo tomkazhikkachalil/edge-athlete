@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-04T18:17:46.525881+00:00 from server 17.6 by
+-- Generated 2026-10-04T23:17:29.224329+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 249.
+-- public.schema_dump() (migration 227). Ledger head at generation: 251.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4004,7 +4004,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (127) ──────────────────────────────────────────────────────────────
+-- ── Tables (128) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4032,7 +4032,11 @@ CREATE TABLE IF NOT EXISTS public.activities (
   post_id uuid,
   only_me boolean DEFAULT false NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  segments jsonb DEFAULT '[]'::jsonb NOT NULL,
+  steps integer,
+  steps_source text,
+  notes text
 );
 
 CREATE TABLE IF NOT EXISTS public.activity_connections (
@@ -4048,6 +4052,22 @@ CREATE TABLE IF NOT EXISTS public.activity_connections (
   last_error text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.activity_media (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  activity_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  created_by_user_id uuid,
+  media_url text NOT NULL,
+  media_type text NOT NULL,
+  thumbnail_url text,
+  duration_seconds numeric(8,2),
+  caption text,
+  at_s integer,
+  display_order smallint DEFAULT 0 NOT NULL,
+  mirrored_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.affiliations (
@@ -5914,6 +5934,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_pkey' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_pkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_pkey PRIMARY KEY (org_id, parent_org_id);
   END IF;
@@ -6549,6 +6574,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_activity_url_uniq' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_activity_url_uniq UNIQUE (activity_id, media_url);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'approved_contacts_child_profile_id_contact_profile_id_key' AND conrelid = 'public.approved_contacts'::regclass) THEN
     ALTER TABLE public.approved_contacts ADD CONSTRAINT approved_contacts_child_profile_id_contact_profile_id_key UNIQUE (child_profile_id, contact_profile_id);
   END IF;
@@ -6905,7 +6935,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_activity_type_check' AND conrelid = 'public.activities'::regclass) THEN
-    ALTER TABLE public.activities ADD CONSTRAINT activities_activity_type_check CHECK ((activity_type = ANY (ARRAY['run'::text, 'trail_run'::text, 'walk'::text, 'hike'::text, 'ride'::text, 'mountain_bike'::text, 'swim'::text, 'row'::text, 'ski'::text, 'climb'::text, 'other'::text])));
+    ALTER TABLE public.activities ADD CONSTRAINT activities_activity_type_check CHECK ((activity_type = ANY (ARRAY['run'::text, 'trail_run'::text, 'walk'::text, 'hike'::text, 'ride'::text, 'mountain_bike'::text, 'open_water_swim'::text, 'paddle'::text, 'ski'::text, 'xc_ski'::text, 'snowboard'::text, 'skate'::text, 'swim'::text, 'row'::text, 'indoor_ride'::text, 'treadmill'::text, 'elliptical'::text, 'stair_climber'::text, 'yoga'::text, 'pilates'::text, 'stretch'::text, 'hiit'::text, 'martial_arts'::text, 'dance'::text, 'climb'::text, 'other'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6969,6 +6999,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_notes_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_notes_check CHECK (((notes IS NULL) OR (length(notes) <= 2000)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_route_parts_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_route_parts_check CHECK ((has_route OR (route_preview IS NULL)));
   END IF;
@@ -6979,13 +7014,33 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_segments_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_segments_check CHECK (((jsonb_typeof(segments) = 'array'::text) AND (jsonb_array_length(segments) <= 50)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_check' AND conrelid = 'public.activities'::regclass) THEN
-    ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = ANY (ARRAY['file'::text, 'upload_link'::text, 'polar'::text, 'wahoo'::text, 'coros'::text, 'suunto'::text, 'garmin'::text, 'google_health'::text])));
+    ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = ANY (ARRAY['file'::text, 'upload_link'::text, 'polar'::text, 'wahoo'::text, 'coros'::text, 'suunto'::text, 'garmin'::text, 'google_health'::text, 'live'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_format_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_source_format_check CHECK (((source_format IS NULL) OR (source_format = ANY (ARRAY['fit'::text, 'gpx'::text, 'tcx'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_steps_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_steps_check CHECK (((steps IS NULL) OR ((steps >= 0) AND (steps <= 200000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_steps_parts_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_steps_parts_check CHECK (((steps IS NULL) = (steps_source IS NULL)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_steps_source_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_steps_source_check CHECK (((steps_source IS NULL) OR (steps_source = ANY (ARRAY['estimated'::text, 'device'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7035,6 +7090,36 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_token_hash_check' AND conrelid = 'public.activity_connections'::regclass) THEN
     ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_token_hash_check CHECK (((token_hash IS NULL) OR (token_hash ~ '^[0-9a-f]{64}$'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_at_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_at_check CHECK (((at_s IS NULL) OR ((at_s >= 0) AND (at_s <= 172800))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_caption_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_caption_check CHECK (((caption IS NULL) OR (length(caption) <= 500)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_duration_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_duration_check CHECK (((duration_seconds IS NULL) OR (duration_seconds > (0)::numeric)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_thumb_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_thumb_check CHECK (((thumbnail_url IS NULL) OR ((length(thumbnail_url) >= 1) AND (length(thumbnail_url) <= 2000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_type_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_type_check CHECK ((media_type = ANY (ARRAY['image'::text, 'video'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_url_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_url_check CHECK (((length(btrim(media_url)) >= 1) AND (length(btrim(media_url)) <= 2000)));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8625,6 +8710,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_activity_id_fkey' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_created_by_user_id_fkey' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_profile_id_fkey' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_decided_by_profile_id_fkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_decided_by_profile_id_fkey FOREIGN KEY (decided_by_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -10070,6 +10170,9 @@ CREATE INDEX IF NOT EXISTS idx_activities_post ON public.activities USING btree 
 CREATE INDEX IF NOT EXISTS idx_activities_profile_started ON public.activities USING btree (profile_id, started_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_provider_user ON public.activity_connections USING btree (provider, provider_user_id) WHERE (provider_user_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_token_hash ON public.activity_connections USING btree (token_hash) WHERE (token_hash IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_activity_media_activity ON public.activity_media USING btree (activity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_media_created_by ON public.activity_media USING btree (created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_media_profile ON public.activity_media USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_decided_by_profile_id ON public.affiliations USING btree (decided_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_parent ON public.affiliations USING btree (parent_org_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_requested_by_profile_id ON public.affiliations USING btree (requested_by_profile_id);
@@ -14527,6 +14630,7 @@ CREATE TRIGGER set_workout_sessions_updated_at BEFORE UPDATE ON public.workout_s
 -- ── Row level security ────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activity_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approved_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_achievements ENABLE ROW LEVEL SECURITY;
@@ -15821,6 +15925,8 @@ REVOKE ALL ON TABLE public.activities FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activities TO service_role;
 REVOKE ALL ON TABLE public.activity_connections FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activity_connections TO service_role;
+REVOKE ALL ON TABLE public.activity_media FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activity_media TO service_role;
 REVOKE ALL ON TABLE public.affiliations FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.affiliations TO service_role;
 REVOKE ALL ON TABLE public.approved_contacts FROM anon, authenticated, service_role;
@@ -16430,7 +16536,12 @@ GRANT EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_han
 
 -- ── Comments ──────────────────────────────────────────────────────────────────
 COMMENT ON TABLE public.activities IS 'Imported GPS activities (245): one row per activity per athlete; not a sport. ONE writer: src/lib/activities/write-server.ts. The projection in src/lib/activities/visibility.ts is the access rule. Posture A.';
+COMMENT ON COLUMN public.activities.segments IS 'Segments (251): [{id, kind sprint|climb|interval|recovery|lap, from_s, to_s, label?}] — boundaries only, ≤ 50, shape enforced in code (src/lib/activities/segments.ts); stats are computed from the stream at read time, never stored.';
+COMMENT ON COLUMN public.activities.steps IS 'Steps (251): an ESTIMATE from distance and stride on the web (steps_source estimated, shown "est."); a device count arrives with the native apps.';
+COMMENT ON COLUMN public.activities.notes IS 'The athlete''s notes (251), ≤ 2000 chars; public words — "Only me" hides the whole row.';
 COMMENT ON TABLE public.activity_connections IS 'Connected watches and apps (247): one row per athlete per source. ONE writer: src/lib/activities/connections-server.ts. secret_ciphertext is app-encrypted OAuth tokens; token_hash is the personal upload link (sha256). Posture A: service role only — no response ever carries either column.';
+COMMENT ON TABLE public.activity_media IS 'A photo / clip on an activity (251): taken during a recording or added after; posture A behind the activity gate (src/lib/activities/read-server.ts); at_s pins it to the route at READ time from the viewer''s trimmed stream; mirrored into the shared post (mirrored_at).';
+COMMENT ON COLUMN public.activity_media.created_by_user_id IS 'The human author when a guardian acts for a supervised athlete (the 090 attribution); NULL for a self-upload.';
 COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) — Round 5 D-ii (236). A club in a league: org_id = the club, parent_org_id = the league. A league under a parent league: org_id = the child league. initiated_by is which END asked (child | parent). Replaces league_clubs + league_affiliations (dropped in 237).';
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
@@ -16645,7 +16756,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('consent-evidence', 'consent-evidence', false, NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('uploads', 'uploads', false, 52428800, ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm']::text[])
+VALUES ('uploads', 'uploads', false, 52428800, ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm', 'application/gzip']::text[])
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ── Realtime publication ──────────────────────────────────────────────────────
@@ -17029,7 +17140,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (246, '246_cron_host_edgeathlete_ca.sql', 'rebuild-000'),
   (247, '247_activity_connections.sql', 'rebuild-000'),
   (248, '248_push_notifications.sql', 'rebuild-000'),
-  (249, '249_storage_lockdown_and_cron_hygiene.sql', 'rebuild-000')
+  (249, '249_storage_lockdown_and_cron_hygiene.sql', 'rebuild-000'),
+  (250, '250_uploads_bucket_gzip.sql', 'rebuild-000'),
+  (251, '251_live_activities.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17038,12 +17151,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 127 | 110 | 173 | 249
+-- Expected: 000 REBUILT | 128 | 110 | 173 | 251
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_127,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_128,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_249;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_251;
 
