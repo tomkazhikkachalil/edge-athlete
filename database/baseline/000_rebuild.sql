@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-30T00:38:02.639934+00:00 from server 17.4 by
+-- Generated 2026-10-04T18:17:46.525881+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 245.
+-- public.schema_dump() (migration 227). Ledger head at generation: 249.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4004,7 +4004,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (125) ──────────────────────────────────────────────────────────────
+-- ── Tables (127) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4031,6 +4031,21 @@ CREATE TABLE IF NOT EXISTS public.activities (
   stream_path text,
   post_id uuid,
   only_me boolean DEFAULT false NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.activity_connections (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  provider text NOT NULL,
+  status text DEFAULT 'active'::text NOT NULL,
+  provider_user_id text,
+  secret_ciphertext text,
+  token_hash text,
+  connected_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  last_sync_at timestamp with time zone,
+  last_error text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -4855,7 +4870,8 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   action_status text,
   action_taken_at timestamp with time zone,
   grouped_notification_id uuid,
-  emailed_at timestamp with time zone
+  emailed_at timestamp with time zone,
+  pushed_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.org_claim_invites (
@@ -5384,6 +5400,19 @@ CREATE TABLE IF NOT EXISTS public.programs (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  endpoint text NOT NULL,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  user_agent text,
+  failure_count integer DEFAULT 0 NOT NULL,
+  last_success_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.rate_limits (
   key text NOT NULL,
   window_start timestamp with time zone NOT NULL,
@@ -5880,6 +5909,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_pkey' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_pkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_pkey PRIMARY KEY (org_id, parent_org_id);
   END IF;
@@ -6310,6 +6344,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_pkey' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'rate_limits_pkey' AND conrelid = 'public.rate_limits'::regclass) THEN
     ALTER TABLE public.rate_limits ADD CONSTRAINT rate_limits_pkey PRIMARY KEY (key);
   END IF;
@@ -6502,6 +6541,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_uniq' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_source_uniq UNIQUE (profile_id, source, external_id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_profile_provider_uniq' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_profile_provider_uniq UNIQUE (profile_id, provider);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6740,6 +6784,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_endpoint_uniq' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_endpoint_uniq UNIQUE (endpoint);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reg_windows_uniq' AND conrelid = 'public.registration_windows'::regclass) THEN
     ALTER TABLE public.registration_windows ADD CONSTRAINT reg_windows_uniq UNIQUE NULLS NOT DISTINCT (org_id, season_id, division_id, program_id);
   END IF;
@@ -6931,7 +6980,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_check' AND conrelid = 'public.activities'::regclass) THEN
-    ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = 'file'::text));
+    ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = ANY (ARRAY['file'::text, 'upload_link'::text, 'polar'::text, 'wahoo'::text, 'coros'::text, 'suunto'::text, 'garmin'::text, 'google_health'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6947,6 +6996,45 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_timezone_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_timezone_check CHECK (((timezone IS NULL) OR ((length(timezone) >= 1) AND (length(timezone) <= 64))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_last_error_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_last_error_check CHECK (((last_error IS NULL) OR ((length(last_error) >= 1) AND (length(last_error) <= 300))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_parts_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_parts_check CHECK (
+CASE
+    WHEN (provider = 'upload_link'::text) THEN ((token_hash IS NOT NULL) AND (secret_ciphertext IS NULL) AND (provider_user_id IS NULL))
+    ELSE ((token_hash IS NULL) AND ((status <> 'active'::text) OR (secret_ciphertext IS NOT NULL)))
+END);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_provider_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_provider_check CHECK ((provider = ANY (ARRAY['upload_link'::text, 'polar'::text, 'wahoo'::text, 'coros'::text, 'suunto'::text, 'garmin'::text, 'google_health'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_provider_user_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_provider_user_check CHECK (((provider_user_id IS NULL) OR ((length(provider_user_id) >= 1) AND (length(provider_user_id) <= 200))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_secret_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_secret_check CHECK (((secret_ciphertext IS NULL) OR ((length(secret_ciphertext) >= 1) AND (length(secret_ciphertext) <= 8000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_status_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text, 'error'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_token_hash_check' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_token_hash_check CHECK (((token_hash IS NULL) OR (token_hash ~ '^[0-9a-f]{64}$'::text)));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7985,6 +8073,31 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_auth_check' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_auth_check CHECK (((length(auth) >= 8) AND (length(auth) <= 100)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_endpoint_check' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_endpoint_check CHECK (((endpoint ~ '^https://'::text) AND ((length(endpoint) >= 12) AND (length(endpoint) <= 2000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_failure_count_check' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_failure_count_check CHECK ((failure_count >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_p256dh_check' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_p256dh_check CHECK (((length(p256dh) >= 16) AND (length(p256dh) <= 200)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_user_agent_check' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_user_agent_check CHECK (((user_agent IS NULL) OR (length(user_agent) <= 400)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reg_windows_capacity_check' AND conrelid = 'public.registration_windows'::regclass) THEN
     ALTER TABLE public.registration_windows ADD CONSTRAINT reg_windows_capacity_check CHECK (((capacity IS NULL) OR (capacity > 0)));
   END IF;
@@ -8504,6 +8617,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_profile_id_fkey' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_connections_profile_id_fkey' AND conrelid = 'public.activity_connections'::regclass) THEN
+    ALTER TABLE public.activity_connections ADD CONSTRAINT activity_connections_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9562,6 +9680,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_profile_id_fkey' AND conrelid = 'public.push_subscriptions'::regclass) THEN
+    ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registration_windows_created_by_fkey' AND conrelid = 'public.registration_windows'::regclass) THEN
     ALTER TABLE public.registration_windows ADD CONSTRAINT registration_windows_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -9945,6 +10068,8 @@ END $$;
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_activities_post ON public.activities USING btree (post_id) WHERE (post_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_activities_profile_started ON public.activities USING btree (profile_id, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_provider_user ON public.activity_connections USING btree (provider, provider_user_id) WHERE (provider_user_id IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_token_hash ON public.activity_connections USING btree (token_hash) WHERE (token_hash IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_affiliations_decided_by_profile_id ON public.affiliations USING btree (decided_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_parent ON public.affiliations USING btree (parent_org_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_requested_by_profile_id ON public.affiliations USING btree (requested_by_profile_id);
@@ -10146,6 +10271,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_follow_id ON public.notifications U
 CREATE INDEX IF NOT EXISTS idx_notifications_grouped ON public.notifications USING btree (grouped_notification_id) WHERE (grouped_notification_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_notifications_metadata_gin ON public.notifications USING gin (metadata jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_notifications_post_id ON public.notifications USING btree (post_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unpushed ON public.notifications USING btree (created_at) WHERE (pushed_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_notifications_urgent_unmailed ON public.notifications USING btree (created_at) WHERE ((emailed_at IS NULL) AND (type = ANY (ARRAY['safety_alert'::text, 'consent_result'::text])));
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications USING btree (user_id);
@@ -10284,6 +10410,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_search ON public.profiles USING gin (sea
 CREATE INDEX IF NOT EXISTS idx_profiles_supervised ON public.profiles USING btree (id) WHERE (supervision_state = 'supervised'::text);
 CREATE INDEX IF NOT EXISTS idx_profiles_visibility ON public.profiles USING btree (visibility);
 CREATE INDEX IF NOT EXISTS idx_programs_season ON public.programs USING btree (season_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_profile ON public.push_subscriptions USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_reg_windows_season ON public.registration_windows USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_registration_windows_created_by ON public.registration_windows USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_registration_windows_division_id ON public.registration_windows USING btree (division_id);
@@ -14182,6 +14309,8 @@ $function$;
 -- ── Triggers ──────────────────────────────────────────────────────────────────
 DROP TRIGGER IF EXISTS activities_updated_at ON public.activities;
 CREATE TRIGGER activities_updated_at BEFORE UPDATE ON public.activities FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS activity_connections_updated_at ON public.activity_connections;
+CREATE TRIGGER activity_connections_updated_at BEFORE UPDATE ON public.activity_connections FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS affiliations_updated_at ON public.affiliations;
 CREATE TRIGGER affiliations_updated_at BEFORE UPDATE ON public.affiliations FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS set_athlete_achievements_updated_at ON public.athlete_achievements;
@@ -14352,6 +14481,8 @@ DROP TRIGGER IF EXISTS sync_profile_privacy ON public.profiles;
 CREATE TRIGGER sync_profile_privacy AFTER INSERT OR UPDATE OF visibility ON public.profiles FOR EACH ROW EXECUTE FUNCTION sync_privacy_settings();
 DROP TRIGGER IF EXISTS trigger_auto_update_display_name ON public.profiles;
 CREATE TRIGGER trigger_auto_update_display_name BEFORE INSERT OR UPDATE OF first_name, middle_name, last_name, full_name, username ON public.profiles FOR EACH ROW EXECUTE FUNCTION auto_update_display_name();
+DROP TRIGGER IF EXISTS push_subscriptions_updated_at ON public.push_subscriptions;
+CREATE TRIGGER push_subscriptions_updated_at BEFORE UPDATE ON public.push_subscriptions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS registrations_updated_at ON public.registrations;
 CREATE TRIGGER registrations_updated_at BEFORE UPDATE ON public.registrations FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS safety_settings_audit_immutable ON public.safety_settings_audit;
@@ -14395,6 +14526,7 @@ CREATE TRIGGER set_workout_sessions_updated_at BEFORE UPDATE ON public.workout_s
 
 -- ── Row level security ────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activity_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approved_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_achievements ENABLE ROW LEVEL SECURITY;
@@ -14481,6 +14613,7 @@ ALTER TABLE public.profile_access_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registration_windows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
@@ -14520,7 +14653,7 @@ ALTER TABLE public.workout_routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sets ENABLE ROW LEVEL SECURITY;
 
--- ── Policies (180) ────────────────────────────────────────────────────────────
+-- ── Policies (173) ────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS achievements_delete_policy ON public.athlete_achievements;
 CREATE POLICY achievements_delete_policy ON public.athlete_achievements
   AS PERMISSIVE
@@ -14578,13 +14711,13 @@ CREATE POLICY equipment_delete_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = auth.uid()));
+  USING ((profile_id = ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS equipment_insert_policy ON public.athlete_equipment;
 CREATE POLICY equipment_insert_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = auth.uid()));
+  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS equipment_select_policy ON public.athlete_equipment;
 CREATE POLICY equipment_select_policy ON public.athlete_equipment
   AS PERMISSIVE
@@ -14598,7 +14731,7 @@ CREATE POLICY equipment_update_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = auth.uid()));
+  USING ((profile_id = ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS "Athletes can insert own vitals" ON public.athlete_vitals;
 CREATE POLICY "Athletes can insert own vitals" ON public.athlete_vitals
   AS PERMISSIVE
@@ -15682,52 +15815,12 @@ CREATE POLICY workout_sets_update_policy ON public.workout_sets
   FOR UPDATE
   TO public
   USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS "User Delete" ON storage.objects;
-CREATE POLICY "User Delete" ON storage.objects
-  AS PERMISSIVE
-  FOR DELETE
-  TO public
-  USING ((bucket_id = 'avatars'::text));
-DROP POLICY IF EXISTS "User Update" ON storage.objects;
-CREATE POLICY "User Update" ON storage.objects
-  AS PERMISSIVE
-  FOR UPDATE
-  TO public
-  USING ((bucket_id = 'avatars'::text));
-DROP POLICY IF EXISTS "User Upload" ON storage.objects;
-CREATE POLICY "User Upload" ON storage.objects
-  AS PERMISSIVE
-  FOR INSERT
-  TO public
-  WITH CHECK ((bucket_id = 'avatars'::text));
-DROP POLICY IF EXISTS "User Upload to Uploads" ON storage.objects;
-CREATE POLICY "User Upload to Uploads" ON storage.objects
-  AS PERMISSIVE
-  FOR INSERT
-  TO public
-  WITH CHECK ((bucket_id = 'uploads'::text));
-DROP POLICY IF EXISTS "Users can delete their own files" ON storage.objects;
-CREATE POLICY "Users can delete their own files" ON storage.objects
-  AS PERMISSIVE
-  FOR DELETE
-  TO public
-  USING (((bucket_id = 'uploads'::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
-DROP POLICY IF EXISTS "Users can update their own files" ON storage.objects;
-CREATE POLICY "Users can update their own files" ON storage.objects
-  AS PERMISSIVE
-  FOR UPDATE
-  TO public
-  USING (((bucket_id = 'uploads'::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
-DROP POLICY IF EXISTS "Users can upload their own files" ON storage.objects;
-CREATE POLICY "Users can upload their own files" ON storage.objects
-  AS PERMISSIVE
-  FOR INSERT
-  TO public
-  WITH CHECK (((bucket_id = 'uploads'::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
 
 -- ── Table and view grants ─────────────────────────────────────────────────────
 REVOKE ALL ON TABLE public.activities FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activities TO service_role;
+REVOKE ALL ON TABLE public.activity_connections FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activity_connections TO service_role;
 REVOKE ALL ON TABLE public.affiliations FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.affiliations TO service_role;
 REVOKE ALL ON TABLE public.approved_contacts FROM anon, authenticated, service_role;
@@ -15996,6 +16089,8 @@ GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE pub
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profiles TO service_role;
 REVOKE ALL ON TABLE public.programs FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.programs TO service_role;
+REVOKE ALL ON TABLE public.push_subscriptions FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.push_subscriptions TO service_role;
 REVOKE ALL ON TABLE public.rate_limits FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.rate_limits TO service_role;
 REVOKE ALL ON TABLE public.registration_windows FROM anon, authenticated, service_role;
@@ -16335,6 +16430,7 @@ GRANT EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_han
 
 -- ── Comments ──────────────────────────────────────────────────────────────────
 COMMENT ON TABLE public.activities IS 'Imported GPS activities (245): one row per activity per athlete; not a sport. ONE writer: src/lib/activities/write-server.ts. The projection in src/lib/activities/visibility.ts is the access rule. Posture A.';
+COMMENT ON TABLE public.activity_connections IS 'Connected watches and apps (247): one row per athlete per source. ONE writer: src/lib/activities/connections-server.ts. secret_ciphertext is app-encrypted OAuth tokens; token_hash is the personal upload link (sha256). Posture A: service role only — no response ever carries either column.';
 COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) — Round 5 D-ii (236). A club in a league: org_id = the club, parent_org_id = the league. A league under a parent league: org_id = the child league. initiated_by is which END asked (child | parent). Replaces league_clubs + league_affiliations (dropped in 237).';
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
@@ -16411,6 +16507,7 @@ COMMENT ON COLUMN public.notification_preferences.urgent_email_enabled IS 'Urgen
 COMMENT ON TABLE public.notifications IS 'Central notifications table for all user notifications';
 COMMENT ON COLUMN public.notifications.comment_id IS 'References post_comments.id - no FK for flexibility';
 COMMENT ON COLUMN public.notifications.emailed_at IS 'When the urgent-email sweep mailed this row — stamped BEFORE the send (double-send beats never-send; the daily digest ignores this column) (135).';
+COMMENT ON COLUMN public.notifications.pushed_at IS 'When the push sweep considered this row (248) — stamped whether or not a device received it; NULL = not yet considered.';
 COMMENT ON TABLE public.org_join_requests IS 'A member''s request to join an org whose join_policy is approval — Round 5 D-ii (236); one per (org, profile). Replaces league_join_requests + club_join_requests (dropped in 237).';
 COMMENT ON TABLE public.org_requests IS 'A request to create an org — Round 5 D-ii (236): kind (league | club; a league needs sport_key), the wizard drafts, the decision, the org it created. One pending request per profile across BOTH kinds. Replaces league_requests + club_requests (dropped in 237).';
 COMMENT ON COLUMN public.org_site_news.audience IS 'public | members — a private club''s site lists public posts only (phase 9)';
@@ -16469,6 +16566,7 @@ COMMENT ON COLUMN public.profiles.moderation_ticket_id IS 'The ticket behind the
 COMMENT ON COLUMN public.profiles.followers_count IS '229: accepted follows where this profile is following_id. Maintained by follows_counts_sync; nullable (the row-type insert rule), read as coalesce(…, 0).';
 COMMENT ON COLUMN public.profiles.following_count IS '229: accepted follows where this profile is follower_id. Maintained by follows_counts_sync; nullable, read as coalesce(…, 0).';
 COMMENT ON COLUMN public.profiles.departed_at IS 'Departed tombstone (238): the auth user is gone and every personal column is stripped; the row survives, name only, because a result tied to an org, competition, sport event or shared round outlives the person. Never restorable. Written only by src/lib/account-deletion.ts.';
+COMMENT ON TABLE public.push_subscriptions IS 'Phone notifications (248): one row per device that turned them on (a Web Push subscription). Written by /api/push/subscriptions; pruned by src/lib/push/send-server.ts on 404/410. Posture A: service role only.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
 COMMENT ON COLUMN public.sanction_grants.grantor_org_id IS 'The sanctioning org (236) — replaces grantor_league_id (dropped in 237).';
@@ -16547,7 +16645,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('consent-evidence', 'consent-evidence', false, NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('uploads', 'uploads', false, NULL, NULL)
+VALUES ('uploads', 'uploads', false, 52428800, ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm']::text[])
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ── Realtime publication ──────────────────────────────────────────────────────
@@ -16573,12 +16671,6 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
      AND NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'notifications') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-  END IF;
-END $$;
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
-     AND NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'posts') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
   END IF;
 END $$;
 
@@ -16933,7 +17025,11 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (242, '242_teams_divisions.sql', 'rebuild-000'),
   (243, '243_newsroom.sql', 'rebuild-000'),
   (244, '244_play.sql', 'rebuild-000'),
-  (245, '245_activities.sql', 'rebuild-000')
+  (245, '245_activities.sql', 'rebuild-000'),
+  (246, '246_cron_host_edgeathlete_ca.sql', 'rebuild-000'),
+  (247, '247_activity_connections.sql', 'rebuild-000'),
+  (248, '248_push_notifications.sql', 'rebuild-000'),
+  (249, '249_storage_lockdown_and_cron_hygiene.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16942,12 +17038,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 125 | 110 | 173 | 245
+-- Expected: 000 REBUILT | 127 | 110 | 173 | 249
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_125,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_127,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_245;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_249;
 
