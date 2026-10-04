@@ -162,7 +162,11 @@ describe('migration 248 and the code agree', () => {
   it('the worker reads the payload fields the server writes', () => {
     const sw = readFileSync(path.join(process.cwd(), 'public/sw.js'), 'utf8');
     for (const field of ['title', 'body', 'url', 'badge', 'tag', 'id']) expect(sw).toContain(`data.${field}`);
-    expect(sw).not.toMatch(/addEventListener\('fetch'/);
+    // Speed round 2 (Oct 4 2026): the worker MAY have a fetch handler, but
+    // only the static cache's, gated on its own `?static=1` URL — the push
+    // path never depends on it. The handler's rules are pinned in
+    // src/lib/sw/__tests__/static-cache.test.ts; here: it is OFF unless asked.
+    expect(sw).toMatch(/if \(!staticCacheOn\) return;/);
   });
 });
 
