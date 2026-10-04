@@ -13,6 +13,7 @@ import { validateFiles } from '@/lib/media/validation';
 import type { EventApi } from '@/lib/sport-events/client';
 import type { EventMediaView } from '@/lib/sport-events/media';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 interface Props {
   view: SportEventViewPayload;
@@ -21,7 +22,7 @@ interface Props {
 }
 
 const LIVE_POLL_MS = 10_000;
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
 
 /**

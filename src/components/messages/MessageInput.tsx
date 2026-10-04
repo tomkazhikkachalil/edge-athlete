@@ -28,6 +28,7 @@ import {
 import GifPicker from '@/components/GifPicker';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 interface Props {
   conversationId: string;
@@ -56,7 +57,7 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
   output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
 };
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = MAX_UPLOAD_BYTES;
 
 export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange, participants }: Props) {
   const [text, setText] = useState(initialText ?? '');

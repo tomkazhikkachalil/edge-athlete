@@ -5,7 +5,13 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
 import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from '@/lib/media/video-scrub-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { EXT_BY_TYPE, MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
+// THE OLD DOOR (Oct 2026): uploadPostMedia now uploads DIRECT to storage
+// (intent/ + complete/, src/lib/media/upload-rules.ts) because Vercel refuses
+// a function request body over 4.5 MB. This FormData route stays for tabs
+// opened before that deploy; on Vercel it only ever sees small files.
+//
 // Capture v2 (Sep 2026): MP4/MOV metadata (GPS ©xyz, udta) is scrubbed HERE,
 // before the storage write, instead of on the phone — a 50MB stream-copy
 // re-mux needs headroom past the default. Fail-open: the original is stored
@@ -48,17 +54,13 @@ export async function POST(request: NextRequest) {
     // the client filename — file.name is attacker-controlled: a '/' in it would
     // write to an arbitrary sub-path, and an unvalidated extension mislabels
     // the stored object (upload/route.ts already does it this way).
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    const EXT_BY_TYPE: Record<string, string> = {
-      'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
-      'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm',
-    };
+    const maxSize = MAX_UPLOAD_BYTES;
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
     const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
 
     if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File size must be less than 50MB' }, { status: 400 });
+      return NextResponse.json({ error: `File size must be less than ${maxSize / (1024 * 1024)}MB` }, { status: 400 });
     }
 
     if (!allowedTypes.includes(file.type)) {

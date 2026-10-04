@@ -31,6 +31,7 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 const HOLE_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
@@ -510,7 +511,7 @@ export default function ScoreEntryModal({
   const handleMediaSelect = (file: File | undefined) => {
     if (!file || !canAttachMedia) return;
     const { accepted, rejected } = validateFiles([file], {
-      maxBytes: 50 * 1024 * 1024,
+      maxBytes: MAX_UPLOAD_BYTES,
       allowVideo: true,
       maxCount: 1,
     });

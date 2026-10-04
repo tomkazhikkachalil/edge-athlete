@@ -17,6 +17,7 @@ import { useBatchUpload, type BatchRunGroup, type BatchRunItem } from '@/hooks/u
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 // ── Guardian batch upload (Wave 5) ───────────────────────────────────────────
 // One camera roll → posts across the household. Every picked file goes
@@ -27,7 +28,7 @@ import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 // athletes are server-copied to each athlete's own storage prefix.
 
 const MAX_ITEMS = 12;
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 // Predicted-budget guards — the server's rate buckets are upload 60/h and
 // post-create 30/h; staying under them with headroom means a full batch
 // never dies to a 429 halfway.

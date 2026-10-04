@@ -33,6 +33,7 @@ import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
 import { planCaptureAttach, usableDuration } from '@/lib/media/capture-attach';
 import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -314,7 +315,7 @@ export default function CreatePostModal({
   const handleFileUpload = useCallback((files: FileList | File[], source: 'camera' | 'library' = 'library') => {
     if (files.length === 0) return;
     const { accepted, rejected } = validateFiles(Array.from(files), {
-      maxBytes: 50 * 1024 * 1024,
+      maxBytes: MAX_UPLOAD_BYTES,
       allowVideo: true,
       maxCount: MAX_MEDIA_FILES,
       existingCount: mediaFiles.length,

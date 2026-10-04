@@ -1,5 +1,22 @@
 # Development Log
 
+## October 4, 2026 — Uploads go straight to storage: a phone video no longer passes through a function (zero DDL)
+
+**Tom:** a video picked from the phone's library "is now incredibly slow" to upload. The research for the video-editor round found the deeper fault first: **every upload carried the whole file through a Vercel function** (`/api/upload/post-media`, FormData), and **Vercel refuses a function request body over 4.5 MB on every plan, Pro included** (413 `FUNCTION_PAYLOAD_TOO_LARGE` — the Aug 1 2026 entry recorded it on an image). The app said "50 MB"; most phone videos never reached storage, and the ones that did travelled phone → `iad1` → a full in-memory re-mux → `ca-central-1`.
+
+**Now (`src/lib/media/upload-rules.ts`, pure; `upload-server.ts`; `upload.ts`):** three steps, the function never carries the file.
+1. `POST /api/upload/post-media/intent { type, size, targetProfileId? }` — the SAME gates in the same order (write gate → `upload` bucket → acting-as → the allowlist → the cap), then the server mints `incoming/<owner>/<uuid>.<ext>` (the extension from the validated type, never the filename) and a one-time signed upload URL for exactly that key.
+2. The browser **PUTs the bytes straight to Supabase Storage** over `XMLHttpRequest` — it reports upload progress, which `fetch` cannot; `uploadPostMedia(file, target?, { onProgress })` carries it (PR 2 wires the UI). The probe on staging: a 6 MB PUT in ~2 s, a replay of the same token answers 409 (no upsert), no `apikey` header needed.
+3. `POST …/complete { path }` — the gates again, `parseIncomingKey` refuses any path that is not this owner's minted shape (403, before a storage call), the stored object's REAL size and content type are read back from a listing and must match the mint, a video is downloaded and scrubbed (`scrubVideoMetadata`, the old door's fail-open), and the file lands at `posts/<owner>/…` — a scrubbed write, else a server-side `move`. The answer is the old `{ url, type, scrubbed }`, so every caller and reader is unchanged.
+
+All nine callers go through `uploadPostMedia`, so the composer, golf, messages, workouts, events, vitals and the guardian batch are fixed in one place. **One cap:** `MAX_UPLOAD_BYTES` (50 MB) replaces nine `50 * 1024 * 1024` literals; it tracks the Supabase PROJECT's file limit (Free = 50 MB fixed), so raising it alone only moves the refusal into storage. `incoming/` is deliberately NOT a protected prefix: an upload that never completes is unreferenced and the sweep removes it after the 48 h grace (pinned). The old FormData route stays for tabs opened before the deploy. The two new routes join THE write-gate list.
+
+**Proof:** `upload-rules.test.ts` (the cap, the allowlist ≡ the extension map, the mint round-trip, seven forged paths, the type match); `npm run verify` green. `e2e/upload-direct.spec.ts`: a **20 MB** body through the three doors lands under `posts/` (desktop + both phone projects; the scrub fails open on the synthetic bytes, as designed), and the refusals (413 oversize, 400 bad type, 403 forged owner / shapeless path). Locally there is no 4.5 MB cap, so **the preview deployment is the real proof** — and the prod probe after merge. Regression: `capture-attach`, `media-editor`, `media-reedit`, the four `media-proxy*`, `sport-events-media`, `diag-media` — green (one staging socket drop on the OLD route, green on rerun).
+
+**Flagged, not done here:** the storage policy "User Upload to Uploads" (`000_rebuild.sql:15704`) lets role `public` INSERT anywhere in `uploads` — pre-existing, unused by this flow; a small migration for Tom to decide. Contest media has its own FormData route (follow-up). **Next:** PR 2 (a library video attaches at once, the progress bar), PR 3 (the post stops waiting for an edited video's original).
+
+---
+
 ## October 2, 2026 — Maintenance after the speed round: the full checklist, all green, and the after numbers
 
 **On main at `82b70940`** (#1050), with the day's push work (#1047–#1049) and the speed round (#1050) all merged and deployed. **Zero open PRs.**

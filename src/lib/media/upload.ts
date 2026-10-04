@@ -40,21 +40,84 @@ async function withoutJpegMetadata(file: File): Promise<File> {
   }
 }
 
+export interface UploadOptions {
+  /** 0..1 as the bytes leave the device (the PUT to storage). */
+  onProgress?: (fraction: number) => void;
+}
+
+async function readError(response: Response, fallback: string): Promise<string> {
+  // Defensive: a gateway 413 / 502 answers plain text or HTML, never JSON.
+  const payload = await response.json().catch(() => null);
+  if (payload && typeof payload.error === 'string') return payload.error;
+  if (response.status === 413) return 'That file is too large to upload';
+  return fallback;
+}
+
+/** PUT the bytes straight to the signed storage URL, reporting progress. */
+function putToStorage(signedUrl: string, file: File, onProgress?: (fraction: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', signedUrl);
+    xhr.setRequestHeader('content-type', file.type);
+    xhr.setRequestHeader('cache-control', 'max-age=3600');
+    xhr.setRequestHeader('x-upsert', 'false');
+    if (onProgress) {
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && e.total > 0) onProgress(Math.min(1, e.loaded / e.total));
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(1);
+        resolve();
+      } else if (xhr.status === 413) {
+        reject(new Error('That file is too large to upload'));
+      } else {
+        reject(new Error('The upload did not finish — please try again'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('The upload was interrupted — check your connection and try again'));
+    xhr.onabort = () => reject(new Error('The upload was cancelled'));
+    xhr.send(file);
+  });
+}
+
 /**
  * `targetProfileId`: set when a guardian uploads media that will belong to a
  * managed athlete's content (acting-as). The server validates it with the
  * acting-as gate and keys storage to the ATHLETE's prefix — omitting it on an
  * acting-as upload mis-attributes the bytes to the guardian.
+ *
+ * Direct-to-storage (Oct 2026, upload-rules.ts): intent → the bytes go
+ * straight from the device to Supabase Storage → complete. The function never
+ * carries the file, so Vercel's 4.5 MB request cap no longer applies.
  */
-export async function uploadPostMedia(file: File, targetProfileId?: string): Promise<UploadedMedia> {
-  const formData = new FormData();
-  const scrubbed = file.type.startsWith('video/') ? file : await withoutJpegMetadata(file);
-  formData.append('file', scrubbed);
-  if (targetProfileId) formData.append('targetProfileId', targetProfileId);
-  const response = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload.url) {
-    throw new Error(payload.error || 'Failed to upload media');
+export async function uploadPostMedia(
+  file: File,
+  targetProfileId?: string,
+  options: UploadOptions = {}
+): Promise<UploadedMedia> {
+  const body = file.type.startsWith('video/') ? file : await withoutJpegMetadata(file);
+  const target = targetProfileId ? { targetProfileId } : {};
+
+  const intent = await fetch('/api/upload/post-media/intent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: body.type, size: body.size, ...target }),
+  });
+  if (!intent.ok) throw new Error(await readError(intent, 'Failed to upload media'));
+  const { path, signedUrl } = (await intent.json()) as { path: string; signedUrl: string };
+
+  await putToStorage(signedUrl, body, options.onProgress);
+
+  const complete = await fetch('/api/upload/post-media/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, ...target }),
+  });
+  const payload = complete.ok ? await complete.json().catch(() => ({})) : null;
+  if (!complete.ok || !payload?.url) {
+    throw new Error(complete.ok ? 'Failed to upload media' : await readError(complete, 'Failed to upload media'));
   }
   return { url: payload.url, type: payload.type === 'video' ? 'video' : 'image', scrubbed: payload.scrubbed === true };
 }

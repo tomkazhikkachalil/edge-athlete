@@ -141,7 +141,7 @@ reported user — a report closed with no action is never announced.
 **THE list — the write routes the gate covers** (`src/app/api/…`):
 `posts/route.ts` (POST, PUT) · `comments/route.ts` (POST) · `messages/route.ts` (POST) ·
 `messages/[conversationId]/messages/route.ts` (POST) · `group-posts/route.ts` (POST) ·
-`follow/route.ts` (POST) · `tags/route.ts` (POST) · `upload/route.ts` · `upload/post-media/route.ts` ·
+`follow/route.ts` (POST) · `tags/route.ts` (POST) · `upload/route.ts` · `upload/post-media/route.ts` · `upload/post-media/intent/route.ts` · `upload/post-media/complete/route.ts` (the direct upload's two doors, Oct 2026) ·
 `upload/avatar/route.ts` · `upload/cover/route.ts` · `upload/equipment/route.ts` (POST) ·
 `profile/route.ts` (PUT) · `sport-events/route.ts` (POST) · `sport-events/[id]/participants/join/route.ts` (POST) ·
 `clubs/requests/route.ts` (POST) · `leagues/requests/route.ts` (POST) · `challenges/route.ts` (POST — a friend challenge reaches another person; Play, 244) · `activities/route.ts` + `activities/fit/route.ts` (POST — an activity import is the athlete's content; Activities, 245) · `connections/upload-link/route.ts` (POST — the personal upload link is a way to create content; Connected apps, 247) · `activities/inbound/[token]/route.ts` (POST — the link itself has no session: the token names the account and the gate is applied to THAT account) · `connections/polar/start/route.ts` + `connections/polar/callback/route.ts` (GET — connecting a provider is a standing way to create content; checked when the athlete leaves for the provider and again when they come back).

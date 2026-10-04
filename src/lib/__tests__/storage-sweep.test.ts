@@ -148,6 +148,8 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   'src/app/api/tickets/attachment/route.ts': { marker: '/tickets/', keep: { kind: 'url', table: 'tickets' } },
   'src/app/api/guardian/athletes/[profileId]/consent/route.ts': { marker: "from('consent-evidence')", keep: { kind: 'unswept-bucket', bucket: 'consent-evidence' } },
   'src/app/api/upload/post-media/route.ts': { marker: 'posts/', keep: { kind: 'url', table: 'post_media' } },
+  // The direct upload's finalize (Oct 2026): a scrubbed video written to posts/ — the post's URL keeps it.
+  'src/lib/media/upload-server.ts': { marker: 'postsKey', keep: { kind: 'url', table: 'post_media' } },
   // No in-app caller today; a client that uses it stores the returned public URL (post media).
   'src/app/api/upload/route.ts': { marker: '${userId}/', keep: { kind: 'url', table: 'post_media' } },
   'src/app/api/upload/equipment/route.ts': { marker: 'equipment/', keep: { kind: 'url', table: 'athlete_equipment' } },
@@ -203,5 +205,17 @@ describe('every uploads writer stays alive through the sweep', () => {
 
   it('live event media is a scanned source (216) — it was missing until Sep 26 2026', () => {
     expect(URL_SOURCE_COLUMNS.find(s => s.table === 'sport_event_media')?.columns).toEqual(['media_url', 'thumbnail_url']);
+  });
+});
+
+describe('the direct upload\'s incoming/ prefix', () => {
+  it('is NOT protected: an upload that never completes is swept after the grace', () => {
+    const now = Date.parse('2026-10-04T00:00:00Z');
+    const old = new Date(now - 3 * 86_400_000).toISOString();
+    const fresh = new Date(now - 60_000).toISOString();
+    expect(isProtectedPath('incoming/u1/a.mp4')).toBe(false);
+    expect(isSweepable({ path: 'incoming/u1/a.mp4', createdAt: old }, new Set(), now)).toBe(true);
+    // an upload in flight is never touched
+    expect(isSweepable({ path: 'incoming/u1/a.mp4', createdAt: fresh }, new Set(), now)).toBe(false);
   });
 });
