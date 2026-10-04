@@ -1,5 +1,11 @@
 # Development Log
 
+## October 4, 2026 — Speed round 2: the WebKit harness and the live worker
+
+**Live on production** (#1064): `sw-static-cache.spec` passes on desktop and phone Chromium against edgeathlete.ca — the worker is `/sw.js?static=1`, the bell answers under it, a hashed file the page loaded is in the cache. **Playwright WebKit then failed `perf-feed`** on production the way it had locally: with any fetch handler controlling the page its own fetches hang and the first post card never appears. Tom's iPhone had just passed the same path, so this is the harness, not iOS Safari — and it would have turned every `webkit-mobile` probe red from now on. **`playwright.config.ts` now sets `serviceWorkers: 'block'` for the `webkit-mobile` project only** (the comment carries the why); the Chromium projects keep the worker and prove the cache; the cache spec `skip`s on WebKit with the reason. The WebKit production probe is green again (`perf-feed`, `capture-attach`). The `preview/sw-iphone` branch is pruned — production carries the flag.
+
+---
+
 ## October 4, 2026 — Speed round 2, E goes live: Tom's iPhone passed the gate
 
 **Tom, on the preview built with the flag, from the home screen:** "a little slow when I first loaded up but seems to be working better, and when I swiped away and restarted it, it went well." The first open fills the cache (against the free-tier staging database); the second is the cached one; the bell, the feed and a post all worked. That is the answer Playwright WebKit could not give — its stall under a fetch handler is the test harness's, not iOS Safari's. `NEXT_PUBLIC_SW_STATIC_CACHE=1` is now set for **Production** too (build-injected — this merge is the build that carries it). CLAUDE.md convention 31 says what the worker does now. After the deploy: `sw-static-cache.spec` (desktop + phone Chromium) and `perf-feed` against production.
