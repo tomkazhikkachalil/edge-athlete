@@ -1,5 +1,13 @@
 # Development Log
 
+## October 4, 2026 — Speed round 2: production after Tom's three dashboard steps, and the preview for his phone
+
+**Migration 249 ran on production** (Tom, the SQL editor): the result row matched `249 APPLIED | 0 | 52428800 | 7 | 3 | 0 | 1 | 249`; `check:schema:prod` OK at head 249; the rebuild baseline regenerated from prod (#1062 — 127 tables, 173 policies, 110 functions, 108 triggers; self-check OK). **`SUPABASE_JWT_SECRET` is set on Vercel Production** and #1062's deploy picked it up. **Proof that the local check is live:** the new `e2e/perf-api.spec.ts` times the smallest authenticated call from the browser's own session, ten in a row — on production `/api/health` (one DB read, no auth) p50 **185 ms** and `/api/notifications/unread-count` p50 **208 ms**: 23 ms apart. With the network session check they sat 100–300 ms apart; an authenticated call now costs its own read and nothing else. The same probe run: `auth-login`, `appearance`, `perf-feed`, `health` 19/19; first post 1.9 s desktop · 1.7 s phone Chromium · 1.3 s phone WebKit (single runs; the Sep 30 baseline was 4.25 · 1.78 · 5.96). The token lifetime is still the default 3600 s — the dashboard did not offer Tom the field; the accepted fallback (a suspended account reads for at most an hour).
+
+**The phone test is staged:** `NEXT_PUBLIC_SW_STATIC_CACHE=1` is set for **Preview only**, and the branch `preview/sw-iphone` (an empty commit on main) gives a long-lived preview at `edge-athlete-git-preview-sw-iphone-…vercel.app` built with the flag. On it, phone Chromium passes `sw-static-cache.spec` against the REAL deployment: the worker is registered as `/sw.js?static=1`, the bell answers under it, and a hashed file the page loaded is in `ea-static-v1` (the spec's chunk check now matches any `/_next/static/*.js` — a deployment's chunk folder differs from a local build's). Tom's iPhone decides the rest. Also found: the e2e deploy helper waits for the LOCAL head on a preview — `E2E_EXPECT_COMMIT=<branch head>` when the preview is another branch.
+
+---
+
 ## October 4, 2026 — Speed round 2, E: the installed app keeps its own files (zero DDL, behind a flag)
 
 **The finding:** the service worker (`public/sw.js`, mig 248) handled push only and was registered only when a person turned phone notifications on, so most installs had NO worker, and every cold open of the installed app asked the network for the ~450 KB of hashed JS and CSS it had downloaded the time before. The Oct 2 attempt at a cache-first handler stalled Playwright WebKit's `getRegistration` and the bell's fetch while the worker controlled the page, and without a device a real-iPhone problem could not be ruled out — so it was taken out.
