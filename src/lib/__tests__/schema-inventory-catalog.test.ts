@@ -448,7 +448,12 @@ describe('the real chain', () => {
     expect(dyn).toContain('127:drop function:get_conversation_list');
     expect(dyn).toContain('082:alter function:get_unread_notification_count,get_tagged_posts');
     const foreign = chain.foreignSchema.map(s => `${s.file.slice(0, 3)}:${s.statement}:${s.table}`);
-    expect(foreign.filter(f => f.includes('storage.objects'))).toEqual(['040:drop policy:storage.objects', '040:drop policy:storage.objects', '040:drop policy:storage.objects']);
+    expect(foreign.filter(f => f.includes('storage.objects'))).toEqual([
+      // 040 dropped the three read policies; 249 (the storage lockdown) dropped
+      // the seven app-era write policies — storage is service-role + signed URL only.
+      ...Array(3).fill('040:drop policy:storage.objects'),
+      ...Array(7).fill('249:drop policy:storage.objects'),
+    ]);
     expect(foreign).toContain('001:create trigger:auth.users'); // on_auth_user_created — the auth schema is Supabase's
   });
   it('reads every trigger claim and simulates every grant set', () => {
