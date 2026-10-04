@@ -8,9 +8,18 @@
 // and the header are always there; a refusal is the house not-found.
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import CaptureInputs from '@/components/media/CaptureInputs';
+import MediaTile from '@/components/media/MediaTile';
+import { uploadPostMedia } from '@/lib/media/upload';
+import { validateFiles } from '@/lib/media/validation';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import { SEGMENT_KIND_LABELS, SEGMENT_KINDS, SEGMENT_MAX, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '@/lib/activities/segments';
+import { ACTIVITY_MEDIA_MAX } from '@/lib/activities/media';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -27,10 +36,32 @@ import {
   writeUnitPreference,
   type DistanceUnit,
 } from '@/lib/activities/format';
-import { splits } from '@/lib/activities/stream';
-import type { ActivityDetailView } from '@/lib/activities/visibility';
+import { segmentStats, splits } from '@/lib/activities/stream';
+import type { ActivityDetailView, ActivityMediaView } from '@/lib/activities/visibility';
 import ActivityStreamChart from './ActivityStreamChart';
 import RouteMap from './RouteMap';
+
+// The shared media editor (the pencil on a photo) — loaded only when opened.
+const MediaEditor = dynamic(() => import('@/components/media-editor').then(m => m.MediaEditor), { ssr: false });
+const PHOTO_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5'],
+  allowVideo: true,
+  maxAssets: 1,
+  output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
+};
+
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
+/** "m:ss" or "h:mm:ss" or plain seconds → seconds, else null. */
+function parseMmss(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  const parts = t.split(':').map(Number);
+  if (parts.some(n => !Number.isFinite(n) || n < 0)) return null;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
 
 interface Athlete {
   id: string;
@@ -74,6 +105,11 @@ export default function ActivityScreen({ activityId }: { activityId: string }) {
     setUnit(u);
     writeUnitPreference(u);
   };
+  // After a photo changes, the whole view is re-read (the PATCH answers no media).
+  const reload = useCallback(async () => {
+    const next = await fetchActivity();
+    if (next.state === 'ready') setLoad(next);
+  }, [fetchActivity]);
 
   if (load.state === 'loading') {
     return (
@@ -104,6 +140,7 @@ export default function ActivityScreen({ activityId }: { activityId: string }) {
       hover={hover}
       onHover={setHover}
       onChanged={a => setLoad({ state: 'ready', activity: { ...load.activity, ...a }, athlete: load.athlete })}
+      onReload={reload}
     />
   );
 }
@@ -116,6 +153,7 @@ function ActivityBody({
   hover,
   onHover,
   onChanged,
+  onReload,
 }: {
   activity: ActivityDetailView;
   athlete: Athlete | null;
@@ -124,8 +162,20 @@ function ActivityBody({
   hover: number | null;
   onHover: (i: number | null) => void;
   onChanged: (a: Partial<ActivityDetailView>) => void;
+  onReload: () => Promise<void>;
 }) {
   const def = ACTIVITY_TYPE_DEFS[a.type];
+  // Live Activities (251): the segments' measures from THIS viewer's stream, a tapped one highlighted.
+  const segmentRows = useMemo(
+    () => (a.stream ? a.segments.map(seg => ({ seg, stat: segmentStats(a.stream!, seg) })) : a.segments.map(seg => ({ seg, stat: null }))),
+    [a.stream, a.segments]
+  );
+  const [picked, setPicked] = useState<string | null>(null);
+  const highlightRange = useMemo<[number, number] | null>(() => {
+    const row = segmentRows.find(r => r.seg.id === picked);
+    return row?.stat ? [row.stat.startIndex, row.stat.endIndex] : null;
+  }, [segmentRows, picked]);
+  const pins = useMemo(() => a.media.filter(m => m.pin).map(m => ({ id: m.id, at: m.pin as [number, number] })), [a.media]);
   const pace = formatPace(a.distanceM, a.movingS ?? a.elapsedS, a.type, unit);
   const series = useMemo(() => chartSeries(a.stream, a.type, unit), [a.stream, a.type, unit]);
   const splitRows = useMemo(() => (a.stream ? splits(a.stream, unit) : []), [a.stream, unit]);
@@ -149,6 +199,7 @@ function ActivityBody({
   if (a.maxHr !== null) stats.push({ label: 'Max heart rate', value: `${a.maxHr} bpm` });
   if (a.avgPower !== null) stats.push({ label: 'Avg power', value: `${a.avgPower} W` });
   if (a.calories !== null) stats.push({ label: 'Calories', value: `${a.calories}` });
+  if (a.steps !== null) stats.push({ label: a.stepsSource === 'device' ? 'Steps' : 'Steps (est.)', value: `~${a.steps.toLocaleString()}` });
 
   return (
     <article className="space-y-6" data-activity={a.id}>
@@ -183,7 +234,30 @@ function ActivityBody({
         ))}
       </dl>
 
-      {showMap && <RouteMap lat={a.stream!.lat!} lng={a.stream!.lng!} showEnds={!!a.owner} highlightIndex={hover} />}
+      {showMap && <RouteMap lat={a.stream!.lat!} lng={a.stream!.lng!} showEnds={!!a.owner} highlightIndex={hover} highlightRange={highlightRange} pins={pins} />}
+      {a.notes && (
+        <p className="whitespace-pre-wrap text-base text-primary" data-activity-notes>
+          {a.notes}
+        </p>
+      )}
+      {a.media.length > 0 && (
+        <section data-activity-photos={a.media.length}>
+          <h2 className="text-lg font-bold text-primary mb-2">Photos</h2>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {a.media.map(m => (
+              <figure key={m.id} className="relative" data-activity-photo={m.id}>
+                <MediaTile src={m.mediaUrl} thumbnailUrl={m.thumbnailUrl} kind={m.mediaType} alt={m.caption ?? 'Activity photo'} durationSeconds={m.durationSeconds} className="aspect-square rounded-lg" />
+                {(m.caption || m.atS !== null) && (
+                  <figcaption className="mt-1 text-xs text-secondary truncate">
+                    {m.caption ?? ''}
+                    {m.atS !== null && <span className="text-muted">{m.caption ? ' · ' : ''}at {mmss(m.atS)}</span>}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
       {!a.owner && a.hasRoute && (
         <p className="text-xs text-muted -mt-4">The first and last part of every route stay private to the athlete.</p>
       )}
@@ -211,6 +285,7 @@ function ActivityBody({
           series={s}
           hoverIndex={hover}
           onHover={onHover}
+          highlightRange={highlightRange}
           formatX={m => formatDistance(m, unit)}
           formatY={v =>
             s.kind === 'hr'
@@ -223,6 +298,44 @@ function ActivityBody({
           }
         />
       ))}
+
+      {segmentRows.length > 0 && (
+        <section className="ea-surface rounded-lg p-4 overflow-x-auto" data-activity-segments={segmentRows.length}>
+          <h3 className="text-sm font-semibold text-primary mb-2">Segments <span className="font-normal text-muted">— tap one to see it on the route</span></h3>
+          <table className="w-full text-sm tabular-nums">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="py-1 pr-3 font-semibold">What</th>
+                <th className="py-1 pr-3 font-semibold">When</th>
+                <th className="py-1 pr-3 font-semibold">Distance</th>
+                <th className="py-1 pr-3 font-semibold">Time</th>
+                <th className="py-1 pr-3 font-semibold">{def.paceStyle === 'speed' ? 'Speed' : 'Pace'}</th>
+                <th className="py-1 pr-3 font-semibold">Elev</th>
+                {segmentRows.some(r => r.stat?.avgHr !== null && r.stat?.avgHr !== undefined) && <th className="py-1 font-semibold">HR</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {segmentRows.map(({ seg, stat }) => (
+                <tr
+                  key={seg.id}
+                  onClick={() => setPicked(p => (p === seg.id ? null : seg.id))}
+                  aria-selected={picked === seg.id}
+                  className={`border-t border-border-subtle text-primary cursor-pointer ${picked === seg.id ? 'bg-brand-soft' : ''}`}
+                  data-activity-segment={seg.id}
+                >
+                  <td className="py-1.5 pr-3 font-medium">{seg.label ?? SEGMENT_KIND_LABELS[seg.kind]}{seg.label && <span className="text-muted"> · {SEGMENT_KIND_LABELS[seg.kind]}</span>}</td>
+                  <td className="py-1.5 pr-3">{mmss(seg.from_s)}–{mmss(seg.to_s)}</td>
+                  <td className="py-1.5 pr-3">{stat ? formatDistance(stat.distanceM, unit) : '—'}</td>
+                  <td className="py-1.5 pr-3">{formatDuration(stat ? stat.seconds : seg.to_s - seg.from_s)}</td>
+                  <td className="py-1.5 pr-3">{stat ? formatPace(stat.distanceM, stat.seconds, a.type, unit).value : '—'}</td>
+                  <td className="py-1.5 pr-3">{stat?.elevGainM === null || stat?.elevGainM === undefined ? '—' : `+${formatElevation(stat.elevGainM, unit)}`}</td>
+                  {segmentRows.some(r => r.stat?.avgHr !== null && r.stat?.avgHr !== undefined) && <td className="py-1.5">{stat?.avgHr ?? '—'}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {splitRows.length > 1 && (
         <section className="ea-surface rounded-lg p-4 overflow-x-auto" data-activity-splits>
@@ -252,28 +365,146 @@ function ActivityBody({
         </section>
       )}
 
-      {a.owner && <OwnerControls activity={a} athlete={athlete} onChanged={onChanged} />}
+      {a.owner && <OwnerControls activity={a} athlete={athlete} onChanged={onChanged} onReload={onReload} />}
     </article>
   );
 }
 
-function OwnerControls({ activity: a, athlete, onChanged }: { activity: ActivityDetailView; athlete: Athlete | null; onChanged: (a: Partial<ActivityDetailView>) => void }) {
+/** A segment as the editor holds it: times as the athlete types them. */
+interface SegmentDraft {
+  id: string;
+  kind: SegmentKind;
+  from: string;
+  to: string;
+  label: string;
+}
+const draftOf = (s: ActivitySegment): SegmentDraft => ({ id: s.id, kind: s.kind, from: mmss(s.from_s), to: mmss(s.to_s), label: s.label ?? '' });
+const draftId = () => `seg-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+
+function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity: ActivityDetailView; athlete: Athlete | null; onChanged: (a: Partial<ActivityDetailView>) => void; onReload: () => Promise<void> }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(a.name);
   const [type, setType] = useState<ActivityType>(a.type);
+  const [notes, setNotes] = useState(a.notes ?? '');
+  const [drafts, setDrafts] = useState<SegmentDraft[]>(() => a.segments.map(draftOf));
+  const [segmentError, setSegmentError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [caption, setCaption] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmPhoto, setConfirmPhoto] = useState<ActivityMediaView | null>(null);
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+  const replacingRef = useRef<ActivityMediaView | null>(null);
 
+  const segmentsDirty = () => JSON.stringify(drafts) !== JSON.stringify(a.segments.map(draftOf));
   const closeEdit = useCallback(() => {
     setEditing(false);
     setName(a.name);
     setType(a.type);
-  }, [a.name, a.type]);
-  const editGuard = useDirtyClose(() => editing && (name.trim() !== a.name || type !== a.type), closeEdit);
+    setNotes(a.notes ?? '');
+    setDrafts(a.segments.map(draftOf));
+    setSegmentError(null);
+  }, [a.name, a.type, a.notes, a.segments]);
+  const editGuard = useDirtyClose(() => editing && (name.trim() !== a.name || type !== a.type || notes.trim() !== (a.notes ?? '') || segmentsDirty()), closeEdit);
+
+  /** The drafts as the PATCH wants them — or the first problem, by name. */
+  const segmentsFromDrafts = (): { ok: true; segments: ActivitySegment[] } | { ok: false; error: string } => {
+    const out: ActivitySegment[] = [];
+    for (const d of drafts) {
+      const from = parseMmss(d.from);
+      const to = parseMmss(d.to);
+      if (from === null || to === null) return { ok: false, error: 'A segment needs a start and an end, as m:ss.' };
+      if (to - from < SEGMENT_MIN_S) return { ok: false, error: `A segment lasts at least ${SEGMENT_MIN_S} seconds.` };
+      if (to > a.elapsedS) return { ok: false, error: `This activity is ${mmss(a.elapsedS)} long — a segment cannot end after that.` };
+      const seg: ActivitySegment = { id: d.id, kind: d.kind, from_s: from, to_s: to };
+      if (d.label.trim()) seg.label = d.label.trim().slice(0, 40);
+      out.push(seg);
+    }
+    if (out.length > SEGMENT_MAX) return { ok: false, error: `At most ${SEGMENT_MAX} segments.` };
+    return { ok: true, segments: out };
+  };
+
+  // Photos (251): add through the one upload door, re-edit through the shared editor, remove.
+  const attachFiles = async (files: File[]) => {
+    const { accepted, rejected } = validateFiles(files, { maxBytes: MAX_UPLOAD_BYTES, allowVideo: true, maxCount: ACTIVITY_MEDIA_MAX, existingCount: a.media.length });
+    if (rejected.length > 0) showError('Not added', rejected[0].message);
+    if (accepted.length === 0) return;
+    setBusy(true);
+    try {
+      for (const file of accepted) {
+        const up = await uploadPostMedia(file, a.profileId);
+        const res = await fetch(`/api/activities/${a.id}/media`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ media_url: up.url, media_type: up.type, targetProfileId: a.profileId }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          showError('Not added', typeof json.error === 'string' ? json.error : 'Please try again.');
+        }
+      }
+      await onReload();
+    } catch (e) {
+      showError('Not added', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reEditPhoto = async (m: ActivityMediaView) => {
+    setBusy(true);
+    try {
+      const res = await fetch(m.mediaUrl, { credentials: 'include' });
+      if (!res.ok) throw new Error('Could not open the photo');
+      const blob = await res.blob();
+      const file = new File([blob], `photo.${blob.type.split('/')[1] || 'jpg'}`, { type: blob.type || 'image/jpeg' });
+      replacingRef.current = m;
+      setEditorAssets([{ id: m.id, file, kind: m.mediaType }]);
+    } catch (e) {
+      showError('Could not open the photo', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const editorDone = async (results: EditedMedia[]) => {
+    const target = replacingRef.current;
+    setEditorAssets(null);
+    replacingRef.current = null;
+    if (!target || results.length === 0) return;
+    setBusy(true);
+    try {
+      const up = await uploadPostMedia(results[0].file, a.profileId);
+      URL.revokeObjectURL(results[0].previewUrl);
+      const res = await fetch(`/api/activities/${a.id}/media/${target.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media_url: up.url, thumbnail_url: null, targetProfileId: a.profileId }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        showError('Not saved', typeof json.error === 'string' ? json.error : 'Please try again.');
+      }
+      await onReload();
+    } catch (e) {
+      showError('Not saved', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removePhoto = async (m: ActivityMediaView) => {
+    setConfirmPhoto(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/activities/${a.id}/media/${m.id}?targetProfileId=${encodeURIComponent(a.profileId)}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) showError('Not removed', 'Please try again.');
+      await onReload();
+    } finally {
+      setBusy(false);
+    }
+  };
   const closeShare = useCallback(() => {
     setSharing(false);
     setCaption('');
@@ -364,8 +595,15 @@ function OwnerControls({ activity: a, athlete, onChanged }: { activity: Activity
           className="space-y-3"
           onSubmit={async e => {
             e.preventDefault();
-            if (await patch({ name: name.trim(), type })) setEditing(false);
+            const segs = segmentsFromDrafts();
+            if (!segs.ok) {
+              setSegmentError(segs.error);
+              return;
+            }
+            setSegmentError(null);
+            if (await patch({ name: name.trim(), type, notes: notes.trim() || null, segments: segs.segments })) setEditing(false);
           }}
+          data-activity-edit-form
         >
           <label className="block">
             <span className="text-sm font-semibold text-secondary">Name</span>
@@ -391,8 +629,57 @@ function OwnerControls({ activity: a, athlete, onChanged }: { activity: Activity
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="text-sm font-semibold text-secondary">Notes</span>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value.slice(0, 2000))}
+              rows={3}
+              maxLength={2000}
+              placeholder="How it went, who you were with…"
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-base text-primary"
+              data-activity-notes-input
+            />
+          </label>
+          <fieldset className="space-y-2" data-activity-segments-editor>
+            <legend className="text-sm font-semibold text-secondary">Segments <span className="font-normal text-muted">— sprints, climbs, intervals; times as m:ss</span></legend>
+            {drafts.map((d, i) => (
+              <div key={d.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end" data-activity-segment-row>
+                <label className="block col-span-4 sm:col-span-1">
+                  <span className="text-xs text-muted">Kind</span>
+                  <select value={d.kind} onChange={e => setDrafts(ds => ds.map((x, j) => (j === i ? { ...x, kind: e.target.value as SegmentKind } : x)))} className="mt-0.5 w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm text-primary min-h-[44px]">
+                    {SEGMENT_KINDS.map(k => (
+                      <option key={k} value={k}>{SEGMENT_KIND_LABELS[k]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs text-muted">From</span>
+                  <input value={d.from} onChange={e => setDrafts(ds => ds.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} inputMode="numeric" placeholder="m:ss" className="mt-0.5 w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm text-primary min-h-[44px] tabular-nums" aria-label="Segment start" />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-muted">To</span>
+                  <input value={d.to} onChange={e => setDrafts(ds => ds.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} inputMode="numeric" placeholder="m:ss" className="mt-0.5 w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm text-primary min-h-[44px] tabular-nums" aria-label="Segment end" />
+                </label>
+                <button type="button" onClick={() => setDrafts(ds => ds.filter((_, j) => j !== i))} className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-danger-fg" aria-label="Remove segment">
+                  <i className="fas fa-times" aria-hidden="true" />
+                </button>
+                <label className="block col-span-4">
+                  <span className="sr-only">Segment name</span>
+                  <input value={d.label} onChange={e => setDrafts(ds => ds.map((x, j) => (j === i ? { ...x, label: e.target.value.slice(0, 40) } : x)))} placeholder="A name (optional)" className="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-primary" />
+                </label>
+              </div>
+            ))}
+            {drafts.length < SEGMENT_MAX && (
+              <button type="button" onClick={() => setDrafts(ds => [...ds, { id: draftId(), kind: 'interval', from: '', to: '', label: '' }])} className="ea-interactive rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px]" data-activity-segment-add>
+                <i className="fas fa-plus mr-2" aria-hidden="true" />
+                Add a segment
+              </button>
+            )}
+            {segmentError && <p className="text-sm text-danger-fg" role="alert">{segmentError}</p>}
+          </fieldset>
           <div className="flex gap-3">
-            <button type="submit" disabled={busy || !name.trim()} className="ea-cta rounded-lg px-4 py-2 font-semibold min-h-[44px] disabled:opacity-50">
+            <button type="submit" disabled={busy || !name.trim()} className="ea-cta rounded-lg px-4 py-2 font-semibold min-h-[44px] disabled:opacity-50" data-activity-edit-save>
               Save
             </button>
             <button type="button" onClick={editGuard.requestClose} className="ea-interactive rounded-lg px-4 py-2 font-semibold text-secondary min-h-[44px]">
@@ -436,6 +723,51 @@ function OwnerControls({ activity: a, athlete, onChanged }: { activity: Activity
           </button>
         </div>
       )}
+
+      <div className="space-y-2 border-t border-border-subtle pt-4" data-activity-photo-controls>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-secondary mr-1">Photos</span>
+          <CaptureInputs onFiles={files => void attachFiles(Array.from(files))} allowVideo>
+            {({ openPhoto }) => (
+              <button type="button" disabled={busy || a.media.length >= ACTIVITY_MEDIA_MAX} onClick={openPhoto} className="ea-interactive rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px] disabled:opacity-50">
+                <i className="fas fa-camera mr-2" aria-hidden="true" />
+                Take a photo
+              </button>
+            )}
+          </CaptureInputs>
+          <label className={`ea-interactive inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px] cursor-pointer ${busy || a.media.length >= ACTIVITY_MEDIA_MAX ? 'opacity-50 pointer-events-none' : ''}`}>
+            <i className="fas fa-images mr-2" aria-hidden="true" />
+            Add from library
+            <input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={e => { const f = e.target.files ? Array.from(e.target.files) : []; e.target.value = ''; void attachFiles(f); }} data-activity-photo-input />
+          </label>
+        </div>
+        {a.media.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {a.media.map(m => (
+              <li key={m.id} className="flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1 text-xs text-secondary" data-activity-photo-row={m.id}>
+                <span className="max-w-[9rem] truncate">{m.caption ?? (m.atS !== null ? `at ${mmss(m.atS)}` : m.mediaType)}</span>
+                <button type="button" disabled={busy} onClick={() => void reEditPhoto(m)} className="ea-icon-btn inline-flex items-center justify-center text-brand-fg" aria-label="Edit photo">
+                  <i className="fas fa-pen text-xs" aria-hidden="true" />
+                </button>
+                <button type="button" disabled={busy} onClick={() => setConfirmPhoto(m)} className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-danger-fg" aria-label="Remove photo">
+                  <i className="fas fa-times text-xs" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {editorAssets && <MediaEditor assets={editorAssets} config={PHOTO_EDITOR_CONFIG} onDone={editorDone} onCancel={() => { setEditorAssets(null); replacingRef.current = null; }} />}
+
+      <ConfirmModal
+        isOpen={confirmPhoto !== null}
+        title="Remove this photo?"
+        message="It leaves the activity. A copy already on your feed post stays there."
+        confirmText="Remove"
+        onConfirm={() => confirmPhoto && void removePhoto(confirmPhoto)}
+        onCancel={() => setConfirmPhoto(null)}
+      />
 
       {sharing && (
         <div className="space-y-3 border-t border-border-subtle pt-4" data-activity-share-panel>
