@@ -193,7 +193,7 @@ test('phone notifications on production: the every-minute job claims a new notif
 async function installedPhone(
   browser: Browser,
   userAgent: string,
-  opts: { permission?: 'default' } = {}
+  opts: { permission?: 'default' | 'granted' } = {}
 ): Promise<BrowserContext> {
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', userAgent, viewport: PHONE });
   if (opts.permission) {
@@ -342,14 +342,126 @@ test('phone notifications: the worker registers, an iPhone tab is sent to the ho
         await expect(p.getByRole('switch', { name: 'Phone notifications on this device' })).toHaveAttribute('aria-checked', 'false');
       }
 
+      // Opening the Notifications screen IS reading everything (Oct 4 2026).
       await p.goto('/app/notifications');
-      await p.getByRole('button', { name: /Mark all read/ }).first().click();
       await expect.poll(lastBadge, { timeout: 15_000 }).toBe(0);
     } finally {
       await ctx.close();
     }
   } finally {
     await cleanup(user.id, created);
+    await resetGetStarted(user.id);
+  }
+});
+
+test('the installed app asks once: a device that said yes is repaired, never re-asked; "no" is not asked again @mobile', async ({ browser, browserName }) => {
+  // The device's choice (src/lib/push/card.ts) + the boot repair (client.ts
+  // syncPush). A real subscription cannot be made headless, so the worker
+  // registration is played: a fake registration whose pushManager answers
+  // as scripted — the app code path (getRegistration → getSubscription →
+  // subscribe → POST /api/push/subscriptions) is the real one.
+  test.skip(browserName === 'webkit', 'service workers are blocked in the WebKit harness (playwright.config.ts)');
+  test.setTimeout(120_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  const endpoint = `https://push.example.invalid/e2e/${Date.now()}`;
+  const setup = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
+  try {
+    const dismissed = await setup.request.post('/api/profile/getting-started', { data: { dismiss: true } });
+    expect(dismissed.ok()).toBe(true);
+  } finally {
+    await setup.close();
+  }
+
+  const play = async (choice: 'on' | 'off' | null) => {
+    const ctx = await installedPhone(browser, ANDROID, { permission: 'granted' });
+    await ctx.addInitScript(
+      ({ choice, userId, endpoint }: { choice: 'on' | 'off' | null; userId: string; endpoint: string }) => {
+        try {
+          if (choice) {
+            window.localStorage.setItem('ea:push:device-choice:v1', JSON.stringify({ userId, choice, at: new Date().toISOString() }));
+          } else {
+            window.localStorage.removeItem('ea:push:device-choice:v1');
+          }
+        } catch {
+          // No storage: the spec fails loudly below.
+        }
+        const sub = {
+          endpoint,
+          options: { applicationServerKey: null },
+          toJSON: () => ({ endpoint, keys: { p256dh: 'BPe2eFakeKeyFakeKeyFakeKey00', auth: 'e2eFakeAuth00' } }),
+          unsubscribe: async () => true,
+        };
+        let current: typeof sub | null = null;
+        const reg = {
+          scope: `${location.origin}/`,
+          active: {},
+          pushManager: {
+            getSubscription: async () => current,
+            subscribe: async () => {
+              current = sub;
+              return sub;
+            },
+          },
+          getNotifications: async () => [],
+        };
+        const proto = ServiceWorkerContainer.prototype as unknown as Record<string, unknown>;
+        proto.getRegistration = async () => reg;
+        proto.register = async () => reg;
+        Object.defineProperty(navigator.serviceWorker, 'ready', { configurable: true, get: () => Promise.resolve(reg) });
+      },
+      { choice, userId: user.id, endpoint }
+    );
+    try {
+      const p = await ctx.newPage();
+      const cdp = await ctx.newCDPSession(p);
+      await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'display-mode', value: 'standalone' }] });
+      await p.goto('/feed');
+      await expect(p.getByRole('button', { name: /Notifications/ }).first()).toBeVisible({ timeout: 20_000 });
+      return { p, ctx };
+    } catch (e) {
+      await ctx.close();
+      throw e;
+    }
+  };
+
+  try {
+    // Said yes, lost the subscription (a sign-out, the phone): repaired at
+    // boot — the server gets the device back — and the card never shows.
+    let { p, ctx } = await play('on');
+    try {
+      await expect.poll(async () => {
+        const { data } = await admin.from('push_subscriptions').select('endpoint').eq('profile_id', user.id).eq('endpoint', endpoint);
+        return data?.length ?? 0;
+      }, { timeout: 20_000 }).toBe(1);
+      await expect(p.locator('[data-push-card]')).toHaveCount(0);
+      await p.goto('/settings?tab=notifications');
+      await expect(p.locator('[data-push-settings]')).toHaveAttribute('data-push-settings', 'on', { timeout: 20_000 });
+    } finally {
+      await ctx.close();
+    }
+    await admin.from('push_subscriptions').delete().eq('profile_id', user.id);
+
+    // Said no (turned it off in Settings): not asked again, nothing subscribed.
+    ({ p, ctx } = await play('off'));
+    try {
+      await p.waitForTimeout(3000);
+      await expect(p.locator('[data-push-card]')).toHaveCount(0);
+      const { data } = await admin.from('push_subscriptions').select('id').eq('profile_id', user.id);
+      expect(data ?? []).toHaveLength(0);
+    } finally {
+      await ctx.close();
+    }
+
+    // Never answered on this device, allowed but off: asked (today's rule).
+    ({ p, ctx } = await play(null));
+    try {
+      await expect(p.locator('[data-push-card]')).toBeVisible({ timeout: 20_000 });
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    await cleanup(user.id, []);
     await resetGetStarted(user.id);
   }
 });

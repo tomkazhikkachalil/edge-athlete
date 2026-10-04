@@ -14,14 +14,16 @@ Tom's decisions (Oct 2 2026):
 
 - **Turning it on:**
   - The installed app's feed shows a "Know when something happens" card. Tom (Oct 2, option 1): it **stays until the person chooses** — "Turn on notifications", or "Not now" (the X too), which puts it away for a week on that device before it asks again (`src/lib/push/card.ts`). A device blocked in the phone's settings is never asked.
+  - **It asks once per device per account (Oct 4).** The choice is remembered on the device (either answer), so the card never comes back; Settings → Notifications is where to change your mind. A device that said yes and lost its subscription — a sign-out turns it off, an iPhone may drop it — is turned back on silently the next time the app opens (`syncPush`); no prompt, no card. "On" used to be read from the live subscription alone, which is why the card came back after Tom had said yes.
   - Settings → Notifications → **On this device → Phone notifications** is the switch, with "Send a test notification" once it is on.
 - **Per device:** a person can have their phone buzz and their laptop not.
 - **When something happens** (a message, a comment, a fan request, an event invite, a result…): a notification arrives within about a minute. The app icon carries the bell's unread count.
 - **Likes and messages:** likes on one post replace each other on the lock screen, and so do messages in one conversation.
 - **A direct message never shows its words on the lock screen.** The title says who wrote; the body says "Tap to read".
 - **Tapping a notification** opens the item (the notification row's own `action_url`) and marks it read.
-- **Inside the app**, the icon's number follows the bell: read something and it drops.
-- **Signing out** turns the device off first, so a shared phone never shows the previous person's alerts.
+- **Inside the app**, the icon's number follows the bell: read something and it drops. **Opening the bell or the Notifications screen is seeing it (Tom, Oct 4):** everything is marked read on open, the dot and the number go to zero, and the rows that were new keep their "new" look for that open. Reading a conversation clears its message bells; answering a fan request reads that bell; coming back to the app re-reads the list, so a notification tapped on the phone or read on another device is caught up.
+- **What the phone's notification center shows is closed when read in the app** — a tapped notification by the worker, everything else by `closeShownNotifications` (by the worker's `data.id` / `tag`).
+- **Signing out** turns the device off first, so a shared phone never shows the previous person's alerts. The same person signing back in is turned back on silently (the device remembers their yes); another person is asked once.
 
 ## What each platform allows (not ours to change)
 
@@ -84,7 +86,8 @@ pg_cron `push-sweep` (every minute) ──POST /api/push/sweep (CRON_SECRET)
   - It must be the home-screen app, iOS 16.4 or later.
   - Settings → Notifications → Edge Athlete must be allowed.
   - Focus modes silence banners.
-- **The icon number is stale:** opening the app resets it to the bell's count.
+- **The icon number is stale:** opening the app resets it to the bell's count; a return to the foreground re-reads the list (at most every 20 s).
+- **The card came back after "Turn on":** `localStorage['ea:push:device-choice:v1']` should hold `{userId, choice:'on'}` for the signed-in account. If it does, the card cannot show; if the device also has no subscription, `syncPush` subscribes it again at boot — check `push_subscriptions` for a fresh row.
 
 ## Proof
 
@@ -92,5 +95,6 @@ pg_cron `push-sweep` (every minute) ──POST /api/push/sweep (CRON_SECRET)
 - **e2e:** `e2e/push.spec.ts`.
   - **The server half end to end:** a stand-in push service DECRYPTS what the sweep sent.
   - **Production:** the every-minute job claims a QA row by itself.
-  - **The device half:** the worker registers under the CSP; iPhone tab → home-screen message; blocked → no switch; the installed app → card + switch; the icon follows the bell.
+  - **The device half:** the worker registers under the CSP; iPhone tab → home-screen message; blocked → no switch; the installed app → card + switch; the icon follows the bell; **asks once** — a device that said yes is repaired (a `push_subscriptions` row appears by itself) and never re-asked, "no" is not asked again, a device never asked is (a played registration whose `pushManager` answers as scripted).
+  - **`e2e/notifications-clear.spec.ts`:** opening the bell / the screen marks everything read (server rows + the label), the "new" look survives that open, a read conversation clears its bells, a decided fan request is read, a return to the foreground catches up.
 - **A real banner on a real phone is Tom's device check.** Headless browsers cannot receive pushes.

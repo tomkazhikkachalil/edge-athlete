@@ -7,6 +7,23 @@ import { applyJoin } from '@/lib/sport-events/join-server';
 import { respondChallenge } from '@/lib/play/challenges-server';
 import { reportRouteError } from '@/lib/observability/report';
 
+/**
+ * A decided fan-request bell: decided AND read. The route used to leave both
+ * to the follows triggers — but migration 014 rewrote notify_follow_accepted
+ * WITHOUT the action_status stamp 009 had (the row kept offering Accept /
+ * Decline after a reload), and no trigger ever set is_read (the decided row
+ * kept counting as unread). Stamped here since Oct 4 2026; the triggers'
+ * own stamps, where they exist, agree.
+ */
+async function stampDecided(id: string, action_status: 'accepted' | 'declined'): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await getSupabaseAdmin()
+    .from('notifications')
+    .update({ action_status, action_taken_at: now, is_read: true, read_at: now })
+    .eq('id', id);
+  if (error) reportRouteError('[NOTIFICATION ACTION] decided stamp failed:', error);
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -127,7 +144,7 @@ export async function POST(
         );
       }
 
-      // Notification status will be updated by trigger
+      await stampDecided(id, 'accepted');
       return NextResponse.json({
         success: true,
         message: 'Follow request accepted',
@@ -151,7 +168,7 @@ export async function POST(
         );
       }
 
-      // Notification status will be updated by trigger
+      await stampDecided(id, 'declined');
       return NextResponse.json({
         success: true,
         message: 'Follow request declined',

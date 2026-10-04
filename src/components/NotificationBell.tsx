@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
 import NotificationActionRow from '@/components/NotificationActionRow';
@@ -9,14 +9,22 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 
+/**
+ * The bell. Opening it IS seeing it (Tom, Oct 4 2026 — Instagram's rule):
+ * everything unread is marked read on open, so the red dot and the app icon's
+ * number go to zero together. The rows that were new at that moment keep the
+ * "new" styling for the rest of that open (`freshIds`), then read as read the
+ * next time. Items arriving by realtime while the panel is open are new and
+ * stay unread until the next open. Accept / Decline stay on pending rows
+ * (the action row reads action_status, never is_read).
+ */
 export default function NotificationBell() {
   const router = useRouter();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [viewedNotifications, setViewedNotifications] = useState<Set<string>>(new Set());
-  const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  // The rows that were unread when the panel opened — new for this open.
+  const [freshIds, setFreshIds] = useState<Set<string>>(() => new Set());
 
   // Outside press or Escape closes — the shared popover pattern (this
   // component's document-listener approach is where the hook came from;
@@ -24,67 +32,15 @@ export default function NotificationBell() {
   const closeDropdown = useCallback(() => setShowDropdown(false), []);
   usePopoverDismiss(dropdownRef, showDropdown, closeDropdown);
 
-  // Callback ref to track notification elements
-  const setNotificationRef = useCallback((notificationId: string, element: HTMLDivElement | null) => {
-    if (element) {
-      notificationRefs.current.set(notificationId, element);
-    } else {
-      notificationRefs.current.delete(notificationId);
+  const toggle = () => {
+    if (showDropdown) {
+      setShowDropdown(false);
+      return;
     }
-  }, []);
-
-  // Set up Intersection Observer to auto-mark notifications as "viewed" (local state only)
-  useEffect(() => {
-    if (!showDropdown || typeof window === 'undefined') return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const notificationId = entry.target.getAttribute('data-notification-id');
-          const isRead = entry.target.getAttribute('data-is-read') === 'true';
-
-          if (!notificationId) return;
-
-          if (entry.isIntersecting && !isRead) {
-            // Start a 3-second timer to mark as "viewed" (local state only)
-            if (!visibilityTimers.current.has(notificationId)) {
-              const timer = setTimeout(() => {
-                setViewedNotifications(prev => new Set(prev).add(notificationId));
-                visibilityTimers.current.delete(notificationId);
-              }, 3000); // 3 seconds
-              visibilityTimers.current.set(notificationId, timer);
-            }
-          } else {
-            // Clear timer if notification leaves viewport before 3 seconds
-            const timer = visibilityTimers.current.get(notificationId);
-            if (timer) {
-              clearTimeout(timer);
-              visibilityTimers.current.delete(notificationId);
-            }
-          }
-        });
-      },
-      {
-        threshold: 0.5, // At least 50% visible
-        rootMargin: '0px'
-      }
-    );
-
-    // Observe all notification elements
-    notificationRefs.current.forEach((element) => {
-      observer.observe(element);
-    });
-
-    // Capture current ref value for cleanup
-    const timersToCleanup = visibilityTimers.current;
-
-    return () => {
-      observer.disconnect();
-      // Clear all timers when dropdown closes
-      timersToCleanup.forEach((timer) => clearTimeout(timer));
-      timersToCleanup.clear();
-    };
-  }, [showDropdown, notifications]); // Re-run when dropdown opens/closes or notifications change
+    setFreshIds(new Set(notifications.filter(n => !n.is_read).map(n => n.id)));
+    setShowDropdown(true);
+    if (unreadCount > 0) void markAllAsRead();
+  };
 
   // Get recent notifications (max 5) - show all, not just unread
   const recentNotifications = notifications.slice(0, 5);
@@ -119,7 +75,7 @@ export default function NotificationBell() {
     <div className="relative shrink-0" ref={dropdownRef}>
       {/* Bell Icon Button */}
       <button
-        onClick={() => setShowDropdown(!showDropdown)}
+        onClick={toggle}
         className="ea-icon-btn inline-flex items-center justify-center"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={showDropdown}
@@ -146,13 +102,10 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-surface-muted">
             <h3 className="font-semibold text-primary">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={() => markAllAsRead()}
-                className="text-xs text-brand-fg hover:text-brand-fg-strong font-medium"
-              >
-                Mark all read
-              </button>
+            {freshIds.size > 0 && (
+              <span className="text-xs text-brand-fg font-medium" data-notifications-new={freshIds.size}>
+                {freshIds.size} new
+              </span>
             )}
           </div>
 
@@ -165,12 +118,13 @@ export default function NotificationBell() {
               </div>
             ) : (
               <div className="divide-y divide-border-subtle">
-                {recentNotifications.map((notification) => (
+                {recentNotifications.map((notification) => {
+                  const fresh = freshIds.has(notification.id) || !notification.is_read;
+                  return (
                   <div
-                    key={`${notification.id}-${notification.is_read}`}
-                    ref={(el) => setNotificationRef(notification.id, el)}
+                    key={notification.id}
                     data-notification-id={notification.id}
-                    data-is-read={notification.is_read}
+                    data-notification-fresh={fresh ? '' : undefined}
                     onClick={() => handleNotificationClick(notification)}
                     className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors"
                   >
@@ -205,12 +159,12 @@ export default function NotificationBell() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2">
                           <p className={`text-sm font-medium flex-1 line-clamp-2 ${
-                            !notification.is_read ? 'text-primary' : 'text-tertiary'
+                            fresh ? 'text-primary' : 'text-tertiary'
                           }`}>
                             {getNotificationText(notification)}
                           </p>
-                          {/* Blue dot indicator for unread AND not viewed */}
-                          {!notification.is_read && !viewedNotifications.has(notification.id) && (
+                          {/* Blue dot: new for this open */}
+                          {fresh && (
                             <div className="w-2 h-2 bg-brand rounded-full mt-1 flex-shrink-0"></div>
                           )}
                         </div>
@@ -226,7 +180,8 @@ export default function NotificationBell() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

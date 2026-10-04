@@ -9,6 +9,13 @@ import { decidedText } from '@/lib/notification-actions';
 import { celebratePR } from '@/lib/celebrate';
 import { celebrationFor } from '@/lib/play/celebration';
 import { useToast } from '@/components/Toast';
+import { closeShownNotifications } from '@/lib/push/client';
+import { pushTag } from '@/lib/push/payload';
+
+/** A return to the foreground re-reads the list at most this often (the
+ *  feed's own tab-return gap) — reads done elsewhere (a tap on a phone
+ *  notification, another device) are caught up without a poll. */
+const RETURN_MIN_GAP_MS = 20_000;
 
 export interface NotificationActor {
   id: string;
@@ -96,6 +103,9 @@ interface NotificationsContextType {
   refreshUnreadCount: () => Promise<void>;
   /** Events program: the action row decided a bell — reflect it locally. */
   applyActionStatus: (notificationId: string, status: 'accepted' | 'declined') => void;
+  /** A conversation was read: its `new_message` bells are read with it (the
+   *  server did the rows; this is the loaded list, the count, the phone). */
+  absorbConversationRead: (conversationId: string, readCount: number) => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -224,6 +234,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
     );
     setUnreadCount(prev => Math.max(0, prev - 1));
+    void closeShownNotifications({ id: notificationId });
 
     // Then sync with server in background
     try {
@@ -269,6 +280,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
     );
     setUnreadCount(0);
+    void closeShownNotifications({ all: true });
 
     // Then sync with server in background
     try {
@@ -300,11 +312,30 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user, notifications, fetchNotifications]);
 
-  // Delete notification
+  // A decided bell is a read bell. The count drops HERE, from the row's own
+  // state inside the update (so a realtime UPDATE that already lowered it
+  // cannot lower it twice) — it used to flip is_read and leave the count.
   const applyActionStatus = useCallback((notificationId: string, status: 'accepted' | 'declined') => {
-    setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, action_status: status, is_read: true } : n)));
+    setNotifications(prev => {
+      const row = prev.find(n => n.id === notificationId);
+      if (row && !row.is_read) setUnreadCount(c => Math.max(0, c - 1));
+      return prev.map(n => (n.id === notificationId ? { ...n, action_status: status, is_read: true } : n));
+    });
   }, []);
 
+  const absorbConversationRead = useCallback((conversationId: string, readCount: number) => {
+    setNotifications(prev =>
+      prev.map(n =>
+        n.type === 'new_message' && !n.is_read && n.metadata?.conversation_id === conversationId
+          ? { ...n, is_read: true, read_at: new Date().toISOString() }
+          : n
+      )
+    );
+    if (readCount > 0) setUnreadCount(prev => Math.max(0, prev - readCount));
+    void closeShownNotifications({ tag: pushTag({ id: '', type: 'new_message', post_id: null, metadata: { conversation_id: conversationId } }) });
+  }, []);
+
+  // Delete notification
   const deleteNotification = useCallback(async (notificationId: string) => {
     if (!user) return;
 
@@ -360,6 +391,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setUnreadCount(0);
       setHasMore(false);
       setNextCursor(null);
+      void closeShownNotifications({ all: true });
 
     } catch (e) {
       console.error('Failed to clear notifications:', e);
@@ -398,6 +430,25 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setConnectionStatus('connecting');
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Catch up on return. The installed app's realtime socket drops in the
+  // background, so a read done elsewhere — the worker marking a tapped
+  // notification read, another device, the bell opened in another tab —
+  // was never seen until a reload; the icon's number stayed up. One re-read
+  // when the app comes back to the foreground, at most every 20 s.
+  useEffect(() => {
+    if (!user || typeof document === 'undefined') return;
+    let lastReturn = 0;
+    const onVisible = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastReturn < RETURN_MIN_GAP_MS) return;
+      lastReturn = now;
+      void fetchNotificationsRef.current?.({ reset: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [user]);
 
   // Set up real-time subscription for new and updated notifications.
   // Connection state is effect-owned by definition — this effect owns the
@@ -535,7 +586,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         deleteNotification,
         clearAll,
         refreshUnreadCount,
-        applyActionStatus
+        applyActionStatus,
+        absorbConversationRead
       }}
     >
       {children}

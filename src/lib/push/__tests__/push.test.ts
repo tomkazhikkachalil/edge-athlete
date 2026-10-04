@@ -185,3 +185,57 @@ describe('the feed card waits a week after "Not now", then asks again', () => {
     expect(isSnoozed(parseSnooze('not a date'), Date.now())).toBe(false);
   });
 });
+
+describe('the feed card asks once per device per account (Oct 4 2026)', () => {
+  const base = {
+    signedIn: true,
+    installed: true,
+    waiting: false,
+    snoozed: false,
+    choice: null,
+    ready: true,
+    offered: true,
+    on: false,
+    support: 'available' as const,
+  };
+
+  it('asks a device that never answered, whether it can ask or is allowed but off', async () => {
+    const { cardDecision } = await import('../card');
+    expect(cardDecision(base)).toBe(true);
+    expect(cardDecision({ ...base, support: 'granted' })).toBe(true);
+  });
+  it('never asks twice: either recorded answer hides it for good', async () => {
+    const { cardDecision } = await import('../card');
+    expect(cardDecision({ ...base, choice: 'on' })).toBe(false);
+    expect(cardDecision({ ...base, choice: 'off' })).toBe(false);
+    // …even when the device lost its subscription (sign-out, iOS): repaired at boot, not re-asked.
+    expect(cardDecision({ ...base, choice: 'on', support: 'granted', on: false })).toBe(false);
+  });
+  it('keeps every other reason to stay away', async () => {
+    const { cardDecision } = await import('../card');
+    expect(cardDecision({ ...base, on: true })).toBe(false);
+    expect(cardDecision({ ...base, snoozed: true })).toBe(false);
+    expect(cardDecision({ ...base, installed: false })).toBe(false);
+    expect(cardDecision({ ...base, waiting: true })).toBe(false);
+    expect(cardDecision({ ...base, signedIn: false })).toBe(false);
+    expect(cardDecision({ ...base, ready: false })).toBe(false);
+    expect(cardDecision({ ...base, offered: false })).toBe(false);
+    expect(cardDecision({ ...base, support: 'denied' })).toBe(false);
+    expect(cardDecision({ ...base, support: 'needs-install' })).toBe(false);
+    expect(cardDecision({ ...base, support: 'unsupported' })).toBe(false);
+  });
+  it('the stored choice belongs to one account; garbage asks again rather than never', async () => {
+    const { parseDeviceChoice, deviceChoiceFor, serializeDeviceChoice } = await import('../card');
+    const raw = serializeDeviceChoice('user-1', 'on', Date.parse('2026-10-04T12:00:00.000Z'));
+    const stored = parseDeviceChoice(raw);
+    expect(stored).toEqual({ userId: 'user-1', choice: 'on', at: '2026-10-04T12:00:00.000Z' });
+    expect(deviceChoiceFor(stored, 'user-1')).toBe('on');
+    expect(deviceChoiceFor(stored, 'user-2')).toBeNull(); // a shared phone asks each person once
+    expect(deviceChoiceFor(stored, null)).toBeNull();
+    expect(parseDeviceChoice(null)).toBeNull();
+    expect(parseDeviceChoice('not json')).toBeNull();
+    expect(parseDeviceChoice('{"userId":"u","choice":"maybe"}')).toBeNull();
+    expect(parseDeviceChoice('{"choice":"on"}')).toBeNull();
+    expect(parseDeviceChoice('[]')).toBeNull();
+  });
+});
