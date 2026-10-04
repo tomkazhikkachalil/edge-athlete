@@ -145,16 +145,19 @@ export async function GET(
     // (including anonymous viewers), and canViewProfile() returns false for a
     // null viewer regardless of visibility, so we must not call it for public
     // profiles.
+    // Read for EVERY viewer (owner too): the owner's visibility also decides
+    // which URL form the media gets below (speed round 2).
+    const { data: targetProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('visibility')
+      .eq('id', profileId)
+      .single();
+    if (!targetProfile) {
+      return NextResponse.json({ items: [], hasMore: false });
+    }
+    const ownerPublic = targetProfile.visibility === 'public';
     if (viewerId !== profileId) {
-      const { data: targetProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('visibility')
-        .eq('id', profileId)
-        .single();
-      if (!targetProfile) {
-        return NextResponse.json({ items: [], hasMore: false });
-      }
-      if (targetProfile.visibility !== 'public') {
+      if (!ownerPublic) {
         const { canView } = await canViewProfile(profileId, viewerId);
         if (!canView) {
           return NextResponse.json({ items: [], hasMore: false });
@@ -280,6 +283,16 @@ export async function GET(
       // Attach media to posts — proxy protected-bucket bytes (the viewer is
       // re-authorized at load; post_id is the governing entity).
       const mediaMap = new Map<string, MediaAttachment[]>();
+      // The URL form follows what this reader knows (speed round 2): a public
+      // post of a public owner gets the optimizable form, a private post an
+      // expiring one, anything else the stable bare path.
+      const postVisibility = new Map(items.map((item: MediaItem) => [item.id, item.visibility]));
+      const lifeOf = (postId: string) => {
+        const v = postVisibility.get(postId);
+        if (v === 'private') return { visibility: 'private' as const };
+        if (v === 'public' && ownerPublic) return { visibility: 'public' as const };
+        return {};
+      };
       if (media) {
         media.forEach((m: MediaAttachment) => {
           if (!mediaMap.has(m.post_id)) {
@@ -287,8 +300,8 @@ export async function GET(
           }
           mediaMap.get(m.post_id)!.push({
             ...m,
-            media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }) ?? m.media_url,
-            thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }),
+            media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)) ?? m.media_url,
+            thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)),
           });
         });
       }

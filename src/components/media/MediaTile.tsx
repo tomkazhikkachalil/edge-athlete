@@ -21,7 +21,7 @@
  */
 
 import Image from 'next/image';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import { useOptimizedSrc } from './useOptimizedSrc';
 import { formatDuration } from '@/lib/media/duration';
 
 interface MediaTileProps {
@@ -57,7 +57,10 @@ export default function MediaTile({
   const isVideo = kind === 'video';
   // A video with no poster predates poster capture; show a neutral tile rather
   // than a broken/black one. Images always render their own src.
-  const imageSrc = isVideo ? thumbnailUrl : src;
+  // Optimized (resized, webp) when the URL is the proxy's public form; a
+  // failed optimized load retries the bare path (speed round 2).
+  const optimized = useOptimizedSrc(isVideo ? thumbnailUrl : src);
+  const imageSrc = optimized.src;
 
   const body = (
     <>
@@ -70,7 +73,8 @@ export default function MediaTile({
           priority={priority}
           // Repo rule: anything the optimizer cannot fetch must opt out, or
           // /_next/image 400s and the tile renders broken.
-          unoptimized={!isOptimizableImageSrc(imageSrc)}
+          unoptimized={optimized.unoptimized}
+          onError={optimized.onError}
           className="object-cover"
         />
       ) : (

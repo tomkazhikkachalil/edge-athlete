@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import { useOptimizedSrc } from '@/components/media/useOptimizedSrc';
 
 interface LazyImageProps {
   src?: string | null;
@@ -27,6 +27,8 @@ export default function LazyImage({
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  // Optimized when the URL is the proxy's public form; the bare path on a failed optimized load.
+  const optimized = useOptimizedSrc(src ?? undefined);
 
   if (!src || hasError) {
     return fallback || (
@@ -52,7 +54,7 @@ export default function LazyImage({
       )}
       {/* Image always renders so onLoad fires reliably */}
       <Image
-        src={src}
+        src={optimized.src ?? src}
         alt={alt}
         width={width || 800}
         height={height || 600}
@@ -60,10 +62,18 @@ export default function LazyImage({
         style={{ width: width ? `${width}px` : '100%', height: height ? `${height}px` : 'auto', display: 'block' }}
         // The optimizer fetches server-side without the viewer's cookie, so it
         // can't fetch proxied private media (and external avatars); render
-        // those as-is. isOptimizableImageSrc knows the /api/media/ proxy path.
-        unoptimized={!isOptimizableImageSrc(src ?? undefined)}
+        // those as-is. The proxy's PUBLIC form (/api/media/o/) is optimized,
+        // and a failed optimized load retries the bare path (speed round 2).
+        unoptimized={optimized.unoptimized}
         onLoad={() => setIsLoaded(true)}
-        onError={() => { setHasError(true); onError?.(); }}
+        onError={() => {
+          if (optimized.src?.startsWith('/api/media/o/')) {
+            optimized.onError(); // one retry on the bare path, not an error yet
+            return;
+          }
+          setHasError(true);
+          onError?.();
+        }}
         // NOT renamed to `preload`. This component already expresses its
         // intent through `loading`, and Next 16's own guidance is to prefer
         // loading="eager" / fetchPriority="high" over preload in most cases.

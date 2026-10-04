@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOptimizableImageSrc } from '../image-src';
+import { bareProxyPath, isOptimizableImageSrc } from '../image-src';
 
 describe('isOptimizableImageSrc', () => {
   it('accepts Supabase Storage object URLs', () => {
@@ -72,5 +72,20 @@ describe('isOptimizableImageSrc', () => {
     expect(isOptimizableImageSrc('not a url')).toBe(false);
     expect(isOptimizableImageSrc(null)).toBe(false);
     expect(isOptimizableImageSrc(undefined)).toBe(false);
+  });
+});
+
+describe('the proxy\'s optimizable form (speed round 2)', () => {
+  it('accepts /api/media/o/<token> — and only the path form', () => {
+    expect(isOptimizableImageSrc('/api/media/o/abc.def')).toBe(true);
+    expect(isOptimizableImageSrc('/api/media/o/abc.def?w=1')).toBe(false);
+    expect(isOptimizableImageSrc('/api/media/o/abc.def#x')).toBe(false);
+    expect(isOptimizableImageSrc('/api/media/abc.def')).toBe(false);
+    expect(isOptimizableImageSrc('/api/media/oabc.def')).toBe(false);
+  });
+  it('bareProxyPath strips the hint and leaves everything else alone', () => {
+    expect(bareProxyPath('/api/media/o/abc.def')).toBe('/api/media/abc.def');
+    expect(bareProxyPath('/api/media/abc.def')).toBe('/api/media/abc.def');
+    expect(bareProxyPath('/logo.png')).toBe('/logo.png');
   });
 });
