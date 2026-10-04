@@ -4,7 +4,7 @@
 // own total (a barometric ascent, a wheel-sensor distance) is kept only when
 // it agrees with the points within bounds — otherwise the points win.
 
-import { ACTIVITY_TYPE_DEFS, type ActivityType } from './catalog';
+import { ACTIVITY_TYPE_DEFS, type ActivityType, STEP_TYPES } from './catalog';
 import type { ActivityPoint, ActivitySummary, NormalizedActivity } from './types';
 
 /** At most this many samples travel from the browser to the server. */
@@ -12,7 +12,9 @@ export const UPLOAD_POINTS = 10_000;
 /** Longest activity accepted (48 h — an ultra, a multi-day hike stage). */
 export const MAX_ELAPSED_S = 172_800;
 /** A gap longer than this between samples is a pause, never moving time. */
-const PAUSE_GAP_S = 30;
+/** A gap longer than this between samples is a pause — out of moving time
+ *  (and the recorder's explicit Pause admits no samples, so it IS one). */
+export const PAUSE_GAP_S = 30;
 /** Elevation noise band: a change smaller than this is not a climb. */
 const ELEVATION_HYSTERESIS_M = 3;
 const EARTH_R = 6_371_008.8;
@@ -111,7 +113,7 @@ export function cumulativeDistances(points: readonly ActivityPoint[]): number[] 
   return d;
 }
 
-function elevationTotals(points: readonly ActivityPoint[]): { gain: number; loss: number } | null {
+export function elevationTotals(points: readonly ActivityPoint[]): { gain: number; loss: number } | null {
   let ref: number | null = null;
   let gain = 0;
   let loss = 0;
@@ -258,4 +260,42 @@ export function defaultActivityName(type: ActivityType, hour: number): string {
  *  .FIT and a .GPX is still one activity. */
 export function fileExternalId(startedAt: number): string {
   return `start:${Math.floor(startedAt / 1000)}`;
+}
+
+// ── Steps (Live Activities, mig 251) ────────────────────────────────────────
+// The web has no pedometer, so steps are an ESTIMATE from distance and
+// stride, labelled "est." wherever they show (Tom, Oct 4 2026). Stride from
+// the athlete's height when known — the pedometer rule of thumb: 0.413 ×
+// height walking, 0.65 × height running — else 0.75 m / 1.0 m. Walking or
+// running is decided by the average MOVING speed (2 m/s ≈ a 13:20 min/mile
+// jog), not by the type: a treadmill is either. Computed on the SERVER at
+// import (and by the recorder for its live display, the same function).
+// Only the step types (catalog STEP_TYPES) get a number; others null.
+
+export const STEP_WALK_STRIDE_FACTOR = 0.413;
+export const STEP_RUN_STRIDE_FACTOR = 0.65;
+export const STEP_WALK_STRIDE_M = 0.75;
+export const STEP_RUN_STRIDE_M = 1.0;
+/** Above this average moving speed the stride is a running stride. */
+export const STEP_RUN_SPEED_MPS = 2.0;
+export const STEPS_MAX = 200_000;
+
+export function strideM(running: boolean, heightCm: number | null | undefined): number {
+  if (typeof heightCm === 'number' && Number.isFinite(heightCm) && heightCm >= 100 && heightCm <= 250) {
+    return (heightCm / 100) * (running ? STEP_RUN_STRIDE_FACTOR : STEP_WALK_STRIDE_FACTOR);
+  }
+  return running ? STEP_RUN_STRIDE_M : STEP_WALK_STRIDE_M;
+}
+
+export function estimateSteps(
+  type: ActivityType,
+  distanceM: number | null | undefined,
+  movingS: number | null | undefined,
+  heightCm: number | null | undefined
+): number | null {
+  if (!STEP_TYPES.has(type)) return null;
+  if (typeof distanceM !== 'number' || !Number.isFinite(distanceM) || distanceM <= 0) return null;
+  const speed = typeof movingS === 'number' && movingS > 0 ? distanceM / movingS : 0;
+  const steps = Math.round(distanceM / strideM(speed >= STEP_RUN_SPEED_MPS, heightCm));
+  return Math.min(STEPS_MAX, Math.max(0, steps));
 }

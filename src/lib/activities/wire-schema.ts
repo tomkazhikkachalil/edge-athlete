@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { ACTIVITY_TYPES } from './catalog';
 import { UPLOAD_POINTS } from './normalize';
+import { SegmentsSchema } from './segments';
 import type { WireActivity } from './wire';
 
 const col = (lo: number, hi: number) => z.array(z.number().min(lo).max(hi).nullable()).max(UPLOAD_POINTS).optional();
@@ -14,7 +15,7 @@ const nonNeg = (hi: number) => z.number().min(0).max(hi).optional();
 export const WireActivitySchema = z
   .object({
     v: z.literal(1),
-    format: z.enum(['gpx', 'tcx']),
+    format: z.enum(['gpx', 'tcx', 'live']),
     type: z.enum(ACTIVITY_TYPES),
     name: z.string().trim().max(120).nullable(),
     tz: z.string().min(1).max(64).nullable(),
@@ -37,6 +38,9 @@ export const WireActivitySchema = z
     cad: col(0, 400),
     pwr: col(0, 3000),
     dist: col(0, 2_000_000),
+    // Live Activities (251): the recorder's own id and the segments it marked.
+    recordingId: z.string().uuid().optional(),
+    segments: SegmentsSchema.optional(),
   })
   .strict()
   .superRefine((w, ctx) => {
@@ -47,6 +51,20 @@ export const WireActivitySchema = z
     }
     if ((w.lat === undefined) !== (w.lng === undefined)) {
       ctx.addIssue({ code: 'custom', path: ['lat'], message: 'lat and lng travel together' });
+    }
+    // A recording names itself; a file never carries the recorder's fields.
+    if (w.format === 'live' && !w.recordingId) {
+      ctx.addIssue({ code: 'custom', path: ['recordingId'], message: 'a live recording names its recordingId' });
+    }
+    if (w.format !== 'live' && (w.recordingId !== undefined || w.segments !== undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['format'], message: 'recordingId and segments belong to a live recording' });
+    }
+    // Every segment ends inside the recording (a second of slack for rounding).
+    if (w.segments) {
+      const lastS = w.dt[w.dt.length - 1] / 1000;
+      w.segments.forEach((seg, i) => {
+        if (seg.to_s > lastS + 1) ctx.addIssue({ code: 'custom', path: ['segments', i, 'to_s'], message: 'a segment ends inside the recording' });
+      });
     }
   });
 
