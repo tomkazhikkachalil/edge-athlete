@@ -1,5 +1,15 @@
 # Development Log
 
+## October 4, 2026 — Speed round 2, C4: an unedited photo is resized at Post, and its original follows behind (zero DDL)
+
+**The finding:** the editor already renders an EDITED photo at the composer's 2048 px cap, but a photo the person never opened — most of them — uploaded at its full size (a 12 MP camera JPEG, several MB), and that is what every viewer and the optimizer's source fetch then paid for.
+
+**What ships:** `src/lib/media/post-time-resize.ts` — `shouldResize` (pure, pinned: JPEG / PNG / WebP only — a GIF would lose its animation, HEIC is editor-first and never reaches here; only when the longest edge exceeds the cap; an unmeasured file is left alone) and `prepareImageForUpload` (browser: probe → the editor's own `renderImage` with a default recipe → a PNG stays PNG, else JPEG at the composer's quality; never throws — any failure uploads the original as before). It runs in `uploadMediaWithPoster` at **Post** — never at attach, Capture v2's rule — and the original rides the Oct 4 background path (`deferOriginal` → `attachOriginalInBackground`), so the post goes out with the render and still keeps its full-resolution source for re-editing (a null recipe + a `source_url` re-opens the original with a default recipe — `rehydrate.ts`'s existing rule). A photo the person DID edit keeps its original inline: the recipe and the source land together, and `media-reedit.spec` pins that (the first cut deferred it and the spec caught it).
+
+**Proof:** `post-time-resize.test.ts`; `npm run verify` green; e2e `capture-attach`, `media-editor`, `media-reedit`, `upload-original-attach` green on staging (the fixture photo is under the cap, so the camera path is unchanged there — a real 12 MP photo from Tom's phone is the device check).
+
+---
+
 ## October 4, 2026 — Speed round 2, C3: public photos are resized for the screen that shows them (zero DDL)
 
 **The finding:** no proxied image was ever resized. `isOptimizableImageSrc` opted every `/api/media/…` URL out of Next's optimizer (correctly — the optimizer fetches server-side with NO cookie, so it cannot read private media), which meant a 130 px grid tile downloaded the full original, and an unedited camera JPEG is stored at full size. On a phone over cellular that is most of the bytes a feed moves.
