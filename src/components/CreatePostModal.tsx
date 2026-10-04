@@ -29,6 +29,7 @@ import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { attachOriginalInBackground, uploadPostMedia } from '@/lib/media/upload';
+import { prepareImageForUpload } from '@/lib/media/post-time-resize';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
 import { planPickAttach, usableDuration } from '@/lib/media/capture-attach';
 import { uploadingLine, weightedProgress } from '@/lib/media/upload-progress';
@@ -553,27 +554,53 @@ export default function CreatePostModal({
     options: { deferOriginal?: boolean } = {}
   ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string; deferredOriginal?: File }> => {
     if (!mediaFile.file) return { url: mediaFile.url };
-    const defer = !!options.deferOriginal && mediaFile.type === 'video' && !!mediaFile.edited && !!mediaFile.sourceFile;
+    // `item` is the file as it will upload — a narrowed copy, so the C4
+    // resize below can swap the render in without losing the type.
+    let item: MediaFile & { file: File } = { ...mediaFile, file: mediaFile.file };
+    // C4 (speed round 2): a photo the person never edited is resized to the
+    // composer's cap HERE, at Post — never at attach — and its original
+    // follows in the background like an edited video's. Fails open to the
+    // original file.
+    let resizedHere = false;
+    if (options.deferOriginal && item.type === 'image' && !item.edited) {
+      const prepared = await prepareImageForUpload(item.file, COMPOSER_EDITOR_CONFIG.output);
+      if (prepared.resized && prepared.original) {
+        resizedHere = true;
+        item = {
+          ...item,
+          file: prepared.file,
+          sourceFile: prepared.original,
+          edited: true,
+          width: prepared.width ?? item.width,
+          height: prepared.height ?? item.height,
+        };
+      }
+    }
+    // What waits for nothing: an edited VIDEO's original, and a photo's
+    // original when the only "edit" was this resize. A photo the person
+    // edited in the editor keeps its original inline (small; the recipe and
+    // the source land together — media-reedit.spec pins it).
+    const defer = !!options.deferOriginal && !!item.edited && !!item.sourceFile && (item.type === 'video' || resizedHere);
     // Acting-as: media belongs to the athlete's post, so it must land under
     // the ATHLETE's storage prefix (server validates via the acting-as gate).
     const targetId = activeProfile?.id;
     // Progress is byte-weighted over the parts this file sends (the render,
     // then the original when the render differs); the poster is noise.
     const parts = [
-      { bytes: mediaFile.file.size, fraction: 0 },
-      ...(mediaFile.edited && mediaFile.sourceFile && !defer ? [{ bytes: mediaFile.sourceFile.size, fraction: 0 }] : []),
+      { bytes: item.file.size, fraction: 0 },
+      ...(item.edited && item.sourceFile && !defer ? [{ bytes: item.sourceFile.size, fraction: 0 }] : []),
     ];
     const report = (index: number, fraction: number) => {
       parts[index].fraction = fraction;
       const progress = weightedProgress(parts);
-      setMediaFiles(prev => prev.map(f => (f.id === mediaFile.id ? { ...f, uploadProgress: progress } : f)));
+      setMediaFiles(prev => prev.map(f => (f.id === item.id ? { ...f, uploadProgress: progress } : f)));
     };
     report(0, 0);
-    const { url } = await uploadPostMedia(mediaFile.file, targetId, { onProgress: f => report(0, f) });
+    const { url } = await uploadPostMedia(item.file, targetId, { onProgress: f => report(0, f) });
     let thumbnailUrl: string | undefined;
-    if (mediaFile.posterBlob) {
+    if (item.posterBlob) {
       try {
-        const poster = new File([mediaFile.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+        const poster = new File([item.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
         thumbnailUrl = (await uploadPostMedia(poster, targetId)).url;
       } catch (err) {
         // A poster is a nice-to-have — never fail the post over it
@@ -583,11 +610,11 @@ export default function CreatePostModal({
     let sourceUrl: string | undefined;
     if (defer) {
       report(parts.length - 1, 1);
-      return { url, thumbnailUrl, deferredOriginal: mediaFile.sourceFile };
+      return { url, thumbnailUrl, deferredOriginal: item.sourceFile };
     }
-    if (mediaFile.edited && mediaFile.sourceFile) {
+    if (item.edited && item.sourceFile) {
       try {
-        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile, targetId, { onProgress: f => report(1, f) })).url;
+        sourceUrl = (await uploadPostMedia(item.sourceFile, targetId, { onProgress: f => report(1, f) })).url;
       } catch (err) {
         console.warn('Original upload failed (render still posts):', err);
       }
