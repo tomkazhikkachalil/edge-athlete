@@ -9,6 +9,9 @@ interface FollowButtonProps {
   profileId: string;
   currentUserId?: string; // Optional - will use auth hook if not provided
   onFollowChange?: (isFollowing: boolean, followersCount: number) => void;
+  /** The stats this button loaded (speed round 2): a page that shows the
+   *  counts takes them from here instead of asking /api/follow/stats itself. */
+  onStatsLoaded?: (stats: { followersCount: number; followingCount?: number; isFollowing: boolean; followStatus: string | null; isPrivate?: boolean }) => void;
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
   className?: string;
@@ -18,6 +21,7 @@ export default function FollowButton({
   profileId,
   currentUserId: propCurrentUserId,
   onFollowChange,
+  onStatsLoaded,
   size = 'md',
   showCount = false,
   className = ''
@@ -39,6 +43,11 @@ export default function FollowButton({
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [followMessage, setFollowMessage] = useState('');
   const { showError, showSuccess } = useToast();
+  // Published on a ref so the loader effect's deps stay [profileId, currentUserId].
+  const onStatsLoadedRef = useRef(onStatsLoaded);
+  useEffect(() => {
+    onStatsLoadedRef.current = onStatsLoaded;
+  }, [onStatsLoaded]);
 
   // The fan-request modal is an overlay; lock the page behind it.
   useBodyScrollLock(showMessageModal);
@@ -76,6 +85,7 @@ export default function FollowButton({
             setIsFollowing(data.isFollowing);
             setFollowStatus(data.followStatus);
             setIsPrivate(data.isPrivate !== false);
+            onStatsLoadedRef.current?.(data);
             return data as { followersCount: number; isFollowing: boolean; followStatus: string | null };
           } else {
             // If the table doesn't exist yet, just show default values

@@ -249,12 +249,17 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       // realtime covers a focused tab, and a visibilitychange catch-up fires
       // one refresh the moment the tab returns to the foreground.
       // Each poll cycle gets its own controller so a stale abort never kills future polls.
+      // Speed round 2: 30 s → 2 min. Realtime carries every new message to a
+      // focused tab (one channel per listed conversation) and the
+      // visibilitychange catch-up below covers a return; the poll is only
+      // the net under a dropped socket, and at 30 s it was two function
+      // calls per user per half-minute on every page.
       pollTimerRef.current = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
         const pollController = new AbortController();
         fetchConversations(pollController.signal);
         refreshUnreadCount(pollController.signal);
-      }, 30_000);
+      }, 120_000);
 
       const onVisible = () => {
         if (document.hidden) return;

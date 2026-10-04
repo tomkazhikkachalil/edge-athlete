@@ -68,27 +68,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: COPY.ACCOUNT.DEPARTED_PAGE, departed: true }, { status: 404 });
     }
 
-    // Fetch season highlights
-    const { data: seasonHighlights, error: highlightsError } = await supabaseAdmin
-      .from('season_highlights')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('season', { ascending: false });
-
-    if (highlightsError && highlightsError.code !== 'PGRST116') {
-      reportRouteError('Season highlights error:', highlightsError);
-    }
-
-    // Fetch performances
-    const { data: performances, error: performancesError } = await supabaseAdmin
-      .from('performances')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('date', { ascending: false });
-
-    if (performancesError && performancesError.code !== 'PGRST116') {
-      reportRouteError('Performances error:', performancesError);
-    }
+    // season_highlights and performances used to be read here on every
+    // profile load — two sequential queries the page never displayed (speed
+    // round 2). The keys stay in the answer, empty, for cached clients.
 
     // Privacy-shape the profile server-side (the browser must never receive
     // fields the viewer isn't entitled to).
@@ -108,7 +90,10 @@ export async function GET(request: NextRequest) {
           profile: shapedProfile,
           badges: [],
           seasonHighlights: [],
-          performances: []
+          performances: [],
+          // The page used to ask /api/privacy/check for this after the fact;
+          // the answer was already here (speed round 2).
+          canView: false,
         });
       }
     }
@@ -118,8 +103,9 @@ export async function GET(request: NextRequest) {
       // Deprecated: athlete_badges no longer render anywhere (profile pages
       // read /api/achievements). Kept one release for cached clients.
       badges: [],
-      seasonHighlights: seasonHighlights || [],
-      performances: performances || []
+      seasonHighlights: [],
+      performances: [],
+      canView: true,
     });
 
   } catch (error) {
