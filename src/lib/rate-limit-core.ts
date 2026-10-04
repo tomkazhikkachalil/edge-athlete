@@ -85,6 +85,8 @@ export const RATE_LIMITS = {
   challenge: { max: 20, windowSeconds: 86_400, keyBy: 'user' },
   // Activities (245): a file import — a batch of ten is one sitting; a whole season is several.
   'activity-import': { max: 60, windowSeconds: 3600, keyBy: 'user' },
+  // Live Activities (251): photos attached to an activity (≤ 20 per activity; a recording's burst).
+  'activity-media': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Connected apps (247): connect, rotate the upload link, disconnect — a handful of deliberate taps, never a loop.
   'connection-write': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // The personal upload link (PR 3): per LINK (keyed by the connection id) —
