@@ -24,10 +24,26 @@ export interface CaptureAttachPlan {
 }
 
 export function planCaptureAttach(accepted: File[]): CaptureAttachPlan {
+  return planPickAttach(accepted, 'camera');
+}
+
+/**
+ * Where a pick came from decides what attaches at once (Oct 4 2026, the
+ * direct-upload round): a CAMERA capture attaches everything the server
+ * takes; a LIBRARY pick attaches its VIDEOS and keeps photos editor-first.
+ * Why videos: opening the editor on a library video cost three <video>
+ * loads, eight thumbnail seeks, a container parse, then a probe and a poster
+ * capture on Done — on a phone that read as "uploading is incredibly slow"
+ * before a byte had left the device. The editor stays one tap away on the
+ * tile. Photos keep the editor-first flow (a library photo is usually
+ * cropped or straightened; the editor IS the pick). HEIC always re-encodes.
+ */
+export function planPickAttach(accepted: File[], source: 'camera' | 'library'): CaptureAttachPlan {
   const plan: CaptureAttachPlan = { attach: [], editor: [] };
   for (const file of accepted) {
     if (requiresReencode(file.type)) plan.editor.push(file);
-    else plan.attach.push(file);
+    else if (source === 'camera' || file.type.startsWith('video/')) plan.attach.push(file);
+    else plan.editor.push(file);
   }
   return plan;
 }

@@ -30,7 +30,8 @@ import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
-import { planCaptureAttach, usableDuration } from '@/lib/media/capture-attach';
+import { planPickAttach, usableDuration } from '@/lib/media/capture-attach';
+import { uploadingLine, weightedProgress } from '@/lib/media/upload-progress';
 import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
@@ -69,6 +70,9 @@ interface MediaFile {
   /** True when `file` is a rendered blob distinct from `sourceFile` — drives
    *  the non-destructive original upload (source_url, migration 120). */
   edited?: boolean;
+  /** 0..1 while this file's bytes leave the device (direct upload); undefined
+   *  before the upload starts, 1 when its parts are sent. */
+  uploadProgress?: number;
 }
 
 // Golf composer state lives in src/components/golf/GolfComposerSection.tsx
@@ -310,8 +314,10 @@ export default function CreatePostModal({
   // CAPTURE V2 (Sep 2026): a CAMERA capture attaches immediately as a tile —
   // the original File is the tile and the upload; the editor is one tap away
   // (the tile's Edit button), never mandatory. Nothing heavy runs between the
-  // camera's hand-back and the tile (capture-attach.ts explains why). Library
-  // picks and drops keep the editor-first flow. HEIC still opens the editor.
+  // camera's hand-back and the tile (capture-attach.ts explains why). Since
+  // Oct 4 2026 a LIBRARY video attaches the same way (the editor on a long
+  // library video is where "uploading is slow" came from); library photos
+  // keep the editor-first flow. HEIC still opens the editor.
   const handleFileUpload = useCallback((files: FileList | File[], source: 'camera' | 'library' = 'library') => {
     if (files.length === 0) return;
     const { accepted, rejected } = validateFiles(Array.from(files), {
@@ -329,8 +335,8 @@ export default function CreatePostModal({
       file,
       kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
     });
-    if (source === 'camera') {
-      const { attach, editor } = planCaptureAttach(accepted);
+    {
+      const { attach, editor } = planPickAttach(accepted, source);
       if (attach.length > 0) {
         setMediaFiles(prev => [
           ...prev,
@@ -352,10 +358,7 @@ export default function CreatePostModal({
       if (editor.length === 0) return;
       setEditingExistingId(null);
       setEditorAssets(editor.map(toAsset));
-      return;
     }
-    setEditingExistingId(null);
-    setEditorAssets(accepted.map(toAsset));
   }, [mediaFiles.length, showError]);
 
   // Capture v2: an attached video's own <video preload="metadata"> reports its
@@ -546,7 +549,19 @@ export default function CreatePostModal({
     // Acting-as: media belongs to the athlete's post, so it must land under
     // the ATHLETE's storage prefix (server validates via the acting-as gate).
     const targetId = activeProfile?.id;
-    const { url } = await uploadPostMedia(mediaFile.file, targetId);
+    // Progress is byte-weighted over the parts this file sends (the render,
+    // then the original when the render differs); the poster is noise.
+    const parts = [
+      { bytes: mediaFile.file.size, fraction: 0 },
+      ...(mediaFile.edited && mediaFile.sourceFile ? [{ bytes: mediaFile.sourceFile.size, fraction: 0 }] : []),
+    ];
+    const report = (index: number, fraction: number) => {
+      parts[index].fraction = fraction;
+      const progress = weightedProgress(parts);
+      setMediaFiles(prev => prev.map(f => (f.id === mediaFile.id ? { ...f, uploadProgress: progress } : f)));
+    };
+    report(0, 0);
+    const { url } = await uploadPostMedia(mediaFile.file, targetId, { onProgress: f => report(0, f) });
     let thumbnailUrl: string | undefined;
     if (mediaFile.posterBlob) {
       try {
@@ -560,11 +575,12 @@ export default function CreatePostModal({
     let sourceUrl: string | undefined;
     if (mediaFile.edited && mediaFile.sourceFile) {
       try {
-        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile, targetId)).url;
+        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile, targetId, { onProgress: f => report(1, f) })).url;
       } catch (err) {
         console.warn('Original upload failed (render still posts):', err);
       }
     }
+    report(parts.length - 1, 1);
     return { url, thumbnailUrl, sourceUrl };
   };
 
@@ -983,6 +999,24 @@ export default function CreatePostModal({
                       </>
                     )}
 
+                    {/* Upload progress (direct upload): a bar + the number while
+                        this file's bytes leave the device. */}
+                    {isSubmitting && file.uploadProgress !== undefined && file.uploadProgress < 1 && (
+                      <div
+                        role="progressbar"
+                        aria-label="Upload progress"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(file.uploadProgress * 100)}
+                        className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1"
+                      >
+                        <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-1">
+                          <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round(file.uploadProgress * 100)}%` }} />
+                        </div>
+                        {Math.round(file.uploadProgress * 100)}%
+                      </div>
+                    )}
+
                     {/* Remove button. Padding grows the 24px circle to a 40px
                         hit area; the visual circle lives on the inner span. */}
                     <button
@@ -1350,7 +1384,7 @@ export default function CreatePostModal({
               {isSubmitting ? (
                 <>
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  {isLiveSetup ? 'Starting…' : 'Creating...'}
+                  {uploadingLine(mediaFiles.map(f => f.uploadProgress)) ?? (isLiveSetup ? 'Starting…' : 'Creating...')}
                 </>
               ) : isLiveSetup ? (
                 <>

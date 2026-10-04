@@ -79,15 +79,25 @@ test('a camera video attaches as a tile at once and posts @mobile', async ({ pag
 
   await page.getByRole('button', { name: /what's on your mind/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
-  await page.locator('input[type="file"][accept="video/*"]').setInputFiles({
+  const clip = {
     name: base64.mime === 'video/mp4' ? 'clip.mp4' : 'clip.webm',
     mimeType: base64.mime,
     buffer: Buffer.from(base64.data, 'base64'),
-  });
+  };
+  await page.locator('input[type="file"][accept="video/*"]').setInputFiles(clip);
 
   await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
   await expect(page.locator('[role="status"]').filter({ hasText: 'Too long' })).toHaveCount(0);
+
+  // Oct 4 2026: a LIBRARY video attaches at once too — no editor between the
+  // pick and the tile (that editor pass is where "uploading is slow" came
+  // from). Photos from the library still open the editor (the first test).
+  await page.locator('input[type="file"][multiple]').setInputFiles(clip);
+  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(2, { timeout: 5_000 });
+  await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove media' }).last().click();
+  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(1);
 
   const marker = `Capture v2 clip ${Date.now()}`;
   await page.getByPlaceholder('Share your thoughts...').fill(marker);

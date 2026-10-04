@@ -273,6 +273,9 @@ async function videoCrop(page: Page): Promise<void> {
     mimeType: clip.mime,
     buffer: Buffer.from(clip.data),
   });
+  // Oct 4 2026: a library video attaches as a tile first; the editor is the
+  // tile's Edit button.
+  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
 
   // Video has the same box: any area, by hand.
