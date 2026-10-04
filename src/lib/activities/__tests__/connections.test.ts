@@ -12,24 +12,45 @@ import {
 } from '../connections';
 import { DEDUPE_START_WINDOW_S, findDuplicate, incomingIsRicher, isSameActivity } from '../dedupe';
 
+import { readdirSync } from 'node:fs';
+
 const SQL = readFileSync(path.join(process.cwd(), 'database/migrations/247_activity_connections.sql'), 'utf8');
-const wordsOf = (re: RegExp) => {
-  const m = re.exec(SQL);
+const wordsOf = (re: RegExp, sql: string = SQL) => {
+  const m = re.exec(sql);
   expect(m).not.toBeNull();
   return [...m![1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
 };
 
+/** The chain's LAST declaration of a named CHECK — a later migration may
+ *  widen it (251 did for the sources and the types); the catalog mirrors
+ *  the live one, not the first. */
+export function lastCheckWords(constraint: string, column: string): string[] {
+  const dir = path.join(process.cwd(), 'database/migrations');
+  const files = readdirSync(dir).filter(f => /^\d{3}_.*\.sql$/.test(f)).sort();
+  const re = new RegExp(`ADD CONSTRAINT ${constraint}\\s+CHECK \\(${column} IN \\(([^)]*)\\)\\)`);
+  let last: string[] | null = null;
+  for (const f of files) {
+    const sql = readFileSync(path.join(dir, f), 'utf8');
+    const m = re.exec(sql);
+    if (m) last = [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
+  }
+  expect(last, `${constraint} declared nowhere`).not.toBeNull();
+  return last!;
+}
+
 describe('the vocabulary and migration 247', () => {
-  it('ACTIVITY_SOURCES equals activities_source_check exactly', () => {
-    expect(wordsOf(/ADD CONSTRAINT activities_source_check\s+CHECK \(source IN \(([^)]*)\)\)/)).toEqual([...ACTIVITY_SOURCES]);
+  it('ACTIVITY_SOURCES equals the chain\'s LAST activities_source_check exactly', () => {
+    expect(lastCheckWords('activities_source_check', 'source')).toEqual([...ACTIVITY_SOURCES]);
+    // 247 declared the eight providers; 251 appended the phone recorder.
+    expect(wordsOf(/ADD CONSTRAINT activities_source_check\s+CHECK \(source IN \(([^)]*)\)\)/)).toEqual(ACTIVITY_SOURCES.filter(s => s !== 'live'));
   });
 
   it('CONNECTION_PROVIDERS equals activity_connections_provider_check exactly', () => {
     expect(wordsOf(/activity_connections_provider_check\s+CHECK \(provider IN \(([^)]*)\)\)/)).toEqual([...CONNECTION_PROVIDERS]);
   });
 
-  it('every source but a file is a connection, and every connection is a source', () => {
-    expect([...CONNECTION_PROVIDERS]).toEqual(ACTIVITY_SOURCES.filter(s => s !== 'file'));
+  it('every source but a file and the phone recorder is a connection, and every connection is a source', () => {
+    expect([...CONNECTION_PROVIDERS]).toEqual(ACTIVITY_SOURCES.filter(s => s !== 'file' && s !== 'live'));
     expect([...CONNECTION_SOURCES]).toEqual([...CONNECTION_PROVIDERS]);
   });
 

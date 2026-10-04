@@ -38,7 +38,8 @@ export function isConnectionProvider(v: unknown): v is ConnectionProvider {
 }
 
 /** Every source that is not a file import is a connection. */
-export const CONNECTION_SOURCES: readonly ActivitySource[] = ACTIVITY_SOURCES.filter(s => s !== 'file');
+/** Every source that is a CONNECTION — not the import sheet, not the phone recorder (251). */
+export const CONNECTION_SOURCES: readonly ActivitySource[] = ACTIVITY_SOURCES.filter(s => s !== 'file' && s !== 'live');
 
 export type ProviderStage = 'live' | 'building' | 'applying' | 'closed';
 /** `link`: the athlete's personal upload link; `oauth`: sign in at the provider. */
@@ -188,6 +189,8 @@ export const CONNECT_ERRORS: Readonly<Record<string, string>> = {
 /** The credit a provider's terms require wherever its data is displayed
  *  (Polar's 3.1.5). Plain words, no logo — a logo needs written consent (7.4). */
 export function sourceCredit(source: string | null | undefined): string | null {
+  // The phone recorder (251): no provider, but the row says how it arrived.
+  if (source === 'live') return 'Recorded live in Edge Athlete';
   const name = sourceName(source);
   return name ? `Recorded with ${name}` : null;
 }

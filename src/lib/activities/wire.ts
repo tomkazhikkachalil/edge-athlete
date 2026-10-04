@@ -5,14 +5,22 @@
 // (wire-schema.ts) and recomputes every total from the points; nothing the
 // client computed is trusted. A .FIT never takes this path: it is decoded on
 // the server (parse-fit-server.ts — the SDK's license keeps it off clients).
+//
+// `format: 'live'` (Live Activities, 251) is the phone recorder's finished
+// recording — the same columns, plus the recording's own id (the server's
+// `external_id`, so a retry never duplicates) and the segments marked on the
+// way. It was never a file: the row's source_format is NULL.
 
 import type { ActivityType } from './catalog';
 import { downsample, UPLOAD_POINTS } from './normalize';
+import type { ActivitySegment } from './segments';
 import type { ActivityPoint, DeviceTotals, NormalizedActivity } from './types';
+
+export type WireFormat = 'gpx' | 'tcx' | 'live';
 
 export interface WireActivity {
   v: 1;
-  format: 'gpx' | 'tcx';
+  format: WireFormat;
   type: ActivityType;
   name: string | null;
   /** The uploader's IANA zone — decides the local date when the file has none. */
@@ -28,13 +36,17 @@ export interface WireActivity {
   cad?: (number | null)[];
   pwr?: (number | null)[];
   dist?: (number | null)[];
+  /** `live` only: the device's id for this recording (→ external_id `live:<id>`). */
+  recordingId?: string;
+  /** `live` only: the segments marked during the recording. */
+  segments?: ActivitySegment[];
 }
 
 type Col = 'lat' | 'lng' | 'ele' | 'hr' | 'cad' | 'pwr' | 'dist';
 const DP: Readonly<Record<Col, number>> = { lat: 6, lng: 6, ele: 1, hr: 0, cad: 0, pwr: 0, dist: 1 };
 const COLS = Object.keys(DP) as Col[];
 
-export function toWire(n: NormalizedActivity & { format: 'gpx' | 'tcx' }, tz: string | null): WireActivity {
+export function toWire(n: Omit<NormalizedActivity, 'format'> & { format: WireFormat }, tz: string | null): WireActivity {
   const pts = downsample(
     n.points.slice().sort((a, b) => a.t - b.t),
     UPLOAD_POINTS
@@ -67,5 +79,6 @@ export function fromWire(w: WireActivity): NormalizedActivity {
     }
     return p;
   });
-  return { format: w.format, type: w.type, name: w.name, points, device: w.device, tzOffsetMin: null };
+  // A recording was never a file — the row's source_format stays NULL.
+  return { format: w.format === 'live' ? null : w.format, type: w.type, name: w.name, points, device: w.device, tzOffsetMin: null };
 }

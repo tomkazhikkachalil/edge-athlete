@@ -6,16 +6,24 @@ import { parseTcx } from '../parse-tcx';
 import { parseFit } from '../parse-fit-server';
 import { ActivityParseError, decodeXmlText } from '../xml-scan';
 import { gpxOf, line, tcxOf } from './fixtures';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 describe('the catalog', () => {
-  it('matches migration 245 activities_activity_type_check exactly', () => {
-    const sql = readFileSync(path.join(process.cwd(), 'database/migrations/245_activities.sql'), 'utf8');
-    const m = /activities_activity_type_check[\s\S]*?CHECK \(activity_type IN \(([^)]*)\)\)/.exec(sql);
-    expect(m).not.toBeNull();
-    const inSql = [...m![1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
-    expect(inSql).toEqual([...ACTIVITY_TYPES]);
+  it('matches the chain\'s LAST activities_activity_type_check exactly (251 widened 245)', () => {
+    const dir = path.join(process.cwd(), 'database/migrations');
+    const files = readdirSync(dir).filter(f => /^\d{3}_.*\.sql$/.test(f)).sort();
+    let last: string[] | null = null;
+    for (const f of files) {
+      const sql = readFileSync(path.join(dir, f), 'utf8');
+      const m = /activities_activity_type_check[\s\S]*?CHECK \(activity_type IN \(([^)]*)\)\)/.exec(sql);
+      if (m) last = [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
+    }
+    expect(last).toEqual([...ACTIVITY_TYPES]);
+    // 245's eleven are all still there (every stored value stays valid).
+    const sql245 = readFileSync(path.join(dir, '245_activities.sql'), 'utf8');
+    const m245 = /activities_activity_type_check[\s\S]*?CHECK \(activity_type IN \(([^)]*)\)\)/.exec(sql245)!;
+    for (const t of [...m245[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1])) expect(ACTIVITY_TYPES).toContain(t);
   });
 
   it('maps file sport words, never guessing an unknown one', () => {

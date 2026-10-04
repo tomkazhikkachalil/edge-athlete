@@ -63,6 +63,10 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   // until Sep 26 2026 — a live event's photos older than the grace period were
   // swept unless the completion mirror had already copied them into post_media.
   { table: 'sport_event_media', columns: ['media_url', 'thumbnail_url'] },
+  // Live Activities (251): photos taken during a recording or added after —
+  // uploads-bucket URLs under posts/<owner>/, registered in the PR that
+  // creates the table (a sweep would otherwise delete them after grace).
+  { table: 'activity_media', columns: ['media_url', 'thumbnail_url'] },
   // athlete_badges (icon_url) is gone: never held a row, dropped by
   // migration 199 (Sep 2026). A scan of a missing table would 42P01 and
   // the sweep rethrows on purpose — so the entry left BEFORE the drop.

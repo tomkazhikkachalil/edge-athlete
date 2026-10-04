@@ -359,6 +359,23 @@ async function authorizeTicketAttachment(admin: SupabaseClient, ticketId: string
   return guardian ? { allow: true, isPublic: false } : DENY;
 }
 
+/**
+ * Live Activities (251): the activity's ONE gate decides — self or guardian
+ * owns it; a departed athlete, a block or a mute refuses; else canViewProfile
+ * ("Only me" is the owner's). Public = an anonymous viewer would be let in.
+ */
+async function authorizeActivityMedia(admin: SupabaseClient, mediaId: string, viewer: Viewer): Promise<MediaAuthResult> {
+  const { data: media } = await admin.from('activity_media').select('activity_id').eq('id', mediaId).maybeSingle();
+  if (!media) return DENY;
+  const { readActivityForViewer } = await import('@/lib/activities/read-server');
+  const viewerId = await who(viewer);
+  const read = await readActivityForViewer(admin, viewerId, media.activity_id as string);
+  if (!read.ok) return DENY;
+  if (read.audience === 'owner') return { allow: true, isPublic: false };
+  const anonymous = await readActivityForViewer(admin, null, media.activity_id as string);
+  return { allow: true, isPublic: anonymous.ok };
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -387,6 +404,8 @@ export async function authorizeMedia(
       return authorizeSportEventMedia(admin, payload.id, viewerId);
     case 'ticket':
       return authorizeTicketAttachment(admin, payload.id, viewerId);
+    case 'activity':
+      return authorizeActivityMedia(admin, payload.id, viewerId);
     default:
       return DENY;
   }
