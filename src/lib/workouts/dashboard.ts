@@ -49,8 +49,34 @@ export function sessionVolumeLbs(session: ServerWorkoutSession): number {
 
 export type { WeekTotals, WeeklySummary } from '@/lib/vitals/session-math';
 
-/** A COMPLETED workout as a Vitals session (the shape the week maths takes). */
+const METRES_PER: Readonly<Record<'mi' | 'km' | 'm' | 'yd', number>> = { mi: 1609.344, km: 1000, m: 1, yd: 0.9144 };
+
+/** A set's distance in metres (the unit the athlete typed), or 0. */
+export function toMetres(distance: number | null, unit: 'mi' | 'km' | 'm' | 'yd' | null): number {
+  if (distance === null || !(distance > 0)) return 0;
+  return distance * METRES_PER[unit ?? 'mi'];
+}
+
+/** Distance covered across every cardio set of a session (metres), or null when none carries one. */
+export function sessionDistanceM(session: ServerWorkoutSession): number | null {
+  let total = 0;
+  let any = false;
+  for (const exercise of serverToEntries(session)) {
+    for (const set of exercise.sets) {
+      const m = toMetres(set.distance, set.distanceUnit);
+      if (m > 0) {
+        total += m;
+        any = true;
+      }
+    }
+  }
+  return any ? Math.round(total) : null;
+}
+
+/** A COMPLETED workout as a Vitals session (the shape the week maths takes).
+ *  Live Activities (Oct 4 2026): a cardio set's distance now travels with it. */
 export function workoutToSession(session: ServerWorkoutSession): VitalsSession {
+  const distanceM = sessionDistanceM(session);
   return {
     id: session.id,
     kind: 'workout',
@@ -58,6 +84,7 @@ export function workoutToSession(session: ServerWorkoutSession): VitalsSession {
     seconds: sessionSeconds(session),
     volumeLbs: sessionVolumeLbs(session),
     title: session.title || 'Workout',
+    ...(distanceM !== null ? { distanceM } : {}),
   };
 }
 
