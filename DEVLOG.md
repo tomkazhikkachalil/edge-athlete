@@ -1,5 +1,13 @@
 # Development Log
 
+## October 4, 2026 — Live Activities PR 6: the doors, and the gym path stops calling a walk reps × weight
+
+**Zero DDL.** Reachability is parity: a recorder nobody can find has not shipped. Three doors, each at phone width: Vitals' header gains **Record Activity** (a brand-outlined pill beside Start Workout, Log Past Workout and Import Activity — `data-vitals-record-activity`); the Activities section gains **Record activity** beside Import (`data-activities-record-link`) and its empty state now says "Record one live from your phone, or import …"; the header's **Create** sheet splits Activity into **Record an activity** ("A walk, run, ride, swim … live from your phone, with a map") and **Import an activity**, and the phone drawer gains a Record Activity row above Import. **`RecordingResumeBanner`** in Vitals is the workout resume banner's twin: a recording this phone did not finish (paused, or finished but not saved) is offered where the athlete lands, from the device's own store — the recorder offers the same on open.
+
+**The gym path.** The original complaint — "it's recorded the same way as a workout … reps and sets" — had a second cause beside the missing recorder: the workout catalog had no walk or hike, and a custom exercise falls back to reps × weight. `workout-config.ts` gains **Walk** and **Hike** (`distance_duration`) and **Elliptical** (`duration`), so a walk logged inside a gym session is a distance and a time. And `workoutToSession` now carries **`distanceM`** (every cardio set's distance in metres — `toMetres` beside `toLbs`; absent when no set has one), so a workout's walk counts in Vitals' distance like an activity's does (`sessionDistanceM`, unit-tested).
+
+**Proof:** `e2e/activities-doors.spec.ts` (`@mobile`): the Vitals pill, the Activities link and the Create sheet's "Record an activity" each land on the recorder's type picker — **1 passed**; `vitals-mobile.spec` and `activities-profile.spec` still pass beside it (the Create sheet's import row keeps its `data-create-activity` hook). Unit: `sessionDistanceM` / `toMetres` / `workoutToSession.distanceM` (2.5 km + 400 m → 2,900 m; a lift has no key). `npm run typecheck` OK; `npm run verify` exit 0 (4,493 tests, lint at 0, 257 chunks inside the floor). The recorder itself is already PROVEN ON PRODUCTION: `activities-record.spec` 3/3 on edgeathlete.ca after #1072 deployed.
+
 ## October 4, 2026 — Live Activities PR 5: after the recording — the activity page edits, shows segments and photos
 
 **Zero DDL.** Tom: "save the draft and then go back in after." The recording is saved at Finish; everything about it is edited here, after — the name, the type, the notes, the segments, the photos. Stacked on PR 4.

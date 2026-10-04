@@ -824,6 +824,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
           onClose={() => setIsCreateOpen(false)}
           onPost={() => { setIsCreateOpen(false); handleCreatePost(); }}
           onEvent={() => { setIsCreateOpen(false); router.push('/sports/events/new'); }}
+          onRecordActivity={() => { setIsCreateOpen(false); router.push('/activities/record'); }}
           onActivity={() => { setIsCreateOpen(false); router.push('/activities/import'); }}
         />
       )}
@@ -1064,6 +1065,18 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             >
               <i className="fas fa-flag-checkered w-5 text-center"></i>
               <span className="font-medium">Create Event</span>
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/activities/record');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+              data-drawer-record-activity=""
+            >
+              <i className="fas fa-location-dot w-5 text-center"></i>
+              <span className="font-medium">Record Activity</span>
             </button>
 
             <button
