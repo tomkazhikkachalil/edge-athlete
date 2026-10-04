@@ -234,6 +234,10 @@ async function installedPhone(
 }
 
 test('phone notifications: the worker registers, an iPhone tab is sent to the home-screen app, the installed app offers the switch, and the icon follows the bell @mobile', async ({ browser, browserName, page }) => {
+  // The WebKit harness BLOCKS service workers (playwright.config.ts, speed
+  // round 2 — Playwright WebKit stalls under any fetch handler), so the
+  // worker cannot register here; a real iPhone does both. Chromium runs it.
+  test.skip(browserName === 'webkit', 'service workers are blocked in the WebKit harness (playwright.config.ts)');
   test.setTimeout(150_000);
   const user = loadQaUser('user.json');
   const created: string[] = [];
