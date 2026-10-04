@@ -147,7 +147,8 @@ export async function GET(request: NextRequest) {
         // are public posts, so the proxy serves them to anyone).
         post_media: (p.post_media as Array<{ media_url: string }> | null || []).map(m => ({
           ...m,
-          media_url: toProxyUrl(m.media_url, { type: 'post', id: p.id }) ?? m.media_url,
+          // A public profile's public posts (the only ones this reader selects): the optimizable form.
+          media_url: toProxyUrl(m.media_url, { type: 'post', id: p.id }, { visibility: 'public' }) ?? m.media_url,
         })),
       }));
     const statementRows = (rawRecentPosts || [])

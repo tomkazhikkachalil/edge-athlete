@@ -35,9 +35,13 @@ const nextConfig: NextConfig = {
     // OptimizedImage/AvatarImage, 90 from MediaImage), so declaring them keeps
     // output identical. Removing a value here is a visual change.
     qualities: [75, 85, 90],
-    // LOAD-BEARING: Next 16 raised the DEFAULT minimumCacheTTL from 60s to 4h.
-    // This explicit 1-year value predates and overrides both.
-    minimumCacheTTL: 31536000,
+    // Speed round 2 (Oct 4 2026): ONE DAY, down from a year. Public post
+    // media now goes through the optimizer (`/api/media/o/…`), and a post
+    // that flips private must leave the optimizer's cache within the window
+    // the CDN already granted its bytes (s-maxage=86400). Avatars and logos
+    // re-transform daily — negligible. (Next 16's default is 4 h; this is
+    // still explicit on purpose.)
+    minimumCacheTTL: 86400,
     // Disable image optimization for external URLs that don't support it
     unoptimized: false,
   },

@@ -60,6 +60,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'push/config':
     'phone notifications (248, Oct 2026): whether this deployment can send them and the VAPID PUBLIC key a browser subscribes against — public by design (every subscribing browser holds it); no user data, no-store',
   places: 'geo autocomplete over public place data',
+  'media/o/[token]':
+    'speed round 2 (Oct 2026): the media proxy\'s optimizable PUBLIC form — a re-export of media/[token]\'s GET; the gate (token verify, live re-authorization) lives in the parent handler',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
   'media/org-logo/[siteId]':
     'public org-site logo streamer (phase 3 R3); resolves org_sites.logo_path itself and hard-asserts the org-logos/ prefix — can only ever serve org-authored public artwork',

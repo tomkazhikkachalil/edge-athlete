@@ -37,8 +37,15 @@ const SUPABASE_HOSTS = ['.supabase.co', '.supabase.in'];
 export function isOptimizableImageSrc(src: string | null | undefined): boolean {
   if (!src) return false;
 
+  // The media proxy's PUBLIC form (speed round 2): minted only where the
+  // reader knew both the post and its owner are public, so the optimizer —
+  // which fetches server-side with NO cookie — can read it. The path form
+  // only: a query string would need `images.localPatterns` and is never
+  // emitted. Checked before the private form below.
+  if (src.startsWith('/api/media/o/')) return !/[?#]/.test(src);
+
   // Authenticated media proxy: the Next optimizer fetches server-side with NO
-  // user cookie, so it 403s on private objects. Proxied media must render
+  // user cookie, so it 404s on private objects. Proxied media must render
   // unoptimized (the browser fetches directly with its session). Checked
   // before the same-origin rule below, which would otherwise mark it true.
   if (src.startsWith('/api/media/')) return false;
@@ -60,4 +67,14 @@ export function isOptimizableImageSrc(src: string | null | undefined): boolean {
   if (!SUPABASE_HOSTS.some((suffix) => url.hostname.endsWith(suffix))) return false;
 
   return url.pathname.startsWith(SUPABASE_OBJECT_PREFIX);
+}
+
+/**
+ * The bare (unoptimized) proxy path for an optimizable one — what a tile
+ * falls back to when `/_next/image` could not fetch it (the post went
+ * private after the URL was minted; the viewer may still see it directly).
+ * Anything else is returned unchanged.
+ */
+export function bareProxyPath(src: string): string {
+  return src.startsWith('/api/media/o/') ? `/api/media/${src.slice('/api/media/o/'.length)}` : src;
 }

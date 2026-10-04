@@ -47,7 +47,8 @@ describe('expiring private tokens (speed round 2)', () => {
 
   it('toProxyUrl mints an expiring URL only when told the media is private', () => {
     const url = `${SB}/uploads/posts/u1/a.jpg`;
-    const read = (proxy: string | null) => JSON.parse(Buffer.from(proxy!.slice('/api/media/'.length).split('.')[0], 'base64url').toString());
+    const read = (proxy: string | null) =>
+      JSON.parse(Buffer.from(proxy!.replace(/^\/api\/media\/(o\/)?/, '').split('.')[0], 'base64url').toString());
     expect(read(toProxyUrl(url, { type: 'post', id: 'p' })).exp).toBeUndefined();
     expect(read(toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'public' })).exp).toBeUndefined();
     const priv = read(toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'private' }));
@@ -56,5 +57,17 @@ describe('expiring private tokens (speed round 2)', () => {
     expect(toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'private' })).toBe(
       toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'private' })
     );
+  });
+});
+
+describe('the optimizable public form (speed round 2)', () => {
+  it('a public mint lands on /api/media/o/, private and unknown on the bare path', () => {
+    const url = `${SB}/uploads/posts/u1/a.jpg`;
+    expect(toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'public' })).toMatch(/^\/api\/media\/o\/[^/]+$/);
+    expect(toProxyUrl(url, { type: 'post', id: 'p' }, { visibility: 'private' })).toMatch(/^\/api\/media\/[^o/][^/]*$|^\/api\/media\/o[^/]/);
+    expect(toProxyUrl(url, { type: 'post', id: 'p' })).toMatch(/^\/api\/media\/[^/]+$/);
+    expect(toProxyUrl(url, { type: 'post', id: 'p' })!.startsWith('/api/media/o/')).toBe(false);
+    // A non-protected bucket is never rewritten, whatever the hint.
+    expect(toProxyUrl(`${SB}/avatars/u1/a.jpg`, { type: 'post', id: 'p' }, { visibility: 'public' })).toBe(`${SB}/avatars/u1/a.jpg`);
   });
 });

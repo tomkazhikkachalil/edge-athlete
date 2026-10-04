@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import { useOptimizedSrc } from './useOptimizedSrc';
 import type { CollageItem } from './MediaCollage';
 
 interface MediaLightboxProps {
@@ -114,15 +114,7 @@ export default function MediaLightbox({
             playsInline
           />
         ) : (
-          <Image
-            key={item.id}
-            src={item.url}
-            alt={item.alt || 'Media'}
-            fill
-            sizes="100vw"
-            unoptimized={!isOptimizableImageSrc(item.url)}
-            className="object-contain"
-          />
+          <LightboxImage key={item.id} url={item.url} alt={item.alt || 'Media'} />
         )}
 
         {hasPrev && (
@@ -153,5 +145,21 @@ export default function MediaLightbox({
         </div>
       )}
     </div>
+  );
+}
+
+/** The lightbox's photo: optimized when the URL allows, the bare path on a failed optimized load. */
+function LightboxImage({ url, alt }: { url: string; alt: string }) {
+  const optimized = useOptimizedSrc(url);
+  return (
+    <Image
+      src={optimized.src ?? url}
+      alt={alt}
+      fill
+      sizes="100vw"
+      unoptimized={optimized.unoptimized}
+      onError={optimized.onError}
+      className="object-contain"
+    />
   );
 }

@@ -15,6 +15,19 @@ import { privateTokenExpiry, signMediaToken, type MediaEntityType } from './toke
 
 const PROTECTED_BUCKETS = new Set(['uploads']);
 
+/** Every proxied URL starts here… */
+export const PROXY_PREFIX = '/api/media/';
+/**
+ * …and a PUBLIC one here (speed round 2, Oct 4 2026): the same proxy, one
+ * extra path segment that tells the client "the optimizer may fetch this".
+ * Next's image optimizer fetches server-side WITHOUT the viewer's cookie, so
+ * only media anyone may view can go through it; the proxy still
+ * re-authorizes every request — the segment is a hint OUTSIDE the signed
+ * payload, never a verdict (token.ts). `isOptimizableImageSrc` is true for
+ * this form only.
+ */
+export const OPTIMIZABLE_PROXY_PREFIX = '/api/media/o/';
+
 /** Parse {bucket,key} out of a stored Supabase public URL, else null. */
 export function parsePublicUrl(url: string): { bucket: string; key: string } | null {
   const marker = '/storage/v1/object/public/';
@@ -53,8 +66,10 @@ export interface ProxyUrlOptions {
    * What the minting reader KNOWS about the media (speed round 2). `private`
    * mints an EXPIRING token (privateTokenExpiry — the same URL all day, dead
    * within 48 h) so a copied URL to private bytes cannot live on; `public`
-   * and unknown keep the stable, non-expiring form. The proxy re-authorizes
-   * the live viewer either way — this only shapes the URL's life.
+   * mints the OPTIMIZABLE form (`/api/media/o/…`, resized + webp through
+   * `/_next/image`, CDN-cached); unknown keeps the stable, bare form. The
+   * proxy re-authorizes the live viewer either way — this only shapes the
+   * URL's life and what the client may do with it.
    */
   visibility?: 'public' | 'private';
 }
@@ -75,7 +90,7 @@ export function toProxyUrl(
       id: entity.id,
       ...(opts.visibility === 'private' ? { exp: privateTokenExpiry() } : {}),
     });
-    return `/api/media/${token}`;
+    return `${opts.visibility === 'public' ? OPTIMIZABLE_PROXY_PREFIX : PROXY_PREFIX}${token}`;
   } catch {
     // Fail OPEN to the raw public URL rather than 500 the response. The only
     // way signing throws is a missing MEDIA_PROXY_SECRET — a deploy that

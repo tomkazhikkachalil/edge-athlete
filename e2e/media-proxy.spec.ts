@@ -64,8 +64,15 @@ test('media proxy: post media authorized at the byte layer', { tag: '@smoke' }, 
       expect((await bystanderCtx.get(base + publicProxy)).status()).toBe(200);
       expect((await anonCtx.get(base + publicProxy)).status()).toBe(200);
       // Speed round 2: one CDN copy for everyone — public, long-lived, NO Vary.
-      expect(ownerPub.headers()['cache-control']).toMatch(/^public, max-age=\d+, s-maxage=\d+, stale-while-revalidate=\d+$/);
+      // Vercel's edge CONSUMES s-maxage / stale-while-revalidate and hands the
+      // browser `public, max-age=3600` (DEVLOG #804); locally the route's full
+      // header arrives. Either way: public, an hour for the browser, no Vary.
+      expect(ownerPub.headers()['cache-control']).toMatch(/^public, max-age=3600(, s-maxage=\d+, stale-while-revalidate=\d+)?$/);
       expect(ownerPub.headers()['vary'] ?? '').not.toMatch(/cookie/i);
+      // On a deployment the second fetch is the CDN's copy.
+      const again = await anonCtx.get(base + publicProxy);
+      const edge = again.headers()['x-vercel-cache'];
+      if (edge) expect(['HIT', 'STALE']).toContain(edge);
 
       // PRIVATE post media: 200 for owner; 404 for bystander and anonymous.
       const ownerPriv = await ownerCtx.get(base + privateProxy);
@@ -74,10 +81,21 @@ test('media proxy: post media authorized at the byte layer', { tag: '@smoke' }, 
       // …cached on the viewer's own device for the URL's life, never shared.
       expect(ownerPriv.headers()['cache-control']).toMatch(/^private, max-age=\d+, no-transform$/);
       // A private post's URL EXPIRES (the Instagram model): its token carries exp.
-      const privatePayload = JSON.parse(Buffer.from(privateProxy.slice('/api/media/'.length).split('.')[0], 'base64url').toString());
+      const privatePayload = JSON.parse(Buffer.from(privateProxy.replace(/^\/api\/media\/(o\/)?/, '').split('.')[0], 'base64url').toString());
       expect(privatePayload.exp).toBeGreaterThan(Date.now() / 1000 + 3600);
-      const publicPayload = JSON.parse(Buffer.from(publicProxy.slice('/api/media/'.length).split('.')[0], 'base64url').toString());
+      const publicPayload = JSON.parse(Buffer.from(publicProxy.replace(/^\/api\/media\/(o\/)?/, '').split('.')[0], 'base64url').toString());
       expect(publicPayload.exp).toBeUndefined();
+
+      // Speed round 2, C3: a PUBLIC post's URL is the optimizable form and
+      // the optimizer can fetch it (it has no cookie); a private post's is
+      // not, and the optimizer never sees it (the app never emits it).
+      expect(publicProxy).toMatch(/^\/api\/media\/o\//);
+      expect(privateProxy).not.toMatch(/^\/api\/media\/o\//);
+      const optimized = await anonCtx.get(`${base}/_next/image?url=${encodeURIComponent(publicProxy)}&w=640&q=75`);
+      expect(optimized.status(), await readErrorBody(optimized)).toBe(200);
+      expect(optimized.headers()['content-type']).toMatch(/^image\//);
+      const refused = await anonCtx.get(`${base}/_next/image?url=${encodeURIComponent(privateProxy)}&w=640&q=75`);
+      expect([400, 404, 500]).toContain(refused.status()); // never bytes
       expect((await bystanderCtx.get(base + privateProxy)).status()).toBe(404);
       expect((await anonCtx.get(base + privateProxy)).status()).toBe(404);
 
