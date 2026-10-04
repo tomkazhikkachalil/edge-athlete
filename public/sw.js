@@ -7,21 +7,79 @@
  *   notificationclick open the exact item (the row's own action_url), mark
  *                     that notification read, and lower the icon number
  *
- * What it deliberately does NOT do: there is no `fetch` handler, no cache and
- * no offline mode. Every page loads from the network exactly as it did before
- * this file existed — a worker that cached pages could serve a stale app after
- * a deploy, and that is a separate, deliberate round (CLAUDE.md conv. 31).
+ * STATIC CACHE (speed round 2, phase E — Oct 4 2026; src/lib/sw/static-cache.ts
+ * is the rule, copied here because a worker cannot import): when this file is
+ * registered as `/sw.js?static=1` (the deployment's NEXT_PUBLIC_SW_STATIC_CACHE
+ * flag), GET requests for `/_next/static/*` — content-hashed, immutable — are
+ * answered cache-first, so a phone that just reopened the installed app does
+ * not ask the network for the ~450 KB it already has. NOTHING else is
+ * touched: documents, `/api/*`, images, push and this file pass straight
+ * through — the worker never calls respondWith for them, so there is no
+ * offline mode and no stale page after a deploy (conv. 31). Registered as a
+ * plain `/sw.js`, there is no fetch handler at all, as before.
  *
  * The payload's shape is src/lib/push/payload.ts (`PushPayload`); its `url` is
  * already a same-origin path, and it is checked again here.
  */
+
+var STATIC_CACHE = 'ea-static-v1';
+var STATIC_CACHE_MAX_ENTRIES = 400;
+var STATIC_PREFIX = '/_next/static/';
+var staticCacheOn = new URL(self.location.href).searchParams.get('static') === '1';
 
 self.addEventListener('install', function () {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Any cache this worker does not own (an older version's) goes.
+      caches.keys().then(function (names) {
+        return Promise.all(
+          names.filter(function (n) { return n !== STATIC_CACHE; }).map(function (n) { return caches.delete(n); })
+        );
+      }).catch(function () {}),
+    ])
+  );
+});
+
+/** Keep the static cache bounded: old deploys' chunks are never asked for again. */
+function trimStaticCache(cache) {
+  return cache.keys().then(function (keys) {
+    if (keys.length <= STATIC_CACHE_MAX_ENTRIES) return;
+    var excess = keys.slice(0, keys.length - STATIC_CACHE_MAX_ENTRIES);
+    return Promise.all(excess.map(function (k) { return cache.delete(k); }));
+  }).catch(function () {});
+}
+
+self.addEventListener('fetch', function (event) {
+  if (!staticCacheOn) return;
+  var request = event.request;
+  if (request.method !== 'GET') return;
+  var url;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.indexOf(STATIC_PREFIX) !== 0 || url.pathname.indexOf('..') !== -1) return;
+  // Only here does the worker answer — a hashed, immutable static file.
+  event.respondWith(
+    caches.open(STATIC_CACHE).then(function (cache) {
+      return cache.match(request).then(function (hit) {
+        if (hit) return hit;
+        return fetch(request).then(function (response) {
+          if (response && response.ok && response.type === 'basic') {
+            cache.put(request, response.clone()).then(function () { return trimStaticCache(cache); }).catch(function () {});
+          }
+          return response;
+        });
+      });
+    })
+  );
 });
 
 function setBadge(count) {
