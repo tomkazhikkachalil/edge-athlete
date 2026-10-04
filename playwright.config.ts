@@ -72,7 +72,14 @@ export default defineConfig({
     {
       name: 'webkit-mobile',
       grep: /@mobile/,
-      use: { browserName: 'webkit', viewport: { width: 390, height: 844 } },
+      // serviceWorkers: 'block' (speed round 2, Oct 4 2026): Playwright's
+      // WebKit stalls a page's own fetches under ANY service-worker fetch
+      // handler — the installed app's static cache (public/sw.js, ON in
+      // production) made every page load here hang at the first API call. A
+      // real iPhone does not do this (Tom's device passed the gate), so the
+      // worker is kept out of THIS harness only; the Chromium projects still
+      // run with it and prove the cache (e2e/sw-static-cache.spec.ts).
+      use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, serviceWorkers: 'block' },
     },
   ],
   // Only build/serve locally. Targeting a real deployment (E2E_BASE_URL) must

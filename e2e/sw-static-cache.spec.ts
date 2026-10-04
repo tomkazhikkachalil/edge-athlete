@@ -8,12 +8,12 @@ import { test, expect } from '@playwright/test';
 // Playwright WebKit's bell fetch — this is that check).
 test('the worker caches hashed files and the app still talks @mobile', async ({ page }, testInfo) => {
   test.skip(process.env.NEXT_PUBLIC_SW_STATIC_CACHE !== '1', 'static cache off in this deployment');
-  // Playwright WebKit: with ANY fetch handler installed the page's own
-  // fetches hang (the bell never answers) — the Oct 2 stall, reproduced
-  // here on Oct 4 with a handler that never touches them. Chromium is fine.
-  // Whether a real iPhone does this is the one question that decides the
-  // flag; until Tom's phone has answered, this project is a known gap.
-  test.fixme(testInfo.project.name === 'webkit-mobile', 'Playwright WebKit stalls under a fetch handler — a real iPhone decides');
+  // Playwright WebKit stalls a page's own fetches under ANY fetch handler
+  // (reproduced Oct 4 with a handler that never touches them); a real iPhone
+  // does not — Tom's device passed the gate and the flag is ON in production.
+  // So playwright.config.ts BLOCKS service workers for the webkit-mobile
+  // project, and this spec has nothing to observe there.
+  test.skip(testInfo.project.name === 'webkit-mobile', 'service workers are blocked in the WebKit harness (see playwright.config.ts)');
   test.setTimeout(120_000);
   await page.goto('/feed');
   const supported = await page.evaluate(() => 'serviceWorker' in navigator);
