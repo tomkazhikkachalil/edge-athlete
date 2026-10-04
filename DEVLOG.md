@@ -1,5 +1,11 @@
 # Development Log
 
+## October 4, 2026 — Speed round 2, E goes live: Tom's iPhone passed the gate
+
+**Tom, on the preview built with the flag, from the home screen:** "a little slow when I first loaded up but seems to be working better, and when I swiped away and restarted it, it went well." The first open fills the cache (against the free-tier staging database); the second is the cached one; the bell, the feed and a post all worked. That is the answer Playwright WebKit could not give — its stall under a fetch handler is the test harness's, not iOS Safari's. `NEXT_PUBLIC_SW_STATIC_CACHE=1` is now set for **Production** too (build-injected — this merge is the build that carries it). CLAUDE.md convention 31 says what the worker does now. After the deploy: `sw-static-cache.spec` (desktop + phone Chromium) and `perf-feed` against production.
+
+---
+
 ## October 4, 2026 — Speed round 2: production after Tom's three dashboard steps, and the preview for his phone
 
 **Migration 249 ran on production** (Tom, the SQL editor): the result row matched `249 APPLIED | 0 | 52428800 | 7 | 3 | 0 | 1 | 249`; `check:schema:prod` OK at head 249; the rebuild baseline regenerated from prod (#1062 — 127 tables, 173 policies, 110 functions, 108 triggers; self-check OK). **`SUPABASE_JWT_SECRET` is set on Vercel Production** and #1062's deploy picked it up. **Proof that the local check is live:** the new `e2e/perf-api.spec.ts` times the smallest authenticated call from the browser's own session, ten in a row — on production `/api/health` (one DB read, no auth) p50 **185 ms** and `/api/notifications/unread-count` p50 **208 ms**: 23 ms apart. With the network session check they sat 100–300 ms apart; an authenticated call now costs its own read and nothing else. The same probe run: `auth-login`, `appearance`, `perf-feed`, `health` 19/19; first post 1.9 s desktop · 1.7 s phone Chromium · 1.3 s phone WebKit (single runs; the Sep 30 baseline was 4.25 · 1.78 · 5.96). The token lifetime is still the default 3600 s — the dashboard did not offer Tom the field; the accepted fallback (a suspended account reads for at most an hour).
