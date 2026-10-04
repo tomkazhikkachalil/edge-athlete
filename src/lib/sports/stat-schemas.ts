@@ -164,7 +164,82 @@ export const formatRaceTime = (seconds: number): string => {
 const firstTrackEvent = (stats: Record<string, number>) =>
   TRACK_EVENTS.find(e => typeof stats[e.key] === 'number' && stats[e.key] > 0) ?? null;
 
+// ── The endurance sports (Live Activities, Oct 4 2026) ─────────────────────
+// Swimming, cycling, running and rowing share ONE stat line: a distance, the
+// moving and elapsed time, a pace, elevation, heart rate, cadence, calories
+// (power for cycling, the pool length for swimming). It is what a RECORDED or
+// imported activity becomes when the athlete posts it as a sport result (the
+// share-time bridge — src/lib/activities/sport-bridge.ts builds the line from
+// the row; the server validates it like any stat line, and fromStatLinePost
+// writes the performance row). Distance is KILOMETRES for the land sports
+// and METRES for the water ones — the number the athlete says.
+
+export type EnduranceDistanceUnit = 'km' | 'm';
+
+function paceLabel(unit: EnduranceDistanceUnit, swim: boolean): string {
+  return swim ? 'Pace (s /100 m)' : unit === 'km' ? 'Pace (s /km)' : 'Pace (s /500 m)';
+}
+
+/** mm:ss from seconds for a headline. */
+export const formatSessionTime = (seconds: number): string => {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+};
+
+export function enduranceSchema(
+  sportKey: SportKey,
+  opts: { noun: string; unit: EnduranceDistanceUnit; swim?: boolean; power?: boolean; pool?: boolean; milestones: ReadonlyArray<number | { value: number; label: string }> }
+): SportStatSchema {
+  const distanceKey = opts.unit === 'km' ? 'distance_km' : 'distance_m';
+  const paceKey = opts.swim ? 'pace_s_per_100m' : 'pace_s_per_km';
+  const fields: StatFieldDef[] = [
+    opts.unit === 'km'
+      ? { key: 'distance_km', label: 'Distance (km)', shortLabel: 'km', min: 0, max: 1000, decimal: true, milestones: opts.milestones }
+      : { key: 'distance_m', label: 'Distance (m)', shortLabel: 'm', min: 0, max: 200_000, milestones: opts.milestones },
+    { key: 'moving_s', label: 'Moving time (s)', shortLabel: 'Time', min: 0, max: 172_800 },
+    { key: 'elapsed_s', label: 'Elapsed time (s)', shortLabel: 'Elapsed', min: 0, max: 172_800 },
+    { key: paceKey, label: paceLabel(opts.unit, !!opts.swim), shortLabel: 'Pace', min: 0, max: 7200, decimal: true },
+    { key: 'elev_gain_m', label: 'Elevation gain (m)', shortLabel: 'Elev', min: 0, max: 30_000 },
+    { key: 'avg_hr', label: 'Avg heart rate', shortLabel: 'HR', min: 20, max: 250 },
+    { key: 'max_hr', label: 'Max heart rate', shortLabel: 'Max HR', min: 20, max: 250 },
+    { key: 'avg_cadence', label: 'Avg cadence', shortLabel: 'Cad', min: 0, max: 300 },
+    { key: 'calories', label: 'Calories', shortLabel: 'kcal', min: 0, max: 50_000 },
+  ];
+  if (opts.power) fields.push({ key: 'avg_power', label: 'Avg power (W)', shortLabel: 'W', min: 0, max: 2500 });
+  if (opts.pool) fields.push({ key: 'pool_length_m', label: 'Pool length (m)', shortLabel: 'Pool', min: 10, max: 100 });
+  const unitWord = opts.unit;
+  return {
+    sport_key: sportKey,
+    activityNoun: opts.noun,
+    opponentLabel: 'Where',
+    fields,
+    profileTiles: [
+      { label: `Distance (${unitWord})`, compute: { kind: 'sum', keys: [distanceKey] } },
+      { label: 'Sessions', compute: { kind: 'count' } },
+      { label: 'Best pace', compute: { kind: 'min', keys: [paceKey], format: 'race_time' } },
+      { label: 'Avg heart rate', compute: { kind: 'avg', keys: ['avg_hr'], decimals: 0 } },
+    ],
+    headline: stats => {
+      const d = stats[distanceKey];
+      if (typeof d !== 'number' || !(d > 0)) return null;
+      const dist = opts.unit === 'km' ? `${d.toFixed(d >= 10 ? 1 : 2)} km` : `${Math.round(d)} m`;
+      const t = stats.moving_s ?? stats.elapsed_s;
+      return typeof t === 'number' && t > 0 ? `${dist} · ${formatSessionTime(t)}` : dist;
+    },
+    heroStat: { label: `Distance (${unitWord})`, compute: stats => (typeof stats[distanceKey] === 'number' ? stats[distanceKey] : null) },
+    supportKeys: ['moving_s', paceKey, 'elev_gain_m', 'avg_hr'],
+  };
+}
+
 export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
+  swimming: enduranceSchema('swimming', { noun: 'Swim', unit: 'm', swim: true, pool: true, milestones: [1000, 2000, { value: 5000, label: '5K swim' }] }),
+  cycling: enduranceSchema('cycling', { noun: 'Ride', unit: 'km', power: true, milestones: [25, 50, { value: 100, label: 'Century (100 km)' }] }),
+  // Whole numbers only: a badge key is `${sport}.${field}_${value}` and holds no dot — 21 ≈ the half (21.1 km), 42 ≈ the marathon (42.2 km).
+  running: enduranceSchema('running', { noun: 'Run', unit: 'km', milestones: [5, 10, { value: 21, label: 'Half marathon' }, { value: 42, label: 'Marathon' }] }),
+  rowing: enduranceSchema('rowing', { noun: 'Row', unit: 'm', milestones: [2000, 5000, 10_000] }),
   ice_hockey: {
     sport_key: 'ice_hockey',
     activityNoun: 'Game',

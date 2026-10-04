@@ -12,7 +12,7 @@ import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { validateStatLine } from '@/lib/sports/stat-line-validate';
 import { isActivityShareRequest } from '@/lib/activities/post-card';
-import { buildActivityPostStats, linkActivityPost } from '@/lib/activities/share-server';
+import { buildActivityPostStats, buildActivitySportLine, linkActivityPost } from '@/lib/activities/share-server';
 import { fromStatLinePost } from '@/lib/performance/map';
 import { upsertPerformances } from '@/lib/performance/write-server';
 import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
@@ -302,13 +302,20 @@ export async function POST(request: NextRequest) {
     let statsData: Record<string, unknown> | null = incomingStatsData;
     let shareActivityId: string | null = null;
     if (isActivityShareRequest(incomingStatsData)) {
-      if (postType !== 'general') {
-        return NextResponse.json({ error: 'An activity is shared as a general post' }, { status: 400 });
+      if (postType === 'general') {
+        const built = await buildActivityPostStats(supabase, userId, incomingStatsData.activity_id);
+        if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
+        statsData = { ...built.statsData };
+        shareActivityId = built.activityId;
+      } else {
+        // The share-time bridge (Live Activities, Oct 4 2026): "Post as a
+        // [Cycling] result" — the sport's stat line built from the row; the
+        // stat-line validation below and fromStatLinePost then do their jobs.
+        const built = await buildActivitySportLine(supabase, userId, incomingStatsData.activity_id, postType);
+        if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
+        statsData = { ...built.statsData };
+        shareActivityId = built.activityId;
       }
-      const built = await buildActivityPostStats(supabase, userId, incomingStatsData.activity_id);
-      if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
-      statsData = { ...built.statsData };
-      shareActivityId = built.activityId;
     }
 
     if (statsData && postType !== 'golf') {

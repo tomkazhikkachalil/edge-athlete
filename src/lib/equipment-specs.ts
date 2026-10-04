@@ -114,6 +114,24 @@ export const EQUIPMENT_SPEC_FIELDS: Record<string, SpecFieldDef[]> = {
     { key: 'colorway', label: 'Colorway', placeholder: 'e.g., Bred', categories: ['shoes'] },
   ],
 
+  // Live Activities (Oct 4 2026): the four endurance sports.
+  swimming: [
+    { key: 'size', label: 'Size', placeholder: 'e.g., 32 / M', categories: ['suit', 'wetsuit'] },
+    { key: 'thickness_mm', label: 'Thickness (mm)', placeholder: 'e.g., 3/2', categories: ['wetsuit'] },
+  ],
+  cycling: [
+    { key: 'frame_size', label: 'Frame size', placeholder: 'e.g., 54 cm / M', categories: ['bike'] },
+    { key: 'groupset', label: 'Groupset', placeholder: 'e.g., Shimano 105', categories: ['bike'] },
+    { key: 'size', label: 'Size', placeholder: 'e.g., 43 / M', categories: ['shoes', 'helmet', 'apparel'] },
+  ],
+  running: [
+    { key: 'size', label: 'Size', placeholder: 'e.g., 10.5 / M', categories: ['shoes', 'apparel'] },
+    { key: 'drop_mm', label: 'Drop (mm)', placeholder: 'e.g., 8', categories: ['shoes'] },
+  ],
+  rowing: [
+    { key: 'boat_class', label: 'Boat class', options: ['1x', '2x', '2-', '4x', '4-', '4+', '8+'], categories: ['boat'] },
+    { key: 'length_cm', label: 'Length (cm)', placeholder: 'e.g., 372', categories: ['oars'] },
+  ],
   track_field: [
     { key: 'size', label: 'Size', placeholder: 'e.g., 10.5 / M', categories: ['spikes', 'trainers', 'apparel'] },
     {

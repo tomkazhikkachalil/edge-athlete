@@ -40,7 +40,7 @@ describe('computeActiveSports', () => {
     const result = computeActiveSports({
       ...base,
       declaredSport: 'Tennis',
-      settingsSportKeys: ['swimming'],
+      settingsSportKeys: ['tennis'],
       postSportKeys: ['basketball'],
     });
     expect(result).toEqual(['basketball']);
