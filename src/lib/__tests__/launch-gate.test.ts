@@ -7,7 +7,7 @@ import { COMING_SOON_PATH, GATED_ROBOTS, isLaunchGateOn, launchGateRedirect } fr
 
 describe('launchGateRedirect (signed-out visitors while the gate is up)', () => {
   it('sends the app, the public profiles and the org sites to coming-soon', () => {
-    for (const p of ['/', '/feed', '/u/tom', '/athlete/x', '/org/kmha', '/kmha', '/org/kmha/standings', '/league/00000000-0000-4000-8000-000000000000/standings', '/register', '/help', '/activities/import', '/r/abc']) {
+    for (const p of ['/', '/feed', '/u/tom', '/athlete/x', '/org/kmha', '/kmha', '/org/kmha/standings', '/league/00000000-0000-4000-8000-000000000000/standings', '/register', '/help', '/activities/import', '/activities/record', '/r/abc']) {
       expect(launchGateRedirect(p, ''), p).toBe(COMING_SOON_PATH);
     }
   });
