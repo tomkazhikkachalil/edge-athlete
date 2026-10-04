@@ -329,7 +329,7 @@ export async function POST(
     // path, not a raw public URL (matches what the list GET returns).
     const responseMessage = {
       ...message,
-      media_url: toProxyUrl(message.media_url, { type: 'message', id: message.id }),
+      media_url: toProxyUrl(message.media_url, { type: 'message', id: message.id }, { visibility: 'private' }),
     };
     return NextResponse.json({ message: responseMessage }, { status: 201 });
   } catch (error) {

@@ -248,6 +248,17 @@ The guardrails script enforces the mechanical half (no `'use client'`,
 - **Shared `globals.css` (~40KB) ships whole to the public tree** — the org
   pages use a small subset but pay for the full app design system (incl.
   inert dark tokens). A split entry is the fix; measure before bothering.
+- **The proxy's cache model (speed round 2, Oct 4 2026):** public media
+  answers `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`
+  with NO `Vary` (one CDN copy for everyone — `Vary: Cookie` had made every
+  signed-in cookie jar its own key); private media answers
+  `private, max-age=<token life>, no-transform` on an EXPIRING URL
+  (`token.ts exp`, the end of the next UTC day — the Instagram model: the
+  device caches, a shared cache never, a copied URL dies within 48 h, a person
+  who loses access keeps only what their device already holds). A valid token
+  is never rate-limited (only `media-miss`); the storage read is one
+  authenticated GET with the service key; `vercel.json` excludes `/api/media/`
+  from its `no-store` rule. `src/lib/media/cache-headers.ts` is pinned.
 - **Proxied images are `unoptimized` by rule** (`/api/media/*` is not
   optimizer-eligible) — logo + page images skip webp/avif and resizing.
 - ~~**Page-image CLS** — block images store no intrinsic dimensions

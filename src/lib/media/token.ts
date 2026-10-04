@@ -43,9 +43,30 @@ export interface MediaTokenPayload {
   t: MediaEntityType;
   /** Governing entity id — a single indexed lookup at request time. */
   id: string;
+  /**
+   * Expiry, seconds since the epoch — PRIVATE media only (speed round 2,
+   * Oct 4 2026): the Instagram model, an unguessable URL that dies. Absent
+   * on public media, whose URL stays stable forever. The proxy still
+   * re-authorizes the live viewer either way; `exp` only bounds how long a
+   * copied private URL can live.
+   */
+  exp?: number;
 }
 
 const CURRENT_VERSION = 1;
+
+/** Seconds a private URL lives, at least (its exp lands on a UTC day boundary). */
+export const PRIVATE_URL_MIN_LIFE_SECONDS = 86400;
+
+/**
+ * The expiry for a private URL minted now: the END of the NEXT UTC day, so
+ * the same object yields the SAME URL all day (the browser cache keeps
+ * working) and every private URL lives 24–48 h. Deterministic per day.
+ */
+export function privateTokenExpiry(nowSeconds: number = Math.floor(Date.now() / 1000)): number {
+  const day = 86400;
+  return (Math.floor(nowSeconds / day) + 2) * day;
+}
 
 /**
  * Lazily read the signing secret(s). Read inside functions, never at module
@@ -84,7 +105,10 @@ export function signMediaToken(input: Omit<MediaTokenPayload, 'v'>): string {
  * the format is wrong, or no secret is configured. Constant-time comparison;
  * accepts the previous secret during a rotation window.
  */
-export function verifyMediaToken(token: string | null | undefined): MediaTokenPayload | null {
+export function verifyMediaToken(
+  token: string | null | undefined,
+  nowSeconds: number = Math.floor(Date.now() / 1000)
+): MediaTokenPayload | null {
   if (!token || typeof token !== 'string') return null;
   const dot = token.indexOf('.');
   if (dot <= 0 || dot === token.length - 1) return null;
@@ -121,6 +145,10 @@ export function verifyMediaToken(token: string | null | undefined): MediaTokenPa
     typeof payload.id !== 'string'
   ) {
     return null;
+  }
+  if (payload.exp !== undefined) {
+    // An expiring (private) URL past its time is as good as forged: 404.
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= nowSeconds) return null;
   }
   return payload;
 }

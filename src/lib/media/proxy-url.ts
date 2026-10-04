@@ -1,4 +1,4 @@
-import { signMediaToken, type MediaEntityType } from './token';
+import { privateTokenExpiry, signMediaToken, type MediaEntityType } from './token';
 
 /**
  * Rewrite a stored media URL into the authenticated media-proxy path, so
@@ -48,15 +48,33 @@ export interface MediaEntityRef {
  * three URL columns of a post_media row (media_url / thumbnail_url /
  * source_url) each get their own token under the same entity id.
  */
+export interface ProxyUrlOptions {
+  /**
+   * What the minting reader KNOWS about the media (speed round 2). `private`
+   * mints an EXPIRING token (privateTokenExpiry — the same URL all day, dead
+   * within 48 h) so a copied URL to private bytes cannot live on; `public`
+   * and unknown keep the stable, non-expiring form. The proxy re-authorizes
+   * the live viewer either way — this only shapes the URL's life.
+   */
+  visibility?: 'public' | 'private';
+}
+
 export function toProxyUrl(
   stored: string | null | undefined,
-  entity: MediaEntityRef
+  entity: MediaEntityRef,
+  opts: ProxyUrlOptions = {}
 ): string | null {
   if (!stored) return null;
   const parsed = parsePublicUrl(stored);
   if (!parsed || !PROTECTED_BUCKETS.has(parsed.bucket)) return stored;
   try {
-    const token = signMediaToken({ b: parsed.bucket, k: parsed.key, t: entity.type, id: entity.id });
+    const token = signMediaToken({
+      b: parsed.bucket,
+      k: parsed.key,
+      t: entity.type,
+      id: entity.id,
+      ...(opts.visibility === 'private' ? { exp: privateTokenExpiry() } : {}),
+    });
     return `/api/media/${token}`;
   } catch {
     // Fail OPEN to the raw public URL rather than 500 the response. The only

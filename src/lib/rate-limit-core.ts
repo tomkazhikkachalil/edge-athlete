@@ -206,11 +206,15 @@ export const RATE_LIMITS = {
   // CSP violation sink: anon-reachable, a broken page can fire dozens of
   // reports per load. On limit the route still 204s (never 429 a reporter).
   'csp-report': { max: 30, windowSeconds: 60, keyBy: 'ip' },
-  // Authenticated media proxy (/api/media/[token]). IP-keyed (anon-reachable
-  // for public content) and generous: an image-dense page pulls dozens of
-  // media in one load. Forged tokens die on the HMAC check before any DB hit,
-  // and public bytes are CDN-cached, so this mainly caps bandwidth abuse.
+  // Authenticated media proxy (/api/media/[token]). Speed round 2: a VALID
+  // token is never rate-limited — the HMAC is the gate, the cost is bounded
+  // and the CDN absorbs repeats; this bucket used to be a DB write on every
+  // image view. Kept for the kill-switch form (`media` is still a known
+  // action); the proxy itself now charges only MISSES:
   media: { max: 600, windowSeconds: 60, keyBy: 'ip' },
+  // …a forged, garbage or expired token. 60/min per IP is a scraper's pace,
+  // never a page's (a page never produces a miss).
+  'media-miss': { max: 60, windowSeconds: 60, keyBy: 'ip' },
   // Phone notifications (248): a device turning them on or off. A browser
   // re-subscribes on every app start when its endpoint rotated; 30/h is
   // several devices' worth of normal use.
