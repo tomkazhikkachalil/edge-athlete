@@ -106,3 +106,24 @@ export function storedTypeMatches(mintedType: string, storedType: string | null 
   if (!storedType) return false;
   return storedType.split(';')[0].trim().toLowerCase() === mintedType;
 }
+
+const POSTS_URL_RE = new RegExp(`/storage/v1/object/public/uploads/posts/(${UUID})/(${UUID})\\.([a-z0-9]+)$`);
+
+/**
+ * True when `url` is a finished upload (`posts/<owner>/<uuid>.<ext>`) that
+ * belongs to `ownerId` — what the background original PATCH accepts and
+ * nothing else (never another owner's object, never an arbitrary URL).
+ */
+export function isOwnPostsUploadUrl(url: unknown, ownerId: string): boolean {
+  if (typeof url !== 'string') return false;
+  let pathname: string;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    pathname = parsed.pathname;
+  } catch {
+    return false;
+  }
+  const m = POSTS_URL_RE.exec(pathname);
+  return !!m && m[1] === ownerId.toLowerCase() && !!TYPE_BY_EXT[m[3]];
+}

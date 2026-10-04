@@ -1,5 +1,15 @@
 # Development Log
 
+## October 4, 2026 — The post no longer waits for an edited video's original (zero DDL)
+
+**The third of the upload fixes.** An edited video uploaded TWICE before the post existed — the render, then the full untouched original for `source_url` (non-destructive media, migration 120) — and Create Post waited for both. On a phone that doubled the wait for a feature (re-edit later) most posts never use.
+
+**Now:** `uploadMediaWithPoster(file, { deferOriginal: true })` (the general-post path) uploads the render and its poster, returns the original as `deferredOriginal`, the post is created, and then `attachOriginalInBackground(postId, mediaId, file)` (`upload.ts`) uploads the original through the direct doors and lands it with **`PATCH /api/posts/[id]/media/[mediaId]/source { sourceUrl }`** — a plain promise that outlives the composer; every failure is a warning. The media id is matched BY INDEX (the server orders `post_media` by the `sortOrder` the composer sends). The route sets `source_url` ONCE (409 after; the UPDATE is fenced on `IS NULL`), through `mayManagePostMedia`, and accepts only the post owner's own finished upload — `isOwnPostsUploadUrl` (`upload-rules.ts`): `…/uploads/posts/<owner>/<uuid>.<ext>` on https, never another owner's object, never an outside URL, never `incoming/`. A tab closed before it lands leaves `source_url` null: re-edit starts from the render, the degradation the Sep 2026 design already named. Photos and the golf share path keep the original inline (small, or a flow with its own attach step).
+
+**Proof:** `upload-rules.test.ts` (nine URL cases); `npm run verify` green. `e2e/upload-original-attach.spec.ts` pins the ROUTE (headless Chromium has no h264 encoder, so the composer never produces an edited video there): a post from a direct upload, then 400 for another owner's object, 400 for an outside URL, 200 for the owner's own upload, 409 on the second, and the owner's media GET carries it under the proxy.
+
+---
+
 ## October 4, 2026 — A library video attaches at once, and uploading shows its number (zero DDL)
 
 **The second half of "uploading is incredibly slow"** (the first half was the direct upload, below). The composer opened the EDITOR on every library pick — for a video that was three `<video>` loads, eight thumbnail seeks and a container parse before anything showed, then a probe and a poster capture on Done, all before a byte left the phone. Capture v2 (Sep 3) had removed that for the camera only.

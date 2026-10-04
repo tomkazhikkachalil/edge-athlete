@@ -121,3 +121,29 @@ export async function uploadPostMedia(
   }
   return { url: payload.url, type: payload.type === 'video' ? 'video' : 'image', scrubbed: payload.scrubbed === true };
 }
+
+/**
+ * The background original (Oct 4 2026): after an edited video's post is
+ * created from its RENDER, the untouched original uploads from the device
+ * and is attached to the row. Fire-and-forget — it outlives the composer
+ * (a plain promise, no component state); every failure is a warning, never
+ * the user's problem (re-edit then starts from the render).
+ */
+export async function attachOriginalInBackground(
+  postId: string,
+  mediaId: string,
+  original: File,
+  targetProfileId?: string
+): Promise<void> {
+  try {
+    const { url } = await uploadPostMedia(original, targetProfileId);
+    const response = await fetch(`/api/posts/${postId}/media/${mediaId}/source`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceUrl: url }),
+    });
+    if (!response.ok) console.warn('[upload] original attach refused:', response.status);
+  } catch (err) {
+    console.warn('[upload] original upload failed (the render is the post):', err);
+  }
+}
