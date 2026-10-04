@@ -1,5 +1,23 @@
 # Development Log
 
+## October 4, 2026 — Maintenance after speed round 2: the full checklist, all green, and the after numbers
+
+**On main at `5f5687cf`** (#1065), with the day's fourteen PRs merged and deployed (#1052–#1065: the direct upload, speed round 2 A–E, the baseline at 249, the perf probe, the WebKit harness fix). **Zero open PRs.**
+
+**The gate (`npm run verify`) exited 0:** typecheck, lint at 0 warnings, **4,459 tests**, the production build, 253 client chunks inside the iOS 15 / Safari 15 floor. Guardrails pass (the two standing informational notes unchanged). `npm audit --omit=dev` 0. `check:schema` (staging) and `check:schema:prod` OK, both ledgers at head **249**.
+
+**Production (edgeathlete.ca), serving `5f5687cf`:**
+- **Health** `ok`; the DB probe read **62–135 ms** this evening (134–334 ms this morning — Tom applied Supabase's pending platform update after 249; the IO budget email's shape has eased, no compute change).
+- **Every door answers:** `/` and `/feed` signed out → 307 (the launch gate), `/?signin=1` 200, `/manifest.webmanifest` (`id: /feed`, standalone), `/sw.js` (the static-cache gate present), `/icon-192.png`, `/robots.txt`.
+- **Smoke probe:** 17 of 21 — the four misses are the launch gate's known signed-out cases (the login form on `/`, a gated `robots.txt` in `org-site`, the anonymous "Log in" link in `tab-bar`), as every probe since Sep 30.
+- **Today's surfaces, 52 passed / 3 skipped / 1 failed on desktop + phone Chromium + phone WebKit:** `upload-direct`, `upload-original-attach`, `media-proxy`, `media-editor`, `media-reedit`, `capture-attach`, `auth-login`, `appearance`, `perf-feed`, `perf-api`, `profile-orgs`, `calendar-layers`, `feed-post`, `follow-request`, `sw-static-cache`, `push`, `install-app`, `health`. The one failure is `push.spec` on WebKit, where #1065 BLOCKS service workers — the worker-registration test cannot run there and now `skip`s with the reason (this entry's commit).
+- **The after numbers (single runs):** first post **1.29 s desktop · 1.40 s phone WebKit** (phone Chromium 5.4 s this run, 1.5–2.3 s on the three before — the variance is the database; the Sep 30 baseline was 4.25 · 5.96 · 1.78). `perf-api`: health p50 **135 ms**, the smallest authenticated call **187 ms** — 52 ms apart; local session verification is live.
+- **Hygiene:** the interrupted full-suite run (613 tests — stopped by hand, not the sanctioned probe) had left **5 QA accounts** on production; a one-off sweep through `deleteQaUser` (the teardown's own path) removed them — **0 QA users remain**. The 24-hour sweep stays as the standing net.
+
+**Still on Tom's side:** the Disk IO queries (optional now that reads have eased); the JWT expiry field (3600 stays the accepted fallback); the compute add-on remains the unpulled lever.
+
+---
+
 ## October 4, 2026 — Speed round 2: the WebKit harness and the live worker
 
 **Live on production** (#1064): `sw-static-cache.spec` passes on desktop and phone Chromium against edgeathlete.ca — the worker is `/sw.js?static=1`, the bell answers under it, a hashed file the page loaded is in the cache. **Playwright WebKit then failed `perf-feed`** on production the way it had locally: with any fetch handler controlling the page its own fetches hang and the first post card never appears. Tom's iPhone had just passed the same path, so this is the harness, not iOS Safari — and it would have turned every `webkit-mobile` probe red from now on. **`playwright.config.ts` now sets `serviceWorkers: 'block'` for the `webkit-mobile` project only** (the comment carries the why); the Chromium projects keep the worker and prove the cache; the cache spec `skip`s on WebKit with the reason. The WebKit production probe is green again (`perf-feed`, `capture-attach`). The `preview/sw-iphone` branch is pruned — production carries the flag.
