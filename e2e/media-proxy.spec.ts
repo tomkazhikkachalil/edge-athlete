@@ -59,14 +59,25 @@ test('media proxy: post media authorized at the byte layer', { tag: '@smoke' }, 
     });
     try {
       // PUBLIC post media: 200 for owner, bystander, AND anonymous.
-      expect((await ownerCtx.get(base + publicProxy)).status()).toBe(200);
+      const ownerPub = await ownerCtx.get(base + publicProxy);
+      expect(ownerPub.status()).toBe(200);
       expect((await bystanderCtx.get(base + publicProxy)).status()).toBe(200);
       expect((await anonCtx.get(base + publicProxy)).status()).toBe(200);
+      // Speed round 2: one CDN copy for everyone — public, long-lived, NO Vary.
+      expect(ownerPub.headers()['cache-control']).toMatch(/^public, max-age=\d+, s-maxage=\d+, stale-while-revalidate=\d+$/);
+      expect(ownerPub.headers()['vary'] ?? '').not.toMatch(/cookie/i);
 
       // PRIVATE post media: 200 for owner; 404 for bystander and anonymous.
       const ownerPriv = await ownerCtx.get(base + privateProxy);
       expect(ownerPriv.status(), await readErrorBody(ownerPriv)).toBe(200);
       expect((await ownerPriv.body()).length).toBeGreaterThan(100); // real bytes
+      // …cached on the viewer's own device for the URL's life, never shared.
+      expect(ownerPriv.headers()['cache-control']).toMatch(/^private, max-age=\d+, no-transform$/);
+      // A private post's URL EXPIRES (the Instagram model): its token carries exp.
+      const privatePayload = JSON.parse(Buffer.from(privateProxy.slice('/api/media/'.length).split('.')[0], 'base64url').toString());
+      expect(privatePayload.exp).toBeGreaterThan(Date.now() / 1000 + 3600);
+      const publicPayload = JSON.parse(Buffer.from(publicProxy.slice('/api/media/'.length).split('.')[0], 'base64url').toString());
+      expect(publicPayload.exp).toBeUndefined();
       expect((await bystanderCtx.get(base + privateProxy)).status()).toBe(404);
       expect((await anonCtx.get(base + privateProxy)).status()).toBe(404);
 

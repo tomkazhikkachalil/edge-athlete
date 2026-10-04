@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
             ...c,
             last_message: {
               ...c.last_message,
-              media_url: toProxyUrl(c.last_message.media_url, { type: 'message', id: c.last_message.id }),
+              media_url: toProxyUrl(c.last_message.media_url, { type: 'message', id: c.last_message.id }, { visibility: 'private' }),
             },
           }
         : c

@@ -4,6 +4,7 @@ import { resolveProfileAction } from '@/lib/profile-roles';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import type { MediaTokenPayload } from './token';
+import { isPublicPostMedia } from './visibility';
 import { resolveSportEventAccess } from '@/lib/sport-events/access';
 import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 
@@ -27,6 +28,15 @@ export interface MediaAuthResult {
 }
 
 const DENY: MediaAuthResult = { allow: false, isPublic: false };
+
+/**
+ * Who is asking — a resolved id, or a thunk the branch awaits ONLY when the
+ * answer depends on it (speed round 2): public media is decided from the
+ * entity alone, so the session check runs in parallel with the entity read
+ * and is never waited for on the hot path. A plain string/null still works.
+ */
+export type Viewer = string | null | (() => Promise<string | null>);
+const who = (v: Viewer): Promise<string | null> => (typeof v === 'function' ? v() : Promise.resolve(v));
 
 async function isAcceptedFollower(
   admin: SupabaseClient,
@@ -60,7 +70,7 @@ async function hasManagedAccess(
 async function authorizePost(
   admin: SupabaseClient,
   postId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
   const { data: post } = await admin
     .from('posts')
@@ -72,11 +82,12 @@ async function authorizePost(
   const owner = (Array.isArray(post.profiles) ? post.profiles[0] : post.profiles) as
     | { visibility?: string }
     | null;
-  const postPublic = post.visibility !== 'private';
-  const ownerPublic = owner?.visibility !== 'private';
+  // ONE predicate with the posts API (visibility.ts) — they used to differ.
+  if (isPublicPostMedia({ postVisibility: post.visibility, ownerVisibility: owner?.visibility })) {
+    return { allow: true, isPublic: true };
+  }
 
-  if (postPublic && ownerPublic) return { allow: true, isPublic: true };
-
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   if (viewerId === post.profile_id) return { allow: true, isPublic: false };
   if (await isAcceptedFollower(admin, viewerId, post.profile_id as string)) {
@@ -96,8 +107,9 @@ async function authorizePost(
 async function authorizeMessage(
   admin: SupabaseClient,
   messageId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY; // messages are never anon-viewable
   const { data: message } = await admin
     .from('messages')
@@ -124,7 +136,7 @@ async function authorizeMessage(
 async function authorizeGroup(
   admin: SupabaseClient,
   groupPostId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
   const { data: gp } = await admin
     .from('group_posts')
@@ -133,6 +145,7 @@ async function authorizeGroup(
     .maybeSingle();
   if (!gp) return DENY;
   if (gp.visibility === 'public') return { allow: true, isPublic: true };
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   if (viewerId === gp.creator_id) return { allow: true, isPublic: false };
   const { data: participant } = await admin
@@ -153,7 +166,7 @@ async function authorizeGroup(
 async function profileScoped(
   admin: SupabaseClient,
   ownerId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
   const { data: prof } = await admin
     .from('profiles')
@@ -162,6 +175,7 @@ async function profileScoped(
     .maybeSingle();
   if (!prof) return DENY;
   if (prof.visibility !== 'private') return { allow: true, isPublic: true };
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   if (viewerId === ownerId) return { allow: true, isPublic: false };
   if (await isAcceptedFollower(admin, viewerId, ownerId)) return { allow: true, isPublic: false };
@@ -177,10 +191,13 @@ async function profileScoped(
 async function authorizeWorkout(
   admin: SupabaseClient,
   ownerId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
-  const base = await profileScoped(admin, ownerId, viewerId);
+  const base = await profileScoped(admin, ownerId, viewer);
   if (!base.allow) return DENY;
+  // The privacy aspect is the owner's choice about OTHERS — a public profile
+  // still needs the viewer here, so this one awaits after the public check.
+  const viewerId = await who(viewer);
   if (viewerId !== ownerId) {
     const privacy = await fetchVitalsPrivacy(admin, ownerId);
     if (aspectHidden(privacy, 'workouts', false)) return DENY;
@@ -198,8 +215,9 @@ async function authorizeWorkout(
 async function authorizeContestMedia(
   admin: SupabaseClient,
   mediaId: string,
-  viewerId: string | null
+  viewer: Viewer
 ): Promise<MediaAuthResult> {
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   const { data: media } = await admin
     .from('contest_media')
@@ -308,12 +326,13 @@ async function authorizeContestMedia(
  * non-declined participant (followers included); a LINK event's bytes need a
  * participant session (the proxy carries no token — documented).
  */
-async function authorizeSportEventMedia(admin: SupabaseClient, mediaId: string, viewerId: string | null): Promise<MediaAuthResult> {
+async function authorizeSportEventMedia(admin: SupabaseClient, mediaId: string, viewer: Viewer): Promise<MediaAuthResult> {
   const { data: media } = await admin.from('sport_event_media').select('sport_event_id').eq('id', mediaId).maybeSingle();
   if (!media) return DENY;
   const { data: ev } = await admin.from('sport_events').select('id, host_profile_id, visibility, status, link_token').eq('id', media.sport_event_id).maybeSingle();
   if (!ev) return DENY;
   if (ev.visibility === 'public') return { allow: true, isPublic: true };
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   const { data: own } = await admin.from('sport_event_participants').select('role, status').eq('sport_event_id', ev.id).eq('profile_id', viewerId).maybeSingle();
   const access = resolveSportEventAccess({
@@ -330,7 +349,8 @@ async function authorizeSportEventMedia(admin: SupabaseClient, mediaId: string, 
  * reader scope — the submitter, or a guardian of a supervised submitter.
  * A moderator's view comes from the proxy's override, not from here.
  */
-async function authorizeTicketAttachment(admin: SupabaseClient, ticketId: string, viewerId: string | null): Promise<MediaAuthResult> {
+async function authorizeTicketAttachment(admin: SupabaseClient, ticketId: string, viewer: Viewer): Promise<MediaAuthResult> {
+  const viewerId = await who(viewer);
   if (!viewerId) return DENY;
   const { data: t } = await admin.from('tickets').select('reporter_profile_id').eq('id', ticketId).maybeSingle();
   if (!t?.reporter_profile_id) return DENY;
@@ -342,7 +362,7 @@ async function authorizeTicketAttachment(admin: SupabaseClient, ticketId: string
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
-  viewerId: string | null
+  viewerId: Viewer
 ): Promise<MediaAuthResult> {
   switch (payload.t) {
     case 'cover':

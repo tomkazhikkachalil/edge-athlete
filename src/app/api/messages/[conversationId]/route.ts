@@ -169,7 +169,7 @@ export async function GET(
         // The message's own media (image/video) is proxied and re-authorized
         // per participant. A gif_reaction is an external Giphy URL, which
         // toProxyUrl leaves untouched (not a protected bucket).
-        const mediaUrl = toProxyUrl(msg.media_url, { type: 'message', id: msg.id });
+        const mediaUrl = toProxyUrl(msg.media_url, { type: 'message', id: msg.id }, { visibility: 'private' });
 
         if (msg.type === 'shared_post' && msg.shared_post_id) {
           const { data: post } = await supabase
