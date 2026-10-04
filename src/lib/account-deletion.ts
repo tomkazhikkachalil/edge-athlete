@@ -30,6 +30,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
+import { healSetMediaValue } from './workouts/entries-heal-server';
 import { orgRefOf } from './orgs/org-ref';
 import { isMissingTableError } from './orgs/validate';
 import { departedProfilePatch, departureMode, type DepartureMode, type TiedCounts } from './account-departure';
@@ -216,7 +217,7 @@ export async function hardDeleteAccount(
     .from('workout_sets')
     .select('media')
     .eq('profile_id', userId);
-  for (const path of collectSetMediaPaths((workoutSets || []).map(s => s.media))) {
+  for (const path of collectSetMediaPaths((workoutSets || []).map(s => healSetMediaValue(s.media)))) {
     if (!byBucket.has('uploads')) byBucket.set('uploads', new Set());
     byBucket.get('uploads')!.add(path);
   }

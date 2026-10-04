@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { healSetMediaValue } from '@/lib/workouts/entries-heal-server';
 import {
   GRACE_MS,
   SWEEP_BUCKETS,
@@ -92,7 +93,7 @@ async function collectReferencedPaths(supabase: Admin, bucket: SweepBucket): Pro
         .neq('media', '[]')
         .range(from, from + PAGE - 1);
       if (error) throw new Error(`workout_sets scan failed: ${error.message}`);
-      for (const path of collectSetMediaPaths((data ?? []).map(r => r.media))) {
+      for (const path of collectSetMediaPaths((data ?? []).map(r => healSetMediaValue(r.media)))) {
         referenced.add(path);
       }
       if (!data || data.length < PAGE) break;

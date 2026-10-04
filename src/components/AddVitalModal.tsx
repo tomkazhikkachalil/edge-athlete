@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
@@ -19,7 +20,10 @@ import {
 } from '@/lib/vitals-config';
 
 const MAX_MEDIA_FILES = 4;
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — same as CreatePostModal
+// The one upload cap (upload-rules.ts): uploads go straight to storage since
+// Oct 4 2026, so a phone photo is never refused at pick time any more (this
+// surface kept a 5 MB literal the direct-upload round missed).
+const MAX_FILE_SIZE_BYTES = MAX_UPLOAD_BYTES;
 
 const VITAL_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5'],
@@ -100,12 +104,18 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     }
   }
 
-  // Revoke object URLs on unmount and when files change
+  // Revoke object URLs on UNMOUNT only (a removed file's is revoked in
+  // removeFile). Keyed on the list, this used to revoke every preview each
+  // time a photo was added — the earlier tiles went blank (Oct 4 2026).
+  const mediaFilesRef = useRef(mediaFiles);
+  useEffect(() => {
+    mediaFilesRef.current = mediaFiles;
+  }, [mediaFiles]);
   useEffect(() => {
     return () => {
-      mediaFiles.forEach(f => URL.revokeObjectURL(f.preview));
+      mediaFilesRef.current.forEach(f => URL.revokeObjectURL(f.preview));
     };
-  }, [mediaFiles]);
+  }, []);
 
   // Picked files go through the shared media editor before attaching;
   // validation mirrors the server allowlist at pick time.
@@ -490,7 +500,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
               {/* Media upload */}
               <div>
                 <label className="block text-sm font-semibold text-secondary mb-1.5">
-                  Media <span className="font-normal text-faint">(up to {MAX_MEDIA_FILES} files, 5MB each)</span>
+                  Media <span className="font-normal text-faint">(up to {MAX_MEDIA_FILES} files, 50 MB each)</span>
                 </label>
 
                 {/* Preview strip */}
@@ -523,9 +533,8 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                 )}
 
                 {/* Capture + drop zone (capture-everywhere round). PHOTO
-                    capture only: this surface's deliberate 5MB cap makes a
-                    device-recorded video impossible, and offering a button
-                    that always fails is worse than not offering it. */}
+                    capture only, by design: a vital's photo is a measurement
+                    shot, not a clip (library videos still attach). */}
                 {mediaFiles.length < MAX_MEDIA_FILES && (
                   <CaptureInputs onFiles={handleFileSelect}>
                     {({ openPhoto }) => (

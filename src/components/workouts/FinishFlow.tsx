@@ -1,8 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useRef } from 'react';
-import { Award, Bookmark, Check, Dumbbell, Globe, Lock, Play, Timer, TrendingUp } from 'lucide-react';
+import { Award, Bookmark, Check, Dumbbell, Globe, Lock, Timer, TrendingUp } from 'lucide-react';
+import SetMediaThumb from './SetMediaThumb';
 import { celebratePR } from '@/lib/celebrate';
 import {
   formatDuration,
@@ -249,16 +249,7 @@ export function ShareStep({
                   } ${atCap ? 'cursor-not-allowed' : ''}`}
                   aria-label={`${isSelected ? 'Exclude' : 'Include'} ${media.exerciseName} set ${media.setNumber} media`}
                 >
-                  {media.type === 'video' ? (
-                    <>
-                      <video src={media.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                        <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
-                      </span>
-                    </>
-                  ) : (
-                    <Image src={media.url} alt="" width={96} height={96} className="w-full h-full object-cover" />
-                  )}
+                  <SetMediaThumb url={media.url} type={media.type} size={96} />
                   {isSelected && (
                     <span className="absolute top-1 right-1 w-5 h-5 bg-brand rounded-full flex items-center justify-center">
                       <Check className="w-3 h-3 text-white" aria-hidden="true" />
