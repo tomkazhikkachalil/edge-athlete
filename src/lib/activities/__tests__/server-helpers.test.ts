@@ -82,3 +82,26 @@ describe('the stream path', () => {
     expect(p).toMatch(/^activities\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json\.gz$/);
   });
 });
+
+describe('the uploads bucket admits what the writers send (migrations 249 + 250)', () => {
+  // 249 pinned the bucket's allowed types to the upload routes' seven media
+  // types and forgot the ONE non-media writer — the activity stream
+  // (write-server.ts, `application/gzip`). Every import failed until 250
+  // appended it. Here: the stream's content type is in the list the chain
+  // declares, and the list is exactly the upload routes' types plus it.
+  const migrations = path.join(process.cwd(), 'database/migrations');
+  const sql249 = readFileSync(path.join(migrations, '249_storage_lockdown_and_cron_hygiene.sql'), 'utf8');
+  const sql250 = readFileSync(path.join(migrations, '250_uploads_bucket_gzip.sql'), 'utf8');
+  const listed = [...sql249.matchAll(/'((?:image|video)\/[a-z0-9.+-]+)'/g)].map(m => m[1]);
+
+  it('the stream writer sends application/gzip and 250 admits it', () => {
+    const writer = readFileSync(path.join(process.cwd(), 'src/lib/activities/write-server.ts'), 'utf8');
+    expect(writer).toContain("contentType: 'application/gzip'");
+    expect(sql250).toContain("array_append(allowed_mime_types, 'application/gzip')");
+  });
+
+  it("249's seven media types are the upload routes' EXT_BY_TYPE keys", async () => {
+    const { EXT_BY_TYPE } = await import('@/lib/media/upload-rules');
+    expect([...new Set(listed)].sort()).toEqual(Object.keys(EXT_BY_TYPE).sort());
+  });
+});

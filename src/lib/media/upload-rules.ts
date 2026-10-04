@@ -31,6 +31,13 @@ export const MAX_UPLOAD_BYTES = 50 * MB;
 
 export const INCOMING_PREFIX = 'incoming/';
 
+/**
+ * The upload routes' types. The `uploads` BUCKET admits exactly these plus
+ * `application/gzip` (the activity stream — migrations 249 + 250; 249 pinned
+ * these seven and forgot the stream, and every import failed until 250
+ * appended it). A new writer with another content type needs a migration
+ * widening the bucket's list, or storage refuses the bytes.
+ */
 export const EXT_BY_TYPE: Readonly<Record<string, string>> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
