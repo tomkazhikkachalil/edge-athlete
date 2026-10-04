@@ -17,6 +17,7 @@
  *   setIconBadge()  the number on the app icon (installed apps)
  */
 
+import { staticCacheEnabled, swUrl } from '@/lib/sw/static-cache';
 import { urlBase64ToUint8Array } from './keys';
 
 export type PushSupport =
@@ -32,7 +33,9 @@ export type PushSupport =
   /** The person said no; only the phone's settings can undo it. */
   | 'denied';
 
-export const SW_PATH = '/sw.js';
+/** The worker's URL — ONE per deployment (static-cache.ts swUrl): the push
+ *  opt-in and the boot registration must agree or the browser swaps workers. */
+export const SW_PATH = swUrl(staticCacheEnabled());
 
 interface PushConfig {
   enabled: boolean;

@@ -12,6 +12,7 @@ import ModerationBanner from "@/components/ModerationBanner";
 import ChatDockMount from "@/components/chat-dock/ChatDockMount";
 import TabBar from '@/components/TabBar';
 import PushHost from '@/components/push/PushHost';
+import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ThemeApplier from "@/components/ThemeApplier";
@@ -137,6 +138,7 @@ export default async function RootLayout({
               {/* Phone notifications (248): the app icon's number follows the
                   bell; this device's subscription stays current. */}
               <PushHost />
+              <StaticCacheRegistrar />
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}
               <ChatDockMount />

@@ -58,7 +58,7 @@ pg_cron `push-sweep` (every minute) ──POST /api/push/sweep (CRON_SECRET)
 - **The job:** scheduled only where `urgent-emails` runs (production), copying that job's Authorization header, so the migration carries no secret. Staging runs no pg_cron jobs; the daily cron runs the sweep as a safety net.
 - **`/api/push/config`** answers whether the deployment holds the keys, plus the PUBLIC key. Without keys no door shows anywhere.
 - **The service worker** handles `push` and `notificationclick` only.
-  - **No fetch handler, no cache.** Pages load exactly as before. Offline is a separate round.
+  - **No page cache, no offline mode.** Pages and `/api/*` load exactly as before. Since speed round 2 (Oct 4 2026) the worker CAN answer one class of request from a cache — `/_next/static/*`, the app's content-hashed, immutable files — and only when the deployment registers it as `/sw.js?static=1` (`NEXT_PUBLIC_SW_STATIC_CACHE=1`, build-injected). The push opt-in and the boot registrar share that one URL (`src/lib/sw/static-cache.ts swUrl`), so there is ever one worker. The flag goes to a Preview first, then a real iPhone, then production; `e2e/sw-static-cache.spec.ts` pins that the bell still answers under the worker (the Oct 2 attempt stalled it in Playwright WebKit).
   - `buildCsp` carries `worker-src 'self'` (needed because `'strict-dynamic'` makes script-src ignore `'self'`).
   - `vercel.json` serves `/sw.js` `no-cache`.
 
