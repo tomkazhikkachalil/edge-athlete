@@ -42,7 +42,9 @@ test('the worker caches hashed files and the app still talks @mobile', async ({ 
 
   // A hashed file comes from the cache: ask for one the page loaded, twice.
   const served = await page.evaluate(async () => {
-    const entry = performance.getEntriesByType('resource').find(e => e.name.includes('/_next/static/chunks/'));
+    // Any hashed file the page loaded (the chunk path differs between a local
+    // build and a deployment; the cache rule is the prefix, not the folder).
+    const entry = performance.getEntriesByType('resource').find(e => e.name.includes('/_next/static/') && e.name.endsWith('.js'));
     if (!entry) return null;
     const cache = await caches.open('ea-static-v1');
     const hit = await cache.match(entry.name);
