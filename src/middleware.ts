@@ -32,6 +32,8 @@
 // instrumentation.ts, which go dead once middleware runs on Node.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
+import { verifySessionLocally } from '@/lib/auth/edge-session'
+import { jwtSecret } from '@/lib/auth/jwt'
 import { NextResponse, type NextRequest } from 'next/server'
 import { buildCsp, buildStaticCsp, inlineScriptHashSource, CSP_REPORT_PATH } from '@/lib/csp'
 import { PUBLIC_THEME_SCRIPT } from '@/lib/theme-script'
@@ -46,8 +48,6 @@ import {
 } from '@/lib/org-sites/domain-cache'
 import { RESERVED_ROOT_SLUGS, firstPathSegment } from '@/lib/org-sites/reserved'
 import { GATED_ROBOTS, isLaunchGateOn, launchGateRedirect } from '@/lib/launch-gate'
-import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
-import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
 // The R3 spike's measured experiment (see the phase-2 plan + DEVLOG):
 // with PUBLIC_STANDINGS_CACHE=1, the anonymous public-standings path
@@ -181,7 +181,12 @@ export async function middleware(request: NextRequest) {
   // The gate's session read, kept for the session refresh below (speed
   // round, Oct 2026): a signed-in navigation used to ask Supabase Auth TWICE
   // — here, then again for the refresh. `undefined` = the gate did not read.
-  let gateUser: Awaited<ReturnType<ReturnType<typeof createServerClient>['auth']['getUser']>>['data']['user'] | undefined
+  // Speed round 2: the middleware only ever needs WHO — `{ id }` from the
+  // locally verified token when SUPABASE_JWT_SECRET is set (no Supabase
+  // client, no network), else Supabase Auth's answer (which also refreshes a
+  // near-expiry session and rewrites the cookies — the one case the local
+  // check hands over on purpose, so refresh frequency is unchanged).
+  let gateUser: { id: string } | null | undefined
   const gateCookies: { name: string; value: string; options?: Record<string, unknown> }[] = []
   if (isLaunchGateOn()) {
     if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
@@ -211,8 +216,13 @@ export async function middleware(request: NextRequest) {
           },
         }
       )
-      const { data } = await gateClient.auth.getUser()
-      gateUser = data.user
+      const local = await readLocalSession(request)
+      if (local) {
+        gateUser = local
+      } else {
+        const { data } = await gateClient.auth.getUser()
+        gateUser = data.user
+      }
       if (!gateUser) return NextResponse.redirect(new URL(target, request.url), 307)
     }
   }
@@ -326,17 +336,19 @@ export async function middleware(request: NextRequest) {
   // Refresh session if expired - required for SSR. When the launch gate
   // already read (and, if needed, refreshed) this session, its answer and
   // its cookies are used — one Auth round trip per navigation, not two.
-  let user = gateUser
+  let user: { id: string } | null | undefined = gateUser
   if (user === undefined) {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
+    user = await readLocalSession(request)
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
   } else {
     for (const { name, value, options } of gateCookies) {
       response.cookies.set({ name, value, ...(options ?? {}) })
     }
   }
-
-  await syncThemeCookie(request, response, supabase, user?.id)
+  void user
 
   // ENFORCED in production (owner decision, Aug 2026) with a kill switch:
   // CSP_ENFORCE=0 sends the identical policy Report-Only — rollback is an
@@ -356,72 +368,28 @@ export async function middleware(request: NextRequest) {
 }
 
 /**
- * Keep the `ea-theme` cookie holding the ACCOUNT's theme, so the inline head
- * script paints from server truth instead of this device's possibly-stale
- * memory. Without this the device only learned about a theme set elsewhere
- * from the client-side profile fetch — i.e. a visible swap a few hundred ms
- * after first paint.
- *
- * Scoped to DOCUMENT navigations (`sec-fetch-dest: document`), which is the
- * only time the head script runs — RSC prefetches and client-side navigations
- * skip it. That keeps the extra query off the vast majority of requests
- * through here, which matters because this middleware is already one network
- * round trip per request (see the decision note at the top of this file).
- *
- * Never fatal: any failure leaves whatever cookie is already there, and the
- * localStorage mirror is still behind that.
+ * The local session check (speed round 2): the access token in the cookie,
+ * verified with the project's JWT secret — microseconds, no Supabase client.
+ * Null when the secret is unset, the cookie is absent, the token is invalid
+ * or within a minute of expiry: every one of those takes the network path,
+ * which is where @supabase/ssr refreshes the session. See src/lib/auth/jwt.ts.
  */
-async function syncThemeCookie(
-  request: NextRequest,
-  response: NextResponse,
-  supabase: ReturnType<typeof createServerClient>,
-  userId: string | undefined
-) {
-  const existing = request.cookies.get(THEME_COOKIE)?.value
-
-  if (!userId) {
-    // Signed out: LEAVE the cookie. It is this device's last-known look, and
-    // the sign-in page (and every other signed-out page) paints from it. It
-    // used to be deleted here, leaving only the localStorage mirror — which
-    // Safari evicts after seven idle days (script-written storage), so a
-    // device that had chosen dark came back to a sign-in page with no memory
-    // of it (Oct 1 2026). A display preference, never a credential; the next
-    // sign-in overwrites it with that account's own.
-    return
-  }
-
-  const dest = request.headers.get('sec-fetch-dest')
-  const isDocumentLoad = dest === 'document' || dest === null
-  if (!isDocumentLoad) return
-
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('theme_prefs')
-      .eq('id', userId)
-      .single()
-
-    // On error the value is unknown, NOT empty — writing {} here would paint
-    // light for a dark-themed account on the next load.
-    if (error) return
-
-    const encoded = encodeThemeCookie(sanitizeThemePrefs(data?.theme_prefs))
-    if (encoded === existing) return
-
-    response.cookies.set({
-      name: THEME_COOKIE,
-      value: encoded,
-      path: '/',
-      maxAge: THEME_COOKIE_MAX_AGE,
-      sameSite: 'lax',
-      // Read by the inline head script — a display preference, not a secret.
-      httpOnly: false,
-      secure: request.nextUrl.protocol === 'https:',
-    })
-  } catch {
-    // network/RLS hiccup — leave the existing cookie alone
-  }
+async function readLocalSession(request: NextRequest): Promise<{ id: string } | null> {
+  const claims = await verifySessionLocally({
+    getCookie: name => request.cookies.get(name)?.value,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    secret: jwtSecret(),
+  })
+  return claims ? { id: claims.sub } : null
 }
+
+// The `ea-theme` cookie used to be re-read from profiles.theme_prefs here on
+// every document load — a second sequential query before any HTML (Oct 1
+// 2026). Removed (speed round 2): the client writes the cookie on every
+// change (theme-cookie.ts writeThemeCookie), adoptServerThemePrefs corrects a
+// theme set on ANOTHER device after the profile read, and PATCH
+// /api/settings/theme sets the cookie on its own answer. A signed-out device
+// keeps its last-known look, as before.
 
 export const config = {
   matcher: [

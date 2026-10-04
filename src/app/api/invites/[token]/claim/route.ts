@@ -29,7 +29,8 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const user = await requireAuth(request);
+    // fresh: created_at is an account field the token does not carry.
+    const user = await requireAuth(request, { fresh: true });
     const limited = await enforceRateLimit(request, 'invite-claim', { userId: user.id });
     if (limited) return limited;
 

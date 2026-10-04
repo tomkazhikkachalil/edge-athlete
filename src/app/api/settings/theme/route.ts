@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { sanitizeThemePrefs } from '@/lib/theme-prefs';
+import { encodeThemeCookie, THEME_COOKIE, THEME_COOKIE_MAX_AGE } from '@/lib/theme-cookie';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -36,7 +37,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
 
-    return NextResponse.json({ prefs });
+    // The device's cookie follows the account's truth from the answer itself
+    // (speed round 2: the middleware no longer reads profiles.theme_prefs on
+    // every document load — the client writes this cookie on change, and the
+    // server's own answer agrees even if that write failed).
+    const response = NextResponse.json({ prefs });
+    response.cookies.set({
+      name: THEME_COOKIE,
+      value: encodeThemeCookie(prefs),
+      path: '/',
+      maxAge: THEME_COOKIE_MAX_AGE,
+      sameSite: 'lax',
+      httpOnly: false, // read by the inline head script — a display preference, not a secret
+      secure: request.nextUrl.protocol === 'https:',
+    });
+    return response;
   } catch (error) {
     reportRouteError('Theme prefs PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });

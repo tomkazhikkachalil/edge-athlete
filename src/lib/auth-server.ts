@@ -7,17 +7,31 @@ import {
   type ProfileAction,
   type ProfileRole,
 } from './profile-roles';
+import { verifySessionLocally } from './auth/edge-session';
+import { claimsToUser, jwtSecret } from './auth/jwt';
 
 /**
- * Creates a Supabase admin client (service role) on demand.
- * MUST be called inside request handlers, never at module scope,
- * to avoid build failures when env vars aren't available during static analysis.
+ * The Supabase admin client (service role). Created on FIRST CALL, never at
+ * module scope (env vars are absent during static analysis), and then kept:
+ * a Fluid instance serves many requests, and building a client per call
+ * (speed round 2 found one per gate, several per request) was pure waste.
+ * The client holds no per-user state — `auth.persistSession` is off.
  */
-export function getSupabaseAdmin() {
+function makeAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
   );
+}
+let adminSingleton: ReturnType<typeof makeAdminClient> | null = null;
+export function getSupabaseAdmin() {
+  adminSingleton ??= makeAdminClient();
+  return adminSingleton;
+}
+/** Test seam only. */
+export function __resetAdminForTests() {
+  adminSingleton = null;
 }
 
 /**
@@ -49,21 +63,87 @@ export function getServerClient(request: NextRequest) {
   );
 }
 
-/**
- * Non-throwing auth for routes that return their own 401. Gives back both the
- * user (nullable) and the cookie-scoped RLS client for subsequent queries.
- */
-export async function getServerAuth(request: NextRequest) {
+// ── Who is calling (speed round 2, Oct 4 2026) ──────────────────────────────
+//
+// Every gate used to ask Supabase Auth over the network (100–300 ms) and
+// nothing was shared within a request. Now:
+//   - the access token in the cookie is verified LOCALLY when
+//     SUPABASE_JWT_SECRET is set (src/lib/auth/jwt.ts — HS256, issuer,
+//     audience, expiry with the refresh margin). Unset, or anything the local
+//     check cannot vouch for, falls through to the network `getUser` — the
+//     authority. A failed local verify is never a 401 by itself.
+//   - the answer is memoized PER REQUEST (a WeakMap on the NextRequest, so
+//     two gates in one route share one check; different requests never do).
+//   - `fresh: true` forces the network user: the write gate (a suspended or
+//     banned account must be refused at once — Supabase Auth's ban makes
+//     `getUser` 401, the moderation column makes the gate 403), the admin and
+//     moderator gates, and the two routes that read account fields the token
+//     does not carry (pinned by src/lib/__tests__/fresh-auth-sites.test.ts).
+//
+// Tom's decision: the access-token lifetime is 10 minutes in the dashboard,
+// so a suspended account keeps READ access for at most that long.
+
+type AuthAnswer = { user: User | null; error: { message: string } | null; verified: 'local' | 'network' };
+const authMemo = new WeakMap<NextRequest, Promise<AuthAnswer>>();
+const freshMemo = new WeakMap<NextRequest, Promise<AuthAnswer>>();
+
+export interface AuthOptions {
+  /** Always the network user (bans, moderation, account fields). */
+  fresh?: boolean;
+}
+
+async function networkAuth(request: NextRequest): Promise<AuthAnswer> {
   const supabase = getServerClient(request);
   const { data: { user }, error } = await supabase.auth.getUser();
+  return { user, error, verified: 'network' };
+}
+
+function resolveAuth(request: NextRequest, opts: AuthOptions = {}): Promise<AuthAnswer> {
+  if (opts.fresh) {
+    let pending = freshMemo.get(request);
+    if (!pending) {
+      pending = networkAuth(request);
+      freshMemo.set(request, pending);
+    }
+    return pending;
+  }
+  let pending = authMemo.get(request);
+  if (!pending) {
+    pending = (async () => {
+      const secret = jwtSecret();
+      if (secret) {
+        const cookies = parseCookieHeader(request.headers.get('cookie') ?? '');
+        const claims = await verifySessionLocally({
+          getCookie: name => cookies[name],
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+          secret,
+        });
+        if (claims) return { user: claimsToUser(claims), error: null, verified: 'local' as const };
+      }
+      // A fresh answer already taken for this request serves here too.
+      const fresh = freshMemo.get(request);
+      return fresh ?? networkAuth(request);
+    })();
+    authMemo.set(request, pending);
+  }
+  return pending;
+}
+
+/**
+ * Non-throwing auth for routes that return their own 401. Gives back both the
+ * user (nullable) and the cookie-scoped RLS client for subsequent queries
+ * (PostgREST verifies the same JWT on every query, so RLS never depended on
+ * the network check).
+ */
+export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}) {
+  const supabase = getServerClient(request);
+  const { user, error } = await resolveAuth(request, opts);
   return { supabase, user, error };
 }
 
-export async function requireAuth(request: NextRequest) {
+export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) {
   try {
-    // Get the authenticated user via the shared cookie-scoped client
-    const supabase = getServerClient(request);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { user, error } = await resolveAuth(request, opts);
 
     if (error || !user) {
       throw new Response(
@@ -230,7 +310,7 @@ export function isAdminEmail(
 }
 
 export async function requireAdmin(request: NextRequest) {
-  const user = await requireAuth(request);
+  const user = await requireAuth(request, { fresh: true });
 
   if (!isAdminEmail(user.email, process.env.ADMIN_EMAILS)) {
     throw new Response(
@@ -282,7 +362,7 @@ export async function platformRoleFor(user: { id: string; email?: string | null 
  * other gates do; the caller `return`s a caught Response, never rethrows.
  */
 export async function requireModerator(request: NextRequest, opts: { intent: ModeratorIntent }) {
-  const user = await requireAuth(request);
+  const user = await requireAuth(request, { fresh: true });
   const role = await platformRoleFor(user);
   if (role === 'owner' || (role === 'moderator' && MODERATOR_INTENTS.has(opts.intent))) {
     return { user, role };
@@ -321,7 +401,9 @@ export async function activeWriterRefusal(userId: string): Promise<Response | nu
 
 /** requireAuth + the write gate; throws the 403 like the other gates (the caller `return`s a caught Response). */
 export async function requireActiveWriter(request: NextRequest) {
-  const user = await requireAuth(request);
+  // fresh: a ban (Supabase Auth) and a moderation state (profiles) both bite
+  // at once on a write — the local check would honour the token until expiry.
+  const user = await requireAuth(request, { fresh: true });
   const refusal = await activeWriterRefusal(user.id);
   if (refusal) throw refusal;
   return user;
