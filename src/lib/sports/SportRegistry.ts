@@ -20,7 +20,13 @@ export type SportKey =
   | 'tennis'
   | 'swimming'
   | 'baseball'
-  | 'football';
+  | 'football'
+  // Live Activities (Oct 4 2026): the endurance sports a recorded activity
+  // may be POSTED AS (the share-time bridge) — Tom's four: swimming (above,
+  // enabled now), cycling, running (distinct from track & field), rowing.
+  | 'cycling'
+  | 'running'
+  | 'rowing';
 
 export interface SportMetricLabels {
   tile1: string;  // Primary stat (e.g., "Last 5 Avg", "Goals")
@@ -247,21 +253,92 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     display_name: 'Swimming',
     brand_color_token: 'cyan',
     icon_id: 'fas fa-swimmer',
-    enabled: false,
+    // Enabled Oct 4 2026 (Live Activities): a recorded swim may be posted as
+    // a Swimming result — the endurance stat line (stat-schemas.ts).
+    enabled: true,
     metric_labels: {
-      tile1: '50 Free PR',
-      tile2: '100 Free PR',
-      tile3: 'Events',
-      tile4: 'Rating'
+      tile1: 'Distance (m)',
+      tile2: 'Sessions',
+      tile3: 'Best pace',
+      tile4: 'Avg heart rate'
     },
     activity_columns: {
       col1: 'Date',
-      col2: 'Event',
-      col3: 'Time',
-      col4: 'Place',
-      col5: 'Meet'
+      col2: 'Swim',
+      col3: 'Distance',
+      col4: 'Pace',
+      col5: 'Where'
     },
-    primary_action: 'Add Race'
+    primary_action: 'Add Swim'
+  },
+
+  // === CYCLING (Live Activities, Oct 4 2026) ===
+  cycling: {
+    sport_key: 'cycling',
+    display_name: 'Cycling',
+    brand_color_token: 'lime',
+    icon_id: 'fas fa-person-biking',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Distance (km)',
+      tile2: 'Sessions',
+      tile3: 'Best pace',
+      tile4: 'Avg heart rate'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Ride',
+      col3: 'Distance',
+      col4: 'Speed',
+      col5: 'Where'
+    },
+    primary_action: 'Add Ride'
+  },
+
+  // === RUNNING (Live Activities, Oct 4 2026 — road and trail; track events stay Track & Field) ===
+  running: {
+    sport_key: 'running',
+    display_name: 'Running',
+    brand_color_token: 'orange',
+    icon_id: 'fas fa-person-running',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Distance (km)',
+      tile2: 'Sessions',
+      tile3: 'Best pace',
+      tile4: 'Avg heart rate'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Run',
+      col3: 'Distance',
+      col4: 'Pace',
+      col5: 'Where'
+    },
+    primary_action: 'Add Run'
+  },
+
+  // === ROWING (Live Activities, Oct 4 2026 — water or erg) ===
+  rowing: {
+    sport_key: 'rowing',
+    display_name: 'Rowing',
+    brand_color_token: 'sky',
+    icon_id: 'fas fa-water',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Distance (m)',
+      tile2: 'Sessions',
+      tile3: 'Best pace',
+      tile4: 'Avg heart rate'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Row',
+      col3: 'Distance',
+      col4: 'Pace',
+      col5: 'Where'
+    },
+    primary_action: 'Add Row'
   },
 
   // === BASEBALL (Future Implementation) ===

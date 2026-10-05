@@ -43,14 +43,19 @@ class AdapterRegistry {
       'basketball',
       'soccer',
       'baseball',
-      'track_field'
+      'track_field',
+      // Live Activities (Oct 4 2026): the endurance sports a recorded
+      // activity may be posted as — one shared stat line (enduranceSchema).
+      'swimming',
+      'cycling',
+      'running',
+      'rowing'
     ];
     statLineSports.forEach(sportKey => this.register(new StatLinePostAdapter(sportKey)));
 
     // Other Sports - Disabled (Coming Soon)
     const disabledSports: SportKey[] = [
       'tennis',
-      'swimming',
       'football'
     ];
     

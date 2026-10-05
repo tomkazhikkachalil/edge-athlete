@@ -451,6 +451,59 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
     ],
   },
 
+  // Live Activities (Oct 4 2026): the four endurance sports a recorded
+  // activity may be posted as — the competitive trio every enabled sport
+  // carries (the skill card's entry point), nothing sport-specific yet.
+  swimming: {
+    sport_key: 'swimming',
+    fields: competitiveFields([
+      { value: 'recreational', label: 'Recreational' },
+      { value: 'masters', label: 'Masters' },
+      { value: 'club', label: 'Club' },
+      { value: 'regional', label: 'Regional' },
+      { value: 'provincial_state', label: 'Provincial/State' },
+      { value: 'national', label: 'National' },
+      { value: 'collegiate', label: 'Collegiate' },
+      { value: 'pro', label: 'Professional' },
+    ]),
+  },
+  cycling: {
+    sport_key: 'cycling',
+    fields: competitiveFields([
+      { value: 'recreational', label: 'Recreational' },
+      { value: 'club', label: 'Club' },
+      { value: 'cat_5_4', label: 'Cat 5 / 4' },
+      { value: 'cat_3', label: 'Cat 3' },
+      { value: 'cat_2_1', label: 'Cat 2 / 1' },
+      { value: 'collegiate', label: 'Collegiate' },
+      { value: 'pro', label: 'Professional' },
+    ]),
+  },
+  running: {
+    sport_key: 'running',
+    fields: competitiveFields([
+      { value: 'recreational', label: 'Recreational' },
+      { value: 'club', label: 'Run club' },
+      { value: 'regional', label: 'Regional' },
+      { value: 'provincial_state', label: 'Provincial/State' },
+      { value: 'national', label: 'National' },
+      { value: 'collegiate', label: 'Collegiate' },
+      { value: 'pro', label: 'Professional' },
+    ]),
+  },
+  rowing: {
+    sport_key: 'rowing',
+    fields: competitiveFields([
+      { value: 'recreational', label: 'Recreational' },
+      { value: 'club', label: 'Club' },
+      { value: 'school', label: 'School' },
+      { value: 'regional', label: 'Regional' },
+      { value: 'national', label: 'National' },
+      { value: 'collegiate', label: 'Collegiate' },
+      { value: 'pro', label: 'National team / Professional' },
+    ]),
+  },
+
   track_field: {
     sport_key: 'track_field',
     fields: [
