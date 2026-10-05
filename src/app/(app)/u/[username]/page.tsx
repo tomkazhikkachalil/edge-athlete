@@ -673,7 +673,10 @@ export default function PublicProfilePage() {
                       thumbnail) — same pattern as the profile media grids. */}
                   <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6 text-white text-xs opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity">
                     <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      {/* An outline on purpose (Oct 4 2026): this page is
+                          viewer-independent (CDN-cached), so the heart is a
+                          COUNT — a filled one read as "liked". */}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" viewBox="0 0 20 20">
                         <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
                       </svg>
                       {post.likes_count}

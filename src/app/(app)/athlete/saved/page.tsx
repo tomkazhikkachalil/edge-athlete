@@ -151,6 +151,10 @@ export default function SavedPostsPage() {
             )
           `)
           .eq('profile_id', user.id)
+          // The viewer's OWN like only (Oct 4 2026): the card tests
+          // `likes.some(l => l.profile_id === viewer)`; a full like list is
+          // capped at 1000 rows by PostgREST (an empty heart on a popular post).
+          .eq('post.likes.profile_id', user.id)
           .order('created_at', { ascending: false });
 
         if (fetchError) {

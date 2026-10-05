@@ -344,7 +344,9 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
           <div className="flex items-center justify-between text-white text-xs">
             <div className="flex items-center gap-2">
               <span>
-                <i className="fas fa-heart mr-1"></i>
+                {/* An outline on purpose (Oct 4 2026): this heart is a COUNT,
+                    never the viewer's state — a filled one read as "liked". */}
+                <i className="far fa-heart mr-1"></i>
                 {item.likes_count}
               </span>
               <span>

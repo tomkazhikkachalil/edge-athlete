@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { likedFor, rememberLike } from '@/lib/likes/store';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import PostCard from './PostCard';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -74,6 +75,7 @@ export default function PostDetailModal({
   // delete handlers `await fetchPost()` before continuing, and the error
   // state has a retry button. The close branch still resets synchronously.
   const fetchPostRef = useRef<() => Promise<void>>(async () => {});
+  const retriedAnonRef = useRef(false);
   useEffect(() => {
     const run = async () => {
         if (!postId) {
@@ -92,10 +94,20 @@ export default function PostDetailModal({
             throw new Error(errorData.error || 'Failed to fetch post');
           }
 
-          const { post: data } = await response.json();
+          const { post: data, viewer } = (await response.json()) as { post: PostData | null; viewer?: string | null };
 
           if (!data) {
             throw new Error('Post not found');
+          }
+
+          // The liked flag is trusted only from a read that resolved THIS
+          // viewer; a read that resolved nobody while we are signed in is the
+          // intermittent auth miss behind the empty heart — ask once more.
+          if (viewer && viewer === currentUserId) {
+            rememberLike(data.id, !!data.likes?.some(l => l.profile_id === currentUserId));
+          } else if (!viewer && currentUserId && !retriedAnonRef.current) {
+            retriedAnonRef.current = true;
+            setTimeout(() => { void fetchPostRef.current(); }, 400);
           }
 
           // Fetch saved_posts status for current user
@@ -124,7 +136,10 @@ export default function PostDetailModal({
     };
     fetchPostRef.current = run;
     if (isOpen && postId) run();
-  }, [isOpen, postId]);
+    // currentUserId is a dependency on purpose: a modal opened before auth
+    // boot finished refetches once the viewer is known (the liked flag is
+    // trusted only from a read that resolved them).
+  }, [isOpen, postId, currentUserId]);
 
   // Clearing on close is state SYNCHRONISATION, not a side effect, so it runs
   // during render (the EventDetailModal pattern) — the previous post never
@@ -187,19 +202,22 @@ export default function PostDetailModal({
   }, [isOpen, showNavigation, onNavigate]);
 
   // Handle like update
-  const handleLike = async (postId: string) => {
+  const handleLike = async (postId: string, nextLiked?: boolean) => {
     if (!post || !currentUserId) return;
 
-    const isLiked = post.likes?.some((like) => like.profile_id === currentUserId);
-    const newLikesCount = isLiked ? post.likes_count - 1 : post.likes_count + 1;
+    // The card already flipped its heart (and the tab's memory); take its
+    // intent rather than re-deriving — re-deriving from the store the card
+    // just wrote inverted the toggle (Oct 4 2026).
+    const liking = typeof nextLiked === 'boolean' ? nextLiked : !likedFor(post.id, post.likes, currentUserId);
+    const newLikesCount = Math.max(0, post.likes_count + (liking ? 1 : -1));
 
     // Optimistic update
     setPost({
       ...post,
       likes_count: newLikesCount,
-      likes: isLiked
-        ? post.likes?.filter((like) => like.profile_id !== currentUserId)
-        : [...(post.likes || []), { profile_id: currentUserId }]
+      likes: liking
+        ? [...(post.likes || []).filter((like) => like.profile_id !== currentUserId), { profile_id: currentUserId }]
+        : post.likes?.filter((like) => like.profile_id !== currentUserId)
     });
 
     // Call API
@@ -215,9 +233,13 @@ export default function PostDetailModal({
         await fetchPostRef.current();
       } else {
         const data = await response.json();
+        // The server's answer is the truth the tab remembers.
+        const liked = data.action === 'liked';
+        rememberLike(postId, liked);
         setPost((prev) => prev ? ({
           ...prev,
-          likes_count: data.likesCount
+          likes_count: data.likesCount,
+          likes: liked ? [{ profile_id: currentUserId }] : []
         }) : null);
       }
     } catch (err) {

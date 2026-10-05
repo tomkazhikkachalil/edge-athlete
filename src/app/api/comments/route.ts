@@ -130,6 +130,10 @@ export async function GET(request: NextRequest) {
         comment_likes(profile_id)
       `)
       .eq('post_id', postId);
+    // The viewer's OWN comment likes only (Oct 4 2026): the client tests
+    // `comment_likes.some(l => l.profile_id === viewer)`; a full list is
+    // capped at 1000 rows by PostgREST. Anonymous readers keep the count only.
+    if (viewer) commentsQuery = commentsQuery.eq('comment_likes.profile_id', viewer.id);
     commentsQuery = viewer
       ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)  // hardening-ok: session UUID
       : commentsQuery.eq('status', 'published');
