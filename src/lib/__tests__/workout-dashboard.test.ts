@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   startOfWeek, weeklySummary, streakWeeks, latestPB,
-  exerciseProgression, progressionKey, metricSeries,
+  exerciseProgression, progressionKey, metricSeries, sessionDistanceM, toMetres, workoutToSession,
 } from '../workouts/dashboard';
 import type { ServerWorkoutSession } from '../workouts/serialize';
 
@@ -208,5 +208,25 @@ describe('metricSeries', () => {
       { metric_key: 'bench_press', value: 185, recorded_at: '2026-06-01' },
     ], 'bench_press');
     expect(series.map(s => s.value)).toEqual([185, 205]);
+  });
+});
+
+describe('a cardio set\'s distance travels into the Vitals session (Live Activities, Oct 4 2026)', () => {
+  it('sums every set\'s distance in metres; none → no distanceM key', () => {
+    expect(toMetres(1, 'mi')).toBeCloseTo(1609.344, 3);
+    expect(toMetres(2, 'km')).toBe(2000);
+    expect(toMetres(100, 'yd')).toBeCloseTo(91.44, 2);
+    expect(toMetres(null, 'km')).toBe(0);
+    const s = session('2026-08-04T10:00:00', {}, [{ name: 'Walk', exercise_key: 'walk', sets: [{ set_number: 1, duration_seconds: 1800 }, { set_number: 2, duration_seconds: 600 }] }]);
+    const sets = s.exercises![0].sets as Array<{ distance: number | null; distance_unit: 'mi' | 'km' | 'm' | 'yd' | null }>;
+    sets[0].distance = 2.5;
+    sets[0].distance_unit = 'km';
+    sets[1].distance = 400;
+    sets[1].distance_unit = 'm';
+    expect(sessionDistanceM(s)).toBe(2900);
+    expect(workoutToSession(s).distanceM).toBe(2900);
+    const lift = session('2026-08-04T10:00:00', {}, [{ name: 'Bench Press', exercise_key: 'bench_press', sets: [{ set_number: 1, reps: 5, weight: 185, weight_unit: 'lbs' }] }]);
+    expect(sessionDistanceM(lift)).toBeNull();
+    expect('distanceM' in workoutToSession(lift)).toBe(false);
   });
 });

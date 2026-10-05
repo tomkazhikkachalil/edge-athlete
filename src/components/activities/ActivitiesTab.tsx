@@ -116,6 +116,10 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                 Connect a watch
               </Link>
             )}
+            <Link href="/activities/record" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-brand text-brand-fg rounded-full text-sm font-semibold hover:bg-brand-soft transition-colors min-h-[40px]" data-activities-record-link>
+              <i className="fas fa-location-dot text-xs" aria-hidden="true" />
+              Record activity
+            </Link>
             <Link href="/activities/import" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-import-link>
               <i className="fas fa-file-arrow-up text-xs" aria-hidden="true" />
               Import activity
@@ -127,8 +131,8 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
       {state.count === 0 ? (
         <div className="ea-surface rounded-lg p-8 text-center">
           <i className="fas fa-person-running text-3xl text-brand-fg mb-3" aria-hidden="true" />
-          <p className="font-semibold text-primary">{state.isOwner ? 'Bring in your runs, rides and hikes' : 'No activities yet'}</p>
-          {state.isOwner && <p className="text-sm text-secondary mt-1">Import a .fit, .gpx or .tcx file from your watch or app.</p>}
+          <p className="font-semibold text-primary">{state.isOwner ? 'Your walks, runs, rides and more' : 'No activities yet'}</p>
+          {state.isOwner && <p className="text-sm text-secondary mt-1">Record one live from your phone, or import a .fit, .gpx or .tcx file from your watch or app.</p>}
         </div>
       ) : (
         <>

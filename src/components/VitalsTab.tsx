@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import RecordingResumeBanner from '@/components/activities/record/RecordingResumeBanner';
 import { useRouter } from 'next/navigation';
 import { VITAL_CATEGORIES } from '@/lib/vitals-config';
-import {
-  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, FileUp,
-} from 'lucide-react';
+import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, FileUp, MapPin } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
@@ -456,6 +455,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 Log Past Workout
               </button>
               <button
+                onClick={() => router.push('/activities/record')}
+                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-brand text-brand-fg rounded-full font-semibold text-sm hover:bg-brand-soft transition-colors"
+                data-vitals-record-activity
+              >
+                <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
+                Record Activity
+              </button>
+              <button
                 onClick={() => router.push('/activities/import')}
                 className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted transition-colors"
                 data-vitals-import-activity
@@ -475,6 +482,9 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             </div>
           )}
         </div>
+
+        {/* Live Activities: a recording this phone did not finish */}
+        {isOwnProfile && <RecordingResumeBanner />}
 
         {/* Resume banner — a live session is in progress */}
         {isOwnProfile && activeWorkout && !bannerDismissed && (
