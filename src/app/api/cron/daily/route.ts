@@ -10,6 +10,7 @@ import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/go
 import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
+import { runPostViewsPrune } from '@/lib/views/server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runTicketAnonymize } from '@/lib/tickets/server';
 import { purgeDeletedNews } from '@/lib/org-sites/news-server';
@@ -145,6 +146,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] analytics prune phase failed:', e);
     summary.analytics = { ok: false };
+  }
+
+  // Impact (252): a post's daily view marks go after 2 days (the counters keep the totals).
+  try {
+    summary.postViews = await runPostViewsPrune(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] post views prune phase failed:', e);
+    summary.postViews = { ok: false };
   }
 
   // Program 2, D2 (Sep 11 2026): org-site form submissions — archived rows

@@ -670,7 +670,10 @@ export async function POST(request: NextRequest) {
       tagged_profiles: taggedProfilesList,
       shared_post_id: completePost.shared_post_id ?? null,
       shared_post: null as ReturnType<typeof gateSharedPost>,
-      reposts_count: completePost.reposts_count ?? 0
+      reposts_count: completePost.reposts_count ?? 0,
+      // Impact (252): the cached counters (0 pre-252 — the columns are absent).
+      views_count: completePost.views_count ?? 0,
+      plays_count: completePost.plays_count ?? 0
     };
 
     // Hydrate the quoted original so the feed's optimistic prepend renders
@@ -1075,7 +1078,10 @@ export async function GET(request: NextRequest) {
         tagged_profiles: taggedProfiles,
         shared_post_id: post.shared_post_id ?? null,
         shared_post: sharedPost,
-        reposts_count: post.reposts_count ?? 0
+        reposts_count: post.reposts_count ?? 0,
+        // Impact (252): the cached counters (0 pre-252 — the columns are absent).
+        views_count: post.views_count ?? 0,
+        plays_count: post.plays_count ?? 0
       };
 
       // `viewer` = who the server resolved (the client trusts the liked flag
@@ -1611,7 +1617,10 @@ export async function GET(request: NextRequest) {
           tagged_profiles: post.tagged_profiles || [],
           shared_post_id: post.shared_post_id ?? null,
           shared_post: post.shared_post ?? null,
-          reposts_count: post.reposts_count ?? 0
+          reposts_count: post.reposts_count ?? 0,
+          // Impact (252): the cached counters (0 pre-252 — the columns are absent).
+          views_count: post.views_count ?? 0,
+          plays_count: post.plays_count ?? 0
         }));
 
     return NextResponse.json({

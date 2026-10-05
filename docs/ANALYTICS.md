@@ -50,3 +50,37 @@ the counts) and daily rows older than 400 days.
 - `ANALYTICS_SALT`: any long random string, set in Vercel. Rotating it makes
   the same browser look new on the day of the change — acceptable.
 - The sweep line in `docs/HARDENING.md` B5.
+
+
+## Post impact — views and plays (migration 252, Oct 4 2026)
+
+Tom: "if anyone interacts with your posts, but they don't like or comment on
+it, I want there to be an 'impact' so you know that 1000 ppl viewed your post
+or watched your video." His decisions: **everyone** sees the numbers (the
+YouTube posture — likes and reach both public); a view counts **once per
+person per post per day**; a video play after **3 s** of playback, once per
+person per day; the author's own looks never count.
+
+- **The mark** (`src/lib/views/hash.ts viewerMark`): the org-site rule above —
+  `sha256(HMAC(salt, day) ‖ viewer)` — where a signed-in viewer is `u:<user id>`
+  (never their IP: a phone changes networks) and an anonymous one is
+  `ip ‖ user agent`. Unlinkable across days; nothing about WHO is stored. The
+  salt is `ANALYTICS_SALT`, else `MEDIA_PROXY_SECRET` (the HMAC-key family);
+  without either nothing is counted (a supported state).
+- **What counts** (`src/hooks/useViewBeacon.ts`, `PostCard`'s video): a card at
+  least half on screen for one second, or a share-page visit (`/r/[postId]`);
+  a video's `timeupdate` crossing 3 s. The client queue (`src/lib/views/
+  client.ts`) sends one (post, kind) per tab per UTC day, flushing after 2 s,
+  at 50 items, and on `pagehide` — a `keepalive` POST.
+- **The beacon** `POST /api/posts/views` answers **204 whatever happens**
+  (limited, a bot, `Sec-GPC` / `DNT`, no salt, a bad body, a database error —
+  the `csp-report` precedent); the server keeps only PUBLISHED posts the viewer
+  may see (public · own-followed) and did not write, then one RPC
+  `bump_post_views(day, items)` inserts each mark `ON CONFLICT DO NOTHING` and
+  bumps `posts.views_count` / `posts.plays_count` only when the mark was new.
+- **Tables:** `post_view_marks (post_id, day, kind, viewer_hash)` — posture A,
+  pruned after 2 days by the daily cron (`runPostViewsPrune`); the counters on
+  `posts` keep the totals (`*` selects carry them; absent pre-252 reads as no
+  count).
+- **On the card:** "1.2K views · 300 plays" (`compactCount`), its own line on a
+  phone, inline from `sm` up; hidden at zero.

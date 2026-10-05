@@ -1,5 +1,5 @@
 import { test, expect, type Browser } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Likes you can trust (Tom, Oct 4 2026): the count is the recount; the heart
 // agrees on every surface (the feed, the profile's detail modal) because the
@@ -18,6 +18,8 @@ async function likes(browser: Browser) {
   let postId: string | null = null;
   const { data: prior } = await admin.from('profiles').select('visibility').eq('id', bravo.id).single();
   try {
+    // The like bucket is 120 / 10 min per user; three projects × many toggles in a run can meet it.
+    await resetRateBucket(admin, 'like', alpha.id);
     await admin.from('profiles').update({ visibility: 'public' }).eq('id', bravo.id);
     // Bravo's public post — a stat line, so it is a TILE on the profile grid
     // (a text-only post is a notion: the rail, not the grid) — with a comment to like.
