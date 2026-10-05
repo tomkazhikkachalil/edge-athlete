@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-04T23:17:29.224329+00:00 from server 17.6 by
+-- Generated 2026-10-05T03:37:15.121441+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 251.
+-- public.schema_dump() (migration 227). Ledger head at generation: 252.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -36,7 +36,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (110; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (111; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -126,6 +126,48 @@ BEGIN
     NEW.version = OLD.version;
   END IF;
   RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.bump_post_views(p_day date, p_items jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_item jsonb;
+  v_post uuid;
+  v_kind text;
+  v_hash text;
+  v_bumped integer := 0;
+BEGIN
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN RETURN 0; END IF;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LIMIT 50 LOOP
+    v_kind := v_item->>'kind';
+    v_hash := v_item->>'hash';
+    IF v_kind NOT IN ('view', 'play') OR v_hash IS NULL OR length(v_hash) < 16 THEN CONTINUE; END IF;
+    BEGIN
+      v_post := (v_item->>'id')::uuid;
+    EXCEPTION WHEN OTHERS THEN CONTINUE;
+    END;
+    -- Published posts only — a hidden or deleted post gathers no impact.
+    IF NOT EXISTS (SELECT 1 FROM public.posts WHERE id = v_post AND status = 'published') THEN CONTINUE; END IF;
+    INSERT INTO public.post_view_marks (post_id, day, kind, viewer_hash)
+    VALUES (v_post, p_day, v_kind, v_hash)
+    ON CONFLICT DO NOTHING;
+    IF FOUND THEN
+      IF v_kind = 'view' THEN
+        UPDATE public.posts SET views_count = views_count + 1 WHERE id = v_post;
+      ELSE
+        UPDATE public.posts SET plays_count = plays_count + 1 WHERE id = v_post;
+      END IF;
+      v_bumped := v_bumped + 1;
+    END IF;
+  END LOOP;
+  RETURN v_bumped;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -595,11 +637,12 @@ DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO ''
 AS $function$
 BEGIN
   UPDATE public.post_comments
-  SET likes_count = GREATEST(0, likes_count - 1)
+  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = OLD.comment_id)
   WHERE id = OLD.comment_id;
   RETURN OLD;
 END;
@@ -2017,11 +2060,12 @@ DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO ''
 AS $function$
 BEGIN
   UPDATE public.post_comments
-  SET likes_count = likes_count + 1
+  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = NEW.comment_id)
   WHERE id = NEW.comment_id;
   RETURN NEW;
 END;
@@ -4004,7 +4048,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (128) ──────────────────────────────────────────────────────────────
+-- ── Tables (129) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -5240,6 +5284,13 @@ CREATE TABLE IF NOT EXISTS public.post_tags (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.post_view_marks (
+  post_id uuid NOT NULL,
+  day date NOT NULL,
+  kind text NOT NULL,
+  viewer_hash text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.posts (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -5273,7 +5324,9 @@ CREATE TABLE IF NOT EXISTS public.posts (
   sport_event_round_id uuid,
   hidden_at timestamp with time zone,
   hidden_ticket_id uuid,
-  profile_hidden_at timestamp with time zone
+  profile_hidden_at timestamp with time zone,
+  views_count integer DEFAULT 0 NOT NULL,
+  plays_count integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.privacy_settings (
@@ -6331,6 +6384,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_tags_pkey' AND conrelid = 'public.post_tags'::regclass) THEN
     ALTER TABLE public.post_tags ADD CONSTRAINT post_tags_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_view_marks_pkey' AND conrelid = 'public.post_view_marks'::regclass) THEN
+    ALTER TABLE public.post_view_marks ADD CONSTRAINT post_view_marks_pkey PRIMARY KEY (post_id, day, kind, viewer_hash);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8023,6 +8081,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_view_marks_hash_check' AND conrelid = 'public.post_view_marks'::regclass) THEN
+    ALTER TABLE public.post_view_marks ADD CONSTRAINT post_view_marks_hash_check CHECK (((length(viewer_hash) >= 16) AND (length(viewer_hash) <= 64)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_view_marks_kind_check' AND conrelid = 'public.post_view_marks'::regclass) THEN
+    ALTER TABLE public.post_view_marks ADD CONSTRAINT post_view_marks_kind_check CHECK ((kind = ANY (ARRAY['view'::text, 'play'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_golf_sources' AND conrelid = 'public.posts'::regclass) THEN
     ALTER TABLE public.posts ADD CONSTRAINT check_golf_sources CHECK ((NOT ((round_id IS NOT NULL) AND (group_post_id IS NOT NULL))));
   END IF;
@@ -9690,6 +9758,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_view_marks_post_id_fkey' AND conrelid = 'public.post_view_marks'::regclass) THEN
+    ALTER TABLE public.post_view_marks ADD CONSTRAINT post_view_marks_post_id_fkey FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_contest_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
     ALTER TABLE public.posts ADD CONSTRAINT posts_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE SET NULL;
   END IF;
@@ -10461,6 +10534,7 @@ CREATE INDEX IF NOT EXISTS idx_post_tags_media_id ON public.post_tags USING btre
 CREATE INDEX IF NOT EXISTS idx_post_tags_post_id ON public.post_tags USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_tags_status ON public.post_tags USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_post_tags_tagged_profile ON public.post_tags USING btree (tagged_profile_id);
+CREATE INDEX IF NOT EXISTS idx_post_view_marks_day ON public.post_view_marks USING btree (day);
 CREATE INDEX IF NOT EXISTS idx_posts_category_profile_created ON public.posts USING btree (post_category, profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_contest ON public.posts USING btree (contest_id) WHERE (contest_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at ON public.posts USING btree (created_at DESC);
@@ -10662,7 +10736,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (110) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (111) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -10747,6 +10821,46 @@ BEGIN
     NEW.version = OLD.version;
   END IF;
   RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.bump_post_views(p_day date, p_items jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_item jsonb;
+  v_post uuid;
+  v_kind text;
+  v_hash text;
+  v_bumped integer := 0;
+BEGIN
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN RETURN 0; END IF;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LIMIT 50 LOOP
+    v_kind := v_item->>'kind';
+    v_hash := v_item->>'hash';
+    IF v_kind NOT IN ('view', 'play') OR v_hash IS NULL OR length(v_hash) < 16 THEN CONTINUE; END IF;
+    BEGIN
+      v_post := (v_item->>'id')::uuid;
+    EXCEPTION WHEN OTHERS THEN CONTINUE;
+    END;
+    -- Published posts only — a hidden or deleted post gathers no impact.
+    IF NOT EXISTS (SELECT 1 FROM public.posts WHERE id = v_post AND status = 'published') THEN CONTINUE; END IF;
+    INSERT INTO public.post_view_marks (post_id, day, kind, viewer_hash)
+    VALUES (v_post, p_day, v_kind, v_hash)
+    ON CONFLICT DO NOTHING;
+    IF FOUND THEN
+      IF v_kind = 'view' THEN
+        UPDATE public.posts SET views_count = views_count + 1 WHERE id = v_post;
+      ELSE
+        UPDATE public.posts SET plays_count = plays_count + 1 WHERE id = v_post;
+      END IF;
+      v_bumped := v_bumped + 1;
+    END IF;
+  END LOOP;
+  RETURN v_bumped;
 END;
 $function$;
 
@@ -11190,11 +11304,12 @@ END; $function$;
 CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO ''
 AS $function$
 BEGIN
   UPDATE public.post_comments
-  SET likes_count = GREATEST(0, likes_count - 1)
+  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = OLD.comment_id)
   WHERE id = OLD.comment_id;
   RETURN OLD;
 END;
@@ -12546,11 +12661,12 @@ $function$;
 CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO ''
 AS $function$
 BEGIN
   UPDATE public.post_comments
-  SET likes_count = likes_count + 1
+  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = NEW.comment_id)
   WHERE id = NEW.comment_id;
   RETURN NEW;
 END;
@@ -14710,6 +14826,7 @@ ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_view_marks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.privacy_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_access ENABLE ROW LEVEL SECURITY;
@@ -16169,6 +16286,8 @@ REVOKE ALL ON TABLE public.post_tags FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_tags TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_tags TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_tags TO service_role;
+REVOKE ALL ON TABLE public.post_view_marks FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_view_marks TO service_role;
 REVOKE ALL ON TABLE public.posts FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.posts TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.posts TO authenticated;
@@ -16319,6 +16438,8 @@ REVOKE EXECUTE ON FUNCTION public.backfill_places_from_text(p_table regclass) FR
 GRANT EXECUTE ON FUNCTION public.backfill_places_from_text(p_table regclass) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_hole_score_version() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.bump_hole_score_version() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.bump_post_views(p_day date, p_items jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.bump_post_views(p_day date, p_items jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_golf_participant_totals() FROM PUBLIC, anon, authenticated, service_role;
@@ -16643,6 +16764,7 @@ COMMENT ON COLUMN public.post_tags.media_id IS 'Optional: specific media item wi
 COMMENT ON COLUMN public.post_tags.position_x IS 'Horizontal position percentage (0-100) for photo/video tags';
 COMMENT ON COLUMN public.post_tags.position_y IS 'Vertical position percentage (0-100) for photo/video tags';
 COMMENT ON COLUMN public.post_tags.status IS 'Tag status: active, pending (awaiting approval), removed (by tagged user), declined';
+COMMENT ON TABLE public.post_view_marks IS 'Impact (252): one row per (post, UTC day, kind, hashed viewer) — the uniqueness behind "once per person per day". The hash is sha256(HMAC(salt, day) || viewer), unlinkable across days; pruned after 2 days by the daily cron. Posture A: service role only.';
 COMMENT ON COLUMN public.posts.saves_count IS 'Cached count of times this post has been saved';
 COMMENT ON COLUMN public.posts.activity_mode IS 'Sport-agnostic post mode (e.g. round_recap, hole_highlight), scoped by sport_key. Replaces golf_mode, which is deprecated and will be dropped in a later migration.';
 COMMENT ON COLUMN public.posts.post_category IS 'Cross-cutting content category (currently only ''training''), orthogonal to sport_key. NO CHECK by design — vocabulary is validated in the API (src/lib/posts/post-category.ts), the migration-020 activity_mode reasoning.';
@@ -16654,6 +16776,8 @@ COMMENT ON COLUMN public.posts.sport_event_round_id IS 'The sport event round th
 COMMENT ON COLUMN public.posts.hidden_at IS 'Hidden by moderation (223): status = ''hidden'' is what hides it (every published-only reader); this records when.';
 COMMENT ON COLUMN public.posts.hidden_ticket_id IS 'The ticket that hid it (223); unhide restores published.';
 COMMENT ON COLUMN public.posts.profile_hidden_at IS 'The owner hid this result from their profile (241): status = ''profile_hidden''. The dataset row stays; unhide restores published.';
+COMMENT ON COLUMN public.posts.views_count IS 'Impact (252): people who saw this post, one per person per day (a hashed daily mark in post_view_marks — never who). Shown to everyone. The owner''s own views never count.';
+COMMENT ON COLUMN public.posts.plays_count IS 'Impact (252): people who played this post''s video for 3 s or more, one per person per day.';
 COMMENT ON COLUMN public.profile_transfers.age_preset_prompt IS 'Wave 4 rider on the eligible_notified row: pending = a guardian older-preset differed at crossing time; applied/kept = guardian decision; none = no differing preset at crossing. NULL = row predates Wave 4 — never prompt retroactively.';
 COMMENT ON COLUMN public.profile_transfers.handover_prompted_at IS 'Handover-moment stamp (migration 138): set once by the sweep when a supervised athlete reaches adulthood with the transfer still parked at eligible_notified. Dedup only — never a state.';
 COMMENT ON COLUMN public.profiles.first_name IS 'User''s first/given name';
@@ -17142,7 +17266,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (248, '248_push_notifications.sql', 'rebuild-000'),
   (249, '249_storage_lockdown_and_cron_hygiene.sql', 'rebuild-000'),
   (250, '250_uploads_bucket_gzip.sql', 'rebuild-000'),
-  (251, '251_live_activities.sql', 'rebuild-000')
+  (251, '251_live_activities.sql', 'rebuild-000'),
+  (252, '252_post_views.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17151,12 +17276,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 128 | 110 | 173 | 251
+-- Expected: 000 REBUILT | 129 | 111 | 173 | 252
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_128,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_129,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_110,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_111,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_251;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_252;
 
