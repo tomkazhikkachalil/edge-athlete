@@ -790,6 +790,13 @@ export async function GET(request: NextRequest) {
     } catch {
       // Not authenticated - will only see public content
       currentUserId = null;
+      // A session cookie that resolved to nobody is the quiet failure behind
+      // "the count is right but the heart is empty" (Oct 4 2026): the client
+      // keeps its own liked truth (src/lib/likes/store.ts) and the envelope
+      // below says who was resolved — make the miss visible here too.
+      if (/sb-[^=;]+-auth-token/.test(request.headers.get('cookie') ?? '')) {
+        reportRouteError('[posts GET] session cookie present, auth resolved nobody', { postId });
+      }
     }
 
     // If fetching a single post by ID
@@ -1071,7 +1078,9 @@ export async function GET(request: NextRequest) {
         reposts_count: post.reposts_count ?? 0
       };
 
-      return NextResponse.json({ post: transformedPost });
+      // `viewer` = who the server resolved (the client trusts the liked flag
+      // only when it is them); viewer-dependent, so never cached anywhere.
+      return NextResponse.json({ post: transformedPost, viewer: currentUserId }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     // Org lens: resolve the peer set up front — anonymous viewers and
@@ -1611,6 +1620,9 @@ export async function GET(request: NextRequest) {
       // Additive: present only in cursor mode, so legacy responses stay
       // byte-identical for old clients and the pinned/e2e paths.
       ...(cursorMode ? { nextCursor } : {}),
+      // Who the server resolved — the client records the liked flags only
+      // when this is them (src/lib/likes/store.ts).
+      viewer: currentUserId,
     }, orgFilterHeaders ? { headers: orgFilterHeaders } : undefined);
 
   } catch (error) {

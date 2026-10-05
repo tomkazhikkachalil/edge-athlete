@@ -1051,6 +1051,9 @@ html:not([data-theme="dark"]) .dark-theme-only {
 .mx-section { margin-left: var(--space-section); margin-right: var(--space-section); }
 .m-section { margin: var(--space-section); }
 
+/* Plain classes, NOT Tailwind utilities: a responsive variant (`sm:` + `gap-base`)
+   is never generated and silently does nothing — use the Tailwind scale
+   (`sm:gap-6`) or an arbitrary value. Pinned by spacing-variants.test.ts. */
 .gap-micro { gap: var(--space-micro); }
 .gap-base { gap: var(--space-base); }
 .gap-section { gap: var(--space-section); }

@@ -1,6 +1,7 @@
 'use client';
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
+import { rememberLike, rememberLikes } from '@/lib/likes/store';
 import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -306,6 +307,11 @@ export default function FeedPage() {
 
       const data = await response.json();
       const newPosts = data.posts || [];
+      // The liked flags are recorded only from a read that resolved THIS
+      // viewer (src/lib/likes/store.ts) — never from one that resolved nobody.
+      if (user?.id && data.viewer === user.id) {
+        rememberLikes((newPosts as Post[]).map(p => ({ id: p.id, liked: !!p.likes?.some(l => l.profile_id === user.id) })));
+      }
       if (!loadMore) {
         setNoOrgs(Boolean(data.noOrgs));
         setNoFollowing(Boolean(data.noFollowing));
@@ -359,6 +365,7 @@ export default function FeedPage() {
 
       const data = await response.json();
       const isLiking = data.action === 'liked';
+      rememberLike(postId, isLiking);
 
 
       // Update local state with actual count from database

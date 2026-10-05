@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, memo, createElement } from 'react';
+import { likedFor, rememberLike } from '@/lib/likes/store';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -146,7 +147,9 @@ function SportGlyph({ sportKey, color }: { sportKey: string; color: string }) {
 interface PostCardProps {
   post: Post;
   currentUserId?: string;
-  onLike?: (postId: string) => void;
+  /** `nextLiked` is the card's intent (the heart it just showed) — a parent
+   *  never re-derives it, it only reconciles with the server's answer. */
+  onLike?: (postId: string, nextLiked?: boolean) => void;
   onComment?: (postId: string) => void;
   /** `mode: 'delete'` asks for a REAL delete of a result (Oct 2026); without
    *  it the server hides a result and deletes an ordinary post. */
@@ -181,9 +184,9 @@ function PostCard({
   const { activeProfile } = useAuth();
   const actingAs = !!activeProfile;
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [isLiked, setIsLiked] = useState(
-    post.likes?.some(like => like.profile_id === currentUserId) || false
-  );
+  // The tab's liked truth first, the row second (src/lib/likes/store.ts):
+  // a refetch that resolved nobody cannot empty a heart this tab filled.
+  const [isLiked, setIsLiked] = useState(likedFor(post.id, post.likes, currentUserId));
   const [isSaved, setIsSaved] = useState(
     post.saved_posts?.some(save => save.profile_id === currentUserId) || false
   );
@@ -286,7 +289,7 @@ function PostCard({
     synced.userId !== currentUserId
   ) {
     if (synced.likes !== post.likes || synced.userId !== currentUserId) {
-      setIsLiked(post.likes?.some(like => like.profile_id === currentUserId) || false);
+      setIsLiked(likedFor(post.id, post.likes, currentUserId));
     }
     if (synced.savedPosts !== post.saved_posts || synced.userId !== currentUserId) {
       setIsSaved(post.saved_posts?.some(save => save.profile_id === currentUserId) || false);
@@ -328,9 +331,10 @@ function PostCard({
       // remains the source of truth and corrects any drift.
       setLocalLikesCount(prev => Math.max(0, prev + (isLiked ? -1 : 1)));
       setIsLiked(!isLiked);
+      rememberLike(post.id, !isLiked);
 
       // Call parent handler which will update with actual count from server
-      onLike(post.id);
+      onLike(post.id, !isLiked);
     }
   };
 
@@ -593,7 +597,7 @@ function PostCard({
       )}
       {/* Header. p-4 below sm: 24px padding each side cost a 390px card a
           third of its author-row budget. */}
-      <div className="p-4 sm:p-base flex items-center justify-between gap-2">
+      <div className="p-4 sm:p-6 flex items-center justify-between gap-2">
         <button
           onClick={() => {
             // Navigate to own profile page if viewing own post, otherwise to athlete's profile
@@ -1074,14 +1078,19 @@ function PostCard({
         // owner's ⚡, save) are spread across the row with the card's inner
         // padding tightened — measured Sep 29 2026: with fixed 24 px gaps the
         // row needed 379 px and Save sat off the card at 375 AND 390 (the
-        // card is overflow-hidden). From sm: up the house gap returns.
-        <div className="px-3 sm:px-base py-micro border-t border-border-subtle">
-          <div className="flex items-center justify-between sm:justify-start sm:gap-base">
+        // card is overflow-hidden). From sm: up the house 24 px gap returns —
+        // as `sm:gap-6`, never a `sm:` variant of `gap-base`: the rhythm classes are plain CSS
+        // and Tailwind never generates their variants, so the row had NO gap
+        // from sm up and the like count touched the comment icon (Tom, Oct 4
+        // 2026). `gap-3` is the phone's floor between neighbours.
+        <div className="px-3 sm:px-6 py-micro border-t border-border-subtle">
+          <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-6">
             <button
               onClick={handleLike}
               disabled={actingAs}
               title={actingAs ? 'Switch back to your own account to do this' : undefined}
-              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
+              data-post-like={isLiked ? 'on' : 'off'}
+              className={`flex items-center justify-center gap-2 min-w-[44px] text-base font-bold transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
                 isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
               }`}
             >
@@ -1091,7 +1100,8 @@ function PostCard({
 
             <button
               onClick={handleComment}
-              className="flex items-center gap-2 text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
+              data-post-comment=""
+              className="flex items-center justify-center gap-2 min-w-[44px] text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
             >
               <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>

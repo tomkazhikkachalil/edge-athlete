@@ -152,6 +152,12 @@ export async function GET(request: NextRequest) {
     if (!isOwner) {
       trainingQuery = trainingQuery.eq('visibility', 'public');
     }
+    // The viewer's OWN like only (Oct 4 2026): the card tests
+    // `likes.some(l => l.profile_id === viewer)`, and a full like list is
+    // capped at 1000 rows by PostgREST — the heart went empty on a popular post.
+    if (currentUserId) {
+      trainingQuery = trainingQuery.eq('likes.profile_id', currentUserId);
+    }
 
     const { data: trainingPostsRaw, error: postsError } = await trainingQuery;
 
