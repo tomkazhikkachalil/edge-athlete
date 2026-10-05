@@ -40,6 +40,7 @@ const PROFILE_GATE_RE =
 const PUBLIC_ROUTES: Record<string, string> = {
   health: 'liveness probe; returns no user data',
   'csp-report': 'browser-sent CSP violation sink; write-only, rate-limited',
+  'posts/views': 'impact beacon (252, Oct 4 2026): a view / play signal signed in or out — answers 204 whatever happens (limited, bot, Sec-GPC / DNT, no salt, junk); the server decides whose view it was from a hashed daily mark and keeps only published posts the viewer may see and did not write; nothing about who is stored',
   waitlist: 'pre-launch email capture; validated insert only',
   signup: 'account creation IS the anonymous entry point; DOB/guardian gates inside',
   contact: 'public contact form; persist-first, rate-limited',

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import ResultShareCard from '@/components/play/ResultShareCard';
+import ViewBeacon from '@/components/ViewBeacon';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { appBaseUrl } from '@/lib/org-sites/urls';
 import { readShareCard } from '@/lib/play/share-server';
@@ -47,6 +48,8 @@ export default async function ResultPage({ params }: PageParams) {
     <div className="min-h-screen bg-canvas">
       <AppHeader />
       <main className="max-w-xl mx-auto px-4 py-6 sm:py-10" data-share-page>
+        {/* Impact (252): a visit to the share page is a view — the server decides whose and whether it counts. */}
+        <ViewBeacon postId={postId} />
         <ResultShareCard card={card} />
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
           {handle && (

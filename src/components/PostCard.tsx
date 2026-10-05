@@ -2,6 +2,9 @@
 
 import { useState, useRef, memo, createElement } from 'react';
 import { likedFor, rememberLike } from '@/lib/likes/store';
+import { useViewBeacon } from '@/hooks/useViewBeacon';
+import { recordView } from '@/lib/views/client';
+import { countLabel } from '@/lib/views/format';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -85,6 +88,9 @@ interface Post {
   likes_count: number;
   comments_count: number;
   saves_count?: number;
+  /** Impact (252): people who saw the post / played its video, one per person per day. Absent pre-252. */
+  views_count?: number;
+  plays_count?: number;
   profile: Profile;
   /** Attribution (090): the human author when a guardian posted on behalf of
    *  this profile. Null/absent for self-authored posts. */
@@ -261,6 +267,11 @@ function PostCard({
     viewerId: currentUserId,
   });
   const commentSectionRef = useRef<HTMLDivElement>(null);
+  // Impact (252): half on screen for a second = one view (per person per day,
+  // decided server-side); never the author's own looks, never while acting as.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useViewBeacon(cardRef, { postId: post.id, enabled: !actingAs && currentUserId !== post.profile.id });
+  const playedRef = useRef(false);
 
   // Re-sync the optimistic local state when the post prop itself changes (a
   // feed refetch, say). Adjusting state DURING RENDER rather than in an effect
@@ -532,6 +543,7 @@ function PostCard({
 
   return (
     <div
+      ref={cardRef}
       data-testid="post-card"
       className={`bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6${roundGone ? ' hidden' : ''}`}
     >
@@ -821,6 +833,13 @@ function PostCard({
                 className="absolute inset-0 h-full w-full object-contain"
                 controls
                 playsInline
+                // Impact (252): 3 s of playback is one play (per person per day).
+                onTimeUpdate={e => {
+                  if (!playedRef.current && e.currentTarget.currentTime >= 3 && !actingAs && currentUserId !== post.profile.id) {
+                    playedRef.current = true;
+                    recordView(post.id, 'play');
+                  }
+                }}
                 // The feed is an unbounded list; without this every video
                 // that ever scrolled in keeps a fetched, decoder-backed
                 // element alive (MediaTile's own rule). The poster is the
@@ -1084,7 +1103,7 @@ function PostCard({
         // from sm up and the like count touched the comment icon (Tom, Oct 4
         // 2026). `gap-3` is the phone's floor between neighbours.
         <div className="px-3 sm:px-6 py-micro border-t border-border-subtle">
-          <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-start sm:gap-6">
             <button
               onClick={handleLike}
               disabled={actingAs}
@@ -1143,10 +1162,24 @@ function PostCard({
               </button>
             )}
 
+            {/* Impact (252): seen by everyone (Tom) — people who saw the post,
+                one per person per day, and video plays. Its own line on a
+                phone (the six controls own the first), inline from sm up. */}
+            {((post.views_count ?? 0) > 0 || (post.plays_count ?? 0) > 0) && (
+              <span
+                data-post-views=""
+                className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-1.5 text-sm text-tertiary tabular-nums"
+                title="People who saw this post, counted once per person per day"
+              >
+                <i className="far fa-eye" aria-hidden="true"></i>
+                <span>{countLabel(post.views_count ?? 0, 'view')}</span>
+                {(post.plays_count ?? 0) > 0 && <span>· {countLabel(post.plays_count ?? 0, 'play')}</span>}
+              </span>
+            )}
             <button
               onClick={handleSave}
               disabled={actingAs}
-              className={`flex items-center justify-center text-base font-bold transition-colors sm:ml-auto min-h-[44px] min-w-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex items-center justify-center text-base font-bold transition-colors min-h-[44px] min-w-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
                 isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
               }`}
               title={actingAs ? 'Switch back to your own account to do this' : isSaved ? 'Unsave post' : 'Save post'}

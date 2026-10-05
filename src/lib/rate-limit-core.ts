@@ -79,6 +79,9 @@ export const RATE_LIMITS = {
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },
   like: { max: 120, windowSeconds: 600, keyBy: 'user' },
+  // Impact beacon (252): per IP, never a 429 — the route answers 204 even when
+  // limited (the csp-report precedent); the budget only caps the database work.
+  'post-views': { max: 120, windowSeconds: 60, keyBy: 'ip' },
   // Play (244): a live-round cheer — a tap, so generous, but a held finger is not a flood.
   cheer: { max: 60, windowSeconds: 60, keyBy: 'user' },
   // Play (244): sending a friend challenge — a contact act, so a daily budget.

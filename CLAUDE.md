@@ -1323,6 +1323,28 @@ const { canView } = await response.json();
    - Sign-out turns the device off first. Without the VAPID keys no door shows.
    - **The feed card asks ONCE per device per account (Oct 4 2026):** the CHOICE is remembered on the device (`ea:push:device-choice:v1`, keyed by account — `src/lib/push/card.ts cardDecision` is the one rule); either answer hides the card for good and Settings is the door. A device that chose ON but holds no subscription (a sign-out turned it off; iOS dropped it) is repaired SILENTLY at boot (`syncPush(userId)`, one run per account per page load; granted permission needs no gesture to subscribe) — never asked again. Never derive "on" from the live subscription alone: that was the bug.
 
+32. **Likes you can trust, and impact everyone can see (likes round, Oct 4 2026,
+   #1081 + mig 252)** — Tom: the count must be accurate; a heart must agree on
+   every surface; "an impact so you know 1000 ppl viewed your post." **Counts
+   are RECOUNTS** (post likes in the route + 015's trigger; comment likes in
+   `POST /api/comments/like` + 252's recount triggers); a reader embeds only the
+   VIEWER's own like row (`.eq('likes.profile_id', viewer)` — PostgREST caps a
+   full embed at 1000, which emptied hearts on popular posts). **One liked truth
+   per tab** — `src/lib/likes/store.ts`: every like the viewer performs and every
+   read that resolved THEM (both `GET /api/posts` envelopes carry `viewer`) is
+   remembered; `PostCard` seeds its heart with `likedFor` (the store first, the
+   row second); `onLike(postId, nextLiked)` carries the card's intent — a parent
+   never re-derives it. The single-post GET is `private, no-store`. A heart that
+   is only a COUNT (the grid tile, `/u/`) is an OUTLINE. **The rhythm classes
+   (`gap-base`, `px-base`, …) are plain CSS** — `sm:gap-base` is silently dead;
+   use `sm:gap-6`; `spacing-variants.test.ts` forbids the pattern. **Impact**
+   (`docs/ANALYTICS.md` "Post impact"): `posts.views_count` / `plays_count`,
+   seen by everyone, one per person per post per UTC day from a hashed daily
+   mark (`post_view_marks`, posture A, pruned at 2 days) — never who; the
+   author's own looks never count; `POST /api/posts/views` answers 204 whatever
+   happens; `useViewBeacon` (half on screen for 1 s) and the video's 3 s are the
+   only sources; `bump_post_views` is the ONE writer of the counters.
+
 ---
 
 ## 🔧 Common Tasks
