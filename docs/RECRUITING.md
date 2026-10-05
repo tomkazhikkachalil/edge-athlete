@@ -40,11 +40,21 @@ not rewrites.
 
 ## Surfaces
 
-- `RecruitingCard` on `/u/[username]`, `/athlete/[id]`, `/athlete` (route
-  parity) — reads its own endpoint, never the CDN payload; a scout viewer of
-  an open card gets the Shortlist toggle; the owner/guardian sees the count.
-- The edit modal's Recruiting tab (hidden for a supervised athlete editing
-  themselves); the guardian console's Recruiting section.
+- **No profile surface (Tom, Oct 4 2026):** the profile shows nothing
+  recruiting-related — to the owner, a visitor or a scout — until the scout
+  program gives it one. The `RecruitingCard` that sat on `/u/[username]`,
+  `/athlete/[id]` and `/athlete` (reading its own gated endpoint; the
+  Shortlist toggle for a scout; the count for the owner) is gone from the tree
+  (git has it: `src/components/recruiting/RecruitingCard.tsx` before the
+  Oct 4 2026 quick fix 2). The GET endpoint and its gate are unchanged.
+- **Settings → Recruiting** (`RecruitingSettings`, `?tab=recruiting`) is the
+  athlete's door: the status, school, GPA, "Looking at", academic notes
+  (`RecruitingFields` — the ONE form) saved through the gated PATCH, plus the
+  shortlist COUNT. A supervised athlete reads a guardian-managed card;
+  organizer and scout accounts have no tab.
+- The edit modal's Recruiting tab renders the same `RecruitingFields`, and
+  ONLY for a guardian acting as a supervised athlete; the guardian console's
+  Recruiting section sets the status.
 - `/app/scout` (the shortlist, note editor, removal), `/app/scout/search`
   ("Find athletes": name, sport, grad-year window — a bounded `profiles`
   query, NOT the search index; `docs/SEARCH.md` says why).

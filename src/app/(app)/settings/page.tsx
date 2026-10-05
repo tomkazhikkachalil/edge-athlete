@@ -15,17 +15,18 @@ import SupportSettings from '@/components/settings/SupportSettings';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettings';
 import ConnectedApps from '@/components/settings/ConnectedApps';
+import RecruitingSettings from '@/components/settings/RecruitingSettings';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 
-type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
+type SettingsTab = 'account' | 'privacy' | 'recruiting' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
 
 // Connected apps (fix round part 3, mig 247) is a flagged SURFACE: with the
 // flag off the tab is neither listed nor reachable by ?tab=connections.
 const CONNECTED_APPS = FEATURE_FLAGS.FEATURE_CONNECTED_APPS;
 
 const SETTINGS_TABS: SettingsTab[] = (
-  ['account', 'privacy', 'appearance', 'routines', 'connections', 'messaging', 'notifications', 'security', 'support'] as SettingsTab[]
+  ['account', 'privacy', 'recruiting', 'appearance', 'routines', 'connections', 'messaging', 'notifications', 'security', 'support'] as SettingsTab[]
 ).filter(tab => tab !== 'connections' || CONNECTED_APPS);
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
@@ -44,8 +45,9 @@ function TabParamReader({ onTab }: { onTab: (tab: SettingsTab) => void }) {
 }
 
 export default function SettingsPage() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
+  const athleteAccount = profile?.user_type !== 'organizer' && profile?.user_type !== 'scout';
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const handleTabParam = useCallback((tab: SettingsTab) => setActiveTab(tab), []);
 
@@ -119,6 +121,10 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
+    // Recruiting lives here since Oct 4 2026 (Tom): the profile shows
+    // nothing recruiting-related until the scout program. Organizer and
+    // scout accounts are not recruited.
+    ...(athleteAccount ? [{ id: 'recruiting' as const, label: 'Recruiting', icon: 'fa-graduation-cap' }] : []),
     { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'routines', label: 'Routines', icon: 'fa-dumbbell' },
     // Beside Routines on purpose: both feed Vitals.
@@ -203,6 +209,7 @@ export default function SettingsPage() {
                 <HiddenResults />
               </>
             )}
+            {activeTab === 'recruiting' && athleteAccount && <RecruitingSettings />}
             {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'routines' && <WorkoutRoutinesSettings />}
             {activeTab === 'connections' && CONNECTED_APPS && <ConnectedApps />}
