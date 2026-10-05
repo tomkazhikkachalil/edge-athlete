@@ -1,5 +1,15 @@
 # Development Log
 
+## October 4, 2026 — Quick fix 1: the Stats tab lists posts WITH DATA; a photo post is Media alone
+
+**Tom (from his own profile):** "when a post is created … by default it also moves towards Media with Stats … the count was off … what is media is also being counted as Stats. I want to ensure that the posts you create fall into the right bucket at all times." His rules, now the record (`src/lib/statements.ts` header): a **notion** is text only; **Media** is everything that is not a notion — photos, videos AND posts with a data card (a round, a shared round, a stat line, a vitals entry, a shared workout or activity); **Stats** is posts with stats or data metrics tied to them, never a plain photo; Stats ⊂ Media (a result's photos show in both). Keeping something off Media stays the athlete's choice at the source — a vitals entry's "Save Entry" (no post), a workout's "Keep private", an activity never shared — all of which already exist.
+
+**What was wrong — one line.** The SQL already said exactly this (070's stats predicate, 074's media predicate) and the Stats BADGE counted the data posts, but `StatsHub` fetched `tab=all` narrowed by sport — recorded in its comment as the earlier call ("the hub shows ALL of a sport's media — every hockey clip together, stats or not"). The composer stamps a plain photo post with the athlete's declared sport (`posts.sport_key`), so every photo sat in the Stats grid under that sport's chip while the badge said otherwise. **The hub reads `tab=stats` now** (`get_profile_stats_media`, the route branch that had gone unused); the badge, the grid and the API share one predicate. Zero DDL.
+
+**Also, same area:** the `/u/[username]` header's Posts number (`/api/public/profile`) counted public posts minus statements with no `status = 'published'` filter, unlike every RPC — a moderation-hidden or profile-hidden post counted there. Both counts now filter on published. Every media tile carries `data-post-id` (an e2e hook; nothing else reads it).
+
+**Proof:** `e2e/profile-buckets.spec.ts` (desktop + phone Chromium + phone WebKit; `/athlete` and `/athlete/[id]`): a photo post stamped with the athlete's sport and a stat-line post in the same sport — the Media grid shows both, the Stats grid shows only the stat line under All Sports and under the sport's chip, the Stats badge equals the data-posts count, and the counts API equals the `tab=stats` / `tab=all` lists. `stats-hub-mobile` (the deep link and the breakdown header over the stats RPC) still green. Typecheck, lint 0, 4,497 tests, build, floor all green locally.
+
 ## October 4, 2026 — Maintenance pass (late evening): everything green on main `a9017027`, production serving it
 
 Tom's standing checklist after the Live Activities program — "without breaking anything … to production … web, large screen, mobile, and downloaded app". Zero code changes; this entry is the record.

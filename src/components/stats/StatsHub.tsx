@@ -136,12 +136,17 @@ export default function StatsHub({
         }
 
         const currentOffset = resetItems ? 0 : offsetRef.current;
-        // tab=all, deliberately (Tom's call): the hub shows ALL of a sport's
-        // media — every hockey clip together, stats or not. The numbers live
-        // in the breakdown headers; the grid carries the story. The Stats
-        // tab's count badge keeps its stat-posts meaning.
+        // tab=stats (Tom, Oct 4 2026): the Stats tab lists posts WITH DATA
+        // only — a round, a shared round, a stat line, a vitals entry, a
+        // shared workout or activity (migration 070's predicate; the Stats
+        // badge counts the same set). A plain photo post belongs to Media
+        // alone, whatever sport the composer stamped on it. This hub used to
+        // read tab=all narrowed by sport ("every hockey clip together"),
+        // which put every photo under the sport's chip and left the badge
+        // and the grid disagreeing. A result's photos still show in Media:
+        // Media = everything that is not a notion; Stats ⊂ Media.
         const params = new URLSearchParams({
-          tab: 'all',
+          tab: 'stats',
           sort,
           mediaType: mediaFilter,
           limit: '20',

@@ -239,6 +239,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
   return (
     <button
       onClick={onClick}
+      data-post-id={item.id}
       /* One edge for EVERY tile. This used to ring only golf/stats tiles, in
          pastels with no dark: variant — so in dark mode a stats tile wore a
          near-white halo and a plain tile wore nothing. */
