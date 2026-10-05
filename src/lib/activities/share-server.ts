@@ -13,6 +13,8 @@ import type { ActivityPostStats } from './post-card';
 import { segmentsFromRow } from './segments';
 import { segmentStats } from './stream';
 import { readStream } from './read-server';
+import { buildEnduranceStatLine, sportForActivity } from './sport-bridge';
+import type { StatLineData } from '@/lib/sports/stat-schemas';
 
 type Admin = SupabaseClient;
 
@@ -74,6 +76,52 @@ export async function buildActivityPostStats(
       ...(photoCount ? { photo_count: photoCount } : {}),
     },
   };
+}
+
+/**
+ * "Post as a [Cycling] result" (the share-time bridge, Oct 4 2026): the same
+ * ownership, Only-me and already-shared rules as the training card, then the
+ * sport's stat line built from the ROW (sport-bridge.ts) — never from the
+ * client. The posts route validates it like any stat line and
+ * fromStatLinePost writes the performance row. The activity's type must map
+ * to the sport asked for (a swim is never a cycling result).
+ */
+export async function buildActivitySportLine(
+  admin: Admin,
+  authorId: string,
+  activityId: unknown,
+  sportKey: string
+): Promise<{ ok: true; activityId: string; statsData: StatLineData } | { ok: false; status: 400 | 404 | 409 | 500; error: string }> {
+  if (typeof activityId !== 'string' || !isUuid(activityId)) return { ok: false, status: 400, error: 'Unknown activity' };
+  const { data: a, error } = await admin
+    .from('activities')
+    .select('id, profile_id, activity_type, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, max_hr, avg_cadence, avg_power, calories, post_id, only_me')
+    .eq('id', activityId)
+    .maybeSingle();
+  if (error) return { ok: false, status: 500, error: 'Could not read the activity.' };
+  if (!a || a.profile_id !== authorId) return { ok: false, status: 404, error: 'Unknown activity' };
+  if (a.only_me) return { ok: false, status: 409, error: 'This activity is set to Only me. Change that first to share it.' };
+  if (a.post_id) return { ok: false, status: 409, error: 'This activity is already on your feed.' };
+  if (!isActivityType(a.activity_type)) return { ok: false, status: 400, error: 'This activity cannot be posted as a sport result.' };
+  const sport = sportForActivity(a.activity_type);
+  if (!sport || sport !== sportKey) return { ok: false, status: 400, error: `A ${a.activity_type.replace(/_/g, ' ')} is not a ${sportKey} result.` };
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  const line = buildEnduranceStatLine({
+    activity_type: a.activity_type,
+    occurred_on: a.occurred_on as string,
+    name: a.name as string,
+    distance_m: num(a.distance_m),
+    moving_s: a.moving_s as number | null,
+    elapsed_s: a.elapsed_s as number,
+    elev_gain_m: num(a.elev_gain_m),
+    avg_hr: a.avg_hr as number | null,
+    max_hr: a.max_hr as number | null,
+    avg_cadence: a.avg_cadence as number | null,
+    avg_power: a.avg_power as number | null,
+    calories: a.calories as number | null,
+  });
+  if (!line) return { ok: false, status: 400, error: 'This activity has no distance to post as a result.' };
+  return { ok: true, activityId, statsData: line };
 }
 
 /**

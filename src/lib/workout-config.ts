@@ -47,12 +47,18 @@ export const EXERCISE_CATALOG: CatalogExercise[] = [
   { key: 'sit_ups', label: 'Sit-Ups', category: 'strength', inputMode: 'reps_only' },
 
   // ── Cardio ────────────────────────────────────────────────────────────────
+  // Live Activities (Oct 4 2026): a walk or a hike in a gym session is a
+  // distance + time, never reps × weight — the recorder (/activities/record)
+  // is the place for the live, mapped version.
+  { key: 'walk', label: 'Walk', category: 'cardio', inputMode: 'distance_duration' },
+  { key: 'hike', label: 'Hike', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'run', label: 'Run', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'sprint', label: 'Sprints', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'bike', label: 'Bike', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'row_erg', label: 'Rowing (Erg)', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'swim', label: 'Swim', category: 'cardio', inputMode: 'distance_duration' },
   { key: 'stair_climber', label: 'Stair Climber', category: 'cardio', inputMode: 'duration' },
+  { key: 'elliptical', label: 'Elliptical', category: 'cardio', inputMode: 'duration' },
   { key: 'jump_rope', label: 'Jump Rope', category: 'cardio', inputMode: 'duration' },
   { key: 'hiit_circuit', label: 'HIIT Circuit', category: 'cardio', inputMode: 'duration' },
 

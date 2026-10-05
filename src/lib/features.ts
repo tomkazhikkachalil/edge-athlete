@@ -12,7 +12,9 @@ export const FEATURE_FLAGS = {
   // Sports Features - Controls which sports are enabled in the UI.
   // MUST stay in sync with `enabled: true` sports in SportRegistry.ts and the
   // statLineSports list in AdapterRegistry.ts (see CLAUDE.md "Add a New Sport").
-  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field'] as SportKey[],
+  // Live Activities (Oct 4 2026): swimming, cycling, running, rowing — a
+  // recorded activity may be posted as a result in them (the share-time bridge).
+  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing'] as SportKey[],
   
   // Parent-managed athlete profiles (guardian/supervised/owner/viewer roles,
   // DOB-gated signup, transfer of control). Build-time env flag (same

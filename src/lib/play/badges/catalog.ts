@@ -53,7 +53,7 @@ export interface BadgeDef {
 }
 
 /** The sports that get the per-sport pack (FEATURE_SPORTS — kept in step by test). */
-export const BADGE_SPORTS: readonly string[] = ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field'];
+export const BADGE_SPORTS: readonly string[] = ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing'];
 
 const COUNT_STEPS: ReadonlyArray<{ min: number; slug: string; label: string; tier: BadgeTier }> = [
   { min: 1, slug: 'first_result', label: 'First one in the books', tier: 'bronze' },

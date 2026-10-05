@@ -19,6 +19,9 @@ import { validateFiles } from '@/lib/media/validation';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import { SEGMENT_KIND_LABELS, SEGMENT_KINDS, SEGMENT_MAX, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '@/lib/activities/segments';
 import { ACTIVITY_MEDIA_MAX } from '@/lib/activities/media';
+import { sportForActivity } from '@/lib/activities/sport-bridge';
+import { isSportEnabled } from '@/lib/features';
+import { getSportDefinition } from '@/lib/sports/SportRegistry';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth';
@@ -393,6 +396,11 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
   const [busy, setBusy] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [caption, setCaption] = useState('');
+  // The share-time bridge (Oct 4 2026): a ride, run, swim or row may be posted
+  // as the SPORT's result instead of the training card — the athlete's choice.
+  const sport = sportForActivity(a.type);
+  const sportEnabled = sport !== null && isSportEnabled(sport);
+  const [shareAs, setShareAs] = useState<'training' | 'sport'>('training');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPhoto, setConfirmPhoto] = useState<ActivityMediaView | null>(null);
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
@@ -543,7 +551,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          postType: 'general',
+          postType: shareAs === 'sport' && sportEnabled ? sport : 'general',
           caption: caption.trim(),
           visibility: 'public',
           stats_data: { type: 'activity', activity_id: a.id },
@@ -559,7 +567,9 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
       const post = json.post ?? json;
       onChanged({ postId: (post?.id as string | undefined) ?? 'shared' });
       closeShare();
-      showSuccess(post?.status === 'pending_approval' ? 'Sent for approval' : 'Shared to your feed');
+      showSuccess(
+        post?.status === 'pending_approval' ? 'Sent for approval' : shareAs === 'sport' && sportEnabled ? `Posted as a ${getSportDefinition(sport!).display_name} result` : 'Shared to your feed'
+      );
     } catch {
       showError('Not shared', 'Check your connection and try again.');
     } finally {
@@ -771,6 +781,25 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
 
       {sharing && (
         <div className="space-y-3 border-t border-border-subtle pt-4" data-activity-share-panel>
+          {sportEnabled && (
+            <fieldset className="space-y-2" data-activity-share-as={shareAs}>
+              <legend className="text-sm font-semibold text-secondary">Post it as</legend>
+              <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer min-h-[44px]">
+                <input type="radio" name="share-as" value="training" checked={shareAs === 'training'} onChange={() => setShareAs('training')} className="mt-1" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-primary">Training</span>
+                  <span className="block text-xs text-muted">The activity card — route, distance, time, pace.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer min-h-[44px]">
+                <input type="radio" name="share-as" value="sport" checked={shareAs === 'sport'} onChange={() => setShareAs('sport')} className="mt-1" data-activity-share-as-sport />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-primary">A {getSportDefinition(sport!).display_name} result</span>
+                  <span className="block text-xs text-muted">A stat line in your {getSportDefinition(sport!).display_name} tab — distance, time, pace, heart rate — and your performance record.</span>
+                </span>
+              </label>
+            </fieldset>
+          )}
           <label className="block">
             <span className="text-sm font-semibold text-secondary">Say something (optional)</span>
             <textarea

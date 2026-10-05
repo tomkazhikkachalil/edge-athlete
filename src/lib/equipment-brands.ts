@@ -294,7 +294,55 @@ const TRACK_FIELD_BRANDS: EquipmentBrand[] = [
   { id: 'other', name: 'Other' },
 ];
 
+// Live Activities (Oct 4 2026): the four endurance sports.
+const SWIMMING_BRANDS: EquipmentBrand[] = [
+  ...UNIVERSAL.filter(b => ['nike', 'adidas'].includes(b.id)),
+  { id: 'speedo', name: 'Speedo', domain: 'speedo.com' },
+  { id: 'arena', name: 'Arena', domain: 'arenasport.com' },
+  { id: 'tyr', name: 'TYR', domain: 'tyr.com' },
+  { id: 'finis', name: 'FINIS', domain: 'finisswim.com' },
+  { id: 'orca', name: 'Orca', domain: 'orca.com' },
+  { id: 'garmin', name: 'Garmin', domain: 'garmin.com' },
+  { id: 'other', name: 'Other' },
+];
+const CYCLING_BRANDS: EquipmentBrand[] = [
+  { id: 'trek', name: 'Trek', domain: 'trekbikes.com' },
+  { id: 'specialized', name: 'Specialized', domain: 'specialized.com' },
+  { id: 'giant', name: 'Giant', domain: 'giant-bicycles.com' },
+  { id: 'cannondale', name: 'Cannondale', domain: 'cannondale.com' },
+  { id: 'canyon', name: 'Canyon', domain: 'canyon.com' },
+  { id: 'cervelo', name: 'Cervélo', domain: 'cervelo.com' },
+  { id: 'shimano', name: 'Shimano', domain: 'shimano.com' },
+  { id: 'garmin', name: 'Garmin', domain: 'garmin.com' },
+  { id: 'wahoo', name: 'Wahoo', domain: 'wahoofitness.com' },
+  { id: 'giro', name: 'Giro', domain: 'giro.com' },
+  { id: 'other', name: 'Other' },
+];
+const RUNNING_BRANDS: EquipmentBrand[] = [
+  ...UNIVERSAL.filter(b => ['nike', 'adidas', 'new-balance', 'asics', 'puma', 'under-armour'].includes(b.id)),
+  { id: 'brooks', name: 'Brooks', domain: 'brooksrunning.com' },
+  { id: 'saucony', name: 'Saucony', domain: 'saucony.com' },
+  { id: 'hoka', name: 'HOKA', domain: 'hoka.com' },
+  { id: 'on-running', name: 'On', domain: 'on.com' },
+  { id: 'garmin', name: 'Garmin', domain: 'garmin.com' },
+  { id: 'coros', name: 'COROS', domain: 'coros.com' },
+  { id: 'other', name: 'Other' },
+];
+const ROWING_BRANDS: EquipmentBrand[] = [
+  { id: 'concept2', name: 'Concept2', domain: 'concept2.com' },
+  { id: 'empacher', name: 'Empacher', domain: 'empacher.de' },
+  { id: 'hudson', name: 'Hudson', domain: 'hudsonboatworks.com' },
+  { id: 'filippi', name: 'Filippi', domain: 'filippiboats.com' },
+  { id: 'croker', name: 'Croker', domain: 'crokeroars.com' },
+  { id: 'jl-racing', name: 'JL Racing', domain: 'jlracing.com' },
+  { id: 'other', name: 'Other' },
+];
+
 export const BRAND_SEEDS: Record<string, EquipmentBrand[]> = {
+  swimming: SWIMMING_BRANDS,
+  cycling: CYCLING_BRANDS,
+  running: RUNNING_BRANDS,
+  rowing: ROWING_BRANDS,
   golf: GOLF_BRANDS,
   ice_hockey: ICE_HOCKEY_BRANDS,
   soccer: SOCCER_BRANDS,

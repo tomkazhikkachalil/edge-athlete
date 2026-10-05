@@ -41,6 +41,8 @@ const GOLF_METRICS: ChallengeMetric[] = [
 /** Stat fields where less is better — the stat schemas carry no direction, so it lives here (one list, pinned by test). */
 export const LOWER_IS_BETTER: ReadonlySet<string> = new Set([
   'goals_against', 'earned_runs', 'turnovers', 'service_errors', 'attack_errors', 'yellow_cards', 'pim',
+  // The endurance sports (Live Activities, Oct 4 2026): a pace is better lower.
+  'pace_s_per_km', 'pace_s_per_100m',
 ]);
 
 /** The metrics a challenge may name in a sport; empty for a sport with no vocabulary. */
