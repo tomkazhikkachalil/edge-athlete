@@ -10,6 +10,8 @@
 
 **Traps this program met, for the next one:** a parenthesis inside a CHECK's inline SQL comment breaks the catalog pin's regex; `crypto.randomUUID` is Safari 15.4+ and the floor gate catches it; a badge key holds no dot (whole-number milestones); the smoke job keeps ONE pending run per group and GitHub cancels older pending runs when several PRs queue or a PR is retargeted — re-run the cancelled run through the Actions API, one at a time (`ci-wait.py` judges the latest run per check); a stacked branch that needs main is merged, never force-pushed; `getByRole` names beside "Edit photo" / "Remove photo" need `exact: true`.
 
+**Production, Oct 4 evening (edgeathlete.ca, main `7484670b`):** 250 and 251 applied by Tom; `check:schema:prod` OK at head 251; the targeted probes green one at a time — `activities-api` + `activities-live-api` 4/4, `activities-record` (mobile) 3/3, `activities-after` 2/2, `activities-doors` (mobile) 1/1, `activities-sport-share` 1/1.
+
 **Still Tom's:** a real walk from the installed app with the screen on — the map drawing, Mark, a photo tile, Finish landing in Vitals, Share as training and as a Running result.
 
 ## October 4, 2026 — Live Activities PR 7: four sports, and an activity posted as a sport result
