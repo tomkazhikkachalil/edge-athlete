@@ -20,17 +20,22 @@ test('recruiting opt-in: closed hides, open shows the card; owner + guardian wri
   const alphaApi = await apiAs('state.json');
   const bravoApi = await apiAs('state-b.json');
 
-  // The edit modal's Recruiting tab exists for the owner (pre- and post-182:
-  // the tab renders from the profile; only the save needs the column).
+  // The owner's door is Settings → Recruiting (Oct 4 2026) — pre- and
+  // post-182 the section renders; only the save needs the column. The Edit
+  // Profile dialog no longer offers the tab to the athlete.
   const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
   try {
     const page = await ownerCtx.newPage();
+    await page.goto('/settings?tab=recruiting');
+    await expect(page.locator('[data-recruiting-settings]')).toBeVisible({ timeout: 20_000 });
+    if (!probe.error) {
+      await expect(page.locator('#recruiting_school')).toBeVisible();
+      await expect(page.getByRole('radiogroup', { name: 'Recruiting status' })).toBeVisible();
+    }
     await page.goto('/athlete?edit=sport');
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 20_000 });
-    await dialog.getByRole('button', { name: 'Recruiting' }).click();
-    await expect(page.locator('#recruiting_school')).toBeVisible();
-    await expect(page.getByRole('radiogroup', { name: 'Recruiting status' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Recruiting' })).toHaveCount(0);
   } finally {
     await ownerCtx.close();
   }
@@ -95,20 +100,16 @@ test('recruiting opt-in: closed hides, open shows the card; owner + guardian wri
     expect(open).toMatchObject({ status: 'open', canEdit: false, school: 'QA High', recruitable: true, profile: { gpa: 3.86 } });
     expect(JSON.stringify(open)).not.toContain(alpha.email);
 
-    // The card on /athlete/[id] for a viewer (bravo), at this project's viewport.
+    // No profile surface (Oct 4 2026): a viewer (bravo) sees no recruiting
+    // card on /athlete/[id] even while the API answers the open data — the
+    // scout program brings a surface back.
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const page = await ctx.newPage();
       await page.goto(`/athlete/${alpha.id}`);
-      const card = page.locator('[data-recruiting-card="open"]');
-      await expect(card).toBeVisible({ timeout: 20_000 });
-      await expect(card).toContainText('Open to recruiting');
-      await expect(card).toContainText('QA High');
-      await expect(card).toContainText('3.86 · self-reported');
-      await expect(card.getByRole('button', { name: 'Edit' })).toHaveCount(0);
-      const width = page.viewportSize()?.width ?? 1280;
-      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      expect(scrollWidth, 'no horizontal overflow').toBeLessThanOrEqual(width);
+      await expect(page.locator('[aria-label="Profile sections"]').first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-recruiting-card]')).toHaveCount(0);
+      await expect(page.getByText('Open to recruiting')).toHaveCount(0);
     } finally {
       await ctx.close();
     }

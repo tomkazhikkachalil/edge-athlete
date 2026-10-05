@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 
 // ── The scout's Shortlist toggle (Recruiting skeleton R3) ─────────────────
-// Rendered by RecruitingCard only for a scout viewer of an open profile;
+// Rendered by ScoutSearch (the profile has no recruiting surface since Oct 4 2026);
 // reads its own state, toggles through the gated routes. A 403 on add
 // (the athlete closed recruiting since the card loaded) reads as the
 // server's message, never a silent no-op.

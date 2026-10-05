@@ -813,7 +813,12 @@ const { canView } = await response.json();
    actor branch only, the organizer's shape); `requireScout` gates
    `/api/scout/*`. The athlete sees a shortlist COUNT, never names. No
    recruiting email — contact is the message flow and its first-contact
-   hold. The ladder's words live in `src/lib/sports/provenance-copy.ts`;
+   hold. **The profile has NO recruiting surface (Tom, Oct 4 2026):** the
+   athlete's door is Settings → Recruiting (`RecruitingSettings` over the ONE
+   form `RecruitingFields`, which the Edit Profile dialog renders only for a
+   guardian acting as a supervised athlete); a scout shortlists from Scout
+   search; the card returns with the scout program.
+   The ladder's words live in `src/lib/sports/provenance-copy.ts`;
    a disputed line is "Unconfirmed" and leaves the headline numbers.
    `docs/RECRUITING.md` carries the entities, gates and growth paths.
 
