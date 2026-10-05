@@ -91,12 +91,17 @@ export async function GET(request: NextRequest) {
         .from('posts')
         .select('id', { count: 'exact', head: true })
         .eq('profile_id', profile.id)
-        .eq('visibility', 'public'),
+        .eq('visibility', 'public')
+        // Published only — the profile RPCs (070/074) count published posts
+        // for a viewer; a moderation-hidden or profile-hidden post must not
+        // count here either (Oct 4 2026).
+        .eq('status', 'published'),
       supabase
         .from('posts')
         .select('id, post_media!left(id)', { count: 'exact', head: true })
         .eq('profile_id', profile.id)
         .eq('visibility', 'public')
+        .eq('status', 'published')
         .is('post_media', null)
         .is('round_id', null)
         .is('group_post_id', null)

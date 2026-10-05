@@ -16,6 +16,22 @@
  *
  * Change one, change both.
  *
+ * THE THREE BUCKETS (Tom, Oct 4 2026) — one place to read them:
+ *   NOTION (statement)  text only: the predicate above. The feed + the rail.
+ *   MEDIA (tab "all")   everything that is NOT a notion — photos, videos AND
+ *                       posts with a data card (a round, a shared round, a
+ *                       stat line, a vitals entry, a shared workout or
+ *                       activity). get_profile_all_media / all_media_count
+ *                       (074): the inverse of this predicate.
+ *   STATS (tab "stats") posts WITH DATA: non-empty stats_data OR round_id OR
+ *                       group_post_id — get_profile_stats_media /
+ *                       stats_media_count (070). Stats ⊂ Media: a result's
+ *                       photos show in both; a plain photo is Media alone.
+ * Keeping something off Media is the athlete's choice at the source: a vitals
+ * entry's "Save Entry" (no post), a workout's "Keep private", an activity
+ * that is never shared. The Stats hub reads tab=stats (it read tab=all
+ * narrowed by sport until Oct 4 2026 — the badge and the grid disagreed).
+ *
  * A future repost (posts.shared_post_id — not built yet) carrying no media or
  * stats of its own classifies as a statement by construction. Do NOT
  * special-case shared_post_id here or in SQL when that feature lands.
