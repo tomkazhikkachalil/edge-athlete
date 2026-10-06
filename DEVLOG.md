@@ -1,5 +1,23 @@
 # Development Log
 
+## October 5–6, 2026 — Maintenance pass after the likes round: the gate green, the prod probe NOT — it crawled, was killed, and leaked QA data onto the live app
+
+Tom's standing checklist after #1081–#1083. The local half held: `npm run verify` exit 0 on main `b561350d` (typecheck clean, lint 0 at `--max-warnings 0`, build Next.js 16.3.8, the client chunks within the iOS 15 floor); guardrails pass; `npm audit --omit=dev` 0; `check:schema` and `check:schema:prod` OK at ledger head 252; production signed-out probes fine (`/api/health` on `b561350d`, the launch gate 307, manifest + icons + `/sw.js` 200, the deployed chunks pass the floor gate). Tom confirmed `ANALYTICS_SALT` is set in Vercel Production.
+
+**The signed-in prod probe did not finish, and the first draft of this entry wrongly said it had ("No QA rows left on prod").** What actually happened:
+
+- The probe (22 specs, 89 tests, desktop + mobile + webkit-mobile, one worker) started 23:55 Oct 4 against edgeathlete.ca. Desktop ran overnight clean: 27 attempts, 0 timeouts. The two phone projects ran through the day and produced **72 timeouts in 98 attempts** — each a 60–180 s test timeout plus a retry, so a ~1 h probe was still at attempt 125/89 (webkit-mobile, `round-delete.spec`) at 17:59 Oct 5.
+- The errors are at NAVIGATION, not in the app: Chromium `net::ERR_NETWORK_CHANGED` / `net::ERR_ABORTED` on `page.goto` and WebKit page loads sitting at the timeout — this Mac's network changing under the browsers during the day. The same phone specs had passed on the same build the night before (Oct 4 pass: 75/2 skipped/1 flaky).
+- At 17:59:35 the Claude desktop app was restarted; the probe died with it (last QA write 17:59:27), so `globalTeardown` never ran. Production then carried **6 `edgeqa-` users** (Alpha–Delta from the probe, two "Sam Scout" minted per test by `scout-shortlist.spec` and leaked when those tests timed out), **34 of the 43 posts on prod**, 12 shared rounds, 10 golf rounds, 28 performance rows — and Alpha and Bravo were PUBLIC (likes / post-views / profile-buckets / comment-author-link / results-hide flip them and the run never flipped them back), so "Edge QA" posts showed in Explore for everyone. Tom: "a lot of dummy data on the live app … Edge QA … still running".
+- The 24 h `sweepStaleQa` runs only at the NEXT probe's setup, so the cleanup was two short prod probes (`health.spec`): 23:57 Oct 5 swept the four (users 4 → deleted 4/4), 07:35 Oct 6 swept the two scouts (2/2); each tore its own users down. Prod after: 2 auth users (Tom + the one real member), 10 posts, 4 shared rounds, 5 golf rounds, 0 rows by any QA id, no `e2e/.auth/*.json`. Staging holds no QA residue (`staging-sweep.mjs` dry run: 0 · 0 · 0 · 0 · 0).
+- **The watched re-run (Oct 6, 07:43):** the three specs that produced 33 of the 72 timeouts (`edit-profile`, `install-app`, `results-hide`) on BOTH phone projects against the same production build — **26 passed in 4.0 min, 0 timeouts, 0 network errors**, its users torn down. The phones are fine; yesterday's run was the machine.
+
+**Lessons:** (1) a prod probe left running in the background is a leak waiting for an app restart — run small sets, watch them, and when a run is crawling on timeouts KILL it and let the teardown run instead of letting it grind; (2) after any killed probe, `e2e/.auth/*.json` present = the teardown never ran — the next probe's setup sweeps only what is older than 24 h; (3) a batch of `page.goto` timeouts across every phone spec with `ERR_NETWORK_CHANGED` in the mix is the machine's network, not the app — check the desktop project's result from the same run before reading it as a regression.
+
+- **Open PRs:** none. Nothing in flight.
+
+**Still Tom's:** his own look at hearts / counts / "N views"; the QA e-mail domain for the three sign-up-route specs (Supabase refuses `example.com`); the walk from the installed app.
+
 ## October 4, 2026 — Impact: views and plays everyone can see, one per person per day (likes PR 2, migration 252)
 
 **Tom:** "if anyone interacts with your posts, but they don't like or comment on it, I want there to be an 'impact' so you know that 1000 ppl viewed your post or watched your video." His decisions: **everyone** sees the numbers; a view counts **once per person per post per day** (a hashed daily mark, never who — the org-site analytics rule); a video counts a play after 3 s; the author's own looks never count.
