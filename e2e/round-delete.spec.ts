@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { finishAndPost, postDraft } from './helpers/drafts';
 import { purgePost } from './helpers/results';
 import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 
@@ -169,11 +170,11 @@ async function playedRound(
   const course = body.group_post.golf_data?.course_name as string | undefined;
   const card = await readScorecard(api, groupPostId);
   await scoreHoles(api, cardRowFor(card, ownerId), opts.holes ? nineHoles(5).slice(0, opts.holes) : nineHoles(5));
-  if (opts.complete) {
-    const done = await api.patch(`/api/group-posts/${groupPostId}`, { data: { status: 'completed' } });
-    expect(done.ok(), await readErrorBody(done)).toBe(true);
-  }
   const postId = ((await adminClient().from('group_posts').select('post_id').eq('id', groupPostId).single()).data?.post_id as string | null) ?? null;
+  if (opts.complete) {
+    // Finish, then Post (253): a completed round's post is a draft until posted.
+    await finishAndPost(api, groupPostId, postId);
+  }
   return { groupPostId, postId, card, course };
 }
 
@@ -324,6 +325,7 @@ test('in a shared round a delete removes YOUR result only; an official result is
     expect(done.ok(), await readErrorBody(done)).toBe(true);
     await expect.poll(async () => (await mirrorsOf(groupPostId)).length).toBe(2);
     postId = ((await admin.from('group_posts').select('post_id').eq('id', groupPostId).single()).data?.post_id as string | null) ?? postId;
+    await postDraft(apiA, postId!);
 
     // An old tab's bare DELETE never destroys: it hides (the Sep 26 answer).
     let res = await apiA.delete(`/api/posts?postId=${postId}`);

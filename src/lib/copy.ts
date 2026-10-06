@@ -154,6 +154,14 @@ export const COPY = {
     SHOW_RESULT_LABEL: 'Show on profile',
     SHOWN_AGAIN_TITLE: 'Back on your profile',
     SHOWN_AGAIN_BODY: 'Everyone who can see your profile can see it again.',
+    // Drafts (253): recorded, not yet posted — the owner sees it on the
+    // review screen and in Drafts; the round's players on the live page.
+    DRAFT_BANNER: 'Not posted yet — only you and the people playing can see this.',
+    DRAFT_IN_PROGRESS_BANNER: 'Still being played — it will be a draft once the round is finished.',
+    REVIEW_DRAFT_LABEL: 'Review and post',
+    POST_DRAFT_LABEL: 'Post',
+    POSTED_TITLE: 'Posted',
+    POSTED_BODY: 'It is on the feed and your profile now.',
   },
 
   // Error Messages

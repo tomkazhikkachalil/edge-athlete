@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { finishAndPost } from './helpers/drafts';
 
 // The round post's way INTO its detail, and the order that detail reads in.
 //
@@ -56,11 +57,9 @@ async function createPartialRound(
   });
   expect(score.ok(), await readErrorBody(score)).toBe(true);
 
-  // A round is only a feed post once it completes (round-lifecycle pins this).
-  const end = await api.patch(`/api/group-posts/${groupPostId}`, {
-    data: { status: 'completed' },
-  });
-  expect(end.ok(), await readErrorBody(end)).toBe(true);
+  // A round is only a feed post once it is finished AND POSTED (253;
+  // round-lifecycle pins this).
+  await finishAndPost(api, groupPostId, postId);
 
   return { groupPostId, postId, courseName };
 }

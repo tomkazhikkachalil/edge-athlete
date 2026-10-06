@@ -102,9 +102,10 @@ interface Post {
     handle: string | null;
   } | null;
   /** Approval pipeline (051/129): 'published' | 'pending_approval' |
-   *  'rejected' | 'changes_requested'. Non-published posts only ever reach
-   *  their own author (or a guardian via the single-post gate), so the
-   *  banners below need no viewer check. */
+   *  'rejected' | 'changes_requested'; 'draft' (253) — recorded, not yet
+   *  posted. Non-published posts only ever reach their own author (or a
+   *  guardian via the single-post gate; a draft also its round's players),
+   *  so the banners below need no viewer check. */
   status?: string;
   /** The round this post is the card of (a result — see results/kinds.ts). */
   group_post_id?: string | null;
@@ -270,7 +271,14 @@ function PostCard({
   // Impact (252): half on screen for a second = one view (per person per day,
   // decided server-side); never the author's own looks, never while acting as.
   const cardRef = useRef<HTMLDivElement>(null);
-  useViewBeacon(cardRef, { postId: post.id, enabled: !actingAs && currentUserId !== post.profile.id });
+  // A draft (253) is not a post yet: no view counts, no like / comment /
+  // share / save row — it is reviewed, then posted.
+  // Posting from the card (PR 1's door; PR 2's review screen is the fuller
+  // one): the owner's explicit tap — PATCH action 'post' → the one writer.
+  const [postedNowId, setPostedNowId] = useState<string | null>(null);
+  const [postBusy, setPostBusy] = useState(false);
+  const isDraft = post.status === 'draft' && postedNowId !== post.id;
+  useViewBeacon(cardRef, { postId: post.id, enabled: !actingAs && !isDraft && currentUserId !== post.profile.id });
   const playedRef = useRef(false);
 
   // Re-sync the optimistic local state when the post prop itself changes (a
@@ -469,6 +477,29 @@ function PostCard({
   const [shownAgainId, setShownAgainId] = useState<string | null>(null);
   const [showBusy, setShowBusy] = useState(false);
   const isProfileHidden = post.status === 'profile_hidden' && shownAgainId !== post.id;
+  const handlePostDraft = async () => {
+    if (postBusy) return;
+    setPostBusy(true);
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, action: 'post' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Could not post it', typeof body.error === 'string' ? body.error : 'Please try again.');
+        return;
+      }
+      setPostedNowId(post.id);
+      showSuccess(COPY.FORMS.POSTED_TITLE, COPY.FORMS.POSTED_BODY);
+      router.refresh();
+    } catch {
+      showError('Could not post it', 'Please try again.');
+    } finally {
+      setPostBusy(false);
+    }
+  };
   const handleShowOnProfile = async () => {
     if (showBusy) return;
     setShowBusy(true);
@@ -547,6 +578,26 @@ function PostCard({
       data-testid="post-card"
       className={`bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6${roundGone ? ' hidden' : ''}`}
     >
+      {/* Drafts (253): recorded, not posted. The owner reviews and posts it
+          from Drafts; a playing partner sees it on the live page. A round
+          still in progress says so — Finish comes first. */}
+      {isDraft && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2" data-post-draft={roundUnfinished ? 'in-progress' : 'draft'}>
+          <i className="fas fa-pen-to-square" aria-hidden="true"></i>
+          <span className="min-w-0">{roundUnfinished ? COPY.FORMS.DRAFT_IN_PROGRESS_BANNER : COPY.FORMS.DRAFT_BANNER}</span>
+          {isOwner && !roundUnfinished && !actingAs && (
+            <button
+              type="button"
+              onClick={() => void handlePostDraft()}
+              disabled={postBusy}
+              data-post-draft-post=""
+              className="ml-auto shrink-0 font-semibold text-brand-fg hover:text-brand-fg-strong min-h-[44px] -my-2 px-1 disabled:opacity-60"
+            >
+              {postBusy ? 'Posting…' : COPY.FORMS.POST_DRAFT_LABEL}
+            </button>
+          )}
+        </div>
+      )}
       {/* Round D: a held/rejected post is visible to its author — say what
           state it's in instead of letting it look published. */}
       {post.status === 'pending_approval' && (
@@ -1092,7 +1143,7 @@ function PostCard({
           border-t here + CommentSection's own border-t sandwich the row in
           hairlines. The row deliberately isn't tied to the media — it closes
           whatever the post contains. */}
-      {showActions && (
+      {showActions && !isDraft && (
         // Phone width: the six controls (like, comment, repost, share, the
         // owner's ⚡, save) are spread across the row with the card's inner
         // padding tightened — measured Sep 29 2026: with fixed 24 px gaps the

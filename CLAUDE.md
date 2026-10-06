@@ -1345,6 +1345,40 @@ const { canView } = await response.json();
    happens; `useViewBeacon` (half on screen for 1 s) and the video's 3 s are the
    only sources; `bump_post_views` is the ONE writer of the counters.
 
+33. **Finish and Post are two actions; nothing is ever auto-posted (Drafts
+   round, Oct 6 2026, mig 253 the ONLY DDL — PR 1 of 5)** — Tom: a golf round
+   started and abandoned partway showed up on the feed and the profile. A
+   recorded thing is **In progress** (reopen → Resume / Finish / Discard), then
+   a **Draft** (Finish → a review screen; autosaved; the private Drafts area),
+   then **Posted** (an explicit Post). `draft` is a POST STATUS (the 223 / 241
+   pattern): every published-only reader skips it for free, and the OWNER
+   arms EXCLUDE it by name — the feed's both arms (`posts/route.ts`,
+   `status.neq.draft` / `status.not.in.(profile_hidden,draft)`) and the five
+   profile RPCs' `viewer_id = p.profile_id` arm (253 re-declares
+   `get_profile_{tagged,stats,statements,all}_media` + `get_profile_media_counts`
+   verbatim with `AND p.status <> 'draft'`; `drafts-readers.test.ts` pins all
+   of it). A round's post is born `draft` (`POST /api/group-posts`), readable by
+   its owner, their guardian and the round's PLAYERS (`GET /api/posts?postId`
+   — the live page's "View post" and the invite bell), by nobody else. **ONE
+   writer of draft → published: `src/lib/posts/publish-server.ts
+   publishDraftPost`** (409 `round_not_finished` until `group_posts.status =
+   'completed'`; guarded on `status = 'draft'`; stamps `created_at = now()` so
+   the post lands at the top of the feed WHEN POSTED — the completion-time
+   bump in `advanceRoundStatus` and the End Round PATCH is gone; an event
+   round's lifecycle keeps its own, event rounds never draft); the door is
+   `PATCH /api/posts {postId, action: 'post'}` behind the owner /
+   `write_content` gate. The feed's JavaScript round filter is DELETED —
+   status is the one rule for every list. A draft card has no like / comment /
+   share / save row and sends no view beacon. The supervised carve-out STAYS
+   (Tom, Oct 6): a supervised athlete's Post publishes directly. After Finish
+   the RECORD is live (the mirror, the handicap, round history, Vitals, the
+   dataset); only the social post waits. e2e: `e2e/helpers/drafts.ts
+   finishAndPost` / `postDraft` — a spec that wants a round on the feed or a
+   grid finishes AND posts it; `round-lifecycle.spec.ts` is the pin. Coming in
+   PRs 2–5: the review screen + `/athlete/drafts`, the 7-day sweep (finish as
+   played / discard a scoreless round — `effectiveRoundStatus` and the 6 h rule
+   go), the root-mounted reopen prompt, workouts (`share_decided_at`, 253).
+
 ---
 
 ## 🔧 Common Tasks
@@ -1451,6 +1485,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** October 2026 (fix round, parts 1–6; Download the app) — this file is the single source of truth for project
+**Last Updated:** October 2026 (fix round, parts 1–6; Download the app; Drafts round PR 1) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.

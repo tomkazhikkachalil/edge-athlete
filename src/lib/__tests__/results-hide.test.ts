@@ -144,7 +144,8 @@ describe('hidden means hidden — and one result is one thing', () => {
   it('the feed never hands a hidden result back to its owner; their own profile list does', () => {
     const src = code('src/app/api/posts/route.ts');
     expect(src).toMatch(/const ownProfileList = !!userId && userId === currentUserId && !pinnedOnly;/);
-    expect(src).toMatch(/and\(profile_id\.eq\.\$\{currentUserId\},status\.neq\.profile_hidden\)/);
+    // 253 widened the arm: a draft is excluded beside the hidden result.
+    expect(src).toMatch(/and\(profile_id\.eq\.\$\{currentUserId\},status\.not\.in\.\(profile_hidden,draft\)\)/);
   });
   it('every door hides or shows the WHOLE result (the post and the stats row together)', () => {
     expect(code('src/app/api/results/visibility/route.ts')).toMatch(/setWholeResultHidden\(admin, \{ kind, id \}, hidden, owner\)/);
