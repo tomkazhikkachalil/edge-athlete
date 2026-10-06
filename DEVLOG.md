@@ -14,7 +14,8 @@ Tom's standing checklist after #1081–#1083. The local half held: `npm run veri
 
 **Lessons:** (1) a prod probe left running in the background is a leak waiting for an app restart — run small sets, watch them, and when a run is crawling on timeouts KILL it and let the teardown run instead of letting it grind; (2) after any killed probe, `e2e/.auth/*.json` present = the teardown never ran — the next probe's setup sweeps only what is older than 24 h; (3) a batch of `page.goto` timeouts across every phone spec with `ERR_NETWORK_CHANGED` in the mix is the machine's network, not the app — check the desktop project's result from the same run before reading it as a regression.
 
-- **Open PRs:** none. Nothing in flight.
+- **A new advisory broke the PR's guardrails job (Oct 6):** `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q, high, event-loop DoS through indexed source-map section offsets), published after the Oct 5 audit, reached through `@tailwindcss/postcss` → `postcss` in the PRODUCTION tree, so `npm audit --omit=dev --audit-level=high` (guardrails step 6) failed while smoke and verify were green. `npm audit fix` moved the lockfile to 1.2.2 — three lines, nothing else — and the gate re-ran green (4,509 tests, build, floor). `braces` (GHSA-vfj7-8cjw-p6xm) also reports high, but only in the lint chain (`eslint-config-next` → `fast-glob` → `micromatch`), fixable only by `--force` downgrading the Next ESLint config: dev-only, excluded by `--omit=dev`, left alone.
+- **Open PRs:** #1084 (this entry + the lockfile bump).
 
 **Still Tom's:** his own look at hearts / counts / "N views"; the QA e-mail domain for the three sign-up-route specs (Supabase refuses `example.com`); the walk from the installed app.
 
