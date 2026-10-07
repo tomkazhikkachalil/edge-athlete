@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { courseOverview, holeDiagram, holeYards, parseStoredHoleGeometry, projectLines } from '../hole-svg';
+import { courseOverview, holeDiagram, holeYards, parseStoredHoleGeometry, projectLines, holeDiagramWithPoint } from '../hole-svg';
 import { polylineYards } from '../hole-geometry';
 
 // A due-north 400-ish yard hole at 45°N: tee at the south, green north.
@@ -92,5 +92,24 @@ describe('holeDiagram / courseOverview / holeYards', () => {
     expect(o.paths.length).toBe(2);
     expect(o.viewBox).toBe('0 0 200 200');
     expect(holeDiagram(hole)!.paths.length).toBe(1);
+  });
+});
+
+describe('holeDiagramWithPoint (the scorer\'s thumbnail, PR D)', () => {
+  const hole = { hole: 1, par: 4, line: [[45.3, -75.7], [45.3015, -75.6996], [45.303, -75.699]] as [number, number][] };
+  it('projects the player in the line\'s own frame: on the tee it IS the tee dot', () => {
+    const d = holeDiagramWithPoint(hole, hole.line[0]);
+    expect(d?.player).toEqual(d?.tee[0]);
+    expect(d?.paths).toHaveLength(1);
+  });
+  it('a point far away is outside the box → null player; no point → null player', () => {
+    expect(holeDiagramWithPoint(hole, [46.5, -75.7])?.player).toBeNull();
+    expect(holeDiagramWithPoint(hole, null)?.player).toBeNull();
+  });
+  it('the frame does not move with the player', () => {
+    const a = holeDiagramWithPoint(hole, hole.line[0]);
+    const b = holeDiagramWithPoint(hole, hole.line[2]);
+    expect(a?.paths).toEqual(b?.paths);
+    expect(b?.player).toEqual(b?.green[0]);
   });
 });

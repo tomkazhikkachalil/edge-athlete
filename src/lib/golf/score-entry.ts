@@ -76,7 +76,7 @@ export function nextHoleForScores(
   existingScores: Array<{ hole_number: number }>,
   holesPlayed: number,
   startingHoleNumber: number,
-  holeData: Array<{ hole: number; par: number; yardage?: number }> | null
+  holeData: Array<{ hole: number; par: number; yardage?: number; handicap?: number }> | null
 ): NextHoleInfo | null {
   if (cardComplete(existingScores, holesPlayed, startingHoleNumber)) return null;
   const pos = firstUnscoredHole(existingScores, holesPlayed, startingHoleNumber);

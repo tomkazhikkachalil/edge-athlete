@@ -39,7 +39,7 @@ interface MultiPlayerScorecardGridProps {
   editable: boolean; // Can scores be edited?
   showDetailedStats?: boolean; // Show FIR, GIR, putts columns
   onScoreChange?: (playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => void;
-  holeData?: { hole: number; par: number; yardage?: number }[]; // Par and yardage per hole
+  holeData?: { hole: number; par: number; yardage?: number; handicap?: number }[]; // Par, yardage and stroke index per hole
   /** First hole number (10 for back-9 solo rounds). Defaults to 1. */
   startingHoleNumber?: number;
   /** Course name forwarded to the quick-entry stepper's context line. */

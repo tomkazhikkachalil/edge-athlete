@@ -97,7 +97,7 @@ export interface GolfComposerValue {
   sharedRoundParticipants: string[];
   sharedRoundParticipantsData: { id: string; name: string; avatar_url?: string }[];
   playerScores: PlayerScoreData[];
-  courseHoleData: { hole: number; par: number; yardage?: number }[];
+  courseHoleData: { hole: number; par: number; yardage?: number; handicap?: number }[];
   manualParEntry: number[];
   manualYardageEntry: number[];
   /** Real per-hole pars for the preview: course search first, manual entry
@@ -209,7 +209,7 @@ export default function GolfComposerSection({
   const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
 
   // Course hole data (par and yardage per hole)
-  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number }[]>(
+  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number; handicap?: number }[]>(
     () => seed?.courseHoleData ?? []
   );
   const [manualParEntry, setManualParEntry] = useState<number[]>(() => seed?.manualParEntry ?? []);
@@ -350,7 +350,10 @@ export default function GolfComposerSection({
           hole: hole.number,
           par: hole.par,
           yardage: hole.yardage[teeColor || 'white'] ?? hole.yardage.white ?? hole.yardage.blue
-            ?? Object.values(hole.yardage)[0] ?? 400
+            ?? Object.values(hole.yardage)[0] ?? 400,
+          // The stroke index rides into the round's hole_data (the route
+          // keeps it; 0 = unknown in the catalog) — the scorer's HCP.
+          ...(typeof hole.handicap === 'number' && hole.handicap > 0 ? { handicap: hole.handicap } : {}),
         }));
     },
     []

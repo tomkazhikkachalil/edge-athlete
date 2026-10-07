@@ -1498,7 +1498,23 @@ const { canView } = await response.json();
    (`elevationFresh`). `?id=&holes=1` answers `{geometry, elevation, sheet}`
    — the CACHED profile and the row's tee sheet (`getCourseSheet`: hole_data +
    ratings, NO hydration) — one call for the map and the scorer; `?elevation=1`
-   computes. Pre-254 a missing column (42703) is "no elevation".
+   computes. Pre-254 a missing column (42703) is "no elevation". **PR D —
+   the plumbing (no visible change):** `src/lib/golf/hole-detail.ts` is the
+   ONE set of rules the map chip and the scorer's header share —
+   `holeHeaderFacts` (the par / stroke-index / yardage ladder: the round's
+   `hole_data` → the catalog sheet on the tee in play with the white/blue/any
+   fallback → the drawn line flagged approximate; a catalog handicap of 0 is
+   unknown), `teeSheetForHole` (hardest first, the tee in play first of all),
+   `liveLine` (from a fix: `greenDistanceYards` + the rise read there; from
+   the tee: the card's yards else the line; `playsLike` only with a profile —
+   the rise converted to yards HERE, once), `runningToPar` (skips
+   `strokes === null`), `groupScoresForHole` (the others, first names, "You").
+   `hole-svg.ts holeDiagramWithPoint` projects the player in the LINE's own
+   frame (null outside the box) — the thumbnail path, no Leaflet. The round's
+   `hole_data` is typed with `handicap?` everywhere it is spelled and the
+   composer's `deriveCourseHoles` carries it (the route always accepted it).
+   The map's ONE `watchPosition` (`CourseMapInner`) PUBLISHES every fix and
+   the stop through `onFix` — the scorer never prompts for location.
 
 ---
 

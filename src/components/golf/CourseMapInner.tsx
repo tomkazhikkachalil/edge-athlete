@@ -46,6 +46,9 @@ export interface CourseMapInnerProps {
    *  follow (same as a drag) — Re-center returns to the player. */
   focusHole?: number | null;
   onHoleTap?: (hole: number) => void;
+  /** PR D: the ONE position watcher lives here — every fix (and the stop,
+   *  as null) is PUBLISHED so the page can hand it to the scorer. */
+  onFix?: (fix: [number, number] | null) => void;
   /** Extra px above the default bottom-6 for the overlay captions — the
    *  parent knows what it floats over the map's bottom edge (the live
    *  page's centered "Score hole N" CTA), this component doesn't. */
@@ -115,6 +118,7 @@ export default function CourseMapInner({
   holes = null,
   focusHole = null,
   onHoleTap,
+  onFix,
   captionInset = 0,
 }: CourseMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -191,6 +195,10 @@ export default function CourseMapInner({
   const holeLabelsRef = useRef<L.LayerGroup | null>(null);
   const focusLineRef = useRef<L.LayerGroup | null>(null);
   const lastFitRef = useRef<string | null>(null);
+  const onFixRef = useRef(onFix);
+  useEffect(() => {
+    onFixRef.current = onFix;
+  }, [onFix]);
   const onHoleTapRef = useRef(onHoleTap);
   useEffect(() => {
     onHoleTapRef.current = onHoleTap;
@@ -304,6 +312,7 @@ export default function CourseMapInner({
     followRef.current = true;
     setFollowPaused(false);
     setPlayerFix(null);
+    onFixRef.current?.(null);
     setTracking(false);
   };
 
@@ -323,6 +332,7 @@ export default function CourseMapInner({
         const ll: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         lastFixRef.current = ll;
         setPlayerFix(ll);
+        onFixRef.current?.(ll);
         if (!playerMarkerRef.current) {
           playerMarkerRef.current = L.marker(ll, { icon: playerIcon() }).addTo(map);
           accuracyRef.current = L.circle(ll, {

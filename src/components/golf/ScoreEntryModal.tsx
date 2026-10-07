@@ -65,7 +65,7 @@ interface ScoreEntryModalProps {
   /** First hole number (10 for back-9 rounds). Defaults to 1. */
   startingHoleNumber?: number;
   /** Per-hole course data (real pars/yardage). Absent → par-4 fallback. */
-  holeData?: { hole: number; par: number; yardage?: number }[] | null;
+  holeData?: { hole: number; par: number; yardage?: number; handicap?: number }[] | null;
   /** Course name for the hole context line ("Hole 3 · Eagle Creek · Par 4"). */
   courseName?: string | null;
   /** All players in the round (creator view) — renders the switcher chips.
