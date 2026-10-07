@@ -397,6 +397,9 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   // Overpass hole-geometry fetches — one per course per 30 days (cached in
   // hole_geometry_at). Etiquette lives in hole-geometry.ts.
   overpass: 200,
+  // Open-Meteo elevation profiles (254) — two requests per course per 30
+  // days (180 sampled coordinates, 100 per request); 100/day ≈ 50 courses.
+  'open-meteo': 100,
 };
 
 /** ONE daily fixed-window hit against `rate_limit_hit` (mig 094). Fail CLOSED:
@@ -1070,6 +1073,21 @@ export async function proximitySearch(admin: SupabaseClient, q: ProximityQuery):
   }
   if (fresh.length) await upsertThinRows(admin, fresh);
   return true;
+}
+
+/** The catalog row's tee sheet — par, stroke index and every tee's yardage
+ *  per hole plus the ratings — read from the ROW with NO hydration (no
+ *  provider budget): what the live scorer's hole header shows beside the
+ *  round's own hole_data. Null when the course has no hole data at all. */
+export interface CourseSheet {
+  holes: CourseHole[];
+  courseRating: Record<string, number>;
+  slopeRating: Record<string, number>;
+}
+export async function getCourseSheet(admin: SupabaseClient, courseId: string): Promise<CourseSheet | null> {
+  const row = await getCatalogRow(admin, courseId);
+  if (!row || !row.hole_data || row.hole_data.length === 0) return null;
+  return { holes: row.hole_data, courseRating: row.course_rating ?? {}, slopeRating: row.slope_rating ?? {} };
 }
 
 /** Nominatim reverse result → the location columns a row is still missing. */

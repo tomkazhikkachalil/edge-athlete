@@ -15,9 +15,11 @@ import {
   catalogAttribution,
   rowToCourse,
   CATALOG_ROW_COLUMNS,
+  getCourseSheet,
   type CatalogRow,
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
+import { getCourseHoleElevation, readCourseHoleElevation } from '@/lib/golf/elevation-server';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { ORG_ID, orgRefOf } from '@/lib/orgs/org-ref';
 import { reportRouteError } from '@/lib/observability/report';
@@ -64,7 +66,22 @@ export async function GET(request: NextRequest) {
         const geometry = await getCourseHoleGeometry(admin, courseId, () =>
           consumeProviderBudget(admin, 'overpass')
         );
-        return NextResponse.json({ geometry });
+        // PR C (254): the CACHED elevation profile and the row's tee sheet
+        // ride along — one call feeds the map and the scorer's hole header.
+        // Neither waits on a provider; `?elevation=1` is the computing door.
+        const [elevation, sheet] = await Promise.all([
+          readCourseHoleElevation(admin, courseId),
+          getCourseSheet(admin, courseId),
+        ]);
+        return NextResponse.json({ geometry, elevation, sheet });
+      }
+      // ?elevation=1 — compute (or refresh) the elevation profile: budgeted,
+      // best-effort, gated on the Open-Meteo key (no key → the cache or null).
+      if (searchParams.get('elevation') === '1') {
+        const elevation = await getCourseHoleElevation(admin, courseId, () =>
+          consumeProviderBudget(admin, 'open-meteo')
+        );
+        return NextResponse.json({ elevation });
       }
       const row = await getCatalogRow(admin, courseId);
       if (!row) {

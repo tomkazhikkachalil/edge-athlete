@@ -1481,7 +1481,24 @@ const { canView } = await response.json();
    holds ZERO `golf_courses` rows** (the catalog is production-only): every
    golf spec that needs a course self-seeds (`external_source 'qa-e2e'`), and
    `explore-course-search.spec.ts` is effectively unrunnable (anonymous +
-   catalog) — not a regression signal.
+   catalog) — not a regression signal. **PR C — elevation (migration 254,
+   the program's ONLY DDL):** `golf_courses.hole_elevation` jsonb
+   `{holes:[{hole, pts, elev(metres)}], sampled:'line10', source:'open-meteo'}`
+   + `hole_elevation_at` — its OWN columns (the geometry writer overwrites
+   `hole_geometry` wholesale; the geometry path is untouched). `elevation.ts`
+   is pure (`sampleHoleLine` 10 points per hole, tee and green kept;
+   `playsLikeYards` +1 yd per yd uphill, −2/3 downhill; `riseToGreen` in
+   METRES at the nearest sample — `hole-detail.ts` converts once;
+   `formatRise`; `parseStoredElevation`). `elevation-server.ts` fetches
+   Open-Meteo through its COMMERCIAL host only, gated on `OPEN_METEO_API_KEY`
+   (no key → the cache or null, nothing stamped), ≤100 coordinates per
+   request (18 × 10 = 2 requests per course per 30 days), budget key
+   `open-meteo` (100/day); a null answer is stamped (102's rule), a transport
+   failure never; a profile older than its geometry is recomputed
+   (`elevationFresh`). `?id=&holes=1` answers `{geometry, elevation, sheet}`
+   — the CACHED profile and the row's tee sheet (`getCourseSheet`: hole_data +
+   ratings, NO hydration) — one call for the map and the scorer; `?elevation=1`
+   computes. Pre-254 a missing column (42703) is "no elevation".
 
 ---
 
