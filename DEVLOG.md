@@ -1,5 +1,15 @@
 # Development Log
 
+## October 7, 2026 — Drafts round: the post-merge proof — five PRs on production, migration 253 live, the probes green
+
+The program's close (plan `~/.claude/plans/pasted-content-id-5f99-ve-noticed-soft-lemon.md`; the five entries below this one, Oct 6). Tom ran 253 in the production SQL editor — `253 APPLIED | true | 1 | 5 | 0 | 253` — and `check:schema:prod` answered OK at ledger head 253 (every live policy, function, trigger and grant owned). The PRs merged in order with the merge script, each waiting for its Vercel deploy: #1087 (`fc532d8a`, the `draft` status + the one Post writer) → #1088 (`1cdbbbe8`, the Drafts area + the review screen) → #1089 (`e15d11f1`, one Finish writer, no read-time finish, the 7-day sweep) → #1090 (`34ad2fdf`, the reopen prompt) → #1091 (`b2249e52`, workouts). Retargeting each stacked PR to `main` did not cancel or re-trigger its smoke run this time — the completed run on the head sha stood. The baseline was regenerated from production at head 253 (#1092: 129 tables, 111 functions, 173 policies, 108 triggers, the dated dump committed beside it).
+
+**Production probes on edgeathlete.ca, one at a time, each run tearing its users down:**
+- desktop — `round-lifecycle` (a draft at creation: off the feed, the owner's profile list and both grids; on Live Now and the resume path; readable by the partner, not a stranger; Post-before-Finish 409; Finish keeps it a draft; a partner's Post 403; Post lands it at the top, stamped now; a second Post 409) + `golf-quick-entry` (an already-played round lands on the review screen; Post puts it on the feed): **3 passed, 44 s**.
+- phone (390×844 Chromium) — `drafts` (the list with Resume / Finish / Discard for the creator and Resume only for the partner; Finish → review; notes saved as you type; Keep as draft; off the Stats grid and the feed; Post; "Already posted"; Discard an unscored round; Delete a finished draft) + `reopen-prompt` (the prompt names the round with all three doors; Resume → `/live`; once per app open; a fresh open → Finish → the review screen and then quiet; a scoreless round offers Discard without Finish; a live workout → Finish → `?share=1`; a partner Resume only) + `workout-drafts` (a finished-undecided workout in Drafts → Keep private records the decision; a second live start 409s with the open one; the prompt → Finish → the share step → Keep private): **6 passed, 1.2 min**.
+
+**Still Tom's:** the walk-through on his iPhone in the installed app — start a round, close the app mid-round, reopen it (the prompt), Finish, review, Post; a workout the same way.
+
 ## October 6, 2026 — Drafts round PR 5: workouts follow the same rule — no 6 h auto-complete, the 7-day sweep, the share decision recorded (zero DDL; 253's column)
 
 The last of five. Tom: workouts get the same In progress / Draft treatment. What the code did: a live session nobody finished auto-completed after six quiet hours on the owner's next read (`finalizeStaleActives`) or next Start — and then showed on the profile with no Finish, no PR step, no share decision.
