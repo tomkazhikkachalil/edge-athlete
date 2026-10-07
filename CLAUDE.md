@@ -1374,10 +1374,30 @@ const { canView } = await response.json();
    the RECORD is live (the mirror, the handicap, round history, Vitals, the
    dataset); only the social post waits. e2e: `e2e/helpers/drafts.ts
    finishAndPost` / `postDraft` — a spec that wants a round on the feed or a
-   grid finishes AND posts it; `round-lifecycle.spec.ts` is the pin. Coming in
-   PRs 2–5: the review screen + `/athlete/drafts`, the 7-day sweep (finish as
-   played / discard a scoreless round — `effectiveRoundStatus` and the 6 h rule
-   go), the root-mounted reopen prompt, workouts (`share_decided_at`, 253).
+   grid finishes AND posts it; `round-lifecycle.spec.ts` is the pin.
+   **The Drafts area (PR 2):** `src/lib/drafts/list.ts` (pure, zero imports)
+   is the ONE list — rounds in progress (`pending | active`: Resume; the
+   creator also Finish / Discard), drafts (`completed` + a `draft` post,
+   the CREATOR's only — one post per round), workouts in progress, the
+   recording on THIS phone (added client-side from IndexedDB); event rounds
+   never. `drafts/server.ts readDrafts` reads the person's OWN participant
+   rows (never the public group_posts listing); `GET /api/drafts` is
+   `private, no-store` (`?profileId` for a `write_content` guardian);
+   `useDrafts` is ONE fetch per page load shared by the header, the page
+   and (PR 4) the reopen prompt — every door that acts calls
+   `refreshDrafts()`. Routes `/athlete/drafts` (list) and
+   `/athlete/drafts/[postId]` (the REVIEW screen: the draft's card, notes
+   = `posts.caption` saved as you type, who can see it, Post / Keep as
+   draft / Delete through the results delete rule; a round still in
+   progress shows Resume + Finish) — static siblings of `/athlete/[id]`,
+   no new root slug. `draftReviewHref` is the one spelling (`round-route.ts`
+   re-exports it as `draftReviewPath`): the composer lands an already-played
+   round there (`afterCreatePath`), the creator's live page "View post" /
+   End Round landing goes there, the card's banner links there. Doors:
+   the header dropdown AND the drawer (with the count). Coming in PRs 3–5:
+   the 7-day sweep (finish as played / discard a scoreless round —
+   `effectiveRoundStatus` and the 6 h rule go), the root-mounted reopen
+   prompt, workouts (`share_decided_at`, 253).
 
 ---
 

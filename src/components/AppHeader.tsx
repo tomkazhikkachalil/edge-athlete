@@ -16,6 +16,7 @@ import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
+import { useDrafts } from '@/hooks/useDrafts';
 import { useTheme } from '@/lib/use-theme';
 import { useEditProfile } from '@/components/EditProfileHost';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
@@ -248,6 +249,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // Gated on user: the endpoint is authenticated, and this header also
   // renders for signed-out visitors on public pages (/u, /sports/explore).
   const liveCount = useLiveNow(!!user);
+  // Drafts (Oct 2026): one fetch per page load, shared with the Drafts page.
+  const drafts = useDrafts(!!user);
   const navRef = useRef<HTMLElement | null>(null);
   const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const [pill, setPill] = useState(lastPill ?? { x: 0, width: 0, visible: false });
@@ -727,6 +730,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                           <i className="fas fa-bookmark w-4"></i>
                           <span>Saved Posts</span>
                         </button>
+                        {/* Drafts (Oct 2026): what you started or finished but have not posted. */}
+                        <button
+                          onClick={() => {
+                            router.push('/athlete/drafts');
+                            setIsProfileDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                          data-header-drafts=""
+                        >
+                          <i className="fas fa-pen-to-square w-4"></i>
+                          <span>Drafts</span>
+                          {drafts.count > 0 && <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-soft text-brand-fg" data-header-drafts-count="">{drafts.count}</span>}
+                        </button>
                         <button
                           onClick={() => {
                             router.push('/settings');
@@ -1112,6 +1128,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             >
               <i className="fas fa-bookmark w-5 text-center"></i>
               <span className="font-medium">Saved Posts</span>
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/athlete/drafts');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+              data-drawer-drafts=""
+            >
+              <i className="fas fa-pen-to-square w-5 text-center"></i>
+              <span className="font-medium">Drafts</span>
+              {drafts.count > 0 && <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-soft text-brand-fg" data-drawer-drafts-count="">{drafts.count}</span>}
             </button>
 
             <button

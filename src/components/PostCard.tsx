@@ -8,6 +8,8 @@ import { countLabel } from '@/lib/views/format';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { draftReviewHref } from '@/lib/drafts/list';
+import { refreshDrafts } from '@/hooks/useDrafts';
 import { contestChipLabel } from '@/lib/competitions/contest-attachments';
 import type { PostSportEvent } from '@/lib/sport-events/feed';
 import { useSharedRound } from '@/hooks/useSharedRound';
@@ -168,6 +170,10 @@ interface PostCardProps {
   showActions?: boolean;
   /** Feed passes this to prepend the created repost. */
   onReposted?: (post: unknown) => void;
+  /** Drafts (253): the owner posted this draft from the card. */
+  onPosted?: (postId: string) => void;
+  /** Drafts (253): rendered ON the review screen — no link to itself. */
+  inReview?: boolean;
   /** One-shot: open the viewer's own score entry once the shared-round
    *  scorecard is available (resume-banner deep link). */
 }
@@ -183,6 +189,8 @@ function PostCard({
   onCommentCountChange,
   showActions = true,
   onReposted,
+  onPosted,
+  inReview = false,
 }: PostCardProps) {
   const router = useRouter();
   // Round H acting-as honesty: likes/saves stay FIRST-PERSON on purpose
@@ -493,6 +501,8 @@ function PostCard({
       }
       setPostedNowId(post.id);
       showSuccess(COPY.FORMS.POSTED_TITLE, COPY.FORMS.POSTED_BODY);
+      void refreshDrafts();
+      onPosted?.(post.id);
       router.refresh();
     } catch {
       showError('Could not post it', 'Please try again.');
@@ -586,15 +596,26 @@ function PostCard({
           <i className="fas fa-pen-to-square" aria-hidden="true"></i>
           <span className="min-w-0">{roundUnfinished ? COPY.FORMS.DRAFT_IN_PROGRESS_BANNER : COPY.FORMS.DRAFT_BANNER}</span>
           {isOwner && !roundUnfinished && !actingAs && (
-            <button
-              type="button"
-              onClick={() => void handlePostDraft()}
-              disabled={postBusy}
-              data-post-draft-post=""
-              className="ml-auto shrink-0 font-semibold text-brand-fg hover:text-brand-fg-strong min-h-[44px] -my-2 px-1 disabled:opacity-60"
-            >
-              {postBusy ? 'Posting…' : COPY.FORMS.POST_DRAFT_LABEL}
-            </button>
+            <span className="ml-auto shrink-0 flex items-center gap-3">
+              {!inReview && (
+                <Link
+                  href={draftReviewHref(post.id)}
+                  data-post-review-draft=""
+                  className="font-semibold text-brand-fg hover:text-brand-fg-strong min-h-[44px] -my-2 px-1 flex items-center"
+                >
+                  {COPY.FORMS.REVIEW_DRAFT_LABEL}
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => void handlePostDraft()}
+                disabled={postBusy}
+                data-post-draft-post=""
+                className="font-semibold text-brand-fg hover:text-brand-fg-strong min-h-[44px] -my-2 px-1 disabled:opacity-60"
+              >
+                {postBusy ? 'Posting…' : COPY.FORMS.POST_DRAFT_LABEL}
+              </button>
+            </span>
           )}
         </div>
       )}

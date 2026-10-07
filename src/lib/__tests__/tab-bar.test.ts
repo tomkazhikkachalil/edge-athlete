@@ -7,7 +7,7 @@ describe('the phone tab bar', () => {
     expect(TAB_BAR_LINKS.map(l => l.path)).toEqual(['/feed', '/sports', '/live', '/calendar', '/athlete']);
   });
   it('shows on the signed-in places', () => {
-    for (const p of ['/feed', '/sports/explore', '/sports/events', '/events/e1', '/calendar', '/athlete/x', '/u/tom', '/app/profile', '/app/notifications', '/app/guardian', '/live', '/messages', '/league/l1', '/club/c1/standings', '/event/x', '/dashboard']) {
+    for (const p of ['/feed', '/sports/explore', '/sports/events', '/events/e1', '/calendar', '/athlete/x', '/athlete/drafts', '/athlete/drafts/p1', '/u/tom', '/app/profile', '/app/notifications', '/app/guardian', '/live', '/messages', '/league/l1', '/club/c1/standings', '/event/x', '/dashboard']) {
       expect(showsTabBar(p), p).toBe(true);
     }
   });

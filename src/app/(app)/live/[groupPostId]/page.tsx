@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { draftReviewPath } from '@/lib/golf/round-route';
 import AppHeader from '@/components/AppHeader';
 import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import GroupScoreCard from '@/components/golf/GroupScoreCard';
@@ -271,7 +272,13 @@ export default function LiveRoundPage() {
 
   const viewerId = user?.id ?? null;
   const isCreator = viewerId !== null && scorecard.group_post.creator_id === viewerId;
-  const viewPostHref = entry.postId ? `/feed?post=${entry.postId}` : '/feed';
+  // Drafts (253): the round's post is a DRAFT until the creator posts it, so
+  // the creator's "View post" and the End Round landing are the REVIEW
+  // screen; a playing partner opens the draft's card (the single-post gate
+  // admits participants).
+  const viewPostHref = entry.postId
+    ? (isCreator ? draftReviewPath(entry.postId) : `/feed?post=${entry.postId}`)
+    : '/feed';
 
   const courseInfo = embeddedCourseToInfo(scorecard.golf_data.course);
   const mapAvailable = !!courseInfo && typeof courseInfo.lat === 'number' && typeof courseInfo.lng === 'number';
