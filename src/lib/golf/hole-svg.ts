@@ -121,6 +121,41 @@ export function holeDiagram(hole: HoleLine, size = 100, pad = 10): HoleProjectio
   return projectLines([hole.line], size, pad);
 }
 
+/** The hole's diagram with ONE extra point (the player) projected in the
+ *  same frame — the scorer's thumbnail (PR D). `player` is null when the
+ *  point lands outside the box (standing on another hole, or on the couch).
+ *  The frame is fixed by the LINE alone, so the diagram never shifts as the
+ *  player moves. */
+export function holeDiagramWithPoint(
+  hole: HoleLine,
+  point: [number, number] | null,
+  size = 100,
+  pad = 10
+): (HoleProjection & { player: ProjectedPoint | null }) | null {
+  const base = projectLines([hole.line], size, pad);
+  if (!base) return null;
+  if (!point || !isPair(point)) return { ...base, player: null };
+  // Re-project the point through the line's own frame: the same maths as
+  // projectLines, with the line + the point, keeping the line's bounds.
+  const pts = hole.line;
+  const lat0 = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const lng0 = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const k = Math.cos((lat0 * Math.PI) / 180);
+  const local = pts.map(([lat, lng]) => ({ x: (lng - lng0) * k, y: -(lat - lat0) }));
+  const minX = Math.min(...local.map(p => p.x));
+  const maxX = Math.max(...local.map(p => p.x));
+  const minY = Math.min(...local.map(p => p.y));
+  const maxY = Math.max(...local.map(p => p.y));
+  const range = Math.max(maxX - minX, maxY - minY, 1e-9);
+  const scale = (size - 2 * pad) / range;
+  const offX = pad + ((size - 2 * pad) - (maxX - minX) * scale) / 2;
+  const offY = pad + ((size - 2 * pad) - (maxY - minY) * scale) / 2;
+  const p = { x: (point[1] - lng0) * k, y: -(point[0] - lat0) };
+  const player = { x: round1(offX + (p.x - minX) * scale), y: round1(offY + (p.y - minY) * scale) };
+  const inside = player.x >= 0 && player.x <= size && player.y >= 0 && player.y <= size;
+  return { ...base, player: inside ? player : null };
+}
+
 export function courseOverview(holes: HoleLine[], size = 200, pad = 12): HoleProjection | null {
   return projectLines(holes.map(h => h.line), size, pad);
 }

@@ -15,12 +15,13 @@ import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
+import { holeHeaderFacts } from '@/lib/golf/hole-detail';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores, reopenHole } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
-import { polylineYards, trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/golf/hole-geometry';
+import { trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import LiveCheers from '@/components/play/LiveCheers';
@@ -308,20 +309,22 @@ export default function LiveRoundPage() {
     viewedHole ?? nextHole?.hole ?? (geoHoles && myParticipant ? geoHoles[0]?.hole ?? null : null);
   const holeDataArr = scorecard.golf_data.hole_data ?? null;
   const displayGeoHole = displayHole != null ? geoHoles?.find(h => h.hole === displayHole) : undefined;
-  // Yardage ladder: the round's own hole_data (catalog-hydrated or typed)
-  // first; else the OSM way's drawn length, flagged approximate. Every
-  // OSM-sourced course has no hole_data yardage — before this fallback the
-  // chip read "Hole 2 · Par 4" and nothing else on-course.
+  // The yardage ladder is ONE rule shared with the scorer's hole header
+  // (hole-detail.ts holeHeaderFacts, PR D): the round's own hole_data first,
+  // then the catalog's sheet, then the OSM way's drawn length flagged
+  // approximate — every OSM-sourced course has no hole_data yardage, and
+  // before that fallback the chip read "Hole 2 · Par 4" and nothing else.
   const displayHoleDetail =
     displayHole != null
       ? (() => {
-          const catalogYards = holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null;
-          const approxYards = displayGeoHole ? polylineYards(displayGeoHole.line) : null;
-          return {
-            par: holeDataArr?.find(h => h.hole === displayHole)?.par ?? displayGeoHole?.par ?? null,
-            yardage: catalogYards ?? approxYards,
-            approx: catalogYards == null && approxYards != null,
-          };
+          const facts = holeHeaderFacts({
+            hole: displayHole,
+            holeData: holeDataArr,
+            teeInPlay: scorecard.golf_data.tee_color,
+            line: displayGeoHole?.line ?? null,
+            fallbackPar: displayGeoHole?.par ?? null,
+          });
+          return { par: facts.par, yardage: facts.yards, approx: facts.approx };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {

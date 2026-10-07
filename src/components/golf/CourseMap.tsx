@@ -25,6 +25,7 @@ export default function CourseMap(props: {
   holes?: import('@/lib/golf/hole-geometry').HoleLine[] | null;
   focusHole?: number | null;
   onHoleTap?: (hole: number) => void;
+  onFix?: (fix: [number, number] | null) => void;
   captionInset?: number;
 }) {
   return <CourseMapInner {...props} />;

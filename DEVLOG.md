@@ -1,5 +1,17 @@
 # Development Log
 
+## October 7, 2026 — Golf hole-detail program PR D: the plumbing under the hole header (zero DDL, no visible change)
+
+The fourth of six: the pure rules and the wiring the scorer's hole header (PR E) stands on, landed first so the header PR is markup and props only.
+
+- **`src/lib/golf/hole-detail.ts`** (pure, 9 tests) — ONE set of rules the live page's map chip and the scorer's header share, so they can never disagree: `holeHeaderFacts` (the par / stroke-index / yardage ladder — the round's own `hole_data` first, the catalog's tee sheet on the tee in play with the composer's white → blue → any fallback second, the OSM line's drawn length last and flagged approximate; a catalog handicap of 0 is "unknown", `CourseScorecardTable`'s rule), `teeSheetForHole` (every tee's yardage with its rating and slope, hardest first by `courseTeeOptions`, the tee in play first of all, tees with no yardage on the hole left out), `liveLine` (from a GPS fix: `greenDistanceYards` — the map's own 1500 yd cap — and the rise read at the fix; without one: the card's yards, else the line, and the rise from the tee; `playsLike` only when a profile exists, the metres converted to yards here and nowhere else), `runningToPar` (strokes over par through the holes PLAYED — `strokes === null` is the one not-played signal and is skipped), `groupScoresForHole` (the OTHER players' strokes on the hole, first names like the switcher, "You" for the viewer's own card).
+- **The map chip now reads `holeHeaderFacts`** instead of its own inline ladder — behaviour-identical (`gps-hole-flag` proves it), and the tee in play reaches the ladder.
+- **`hole-svg.ts holeDiagramWithPoint`** — the hole's diagram with ONE extra point projected in the LINE's own frame (the frame never moves with the player; a point outside the box is null): the scorer's thumbnail, SVG only, no Leaflet in the modal.
+- **The stroke index travels:** the round's `hole_data` is typed `{hole, par, yardage?, handicap?}` everywhere it is spelled (`types/group-posts.ts`, the scorer's and the grid's props, `nextHoleForScores`, the composer's value), and `deriveCourseHoles` carries `handicap` when the catalog knows it (`POST /api/group-posts` always kept it; `shared-round-submit.ts`'s existing keys stay byte-identical — this is the widening its header allows). Old rounds get it from the catalog sheet at read time (the ladder's second rung).
+- **One position watcher, published:** `CourseMapInner` gains `onFix` — every fix (and the stop, as null) goes up through a ref like `onHoleTap`; `CourseMap` forwards it. The page wires it in PR E; the scorer never prompts for location.
+
+**Proof:** `npm run verify` exit 0 — typecheck clean, lint 0 at `--max-warnings 0`, **4,593 tests in 494 files**, build, 235 client chunks within the floor. e2e on staging, phone project: `gps-hole-flag` + `golf-quick-entry` 2/2 (49 s) — the chip through the shared ladder reads exactly as before, the scorer and the composer's stepper unchanged.
+
 ## October 7, 2026 — Golf near-me program PR C: elevation along every hole, a "plays like" distance (migration 254)
 
 The third of six. Tom: *"add slope to help athletes make informed decisions on their shots"* — the elevation change, a plays-like number (his choice over the slope rating). The course API carries no elevation; a terrain model does.
