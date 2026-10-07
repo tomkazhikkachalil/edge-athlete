@@ -128,6 +128,9 @@ test('live hole detail: the header facts, plays-like from the shared fix, the te
     await page.locator('[data-hole-thumb]').click();
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     await expect(page.getByText(/^Hole 1\b/)).toBeVisible();
+    // The map chip speaks the same line (PR F): plays-like with the rise —
+    // from the fix, which walked to mid-hole above (3.4 m left = 4 yd).
+    await expect(page.locator('[data-chip-plays-like]')).toContainText(/plays like ≈\d+ ↑ 4 yd/, { timeout: 15_000 });
     await page.getByRole('tab', { name: 'Scorecard' }).click();
     await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
 

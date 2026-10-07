@@ -15,8 +15,9 @@ import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
-import { holeHeaderFacts, type TeeSheetSource } from '@/lib/golf/hole-detail';
-import { parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
+import { COPY } from '@/lib/copy';
+import { holeHeaderFacts, liveLine, type TeeSheetSource } from '@/lib/golf/hole-detail';
+import { formatRise, parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
 
 interface HoleDetailState {
   geometry: HoleGeometry | null;
@@ -371,7 +372,15 @@ export default function LiveRoundPage() {
             line: displayGeoHole?.line ?? null,
             fallbackPar: displayGeoHole?.par ?? null,
           });
-          return { par: facts.par, yardage: facts.yards, approx: facts.approx };
+          // The chip's plays-like (PR F): the same live line the scorer's
+          // header reads — from the map's fix when it has one, else the tee.
+          const live = liveLine({
+            fix: playerFix,
+            line: displayGeoHole?.line ?? null,
+            profile: holeDetail?.elevation?.holes.find(h => h.hole === displayHole) ?? null,
+            cardYards: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
+          });
+          return { par: facts.par, yardage: facts.yards, approx: facts.approx, playsLike: live.playsLike, rise: formatRise(live.riseYds) };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {
@@ -588,6 +597,16 @@ export default function LiveRoundPage() {
                     <span className="hidden sm:inline"> · </span>
                     {displayHoleDetail.approx ? '≈' : ''}
                     {displayHoleDetail.yardage} yds
+                  </span>
+                )}
+                {/* PR F: what it plays like, with the rise — its own line
+                    below sm (the chip's width must not grow into the control
+                    column at 320–375 px), inline from sm up. */}
+                {displayHoleDetail?.playsLike != null && (
+                  <span className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm" data-chip-plays-like="">
+                    <span className="hidden sm:inline"> · </span>
+                    {COPY.GOLF_HOLE.PLAYS_LIKE(displayHoleDetail.playsLike)}
+                    {displayHoleDetail.rise ? ` ${displayHoleDetail.rise}` : ''}
                   </span>
                 )}
               </div>

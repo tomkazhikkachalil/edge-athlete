@@ -1,5 +1,13 @@
 # Development Log
 
+## October 7, 2026 — Golf near-me program PR F: the map chip's plays-like, and the program's close (zero DDL)
+
+The last of six. The map chip ("Hole 7 · Par 4 · 388 yds") speaks the same live line as the scorer's header: "plays like ≈395 ↑ 7 yd" — from the map's own fix when it has one, else from the tee — through the one `liveLine` in `hole-detail.ts`, on its own line below `sm` so the chip's width never grows into the control column at 320–375 px (`data-chip-plays-like`). `live-hole-detail.spec.ts` asserts it on the Map tab after the thumbnail opens the map.
+
+**The program, closed:** A (#1095) the proximity provider wired and dormant on Free · B (#1096) "Near me" and "Playing at X?" in the composer · C (#1097) migration 254 and the elevation cache · D (#1098) the plumbing · E (#1099) the hole header · F this. What is Tom's: `GOLF_COURSE_API_PLAN=pro` + a raised daily budget in Vercel after upgrading GolfCourseAPI (proximity lights up — Explore's and the composer's Near me gain the provider's rows); `OPEN_METEO_API_KEY` after subscribing to Open-Meteo (elevation lights up — until then no plays-like shows anywhere, and nothing else changes); migration 254 in the production SQL editor whenever (a missing column reads as "no elevation"); and a round on his iPhone at a mapped course — the header, the tee sheet, the thumbnail → map → back, the chip.
+
+**Proof:** `npm run verify` exit 0 — typecheck clean, lint 0 at `--max-warnings 0`, **4,593 tests in 494 files**, build, 236 client chunks within the floor. e2e on staging: `live-hole-detail` on phone Chromium AND WebKit 2/2 (1.1 min) with the chip step; `gps-hole-flag` on both 2/2.
+
 ## October 7, 2026 — Golf hole-detail program PR E: the hole in front of you — the scorer's header (zero DDL)
 
 The fifth of six. Tom, after looking at other golf apps: their hole-by-hole navigation "has much more details than the way we're currently doing it". He chose all four: par, stroke index and the tee's yardage with the other tees one tap away; the distance to the green and what it plays like, INLINE; the running to-par and the group's scores on the hole; a hole-map thumbnail that opens the map.
