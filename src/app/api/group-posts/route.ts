@@ -403,17 +403,24 @@ export async function POST(request: NextRequest) {
     // anywhere (the feed renders posts, and GET /api/posts attaches the
     // group scorecard via posts.group_post_id).
     //
-    // DELIBERATE EXCEPTION (decided Aug 20 2026, recorded in DEVLOG): this
-    // insert takes the DB default status='published' even when the creator
-    // is a SUPERVISED child — shared rounds are scored live with other
-    // players, so holding the feed post for guardian approval is unworkable.
-    // The approvals page names this carve-out. Every other supervised write
-    // goes through the pending pipeline; do not "fix" this without a product
+    // It is born a DRAFT (Drafts round, mig 253, Oct 2026): a round is IN
+    // PROGRESS, then — after Finish — a draft the owner reviews, and it
+    // becomes a feed post only when they POST it (publish-server.ts, the one
+    // writer). Nothing is ever auto-posted: closing the app mid-round used
+    // to leave a published post that the feed hid in JavaScript and every
+    // profile grid showed. A draft is readable by its owner, their guardian
+    // and the round's players (GET /api/posts?postId), by nobody else.
+    //
+    // DELIBERATE EXCEPTION (decided Aug 20 2026, KEPT Oct 6 2026): a
+    // SUPERVISED creator's round post skips the guardian approval queue —
+    // their Post publishes directly. Every other supervised write goes
+    // through the pending pipeline; do not "fix" this without a product
     // decision.
     const { data: feedPost, error: feedPostError } = await db
       .from('posts')
       .insert({
         profile_id: actorId,
+        status: 'draft',
         // Attribution (090): a guardian created this round as their athlete —
         // the byline names the human author, same as posts and comments.
         ...(gate.actingAs ? { created_by_user_id: user.id } : {}),

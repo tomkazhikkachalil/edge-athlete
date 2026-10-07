@@ -17,7 +17,8 @@ import { fromStatLinePost } from '@/lib/performance/map';
 import { upsertPerformances } from '@/lib/performance/write-server';
 import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
-import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { isActiveParticipant } from '@/lib/golf/round-status';
+import { publishDraftPost } from '@/lib/posts/publish-server';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
 import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
@@ -876,12 +877,38 @@ export async function GET(request: NextRequest) {
         }
         return guardianAllowed;
       };
+      // Shared-round participants can always open the round's post: the
+      // resume banner and useSharedRound's refresh deep-link here, and an
+      // invited player need not follow the creator (or be able to see a
+      // private profile) to score the round they're playing in. Resolved
+      // lazily and memoized, like the guardian check.
+      let participantAllowed: boolean | null = null;
+      const viewerIsParticipant = async (): Promise<boolean> => {
+        if (participantAllowed === null) {
+          if (currentUserId && post.group_post_id) {
+            const { data: participantRow } = await supabase
+              .from('group_post_participants')
+              .select('status')
+              .eq('group_post_id', post.group_post_id)
+              .eq('profile_id', currentUserId)
+              .maybeSingle();
+            participantAllowed = !!participantRow && isActiveParticipant(participantRow.status);
+          } else {
+            participantAllowed = false;
+          }
+        }
+        return participantAllowed;
+      };
       // Pending/rejected posts are visible only to their author and their
       // guardians. UNCONDITIONAL — publish filters are never flag-gated
       // (Wave 1 inversion); posts.status exists since migration 051.
+      // A DRAFT (253) — a round recorded but not yet posted — is ALSO open to
+      // the round's players: the /live page's "View post" and the invite
+      // bell land here while the round is in progress. Nobody else.
       if (
         post.status && post.status !== 'published' && !isOwnPost &&
-        !(await viewerIsGuardian())
+        !(await viewerIsGuardian()) &&
+        !(post.status === 'draft' && (await viewerIsParticipant()))
       ) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
       }
@@ -898,18 +925,9 @@ export async function GET(request: NextRequest) {
             .maybeSingle();
           allowed = !!follow;
 
-          // Shared-round participants can always open the round's post: the
-          // resume banner and useSharedRound's refresh deep-link here, and an
-          // invited player need not follow the creator (or be able to see a
-          // private profile) to score the round they're playing in.
+          // Shared-round participants (see viewerIsParticipant above).
           if (!allowed && post.group_post_id) {
-            const { data: participantRow } = await supabase
-              .from('group_post_participants')
-              .select('status')
-              .eq('group_post_id', post.group_post_id)
-              .eq('profile_id', currentUserId)
-              .maybeSingle();
-            allowed = !!participantRow && isActiveParticipant(participantRow.status);
+            allowed = await viewerIsParticipant();
           }
         }
         // Guardians can view their (forced-private) athletes' posts without
@@ -1282,11 +1300,15 @@ export async function GET(request: NextRequest) {
     // owner — in the feed, unmarked ("Hide doesn't work", Tom, Oct 2026).
     // They are returned in ONE place: the owner's own profile list, where the
     // card says it is hidden and offers the way back.
+    // A DRAFT (253) is returned in NO list — not the feed, not the owner's
+    // own profile list: a recorded-but-unposted round lives in the Drafts
+    // area and its review screen (the single-post branch below serves it to
+    // its owner), and nowhere else until the owner posts it.
     const ownProfileList = !!userId && userId === currentUserId && !pinnedOnly;
     query = currentUserId && !orgScope && !contestFilter
       ? query.or(ownProfileList
-          ? `status.eq.published,profile_id.eq.${currentUserId}`  // hardening-ok: session UUID
-          : `status.eq.published,and(profile_id.eq.${currentUserId},status.neq.profile_hidden)`)  // hardening-ok: session UUID
+          ? `status.eq.published,and(profile_id.eq.${currentUserId},status.neq.draft)`  // hardening-ok: session UUID
+          : `status.eq.published,and(profile_id.eq.${currentUserId},status.not.in.(profile_hidden,draft))`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
 
     if (pinnedOnly) {
@@ -1529,26 +1551,13 @@ export async function GET(request: NextRequest) {
         tagged_profiles: (post.tags || [])
           .map((id: string) => tagProfilesById.get(id))
           .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
-      }))
-      // Product rule: a round is a feed post only once it's FINISHED — while
-      // in progress it lives in the Live Now strip / banner / LIVE page, and
-      // lands in the feed (with a fresh timestamp) when it completes.
-      // Status-based, not isRoundLive (dummy-proofing round): the old
-      // liveness predicate let a zero-score 'pending' round leak into the
-      // feed as an empty post the moment it was created, and hid 'active'
-      // rounds past their 48h window as bare text posts. Cancelled rounds
-      // (abandoned scoreless sessions, swept) never surface either. Applies
-      // to the FEED listing only: profile grids, pinned rows, and
-      // single-post fetches keep every deep link working.
-      .filter(post => {
-        if (userId || pinnedOnly) return true;
-        if (!post.group_scorecard) return true;
-        // Events program (203): an event's round is ONE post through three
-        // states (announced → live → results), so hide-until-finished is
-        // relaxed for sport-event rounds only — the feed shows them live.
-        if (post.group_scorecard.group_post?.sport_event_round_id) return true;
-        return effectiveRoundStatus(post.group_scorecard.group_post) === 'completed';
-      });
+      }));
+    // A round in progress used to be filtered out of the feed HERE, in
+    // JavaScript, after the page was read — and only here: profile grids,
+    // explore and search showed it. Since 253 a round's post is a DRAFT until
+    // the owner posts it (publish-server.ts), and the status arm above is the
+    // one rule for every list. An event's round (203) is published by its
+    // lifecycle and was never filtered here.
 
     // Transform the data to match the expected format
     const transformedPosts = postsWithRounds
@@ -1643,6 +1652,8 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/posts — pin or unpin one of your own posts to the "Featured"
  * row on your profile. Body: { postId, action: 'pin' | 'unpin' }.
+ * Also `action: 'post'` (Drafts round, 253): POST a draft — the one door to
+ * publish-server.ts, the only writer of draft → published.
  * Cap (MAX_PINNED_POSTS) enforced here, mirroring comment pinning — but with
  * an explicit 400 instead of silent eviction: with 3 slots, auto-unpinning
  * the wrong one is worse than asking.
@@ -1670,8 +1681,8 @@ export async function PATCH(request: NextRequest) {
     if (!postId || typeof postId !== 'string') {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
-    if (!['pin', 'unpin', 'approve', 'reject', 'request_changes'].includes(action)) {
-      return NextResponse.json({ error: "action must be 'pin', 'unpin', 'approve', 'reject', or 'request_changes'" }, { status: 400 });
+    if (!['pin', 'unpin', 'approve', 'reject', 'request_changes', 'post'].includes(action)) {
+      return NextResponse.json({ error: "action must be 'pin', 'unpin', 'post', 'approve', 'reject', or 'request_changes'" }, { status: 400 });
     }
 
     const { data: post, error: fetchError } = await supabase
@@ -1785,7 +1796,18 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (!(await sessionMayManagePostContent(user.id, post.profile_id))) {
-      return NextResponse.json({ error: 'You can only pin your own posts' }, { status: 403 });
+      return NextResponse.json({ error: action === 'post' ? 'You can only post your own drafts' : 'You can only pin your own posts' }, { status: 403 });
+    }
+
+    // Post a draft (253): the owner (or their write_content guardian) has
+    // reviewed it and chosen to publish. Finish and Post are two actions —
+    // the round must be completed first; the writer refuses otherwise.
+    if (action === 'post') {
+      const outcome = await publishDraftPost(supabase, { postId });
+      if (!outcome.ok) {
+        return NextResponse.json({ error: outcome.error, reason: outcome.reason }, { status: outcome.status });
+      }
+      return NextResponse.json({ success: true, action, status: outcome.status, posted_at: outcome.posted_at });
     }
 
     if (action === 'pin' && !post.is_pinned) {

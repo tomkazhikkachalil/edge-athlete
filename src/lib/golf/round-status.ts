@@ -273,20 +273,10 @@ export async function advanceRoundStatus(
       console.error('advanceRoundStatus: update failed:', updateError);
       return;
     }
-
-    // The round just FINISHED: its feed post "arrives" now. Live rounds are
-    // hidden from the feed while playing (they live in the Live Now surfaces),
-    // so re-timestamping on the one-time completed transition makes the final
-    // scorecard land at the top of the feed the moment the round ends.
-    if (next === 'completed') {
-      const { error: bumpError } = await admin
-        .from('posts')
-        .update({ created_at: new Date().toISOString() })
-        .eq('group_post_id', groupPostId);
-      if (bumpError) {
-        console.error('advanceRoundStatus: post timestamp bump failed:', bumpError);
-      }
-    }
+    // The round just FINISHED. Its feed post does NOT arrive now: since 253
+    // the post is a DRAFT until the owner posts it from the review screen,
+    // and POSTING is what stamps created_at (publish-server.ts). The
+    // completion-time timestamp bump that used to live here is gone.
   } catch (e) {
     console.error('advanceRoundStatus: unexpected error:', e);
   }

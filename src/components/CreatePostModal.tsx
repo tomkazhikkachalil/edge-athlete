@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
+import { afterCreatePath } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
@@ -706,8 +706,10 @@ export default function CreatePostModal({
         // pages mount this composer and the app header funnels most routes to
         // /athlete, whose handler never got it. router.push does not care which
         // page mounted us, so all three are fixed and a fourth cannot drift.
-        const scorerPath = shouldEnterScorerAfterCreate(groupPost);
-        if (scorerPath) router.push(scorerPath);
+        // An already-played round is a DRAFT (253): land on it to review and
+        // post — it is not on the feed until then.
+        const nextPath = afterCreatePath(groupPost);
+        if (nextPath) router.push(nextPath);
         return;
       }
 

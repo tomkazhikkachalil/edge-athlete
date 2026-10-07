@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { postDraft } from './helpers/drafts';
 import { purgeGolfRound, purgePost } from './helpers/results';
 import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 
@@ -152,6 +153,7 @@ async function hideSeenToHappen(browser: import('@playwright/test').Browser, vie
     expect(res.ok(), await readErrorBody(res)).toBe(true);
     postId = ((await admin.from('group_posts').select('post_id').eq('id', groupPostId).single()).data?.post_id as string) ?? '';
     expect(postId).toBeTruthy();
+    await postDraft(api, postId); // Drafts (253): finished, now posted
     await expect.poll(async () => (await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId).eq('profile_id', alpha.id)).data?.length ?? 0).toBe(1);
     mirrorId = (await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId).eq('profile_id', alpha.id).single()).data!.id as string;
 

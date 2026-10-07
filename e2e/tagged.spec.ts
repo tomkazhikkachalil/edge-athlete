@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody, adminClient, E2E_BASE_URL } from './helpers/qa-user';
 import { request as pwRequest } from '@playwright/test';
+import { finishAndPost } from './helpers/drafts';
 
 // The Tagged tab round-trip: B tags A in a post; A shares a round with B
 // (participants auto-tag); assert the dashboard (hero math, attribution),
@@ -52,6 +53,10 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
       },
     });
     expect(roundRes.ok(), await readErrorBody(roundRes)).toBe(true);
+    // Drafts (253): a round is nobody's tag until its creator finishes AND
+    // posts it — the post is a draft until then.
+    const round = (await roundRes.json()).group_post as { id: string; post_id: string | null };
+    await finishAndPost(apiA, round.id, round.post_id);
   } finally {
     await apiA.dispose();
   }

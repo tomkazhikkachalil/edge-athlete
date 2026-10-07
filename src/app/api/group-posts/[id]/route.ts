@@ -138,18 +138,6 @@ export async function PATCH(
       );
     }
 
-    // Prior status — needed to bump the feed post's timestamp exactly once
-    // on the transition to completed (End Round)
-    let priorStatus: string | null = null;
-    if (status === 'completed') {
-      const { data: prior } = await supabase
-        .from('group_posts')
-        .select('status')
-        .eq('id', id)
-        .maybeSingle();
-      priorStatus = prior?.status ?? null;
-    }
-
     // Build update object
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
@@ -214,18 +202,8 @@ export async function PATCH(
       // Hole photos/videos land in the feed post too — without this the
       // finished post shows stats and no pictures.
       await mirrorRoundMedia(admin, id);
-
-      // One-time transition: the round's hidden-while-live feed post arrives
-      // in the feed now, timestamped at completion
-      if (priorStatus !== 'completed') {
-        const { error: bumpError } = await admin
-          .from('posts')
-          .update({ created_at: new Date().toISOString() })
-          .eq('group_post_id', id);
-        if (bumpError) {
-          reportRouteError('End Round: post timestamp bump failed:', bumpError);
-        }
-      }
+      // The post stays a DRAFT (253): Finish records the round; Post — from
+      // the review screen — publishes it and stamps its timestamp.
     }
 
     return NextResponse.json({

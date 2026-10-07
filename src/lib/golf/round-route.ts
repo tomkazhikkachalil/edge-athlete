@@ -25,6 +25,36 @@ export interface CreatedRoundLike {
   type?: string | null;
   /** 'pending' | 'active' for a live round; 'completed' for already-played. */
   status?: string | null;
+  /** The round's feed post — a DRAFT until posted (253). */
+  post_id?: string | null;
+}
+
+/**
+ * Where a DRAFT is reviewed and posted (Drafts round, 253). PR 1: the draft's
+ * own card, opened over the feed — it wears the "Not posted yet" banner and
+ * the Post button. PR 2 replaces this with the review screen
+ * (`/athlete/drafts/[postId]`); every caller goes through here so that is
+ * one edit.
+ */
+export function draftReviewPath(postId: string): string {
+  return `/feed?post=${postId}`;
+}
+
+/**
+ * The path to send the user to after creating a round. A live round goes
+ * straight to the scorer (`shouldEnterScorerAfterCreate`). An already-played
+ * round is FINISHED at creation and its post is a DRAFT — the composer lands
+ * on it so the person reviews and posts it (Finish and Post are two actions;
+ * the round never surfaces on the feed by itself). Null = stay put (a
+ * cancelled round, a non-golf group post, or no post id to land on).
+ */
+export function afterCreatePath(round: CreatedRoundLike | null | undefined): string | null {
+  const scorer = shouldEnterScorerAfterCreate(round);
+  if (scorer) return scorer;
+  if (round?.type === 'golf_round' && round.status === 'completed' && round.post_id) {
+    return draftReviewPath(round.post_id);
+  }
+  return null;
 }
 
 /**

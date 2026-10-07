@@ -197,6 +197,16 @@ rollups for a while.
 > may discard it. What follows is the Sep 26 text, still true of every
 > official result and of Hide.
 
+> **Drafts (Oct 6 2026, migration 253).** Finish and Post are two actions. A
+> round's feed post is a DRAFT (`posts.status = 'draft'`) from the moment the
+> round starts until its owner POSTS it from the review screen
+> (`src/lib/posts/publish-server.ts`, the one writer). Finish writes the
+> RECORD — the mirror into `golf_rounds`, the handicap, round history and the
+> row in this table — exactly as before; only the social post waits for Post.
+> Nothing is ever auto-posted: the daily sweep finishes an abandoned round as
+> played (PR 3) and leaves the draft a draft. A draft is off the feed and off
+> every profile grid, the owner's own included; the Drafts area is its place.
+
 
 Tom: *"I eventually want the information taken about the athlete to be incredibly accurate, at least on the backend. The user can have their profile viewed as they would like. However, any data metrics recorded will go towards understanding what the athlete's athletic score is."*
 
