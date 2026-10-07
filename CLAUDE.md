@@ -1536,7 +1536,15 @@ const { canView } = await response.json();
    `{geometry, elevation, sheet, courseId}`; a two-nine combo keeps elevation
    and sheet null), asks `?elevation=1` ONCE when the profile is missing, and
    passes `playerFix` from `onFix`. No `whitespace-nowrap` in the header
-   block; `live-hole-detail.spec.ts` holds 375 and 320.
+   block; `live-hole-detail.spec.ts` holds 375 and 320. **PR F — the map
+   chip speaks the same line** (`data-chip-plays-like`, its own line below
+   `sm`). **The program's two switches, each optional and independent, are
+   Tom's:** `GOLF_COURSE_API_PLAN=pro` + a raised `GOLF_PROVIDER_DAILY_BUDGET`
+   in Vercel after the GolfCourseAPI upgrade (proximity lights up);
+   `OPEN_METEO_API_KEY` after the Open-Meteo subscription (elevation lights
+   up — until then no plays-like shows anywhere, and nothing else changes).
+   Migration 254 runs on prod whenever; the code reads a missing column as
+   "no elevation". Read DEVLOG Oct 7 2026 PR A–F before touching any of it.
 
 ---
 
