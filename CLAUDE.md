@@ -1443,6 +1443,31 @@ const { canView } = await response.json();
    recorded and are history), listed under Ready to post with Share
    (`/app/workout/[id]?share=1`) and Keep private.
 
+34. **The golf course near you, and the hole in front of you (Golf near-me +
+   elevation + hole-detail program, Oct 7 2026; plan
+   `~/.claude/plans/pasted-content-id-5f99-ve-noticed-soft-lemon.md`)** — Tom:
+   leverage GolfCourseAPI v1.3.0's `/v1/proximity`, a hole-by-hole screen with
+   "much more details", and "slope to help athletes make informed decisions on
+   their shots" (= ELEVATION, a plays-like distance — not the slope rating);
+   "do not break anything". **PR A — proximity, wired and DORMANT:**
+   `course-catalog.ts proximitySearch` is the "near me" provider touchpoint
+   (thin rows WITH coordinates — the FIRST GolfCourseAPI payload that carries
+   any; search and detail never did). It runs only from the route's `near=`
+   branch with NO typed text (the no-keystroke rule) and behind four
+   fail-closed gates in order: the plan (`GOLF_COURSE_API_PLAN` ∈ free | pro |
+   enterprise, default free — `proximityAllowed()` is a pure env check, so
+   Free never even touches a budget RPC; the endpoint is Pro and up), a per-
+   cell daily memo (`proximityCellKey`, 0.05° ≈ 5 km, through the same
+   `rate_limit_hit` machinery — `hitBudget`), its own cap
+   (`golfcourseapi-proximity`, `GOLF_PROXIMITY_DAILY_BUDGET` || 500), then the
+   shared `golfcourseapi` cap (raise `GOLF_PROVIDER_DAILY_BUDGET` on Pro). A row
+   the catalog already holds by id gains a coordinate ONLY when it has none
+   (`coordFillDecision`: fill | keep | disagree — a stored pin is never moved;
+   it may be Nominatim-refined) and never goes back through `upsertThinRows`
+   (a coord row would match itself in the 2 km box). The response carries
+   `providerNearby`. Our own catalog (29k OSM courses with coords, the RPC's
+   `near=`) answers "near me" either way.
+
 ---
 
 ## 🔧 Common Tasks

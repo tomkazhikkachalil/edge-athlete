@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   rankCourseName,
   courseDisplayName,
@@ -6,6 +6,12 @@ import {
   normalizeOpenGolfDetail,
   normalizeGcaSummary,
   normalizeGcaDetail,
+  normalizeGcaProximity,
+  gcaPlan,
+  proximityAllowed,
+  proximitySearch,
+  proximityCellKey,
+  coordFillDecision,
   normalizeOsmElement,
   rowToCourse,
   isThinRow,
@@ -480,5 +486,121 @@ describe('normalizeOsmElement (Overpass out tags center shape)', () => {
         center: { lat: 45.3, lon: -75.9 },
       })
     ).not.toBeNull();
+  });
+});
+
+// ── Proximity (GolfCourseAPI v1.3.0, Oct 2026) — wired, DORMANT on Free ──────
+// The notice's sample payload, verbatim.
+const PROXIMITY_SAMPLE = {
+  courses: [
+    {
+      id: '7k2m9qb4',
+      club_name: 'Murray Country Club',
+      course_name: 'Murray Country Club',
+      location: { city: 'Murray', state: 'KY', latitude: 36.6103, longitude: -88.3148 },
+      tees: { male: 4, female: 3 },
+      distance: 1.42,
+    },
+  ],
+  unit: 'km',
+};
+
+/** A fake admin: every awaited chain resolves the next scripted answer;
+ *  updates and upserts are recorded. */
+function fakeAdmin(answers: unknown[], rpc: (key: string) => { allowed: boolean } = () => ({ allowed: true })) {
+  const calls = { rpc: [] as string[], updates: [] as Array<{ id: string; fields: Record<string, unknown> }>, upserts: [] as unknown[][] };
+  const queue = [...answers];
+  const builder = (): Record<string, unknown> => {
+    const b: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'ilike', 'limit', 'maybeSingle']) b[m] = () => b;
+    b.update = (fields: Record<string, unknown>) => ({ eq: (_c: string, id: string) => { calls.updates.push({ id, fields }); return Promise.resolve({ error: null }); } });
+    b.upsert = (rows: unknown[]) => { calls.upserts.push(rows); return Promise.resolve({ error: null }); };
+    b.then = (resolve: (v: unknown) => void) => resolve({ data: queue.shift() ?? null, error: null });
+    return b;
+  };
+  const admin = {
+    rpc: (_name: string, args: { p_key: string }) => { calls.rpc.push(args.p_key); return { single: async () => ({ data: rpc(args.p_key), error: null }) }; },
+    from: () => builder(),
+  };
+  return { admin: admin as never, calls };
+}
+
+describe('normalizeGcaProximity (the v1.3.0 sample)', () => {
+  it('is a thin golfcourseapi row WITH coordinates and the distance in km', () => {
+    const row = normalizeGcaProximity(PROXIMITY_SAMPLE.courses[0]);
+    expect(row.external_source).toBe('golfcourseapi');
+    expect(row.external_id).toBe('7k2m9qb4');
+    expect(row.name).toBe('Murray Country Club');
+    expect(row.city).toBe('Murray');
+    expect(row.lat).toBe(36.6103);
+    expect(row.lng).toBe(-88.3148);
+    expect(row.distanceKm).toBe(1.42);
+    expect(isThinRow(row)).toBe(true);
+  });
+  it('a missing or non-finite coordinate leaves the row thin, never wrong; strings are coerced', () => {
+    expect(normalizeGcaProximity({ id: 'a', location: { latitude: 36.6, longitude: null } }).lat).toBeNull();
+    expect(normalizeGcaProximity({ id: 'a', location: { latitude: 'nope', longitude: -88 } }).lng).toBeNull();
+    const coerced = normalizeGcaProximity({ id: 'a', location: { latitude: '36.6', longitude: '-88.3' }, distance: '2.5' });
+    expect([coerced.lat, coerced.lng, coerced.distanceKm]).toEqual([36.6, -88.3, 2.5]);
+  });
+});
+
+describe('the plan gate — proximity spends nothing on Free', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+  it('reads the plan env, unknown → free', () => {
+    vi.stubEnv('GOLF_COURSE_API_PLAN', ''); expect(gcaPlan()).toBe('free');
+    vi.stubEnv('GOLF_COURSE_API_PLAN', 'PRO'); expect(gcaPlan()).toBe('pro');
+    vi.stubEnv('GOLF_COURSE_API_PLAN', 'enterprise'); expect(gcaPlan()).toBe('enterprise');
+    vi.stubEnv('GOLF_COURSE_API_PLAN', 'gold'); expect(gcaPlan()).toBe('free');
+  });
+  it('allowed only with a key AND a paid plan', () => {
+    vi.stubEnv('GOLF_COURSE_API_KEY', ''); vi.stubEnv('GOLF_COURSE_API_PLAN', 'pro'); expect(proximityAllowed()).toBe(false);
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', 'free'); expect(proximityAllowed()).toBe(false);
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', ''); expect(proximityAllowed()).toBe(false);
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', 'pro'); expect(proximityAllowed()).toBe(true);
+  });
+  it('on Free: no budget RPC, no fetch, false', async () => {
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', 'free');
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    const { admin, calls } = fakeAdmin([]);
+    expect(await proximitySearch(admin, { lat: 36.61, lng: -88.31 })).toBe(false);
+    expect(calls.rpc).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('on Pro: the per-cell memo refusing stops it before any fetch', async () => {
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', 'pro');
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    const { admin, calls } = fakeAdmin([], key => ({ allowed: !key.startsWith('golf-proximity-cell:') }));
+    expect(await proximitySearch(admin, { lat: 36.61, lng: -88.31 })).toBe(false);
+    expect(calls.rpc).toEqual([proximityCellKey(36.61, -88.31)]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('on Pro, admitted: fetches with unit=km, fills a NULL coordinate on a row it already holds, upserts the fresh one', async () => {
+    vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.stubEnv('GOLF_COURSE_API_PLAN', 'pro');
+    const payload = { courses: [PROXIMITY_SAMPLE.courses[0], { id: 'newid1', club_name: 'Paris Landing', course_name: 'Paris Landing', location: { city: 'Buchanan', state: 'TN', latitude: 36.43, longitude: -88.07 }, distance: 23.1 }] };
+    const fetchMock = vi.fn<(url: string, init?: unknown) => Promise<{ ok: boolean; json: () => Promise<unknown> }>>(async () => ({ ok: true, json: async () => payload }));
+    vi.stubGlobal('fetch', fetchMock);
+    // answers: the existing-ids select → Murray already held with NULL coords; then findNearbyNameMatches for the fresh row → none.
+    const { admin, calls } = fakeAdmin([[{ id: 'row-murray', external_id: '7k2m9qb4', lat: null, lng: null }], []]);
+    expect(await proximitySearch(admin, { lat: 36.61, lng: -88.31, radiusKm: 500, limit: 100 })).toBe(true);
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('/v1/proximity?latitude=36.61&longitude=-88.31&radius=80&unit=km&limit=25');
+    expect(calls.rpc).toEqual([proximityCellKey(36.61, -88.31), 'golf-provider:golfcourseapi-proximity', 'golf-provider:golfcourseapi']);
+    expect(calls.updates).toEqual([{ id: 'row-murray', fields: { lat: 36.6103, lng: -88.3148 } }]);
+    expect(calls.upserts).toHaveLength(1);
+    expect((calls.upserts[0] as Array<{ external_id: string; lat: number | null }>).map(r => [r.external_id, r.lat])).toEqual([['newid1', 36.43]]);
+  });
+});
+
+describe('coordFillDecision — a provider coordinate never moves a stored pin', () => {
+  it('fills NULL, keeps a nearby pin, reports a far one', () => {
+    expect(coordFillDecision({ lat: null, lng: null }, { lat: 36.6, lng: -88.3 })).toBe('fill');
+    expect(coordFillDecision({ lat: 36.6, lng: -88.3 }, { lat: 36.601, lng: -88.301 })).toBe('keep');
+    expect(coordFillDecision({ lat: 36.6, lng: -88.3 }, { lat: 36.7, lng: -88.3 })).toBe('disagree');
+    expect(coordFillDecision({ lat: null, lng: null }, { lat: null, lng: -88.3 })).toBe('keep');
+  });
+  it('the cell key is ~5 km: neighbours share it, a town over does not', () => {
+    expect(proximityCellKey(36.61, -88.31)).toBe(proximityCellKey(36.62, -88.32));
+    expect(proximityCellKey(36.61, -88.31)).not.toBe(proximityCellKey(36.71, -88.31));
   });
 });
