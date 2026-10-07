@@ -16,13 +16,17 @@ import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
  */
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
-// honours ?share=1 so the workout card's Share action can deep-link.
-function ShareParamReader({ onShare }: { onShare: () => void }) {
+// honours ?share=1 so the workout card's Share action (and the Drafts
+// round's reopen prompt / Drafts list) can deep-link. It reports BOTH
+// answers: the editor mounts only once the param is known, because its
+// phase is a useState initialiser — mounting first and learning about
+// ?share=1 a tick later used to leave it on the editing step (Oct 2026).
+function ShareParamReader({ onRead }: { onRead: (share: boolean) => void }) {
   const searchParams = useSearchParams();
   const requested = searchParams.get('share');
   useEffect(() => {
-    if (requested === '1') onShare();
-  }, [requested, onShare]);
+    onRead(requested === '1');
+  }, [requested, onRead]);
   return null;
 }
 
@@ -35,8 +39,9 @@ export default function WorkoutSessionPage() {
   const [session, setSession] = useState<ServerWorkoutSession | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [wantShare, setWantShare] = useState(false);
-  const handleShareParam = useCallback(() => setWantShare(true), []);
+  /** null until the ?share= param has been read (see ShareParamReader). */
+  const [wantShare, setWantShare] = useState<boolean | null>(null);
+  const handleShareParam = useCallback((share: boolean) => setWantShare(share), []);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/');
@@ -47,7 +52,7 @@ export default function WorkoutSessionPage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`/api/workouts/${sessionId}`, { credentials: 'include' });
+        const response = await fetch(`/api/workouts/${sessionId}`, { credentials: 'include', cache: 'no-store' });
         if (!response.ok) {
           const data = await response.json().catch(() => null);
           throw new Error(data?.error || 'Workout not found');
@@ -83,7 +88,7 @@ export default function WorkoutSessionPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Suspense fallback={null}>
-        <ShareParamReader onShare={handleShareParam} />
+        <ShareParamReader onRead={handleShareParam} />
       </Suspense>
       <AppHeader showSearch={false} />
       <main>
@@ -97,7 +102,7 @@ export default function WorkoutSessionPage() {
               Back to profile
             </button>
           </div>
-        ) : (
+        ) : wantShare === null ? null : (
           <WorkoutEditorScreen
             mode={mode}
             session={session}

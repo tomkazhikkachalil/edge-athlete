@@ -517,6 +517,16 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const handleKeepPrivate = async () => {
     if (sharing) return;
     setSharing(true);
+    // The decision is a fact (253): without it a finished workout is a DRAFT
+    // and Drafts keeps offering Share / Keep private.
+    if (finishedSessionId) {
+      await fetch(`/api/workouts/${finishedSessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ keepPrivate: true }),
+      }).catch(() => undefined);
+    }
     await recordPRs(null);
     showSuccess('Saved', 'Workout saved to your history');
     router.push('/athlete');

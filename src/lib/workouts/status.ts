@@ -1,29 +1,30 @@
 /**
  * Workout session lifecycle — status derives from data, never from an
- * in-memory clock (golf round-status stance). Abandoned live sessions
- * auto-end lazily: display/reads treat >6h-idle actives as completed, and
- * the API persists that on the owner's next read or Start-Workout attempt.
- * No cron.
+ * in-memory clock (golf round-status stance). Since the Drafts round (Oct
+ * 2026) NOTHING finishes at read time: an abandoned live session stays
+ * IN PROGRESS — in Drafts, behind the reopen prompt — until its owner
+ * resumes, finishes or discards it, or the daily sweep's 7-day rule finishes
+ * it as it stands (`runWorkoutSweep`). The 6 h lazy auto-end is gone: it put
+ * a workout nobody finished on the profile.
  */
 
-export const AUTO_END_AFTER_MS = 6 * 60 * 60 * 1000;
+/** Untouched for this long → the sweep finishes it (Tom, Oct 6 2026). */
+export const ABANDON_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type WorkoutStatus = 'active' | 'completed';
 
-export function effectiveSessionStatus(s: {
-  status: WorkoutStatus | string;
-  lastActivityAt: string | null;
-  now?: number;
-}): WorkoutStatus {
-  if (s.status !== 'active') return 'completed';
-  if (!s.lastActivityAt) return 'active';
-  const now = s.now ?? Date.now();
-  const idle = now - Date.parse(s.lastActivityAt);
-  return idle > AUTO_END_AFTER_MS ? 'completed' : 'active';
+/** The sweep's rule: an ACTIVE session whose last activity is older than ABANDON_AFTER_MS. Never a guess on a missing clock. */
+export function isAbandonedSession(s: { status: WorkoutStatus | string; lastActivityAt: string | null; now?: number }): boolean {
+  if (s.status !== 'active' || !s.lastActivityAt) return false;
+  const t = Date.parse(s.lastActivityAt);
+  if (Number.isNaN(t)) return false;
+  return (s.now ?? Date.now()) - t > ABANDON_AFTER_MS;
 }
 
-/** Fields to persist when finalizing a stale (abandoned) active session. */
-export function staleFinalizeFields(s: {
+/** Fields to persist when the sweep finishes an abandoned session: it ended
+ *  at its last activity, with a truthful duration. `share_decided_at` stays
+ *  NULL — the owner never reached the share decision, so it is a DRAFT. */
+export function abandonFinalizeFields(s: {
   startedAt: string;
   lastActivityAt: string;
 }): { status: 'completed'; ended_at: string; duration_seconds: number } {

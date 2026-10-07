@@ -114,7 +114,10 @@ export async function GET(
 
 /**
  * PATCH /api/workouts/[id] — owner only.
- * Body: { title?, notes?, postId?, finish?: { endedAt } }
+ * Body: { title?, notes?, postId?, keepPrivate?: true, finish?: { endedAt } }
+ * postId and keepPrivate both stamp share_decided_at (Drafts round, 253):
+ * a completed session without it is a DRAFT — the owner never reached the
+ * share decision.
  * finish completes a live session (endedAt clamped to started_at..now+5min).
  */
 export async function PATCH(
@@ -168,6 +171,10 @@ export async function PATCH(
         return NextResponse.json({ error: 'Invalid post' }, { status: 400 });
       }
       updates.post_id = body.postId;
+      updates.share_decided_at = new Date().toISOString();
+    }
+    if (body.keepPrivate === true) {
+      updates.share_decided_at = new Date().toISOString();
     }
     if (body.finish) {
       // Re-finishing a completed session would recompute duration_seconds
