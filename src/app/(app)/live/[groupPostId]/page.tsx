@@ -15,7 +15,16 @@ import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
-import { holeHeaderFacts } from '@/lib/golf/hole-detail';
+import { holeHeaderFacts, type TeeSheetSource } from '@/lib/golf/hole-detail';
+import { parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
+
+interface HoleDetailState {
+  geometry: HoleGeometry | null;
+  elevation: HoleElevation | null;
+  sheet: TeeSheetSource | null;
+  /** The single course the detail came from (null for a two-nine combo). */
+  courseId: string | null;
+}
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores, reopenHole } from '@/lib/golf/score-entry';
@@ -53,7 +62,14 @@ export default function LiveRoundPage() {
   const [tab, setTab] = useState<'score' | 'map'>('score');
   // Per-hole OSM geometry (lazy: first Map open). undefined = not asked yet,
   // null = asked, no unambiguous coverage (chip-only fallback).
-  const [holeGeo, setHoleGeo] = useState<HoleGeometry | null | undefined>(undefined);
+  // The hole detail (`?holes=1`, PR E): the geometry the map draws, the
+  // cached elevation profiles and the catalog's tee sheet — fetched once, on
+  // the first Map open OR the first scorer open. `undefined` = not asked yet.
+  const [holeDetail, setHoleDetail] = useState<HoleDetailState | null | undefined>(undefined);
+  const holeGeo = holeDetail === undefined ? undefined : (holeDetail?.geometry ?? null);
+  // PR E: the map's ONE position watcher publishes every fix here; the
+  // scorer reads it — it never prompts for location itself.
+  const [playerFix, setPlayerFix] = useState<[number, number] | null>(null);
   // A hole the golfer stepped/tapped to on the map; null = follow the next
   // unscored hole (and auto-advance as scores land).
   const [viewedHole, setViewedHole] = useState<number | null>(null);
@@ -162,29 +178,60 @@ export default function LiveRoundPage() {
   // half-right map.
   const embeddedCourseId = scorecard?.golf_data?.course?.id ?? null;
   const composition = scorecard?.golf_data?.course_composition ?? null;
+  const wantHoleDetail = tab === 'map' || scoringParticipantId !== null;
   useEffect(() => {
-    if (tab !== 'map' || holeGeo !== undefined || (!embeddedCourseId && !composition)) return;
+    if (!wantHoleDetail || holeDetail !== undefined || (!embeddedCourseId && !composition)) return;
     let cancelled = false;
-    const fetchGeo = (id: string) =>
+    const fetchDetail = (id: string) =>
       fetch(`/api/golf/courses?id=${id}&holes=1`, { credentials: 'include' })
         .then(r => (r.ok ? r.json() : null))
-        .then(body => (body?.geometry as HoleGeometry | null) ?? null);
+        .then(body => ({
+          geometry: (body?.geometry as HoleGeometry | null) ?? null,
+          elevation: parseStoredElevation(body?.elevation),
+          sheet: (body?.sheet as TeeSheetSource | null) ?? null,
+        }));
+    // A two-nine combo composes the geometries; its elevation and sheet are
+    // null in this version (each nine has its own).
     const load =
       composition && composition.length === 2
-        ? Promise.all([fetchGeo(composition[0].course_id), fetchGeo(composition[1].course_id)])
-            .then(([front, back]) => composeHoleGeometry(front, back))
-        : fetchGeo(embeddedCourseId!);
+        ? Promise.all([fetchDetail(composition[0].course_id), fetchDetail(composition[1].course_id)])
+            .then(([front, back]) => ({ geometry: composeHoleGeometry(front.geometry, back.geometry), elevation: null, sheet: null, courseId: null }))
+        : fetchDetail(embeddedCourseId!).then(d => ({ ...d, courseId: embeddedCourseId }));
     load
-      .then(geo => {
-        if (!cancelled) setHoleGeo(geo);
+      .then(detail => {
+        if (!cancelled) setHoleDetail(detail);
       })
       .catch(() => {
-        if (!cancelled) setHoleGeo(null);
+        if (!cancelled) setHoleDetail(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [tab, holeGeo, embeddedCourseId, composition]);
+  }, [wantHoleDetail, holeDetail, embeddedCourseId, composition]);
+
+  // No cached profile yet but a mapped single course: ask the computing door
+  // ONCE (budgeted, best-effort, nothing without the deployment's key) and
+  // keep whatever it answers.
+  const elevationAskedRef = useRef(false);
+  useEffect(() => {
+    if (!holeDetail || holeDetail.elevation || !holeDetail.geometry || !holeDetail.courseId || elevationAskedRef.current) return;
+    elevationAskedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/golf/courses?id=${holeDetail.courseId}&elevation=1`, { credentials: 'include' });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const elevation = parseStoredElevation(body?.elevation);
+        if (!cancelled && elevation) setHoleDetail(d => (d ? { ...d, elevation } : d));
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [holeDetail]);
 
   // The holes the map draws, started at the TEE-IN-PLAY: the OSM way begins
   // at the back tee, so each line is walked back from the green by the
@@ -496,6 +543,7 @@ export default function LiveRoundPage() {
             defaultLayer="satellite"
             enableTracking={roundOpen}
             autoTrack={roundOpen}
+            onFix={setPlayerFix}
             holes={geoHoles}
             focusHole={tab === 'map' ? displayHole : null}
             onHoleTap={h => setViewedHole(h)}
@@ -616,6 +664,26 @@ export default function LiveRoundPage() {
           holeData={scorecard.golf_data.hole_data ?? null}
           courseName={scorecard.golf_data.course_name}
           uploaderId={user.id}
+          // The hole header (PR E): the tee, the sheet, the lines, the
+          // profiles, the map's fix and everyone's scores — all optional.
+          teeInPlay={scorecard.golf_data.tee_color}
+          teeSheet={holeDetail?.sheet ?? null}
+          holeLines={playedHoles}
+          holeElevation={holeDetail?.elevation ?? null}
+          fix={playerFix}
+          group={scorecard.participants
+            .filter(p => isActiveParticipant(p.participant.status))
+            .map(p => ({
+              participantId: p.participant.id,
+              name: formatDisplayName(
+                p.participant.profile?.first_name ?? null,
+                null,
+                p.participant.profile?.last_name ?? null,
+                p.participant.profile?.full_name ?? null
+              ),
+              isSelf: p.participant.profile_id === viewerId,
+              holeScores: (p.scores.hole_scores ?? []).map(h => ({ hole_number: h.hole_number, strokes: h.strokes ?? null })),
+            }))}
           // The scorer's hole goes with it: the map opens where the player is.
           onShowMap={mapAvailable ? (hole: number) => { setViewedHole(hole); setScorerHole(hole); setTab('map'); } : undefined}
           players={

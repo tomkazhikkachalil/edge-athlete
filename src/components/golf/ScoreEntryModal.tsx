@@ -1,10 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import HoleHeader from '@/components/golf/HoleHeader';
+import { groupScoresForHole, holeHeaderFacts, liveLine, runningToPar, teeSheetForHole, type GroupPlayer, type TeeSheetSource } from '@/lib/golf/hole-detail';
+import { holeDiagramWithPoint } from '@/lib/golf/hole-svg';
+import type { HoleLine } from '@/lib/golf/hole-geometry';
+import type { HoleElevation } from '@/lib/golf/elevation';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import NumberWheel from '@/components/golf/NumberWheel';
-import { holePar } from '@/lib/golf/scoring';
+import { holePar, toParColorClass, toParLabel } from '@/lib/golf/scoring';
 import {
   firstUnscoredHole,
   readDraft,
@@ -111,6 +116,20 @@ interface ScoreEntryModalProps {
    *  scorer — this is its discoverability affordance mid-round. */
   /** Opens the course map ON the hole the scorer is showing (a hole NUMBER). */
   onShowMap?: (holeNumber: number) => void;
+  // ── The hole header (PR E) — every one optional; the composer's batch
+  //    stepper and the feed card pass none and render as before. ──
+  /** golf_data.tee_color — the tee in play ("white"). */
+  teeInPlay?: string | null;
+  /** The catalog's tee sheet (`?holes=1`'s `sheet`). */
+  teeSheet?: TeeSheetSource | null;
+  /** The hole lines the map draws (trimmed to the tee in play). */
+  holeLines?: HoleLine[] | null;
+  /** The cached elevation profiles (`?holes=1`'s `elevation`). */
+  holeElevation?: HoleElevation | null;
+  /** The map's live GPS fix, published up — the scorer never prompts. */
+  fix?: [number, number] | null;
+  /** Everyone's hole scores, for "Sam 5 · Alex 4" on this hole. */
+  group?: GroupPlayer[];
 }
 
 export default function ScoreEntryModal({
@@ -130,7 +149,13 @@ export default function ScoreEntryModal({
   onSave,
   onSaveHole,
   onClose,
-  onShowMap
+  onShowMap,
+  teeInPlay = null,
+  teeSheet = null,
+  holeLines = null,
+  holeElevation = null,
+  fix = null,
+  group,
 }: ScoreEntryModalProps) {
   const isLive = !!onSaveHole;
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -582,6 +607,48 @@ export default function ScoreEntryModal({
   const activePlayer = players?.find(p => p.participantId === participantId) ?? null;
   const enteringForOther = activePlayer ? !activePlayer.isSelf : !!playerName;
 
+  // ── The hole header's inputs (PR E) — one ladder shared with the map chip
+  //    (hole-detail.ts); every input optional, so the batch stepper and the
+  //    feed card see the same header they always had, minus nothing. ──
+  const headerHoleNumber = currentHoleData.hole_number ?? holeNumberAtPosition(startingHoleNumber, currentHole);
+  const headerLine = holeLines?.find(h => h.hole === headerHoleNumber)?.line ?? null;
+  const headerFacts = holeHeaderFacts({
+    hole: headerHoleNumber,
+    holeData: courseHoleData,
+    sheet: teeSheet,
+    teeInPlay,
+    line: headerLine,
+    fallbackPar: currentHoleData.par,
+  });
+  const headerTees = teeSheetForHole(teeSheet, headerHoleNumber, teeInPlay);
+  const headerLive = liveLine({
+    fix,
+    line: headerLine,
+    profile: holeElevation?.holes.find(h => h.hole === headerHoleNumber) ?? null,
+    cardYards: courseHoleData?.find(h => h.hole === headerHoleNumber)?.yardage ?? null,
+  });
+  const headerRunning = runningToPar(holeData.map(h => ({ strokes: h.strokes, par: h.par })));
+  const headerGroup = groupScoresForHole(group, headerHoleNumber, participantId);
+  const headerThumb = headerLine
+    ? holeDiagramWithPoint({ hole: headerHoleNumber, par: currentHoleData.par, line: headerLine }, fix, 100, 10)
+    : null;
+  // The Map pill's path and the thumbnail's are ONE: save first (a failed
+  // flush keeps the scorer open instead of stranding it over the map), close,
+  // then hand the page the hole the player is on.
+  const goToMap = async () => {
+    if (!onShowMap) return;
+    if (isLive) {
+      setSaving(true);
+      const ok = await persistHole(currentHole);
+      setSaving(false);
+      if (!ok) return;
+    }
+    onClose();
+    // After onClose on purpose: the page's close clears its viewed hole, and
+    // this sets the one the player is on.
+    onShowMap(holeNumberAtPosition(startingHoleNumber, currentHole));
+  };
+
   /** Batch-mode payload: every hole with a recorded stroke count, in the
    *  shape onSave expects. Shared by Save Scores and the player switch. */
   const collectCompletedScores = (effective: HoleData[]) =>
@@ -701,20 +768,7 @@ export default function ScoreEntryModal({
             {onShowMap && (
               <button
                 type="button"
-                onClick={async () => {
-                  // Same save-state path as the X — a failed flush keeps
-                  // the scorer open instead of stranding it over the map.
-                  if (isLive) {
-                    setSaving(true);
-                    const ok = await persistHole(currentHole);
-                    setSaving(false);
-                    if (!ok) return;
-                  }
-                  onClose();
-                  // After onClose on purpose: the page's close clears its
-                  // viewed hole, and this sets the one the player is on.
-                  onShowMap(holeNumberAtPosition(startingHoleNumber, currentHole));
-                }}
+                onClick={goToMap}
                 className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/30 px-3 min-h-[44px] -my-2 text-sm font-bold text-white transition-colors"
                 aria-label="Open course map"
                 data-scorer-map=""
@@ -787,22 +841,21 @@ export default function ScoreEntryModal({
 
         {/* Content */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
-          {/* Current Hole Display */}
-          <div className="text-center mb-4">
-            <div className="text-4xl font-black text-green-900 dark:text-green-100 mb-2">
-              Hole {currentHoleData.hole_number}
-            </div>
-            <div className="text-sm text-tertiary">
-              {courseName && <span className="font-semibold">{courseName} · </span>}
-              Par {currentHoleData.par}
-              {(() => {
-                const yardage = courseHoleData?.find(
-                  h => h.hole === currentHoleData.hole_number
-                )?.yardage;
-                return yardage ? <span className="text-muted"> · {yardage} yds</span> : null;
-              })()}
-            </div>
-          </div>
+          {/* The hole in front of you (PR E): par · HCP · the tee's yards
+              (other tees one tap away), to-green + plays-like, the running
+              score and the group's scores, the thumbnail → the map. */}
+          <HoleHeader
+            holeNumber={headerHoleNumber}
+            facts={headerFacts}
+            tees={headerTees}
+            live={headerLive}
+            running={headerRunning}
+            runningLabel={activePlayer ? (activePlayer.isSelf ? 'You' : activePlayer.name.split(' ')[0]) : 'You'}
+            group={headerGroup}
+            thumb={headerThumb}
+            onOpenMap={onShowMap ? goToMap : undefined}
+          />
+          {courseName && <p className="-mt-2 mb-4 text-xs text-tertiary truncate">{courseName}</p>}
 
           {/* Strokes + Putts, side by side. Each wheel RESTS on the common
               answer — this hole's par, and two putts — so a routine hole is
@@ -1005,10 +1058,14 @@ export default function ScoreEntryModal({
 
           {/* Current Totals */}
           <div className="bg-surface-muted rounded-lg p-4 mb-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-4 gap-3 text-center">
               <div>
                 <div className="text-xs text-tertiary mb-1">Holes</div>
                 <div className="text-xl font-black text-primary">{holesCompleted}/{holesPlayed}</div>
+              </div>
+              <div>
+                <div className="text-xs text-tertiary mb-1">To par</div>
+                <div className={`text-xl font-black ${toParColorClass(headerRunning?.toPar ?? null)}`} data-scorer-to-par="">{toParLabel(headerRunning?.toPar ?? null)}</div>
               </div>
               <div>
                 <div className="text-xs text-tertiary mb-1">Strokes</div>

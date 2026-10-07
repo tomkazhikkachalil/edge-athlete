@@ -1514,7 +1514,29 @@ const { canView } = await response.json();
    `hole_data` is typed with `handicap?` everywhere it is spelled and the
    composer's `deriveCourseHoles` carries it (the route always accepted it).
    The map's ONE `watchPosition` (`CourseMapInner`) PUBLISHES every fix and
-   the stop through `onFix` — the scorer never prompts for location.
+   the stop through `onFix` — the scorer never prompts for location. **PR E —
+   the hole header** (`src/components/golf/HoleHeader.tsx`, mounted in
+   `ScoreEntryModal` in place of the old "Hole N · course · Par P · Y yds"
+   line): row A the big "Hole N" (the e2e idiom `/^Hole N\b/` stays strict —
+   row B starts at "Par") + a 56 px SVG thumbnail (`data-hole-thumb`,
+   `holeDiagramWithPoint`, tee · green · you; its handler IS the Map pill's,
+   `goToMap`: save first, close, hand the page the hole); row B
+   `data-hole-facts` "Par 4 · HCP 11 · 388 yds · White ▾" (the tee chip
+   `data-hole-tee-toggle` opens the INLINE `data-hole-tees` list — never a
+   z-layer; the `div[class*="z-[60]"]` scope stays the one overlay); row C
+   `data-hole-plays-like` = `gps | tee` ("196 yds to green · plays like ≈203
+   (↑ 7 yd)" from the map's published fix, "Tee → green 388 yds · …" without;
+   plays-like only with a profile; the row only with a line); row D
+   `data-hole-group` "You E thru 6 · Sam 5" (`toParLabel` / `toParColorClass`
+   — the house SEMANTIC COLOUR); the totals strip gains "To par"
+   (`data-scorer-to-par`). Every new modal prop (`teeInPlay`, `teeSheet`,
+   `holeLines`, `holeElevation`, `fix`, `group`) is optional — the composer's
+   batch stepper and the feed card render as before. The live page fetches
+   `?holes=1` on the first Map open OR scorer open (`holeDetail` =
+   `{geometry, elevation, sheet, courseId}`; a two-nine combo keeps elevation
+   and sheet null), asks `?elevation=1` ONCE when the profile is missing, and
+   passes `playerFix` from `onFix`. No `whitespace-nowrap` in the header
+   block; `live-hole-detail.spec.ts` holds 375 and 320.
 
 ---
 
