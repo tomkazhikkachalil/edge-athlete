@@ -1,5 +1,11 @@
 # Development Log
 
+## October 7, 2026 — Golf near-me program: the post-merge proof — 254 on production, the hole header probed on edgeathlete.ca, the subscriptions parked
+
+Tom ran 254 in the production SQL editor — `254 APPLIED | 2 | 254` — and `check:schema:prod` answered OK at ledger head 254. The baseline was regenerated from production (#1101). **Production probes on edgeathlete.ca:** `composer-near-me` + `gps-hole-flag` on the phone project 2/2 (25 s) before 254; after it, `live-hole-detail` (phone) + `course-elevation` (the API) 2/2 (23 s) — the hole header with par, HCP, the tee's yards, the inline tee sheet, the plays-like from a seeded profile, the thumbnail round-trip and the group line all hold on the live app.
+
+**Tom's decision:** no subscriptions for now — GolfCourseAPI Pro and Open-Meteo are PARKED until the app is fully open to the public, when "the API and subscriptions for everything that is free will be done". Both switches stay unset: proximity stays dormant and no plays-like shows; everything else in the program is live.
+
 ## October 7, 2026 — Golf near-me program PR F: the map chip's plays-like, and the program's close (zero DDL)
 
 The last of six. The map chip ("Hole 7 · Par 4 · 388 yds") speaks the same live line as the scorer's header: "plays like ≈395 ↑ 7 yd" — from the map's own fix when it has one, else from the tee — through the one `liveLine` in `hole-detail.ts`, on its own line below `sm` so the chip's width never grows into the control column at 320–375 px (`data-chip-plays-like`). `live-hole-detail.spec.ts` asserts it on the Map tab after the thumbnail opens the map.
