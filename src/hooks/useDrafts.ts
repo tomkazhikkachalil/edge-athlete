@@ -11,9 +11,9 @@ import type { DraftsList } from '@/lib/drafts/list';
  * calls `refreshDrafts()`.
  */
 
-export type DraftsSnapshot = DraftsList & { count: number };
+export type DraftsSnapshot = DraftsList & { count: number; /** The server has answered at least once this page load. */ loaded: boolean };
 
-const EMPTY: DraftsSnapshot = { inProgress: [], drafts: [], count: 0 };
+const EMPTY: DraftsSnapshot = { inProgress: [], drafts: [], count: 0, loaded: false };
 
 let cached: DraftsSnapshot | null = null;
 let inFlight: Promise<DraftsSnapshot> | null = null;
@@ -35,6 +35,7 @@ export async function refreshDrafts(): Promise<DraftsSnapshot> {
         inProgress: Array.isArray(body.inProgress) ? body.inProgress : [],
         drafts: Array.isArray(body.drafts) ? body.drafts : [],
         count: typeof body.count === 'number' ? body.count : 0,
+        loaded: true,
       };
       publish(next);
       return next;

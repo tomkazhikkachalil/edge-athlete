@@ -287,6 +287,35 @@ export default function RecordActivityScreen() {
     if (store && resumeOffer) await store.clear(resumeOffer.id).catch(() => undefined);
     setResumeOffer(null);
   };
+  // Finish from the offer (Drafts round: Resume / Finish / Discard): resume,
+  // then finish as soon as the state is in — the FinishSheet opens with the
+  // name and, for a timer type, the distance. `?finish=1` (the reopen prompt)
+  // takes this path on its own.
+  const finishOffer = async () => {
+    const wasFinished = resumeOffer?.status === 'finished';
+    await resume();
+    // resume() queued setState(s); dispatch's functional update runs on it in
+    // the same batch, so the finish lands on the resumed state.
+    if (!wasFinished) {
+      dispatch({ type: 'finish', now: Date.now() });
+      setFinishing(true);
+    }
+  };
+  const finishOfferRef = useRef(finishOffer);
+  finishOfferRef.current = finishOffer;
+  useEffect(() => {
+    if (!resumeOffer) return;
+    let cancelled = false;
+    (async () => {
+      let wantsFinish = false;
+      try { wantsFinish = new URLSearchParams(window.location.search).get('finish') === '1'; } catch { /* no window */ }
+      if (!wantsFinish) return;
+      try { window.history.replaceState(null, '', window.location.pathname); } catch { /* best-effort */ }
+      await Promise.resolve();
+      if (!cancelled) await finishOfferRef.current();
+    })();
+    return () => { cancelled = true; };
+  }, [resumeOffer]);
 
   const onMark = () => {
     const s = stateRef.current;
@@ -399,6 +428,11 @@ export default function RecordActivityScreen() {
             <button type="button" onClick={resume} className="ea-cta min-h-[44px] flex-1 rounded-lg text-sm font-semibold text-white" data-record-resume-yes="">
               Resume
             </button>
+            {resumeOffer.status !== 'finished' && (
+              <button type="button" onClick={() => void finishOffer()} className="ea-interactive min-h-[44px] rounded-lg border border-border-strong px-4 text-sm font-medium text-secondary" data-record-resume-finish="">
+                Finish
+              </button>
+            )}
             <button type="button" onClick={discardOffer} className="ea-interactive min-h-[44px] rounded-lg border border-border-strong px-4 text-sm font-medium text-secondary" data-record-resume-discard="">
               Discard
             </button>

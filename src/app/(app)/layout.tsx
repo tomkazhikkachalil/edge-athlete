@@ -15,6 +15,7 @@ import PushHost from '@/components/push/PushHost';
 import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
+import ReopenPromptHost from '@/components/drafts/ReopenPromptHost';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -127,6 +128,8 @@ export default async function RootLayout({
               {/* "Download the app": the install signals + the one guide,
                   for every page (the sign-in page included). */}
               <InstallAppProvider>
+              {/* Drafts: once per app open, Resume / Finish / Discard what is in progress. */}
+              <ReopenPromptHost />
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />

@@ -12,7 +12,6 @@ import PostDetailModal from './PostDetailModal';
 import { useToast } from './Toast';
 import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
-import { effectiveSessionStatus } from '@/lib/workouts/status';
 import { latestPB } from '@/lib/workouts/dashboard';
 import {
   mergeSessions,
@@ -148,7 +147,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
   const [startingWorkout, setStartingWorkout] = useState(false);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
   const [showStartSheet, setShowStartSheet] = useState(false);
   const [showRoutinesModal, setShowRoutinesModal] = useState(false);
@@ -227,31 +225,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     };
   }, [isOwnProfile, routinesReload]);
   const refreshRoutines = () => setRoutinesReload(k => k + 1);
-
-  // Live session in progress (owner only sees actives from the API)
-  const activeWorkout = useMemo(
-    () =>
-      workouts.find(
-        s =>
-          s.status === 'active' &&
-          effectiveSessionStatus({ status: s.status, lastActivityAt: s.last_activity_at }) === 'active'
-      ) ?? null,
-    [workouts]
-  );
-
-  // Effect-owned deliberately: per-session dismissal lives in sessionStorage,
-  // and it re-reads per workout id, so it cannot move into render.
-  useEffect(() => {
-    if (!activeWorkout) return;
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setBannerDismissed(
-        sessionStorage.getItem(`ea:workout-banner-dismissed:${activeWorkout.id}`) === '1'
-      );
-    } catch {
-      setBannerDismissed(false);
-    }
-  }, [activeWorkout]);
 
   const handleStartWorkout = async (routineId: string | null = null) => {
     if (startingWorkout) return;
@@ -486,38 +459,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         {/* Live Activities: a recording this phone did not finish */}
         {isOwnProfile && <RecordingResumeBanner />}
 
-        {/* Resume banner — a live session is in progress */}
-        {isOwnProfile && activeWorkout && !bannerDismissed && (
-          <div className="mt-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" aria-hidden="true" />
-              <p className="text-sm text-amber-900 dark:text-amber-200 truncate">
-                <span className="font-bold">Workout in progress</span>
-                {activeWorkout.title ? ` — ${activeWorkout.title}` : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => router.push(`/app/workout/${activeWorkout.id}`)}
-                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors"
-              >
-                Resume
-              </button>
-              <button
-                onClick={() => {
-                  try {
-                    sessionStorage.setItem(`ea:workout-banner-dismissed:${activeWorkout.id}`, '1');
-                  } catch { /* ignore */ }
-                  setBannerDismissed(true);
-                }}
-                className="px-2 py-1.5 text-amber-700 text-xs font-semibold hover:text-amber-900 transition-colors"
-                aria-label="Dismiss banner"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Hero: greeting, active-days ring, this week, streak, latest PB —
