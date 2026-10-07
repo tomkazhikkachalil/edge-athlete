@@ -1412,8 +1412,23 @@ const { canView } = await response.json();
    score is FINISHED as played (the record written, the post still a draft);
    a PENDING round untouched since creation is DISCARDED (nothing was
    recorded; the results delete cascade); an event's round never. Pinned:
-   the sweep never writes `posts.status`. Coming in PRs 4–5: the
-   root-mounted reopen prompt, workouts (`share_decided_at`, 253).
+   the sweep never writes `posts.status`.
+   **The reopen prompt (PR 4):** `src/components/drafts/ReopenPromptHost.tsx`
+   is mounted ONCE in the `(app)` root layout (beside the install host):
+   once per app open (`sessionStorage ea:reopen-prompt:v1:<userId>`), after
+   the server list (`useDrafts().loaded`) AND the phone (IndexedDB) answered,
+   it asks about the ONE most recently touched in-progress thing
+   (`pickReopenCandidate`) — Resume / Finish / Discard / Not now — and
+   never over the thing itself (`reopen.ts reopenSkipsPath`: `/live/*`, the
+   recorder, the workout editor, the Drafts area). `reopenActions` is the
+   pure rule: a scored round's creator gets all three (Finish → the review
+   screen), a scoreless one Resume + Discard, a playing partner Resume only,
+   a workout Finish → `/app/workout/[id]?share=1`, a recording Finish →
+   `/activities/record?finish=1` (the recorder's offer has Finish too). It
+   REPLACES the feed's "Live round at …" banner and the Vitals workout
+   banner — one door at the top of every page, Drafts the second (the
+   device-local `RecordingResumeBanner` stays). Coming in PR 5: workouts
+   (`share_decided_at`, 253; the 6 h auto-complete gone).
 
 ---
 

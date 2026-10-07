@@ -162,6 +162,8 @@ export const COPY = {
     FINISH_ROUND_TITLE: 'Finish this round?',
     FINISH_ROUND_CONFIRM: 'The round is recorded as played — scores can still be fixed afterwards. Nothing is posted until you tap Post on the review screen.',
     FINISH_ROUND_ACTION: 'Finish round',
+    REOPEN_TITLE: 'Pick up where you left off?',
+    REOPEN_BODY: 'Closing the app never ends anything. Resume to keep going, Finish to record it as it stands, or Discard it. You can also find it under Drafts.',
     POST_DRAFT_LABEL: 'Post',
     POSTED_TITLE: 'Posted',
     POSTED_BODY: 'It is on the feed and your profile now.',
