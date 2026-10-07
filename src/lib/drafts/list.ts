@@ -25,6 +25,9 @@ export interface DraftItem {
   href: string;
   /** Rounds: the viewer created it (Finish / Discard / Post are theirs). */
   isCreator: boolean;
+  /** Rounds: someone has scored ('active') — Finish has something to record.
+   *  A scoreless ('pending') round offers Discard only. */
+  scored: boolean;
 }
 
 export interface DraftRoundRow {
@@ -103,6 +106,7 @@ export function buildDraftsList(input: {
       startedAt: r.date,
       lastActivityAt: r.lastScoreAt,
       isCreator: r.isCreator,
+      scored: r.status === 'active' || r.status === 'completed',
     };
     if (ROUND_IN_PROGRESS.has(r.status ?? '')) {
       inProgress.push({ ...base, state: 'in_progress', href: `/live/${r.id}` });
@@ -124,6 +128,7 @@ export function buildDraftsList(input: {
       lastActivityAt: w.last_activity_at,
       href: `/app/workout/${w.id}`,
       isCreator: true,
+      scored: true,
     });
   }
 
@@ -139,6 +144,7 @@ export function buildDraftsList(input: {
       lastActivityAt: iso,
       href: '/activities/record',
       isCreator: true,
+      scored: true,
     });
   }
 

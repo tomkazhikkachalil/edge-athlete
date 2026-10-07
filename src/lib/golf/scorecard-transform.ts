@@ -140,8 +140,8 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
   const golfData = Array.isArray(golf_data) ? golf_data[0] : golf_data;
   if (!golfData) return null;
 
-  // Newest score write across all participants — feeds the lazy auto-end
-  // rule (effectiveRoundStatus) so a quiet 'active' round renders FINAL.
+  // Newest score write across all participants — the round's "last
+  // activity" (the Drafts list, the sweep's 7-day clock).
   let lastActivityAt: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -5,7 +5,7 @@ import { formatDisplayName, getInitials, parseDateLocal } from '@/lib/formatters
 import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
-import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
 import { holeCountLabel, holeCountValue, playedHoleCount } from '@/lib/golf/round-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
@@ -161,9 +161,12 @@ export default function SharedRoundFullCard({
       )
     : null;
 
-  // Creator's manual escape hatch for a round left 'active' (e.g. players
-  // stopped entering scores mid-round). Normal completion happens
-  // automatically server-side when everyone who scored has finished.
+  // FINISH (Drafts round, Oct 2026): the creator's explicit end — Finish and
+  // Post are two actions; this writes the record (round-finish.ts) and the
+  // post stays a draft until posted from the review screen. Offered once
+  // someone has scored ('active'); a scoreless 'pending' round has nothing
+  // to finish — its creator discards it (Delete Round). Completion is also
+  // automatic when everyone who scored has finished.
   const handleEndRound = async () => {
     setEndingRound(true);
     setEndRoundError(null);
@@ -542,7 +545,7 @@ export default function SharedRoundFullCard({
                     LIVE
                   </span>
                 )}
-                {effectiveRoundStatus(group_post) === 'completed' && (
+                {group_post.status === 'completed' && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white text-xs font-bold rounded-full">
                     <i className="fas fa-flag-checkered text-[10px]"></i>
                     FINAL
@@ -592,11 +595,12 @@ export default function SharedRoundFullCard({
                   onClick={() => setShowEndConfirm(true)}
                   disabled={endingRound}
                   className="flex items-center gap-2 bg-white/15 hover:bg-white/25 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] justify-center"
-                  aria-label="End round"
+                  aria-label="Finish round"
+                  data-round-finish=""
                 >
                   <i className="fas fa-flag-checkered"></i>
                   {/* Icon-only below sm — the label crowds the modal title at 360px */}
-                  <span className="hidden sm:inline">{endingRound ? 'Ending…' : 'End Round'}</span>
+                  <span className="hidden sm:inline">{endingRound ? 'Finishing…' : 'Finish round'}</span>
                 </button>
               )}
               {/* Delete Round — covers 'pending' too (a zero-score round can't
@@ -1153,10 +1157,10 @@ export default function SharedRoundFullCard({
       {/* End Round confirmation */}
       <ConfirmModal
         isOpen={showEndConfirm}
-        title="End Round"
-        message="Mark this round as final? The live leaderboard stops updating as LIVE, but players can still add or fix scores afterward."
-        confirmText="End Round"
-        cancelText="Keep Playing"
+        title={COPY.FORMS.FINISH_ROUND_TITLE}
+        message={COPY.FORMS.FINISH_ROUND_CONFIRM}
+        confirmText={COPY.FORMS.FINISH_ROUND_ACTION}
+        cancelText="Keep playing"
         confirmButtonClass="bg-brand hover:bg-brand-hover"
         onConfirm={handleEndRound}
         onCancel={() => setShowEndConfirm(false)}

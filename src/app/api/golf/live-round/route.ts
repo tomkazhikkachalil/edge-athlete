@@ -43,9 +43,9 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('profile_id', user.id)
-      // Only recent rounds can be live (±48h window) — keep the scan tiny
+      // In progress is status-only now (no window) — newest first, a bounded scan
       .order('created_at', { ascending: false })
-      .limit(25);
+      .limit(100);
 
     if (fetchError) {
       reportRouteError('live-round: fetch failed:', fetchError);
@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
         if (!gp || gp.type !== 'golf_round') return null;
         const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
         const scores = Array.isArray(r.scores) ? r.scores[0] : r.scores;
-        // Round-wide newest score write — the 6h auto-end rule hides the
-        // banner for quiet rounds
+        // Round-wide newest score write — the round's last activity (the
+        // Drafts list reads it; no rule hides a quiet round any more)
         let lastActivity: string | null = null;
         for (const ap of (gp.all_participants || []) as Array<{ scores: { updated_at?: string | null }[] | { updated_at?: string | null } | null }>) {
           const s = Array.isArray(ap.scores) ? ap.scores[0] : ap.scores;

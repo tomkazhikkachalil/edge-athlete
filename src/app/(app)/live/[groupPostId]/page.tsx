@@ -14,7 +14,7 @@ import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
-import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { isActiveParticipant } from '@/lib/golf/round-status';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores, reopenHole } from '@/lib/golf/score-entry';
@@ -284,7 +284,7 @@ export default function LiveRoundPage() {
   const mapAvailable = !!courseInfo && typeof courseInfo.lat === 'number' && typeof courseInfo.lng === 'number';
   // Not just isRoundLive: a fresh round is 'pending' until the first score
   // lands — exactly when the player is on the tee.
-  const roundOpen = effectiveRoundStatus(scorecard.group_post) !== 'completed';
+  const roundOpen = scorecard.group_post.status !== 'completed';
   const holesPlayedN = scorecard.golf_data.holes_played;
   const startHole = startingHoleNumber(scorecard.golf_data.hole_data ?? null, holesPlayedN);
   const myParticipant = viewerId ? scorecard.participants.find(p => p.participant.profile_id === viewerId) : undefined;

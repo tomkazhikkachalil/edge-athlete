@@ -23,7 +23,7 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 //     production once, with the poll switched off because the channel looked
 //     healthy — a total freeze with the safety net disabled. The relaxed poll
 //     caps worst-case staleness at 60s no matter what realtime is doing,
-//   • ticks a re-render each minute so time-based badge rules (6h auto-end,
+//   • ticks a re-render each minute so time-based badge rules (the ±48 h LIVE window,
 //     48h live window) expire without any server event,
 //   • exposes refresh() for imperative updates (e.g. right after you save).
 //
@@ -229,7 +229,7 @@ export function useSharedRound({
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [enabled, refresh]);
 
-  // Minute tick: re-render so isRoundLive/effectiveRoundStatus re-evaluate
+  // Minute tick: re-render so isRoundLive re-evaluates
   // with fresh Date.now() — LIVE badges expire on time even with no events.
   useEffect(() => {
     if (!enabled) return;

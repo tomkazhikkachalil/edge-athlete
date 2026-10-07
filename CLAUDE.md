@@ -1394,10 +1394,26 @@ const { canView } = await response.json();
    re-exports it as `draftReviewPath`): the composer lands an already-played
    round there (`afterCreatePath`), the creator's live page "View post" /
    End Round landing goes there, the card's banner links there. Doors:
-   the header dropdown AND the drawer (with the count). Coming in PRs 3–5:
-   the 7-day sweep (finish as played / discard a scoreless round —
-   `effectiveRoundStatus` and the 6 h rule go), the root-mounted reopen
-   prompt, workouts (`share_decided_at`, 253).
+   the header dropdown AND the drawer (with the count).
+   **The lifecycle (PR 3): nothing finishes at read time.** `round-finish.ts
+   finishRound` is the ONE Finish writer (guarded `pending | active →
+   completed`, then the mirror and the media; never the post) — the creator's
+   "Finish round" (PATCH `status: 'completed'`, offered once someone has
+   scored; a scoreless round is discarded), the Drafts list and the reopen
+   prompt all go through it; the score routes keep `advanceRoundStatus`
+   (every card full → completed) and mirror after it. The 6 h quiet rule,
+   `effectiveRoundStatus` and `isAbandonedPendingRound` are GONE: every
+   reader reads the STORED status; `isRoundLive` keeps its ±48 h date window
+   (the LIVE strip and badge mean "played now"); `pickLiveRound` (the resume
+   path, the prompt's source) is status-only — an in-progress round is in
+   progress however old. The daily sweep (`round-sweep.ts`, the ONE place an
+   untouched round is settled) applies `abandonedRoundAction` —
+   `ABANDON_AFTER_MS` = 7 days: an ACTIVE round untouched since its last
+   score is FINISHED as played (the record written, the post still a draft);
+   a PENDING round untouched since creation is DISCARDED (nothing was
+   recorded; the results delete cascade); an event's round never. Pinned:
+   the sweep never writes `posts.status`. Coming in PRs 4–5: the
+   root-mounted reopen prompt, workouts (`share_decided_at`, 253).
 
 ---
 

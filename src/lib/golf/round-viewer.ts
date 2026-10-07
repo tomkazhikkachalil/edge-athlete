@@ -4,10 +4,10 @@
 // the rules are unit-testable without a DOM.
 //
 // Deliberately reuses the existing domain functions rather than re-deriving:
-// effectiveRoundStatus (which carries the 6h auto-end rule), isActiveParticipant,
+// isActiveParticipant,
 // and the same "own card is complete" rule the resume banner uses.
 
-import { effectiveRoundStatus, isActiveParticipant } from './round-status';
+import { isActiveParticipant } from './round-status';
 
 export interface ViewerParticipant {
   participant: {
@@ -61,10 +61,10 @@ function ownCardComplete(p: ViewerParticipant, holesPlayed: number | null | unde
 export function resolveRoundEntry({
   scorecard,
   viewerId,
-  now = Date.now(),
 }: {
   scorecard: ViewerScorecard | null | undefined;
   viewerId: string | null | undefined;
+  /** Accepted for the callers' sake; nothing here is clock-based since the Drafts round. */
   now?: number;
 }): RoundEntry {
   if (!scorecard?.group_post?.id) return { mode: 'not-found' };
@@ -72,9 +72,10 @@ export function resolveRoundEntry({
   const postId = scorecard.group_post.post_id ?? null;
   const isCreator = !!viewerId && scorecard.group_post.creator_id === viewerId;
 
-  // effectiveRoundStatus, not status: a round nobody has scored in for 6h reads
-  // as finished even though the row still says 'active'.
-  const status = effectiveRoundStatus(scorecard.group_post, now);
+  // The STORED status (Drafts round, Oct 2026): nothing is finished at read
+  // time any more — an untouched round stays in progress until Finish,
+  // Discard or the sweep's 7-day rule.
+  const status = scorecard.group_post.status;
   if (status === 'completed' || status === 'cancelled') {
     const mineFinal = viewerId
       ? (scorecard.participants ?? []).find(p => p.participant.profile_id === viewerId)

@@ -77,7 +77,7 @@ export interface GroupPost {
   created_at: string;
   updated_at: string;
   /** Newest golf_participant_scores.updated_at across the round — computed
-   *  in scorecard-transform, feeds the lazy 6h auto-end display rule. */
+   *  in scorecard-transform — the round's last activity (the Drafts list, the sweep's 7-day clock). */
   last_score_activity_at?: string | null;
 
   // Relations (when joined)

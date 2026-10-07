@@ -1,9 +1,11 @@
-// ── "You have a live round" resolution ────────────────────────────────────────
+// ── "You have a round in progress" resolution ────────────────────────────────
 // Pure logic behind GET /api/golf/live-round: given the user's participant
-// rows (with embedded group post), pick the round the feed banner should
-// resume — if any. Kept out of the route for unit testing.
-
-import { isRoundLive } from './round-status';
+// rows (with embedded group post), pick the round to offer resuming — if
+// any. Status-only since the Drafts round (Oct 2026): a round is in progress
+// while it is pending or active, however long ago it was played — there is
+// no quiet rule and no date window here (the LIVE strip keeps its ±48 h
+// "played now" window; this is the way back in, and the reopen prompt's
+// source). Kept out of the route for unit testing.
 
 export interface LiveRoundRow {
   /** group_post_participants.id — what score entry needs */
@@ -33,13 +35,14 @@ function cardComplete(r: LiveRoundRow): boolean {
 }
 
 /**
- * The round to offer resuming: LIVE per isRoundLive (status pending OR
- * active, date within the live window — a freshly started zero-score round
- * must get its resume banner too), the user's own card not yet complete,
- * most recent date wins on ties. Null when none.
+ * The round to offer resuming: IN PROGRESS (status pending OR active — a
+ * freshly started zero-score round must get its offer too), the user's own
+ * card not yet complete, the most recent date wins on ties. Null when none.
+ * `now` is accepted for the callers' sake; nothing here is clock-based.
  */
 export function pickLiveRound(rows: LiveRoundRow[], now: number = Date.now()): LiveRoundRow | null {
-  const live = rows.filter(r => r.group_post && isRoundLive(r.group_post, now) && !cardComplete(r));
+  void now;
+  const live = rows.filter(r => r.group_post && (r.group_post.status === 'pending' || r.group_post.status === 'active') && !cardComplete(r));
   if (live.length === 0) return null;
   return live.reduce((best, r) =>
     Date.parse(r.group_post.date ?? '') > Date.parse(best.group_post.date ?? '') ? r : best
