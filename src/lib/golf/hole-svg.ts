@@ -14,7 +14,7 @@
 // OSM data is ODbL: "© OpenStreetMap contributors" must render wherever
 // these lines do (the component carries the line; readers pass `source`).
 
-import { polylineYards, type HoleGeometry, type HoleLine } from './hole-geometry';
+import { polylineYards, type GreenRing, type HoleGeometry, type HoleLine } from './hole-geometry';
 
 export interface ProjectedPoint {
   x: number;
@@ -66,7 +66,25 @@ export function parseStoredHoleGeometry(raw: unknown): HoleGeometry | null {
   }
   if (holes.length === 0) return null;
   holes.sort((a, b) => a.hole - b.hole);
-  return { holes, source: 'osm' };
+  const out: HoleGeometry = { holes, source: 'osm' };
+  // PR G2: carry the green outlines. An ABSENT key stays absent (the cache
+  // layer's refetch-once rule keys on it); a present key is carried even
+  // when empty; a malformed entry is dropped, never the whole geometry.
+  const rawGreens = (raw as { greens?: unknown }).greens;
+  if (Array.isArray(rawGreens)) {
+    const greens: GreenRing[] = [];
+    for (const g of rawGreens) {
+      if (!g || typeof g !== 'object') continue;
+      const o = g as { hole?: unknown; ring?: unknown };
+      if (typeof o.hole !== 'number' || !Number.isInteger(o.hole) || o.hole < 1 || o.hole > 36) continue;
+      if (!Array.isArray(o.ring)) continue;
+      const ring = o.ring.filter(isPair);
+      if (ring.length < 3) continue;
+      greens.push({ hole: o.hole, ring });
+    }
+    out.greens = greens;
+  }
+  return out;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;

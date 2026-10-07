@@ -39,6 +39,20 @@ describe('parseStoredHoleGeometry — the stored jsonb shape', () => {
       parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: [[95, 0], [96, 0]] }] })
     ).toBeNull();
   });
+
+  it('carries the green outlines (PR G2): absent stays absent, [] is kept, junk entries drop', () => {
+    const ring: [number, number][] = [[45.3036, -75.9], [45.3037, -75.9], [45.3037, -75.8999], [45.3036, -75.8999]];
+    const pre = parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: north }] })!;
+    expect('greens' in pre).toBe(false);
+    const stamped = parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: north }], greens: [] })!;
+    expect(stamped.greens).toEqual([]);
+    const full = parseStoredHoleGeometry({
+      source: 'osm',
+      holes: [{ hole: 1, line: north }],
+      greens: [{ hole: 1, ring }, { hole: 'x', ring }, { hole: 2, ring: [[45, -75]] }, null],
+    })!;
+    expect(full.greens).toEqual([{ hole: 1, ring }]);
+  });
 });
 
 describe('projectLines — equirectangular, aspect-preserved, padded', () => {
