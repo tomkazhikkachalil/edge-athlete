@@ -51,17 +51,16 @@ test('log an already-played round and see the scorecard post', { tag: '@smoke' }
   await page.getByRole('button', { name: 'Create Post', exact: true }).click();
 
   // Modal closes; the round is FINISHED and its post is a DRAFT (253): the
-  // composer lands on the draft's card — the course name, the "Not posted
-  // yet" banner and a Post button — and the feed does not carry it yet.
-  await expect(page.getByPlaceholder(/search for a golf course/i))
-    .toBeHidden({ timeout: 20_000 });
-  const draft = page.locator('[data-post-draft="draft"]');
-  await expect(draft).toBeVisible({ timeout: 20_000 });
+  // composer lands on the REVIEW screen — the draft's card with the course
+  // name, notes, and Post — and the feed does not carry it yet.
+  await page.waitForURL(/\/athlete\/drafts\/[0-9a-f-]+$/, { timeout: 20_000 });
+  await expect(page.locator('[data-draft-review]')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('[data-post-draft="draft"]')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(courseName).first()).toBeVisible({ timeout: 20_000 });
 
   // Post — the one extra tap Finish-vs-Post costs — and the feed has it.
-  await page.locator('[data-post-draft-post]').click();
-  await expect(draft).toBeHidden({ timeout: 15_000 });
+  await page.locator('[data-draft-post]').click();
+  await page.waitForURL(/\/feed\?post=/, { timeout: 20_000 });
   await page.goto('/feed');
   await expect(page.getByText(courseName).first()).toBeVisible({ timeout: 20_000 });
 });

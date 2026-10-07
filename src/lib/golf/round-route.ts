@@ -30,15 +30,12 @@ export interface CreatedRoundLike {
 }
 
 /**
- * Where a DRAFT is reviewed and posted (Drafts round, 253). PR 1: the draft's
- * own card, opened over the feed — it wears the "Not posted yet" banner and
- * the Post button. PR 2 replaces this with the review screen
- * (`/athlete/drafts/[postId]`); every caller goes through here so that is
- * one edit.
+ * Where a DRAFT is reviewed and posted (Drafts round, 253): the review screen,
+ * `/athlete/drafts/[postId]` — the composer, the live page and the card all
+ * land there. ONE spelling, shared with the Drafts list.
  */
-export function draftReviewPath(postId: string): string {
-  return `/feed?post=${postId}`;
-}
+import { draftReviewHref } from '@/lib/drafts/list';
+export { draftReviewHref as draftReviewPath };
 
 /**
  * The path to send the user to after creating a round. A live round goes
@@ -52,7 +49,7 @@ export function afterCreatePath(round: CreatedRoundLike | null | undefined): str
   const scorer = shouldEnterScorerAfterCreate(round);
   if (scorer) return scorer;
   if (round?.type === 'golf_round' && round.status === 'completed' && round.post_id) {
-    return draftReviewPath(round.post_id);
+    return draftReviewHref(round.post_id);
   }
   return null;
 }

@@ -1,0 +1,157 @@
+// ── Drafts (Drafts round, Oct 2026): the one list of what is not posted yet ──
+// Finish and Post are two actions. Everything a person has started or finished
+// but not posted lives in ONE private list: rounds IN PROGRESS (being played —
+// Resume / Finish / Discard), DRAFTS (finished, reviewed, not yet posted —
+// Review / Post / Delete), workouts in progress (Resume), and a live activity
+// recording waiting on THIS phone (Resume). Pure: the server reader hands rows
+// in, the page and the reopen prompt read the result. Zero imports.
+
+export type DraftKind = 'round' | 'workout' | 'recording';
+
+export interface DraftItem {
+  kind: DraftKind;
+  /** The thing's own id: group_posts.id, workout_sessions.id, the recording id. */
+  id: string;
+  /** The round's feed post (a draft) — rounds only. */
+  postId: string | null;
+  /** 'in_progress' (Resume) or 'draft' (Review / Post). */
+  state: 'in_progress' | 'draft';
+  title: string;
+  /** ISO — when it started (a round: its date; a workout: started_at). */
+  startedAt: string | null;
+  /** ISO — the last thing that happened to it (a score, a set, a save). */
+  lastActivityAt: string | null;
+  /** Where to continue or review it. */
+  href: string;
+  /** Rounds: the viewer created it (Finish / Discard / Post are theirs). */
+  isCreator: boolean;
+}
+
+export interface DraftRoundRow {
+  id: string;
+  status: string | null;
+  date: string | null;
+  post_id: string | null;
+  course_name: string | null;
+  title: string | null;
+  /** The round's creator is the viewer. */
+  isCreator: boolean;
+  /** Newest score write across the round (ISO) — null when nobody has scored. */
+  lastScoreAt: string | null;
+  /** The round's post is still a draft (false once posted, or when there is no post). */
+  postIsDraft: boolean;
+  /** An event's round (203) — organizer-run, never listed here. */
+  sportEventRoundId: string | null;
+}
+
+export interface DraftWorkoutRow {
+  id: string;
+  status: string | null;
+  title: string | null;
+  started_at: string | null;
+  last_activity_at: string | null;
+}
+
+export interface DraftRecordingLike {
+  id: string;
+  /** The catalog label, already resolved ("Walk", "Run"). */
+  label: string;
+  savedAt: number;
+}
+
+export interface DraftsList {
+  inProgress: DraftItem[];
+  drafts: DraftItem[];
+}
+
+export const ROUND_IN_PROGRESS = new Set(['pending', 'active']);
+
+const ts = (iso: string | null): number => {
+  if (!iso) return 0;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/** Newest activity first; a thing nobody touched sorts by when it started. */
+const newestFirst = (a: DraftItem, b: DraftItem): number =>
+  (ts(b.lastActivityAt) || ts(b.startedAt)) - (ts(a.lastActivityAt) || ts(a.startedAt));
+
+export function roundTitle(r: { course_name: string | null; title: string | null }): string {
+  return r.course_name?.trim() || r.title?.trim() || 'Golf round';
+}
+
+/** The review screen for a draft post. ONE spelling (round-route.ts re-exports it for the composer). */
+export function draftReviewHref(postId: string): string {
+  return `/athlete/drafts/${postId}`;
+}
+
+export function buildDraftsList(input: {
+  rounds: DraftRoundRow[];
+  workouts: DraftWorkoutRow[];
+  recording?: DraftRecordingLike | null;
+}): DraftsList {
+  const inProgress: DraftItem[] = [];
+  const drafts: DraftItem[] = [];
+
+  for (const r of input.rounds) {
+    if (r.sportEventRoundId) continue;
+    const base = {
+      kind: 'round' as const,
+      id: r.id,
+      postId: r.post_id,
+      title: roundTitle(r),
+      startedAt: r.date,
+      lastActivityAt: r.lastScoreAt,
+      isCreator: r.isCreator,
+    };
+    if (ROUND_IN_PROGRESS.has(r.status ?? '')) {
+      inProgress.push({ ...base, state: 'in_progress', href: `/live/${r.id}` });
+    } else if (r.status === 'completed' && r.isCreator && r.post_id && r.postIsDraft) {
+      // Only the creator holds the draft: the round has ONE post, theirs.
+      drafts.push({ ...base, state: 'draft', href: draftReviewHref(r.post_id) });
+    }
+  }
+
+  for (const w of input.workouts) {
+    if (w.status !== 'active') continue;
+    inProgress.push({
+      kind: 'workout',
+      id: w.id,
+      postId: null,
+      state: 'in_progress',
+      title: w.title?.trim() || 'Workout',
+      startedAt: w.started_at,
+      lastActivityAt: w.last_activity_at,
+      href: `/app/workout/${w.id}`,
+      isCreator: true,
+    });
+  }
+
+  if (input.recording) {
+    const iso = new Date(input.recording.savedAt).toISOString();
+    inProgress.push({
+      kind: 'recording',
+      id: input.recording.id,
+      postId: null,
+      state: 'in_progress',
+      title: `${input.recording.label} (on this phone)`,
+      startedAt: iso,
+      lastActivityAt: iso,
+      href: '/activities/record',
+      isCreator: true,
+    });
+  }
+
+  inProgress.sort(newestFirst);
+  drafts.sort(newestFirst);
+  return { inProgress, drafts };
+}
+
+/** The ONE thing the reopen prompt asks about: the most recently touched in-progress item. */
+export function pickReopenCandidate(list: DraftsList): DraftItem | null {
+  return list.inProgress[0] ?? null;
+}
+
+export function draftsCount(list: DraftsList): number {
+  return list.inProgress.length + list.drafts.length;
+}

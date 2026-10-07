@@ -66,7 +66,7 @@ describe('afterCreatePath — Finish and Post are two actions (253)', () => {
   });
   it('an already-played round is a DRAFT: land on it to review and post, never on the feed', () => {
     expect(afterCreatePath({ id: 'gp1', type: 'golf_round', status: 'completed', post_id: 'p1' })).toBe(draftReviewPath('p1'));
-    expect(draftReviewPath('p1')).toBe('/feed?post=p1');
+    expect(draftReviewPath('p1')).toBe('/athlete/drafts/p1');
   });
   it('stays put without a post to land on, on a cancelled round, and off golf', () => {
     expect(afterCreatePath({ id: 'gp1', type: 'golf_round', status: 'completed', post_id: null })).toBeNull();
