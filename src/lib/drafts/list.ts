@@ -53,6 +53,22 @@ export interface DraftWorkoutRow {
   title: string | null;
   started_at: string | null;
   last_activity_at: string | null;
+  ended_at?: string | null;
+  post_id?: string | null;
+  /** 253: when the owner chose Share or Keep private. NULL on a completed session = a draft. */
+  share_decided_at?: string | null;
+}
+
+/** Sessions finished before the Drafts round never had a share decision
+ *  recorded (253 added the column, Oct 6 2026) — they are history, not
+ *  drafts. Only what finishes from here on can be a draft. */
+export const WORKOUT_DRAFTS_SINCE = '2026-10-06T00:00:00Z';
+
+/** A finished workout whose owner never chose Share or Keep private. */
+export function isWorkoutDraft(w: DraftWorkoutRow): boolean {
+  if (w.status !== 'completed' || w.post_id || w.share_decided_at) return false;
+  const ended = ts(w.ended_at ?? w.last_activity_at ?? null);
+  return ended >= Date.parse(WORKOUT_DRAFTS_SINCE);
 }
 
 export interface DraftRecordingLike {
@@ -117,19 +133,22 @@ export function buildDraftsList(input: {
   }
 
   for (const w of input.workouts) {
-    if (w.status !== 'active') continue;
-    inProgress.push({
-      kind: 'workout',
+    const base = {
+      kind: 'workout' as const,
       id: w.id,
       postId: null,
-      state: 'in_progress',
       title: w.title?.trim() || 'Workout',
       startedAt: w.started_at,
-      lastActivityAt: w.last_activity_at,
-      href: `/app/workout/${w.id}`,
+      lastActivityAt: w.ended_at ?? w.last_activity_at,
       isCreator: true,
       scored: true,
-    });
+    };
+    if (w.status === 'active') {
+      inProgress.push({ ...base, state: 'in_progress', href: `/app/workout/${w.id}` });
+    } else if (isWorkoutDraft(w)) {
+      // The share step of the finished workout: Share or Keep private.
+      drafts.push({ ...base, state: 'draft', href: `/app/workout/${w.id}?share=1` });
+    }
   }
 
   if (input.recording) {

@@ -59,6 +59,18 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
     }
   };
 
+  const keepPrivate = async () => {
+    setBusy('post');
+    try {
+      const res = await fetch(`/api/workouts/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keepPrivate: true }) });
+      if (!res.ok) { showError('Could not save that', 'Please try again.'); return; }
+      showSuccess('Kept private', 'It stays in your history, off the feed.');
+      onChanged();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const postDraft = async () => {
     if (!item.postId) return;
     setBusy('post');
@@ -76,7 +88,7 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
   const date = when(item.lastActivityAt) || when(item.startedAt);
   const stateLine = item.state === 'in_progress'
     ? (item.kind === 'recording' ? 'Waiting on this phone' : item.kind === 'workout' ? 'Workout in progress' : item.isCreator ? 'Being played' : 'Being played · you are a player')
-    : 'Finished · not posted';
+    : (item.kind === 'workout' ? 'Finished · not shared' : 'Finished · not posted');
 
   return (
     <li className="flex flex-col sm:flex-row sm:items-center gap-3 p-4" data-draft-row={`${item.kind}:${item.id}`} data-draft-state={item.state}>
@@ -101,6 +113,13 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
                 </button>
               </>
             )}
+          </>
+        ) : item.kind === 'workout' ? (
+          <>
+            <button type="button" className={btn} disabled={busy !== null} onClick={() => void keepPrivate()} data-draft-keep-private="">
+              {busy === 'post' ? 'Saving…' : 'Keep private'}
+            </button>
+            <Link href={item.href} className={cta} data-draft-share="">Share</Link>
           </>
         ) : (
           <>

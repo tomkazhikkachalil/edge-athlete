@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildDraftsList, draftReviewHref, draftsCount, pickReopenCandidate, roundTitle, type DraftRoundRow, type DraftWorkoutRow } from '../drafts/list';
+import { buildDraftsList, draftReviewHref, draftsCount, isWorkoutDraft, pickReopenCandidate, roundTitle, WORKOUT_DRAFTS_SINCE, type DraftRoundRow, type DraftWorkoutRow } from '../drafts/list';
 
 // Drafts round PR 2 (Oct 2026): the one private list of what is not posted
 // yet — rounds in progress, drafts, workouts in progress, the recording on
@@ -39,9 +39,19 @@ describe('buildDraftsList', () => {
   it('a completed round without a post is not a draft (nothing to review)', () => {
     expect(buildDraftsList({ rounds: [round({ status: 'completed', post_id: null })], workouts: [] }).drafts).toEqual([]);
   });
-  it('workouts: only active sessions, as in-progress rows to the editor', () => {
-    const list = buildDraftsList({ rounds: [], workouts: [workout({}), workout({ id: 'done', status: 'completed' })] });
+  it('workouts: an active session is in progress; a finished one with no decision is a DRAFT (Share / Keep private); a decided or shared one is nothing', () => {
+    const list = buildDraftsList({ rounds: [], workouts: [
+      workout({}),
+      workout({ id: 'undecided', status: 'completed', ended_at: '2026-10-07T09:00:00Z' }),
+      workout({ id: 'kept', status: 'completed', ended_at: '2026-10-07T09:00:00Z', share_decided_at: '2026-10-07T09:05:00Z' }),
+      workout({ id: 'shared', status: 'completed', ended_at: '2026-10-07T09:00:00Z', post_id: 'p9' }),
+    ] });
     expect(list.inProgress.map(i => [i.kind, i.id, i.href, i.title])).toEqual([['workout', 'w1', '/app/workout/w1', 'Legs']]);
+    expect(list.drafts.map(i => [i.id, i.href])).toEqual([['undecided', '/app/workout/undecided?share=1']]);
+  });
+  it('a workout finished before the Drafts round is history, not a draft (no decision was ever recorded)', () => {
+    expect(isWorkoutDraft(workout({ status: 'completed', ended_at: '2026-09-30T09:00:00Z' }))).toBe(false);
+    expect(isWorkoutDraft(workout({ status: 'completed', ended_at: WORKOUT_DRAFTS_SINCE }))).toBe(true);
   });
   it('the recording on this phone is an in-progress row to the recorder', () => {
     const list = buildDraftsList({ rounds: [], workouts: [], recording: { id: 'rec', label: 'Walk', savedAt: Date.parse('2026-10-06T09:00:00Z') } });

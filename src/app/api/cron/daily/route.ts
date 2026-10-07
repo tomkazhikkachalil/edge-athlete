@@ -6,6 +6,7 @@ import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
+import { runWorkoutSweep } from '@/lib/workouts/sweep-server';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
 import { runDeletionPurge } from '@/lib/account-park';
@@ -97,6 +98,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] round sweep phase failed:', e);
     summary.rounds = { ok: false };
+  }
+
+  // Drafts round (Oct 2026): a live workout nobody finished is finished as
+  // it stands after 7 days — a draft, never a post.
+  try {
+    summary.workouts = await runWorkoutSweep(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] workout sweep phase failed:', e);
+    summary.workouts = { ok: false };
   }
 
   // Phase 6c G2: golf league rounds fill themselves from members' posted

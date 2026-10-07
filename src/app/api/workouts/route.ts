@@ -12,7 +12,6 @@ import {
   resolveEventRoutine,
   type RoutinePlan,
 } from '@/lib/calendar/event-routine';
-import { effectiveSessionStatus, staleFinalizeFields } from '@/lib/workouts/status';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -123,35 +122,6 @@ async function insertSessionEntries(
   return { ok: true };
 }
 
-/** Persist auto-end for any of the owner's stale active sessions. */
-async function finalizeStaleActives(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  profileId: string
-): Promise<void> {
-  const { data: actives } = await supabase
-    .from('workout_sessions')
-    .select('id, status, started_at, last_activity_at')
-    .eq('profile_id', profileId)
-    .eq('status', 'active');
-
-  for (const session of actives ?? []) {
-    if (
-      effectiveSessionStatus({ status: 'active', lastActivityAt: session.last_activity_at }) ===
-      'completed'
-    ) {
-      await supabase
-        .from('workout_sessions')
-        .update(
-          staleFinalizeFields({
-            startedAt: session.started_at,
-            lastActivityAt: session.last_activity_at,
-          })
-        )
-        .eq('id', session.id);
-    }
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -214,11 +184,6 @@ export async function GET(request: NextRequest) {
     // → 200 with an empty list, indistinguishable from no data on purpose.
     if (!isOwner && aspectHidden(await fetchVitalsPrivacy(supabase, profileId), 'workouts', isOwner)) {
       return NextResponse.json({ sessions: [], hidden: true });
-    }
-
-    // Owner reads finalize abandoned live sessions before listing
-    if (isOwner) {
-      await finalizeStaleActives(supabase, profileId);
     }
 
     let query = supabase
@@ -287,34 +252,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // One live session at a time: finalize a stale one, 409 on a fresh one
+      // One live session at a time: 409 with the open one — however old it
+      // is (Drafts round: nothing finishes at read time; the reopen prompt
+      // and Drafts offer Resume / Finish / Discard, the sweep's 7-day rule
+      // finishes an abandoned one).
       const { data: actives } = await supabase
         .from('workout_sessions')
-        .select('id, started_at, last_activity_at')
+        .select('id')
         .eq('profile_id', user.id)
-        .eq('status', 'active');
-
-      for (const active of actives ?? []) {
-        const effective = effectiveSessionStatus({
-          status: 'active',
-          lastActivityAt: active.last_activity_at,
-        });
-        if (effective === 'completed') {
-          await supabase
-            .from('workout_sessions')
-            .update(
-              staleFinalizeFields({
-                startedAt: active.started_at,
-                lastActivityAt: active.last_activity_at,
-              })
-            )
-            .eq('id', active.id);
-        } else {
-          return NextResponse.json(
-            { error: 'Workout already in progress', activeSessionId: active.id },
-            { status: 409 }
-          );
-        }
+        .eq('status', 'active')
+        .limit(1);
+      if (actives && actives.length > 0) {
+        return NextResponse.json(
+          { error: 'Workout already in progress', activeSessionId: actives[0].id },
+          { status: 409 }
+        );
       }
 
       // Starting from a saved routine OR a scheduled calendar event:

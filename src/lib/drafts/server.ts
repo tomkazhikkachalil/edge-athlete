@@ -31,13 +31,17 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
       .eq('profile_id', profileId)
       .order('created_at', { ascending: false })
       .limit(100),
+    // In progress (active) and finished-undecided (no post, no decision —
+    // the pure rule applies the Drafts-round cutoff).
     admin
       .from('workout_sessions')
-      .select('id, status, title, started_at, last_activity_at')
+      .select('id, status, title, started_at, last_activity_at, ended_at, post_id, share_decided_at')
       .eq('profile_id', profileId)
-      .eq('status', 'active')
+      .in('status', ['active', 'completed'])
+      .is('post_id', null)
+      .is('share_decided_at', null)
       .order('started_at', { ascending: false })
-      .limit(20),
+      .limit(50),
   ]);
   if (roundsError) throw roundsError;
   if (workoutsError) throw workoutsError;

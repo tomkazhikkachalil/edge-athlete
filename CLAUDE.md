@@ -1427,8 +1427,21 @@ const { canView } = await response.json();
    `/activities/record?finish=1` (the recorder's offer has Finish too). It
    REPLACES the feed's "Live round at …" banner and the Vitals workout
    banner — one door at the top of every page, Drafts the second (the
-   device-local `RecordingResumeBanner` stays). Coming in PR 5: workouts
-   (`share_decided_at`, 253; the 6 h auto-complete gone).
+   device-local `RecordingResumeBanner` stays).
+   **Workouts (PR 5) follow the same rule:** the 6 h lazy auto-complete is
+   GONE (`effectiveSessionStatus` / `finalizeStaleActives` deleted; a
+   second live start answers 409 with the open one, however old);
+   `workouts/status.ts` holds `ABANDON_AFTER_MS` (7 d), `isAbandonedSession`
+   and `abandonFinalizeFields`, read ONLY by the daily `runWorkoutSweep`
+   (`workouts/sweep-server.ts`, after the round sweep) — an abandoned live
+   session is finished as it stands, `share_decided_at` NULL. **The share
+   decision is a fact (253):** `PATCH /api/workouts/[id]` stamps
+   `share_decided_at` on `postId` AND on `keepPrivate: true` (the editor's
+   Keep private sends it); a completed session with no post and no decision
+   is a DRAFT (`list.ts isWorkoutDraft`, only sessions ended on or after
+   `WORKOUT_DRAFTS_SINCE` = Oct 6 2026 — earlier ones never had a decision
+   recorded and are history), listed under Ready to post with Share
+   (`/app/workout/[id]?share=1`) and Keep private.
 
 ---
 
