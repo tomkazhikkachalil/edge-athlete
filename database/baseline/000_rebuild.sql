@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-05T03:37:15.121441+00:00 from server 17.6 by
+-- Generated 2026-10-07T01:34:57.212096+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 252.
+-- public.schema_dump() (migration 227). Ledger head at generation: 253.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -1336,7 +1336,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -1406,7 +1406,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS all_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -1455,7 +1455,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS stats_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -1495,7 +1495,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS tagged_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -1543,7 +1543,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS statements_count;
 END;
 $function$;
@@ -1624,7 +1624,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -1698,7 +1698,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -1769,7 +1769,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -5950,7 +5950,8 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
   post_id uuid,
   last_activity_at timestamp with time zone DEFAULT now() NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL
+  updated_at timestamp with time zone DEFAULT now() NOT NULL,
+  share_decided_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_sets (
@@ -8097,7 +8098,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_status_check' AND conrelid = 'public.posts'::regclass) THEN
-    ALTER TABLE public.posts ADD CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text, 'hidden'::text, 'profile_hidden'::text])));
+    ALTER TABLE public.posts ADD CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text, 'hidden'::text, 'profile_hidden'::text, 'draft'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -11973,7 +11974,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -12041,7 +12042,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS all_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -12090,7 +12091,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS stats_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -12130,7 +12131,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS tagged_media_count,
     (
       SELECT COUNT(DISTINCT p.id)
@@ -12178,7 +12179,7 @@ BEGIN
         ))
       )
       AND (p.status = 'published'
-           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     ) AS statements_count;
 END;
 $function$;
@@ -12255,7 +12256,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -12327,7 +12328,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -12396,7 +12397,7 @@ BEGIN
       ))
     )
     AND (p.status = 'published'
-         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id AND p.status <> 'draft'))
     AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
     AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
     ORDER BY p.id, p.created_at DESC
@@ -16767,6 +16768,7 @@ COMMENT ON COLUMN public.post_tags.status IS 'Tag status: active, pending (await
 COMMENT ON TABLE public.post_view_marks IS 'Impact (252): one row per (post, UTC day, kind, hashed viewer) — the uniqueness behind "once per person per day". The hash is sha256(HMAC(salt, day) || viewer), unlinkable across days; pruned after 2 days by the daily cron. Posture A: service role only.';
 COMMENT ON COLUMN public.posts.saves_count IS 'Cached count of times this post has been saved';
 COMMENT ON COLUMN public.posts.activity_mode IS 'Sport-agnostic post mode (e.g. round_recap, hole_highlight), scoped by sport_key. Replaces golf_mode, which is deprecated and will be dropped in a later migration.';
+COMMENT ON COLUMN public.posts.status IS 'published (the feed) · pending_approval / rejected / changes_requested (a supervised author''s approval queue, 051/129) · hidden (moderation, 223) · profile_hidden (the owner''s hide, 241) · draft (253: recorded, not yet posted — the owner''s Drafts area only; the ONE writer of draft → published is src/lib/posts/publish-server.ts).';
 COMMENT ON COLUMN public.posts.post_category IS 'Cross-cutting content category (currently only ''training''), orthogonal to sport_key. NO CHECK by design — vocabulary is validated in the API (src/lib/posts/post-category.ts), the migration-020 activity_mode reasoning.';
 COMMENT ON COLUMN public.posts.review_note IS 'Guardian send-back note (129). Set with status=changes_requested; cleared when the author resubmits.';
 COMMENT ON COLUMN public.posts.approval_nudged_at IS '48h approval-nudge dedupe stamp (129). Non-null = guardians were re-belled once for this pending item.';
@@ -16854,6 +16856,7 @@ COMMENT ON COLUMN public.tickets.report_count IS 'Reports merged into this ticke
 COMMENT ON COLUMN public.tickets.appeal_used_at IS 'The one appeal (222): a user reply on a resolved ticket reopens it once; stamped when used.';
 COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years after close the daily cron nulls the personal columns and stamps this.';
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
+COMMENT ON COLUMN public.workout_sessions.share_decided_at IS 'Drafts (253): when the owner chose Share or Keep private for a finished workout. NULL on a completed session = a draft (never reached the decision).';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak; the route applies the privacy filter. Service-role only.';
@@ -17267,7 +17270,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (249, '249_storage_lockdown_and_cron_hygiene.sql', 'rebuild-000'),
   (250, '250_uploads_bucket_gzip.sql', 'rebuild-000'),
   (251, '251_live_activities.sql', 'rebuild-000'),
-  (252, '252_post_views.sql', 'rebuild-000')
+  (252, '252_post_views.sql', 'rebuild-000'),
+  (253, '253_drafts.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17276,12 +17280,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 129 | 111 | 173 | 252
+-- Expected: 000 REBUILT | 129 | 111 | 173 | 253
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_129,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_111,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_252;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_253;
 
