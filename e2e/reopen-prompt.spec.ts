@@ -80,7 +80,14 @@ test('reopen: a scoreless round offers Discard (no Finish); Discard removes it',
     const prompt = page.locator(`[data-reopen-prompt="round:${groupPostId}"]`);
     await expect(prompt).toBeVisible({ timeout: 20_000 });
     await expect(prompt.locator('[data-reopen-finish]')).toHaveCount(0);
+    // Discard is a two-step door (Tom, Oct 7): the confirm says what goes; Keep it backs out.
     await prompt.locator('[data-reopen-discard]').click();
+    await expect(page.getByText('Nothing was recorded, and this cannot be undone.')).toBeVisible();
+    await page.getByRole('button', { name: 'Keep it' }).click();
+    await expect(prompt).toBeVisible();
+    expect((await apiA.get(`/api/group-posts/${groupPostId}`)).status()).toBe(200);
+    await prompt.locator('[data-reopen-discard]').click();
+    await page.getByRole('button', { name: 'Discard for good' }).click();
     await expect(prompt).toBeHidden({ timeout: 15_000 });
     await expect.poll(async () => (await apiA.get(`/api/group-posts/${groupPostId}`)).status(), { timeout: 15_000 }).toBe(404);
     groupPostId = '';

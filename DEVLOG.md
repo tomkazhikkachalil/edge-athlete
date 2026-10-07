@@ -1,5 +1,14 @@
 # Development Log
 
+## October 7, 2026 — Drafts round follow-up: Discard in the reopen prompt is a two-step door (Tom's phone test)
+
+Tom tested the round on his iPhone: *"it worked."* His one note: the reopen prompt's Discard needs a second step that tells you the round and its information will be deleted — he liked that Finish is offered when numbers have been entered.
+
+- `ReopenPromptHost`: Discard now opens the house `ConfirmModal` (one layer above the prompt, `z-[70]`) before anything is deleted; **Keep it** backs out. The confirm names what goes, by kind and by whether anything was scored (`reopen.ts reopenDiscardKey` → `COPY.FORMS.REOPEN_DISCARD_*`): a scored round — the round and every score entered so far, nothing recorded; a scoreless round — the round, nothing was recorded; a workout — the workout and every set; a recording — the recording on this phone, nothing was saved. The action is "Discard for good". The Drafts list's Discard already confirmed; the prompt now matches it.
+- Tests: `reopen.test.ts` (the key per kind; the host opens the confirm first and deletes only from it). e2e `reopen-prompt.spec.ts`: Discard → the confirm's text → Keep it leaves the round (200) → Discard again → Discard for good → gone (404).
+
+**Proof:** `npm run verify` exit 0 — 4,547 tests in 490 files, lint 0, build, 234 chunks within the floor. e2e `reopen-prompt` on the phone project against staging 3/3 (1.8 min). Prod probe after the deploy.
+
 ## October 7, 2026 — Drafts round: the post-merge proof — five PRs on production, migration 253 live, the probes green
 
 The program's close (plan `~/.claude/plans/pasted-content-id-5f99-ve-noticed-soft-lemon.md`; the five entries below this one, Oct 6). Tom ran 253 in the production SQL editor — `253 APPLIED | true | 1 | 5 | 0 | 253` — and `check:schema:prod` answered OK at ledger head 253 (every live policy, function, trigger and grant owned). The PRs merged in order with the merge script, each waiting for its Vercel deploy: #1087 (`fc532d8a`, the `draft` status + the one Post writer) → #1088 (`1cdbbbe8`, the Drafts area + the review screen) → #1089 (`e15d11f1`, one Finish writer, no read-time finish, the 7-day sweep) → #1090 (`34ad2fdf`, the reopen prompt) → #1091 (`b2249e52`, workouts). Retargeting each stacked PR to `main` did not cancel or re-trigger its smoke run this time — the completed run on the head sha stood. The baseline was regenerated from production at head 253 (#1092: 129 tables, 111 functions, 173 policies, 108 triggers, the dated dump committed beside it).

@@ -30,6 +30,12 @@ export interface ReopenActions {
   line: string;
 }
 
+/** What the Discard confirm says goes — by kind, and whether anything was scored. */
+export function reopenDiscardKey(item: DraftItem): 'REOPEN_DISCARD_ROUND_SCORED' | 'REOPEN_DISCARD_ROUND_EMPTY' | 'REOPEN_DISCARD_WORKOUT' | 'REOPEN_DISCARD_RECORDING' {
+  if (item.kind === 'round') return item.scored ? 'REOPEN_DISCARD_ROUND_SCORED' : 'REOPEN_DISCARD_ROUND_EMPTY';
+  return item.kind === 'workout' ? 'REOPEN_DISCARD_WORKOUT' : 'REOPEN_DISCARD_RECORDING';
+}
+
 export function reopenActions(item: DraftItem): ReopenActions {
   if (item.kind === 'round') {
     return {
