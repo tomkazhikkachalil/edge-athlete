@@ -5,7 +5,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
 import { deleteRoundResult } from '@/lib/results/delete-server';
-import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
+import { finishRound } from '@/lib/golf/round-finish';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -194,16 +194,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update group post' }, { status: 500 });
     }
 
-    // End Round: a round marked completed mirrors every player's scores into
-    // golf_rounds (stats/trends/handicap). Best-effort, self-gated.
+    // FINISH: the one writer (round-finish.ts) mirrors every player's scores
+    // into golf_rounds and the media onto the post. The status itself was
+    // written above under RLS (creator-only); the writer's own guarded
+    // update is then a no-op and it mirrors. The post stays a DRAFT (253):
+    // Post — from the review screen — publishes it and stamps its timestamp.
     if (status === 'completed') {
-      const admin = getSupabaseAdmin();
-      await mirrorCompletedRound(admin, id);
-      // Hole photos/videos land in the feed post too — without this the
-      // finished post shows stats and no pictures.
-      await mirrorRoundMedia(admin, id);
-      // The post stays a DRAFT (253): Finish records the round; Post — from
-      // the review screen — publishes it and stamps its timestamp.
+      await finishRound(getSupabaseAdmin(), id);
     }
 
     return NextResponse.json({

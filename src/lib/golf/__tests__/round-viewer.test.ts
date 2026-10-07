@@ -74,9 +74,9 @@ describe('resolveRoundEntry', () => {
     expect(out).toEqual({ mode: 'final', postId: 'post1', participantId: null, isCreator: true });
   });
 
-  it('defers to effectiveRoundStatus, so a round quiet past the auto-end window is final', () => {
-    // Still says 'active' in the row, but nobody has scored in ~7h. The screen
-    // must not offer a scorer for a round the rest of the app calls finished.
+  it('reads the STORED status: a round quiet for hours is still open (no read-time finish — Drafts round)', () => {
+    // Still 'active' in the row and nobody has scored in ~7h: the player who
+    // comes back resumes; only Finish, Discard or the 7-day sweep settle it.
     const out = resolveRoundEntry({
       scorecard: card({
         group_post: {
@@ -88,7 +88,7 @@ describe('resolveRoundEntry', () => {
       viewerId: ME,
       now: NOW,
     });
-    expect(out.mode).toBe('final');
+    expect(out.mode).not.toBe('final');
   });
 
   it('lets a non-participant watch rather than 403 — public live rounds are watchable', () => {

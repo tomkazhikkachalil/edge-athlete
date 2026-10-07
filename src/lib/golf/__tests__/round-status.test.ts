@@ -3,12 +3,11 @@ import {
   resolveRoundStatus,
   isRoundLive,
   isActiveParticipant,
-  effectiveRoundStatus,
   initialRoundStatus,
   shouldShowStaleNotice,
-  isAbandonedPendingRound,
+  abandonedRoundAction,
   countLiveVisibleRounds,
-  AUTO_END_AFTER_MS,
+  ABANDON_AFTER_MS,
 } from '../round-status';
 
 const p = (confirmed: boolean, holesCompleted: number) => ({ confirmed, holesCompleted });
@@ -80,70 +79,21 @@ describe('resolveRoundStatus', () => {
   });
 });
 
-describe('resolveRoundStatus — 6h quiet auto-end', () => {
+describe('resolveRoundStatus — no quiet rule (Drafts round, Oct 2026)', () => {
   const NOW = Date.parse('2026-07-25T18:00:00Z');
-  const quiet = NOW - AUTO_END_AFTER_MS - 60_000; // 6h1m ago
-  const recent = NOW - AUTO_END_AFTER_MS + 60_000; // 5h59m ago
-
-  it('completes an active round quiet past the window (partial holes)', () => {
+  it('an active round nobody has scored in for a week is NOT finished by a score write — the player who comes back keeps playing', () => {
     expect(
       resolveRoundStatus({
         status: 'active', holesPlayed: 18,
         participants: [p(true, 9), p(true, 9)],
-        lastActivityAt: quiet, now: NOW,
+        lastActivityAt: NOW - 8 * 24 * 60 * 60 * 1000, now: NOW,
       })
+    ).toBeNull();
+  });
+  it('completion still comes from the cards: everyone who scored finished every hole', () => {
+    expect(
+      resolveRoundStatus({ status: 'active', holesPlayed: 9, participants: [p(true, 9)], lastActivityAt: NOW - 8 * 24 * 60 * 60 * 1000, now: NOW })
     ).toBe('completed');
-  });
-
-  it('leaves an active round alone while activity is recent', () => {
-    expect(
-      resolveRoundStatus({
-        status: 'active', holesPlayed: 18,
-        participants: [p(true, 9), p(true, 9)],
-        lastActivityAt: recent, now: NOW,
-      })
-    ).toBeNull();
-  });
-
-  it('quiet rule never fires on pending rounds', () => {
-    expect(
-      resolveRoundStatus({
-        status: 'pending', holesPlayed: 18,
-        participants: [p(true, 0)],
-        lastActivityAt: quiet, now: NOW,
-      })
-    ).toBeNull();
-  });
-
-  it('completed stays terminal even with stale activity data', () => {
-    expect(
-      resolveRoundStatus({
-        status: 'completed', holesPlayed: 18,
-        participants: [p(true, 18)],
-        lastActivityAt: quiet, now: NOW,
-      })
-    ).toBeNull();
-  });
-});
-
-describe('effectiveRoundStatus', () => {
-  const NOW = Date.parse('2026-07-25T18:00:00Z');
-  const quietIso = new Date(NOW - AUTO_END_AFTER_MS - 60_000).toISOString();
-  const recentIso = new Date(NOW - AUTO_END_AFTER_MS + 60_000).toISOString();
-
-  it('renders a quiet active round as completed', () => {
-    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: quietIso }, NOW)).toBe('completed');
-  });
-
-  it('keeps a recently-active round active', () => {
-    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: recentIso }, NOW)).toBe('active');
-  });
-
-  it('passes through raw status when activity data is missing or garbage', () => {
-    expect(effectiveRoundStatus({ status: 'active' }, NOW)).toBe('active');
-    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: 'not-a-date' }, NOW)).toBe('active');
-    expect(effectiveRoundStatus({ status: 'completed', last_score_activity_at: quietIso }, NOW)).toBe('completed');
-    expect(effectiveRoundStatus({ status: 'pending', last_score_activity_at: quietIso }, NOW)).toBe('pending');
   });
 });
 
@@ -200,9 +150,9 @@ describe('isRoundLive', () => {
     expect(isRoundLive({ status: 'cancelled', date: '2026-07-23' }, NOW)).toBe(false);
   });
 
-  it('is NOT live once the round has gone quiet past the auto-end window', () => {
-    const quietIso = new Date(NOW - AUTO_END_AFTER_MS - 60_000).toISOString();
-    expect(isRoundLive({ status: 'active', date: '2026-07-23', last_score_activity_at: quietIso }, NOW)).toBe(false);
+  it('a quiet active round dated today is still LIVE — no quiet rule at read time (Drafts round)', () => {
+    const quietIso = new Date(NOW - 7 * 60 * 60 * 1000).toISOString();
+    expect(isRoundLive({ status: 'active', date: '2026-07-23', last_score_activity_at: quietIso }, NOW)).toBe(true);
   });
 
   it('handles missing/garbage data without throwing', () => {
@@ -212,62 +162,32 @@ describe('isRoundLive', () => {
   });
 });
 
-describe('isAbandonedPendingRound', () => {
-  const NOW = Date.parse('2026-07-23T18:00:00Z');
+describe('abandonedRoundAction — the daily sweep\'s 7-day rule (Tom, Oct 6 2026)', () => {
+  const NOW = Date.parse('2026-10-13T18:00:00Z');
+  const week = 7 * 24 * 60 * 60 * 1000;
+  const old = new Date(NOW - week - 60_000).toISOString();
+  const recent = new Date(NOW - week + 60_000).toISOString();
 
-  it('flags a pending round whose 48h window has passed', () => {
-    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-18' }, NOW)).toBe(true);
+  it('an ACTIVE round untouched for 7 days is FINISHED as played (the July 25 case — its scores become the record)', () => {
+    expect(abandonedRoundAction({ status: 'active', createdAt: old, lastActivityAt: old }, NOW)).toBe('finish');
   });
-
-  it('leaves rounds inside the window, and every non-pending status, alone', () => {
-    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-23' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-22' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'active', date: '2026-07-18' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'completed', date: '2026-07-18' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'cancelled', date: '2026-07-18' }, NOW)).toBe(false);
+  it('a PENDING round (nobody scored) untouched for 7 days is DISCARDED — nothing was recorded', () => {
+    expect(abandonedRoundAction({ status: 'pending', createdAt: old, lastActivityAt: null }, NOW)).toBe('discard');
   });
-
-  it('never flags future-dated or garbage-dated rounds', () => {
-    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-30' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'pending', date: 'not-a-date' }, NOW)).toBe(false);
-    expect(isAbandonedPendingRound({ status: 'pending', date: null }, NOW)).toBe(false);
+  it('the clock is the last score for an active round, the creation for a pending one', () => {
+    expect(abandonedRoundAction({ status: 'active', createdAt: old, lastActivityAt: recent }, NOW)).toBeNull();
+    expect(abandonedRoundAction({ status: 'pending', createdAt: recent }, NOW)).toBeNull();
+    expect(ABANDON_AFTER_MS).toBe(week);
   });
-});
-
-describe('abandoned live round (the July 25 case)', () => {
-  it('resolves an abandoned round to completed so it can mirror into stats', () => {
-    // Real production shape: two players scored one hole each, then stopped.
-    // advanceRoundStatus only fires on a score write, so the row sat 'active'
-    // for six days and mirrorCompletedRound — which requires 'completed' —
-    // never ran, leaving both players' scores out of trends and handicap.
-    // The daily round sweep exists to give this rule a reason to run.
-    const lastActivity = Date.parse('2026-07-25T19:30:00Z');
-    const now = Date.parse('2026-07-31T18:00:00Z');
-    expect(
-      resolveRoundStatus({
-        status: 'active',
-        holesPlayed: 18,
-        participants: [
-          { confirmed: true, holesCompleted: 1 },
-          { confirmed: true, holesCompleted: 1 },
-        ],
-        lastActivityAt: lastActivity,
-        now,
-      })
-    ).toBe('completed');
+  it('an active round with no activity on record waits (never guesses)', () => {
+    expect(abandonedRoundAction({ status: 'active', createdAt: old, lastActivityAt: null }, NOW)).toBeNull();
   });
-
-  it('leaves a genuinely live round alone', () => {
-    const now = Date.parse('2026-07-31T18:00:00Z');
-    expect(
-      resolveRoundStatus({
-        status: 'active',
-        holesPlayed: 18,
-        participants: [{ confirmed: true, holesCompleted: 4 }],
-        lastActivityAt: now - 10 * 60 * 1000, // 10 minutes ago
-        now,
-      })
-    ).toBeNull();
+  it('completed, cancelled, an event\'s round and garbage dates never fire', () => {
+    expect(abandonedRoundAction({ status: 'completed', createdAt: old, lastActivityAt: old }, NOW)).toBeNull();
+    expect(abandonedRoundAction({ status: 'cancelled', createdAt: old }, NOW)).toBeNull();
+    expect(abandonedRoundAction({ status: 'active', createdAt: old, lastActivityAt: old, sportEventRoundId: 'r1' }, NOW)).toBeNull();
+    expect(abandonedRoundAction({ status: 'active', createdAt: old, lastActivityAt: 'not-a-date' }, NOW)).toBeNull();
+    expect(abandonedRoundAction({ status: 'pending', createdAt: null }, NOW)).toBeNull();
   });
 });
 

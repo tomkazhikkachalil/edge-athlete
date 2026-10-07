@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatDisplayName, getInitials, parseDateLocal } from '@/lib/formatters';
-import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
 import { holeCountLabel, playedHoleCount } from '@/lib/golf/round-display';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useEndRound } from '@/hooks/useEndRound';
@@ -145,7 +145,7 @@ export default function SharedRoundQuickView({
                 LIVE
               </span>
             )}
-            {effectiveRoundStatus(group_post) === 'completed' && (
+            {group_post.status === 'completed' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-flag-checkered text-[10px]"></i>
                 FINAL
@@ -381,19 +381,20 @@ export default function SharedRoundQuickView({
           </button>
         )}
 
-        {/* End Round — visible right on the card so a creator never has to
-            discover the modal to finish a partial round. Keyed on RAW status
-            (the persistence escape hatch even when display already says FINAL
-            via the 6h auto-end rule). */}
+        {/* FINISH — visible right on the card so a creator never has to
+            discover the modal to finish a partial round (Drafts round: Finish
+            writes the record; Post, from the review screen, publishes).
+            Once someone has scored — a scoreless round is discarded. */}
         {isOwner && group_post.status === 'active' && (
           <button
             onClick={() => setShowEndConfirm(true)}
             disabled={ending}
             className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-800 disabled:opacity-60 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
-            aria-label="End round"
+            aria-label="Finish round"
+            data-round-finish=""
           >
             <i className={`fas ${ending ? 'fa-spinner fa-spin' : 'fa-flag-checkered'}`}></i>
-            End Round
+            Finish round
           </button>
         )}
 
@@ -427,9 +428,10 @@ export default function SharedRoundQuickView({
 
       <ConfirmModal
         isOpen={showEndConfirm}
-        title="End this round?"
-        message="The round will be marked as final. Scores can still be edited afterwards."
-        confirmText="End Round"
+        title={COPY.FORMS.FINISH_ROUND_TITLE}
+        message={COPY.FORMS.FINISH_ROUND_CONFIRM}
+        confirmText={COPY.FORMS.FINISH_ROUND_ACTION}
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
         onConfirm={() => {
           setShowEndConfirm(false);
           endRound();

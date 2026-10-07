@@ -21,12 +21,13 @@ describe('pickLiveRound', () => {
 
   it('returns a PENDING round in its window — the zero-score session must get its resume banner (dummy-proofing round)', () => {
     expect(pickLiveRound([row('a', 'pending', '2026-07-24')], NOW)?.group_post.id).toBe('a');
-    // …but not once its window has passed (the sweep cancels those).
-    expect(pickLiveRound([row('old', 'pending', '2026-07-19')], NOW)).toBeNull();
+    // …and still after its LIVE window: in progress until the creator settles
+    // it or the 7-day sweep discards it (Drafts round).
+    expect(pickLiveRound([row('old', 'pending', '2026-07-19')], NOW)?.group_post.id).toBe('old');
   });
 
-  it('excludes active rounds outside the ±48h live window', () => {
-    expect(pickLiveRound([row('old', 'active', '2026-07-19')], NOW)).toBeNull();
+  it('keeps active rounds outside the ±48h LIVE window — in progress is in progress', () => {
+    expect(pickLiveRound([row('old', 'active', '2026-07-19')], NOW)?.group_post.id).toBe('old');
   });
 
   it('prefers the most recent when several are live', () => {
@@ -38,8 +39,10 @@ describe('pickLiveRound', () => {
   });
 
   it('survives malformed rows', () => {
-    const bad = { participant_id: 'p', group_post: { id: 'x', status: 'active', date: null } } as LiveRoundRow;
-    expect(pickLiveRound([bad], NOW)).toBeNull();
+    const noDate = { participant_id: 'p', group_post: { id: 'x', status: 'active', date: null } } as LiveRoundRow;
+    expect(pickLiveRound([noDate], NOW)?.group_post.id).toBe('x');
+    const noGroup = { participant_id: 'p', group_post: null } as unknown as LiveRoundRow;
+    expect(pickLiveRound([noGroup], NOW)).toBeNull();
   });
 
   it('excludes a round whose own card is already complete', () => {
@@ -72,16 +75,10 @@ describe('pickLiveRound', () => {
     expect(pickLiveRound([{ ...base, holes_completed: 18 }], NOW)?.group_post.id).toBe('a');
   });
 
-  it('skips a round that has gone quiet past the 6h auto-end window', () => {
-    const base = row('a', 'active', '2026-07-24');
-    const quiet = {
-      ...base,
-      group_post: {
-        ...base.group_post,
-        last_score_activity_at: new Date(NOW - 7 * 60 * 60 * 1000).toISOString(),
-      },
-    };
-    expect(pickLiveRound([quiet], NOW)).toBeNull();
+  it('offers a round however quiet and however old — there is no quiet rule and no window here (Drafts round)', () => {
+    const base = row('a', 'active', '2026-07-01');
+    const quiet = { ...base, group_post: { ...base.group_post, last_score_activity_at: new Date(NOW - 7 * 24 * 60 * 60 * 1000).toISOString() } };
+    expect(pickLiveRound([quiet], NOW)?.group_post.id).toBe('a');
   });
 
   it('falls through to an unfinished round when the newest card is done', () => {

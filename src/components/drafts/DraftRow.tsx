@@ -91,9 +91,11 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
             <Link href={item.href} className={cta} data-draft-resume="">Resume</Link>
             {item.kind === 'round' && item.isCreator && (
               <>
-                <button type="button" className={btn} disabled={busy !== null} onClick={() => void finishRound()} data-draft-finish="">
-                  {busy === 'finish' ? 'Finishing…' : 'Finish'}
-                </button>
+                {item.scored && (
+                  <button type="button" className={btn} disabled={busy !== null} onClick={() => void finishRound()} data-draft-finish="">
+                    {busy === 'finish' ? 'Finishing…' : 'Finish'}
+                  </button>
+                )}
                 <button type="button" className={btn} disabled={busy !== null} onClick={() => setConfirmDiscard(true)} data-draft-discard="">
                   {busy === 'discard' ? 'Discarding…' : 'Discard'}
                 </button>

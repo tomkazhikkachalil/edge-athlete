@@ -4,8 +4,10 @@ import { useState, useCallback } from 'react';
 import { useToast } from '@/components/Toast';
 
 /**
- * Creator's "End Round" action — marks a shared round completed via
- * PATCH /api/group-posts/[id] (creator-only, enforced server-side). One
+ * Creator's "Finish round" action — marks a shared round completed via
+ * PATCH /api/group-posts/[id] (creator-only, enforced server-side; the one
+ * Finish writer, round-finish.ts, then writes the record). The post stays a
+ * DRAFT until posted from the review screen (Drafts round, Oct 2026). One
  * implementation shared by the quick-view footer and the full-card header.
  */
 export function useEndRound(groupPostId: string, onDone?: () => void) {
@@ -22,13 +24,13 @@ export function useEndRound(groupPostId: string, onDone?: () => void) {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to end round');
+        throw new Error(data.error || 'Failed to finish the round');
       }
       onDone?.();
       return true;
     } catch (err) {
-      console.error('End round failed:', err);
-      showError('Could not end the round', err instanceof Error ? err.message : 'Please try again');
+      console.error('Finish round failed:', err);
+      showError('Could not finish the round', err instanceof Error ? err.message : 'Please try again');
       return false;
     } finally {
       setEnding(false);

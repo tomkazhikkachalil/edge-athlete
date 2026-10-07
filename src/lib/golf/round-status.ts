@@ -1,14 +1,19 @@
 // ── Shared-round lifecycle (live scoring) ─────────────────────────────────────
 // group_posts.status is the round's lifecycle: pending (created, no scoring
 // activity yet) → active (scores are being entered — the round is LIVE) →
-// completed (everyone who scored has finished). The transitions are derived
-// from score data, not user intent, so they work identically for:
+// completed (everyone who scored has finished, or the creator tapped Finish —
+// round-finish.ts, the one Finish writer). The score-driven transitions work
+// identically for:
 //   • live per-hole entry (first hole saved flips pending → active; the last
 //     player to finish flips active → completed),
 //   • post-round batch entry (a full scorecard arrives in one save — the round
 //     goes straight to completed, never lingering as LIVE),
 //   • rounds where only some players ever enter scores (completion is judged
 //     over participants WITH scores; the others aren't waited on forever).
+// There is NO quiet rule any more (Drafts round, Oct 2026): a round nobody
+// scores in stays IN PROGRESS — in Drafts, behind the reopen prompt — until
+// its creator finishes or discards it, or the daily sweep's 7-day rule does
+// (abandonedRoundAction below). Nothing is ever finished at read time.
 //
 // resolveRoundStatus is the pure state machine (unit-tested); advanceRoundStatus
 // applies it after a score write. Status updates require the service-role
@@ -36,11 +41,13 @@ export function isActiveParticipant(status: string | null | undefined): boolean 
  *  abandonment predicate. */
 export const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
-/** An 'active' round with no new scores for this long is over — players
- *  stopped and nobody tapped End Round. Product decision (July 25): 6 hours.
- *  Evaluated LAZILY: display-side via effectiveRoundStatus, persisted by the
- *  next advanceRoundStatus (score write / End Round) — no cron. */
-export const AUTO_END_AFTER_MS = 6 * 60 * 60 * 1000;
+/** A round nobody has touched for this long is ABANDONED (Tom, Oct 6 2026):
+ *  the daily sweep finishes an active one as played (its scores become the
+ *  record; the post stays a draft) and DISCARDS a pending one (nothing was
+ *  scored, nothing was recorded). Sweep-only — never at read time, never on
+ *  a score write (a player resuming after a week must not have their first
+ *  new score finish the round). */
+export const ABANDON_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Status a round is CREATED with. "Already played" rounds (scores entered
@@ -62,23 +69,15 @@ export function resolveRoundStatus(input: {
   status: RoundStatus;
   holesPlayed: number;
   participants: Array<{ confirmed: boolean; holesCompleted: number }>;
-  /** ms epoch of the newest score write across all participants (null = none) */
+  /** ms epoch of the newest score write across all participants (null = none).
+   *  Accepted for the callers' sake; no rule reads it any more (the 6 h quiet
+   *  rule is gone — the 7-day sweep is `abandonedRoundAction`). */
   lastActivityAt?: number | null;
   now?: number;
 }): RoundStatus | null {
-  const { status, holesPlayed, participants, lastActivityAt, now = Date.now() } = input;
+  const { status, holesPlayed, participants } = input;
 
   if (status === 'completed' || status === 'cancelled') return null;
-
-  // Quiet rule: an active round nobody has scored in for AUTO_END_AFTER_MS is
-  // finished, whatever the hole counts say (partial rounds happen).
-  if (
-    status === 'active' &&
-    typeof lastActivityAt === 'number' &&
-    now - lastActivityAt > AUTO_END_AFTER_MS
-  ) {
-    return 'completed';
-  }
 
   // Only active (non-declined) participants who have actually entered
   // something count — invitees who never score shouldn't hold the round open.
@@ -92,42 +91,23 @@ export function resolveRoundStatus(input: {
 }
 
 /**
- * The status a round should DISPLAY as, without writing anything: an 'active'
- * round that has been quiet past AUTO_END_AFTER_MS renders as completed
- * (FINAL) everywhere. Persistence catches up on the next score write or
- * explicit End Round via resolveRoundStatus's matching quiet rule.
- */
-export function effectiveRoundStatus(
-  groupPost: { status?: string | null; last_score_activity_at?: string | null },
-  now: number = Date.now()
-): string | null | undefined {
-  if (groupPost.status === 'active' && groupPost.last_score_activity_at) {
-    const last = Date.parse(groupPost.last_score_activity_at);
-    if (!Number.isNaN(last) && now - last > AUTO_END_AFTER_MS) {
-      return 'completed';
-    }
-  }
-  return groupPost.status;
-}
-
-/**
- * Whether a round should display as LIVE — an in-progress session with a way
- * back in. BOTH 'pending' and 'active' count (dummy-proofing round): a
- * freshly started round has no scores yet and sits 'pending' until the first
- * score write flips it 'active' (resolveRoundStatus), but it is every bit an
- * open session — requiring 'active' here was the bug where a zero-score
- * round had no LIVE presence, no resume banner, and no way back into the
- * scorer. group_posts.date is date-only, so the round date must also be
- * within ±48h of now, and the round must not have gone quiet past the
- * auto-end window (effectiveRoundStatus). A round left 'active' (players
- * stopped entering and nobody ended it) quietly stops advertising itself.
+ * Whether a round should display as LIVE — being played NOW, with a way back
+ * in. BOTH 'pending' and 'active' count (dummy-proofing round): a freshly
+ * started round has no scores yet and sits 'pending' until the first score
+ * write flips it 'active' (resolveRoundStatus), but it is every bit an open
+ * session — requiring 'active' here was the bug where a zero-score round had
+ * no LIVE presence, no resume banner, and no way back into the scorer.
+ * group_posts.date is date-only, so the round date must also be within ±48h
+ * of now: "live" means today's play. An older in-progress round is not LIVE
+ * on the strip or the badge, but it is still IN PROGRESS — in Drafts and the
+ * reopen prompt (status alone decides there) — until finished or discarded.
  */
 export function isRoundLive(
   groupPost: { status?: string | null; date?: string | null; last_score_activity_at?: string | null },
   now: number = Date.now()
 ): boolean {
-  const effective = effectiveRoundStatus(groupPost, now);
-  if ((effective !== 'active' && effective !== 'pending') || !groupPost.date) return false;
+  const status = groupPost.status;
+  if ((status !== 'active' && status !== 'pending') || !groupPost.date) return false;
   const roundDate = Date.parse(groupPost.date);
   if (Number.isNaN(roundDate)) return false;
   return Math.abs(now - roundDate) <= LIVE_WINDOW_MS;
@@ -166,21 +146,28 @@ export function countLiveVisibleRounds(
 }
 
 /**
- * A started-but-never-scored round whose live window has passed. The daily
- * sweep CANCELS these (dummy-proofing round, Tom's decision): the empty
- * session must never surface in the feed as a post, but nothing is
- * destroyed — the round stays viewable from its URL and the owner can
- * delete it. 'pending' with any score is impossible (the first score write
- * flips it 'active'), so status alone identifies the scoreless case.
+ * What the daily sweep does with a round nobody has touched for
+ * ABANDON_AFTER_MS (Drafts round, Tom's decision Oct 6 2026):
+ *   • an ACTIVE round (someone scored) → 'finish': completed as played — the
+ *     scores become the record; its post stays a DRAFT (nothing is posted);
+ *   • a PENDING round (nobody scored — the first score write flips pending →
+ *     active, so status alone identifies the scoreless case) → 'discard':
+ *     nothing was recorded, so there is nothing to keep (the recorder's
+ *     "Nothing was saved");
+ *   • anything else, anything recent, an event's round → null.
+ * The clock is the newest score write for an active round and the creation
+ * time for a pending one. Garbage dates never fire.
  */
-export function isAbandonedPendingRound(
-  groupPost: { status?: string | null; date?: string | null },
+export function abandonedRoundAction(
+  round: { status?: string | null; createdAt?: string | null; lastActivityAt?: string | null; sportEventRoundId?: string | null },
   now: number = Date.now()
-): boolean {
-  if (groupPost.status !== 'pending' || !groupPost.date) return false;
-  const roundDate = Date.parse(groupPost.date);
-  if (Number.isNaN(roundDate)) return false;
-  return now - roundDate > LIVE_WINDOW_MS;
+): 'finish' | 'discard' | null {
+  if (round.sportEventRoundId) return null;
+  const clock = round.status === 'active' ? round.lastActivityAt : round.status === 'pending' ? round.createdAt : null;
+  if (!clock) return null;
+  const t = Date.parse(clock);
+  if (Number.isNaN(t) || now - t <= ABANDON_AFTER_MS) return null;
+  return round.status === 'active' ? 'finish' : 'discard';
 }
 
 /**

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { canViewSharedRound } from '@/lib/golf/round-access';
-import { effectiveRoundStatus } from '@/lib/golf/round-status';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { CHEER_KEYS, emptyTotals, parseCheerContext, type CheerEvent, type CheerFeed, type CheerKey } from './cheers';
@@ -58,15 +57,14 @@ export async function cheerGate(admin: Admin, contextKey: string, viewerId: stri
 
 /** A golf round is live when its EVENT round is (an event's round owns its
  *  lifecycle — its group post stays 'pending' until the first score); a
- *  casual shared round while it is pending or active and not gone quiet
- *  (effectiveRoundStatus — the LIVE badge's own rule). */
+ *  casual shared round while it is pending or active (the stored status —
+ *  nothing finishes at read time since the Drafts round). */
 async function groupPostLive(admin: Admin, g: { status: string | null; last_score_activity_at: string | null; sport_event_round_id: string | null }): Promise<boolean> {
   if (g.sport_event_round_id) {
     const { data } = await admin.from('sport_event_rounds').select('status').eq('id', g.sport_event_round_id).maybeSingle();
     return (data as { status?: string } | null)?.status === 'live';
   }
-  const effective = effectiveRoundStatus(g);
-  return effective === 'pending' || effective === 'active';
+  return g.status === 'pending' || g.status === 'active';
 }
 
 const RECENT_CAP = 50;
