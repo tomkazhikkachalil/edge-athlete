@@ -104,6 +104,16 @@ export const COPY = {
     LOADING_ACTIVITY: 'Loading activity...',
   },
 
+  // The scorer's hole header (hole-detail program, Oct 2026).
+  GOLF_HOLE: {
+    TO_GREEN: (yds: number) => `${yds} yds to green`,
+    TEE_TO_GREEN: (yds: number) => `Tee → green ${yds} yds`,
+    PLAYS_LIKE: (yds: number) => `plays like ≈${yds}`,
+    THRU: (n: number) => `thru ${n}`,
+    TEE_IN_PLAY: 'playing',
+    OPEN_MAP_ON: (hole: number) => `Open the map on hole ${hole}`,
+  },
+
   // Form Labels
   FORMS: {
     REQUIRED_FIELD: 'This field is required',
