@@ -21,6 +21,8 @@
 // toggle, so switching golf → general → golf must keep the scorecard.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { requestPosition, POSITION_DENIED, type DeviceFix } from '@/lib/geo/request-position';
+import { formatKm, nearbyOffer, NEAR_RADIUS_KM } from '@/lib/golf/near-me';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
@@ -231,11 +233,15 @@ export default function GolfComposerSection({
   const [searchFailed, setSearchFailed] = useState(false);
   const [catalogAttribution, setCatalogAttribution] = useState<string | null>(null);
   const [globalSearchedFor, setGlobalSearchedFor] = useState<string | null>(null);
-  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string, global?: boolean) => {
+  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string, global?: boolean, near?: DeviceFix | null) => {
     setSearchLoading(true);
     try {
+      // Near me (Oct 2026): a location request with NO typed text — the
+      // catalog sorts by distance (and the provider's proximity joins in on
+      // a paid plan, server-side). Never on a keystroke.
+      const nearQs = near ? `&near=${near.lat},${near.lng}&radius=${NEAR_RADIUS_KM}` : '';
       const response = await fetch(
-        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=20${global ? '&global=1' : ''}`,
+        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=20${global ? '&global=1' : ''}${nearQs}`,
         { signal }
       );
       if (response.ok) {
@@ -264,6 +270,30 @@ export default function GolfComposerSection({
 
   const [debouncedCourseSearch, cancelCourseSearch] = useDebouncedCallback(runCourseSearch);
 
+  // "Near me": one fix on the tap; the list is re-asked sorted by distance;
+  // typing afterwards is plain typeahead again (one-shot). When the player is
+  // standing on a course, the dropdown offers it first — "Playing at X?".
+  const [nearFix, setNearFix] = useState<DeviceFix | null>(null);
+  const [nearBusy, setNearBusy] = useState(false);
+  const [nearError, setNearError] = useState<string | null>(null);
+  const findNearMe = useCallback(async () => {
+    if (nearBusy) return;
+    setNearBusy(true);
+    setNearError(null);
+    try {
+      const fix = await requestPosition();
+      setNearFix(fix);
+      setCourseSearchQuery('');
+      setCourseSearchOpen(true);
+      cancelCourseSearch();
+      debouncedCourseSearch('', false, fix);
+    } catch (e) {
+      setNearError(e instanceof Error ? e.message : POSITION_DENIED);
+    } finally {
+      setNearBusy(false);
+    }
+  }, [nearBusy, cancelCourseSearch, debouncedCourseSearch]);
+
   const searchCourses = useCallback((query: string, opts?: { browse?: boolean }) => {
     if (query.trim().length < 1 && !opts?.browse) {
       // CANCEL, don't just return: an armed timer would still fire and refill
@@ -291,6 +321,7 @@ export default function GolfComposerSection({
     globalSearchAvailable && trimmedCourseQuery.length >= 3 && globalSearchedFor !== trimmedCourseQuery;
   const courseDropdownOpen =
     courseSearchOpen && (availableCourses.length > 0 || worldwideOffer || searchFailed);
+  const nearOffer = nearFix ? nearbyOffer(availableCourses, nearFix) : null;
   usePopoverDismiss(courseFieldRef, courseDropdownOpen, closeCourseSearch);
 
   // The dropdown is `absolute` inside the composer's `overflow-y-auto` body, so
@@ -771,6 +802,8 @@ export default function GolfComposerSection({
                       onChange={(e) => {
                         setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }));
                         setCourseSearchQuery(e.target.value);
+                        // Typing ends the one-shot Near me: typeahead again.
+                        setNearFix(null);
                         searchCourses(e.target.value);
                         setCourseSearchOpen(true);
                         // Clear selected course if user types manually —
@@ -821,6 +854,24 @@ export default function GolfComposerSection({
                       <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
                     )}
                   </div>
+                  {/* Near me — the ONLY place the composer asks for the
+                      device's location, and only on this tap. */}
+                  <div className="mt-2 flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => void findNearMe()}
+                      disabled={nearBusy}
+                      aria-pressed={!!nearFix}
+                      data-course-near-me=""
+                      className={`inline-flex items-center gap-2 px-3 min-h-[44px] rounded-lg border text-sm font-semibold ea-interactive disabled:opacity-60 ${
+                        nearFix ? 'border-green-400 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 dark:border-green-700' : 'border-border bg-surface text-primary'
+                      }`}
+                    >
+                      <i className={`fas ${nearBusy ? 'fa-spinner fa-spin' : 'fa-location-crosshairs'}`} aria-hidden="true"></i>
+                      {nearBusy ? 'Finding you…' : nearFix ? 'Courses near you' : 'Near me'}
+                    </button>
+                    {nearError && <span className="text-xs text-tertiary" role="alert">{nearError}</span>}
+                  </div>
 
                   {/* Course Search Results Dropdown.
                       There used to be a `fixed inset-0 z-10` click-catcher
@@ -837,13 +888,35 @@ export default function GolfComposerSection({
                       ref={courseDropdownRef}
                       className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain"
                     >
+                      {/* Standing on a course and about to play it: offer it
+                          first. Only while starting a LIVE round — an already-
+                          played round is wherever it was played. */}
+                      {nearOffer && !sharedRoundDetails.alreadyPlayed && (
+                        <button
+                          type="button"
+                          onClick={() => selectCourse(nearOffer.course)}
+                          data-course-nearby-offer=""
+                          className="w-full px-4 py-3 text-left bg-green-50 dark:bg-green-950/40 hover:bg-green-100 dark:hover:bg-green-950/60 transition-colors border-b border-border-subtle"
+                        >
+                          <div className="font-semibold text-green-900 dark:text-green-100">
+                            <i className="fas fa-location-dot mr-2 text-green-700 dark:text-green-300" aria-hidden="true"></i>
+                            Playing at {nearOffer.course.name}?
+                            <span className="ml-2 text-xs font-medium text-green-800 dark:text-green-200">· {formatKm(nearOffer.km)}</span>
+                          </div>
+                        </button>
+                      )}
                       {availableCourses.map((course) => (
                         <button
                           key={course.id}
                           onClick={() => selectCourse(course)}
                           className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
                         >
-                          <div className="font-semibold text-primary">{course.name}</div>
+                          <div className="font-semibold text-primary">
+                            {course.name}
+                            {nearFix && typeof course.distanceKm === 'number' && (
+                              <span className="ml-2 text-xs font-medium text-tertiary" data-course-km="">{formatKm(course.distanceKm)}</span>
+                            )}
+                          </div>
                           {(course.city || course.state || course.country) && (
                             <div className="text-sm text-tertiary">
                               {formatPlace({ city: course.city, region: course.state, country: course.country })}

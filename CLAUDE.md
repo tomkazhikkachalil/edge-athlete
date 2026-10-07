@@ -1466,7 +1466,22 @@ const { canView } = await response.json();
    it may be Nominatim-refined) and never goes back through `upsertThinRows`
    (a coord row would match itself in the 2 km box). The response carries
    `providerNearby`. Our own catalog (29k OSM courses with coords, the RPC's
-   `near=`) answers "near me" either way.
+   `near=`) answers "near me" either way. **PR B — Near me in the composer:**
+   `src/lib/geo/request-position.ts requestPosition()` is the ONE one-shot
+   device fix (on a TAP only; Explore's course search and the composer share
+   it; the recorder and the rangefinder keep their `watchPosition` streams);
+   `src/lib/golf/near-me.ts` (pure) holds `NEAR_RADIUS_KM` 50, `nearbyOffer`
+   (the nearest course with coordinates within 1 km — the RPC's `distanceKm`
+   first, else the haversine) and `formatKm`. The composer's "Near me"
+   (`data-course-near-me`, `aria-pressed`) re-asks the picker with
+   `q=''&near=&radius=50` (sorted by distance, km chips `data-course-km`); it
+   is one-shot — typing ends it. While starting a LIVE round (never an
+   already-played one) the dropdown's first row is "Playing at X? · 0.3 km"
+   (`data-course-nearby-offer`) → the ordinary `selectCourse` path. **Staging
+   holds ZERO `golf_courses` rows** (the catalog is production-only): every
+   golf spec that needs a course self-seeds (`external_source 'qa-e2e'`), and
+   `explore-course-search.spec.ts` is effectively unrunnable (anonymous +
+   catalog) — not a regression signal.
 
 ---
 

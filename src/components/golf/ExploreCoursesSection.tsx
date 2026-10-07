@@ -14,6 +14,7 @@
 // course results deep-link here: there is no course page).
 
 import { useEffect, useState } from 'react';
+import { requestPosition, POSITION_DENIED } from '@/lib/geo/request-position';
 import type { GolfCourse } from '@/types/golf';
 import CourseCard from '@/components/golf/CourseCard';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
@@ -181,19 +182,16 @@ export default function ExploreCoursesSection({ initialCourseId = null }: { init
       setFilters(f => ({ ...f, near: null }));
       return;
     }
-    if (!('geolocation' in navigator)) {
-      setNearError('Location is not available on this device.');
-      return;
-    }
     setNearError(null);
-    navigator.geolocation.getCurrentPosition(
-      pos => {
+    // One fix on the tap (src/lib/geo/request-position.ts — shared with the
+    // golf composer's Near me).
+    requestPosition().then(
+      fix => {
         setExpandedId(null);
         setLoading(true);
-        setFilters(f => ({ ...f, near: { lat: pos.coords.latitude, lng: pos.coords.longitude } }));
+        setFilters(f => ({ ...f, near: fix }));
       },
-      () => setNearError('Could not get your location — allow it in the browser, or pick a country and region.'),
-      { maximumAge: 300_000, timeout: 10_000 }
+      (e: unknown) => setNearError(e instanceof Error ? e.message : POSITION_DENIED)
     );
   };
 
