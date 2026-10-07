@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { reopenActions, reopenSeenKey, reopenSkipsPath } from '../drafts/reopen';
+import { reopenActions, reopenDiscardKey, reopenSeenKey, reopenSkipsPath } from '../drafts/reopen';
 import type { DraftItem } from '../drafts/list';
 
 // Drafts round PR 4 (Oct 2026): the reopen prompt — once per app open, the
@@ -27,6 +27,21 @@ describe('reopenActions', () => {
   it('a workout and a recording on this phone get all three', () => {
     expect(reopenActions(item({ kind: 'workout', id: 'w1', href: '/app/workout/w1' }))).toMatchObject({ finish: true, discard: true });
     expect(reopenActions(item({ kind: 'recording', id: 'r1', href: '/activities/record' }))).toMatchObject({ finish: true, discard: true });
+  });
+});
+
+describe('Discard is a two-step door (Tom, Oct 7 2026)', () => {
+  it('the confirm names what goes, by kind and whether anything was scored', () => {
+    expect(reopenDiscardKey(item({}))).toBe('REOPEN_DISCARD_ROUND_SCORED');
+    expect(reopenDiscardKey(item({ scored: false }))).toBe('REOPEN_DISCARD_ROUND_EMPTY');
+    expect(reopenDiscardKey(item({ kind: 'workout' }))).toBe('REOPEN_DISCARD_WORKOUT');
+    expect(reopenDiscardKey(item({ kind: 'recording' }))).toBe('REOPEN_DISCARD_RECORDING');
+  });
+  it('the host opens the confirm first and deletes only from it', () => {
+    const host = read('src/components/drafts/ReopenPromptHost.tsx');
+    expect(host).toMatch(/data-reopen-discard=""/);
+    expect(host).toMatch(/onClick=\{\(\) => setConfirmDiscard\(true\)\}[^>]*data-reopen-discard/);
+    expect(host).toMatch(/onConfirm=\{\(\) => void discard\(\)\}/);
   });
 });
 

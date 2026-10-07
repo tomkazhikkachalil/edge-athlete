@@ -163,6 +163,14 @@ export const COPY = {
     FINISH_ROUND_CONFIRM: 'The round is recorded as played — scores can still be fixed afterwards. Nothing is posted until you tap Post on the review screen.',
     FINISH_ROUND_ACTION: 'Finish round',
     REOPEN_TITLE: 'Pick up where you left off?',
+    // Discard from the prompt is destructive — it is confirmed, and the
+    // confirm says what goes (Tom, Oct 7 2026, from his phone).
+    REOPEN_DISCARD_TITLE: 'Discard this?',
+    REOPEN_DISCARD_ROUND_SCORED: 'The round and every score entered so far are deleted. Nothing is recorded, and this cannot be undone.',
+    REOPEN_DISCARD_ROUND_EMPTY: 'The round is deleted. Nothing was recorded, and this cannot be undone.',
+    REOPEN_DISCARD_WORKOUT: 'The workout and every set entered so far are deleted. This cannot be undone.',
+    REOPEN_DISCARD_RECORDING: 'The recording on this phone is deleted. Nothing was saved, and this cannot be undone.',
+    REOPEN_DISCARD_ACTION: 'Discard for good',
     REOPEN_BODY: 'Closing the app never ends anything. Resume to keep going, Finish to record it as it stands, or Discard it. You can also find it under Drafts.',
     POST_DRAFT_LABEL: 'Post',
     POSTED_TITLE: 'Posted',

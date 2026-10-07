@@ -9,7 +9,8 @@ import { useDrafts, refreshDrafts } from '@/hooks/useDrafts';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
 import { openRecordingStore } from '@/lib/activities/record/storage';
 import { buildDraftsList, draftReviewHref, pickReopenCandidate, type DraftItem, type DraftRecordingLike } from '@/lib/drafts/list';
-import { reopenActions, reopenSeenKey, reopenSkipsPath } from '@/lib/drafts/reopen';
+import { reopenActions, reopenDiscardKey, reopenSeenKey, reopenSkipsPath } from '@/lib/drafts/reopen';
+import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 
 // ── The reopen prompt (Drafts round PR 4, Oct 2026) ──────────────────────────
@@ -30,6 +31,8 @@ export default function ReopenPromptHost() {
   const [checkedPhone, setCheckedPhone] = useState(false);
   const [item, setItem] = useState<DraftItem | null>(null);
   const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
+  // Discard is confirmed (Tom, Oct 7 2026): the second step says what goes.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const decidedRef = useRef(false);
 
   // The phone's own recording (IndexedDB) — the server never sees it.
@@ -106,6 +109,7 @@ export default function ReopenPromptHost() {
 
   const discard = async () => {
     if (busy) return;
+    setConfirmDiscard(false);
     setBusy('discard');
     try {
       if (item.kind === 'round') {
@@ -140,7 +144,7 @@ export default function ReopenPromptHost() {
         </div>
         <div className="p-4 sm:p-6 border-t border-border flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
           {actions.discard && (
-            <button type="button" onClick={() => void discard()} disabled={busy !== null} className={`${btn} sm:mr-auto text-red-600 dark:text-red-400`} data-reopen-discard="">
+            <button type="button" onClick={() => setConfirmDiscard(true)} disabled={busy !== null} className={`${btn} sm:mr-auto text-red-600 dark:text-red-400`} data-reopen-discard="">
               {busy === 'discard' ? 'Discarding…' : 'Discard'}
             </button>
           )}
@@ -155,6 +159,16 @@ export default function ReopenPromptHost() {
           </button>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={confirmDiscard}
+        title={COPY.FORMS.REOPEN_DISCARD_TITLE}
+        message={COPY.FORMS[reopenDiscardKey(item)]}
+        confirmText={COPY.FORMS.REOPEN_DISCARD_ACTION}
+        cancelText="Keep it"
+        overlayZClass="z-[70]"
+        onConfirm={() => void discard()}
+        onCancel={() => setConfirmDiscard(false)}
+      />
     </div>
   );
 }
