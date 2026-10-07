@@ -9,6 +9,8 @@ import {
   hydrateCourse,
   globalSearch,
   providersConfigured,
+  proximityAllowed,
+  proximitySearch,
   consumeProviderBudget,
   catalogAttribution,
   rowToCourse,
@@ -124,11 +126,23 @@ export async function GET(request: NextRequest) {
         ? { lat: nearRaw[0], lng: nearRaw[1] }
         : undefined;
     const radiusRaw = Number(searchParams.get('radius'));
+    const radiusKm = Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 500) : undefined;
+
+    // ── "Near me" (GolfCourseAPI v1.3.0 proximity, Oct 2026): ONLY on a
+    //    location request with NO typed text (the no-keystroke rule), and
+    //    only when the key is on a paid plan — on Free this is a pure env
+    //    check that spends nothing. Same shape as the worldwide search:
+    //    provider → upsert → the one catalog read below ranks everything.
+    let providerNearby = false;
+    if (near && query.trim() === '' && proximityAllowed()) {
+      providerNearby = await proximitySearch(admin, { lat: near.lat, lng: near.lng, radiusKm, limit });
+    }
+
     const catalogCourses = await searchCatalog(admin, query, limit, {
       countryCode: searchParams.get('country') || undefined,
       regionCode: searchParams.get('region') || undefined,
       near,
-      radiusKm: Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 500) : undefined,
+      radiusKm,
     });
 
     // Club/section fields for the page (migration 125). The search RPC's
@@ -288,6 +302,8 @@ export async function GET(request: NextRequest) {
       // The UI may offer "Search all courses worldwide" only when a provider
       // is actually available server-side.
       globalAvailable: providersConfigured(),
+      // Did the provider's proximity search contribute to this answer (Pro only)?
+      providerNearby,
       // ODbL compliance: the catalog is OpenStreetMap-sourced (directly, and
       // via OpenGolfAPI), so attribution is owed on EVERY response — the
       // picker shows it in its footer rather than tracking per-row

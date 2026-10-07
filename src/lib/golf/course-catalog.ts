@@ -385,6 +385,11 @@ export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<
 const DEFAULT_BUDGETS: Record<string, number> = {
   opengolfapi: 1000,
   golfcourseapi: Number(process.env.GOLF_PROVIDER_DAILY_BUDGET) || 45,
+  // GolfCourseAPI v1.3.0 `/v1/proximity` (Pro/Enterprise only, Oct 2026):
+  // its OWN cap, consumed BEFORE the shared golfcourseapi key, so a burst of
+  // "near me" taps can never starve hydration-on-selection (the more
+  // valuable spend). Raise GOLF_PROVIDER_DAILY_BUDGET on Pro (10k/day cap).
+  'golfcourseapi-proximity': Number(process.env.GOLF_PROXIMITY_DAILY_BUDGET) || 500,
   // Nominatim coord refinement — one call per course per hydration (7-day
   // TTL), so this is headroom, not a target. Policy compliance lives in
   // geocode.ts (UA, never per-keystroke).
@@ -394,21 +399,23 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   overpass: 200,
 };
 
-/** Exported for the hole-geometry cache (same budget machinery, its own key). */
-export async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
+/** ONE daily fixed-window hit against `rate_limit_hit` (mig 094). Fail CLOSED:
+ *  an RPC error means "no" — protect the budget, serve local. */
+async function hitBudget(admin: SupabaseClient, key: string, max: number): Promise<boolean> {
   try {
     const { data, error } = await admin
-      .rpc('rate_limit_hit', {
-        p_key: `golf-provider:${source}`,
-        p_max: DEFAULT_BUDGETS[source] ?? 45,
-        p_window_seconds: 86400,
-      })
+      .rpc('rate_limit_hit', { p_key: key, p_max: max, p_window_seconds: 86400 })
       .single();
-    if (error) return false; // fail CLOSED — protect the budget, serve local
+    if (error) return false;
     return (data as { allowed: boolean }).allowed === true;
   } catch {
     return false;
   }
+}
+
+/** Exported for the hole-geometry cache (same budget machinery, its own key). */
+export async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
+  return hitBudget(admin, `golf-provider:${source}`, DEFAULT_BUDGETS[source] ?? 45);
 }
 
 // ── Provider: OpenGolfAPI (keyless; live shapes pinned Aug 2026) ─────────────
@@ -588,6 +595,14 @@ interface GcaDetail extends GcaSummary {
   tees?: { male?: GcaTeeBox[] | null; female?: GcaTeeBox[] | null } | null;
 }
 
+/** `/v1/proximity` (v1.3.0): a search summary PLUS the course's coordinates
+ *  and its distance from the point asked about — the first GolfCourseAPI
+ *  payload that carries coordinates at all. */
+export interface GcaProximityCourse extends GcaSummary {
+  location?: (NonNullable<GcaSummary['location']> & { latitude?: number | string | null; longitude?: number | string | null }) | null;
+  distance?: number | string | null;
+}
+
 export function normalizeGcaSummary(s: GcaSummary): NewRow {
   const courseName = (s.course_name || s.club_name || '').trim();
   return {
@@ -605,6 +620,26 @@ export function normalizeGcaSummary(s: GcaSummary): NewRow {
     slope_rating: {},
     lat: null,
     lng: null,
+  };
+}
+
+const finiteOrNull = (v: unknown): number | null => {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+};
+
+/** A proximity hit → a thin row WITH coordinates (both finite, else null —
+ *  a bad payload stays thin rather than wrong) and the distance we asked for
+ *  in km (`unit=km` is always requested). */
+export function normalizeGcaProximity(s: GcaProximityCourse): NewRow & { distanceKm: number | null } {
+  const lat = finiteOrNull(s.location?.latitude);
+  const lng = finiteOrNull(s.location?.longitude);
+  const both = lat !== null && lng !== null;
+  return {
+    ...normalizeGcaSummary(s),
+    lat: both ? lat : null,
+    lng: both ? lng : null,
+    distanceKm: finiteOrNull(s.distance),
   };
 }
 
@@ -706,6 +741,20 @@ export function normalizeOsmElement(el: OsmCourseElement): NewRow | null {
 
 const openGolfConfigured = () => process.env.GOLF_OPENGOLFAPI_DISABLED !== '1';
 const gcaConfigured = () => !!process.env.GOLF_COURSE_API_KEY;
+
+/** The GolfCourseAPI plan the key is on (Oct 2026). `/v1/proximity` is Pro /
+ *  Enterprise only; on Free the endpoint answers an error AND would burn the
+ *  35/day budget, so the plan is read BEFORE any budget RPC. Unset or
+ *  unrecognised → 'free' (fail closed). */
+export type GcaPlan = 'free' | 'pro' | 'enterprise';
+export function gcaPlan(): GcaPlan {
+  const v = (process.env.GOLF_COURSE_API_PLAN ?? '').trim().toLowerCase();
+  return v === 'pro' || v === 'enterprise' ? v : 'free';
+}
+/** May the proximity endpoint be called at all? A key AND a paid plan. */
+export function proximityAllowed(): boolean {
+  return gcaConfigured() && gcaPlan() !== 'free';
+}
 
 /** Any provider available → the UI may offer "search worldwide". */
 export function providersConfigured(): boolean {
@@ -925,6 +974,102 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
   }
 
   return fetched;
+}
+
+// ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────
+
+/** ~5 km cells at mid-latitudes: one provider call per cell per day, so a
+ *  group tapping "Near me" at the same club spends one request, not one each.
+ *  Exported pure for tests. */
+export function proximityCellKey(lat: number, lng: number): string {
+  const cell = (v: number) => (Math.round(v / 0.05) * 0.05).toFixed(2);
+  return `golf-proximity-cell:${cell(lat)},${cell(lng)}`;
+}
+
+export type CoordFillDecision = 'fill' | 'keep' | 'disagree';
+
+/** What a provider coordinate does to an EXISTING row: fills a NULL pair;
+ *  never overwrites a stored one (it may be a Nominatim-refined pin — provider
+ *  coords were 6–22 km off for 3 of 4 probed courses, Aug 2026); a stored pin
+ *  more than 1.5 km from the provider's is reported, not moved. */
+export function coordFillDecision(
+  stored: { lat: number | null; lng: number | null },
+  found: { lat: number | null; lng: number | null }
+): CoordFillDecision {
+  if (found.lat === null || found.lng === null) return 'keep';
+  if (stored.lat === null || stored.lng === null) return 'fill';
+  return shouldReplaceCoords({ lat: stored.lat, lng: stored.lng }, { lat: found.lat, lng: found.lng }) ? 'disagree' : 'keep';
+}
+
+export interface ProximityQuery {
+  lat: number;
+  lng: number;
+  /** Capped at the endpoint's 80 km. */
+  radiusKm?: number;
+  /** Capped at the endpoint's 25. */
+  limit?: number;
+}
+
+/**
+ * The "near me" provider touchpoint: courses within a radius of a point,
+ * upserted as thin rows WITH coordinates (a GCA row with coords now takes the
+ * coord branch of the cross-source dedupe); rows the catalog already holds
+ * by id gain a coordinate only when they have none (coordFillDecision).
+ * Gates, in order, each fail-closed: the plan (never a budget RPC on Free),
+ * the per-cell daily memo, the proximity cap, then the shared account cap.
+ * Returns whether anything was fetched. The caller re-reads the catalog.
+ */
+export async function proximitySearch(admin: SupabaseClient, q: ProximityQuery): Promise<boolean> {
+  if (!proximityAllowed()) return false;
+  if (!Number.isFinite(q.lat) || !Number.isFinite(q.lng)) return false;
+  if (!(await hitBudget(admin, proximityCellKey(q.lat, q.lng), 1))) return false;
+  if (!(await consumeProviderBudget(admin, 'golfcourseapi-proximity'))) return false;
+  if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return false;
+
+  const radius = Math.min(Math.max(q.radiusKm ?? 50, 1), 80);
+  const limit = Math.min(Math.max(q.limit ?? 25, 1), 25);
+  const data = (await fetchJson(
+    `https://api.golfcourseapi.com/v1/proximity?latitude=${q.lat}&longitude=${q.lng}&radius=${radius}&unit=km&limit=${limit}`,
+    gcaHeaders()
+  )) as { courses?: GcaProximityCourse[] } | GcaProximityCourse[] | null;
+  // The live Pro envelope is unpinned until the plan is on: accept the
+  // documented `{courses}` and a bare array.
+  const courses = Array.isArray(data) ? data : (data?.courses ?? []);
+  const incoming = courses.filter(c => typeof c?.id === 'string' && c.id).map(normalizeGcaProximity);
+  if (!incoming.length) return false;
+
+  // Rows the catalog already holds by id: a coordinate fill at most, and
+  // NEVER back through upsertThinRows (a coord row there would match ITSELF
+  // in the 2 km box and log a false dedupe skip).
+  const { data: existingRows } = await admin
+    .from('golf_courses')
+    .select('id, external_id, lat, lng')
+    .eq('external_source', 'golfcourseapi')
+    .in('external_id', incoming.map(r => r.external_id));
+  const existing = new Map(
+    ((existingRows as { id: string; external_id: string; lat: number | null; lng: number | null }[] | null) ?? []).map(r => [r.external_id, r])
+  );
+  const fresh: NewRow[] = [];
+  for (const row of incoming) {
+    const { distanceKm: _distanceKm, ...thin } = row;
+    void _distanceKm;
+    const stored = existing.get(row.external_id);
+    if (!stored) {
+      fresh.push(thin);
+      continue;
+    }
+    const decision = coordFillDecision(stored, row);
+    if (decision === 'fill') {
+      const { error } = await admin.from('golf_courses').update({ lat: row.lat, lng: row.lng }).eq('id', stored.id);
+      if (error) console.error(`[course-catalog] proximity coord fill failed for ${stored.id}:`, error.message);
+    } else if (decision === 'disagree') {
+      console.warn(
+        `[course-catalog] proximity coords disagree with the stored pin for golfcourseapi:${row.external_id} "${row.name}" (kept stored)`
+      );
+    }
+  }
+  if (fresh.length) await upsertThinRows(admin, fresh);
+  return true;
 }
 
 /** Nominatim reverse result → the location columns a row is still missing. */
