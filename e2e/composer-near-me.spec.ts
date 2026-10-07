@@ -5,8 +5,8 @@ import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 // the tap, the catalog sorted by distance with km chips, and "Playing at X?"
 // offered first when the player is standing on a course. Self-seeded (the
 // catalog lives on production only; staging holds no courses): a QA course at
-// an isolated coordinate, removed in `finally`. The provider's proximity stays
-// dormant on Free (the response says so).
+// an isolated coordinate, removed in `finally`. The provider's proximity may
+// join in (Pro) or not (Free) — the spec accepts either.
 
 const SPOT: [number, number] = [61.2, -30.4]; // mid-Atlantic — nothing else within 1 km anywhere
 
@@ -37,11 +37,14 @@ test('composer: Near me sorts the picker by distance and offers the course you a
     courseId = seeded.data!.id as string;
 
     // The route: a location request with no text answers the seeded course
-    // first with its distance, and the provider stayed dormant (Free).
+    // first with its distance. `providerNearby` says whether the provider's
+    // proximity joined in — false on the Free plan, true on Pro (Tom
+    // upgraded Oct 7 2026); the seeded spot is mid-Atlantic, so the provider
+    // has nothing to add either way and the seeded course stays first.
     const res = await api.get(`/api/golf/courses?q=&limit=20&near=${SPOT[0]},${SPOT[1]}&radius=50`);
     expect(res.ok(), await readErrorBody(res)).toBe(true);
     const body = (await res.json()) as { courses: Array<{ id: string; distanceKm?: number }>; providerNearby: boolean };
-    expect(body.providerNearby).toBe(false);
+    expect(typeof body.providerNearby).toBe('boolean');
     expect(body.courses[0]?.id).toBe(courseId);
     expect(body.courses[0]?.distanceKm ?? 0).toBeLessThan(1);
 
