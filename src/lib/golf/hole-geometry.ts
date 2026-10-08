@@ -253,63 +253,186 @@ interface Boundary {
  *  see BOUNDARY_PROXIMITY_M); identical geometry
  *  delivered twice (way + relation) collapses; two DIFFERENT polygons with
  *  equal score are an ambiguity and give up. */
+/** The rings of a named `leisure=golf_course` element (a closed way, or a
+ *  multipolygon relation's outer members chained into rings). */
+function boundaryRings(el: OverpassElement): Ring[] {
+  if (el.type === 'way' && Array.isArray(el.geometry)) {
+    return assembleRings([el.geometry.filter(validPt).map(g => [g.lat, g.lon] as [number, number])]);
+  }
+  if (el.type === 'relation' && Array.isArray(el.members)) {
+    return assembleRings(
+      el.members
+        .filter(m => m?.type === 'way' && (!m.role || m.role === 'outer') && Array.isArray(m.geometry))
+        .map(m => m.geometry!.filter(validPt).map(g => [g.lat, g.lon] as [number, number]))
+    );
+  }
+  return [];
+}
+
+/** A named course polygon in the payload, and whether its name IS this
+ *  course's (`boundaryNameMatches`). The claims model (sweep PR 2, Oct 2026)
+ *  reads EVERY named boundary, not only the matching one: a neighbour's
+ *  polygon is what tells a neighbour's holes apart. */
+export interface NamedBoundary {
+  name: string;
+  rings: Ring[];
+  matches: boolean;
+  score: number;
+}
+
+/** Every named `leisure=golf_course` polygon in the payload with usable
+ *  rings, identical geometry delivered twice (way + relation) collapsed.
+ *  Exported pure for tests. */
+export function namedBoundaries(elements: OverpassElement[], courseName: string): NamedBoundary[] {
+  const out: NamedBoundary[] = [];
+  const seen = new Set<string>();
+  for (const el of elements) {
+    const tags = el?.tags ?? {};
+    if (tags.leisure !== 'golf_course' || !tags.name) continue;
+    const rings = boundaryRings(el);
+    if (!rings.length) continue;
+    const sig = ringSignature(rings);
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push({
+      name: tags.name,
+      rings,
+      matches: boundaryNameMatches(courseName, tags.name),
+      score: courseNameScore(courseName, tags.name),
+    });
+  }
+  return out;
+}
+
+/** The vertices an element is judged by: a way's geometry, a node's point,
+ *  a relation's members' geometry. */
+function elementPoints(el: OverpassElement): [number, number][] {
+  const e = el as OverpassElement & { lat?: number; lon?: number; center?: { lat: number; lon: number } };
+  if (Array.isArray(el.geometry) && el.geometry.length) return el.geometry.filter(validPt).map(g => [g.lat, g.lon]);
+  if (el.type === 'relation' && Array.isArray(el.members)) {
+    return el.members.flatMap(m => (Array.isArray(m?.geometry) ? m.geometry!.filter(validPt).map(g => [g.lat, g.lon] as [number, number]) : []));
+  }
+  if (Number.isFinite(e.lat) && Number.isFinite(e.lon)) return [[e.lat!, e.lon!]];
+  if (e.center && Number.isFinite(e.center.lat) && Number.isFinite(e.center.lon)) return [[e.center.lat, e.center.lon]];
+  return [];
+}
+
+const insideRings = (pt: [number, number], rings: Ring[]) => rings.some(r => pointInRing(pt, r));
+
+/** The boundaries that CLAIM an element: those holding the MAJORITY of its
+ *  vertices (majority, not the single midpoint vertex — on a 2-node way
+ *  that was the green, and a perimeter hole near a hand-drawn polygon
+ *  vanished without a trace). Nested polygons may both claim one way.
+ *  Exported pure for tests. */
+export function claimsFor(el: OverpassElement, boundaries: NamedBoundary[]): NamedBoundary[] {
+  const pts = elementPoints(el);
+  if (!pts.length) return [];
+  return boundaries.filter(b => pts.filter(p => insideRings(p, b.rings)).length * 2 >= pts.length);
+}
+
+/** The ONE boundary that is this course, or null (none / ambiguous). Rules:
+ *  strict name identity (boundaryNameMatches); when the course point is
+ *  known, the ring must contain it or pass within 1 km (a coarse guard —
+ *  see BOUNDARY_PROXIMITY_M); identical geometry delivered twice (way +
+ *  relation) collapses; two DIFFERENT polygons with equal score are an
+ *  ambiguity and give up. */
 function pickBoundary(
   elements: OverpassElement[],
   courseName: string,
   point: [number, number] | null | undefined
 ): Boundary | null {
-  const boundaries: Boundary[] = [];
-  for (const el of elements) {
-    const tags = el?.tags ?? {};
-    if (tags.leisure !== 'golf_course' || !tags.name) continue;
-    if (!boundaryNameMatches(courseName, tags.name)) continue;
-    const score = courseNameScore(courseName, tags.name);
-    let rings: Ring[] = [];
-    if (el.type === 'way' && Array.isArray(el.geometry)) {
-      rings = assembleRings([el.geometry.filter(validPt).map(g => [g.lat, g.lon] as [number, number])]);
-    } else if (el.type === 'relation' && Array.isArray(el.members)) {
-      rings = assembleRings(
-        el.members
-          .filter(m => m?.type === 'way' && (!m.role || m.role === 'outer') && Array.isArray(m.geometry))
-          .map(m => m.geometry!.filter(validPt).map(g => [g.lat, g.lon] as [number, number]))
-      );
-    }
-    if (!rings.length) continue;
-    if (point) {
-      const near = rings.some(r => pointInRing(point, r) || metresToRing(point, r) <= BOUNDARY_PROXIMITY_M);
-      if (!near) continue;
-    }
-    boundaries.push({ rings, score });
-  }
-  if (!boundaries.length) return null;
-  // OSM double-tagging: a closed way tagged leisure=golf_course that is ALSO
-  // the outer member of a same-named multipolygon relation arrives as two
-  // candidates with equal score — collapse identical GEOMETRY before the
-  // tie test; two different polygons sharing a name remain an ambiguity.
-  const seen = new Set<string>();
-  const distinct = boundaries.filter(b => {
-    const sig = ringSignature(b.rings);
-    if (seen.has(sig)) return false;
-    seen.add(sig);
-    return true;
+  const boundaries = namedBoundaries(elements, courseName).filter(b => {
+    if (!b.matches) return false;
+    if (!point) return true;
+    return b.rings.some(r => pointInRing(point, r) || metresToRing(point, r) <= BOUNDARY_PROXIMITY_M);
   });
-  distinct.sort((a, b) => b.score - a.score);
+  if (!boundaries.length) return null;
+  const distinct = [...boundaries].sort((a, b) => b.score - a.score);
   if (distinct.length > 1 && distinct[0].score === distinct[1].score) return null;
-  return distinct[0];
+  return { rings: distinct[0].rings, score: distinct[0].score };
 }
 
-/** Hole ways whose vertices lie MOSTLY inside the boundary (majority, not
- *  the single midpoint vertex — on a 2-node way that was the green, and a
- *  perimeter hole near a hand-drawn polygon vanished without a trace). */
-function scopeByBoundary(elements: OverpassElement[], boundary: Boundary): HoleGeometry | null {
-  const scoped = elements.filter(el => {
-    if (el?.tags?.golf !== 'hole') return false;
-    const pts = (el.geometry ?? []).filter(validPt);
-    if (!pts.length) return false;
-    const inside = pts.filter(g => boundary.rings.some(r => pointInRing([g.lat, g.lon], r))).length;
-    return inside * 2 >= pts.length;
+const isHoleWay = (el: OverpassElement) => el?.tags?.golf === 'hole';
+
+/** How far from its own polygon's ring a way may sit and still be this
+ *  course's — hand-drawn boundaries routinely clip a perimeter hole. */
+export const BOUNDARY_NEAR_M = 150;
+/** An UNCLAIMED set (a course with no polygon of its own beside clubs that
+ *  have one) is accepted only when its tees sit this close to the course point. */
+export const UNCLAIMED_MAX_M = 800;
+
+export type ScopeMode = 'own' | 'near' | 'unclaimed' | 'all';
+
+export interface ScopedWays {
+  ways: OverpassElement[];
+  boundary: Boundary | null;
+  mode: ScopeMode;
+}
+
+/** THE scoping decision every later stage runs on (the strict parse, the
+ *  section split, the loop clustering, the feature derivation) — the claims
+ *  model (sweep PR 2, Oct 2026). A boundary's job is to EXCLUDE a
+ *  neighbour's holes, never to veto its own course's:
+ *   1. B = pickBoundary (strict name identity, the 1 km guard, a tie → null).
+ *   2. With B — `own`: the ways whose majority sits inside B; a valid strict
+ *      parse of them is the answer (Marshes 18, Champlain 18 — unchanged).
+ *   3. Own empty or invalid — `near`: own ∪ the ways claimed by NO other
+ *      named polygon that touch B (any vertex inside, or the nearest within
+ *      BOUNDARY_NEAR_M). A way another club's polygon owns is NEVER this
+ *      course's, however close (Marchwood stays null; Glen Mar's nine sit in
+ *      Canadian's polygon — honest null; a sloppy own polygon no longer vetoes).
+ *   4. No B but other named polygons exist — `unclaimed`: the ways no polygon
+ *      claims (the caller adds the UNCLAIMED_MAX_M guard). The old no-boundary
+ *      path parsed EVERYTHING, so a boundary-less course beside a clean
+ *      neighbour inherited its 18 — closed here.
+ *   5. No named polygons at all — `all` (Rideau View, unchanged).
+ *  Exported pure for tests. */
+export function scopeHoleWays(
+  elements: OverpassElement[],
+  courseName: string | null | undefined,
+  point: [number, number] | null | undefined,
+  select: (el: OverpassElement) => boolean = isHoleWay
+): ScopedWays {
+  const name = (courseName ?? '').trim();
+  const candidates = elements.filter(select);
+  const boundaries = name ? namedBoundaries(elements, name) : [];
+  if (!boundaries.length) return { ways: candidates, boundary: null, mode: 'all' };
+  const B = name ? pickBoundary(elements, name, point) : null;
+  if (!B) {
+    const unclaimed = candidates.filter(el => claimsFor(el, boundaries).length === 0);
+    return { ways: unclaimed, boundary: null, mode: 'unclaimed' };
+  }
+  const own = candidates.filter(el => {
+    const pts = elementPoints(el);
+    return pts.length > 0 && pts.filter(p => insideRings(p, B.rings)).length * 2 >= pts.length;
   });
-  return parseHoleGeometry({ elements: scoped });
+  if (parseHoleGeometry({ elements: own })) return { ways: own, boundary: B, mode: 'own' };
+  const others = boundaries.filter(b => !b.matches);
+  const ownSet = new Set(own);
+  const near = candidates.filter(el => {
+    if (ownSet.has(el)) return true;
+    if (claimsFor(el, others).length > 0) return false;
+    const pts = elementPoints(el);
+    if (!pts.length) return false;
+    if (pts.some(p => insideRings(p, B.rings))) return true;
+    return pts.some(p => B.rings.some(r => metresToRing(p, r) <= BOUNDARY_NEAR_M));
+  });
+  return { ways: near, boundary: B, mode: 'near' };
+}
+
+/** The payload a later stage sees: the scoped hole ways beside every
+ *  non-hole element (boundaries, greens, features) of the original. */
+export function scopedPayload(elements: OverpassElement[], scoped: ScopedWays): { elements: OverpassElement[] } {
+  const keep = new Set(scoped.ways);
+  return { elements: elements.filter(el => !isHoleWay(el) || keep.has(el)) };
+}
+
+/** The mean of the holes' tees, in metres from the course point. */
+function teeCentroidMetres(g: HoleGeometry, point: [number, number]): number {
+  const tees = g.holes.map(h => h.line[0]);
+  const lat = tees.reduce((s, t) => s + t[0], 0) / tees.length;
+  const lng = tees.reduce((s, t) => s + t[1], 0) / tees.length;
+  return haversineKm({ lat, lng }, { lat: point[0], lng: point[1] }) * 1000;
 }
 
 /** Scope a payload to the boundary that IS this course (see pickBoundary)
@@ -323,17 +446,14 @@ export function scopeHoleGeometry(
 ): HoleGeometry | null {
   const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
   if (!Array.isArray(elements) || !courseName.trim()) return null;
-  const boundary = pickBoundary(elements, courseName, point);
-  return boundary ? scopeByBoundary(elements, boundary) : null;
+  const scoped = scopeHoleWays(elements, courseName, point);
+  return scoped.boundary ? parseHoleGeometry({ elements: scoped.ways }) : null;
 }
 
-/** The whole decision for one Overpass payload. A boundary that IS this
- *  course is AUTHORITATIVE: the plain parse used to run first and, when it
- *  accepted (unique refs, ≥ 9 holes), win outright — so a course with no
- *  mapped holes inherited its neighbour's clean 18 (the review's Marchwood
- *  finding). Now: matching boundary → scoped result, whatever the plain
- *  parse thinks; no matching boundary → plain parse, as before. Exported
- *  pure for tests. */
+/** The whole decision for one Overpass payload — the strict parse over the
+ *  claims-scoped ways (scopeHoleWays), plus the UNCLAIMED guard: a set no
+ *  polygon owns is this course's only when its tees sit within
+ *  UNCLAIMED_MAX_M of the course point. Exported pure for tests. */
 export function resolveHoleGeometry(
   payload: unknown,
   courseName: string | null | undefined,
@@ -341,10 +461,11 @@ export function resolveHoleGeometry(
 ): HoleGeometry | null {
   const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
   if (!Array.isArray(elements)) return null;
-  const name = (courseName ?? '').trim();
-  const boundary = name ? pickBoundary(elements, name, point) : null;
-  if (boundary) return scopeByBoundary(elements, boundary);
-  return parseHoleGeometry(payload);
+  const scoped = scopeHoleWays(elements, courseName, point);
+  const g = parseHoleGeometry({ elements: scoped.ways });
+  if (!g) return null;
+  if (scoped.mode === 'unclaimed' && point && teeCentroidMetres(g, point) > UNCLAIMED_MAX_M) return null;
+  return g;
 }
 
 // ── Green outlines (PR G2, Oct 2026) ─────────────────────────────────────────
@@ -893,7 +1014,10 @@ export async function getCourseHoleGeometry(
         .eq('club_id', row.club_id)
         .not('section_name', 'is', null);
       const sections = (siblingRows ?? []) as Array<{ id: string; name: string; section_name: string | null }>;
-      const assigned = resolveSectionGeometries(result.payload, sections);
+      // The split sees THIS course's ways (the claims scope), never a
+      // neighbour's: Royal Ottawa's 27 alone, not the cluster's 45.
+      const elements = (result.payload as { elements?: OverpassElement[] }).elements ?? [];
+      const assigned = resolveSectionGeometries(scopedPayload(elements, scopeHoleWays(elements, row.name, [row.lat, row.lng])), sections);
       if (assigned) {
         const stamp = new Date().toISOString();
         for (const [sectionId, geo] of assigned) {
