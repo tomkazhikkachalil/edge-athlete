@@ -248,3 +248,32 @@ describe('composeHoleGeometry', () => {
     expect(composeHoleGeometry(eighteen, nineGeo(LOOP_B_LNG))).toBeNull();
   });
 });
+
+describe('the section split carries greens (PR G2)', () => {
+  it('each sibling picks its own greens out of the one payload', async () => {
+    const { withGreens, resolveSectionGeometries: resolve } = await import('../hole-geometry');
+    const sections = [
+      { id: 'sec-north', name: 'Synthetic Club (North Nine)', section_name: 'North Nine' },
+      { id: 'sec-south', name: 'Synthetic Club (South Nine)', section_name: 'South Nine' },
+    ];
+    const payload = twoLoopPayload();
+    payload.elements.push(boundary('Synthetic North Nine', LOOP_A_LNG), boundary('Synthetic South Nine', LOOP_B_LNG));
+    // A 10 m square green at loop A's hole 1 end only.
+    const end = { lat: 45.3 + 0.0005, lon: LOOP_A_LNG };
+    const d = 0.0001;
+    payload.elements.push({
+      type: 'way',
+      tags: { golf: 'green' },
+      geometry: [
+        { lat: end.lat - d, lon: end.lon - d }, { lat: end.lat - d, lon: end.lon + d },
+        { lat: end.lat + d, lon: end.lon + d }, { lat: end.lat + d, lon: end.lon - d },
+        { lat: end.lat - d, lon: end.lon - d },
+      ],
+    });
+    const assigned = resolve(payload, sections)!;
+    const north = withGreens(assigned.get('sec-north')!, payload);
+    const south = withGreens(assigned.get('sec-south')!, payload);
+    expect(north.greens!.map(g => g.hole)).toEqual([1]);
+    expect(south.greens).toEqual([]);
+  });
+});

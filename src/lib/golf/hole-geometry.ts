@@ -28,6 +28,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { haversineKm } from '@/lib/golf/geocode';
+import { pointInRing, ringCentroid, YDS_PER_KM, type Ring } from '@/lib/golf/green';
 
 export interface HoleLine {
   hole: number;
@@ -35,11 +36,27 @@ export interface HoleLine {
   /** Tee→green polyline, [lat,lng] pairs, 6dp. line[0] is the tee,
    *  line[line.length-1] the green (OSM drawing convention). */
   line: [number, number][];
+  /** The green's outline when the cache holds one (PR G3) — a RUNTIME
+   *  convenience the live page attaches from `HoleGeometry.greens` so one
+   *  object carries a hole to the map and the scorer. Never stored here:
+   *  the stored shape keeps `greens` beside `holes`. */
+  green?: Ring;
+}
+
+/** A green's outline, assigned to a hole (PR G2, Oct 2026). */
+export interface GreenRing {
+  hole: number;
+  /** Closed [lat,lng] ring, 6dp. */
+  ring: Ring;
 }
 
 export interface HoleGeometry {
   holes: HoleLine[];
   source: 'osm';
+  /** The `golf=green` outlines assigned to holes (by the line END). ABSENT
+   *  on a geometry cached before PR G2 — the cache layer refetches such a
+   *  row once; PRESENT and empty when OSM has no outlines here (the stamp). */
+  greens?: GreenRing[];
 }
 
 interface OverpassMember {
@@ -86,7 +103,7 @@ export function parseHoleGeometry(payload: unknown): HoleGeometry | null {
 
 // ── Boundary scoping for multi-course facilities ─────────────────────────────
 
-type Ring = [number, number][]; // [lat,lng] vertices; first === last when closed
+// `Ring` ([lat,lng] vertices; first === last when closed) lives in green.ts.
 
 /** Words that appear in nearly every course name and therefore can't tell two
  *  neighboring clubs apart. Everything else counts toward a name match. */
@@ -157,18 +174,7 @@ function assembleRings(pieces: Ring[]): Ring[] {
   return rings;
 }
 
-/** Ray-cast point-in-ring; lat is y, lng is x. */
-function pointInRing(pt: [number, number], ring: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [yi, xi] = ring[i];
-    const [yj, xj] = ring[j];
-    if (yi > pt[0] !== yj > pt[0] && pt[1] < ((xj - xi) * (pt[0] - yi)) / (yj - yi) + xi) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
+// pointInRing: see green.ts (moved there in PR G1 so green.ts stays a leaf).
 
 const validPt = (g: { lat: number; lon: number } | undefined) =>
   Number.isFinite(g?.lat) && Number.isFinite(g?.lon);
@@ -339,6 +345,81 @@ export function resolveHoleGeometry(
   const boundary = name ? pickBoundary(elements, name, point) : null;
   if (boundary) return scopeByBoundary(elements, boundary);
   return parseHoleGeometry(payload);
+}
+
+// ── Green outlines (PR G2, Oct 2026) ─────────────────────────────────────────
+// OSM maps greens as closed `golf=green` ways (rarely relations), almost
+// never with a `ref`. The assignment is geometric: the ring that CONTAINS a
+// hole line's end owns that hole; failing that, the nearest ring within
+// GREEN_ASSIGN_M of the end (hand-drawn lines stop short of the green all the
+// time). One ring may serve two holes — a double green is real. A hole with
+// no ring simply has no green outline, and `greenDistances` is never faked.
+
+/** How far past the line's end a green may sit and still be that hole's. */
+export const GREEN_ASSIGN_M = 40;
+
+const toRing = (geom: { lat: number; lon: number }[] | undefined): Ring =>
+  (geom ?? []).filter(validPt).map(g => [Number(g.lat.toFixed(6)), Number(g.lon.toFixed(6))] as [number, number]);
+
+/** Every closed `golf=green` ring in an Overpass payload. Exported pure for
+ *  tests. */
+export function parseGreenRings(payload: unknown): Ring[] {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements)) return [];
+  const rings: Ring[] = [];
+  for (const el of elements) {
+    if (el?.tags?.golf !== 'green') continue;
+    let found: Ring[] = [];
+    if (el.type === 'way' && Array.isArray(el.geometry)) {
+      found = assembleRings([toRing(el.geometry)]);
+    } else if (el.type === 'relation' && Array.isArray(el.members)) {
+      found = assembleRings(
+        el.members
+          .filter(m => m?.type === 'way' && (!m.role || m.role === 'outer') && Array.isArray(m.geometry))
+          .map(m => toRing(m.geometry))
+      );
+    }
+    for (const r of found) if (r.length >= 4) rings.push(r);
+  }
+  return rings;
+}
+
+/** Assign rings to holes by the line END: containment first, else the
+ *  nearest ring within GREEN_ASSIGN_M. Holes with nothing are absent; a ring
+ *  may appear under two holes. Exported pure for tests. */
+export function assignGreens(holes: HoleLine[], rings: Ring[]): GreenRing[] {
+  const out: GreenRing[] = [];
+  if (!rings.length) return out;
+  for (const h of holes) {
+    const end = h.line[h.line.length - 1];
+    if (!end) continue;
+    const containing = rings.filter(r => pointInRing(end, r));
+    let pick: Ring | null = null;
+    if (containing.length === 1) {
+      pick = containing[0];
+    } else if (containing.length > 1) {
+      let best = Infinity;
+      for (const r of containing) {
+        const c = ringCentroid(r);
+        const d = c ? metresToRing(end, [c]) : Infinity;
+        if (d < best) { best = d; pick = r; }
+      }
+    } else {
+      let best = GREEN_ASSIGN_M;
+      for (const r of rings) {
+        const d = metresToRing(end, r);
+        if (d <= best) { best = d; pick = r; }
+      }
+    }
+    if (pick) out.push({ hole: h.hole, ring: pick });
+  }
+  return out;
+}
+
+/** The geometry with its greens ALWAYS set — `[]` when the payload holds no
+ *  outlines, which is the stamp that stops the cache layer refetching. */
+export function withGreens(geometry: HoleGeometry, payload: unknown): HoleGeometry {
+  return { ...geometry, greens: assignGreens(geometry.holes, parseGreenRings(payload)) };
 }
 
 // ── Multi-course clubs (migration 125): cluster-splitting + combos ──────────
@@ -566,13 +647,20 @@ export function composeHoleGeometry(
   const isNine = (g: HoleGeometry | null | undefined): g is HoleGeometry =>
     !!g && g.holes.length === 9 && g.holes.every(h => h.hole >= 1 && h.hole <= 9);
   if (!isNine(front) || !isNine(back)) return null;
-  return {
+  const composed: HoleGeometry = {
     holes: [
       ...front.holes,
       ...back.holes.map(h => ({ ...h, hole: h.hole + 9 })),
     ].sort((a, b) => a.hole - b.hole),
     source: 'osm',
   };
+  if (front.greens || back.greens) {
+    composed.greens = [
+      ...(front.greens ?? []),
+      ...(back.greens ?? []).map(g => ({ ...g, hole: g.hole + 9 })),
+    ].sort((a, b) => a.hole - b.hole);
+  }
+  return composed;
 }
 
 /** Live yardage from the player's GPS fix to a hole's green — the OSM way
@@ -584,14 +672,23 @@ export function composeHoleGeometry(
 export function greenDistanceYards(
   fix: [number, number],
   line: [number, number][],
-  maxYds = 1500
+  maxYds = 1500,
+  green?: Ring | null
 ): number | null {
   if (line.length < 2) return null;
-  const yds = yardsBetween(fix, line[line.length - 1]);
+  const yds = yardsBetween(fix, greenPoint(line, green));
   return yds > maxYds ? null : yds;
 }
 
-const YDS_PER_KM = 1093.6133;
+/** THE point every "to green" number and the flag stand on: the outline's
+ *  centroid when the hole carries one (PR G3 — OSM hole lines are hand-drawn
+ *  and routinely stop at the front edge), else the line's last point. */
+export function greenPoint(line: [number, number][], green?: Ring | null): [number, number] {
+  const c = green ? ringCentroid(green) : null;
+  return c ?? line[line.length - 1];
+}
+
+// YDS_PER_KM lives in green.ts (PR G1).
 
 /** Great-circle yards between two [lat,lng] points, rounded. */
 export function yardsBetween(a: [number, number], b: [number, number]): number {
@@ -654,12 +751,13 @@ export function trimLineToYards(
 export function targetDistances(
   origin: [number, number],
   target: [number, number],
-  line: [number, number][]
+  line: [number, number][],
+  green?: Ring | null
 ): { toTarget: number; targetToGreen: number } | null {
   if (line.length < 2) return null;
   return {
     toTarget: yardsBetween(origin, target),
-    targetToGreen: yardsBetween(target, line[line.length - 1]),
+    targetToGreen: yardsBetween(target, greenPoint(line, green)),
   };
 }
 
@@ -693,8 +791,12 @@ export async function fetchHoleGeometry(
   const around = `(around:1500,${lat},${lng})`;
   const query =
     `[out:json][timeout:25];way["golf"="hole"]${around};out geom;` +
+    // The green outlines (PR G2) — light, so they sit BEFORE the boundary
+    // statement: a timeout still lands in the heaviest statement, and
+    // isOverpassPartial turns that into a transport failure as before.
+    `(way["golf"="green"]${around};relation["golf"="green"]${around};);out geom;` +
     // Named boundaries only — unnamed polygons are dropped by the scoper
-    // anyway, and a smaller second statement is less likely to time out.
+    // anyway, and a smaller statement is less likely to time out.
     `(way["leisure"="golf_course"]["name"]${around};relation["leisure"="golf_course"]["name"]${around};);out geom;`;
   for (const endpoint of MIRRORS) {
     try {
@@ -715,7 +817,8 @@ export async function fetchHoleGeometry(
       // "no coverage" answer — next mirror; all partial → reached:false,
       // so nothing is stamped and a later request retries.
       if (isOverpassPartial(payload)) continue;
-      const geometry = resolveHoleGeometry(payload, courseName, [lat, lng]);
+      const resolved = resolveHoleGeometry(payload, courseName, [lat, lng]);
+      const geometry = resolved ? withGreens(resolved, payload) : null;
       return { reached: true, geometry, payload };
     } catch {
       // Timeout/network — next mirror.
@@ -750,7 +853,11 @@ export async function getCourseHoleGeometry(
   if (!row) return null;
   if (
     row.hole_geometry_at &&
-    Date.now() - new Date(row.hole_geometry_at).getTime() < GEOMETRY_TTL_MS
+    Date.now() - new Date(row.hole_geometry_at).getTime() < GEOMETRY_TTL_MS &&
+    // A geometry cached before PR G2 carries no `greens` key: refetch it ONCE
+    // (the write below always sets the key, `[]` included). A null answer
+    // keeps its own 30-day TTL — there is nothing to add to "no coverage".
+    (row.hole_geometry == null || 'greens' in row.hole_geometry)
   ) {
     return row.hole_geometry;
   }
@@ -779,10 +886,13 @@ export async function getCourseHoleGeometry(
           if (sectionId === courseId) continue; // this row is stamped below
           await admin
             .from('golf_courses')
-            .update({ hole_geometry: geo, hole_geometry_at: stamp })
+            // Each sibling picks its own greens out of the ONE payload (the
+            // assignment is by its holes' line ends).
+            .update({ hole_geometry: withGreens(geo, result.payload), hole_geometry_at: stamp })
             .eq('id', sectionId);
         }
-        geometry = assigned.get(courseId) ?? null;
+        const own = assigned.get(courseId);
+        geometry = own ? withGreens(own, result.payload) : null;
       }
     } catch (sectionError) {
       console.error('Section geometry split failed (non-fatal):', sectionError);
