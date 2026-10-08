@@ -22,6 +22,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { greenDistanceYards, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
+import { followDefault, shouldPan } from '@/lib/golf/map-follow';
+import { COPY } from '@/lib/copy';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -53,6 +55,9 @@ export interface CourseMapInnerProps {
    *  parent knows what it floats over the map's bottom edge (the live
    *  page's centered "Score hole N" CTA), this component doesn't. */
   captionInset?: number;
+  /** M1: bump to re-fit the view to the focused hole even when the hole
+   *  has not changed (the page's "first hole" control after a drag). */
+  fitNonce?: number;
 }
 
 // The tile layers are shared with the activity route map (src/lib/maps/tiles.ts).
@@ -92,10 +97,11 @@ const targetIcon = () =>
 // A red flag on a white-cased pole, anchored at the pole's foot ON the point;
 // never interactive, so a tap on the green still places the target.
 const FLAG_H = 36;
-// The live page's control column over the map's top-right corner: three 44px
-// buttons, then the distance pill (~170px wide), from 12px in.
+// The live page's control column over the map's top-right corner: four 40px
+// buttons (layer, track, Follow me, Re-center), then the distance pill
+// (~170px wide), from 12px in. gps-hole-flag.spec measures the flag clear of it.
 const CONTROL_COLUMN_W = 190;
-const CONTROL_COLUMN_H = 264;
+const CONTROL_COLUMN_H = 312;
 
 const flagIcon = () =>
   L.divIcon({
@@ -120,6 +126,7 @@ export default function CourseMapInner({
   onHoleTap,
   onFix,
   captionInset = 0,
+  fitNonce = 0,
 }: CourseMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -131,6 +138,18 @@ export default function CourseMapInner({
   const lastFixRef = useRef<[number, number] | null>(null);
   const [tracking, setTracking] = useState(false);
   const [followPaused, setFollowPaused] = useState(false);
+  // ── Follow me (M1) ────────────────────────────────────────────────────────
+  // The player's INTENT: null until the first fix after tracking starts
+  // decides it (on at the course, off elsewhere — map-follow.ts), then the
+  // toggle's. `followRef` above is the PAUSE (a drag, a hole fit); panning
+  // needs both. The watcher is registered once, so the intent and the holes
+  // reach it through refs; `panAllowed` mirrors the last decision into
+  // render for the toggle's data hook.
+  const [follow, setFollow] = useState<boolean | null>(null);
+  const followIntentRef = useRef<boolean | null>(null);
+  const followDecidedRef = useRef(false);
+  const holesRef = useRef(holes);
+  const [panAllowed, setPanAllowed] = useState(false);
   // Mirrors lastFixRef into render for the yardage pill (~1 update/s while
   // tracking; nothing but the pill depends on it). On-device only.
   const [playerFix, setPlayerFix] = useState<[number, number] | null>(null);
@@ -162,6 +181,7 @@ export default function CourseMapInner({
       if (followRef.current) {
         followRef.current = false;
         setFollowPaused(true);
+        setPanAllowed(false);
       }
     });
     // Tap-to-target, only while a hole is focused. A pan never fires click;
@@ -265,7 +285,7 @@ export default function CourseMapInner({
     // or changing — never because `holes` is a new array: the page rebuilds
     // it on every score poll, and each one yanked the view back to the hole
     // (and took Re-center's follow away again).
-    const fitKey = `${h.hole}:${h.line.map(p => `${p[0]},${p[1]}`).join(';')}`;
+    const fitKey = `${fitNonce}:${h.hole}:${h.line.map(p => `${p[0]},${p[1]}`).join(';')}`;
     if (lastFitRef.current !== fitKey) {
       lastFitRef.current = fitKey;
       // Ref-only: the Re-center button's visibility derives from focusActive
@@ -293,7 +313,12 @@ export default function CourseMapInner({
       focusLineRef.current?.remove();
       focusLineRef.current = null;
     };
-  }, [focusHole, holes, overlayControls]);
+  }, [focusHole, holes, overlayControls, fitNonce]);
+
+  // The watcher reads the holes through a ref (registered once at start).
+  useEffect(() => {
+    holesRef.current = holes;
+  }, [holes]);
 
   // Blank-tiles guard: a map shown from a hidden tab must re-measure.
   useEffect(() => {
@@ -311,6 +336,10 @@ export default function CourseMapInner({
     accuracyRef.current = null;
     followRef.current = true;
     setFollowPaused(false);
+    followIntentRef.current = null;
+    followDecidedRef.current = false;
+    setFollow(null);
+    setPanAllowed(false);
     setPlayerFix(null);
     onFixRef.current?.(null);
     setTracking(false);
@@ -325,6 +354,10 @@ export default function CourseMapInner({
     setTracking(true);
     followRef.current = true;
     setFollowPaused(false);
+    // Undecided until the first fix says where the player is (M1).
+    followIntentRef.current = null;
+    followDecidedRef.current = false;
+    setFollow(null);
     watchIdRef.current = navigator.geolocation.watchPosition(
       pos => {
         const map = mapRef.current;
@@ -345,9 +378,18 @@ export default function CourseMapInner({
           playerMarkerRef.current.setLatLng(ll);
           accuracyRef.current?.setLatLng(ll).setRadius(pos.coords.accuracy);
         }
-        // Follow mode: keep the player centered hole after hole ("accurate
-        // by hole" without per-hole geometry — the player IS the hole).
-        if (followRef.current) map.panTo(ll, { animate: true });
+        // Follow me (M1): decided ONCE, on the first fix — on at the course,
+        // off elsewhere — then the toggle's. Only the PAN is gated: the
+        // marker, the accuracy ring, the pill and the published fix run on.
+        if (!followDecidedRef.current) {
+          followDecidedRef.current = true;
+          const on = followDefault(ll, { pin: [lat, lng], holes: holesRef.current });
+          followIntentRef.current = on;
+          setFollow(on);
+        }
+        const pan = shouldPan(followIntentRef.current, !followRef.current);
+        setPanAllowed(pan);
+        if (pan) map.panTo(ll, { animate: true });
       },
       err => {
         // Only a permission denial is fatal. TIMEOUT and POSITION_UNAVAILABLE
@@ -488,7 +530,20 @@ export default function CourseMapInner({
   const recenter = () => {
     followRef.current = true;
     setFollowPaused(false);
+    // Re-center turns Follow on (Tom's rule) and resumes the pan.
+    followIntentRef.current = true;
+    setFollow(true);
+    setPanAllowed(true);
     if (lastFixRef.current) mapRef.current?.panTo(lastFixRef.current, { animate: true });
+  };
+  const toggleFollow = () => {
+    if (follow === true) {
+      followIntentRef.current = false;
+      setFollow(false);
+      setPanAllowed(false);
+    } else {
+      recenter();
+    }
   };
 
   // Overlay controls go ICON-ONLY below sm. The hole chip is anchored at
@@ -518,6 +573,27 @@ export default function CourseMapInner({
     </button>
   );
 
+  // M1: the explicit Follow toggle — rendered only while tracking (nothing
+  // to follow otherwise). `data-map-follow` is the truth for the e2e:
+  // undecided (no fix yet) · on · paused (a drag or a hole fit — Re-center
+  // resumes) · off.
+  const followState = follow == null ? 'undecided' : !follow ? 'off' : followPaused || !panAllowed ? 'paused' : 'on';
+  const followButton = enableTracking && tracking && (
+    <button
+      type="button"
+      onClick={toggleFollow}
+      aria-label={follow === true ? COPY.GOLF_HOLE.FOLLOW_ON : COPY.GOLF_HOLE.FOLLOW_OFF}
+      aria-pressed={follow === true}
+      data-map-follow={followState}
+      className={`inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive ${
+        compact && follow === true ? 'max-sm:bg-brand max-sm:text-white' : ''
+      }`}
+    >
+      <i className="fas fa-person-walking" aria-hidden="true"></i>
+      <span className={labelClass}>{COPY.GOLF_HOLE.FOLLOW_ME}</span>
+    </button>
+  );
+
   const layerButton = (
     <button
       type="button"
@@ -544,7 +620,8 @@ export default function CourseMapInner({
           <div className="absolute right-3 top-3 z-[500] flex flex-col items-end gap-2">
             {layerButton}
             {trackButton}
-            {(followPaused || focusActive) && tracking && (
+            {followButton}
+            {(followPaused || focusActive || follow === false) && tracking && (
               <button
                 type="button"
                 onClick={recenter}

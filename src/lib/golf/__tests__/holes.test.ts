@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { startingHoleNumber } from '../holes';
+import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '../holes';
 
 const holes = (...nums: number[]) => nums.map(hole => ({ hole }));
 
@@ -31,5 +31,25 @@ describe('startingHoleNumber', () => {
 
   it('missing holesPlayed derives the span from the data itself', () => {
     expect(startingHoleNumber(holes(10, 11, 12, 13, 14, 15, 16, 17, 18), null)).toBe(10);
+  });
+});
+
+describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', () => {
+  it('the round’s holes from its starting hole', () => {
+    expect(roundHoleNumbers(1, 18)).toHaveLength(18);
+    expect(roundHoleNumbers(10, 9)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(roundHoleNumbers(1, 9)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(roundHoleNumbers(16, 9)).toEqual([16, 17, 18]); // never past 18
+    expect(roundHoleNumbers(1, null)).toHaveLength(18);
+    expect(roundHoleNumbers(0, 9)[0]).toBe(1);
+  });
+  it('steps cyclically both ways; an unknown current lands on the first', () => {
+    const list = roundHoleNumbers(1, 9);
+    expect(stepRoundHole(list, 9, 1)).toBe(1);
+    expect(stepRoundHole(list, 1, -1)).toBe(9);
+    expect(stepRoundHole(list, 4, 1)).toBe(5);
+    expect(stepRoundHole(list, 14, 1)).toBe(1);
+    expect(stepRoundHole(list, null, -1)).toBe(1);
+    expect(stepRoundHole([], 1, 1)).toBeNull();
   });
 });

@@ -135,9 +135,28 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await page.mouse.click(dotCentre.x, dotCentre.y);
     await expect(page.getByText(/to target · \d+ to green/)).toBeVisible({ timeout: 5_000 });
 
+    // ── Follow me (M1) ──────────────────────────────────────────────────
+    // Standing on the tee, Follow decided ON — but the hole fit pauses the
+    // pan (the fit always wins); Re-center resumes it; the toggle turns it
+    // off. A fresh fix refreshes the data hook.
+    const followBtn = page.locator('[data-map-follow]');
+    await expect(followBtn).toHaveAttribute('aria-pressed', 'true');
+    await ctx.setGeolocation({ latitude: holes[0].line[0][0] + 0.00002, longitude: holes[0].line[0][1], accuracy: 8 });
+    await expect(followBtn).toHaveAttribute('data-map-follow', 'paused', { timeout: 10_000 });
+    await page.getByRole('button', { name: 'Re-center on my position' }).click();
+    await expect(followBtn).toHaveAttribute('data-map-follow', 'on');
+    await followBtn.click();
+    await expect(followBtn).toHaveAttribute('data-map-follow', 'off');
+    await expect(followBtn).toHaveAttribute('aria-pressed', 'false');
+
     // Stepping on moves the flag with the hole: one flag, on hole 2's green.
     await page.getByRole('button', { name: 'Next hole' }).click();
     await expect(page.getByText(/^Hole 2\b/)).toBeVisible();
+    await expect(flag).toHaveCount(1);
+
+    // "Take me to the first hole" (M1): one tap back to the starting hole.
+    await page.locator('[data-map-first-hole]').click();
+    await expect(page.getByText(/^Hole 1\b/)).toBeVisible();
     await expect(flag).toHaveCount(1);
 
     // ── GPS ⇄ scoring, one tap each way (Tom, Oct 2026) ──────────────────
@@ -181,6 +200,30 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await expect(scorecardTab).toHaveAttribute('aria-selected', 'true');
     await scorecardTab.click();
     await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
+
+    // ── Far from the course (M1): Follow decides OFF and nothing pans ───
+    const away = await phoneContext(browser, [45.4215, -75.6972]); // downtown Ottawa, ~13 km
+    try {
+      const far = await away.newPage();
+      await far.goto(`/live/${roundId}`);
+      await expect(far.getByText('Hole 2 media')).toBeVisible({ timeout: 30_000 });
+      await far.getByRole('button', { name: 'Open course map' }).click();
+      await far.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
+      const farFollow = far.locator('[data-map-follow]');
+      await expect(farFollow).toHaveAttribute('data-map-follow', 'off', { timeout: 15_000 });
+      await expect(farFollow).toHaveAttribute('aria-pressed', 'false');
+      const farFlag = far.locator('.leaflet-marker-pane [data-green-flag]');
+      const before = await settledBox(farFlag);
+      await away.setGeolocation({ latitude: 45.4225, longitude: -75.6972, accuracy: 8 });
+      await away.setGeolocation({ latitude: 45.4235, longitude: -75.6972, accuracy: 8 });
+      await far.waitForTimeout(1500);
+      const after = (await farFlag.boundingBox())!;
+      expect(Math.abs(after.x - before.x), 'the map did not follow the far-away fix').toBeLessThan(1);
+      expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+      await expect(far.getByText(/^Hole 2\b/)).toBeVisible();
+    } finally {
+      await away.close();
+    }
   } finally {
     await ctx.close();
     if (roundId) await api.delete(`/api/group-posts/${roundId}?mode=delete`);
