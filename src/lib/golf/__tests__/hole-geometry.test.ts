@@ -567,3 +567,150 @@ describe('isOverpassAnswer — the envelope guard (sweep prep, Oct 2026)', () =>
     expect(isOverpassAnswer('rate_limited')).toBe(false);
   });
 });
+
+// ── The claims model (map sweep PR 2, Oct 2026) ─────────────────────────────
+import { claimsFor, namedBoundaries, scopeHoleWays, scopedPayload, parseHoleWaysLenient, clusterHoleLoops, BOUNDARY_NEAR_M, UNCLAIMED_MAX_M, type OverpassElement } from '../hole-geometry';
+import glenMar from './fixtures/overpass-glen-mar.json';
+import royalOttawaCluster from './fixtures/overpass-royal-ottawa-cluster.json';
+import chaudiere from './fixtures/overpass-chaudiere.json';
+
+// Real captures (Oct 7 2026, the per-course query + tees/fairways, `_course`
+// = the catalog row the capture was taken for):
+// - overpass-glen-mar: Glen Mar's 9 hole ways (refs 4–12) lie wholly inside
+//   Canadian Golf & Country Club's polygon; Glen Mar's own polygon is an
+//   8-point stub holding the catalog point and no hole vertex.
+// - overpass-royal-ottawa-cluster: 45 hole ways from three adjacent clubs;
+//   Royal Ottawa's polygon holds its own 27 (18 + a West Nine: refs 1–9 ×2,
+//   10–18 ×1), Champlain's holds a clean 18.
+// - overpass-chaudiere: the same cluster seen from Chaudière, whose own
+//   relation holds NO hole ways (its course is not drawn).
+const courseOf = (fx: unknown) => (fx as { _course: { name: string; lat: number; lng: number } })._course;
+const elementsOf = (fx: unknown) => (fx as { elements: OverpassElement[] }).elements;
+
+describe('namedBoundaries + claimsFor', () => {
+  it('lists every named polygon, flags the matching one, and claims by the MAJORITY of vertices', () => {
+    const c = courseOf(glenMar);
+    const bounds = namedBoundaries(elementsOf(glenMar), c.name);
+    expect(bounds.map(b => `${b.name}${b.matches ? '*' : ''}`).sort()).toEqual(['Canadian Golf & Country Club', 'Glen Mar*']);
+    const holes = elementsOf(glenMar).filter(e => e.tags?.golf === 'hole');
+    expect(holes).toHaveLength(9);
+    for (const h of holes) expect(claimsFor(h, bounds).map(b => b.name)).toEqual(['Canadian Golf & Country Club']);
+  });
+});
+
+describe('scopeHoleWays — the five modes on real data', () => {
+  it('Glen Mar: its nine are Canadian’s — `near` adds nothing a neighbour owns → honest null', () => {
+    const c = courseOf(glenMar);
+    const sc = scopeHoleWays(elementsOf(glenMar), c.name, [c.lat, c.lng]);
+    expect(sc.mode).toBe('near');
+    expect(sc.ways).toHaveLength(0);
+    expect(resolveHoleGeometry(glenMar, c.name, [c.lat, c.lng])).toBeNull();
+    // …while the plain parse of the payload would have served Canadian's holes under Glen Mar's name.
+    expect(parseHoleGeometry(glenMar)?.holes).toHaveLength(9);
+  });
+  it('Royal Ottawa: its own 27 alone (never Champlain’s 18) reach the split — duplicate refs, null today', () => {
+    const c = courseOf(royalOttawaCluster);
+    const sc = scopeHoleWays(elementsOf(royalOttawaCluster), c.name, [c.lat, c.lng]);
+    expect(sc.mode).toBe('near');
+    expect(sc.ways).toHaveLength(27);
+    const refs = sc.ways.map(w => Number(w.tags?.ref)).sort((a, b) => a - b);
+    expect(refs.slice(0, 4)).toEqual([1, 1, 2, 2]);
+    expect(refs.filter(r => r >= 10)).toHaveLength(9);
+    expect(resolveHoleGeometry(royalOttawaCluster, c.name, [c.lat, c.lng])).toBeNull();
+    // The split's input is the scoped payload: 27 lenient ways, no K-equal loops (PR 4 widens this).
+    const lenient = parseHoleWaysLenient(scopedPayload(elementsOf(royalOttawaCluster), sc));
+    expect(lenient).toHaveLength(27);
+    expect(clusterHoleLoops(lenient!)).toBeNull();
+  });
+  it('Champlain: `own` — the clean 18 inside its polygon, out of the same cluster', () => {
+    const c = courseOf(royalOttawaCluster);
+    const sc = scopeHoleWays(elementsOf(royalOttawaCluster), 'Club de Golf Champlain', [c.lat, c.lng]);
+    expect(sc.mode).toBe('own');
+    expect(resolveHoleGeometry(royalOttawaCluster, 'Club de Golf Champlain', [c.lat, c.lng])?.holes).toHaveLength(18);
+  });
+  it('Chaudière: its own relation holds no hole way → null (the course is not drawn)', () => {
+    const c = courseOf(chaudiere);
+    const sc = scopeHoleWays(elementsOf(chaudiere), c.name, [c.lat, c.lng]);
+    expect(sc.mode).toBe('near');
+    expect(sc.ways).toHaveLength(0);
+    expect(resolveHoleGeometry(chaudiere, c.name, [c.lat, c.lng])).toBeNull();
+  });
+  it('Château Cartier: no polygon of its own, every nearby way claimed by another club → `unclaimed`, empty, null', () => {
+    const c = courseOf(royalOttawaCluster);
+    const sc = scopeHoleWays(elementsOf(royalOttawaCluster), 'Château Cartier', [c.lat, c.lng]);
+    expect(sc.mode).toBe('unclaimed');
+    expect(sc.ways).toHaveLength(0);
+    expect(resolveHoleGeometry(royalOttawaCluster, 'Château Cartier', [c.lat, c.lng])).toBeNull();
+  });
+  it('Rideau View: no named polygon at all → `all`, 18 as ever', () => {
+    const sc = scopeHoleWays(elementsOf(rideauView), 'Rideau View Golf Club', [45.2, -75.68]);
+    expect(sc.mode).toBe('all');
+    expect(sc.ways).toHaveLength(18);
+  });
+});
+
+describe('scopeHoleWays — the rules on synthetic data', () => {
+  const M = (2 * Math.PI * 6371000) / 360;
+  /** A straight due-north hole way of 300 m starting at (lat, lng). */
+  const hole = (ref: number, lat: number, lng: number): OverpassElement => ({
+    type: 'way', tags: { golf: 'hole', ref: String(ref), par: '4' },
+    geometry: [{ lat, lon: lng }, { lat: lat + 150 / M, lon: lng }, { lat: lat + 300 / M, lon: lng }],
+  });
+  /** A closed rectangle polygon named `name`. */
+  const poly = (name: string, s: number, w: number, n: number, e: number): OverpassElement => ({
+    type: 'way', tags: { leisure: 'golf_course', name },
+    geometry: [{ lat: s, lon: w }, { lat: s, lon: e }, { lat: n, lon: e }, { lat: n, lon: w }, { lat: s, lon: w }],
+  });
+  const pt: [number, number] = [45.3, -75.7];
+  const nine = (lat0 = 45.3) => Array.from({ length: 9 }, (_, i) => hole(i + 1, lat0, -75.7 + i * 0.001));
+
+  it('a sloppy own polygon: holes it clips but nobody else claims, within 150 m, are still mine (`near`)', () => {
+    // "Mine GC" holds the full first four holes; holes 5–9 run 50 m past its northern edge → majority outside.
+    const mine = poly('Mine GC', 45.299, -75.701, 45.3 + 170 / M, -75.69);
+    const holes = nine().map((h, i) => (i < 4 ? h : hole(i + 1, 45.3 + 60 / M, -75.7 + i * 0.001)));
+    const sc = scopeHoleWays([mine, ...holes], 'Mine Golf Club', pt);
+    expect(sc.mode).toBe('near');
+    expect(sc.ways).toHaveLength(9);
+    expect(resolveHoleGeometry({ version: 0.6, elements: [mine, ...holes] }, 'Mine Golf Club', pt)?.holes).toHaveLength(9);
+  });
+  it('a clean set another club’s polygon owns is never mine, however close my empty polygon sits', () => {
+    const other = poly('Other GC', 45.299, -75.701, 45.31, -75.69); // holds all nine
+    const mine = poly('Mine GC', 45.2985, -75.7015, 45.299 - 1 / M, -75.69); // a sliver 1 m south of Other GC
+    const holes = nine();
+    const sc = scopeHoleWays([other, mine, ...holes], 'Mine Golf Club', [45.2987, -75.695]);
+    expect(sc.mode).toBe('near');
+    expect(sc.ways).toHaveLength(0);
+    expect(resolveHoleGeometry({ version: 0.6, elements: [other, mine, ...holes] }, 'Mine Golf Club', [45.2987, -75.695])).toBeNull();
+  });
+  it('`unclaimed`: a boundary-less course takes the ways no polygon claims — only within 800 m of its point', () => {
+    const other = poly('Other GC', 45.31, -75.701, 45.32, -75.69); // somewhere else
+    const theirs = Array.from({ length: 9 }, (_, i) => hole(i + 1, 45.311, -75.7 + i * 0.001)); // inside Other GC
+    const mineWays = nine(45.3); // claimed by nobody
+    const all = [other, ...theirs, ...mineWays];
+    const near = scopeHoleWays(all, 'Boundless Golf Club', pt);
+    expect(near.mode).toBe('unclaimed');
+    expect(near.ways).toHaveLength(9);
+    expect(resolveHoleGeometry({ version: 0.6, elements: all }, 'Boundless Golf Club', pt)?.holes).toHaveLength(9);
+    // The same set from a point 1.5 km away is not this course's.
+    const far: [number, number] = [45.3 - 1500 / M, -75.7];
+    expect(resolveHoleGeometry({ version: 0.6, elements: all }, 'Boundless Golf Club', far)).toBeNull();
+    expect(UNCLAIMED_MAX_M).toBe(800);
+    expect(BOUNDARY_NEAR_M).toBe(150);
+  });
+  it('the old no-boundary path inherited a clean neighbour’s 18 — closed: a boundary-less course beside a claimed set gets nothing', () => {
+    const other = poly('Other GC', 45.299, -75.701, 45.31, -75.69);
+    const holes = nine();
+    expect(resolveHoleGeometry({ version: 0.6, elements: [other, ...holes] }, 'Boundless Golf Club', pt)).toBeNull();
+    // …and with no polygon at all the plain parse still serves them (mode `all`), as before.
+    expect(resolveHoleGeometry({ version: 0.6, elements: holes }, 'Boundless Golf Club', pt)?.holes).toHaveLength(9);
+  });
+  it('scopedPayload keeps every non-hole element beside the scoped ways', () => {
+    const other = poly('Other GC', 45.299, -75.701, 45.31, -75.69);
+    const green: OverpassElement = { type: 'way', tags: { golf: 'green' }, geometry: [{ lat: 45.3, lon: -75.7 }, { lat: 45.3001, lon: -75.7 }, { lat: 45.3001, lon: -75.6999 }, { lat: 45.3, lon: -75.7 }] };
+    const sc = scopeHoleWays([other, green, ...nine()], 'Boundless Golf Club', pt);
+    const kept = scopedPayload([other, green, ...nine()], sc).elements;
+    expect(kept).toContain(other);
+    expect(kept).toContain(green);
+    expect(kept.filter(e => e.tags?.golf === 'hole')).toHaveLength(0);
+  });
+});
