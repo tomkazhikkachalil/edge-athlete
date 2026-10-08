@@ -1,7 +1,8 @@
 // ── Elevation along a hole, and what a shot "plays like" (PR C, Oct 2026) ───
 // Tom: "slope to help athletes make informed decisions on their shots". The
-// course API carries no elevation; a terrain model does (Open-Meteo, 90 m
-// Copernicus DEM — indicative, so every number it feeds wears "≈"). The
+// course API carries no elevation; a terrain model does (Terrain Tiles —
+// 10–30 m, free — first, Open-Meteo's 90 m DEM behind its key as the
+// fallback; indicative either way, so every number it feeds wears "≈"). The
 // profile is SAMPLED once per course along each hole's OSM line (ten points,
 // tee and green included) and cached in golf_courses.hole_elevation (254).
 // Pure: the server layer (elevation-server.ts) fetches and caches; the
@@ -20,10 +21,15 @@ export interface HoleElevationProfile {
   elev: number[];
 }
 
+/** Where a profile's metres came from. `terrain-tiles` (T2, Oct 2026) is
+ *  the free, keyless first provider; `open-meteo` the paid fallback. */
+export type ElevationSource = 'open-meteo' | 'terrain-tiles';
+export const ELEVATION_SOURCES: readonly ElevationSource[] = ['open-meteo', 'terrain-tiles'];
+
 export interface HoleElevation {
   holes: HoleElevationProfile[];
   sampled: 'line10';
-  source: 'open-meteo';
+  source: ElevationSource;
 }
 
 export const SAMPLES_PER_HOLE = 10;
@@ -113,7 +119,7 @@ const isPair = (v: unknown): v is LatLng =>
 export function parseStoredElevation(raw: unknown): HoleElevation | null {
   if (!raw || typeof raw !== 'object') return null;
   const rec = raw as { holes?: unknown; source?: unknown; sampled?: unknown };
-  if (rec.source !== 'open-meteo' || !Array.isArray(rec.holes)) return null;
+  if (!ELEVATION_SOURCES.includes(rec.source as ElevationSource) || !Array.isArray(rec.holes)) return null;
   const holes: HoleElevationProfile[] = [];
   for (const h of rec.holes) {
     if (!h || typeof h !== 'object') continue;
@@ -127,5 +133,5 @@ export function parseStoredElevation(raw: unknown): HoleElevation | null {
   }
   if (holes.length === 0) return null;
   holes.sort((a, b) => a.hole - b.hole);
-  return { holes, sampled: 'line10', source: 'open-meteo' };
+  return { holes, sampled: 'line10', source: rec.source as ElevationSource };
 }

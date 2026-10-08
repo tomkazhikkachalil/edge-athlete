@@ -142,13 +142,22 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     expect(fb.y, 'the whole flag sits below the hole chip').toBeGreaterThan(chip.y + chip.height);
     // …and not behind the distance pill either: nothing of the app is drawn
     // over the flag (its tip and its foot are both bare map).
-    const pill = page.getByText(/\d+ yds to green/);
+    const pill = page.locator('[data-rangefinder-pill]');
     await expect(pill).toBeVisible({ timeout: 10_000 });
-    // …and the number is measured to the outline's CENTRE (30 m past the
-    // line end), from the tee the fix stands on.
-    const pillYds = Number((/(\d+) yds to green/.exec((await pill.textContent()) ?? '') ?? [])[1]);
-    expect(Math.abs(pillYds - yardsBetween(holes[0].line[0], greenCentre))).toBeLessThanOrEqual(3);
-    expect(pillYds - yardsBetween(holes[0].line[0], end1)).toBeGreaterThanOrEqual(28);
+    // …and (M2) with an outline the pill is the trio "F · C · B": the centre
+    // measured to the outline's CENTRE (30 m past the line end) from the tee
+    // the fix stands on, the front 10 m nearer, the back 10 m further.
+    const pillText = (await pill.textContent()) ?? '';
+    const trio = /F (\d+) · C (\d+) · B (\d+)/.exec(pillText);
+    expect(trio, pillText).not.toBeNull();
+    const [front, centre, back] = [Number(trio![1]), Number(trio![2]), Number(trio![3])];
+    expect(Math.abs(centre - yardsBetween(holes[0].line[0], greenCentre))).toBeLessThanOrEqual(3);
+    expect(centre - yardsBetween(holes[0].line[0], end1)).toBeGreaterThanOrEqual(28);
+    expect(centre - front).toBeGreaterThanOrEqual(9);
+    expect(centre - front).toBeLessThanOrEqual(13);
+    expect(back - centre).toBeGreaterThanOrEqual(9);
+    expect(back - centre).toBeLessThanOrEqual(13);
+    await expect(pill).toHaveAttribute('data-green-fcb', '');
     const tipBare = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.leaflet-container'), { x: fb.x + 14, y: fb.y + 6 });
     expect(tipBare, 'the flag is not underneath the distance pill').toBe(true);
     // …inside the map, and never in the way of a tap on the green.
@@ -173,10 +182,13 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await expect(followBtn).toHaveAttribute('data-map-follow', 'off');
     await expect(followBtn).toHaveAttribute('aria-pressed', 'false');
 
-    // Stepping on moves the flag with the hole: one flag, on hole 2's green.
+    // Stepping on moves the flag with the hole: one flag, on hole 2's green —
+    // and with no outline there, the pill is the one number again.
     await page.getByRole('button', { name: 'Next hole' }).click();
     await expect(page.getByText(/^Hole 2\b/)).toBeVisible();
     await expect(flag).toHaveCount(1);
+    await expect(pill).toContainText(/\d+ yds to green/, { timeout: 10_000 });
+    await expect(pill).not.toHaveAttribute('data-green-fcb', '');
 
     // "Take me to the first hole" (M1): one tap back to the starting hole.
     await page.locator('[data-map-first-hole]').click();
