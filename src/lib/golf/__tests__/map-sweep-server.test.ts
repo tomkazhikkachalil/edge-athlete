@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchCellPayload, runGeometryBatch, runElevationBatch, sweepCellCourses } from '../map-sweep-server';
+import { fetchCellPayload, readSweepProgress, runGeometryBatch, runElevationBatch, sweepCellCourses } from '../map-sweep-server';
 import { CELL_TTL_MS } from '../map-sweep';
 import rideauView from './fixtures/overpass-rideau-view.json';
 
@@ -29,11 +29,15 @@ function fakeAdmin(cells: Array<Record<string, unknown>>, courses: Course[]) {
     const b: Record<string, unknown> = {};
     const chain = () => b;
     for (const m of ['select', 'eq', 'neq', 'gte', 'lt', 'gt', 'lte', 'not', 'in', 'is', 'or', 'order', 'limit']) b[m] = chain;
+    // `.range(from, to)` answers that slice of the cells — PostgREST's page
+    // (the progress reader pages past the 1,000-row cap).
+    let range: [number, number] | null = null;
+    b.range = (from: number, to: number) => { range = [from, to]; return b; };
     b.maybeSingle = async () => ({ data: table === 'golf_courses' ? (courses[0] ?? null) : null, error: null });
     b.single = async () => ({ data: null, error: null });
     b.then = (resolve: (v: unknown) => void) => {
       if (table === 'golf_courses') resolve({ data: courses, error: null, count: courses.length });
-      else if (table === 'golf_map_sweep_cells') resolve({ data: cells, error: null, count: cells.filter(c => c.status !== 'running').length });
+      else if (table === 'golf_map_sweep_cells') resolve({ data: range ? cells.slice(range[0], range[1] + 1) : cells, error: null, count: cells.filter(c => c.status !== 'running').length });
       else resolve({ data: [], error: null, count: 0 });
     };
     b.update = (fields: Record<string, unknown>) => {
@@ -185,5 +189,24 @@ describe('runElevationBatch', () => {
     expect(courseUpdates(log)).toHaveLength(0);
     const live = await runElevationBatch(admin, { courses: 5, dryRun: false, now, budget: async () => false });
     expect('budgetExhausted' in live && live.budgetExhausted).toBe(true);
+  });
+});
+
+describe('readSweepProgress', () => {
+  it('reads EVERY cell in pages of 1,000 — the first production plan wrote 6,325 and a single read came back capped', async () => {
+    const many = Array.from({ length: 2_345 }, (_, i) => ({
+      cell_key: `c05:${(i % 100).toFixed(1)}:${Math.floor(i / 100).toFixed(1)}`, tier: 3, status: i < 7 ? 'done' : 'pending', priority: i,
+      courses: 1, rounds: 0, attempted: i < 7 ? 1 : 0, mapped: i < 5 ? 1 : 0, with_greens: 0, sections: 0, derived: 0, greens_only: 0, null_no_coverage: i >= 5 && i < 7 ? 1 : 0, refused: {},
+      next_due_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }));
+    const { admin } = fakeAdmin(many, [rideau()]);
+    const p = await readSweepProgress(admin);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.cells).toEqual({ total: 2_345, done: 7, pending: 2_338, running: 0, stale: 0 });
+    expect(p.courses.mapped).toBe(5);
+    expect(p.courses.null_no_coverage).toBe(2);
+    expect(p.next).toHaveLength(10);
+    expect(p.elevation.dueCapped).toBe(false);
   });
 });

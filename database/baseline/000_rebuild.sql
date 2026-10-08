@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-07T21:56:15.61281+00:00 from server 17.6 by
+-- Generated 2026-10-08T22:07:30.668514+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 254.
+-- public.schema_dump() (migration 227). Ledger head at generation: 255.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -36,7 +36,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (111; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (113; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -1952,6 +1952,47 @@ BEGIN
                 public.place_context(NEW.place_id)))), 'D');
   RETURN NEW;
 END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer)
+ RETURNS SETOF golf_map_sweep_cells
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH picked AS (
+    SELECT cell_key FROM public.golf_map_sweep_cells
+     WHERE next_due_at <= timezone('utc'::text, now())
+       AND (status <> 'running' OR leased_until IS NULL OR leased_until < timezone('utc'::text, now()))
+     ORDER BY priority, cell_key
+     LIMIT GREATEST(p_n, 0)
+     FOR UPDATE SKIP LOCKED
+  )
+  UPDATE public.golf_map_sweep_cells c
+     SET status = 'running',
+         leased_until = timezone('utc'::text, now()) + make_interval(secs => GREATEST(p_lease_seconds, 1))
+    FROM picked
+   WHERE c.cell_key = picked.cell_key
+  RETURNING c.*;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_map_sweep_elevation_due(p_limit integer)
+ RETURNS TABLE(id uuid)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.id FROM public.golf_courses c
+   WHERE c.hole_geometry IS NOT NULL
+     AND c.external_source <> 'qa-e2e'
+     AND (c.hole_elevation_at IS NULL
+          OR c.hole_elevation_at < c.hole_geometry_at
+          OR c.hole_elevation_at < timezone('utc'::text, now()) - interval '30 days')
+   ORDER BY c.hole_elevation_at NULLS FIRST, c.id
+   LIMIT GREATEST(p_limit, 0);
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -4048,7 +4089,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (129) ──────────────────────────────────────────────────────────────
+-- ── Tables (131) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4680,6 +4721,43 @@ CREATE TABLE IF NOT EXISTS public.golf_holes (
   notes text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   penalties text[]
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_map_sweep_cells (
+  cell_key text NOT NULL,
+  lat0 double precision NOT NULL,
+  lng0 double precision NOT NULL,
+  size_deg double precision DEFAULT 0.5 NOT NULL,
+  tier smallint DEFAULT 3 NOT NULL,
+  priority integer DEFAULT 0 NOT NULL,
+  status text DEFAULT 'pending'::text NOT NULL,
+  attempts integer DEFAULT 0 NOT NULL,
+  leased_until timestamp with time zone,
+  next_due_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  attempted_at timestamp with time zone,
+  planned_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  courses integer DEFAULT 0 NOT NULL,
+  rounds integer DEFAULT 0 NOT NULL,
+  attempted integer DEFAULT 0 NOT NULL,
+  mapped integer DEFAULT 0 NOT NULL,
+  with_greens integer DEFAULT 0 NOT NULL,
+  sections integer DEFAULT 0 NOT NULL,
+  derived integer DEFAULT 0 NOT NULL,
+  greens_only integer DEFAULT 0 NOT NULL,
+  null_no_coverage integer DEFAULT 0 NOT NULL,
+  refused jsonb DEFAULT '{}'::jsonb NOT NULL,
+  elements integer,
+  duration_ms integer,
+  mirror text,
+  error text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_map_sweep_meta (
+  key text NOT NULL,
+  value jsonb NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_participant_scores (
@@ -6195,6 +6273,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_map_sweep_cells_pkey' AND conrelid = 'public.golf_map_sweep_cells'::regclass) THEN
+    ALTER TABLE public.golf_map_sweep_cells ADD CONSTRAINT golf_map_sweep_cells_pkey PRIMARY KEY (cell_key);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_map_sweep_meta_pkey' AND conrelid = 'public.golf_map_sweep_meta'::regclass) THEN
+    ALTER TABLE public.golf_map_sweep_meta ADD CONSTRAINT golf_map_sweep_meta_pkey PRIMARY KEY (key);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_participant_scores_pkey' AND conrelid = 'public.golf_participant_scores'::regclass) THEN
     ALTER TABLE public.golf_participant_scores ADD CONSTRAINT golf_participant_scores_pkey PRIMARY KEY (id);
   END IF;
@@ -7696,6 +7784,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_holes_strokes_check' AND conrelid = 'public.golf_holes'::regclass) THEN
     ALTER TABLE public.golf_holes ADD CONSTRAINT golf_holes_strokes_check CHECK (((strokes >= 1) AND (strokes <= 15)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_map_sweep_cells_status_check' AND conrelid = 'public.golf_map_sweep_cells'::regclass) THEN
+    ALTER TABLE public.golf_map_sweep_cells ADD CONSTRAINT golf_map_sweep_cells_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_map_sweep_cells_tier_check' AND conrelid = 'public.golf_map_sweep_cells'::regclass) THEN
+    ALTER TABLE public.golf_map_sweep_cells ADD CONSTRAINT golf_map_sweep_cells_tier_check CHECK (((tier >= 0) AND (tier <= 3)));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10374,6 +10472,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_country_region ON public.golf_courses USING btree (country_code, region_code);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_elevation_due ON public.golf_courses USING btree (hole_elevation_at) WHERE (hole_geometry IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_hydrated_at ON public.golf_courses USING btree (hydrated_at DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_lat ON public.golf_courses USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_name_raw_trgm ON public.golf_courses USING gin (name gin_trgm_ops);
@@ -10383,6 +10482,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_courses_search ON public.golf_courses USING 
 CREATE INDEX IF NOT EXISTS idx_golf_hole_scores_participant ON public.golf_hole_scores USING btree (golf_participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree (round_id, hole_number);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round_id ON public.golf_holes USING btree (round_id);
+CREATE INDEX IF NOT EXISTS idx_golf_map_sweep_cells_due ON public.golf_map_sweep_cells USING btree (next_due_at, priority);
 CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_finalized_by ON public.golf_participant_scores USING btree (finalized_by);
 CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_participant ON public.golf_participant_scores USING btree (participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_scores_entered_by ON public.golf_participant_scores USING btree (entered_by);
@@ -10739,7 +10839,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (111) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (113) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -12570,6 +12670,43 @@ BEGIN
                 public.place_context(NEW.place_id)))), 'D');
   RETURN NEW;
 END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer)
+ RETURNS SETOF golf_map_sweep_cells
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH picked AS (
+    SELECT cell_key FROM public.golf_map_sweep_cells
+     WHERE next_due_at <= timezone('utc'::text, now())
+       AND (status <> 'running' OR leased_until IS NULL OR leased_until < timezone('utc'::text, now()))
+     ORDER BY priority, cell_key
+     LIMIT GREATEST(p_n, 0)
+     FOR UPDATE SKIP LOCKED
+  )
+  UPDATE public.golf_map_sweep_cells c
+     SET status = 'running',
+         leased_until = timezone('utc'::text, now()) + make_interval(secs => GREATEST(p_lease_seconds, 1))
+    FROM picked
+   WHERE c.cell_key = picked.cell_key
+  RETURNING c.*;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.golf_map_sweep_elevation_due(p_limit integer)
+ RETURNS TABLE(id uuid)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.id FROM public.golf_courses c
+   WHERE c.hole_geometry IS NOT NULL
+     AND c.external_source <> 'qa-e2e'
+     AND (c.hole_elevation_at IS NULL
+          OR c.hole_elevation_at < c.hole_geometry_at
+          OR c.hole_elevation_at < timezone('utc'::text, now()) - interval '30 days')
+   ORDER BY c.hole_elevation_at NULLS FIRST, c.id
+   LIMIT GREATEST(p_limit, 0);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid)
@@ -14609,6 +14746,8 @@ DROP TRIGGER IF EXISTS trigger_calculate_golf_totals_update ON public.golf_hole_
 CREATE TRIGGER trigger_calculate_golf_totals_update AFTER UPDATE ON public.golf_hole_scores FOR EACH ROW EXECUTE FUNCTION calculate_golf_participant_totals();
 DROP TRIGGER IF EXISTS trigger_update_hole_scores_timestamp ON public.golf_hole_scores;
 CREATE TRIGGER trigger_update_hole_scores_timestamp BEFORE UPDATE ON public.golf_hole_scores FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
+DROP TRIGGER IF EXISTS golf_map_sweep_cells_updated_at ON public.golf_map_sweep_cells;
+CREATE TRIGGER golf_map_sweep_cells_updated_at BEFORE UPDATE ON public.golf_map_sweep_cells FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS trigger_update_golf_scores_timestamp ON public.golf_participant_scores;
 CREATE TRIGGER trigger_update_golf_scores_timestamp BEFORE UPDATE ON public.golf_participant_scores FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
 DROP TRIGGER IF EXISTS trigger_update_golf_data_timestamp ON public.golf_scorecard_data;
@@ -14790,6 +14929,8 @@ ALTER TABLE public.golf_clubs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_hole_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_holes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_map_sweep_cells ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_map_sweep_meta ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_participant_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_rounds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_scorecard_data ENABLE ROW LEVEL SECURITY;
@@ -16169,6 +16310,10 @@ REVOKE ALL ON TABLE public.golf_holes FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_holes TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_holes TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_holes TO service_role;
+REVOKE ALL ON TABLE public.golf_map_sweep_cells FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_map_sweep_cells TO service_role;
+REVOKE ALL ON TABLE public.golf_map_sweep_meta FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_map_sweep_meta TO service_role;
 REVOKE ALL ON TABLE public.golf_participant_scores FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_participant_scores TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_participant_scores TO authenticated;
@@ -16521,6 +16666,10 @@ REVOKE EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code tex
 GRANT EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_courses_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_courses_search_vector_update() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated, service_role;
@@ -16698,6 +16847,8 @@ COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= 
 COMMENT ON COLUMN public.golf_hole_scores.penalties IS 'Per-hole penalty occurrences for live shared scoring — same model and vocabulary as golf_holes.penalties (078).';
 COMMENT ON COLUMN public.golf_hole_scores.version IS 'Per-hole compare-and-set (209): starts at 1, +1 by trigger_bump_hole_score_version only when a scored field changes. A client sends expected_version; the server updates WHERE version = expected — 0 rows is a conflict (409). Never set by a client.';
 COMMENT ON COLUMN public.golf_holes.penalties IS 'Per-hole penalty occurrences, one array element each (e.g. {out_of_bounds,drop,drop} = OB x1 + Drop x2). Vocabulary app-validated in src/lib/golf/penalties.ts; no CHECK by design (078 header).';
+COMMENT ON TABLE public.golf_map_sweep_cells IS 'The course-map sweep''s cells (255): one row per 0.5° box holding catalog courses; the planner''s tier / priority / courses / rounds, the state machine (status, attempts, leased_until, next_due_at) and the last success''s metrics. Service role only; written by src/lib/golf/map-sweep-server.ts.';
+COMMENT ON TABLE public.golf_map_sweep_meta IS 'The course-map sweep''s meta (255): mirror cooldowns, the last run, the plan stamp. Service role only.';
 COMMENT ON TABLE public.golf_participant_scores IS 'Aggregated golf scores for each participant in a golf_round group post';
 COMMENT ON COLUMN public.golf_participant_scores.entered_by IS 'Who entered the scores: creator (pre-fill) or participant (self-entry)';
 COMMENT ON COLUMN public.golf_participant_scores.scores_confirmed IS 'True when participant has reviewed/confirmed their scores';
@@ -16869,6 +17020,8 @@ Excludes: profiles already followed, pending requests, and dismissed suggestions
 Returns: suggested_id, suggested_name, suggested_avatar, suggested_sport, suggested_school, suggested_location, similarity_score, reason';
 COMMENT ON FUNCTION public.get_golf_scorecard(p_group_post_id uuid) IS 'Returns complete golf scorecard with all participants and hole-by-hole scores';
 COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Returns complete group post data including participants and media';
+COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
+COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
@@ -17276,7 +17429,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (251, '251_live_activities.sql', 'rebuild-000'),
   (252, '252_post_views.sql', 'rebuild-000'),
   (253, '253_drafts.sql', 'rebuild-000'),
-  (254, '254_hole_elevation.sql', 'rebuild-000')
+  (254, '254_hole_elevation.sql', 'rebuild-000'),
+  (255, '255_golf_map_sweep.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17285,12 +17439,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 129 | 111 | 173 | 254
+-- Expected: 000 REBUILT | 131 | 113 | 173 | 255
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_129,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_131,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_111,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_113,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_254;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_255;
 
