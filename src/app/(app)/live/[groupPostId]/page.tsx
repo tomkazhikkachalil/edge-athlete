@@ -247,6 +247,9 @@ export default function LiveRoundPage() {
     return holes.map(h => ({
       ...h,
       line: trimLineToYards(h.line, roundHoleData?.find(x => x.hole === h.hole)?.yardage),
+      // PR G3: the green's outline rides on the hole so the map, the chip
+      // and the scorer measure to the same centre (and get front / back).
+      green: holeGeo?.greens?.find(g => g.hole === h.hole)?.ring,
     }));
   }, [holeGeo, roundHoleData]);
 
@@ -377,6 +380,7 @@ export default function LiveRoundPage() {
           const live = liveLine({
             fix: playerFix,
             line: displayGeoHole?.line ?? null,
+            green: displayGeoHole?.green ?? null,
             profile: holeDetail?.elevation?.holes.find(h => h.hole === displayHole) ?? null,
             cardYards: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
           });
