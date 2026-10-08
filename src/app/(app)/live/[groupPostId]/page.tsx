@@ -13,7 +13,7 @@ import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
-import { startingHoleNumber } from '@/lib/golf/holes';
+import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { COPY } from '@/lib/copy';
 import { holeHeaderFacts, liveLine, type TeeSheetSource } from '@/lib/golf/hole-detail';
@@ -74,6 +74,8 @@ export default function LiveRoundPage() {
   // A hole the golfer stepped/tapped to on the map; null = follow the next
   // unscored hole (and auto-advance as scores land).
   const [viewedHole, setViewedHole] = useState<number | null>(null);
+  // M1: bumped by the first-hole control to re-fit the map to a hole already focused.
+  const [fitNonce, setFitNonce] = useState(0);
   // Publishes --vvh for the full-height shell (messages-page recipe).
   useVisualViewportHeight();
   // Auto-open once. STATE, not a ref: it is read during render (below), and a
@@ -356,8 +358,12 @@ export default function LiveRoundPage() {
   // finished round is still useful). Without geometry this collapses to
   // exactly the pre-geometry chip behavior.
   const geoHoles = playedHoles;
-  const displayHole =
-    viewedHole ?? nextHole?.hole ?? (geoHoles && myParticipant ? geoHoles[0]?.hole ?? null : null);
+  // M1: the chip walks the ROUND's holes (holes.ts roundHoleNumbers), with
+  // or without a line for each — a course with hole data but no OSM lines
+  // used to get a static chip and no stepping. A participant with a
+  // complete card peeks from the starting hole.
+  const roundHoles = roundHoleNumbers(startHole, holesPlayedN);
+  const displayHole = viewedHole ?? nextHole?.hole ?? (myParticipant ? startHole : null);
   const holeDataArr = scorecard.golf_data.hole_data ?? null;
   const displayGeoHole = displayHole != null ? geoHoles?.find(h => h.hole === displayHole) : undefined;
   // The yardage ladder is ONE rule shared with the scorer's hole header
@@ -384,16 +390,14 @@ export default function LiveRoundPage() {
             profile: holeDetail?.elevation?.holes.find(h => h.hole === displayHole) ?? null,
             cardYards: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
           });
-          return { par: facts.par, yardage: facts.yards, approx: facts.approx, playsLike: live.playsLike, rise: formatRise(live.riseYds) };
+          return { par: facts.par, hcp: facts.hcp, yardage: facts.yards, approx: facts.approx, playsLike: live.playsLike, rise: formatRise(live.riseYds) };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {
-    if (!geoHoles?.length) return;
-    const current = displayHole ?? geoHoles[0].hole;
-    const idx = geoHoles.findIndex(h => h.hole === current);
-    const next = geoHoles[(Math.max(idx, 0) + dir + geoHoles.length) % geoHoles.length].hole;
-    setViewedHole(next);
+    const next = stepRoundHole(roundHoles, displayHole, dir);
+    if (next != null) setViewedHole(next);
   };
+  const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole);
 
   return (
     <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
@@ -560,15 +564,17 @@ export default function LiveRoundPage() {
             holes={geoHoles}
             focusHole={tab === 'map' ? displayHole : null}
             onHoleTap={h => setViewedHole(h)}
+            fitNonce={fitNonce}
             // The "Score hole N" CTA below sits at bottom-6, centered; on a
             // phone it spans the map's bottom-left captions. Lift them above
             // it (48 px CTA + 8 px gap) whenever the CTA can render.
             captionInset={displayHole != null && entry.mode === 'score' ? 56 : 0}
           />
-          {/* Current-hole chip. With OSM geometry it's a stepper — ‹ › walk
-              the course, tapping a tee label jumps, and the map fits each
-              hole. Without geometry it's the static chip synced to scoring. */}
-          {geoHoles && displayHole != null ? (
+          {/* Current-hole chip (M1): ALWAYS a stepper for a participant — ‹ ›
+              walk the round's holes, tapping a tee label jumps, and the map
+              fits each hole that has a line; a hole without one says so and
+              the map stays where it is. */}
+          {displayHole != null ? (
             <div className="absolute left-14 top-3 z-[500] flex items-center rounded-lg border border-border bg-surface/90 shadow-sm">
               <button
                 type="button"
@@ -588,12 +594,15 @@ export default function LiveRoundPage() {
                   {displayHoleDetail?.par != null && (
                     <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
                   )}
+                  {displayHoleDetail?.hcp != null && (
+                    <span className="hidden font-medium text-secondary sm:inline"> · HCP {displayHoleDetail.hcp}</span>
+                  )}
                 </span>
                 {/* The course's map data has no line for this hole: say so,
                     or the map just sits on the course pin looking broken. */}
                 {!displayGeoHole && (
                   <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-unmapped="">
-                    Not mapped yet
+                    {COPY.GOLF_HOLE.NOT_MAPPED}
                   </span>
                 )}
                 {displayHoleDetail?.yardage != null && (
@@ -623,17 +632,29 @@ export default function LiveRoundPage() {
                 <i className="fas fa-chevron-right text-xs" aria-hidden="true"></i>
               </button>
             </div>
-          ) : nextHole ? (
-            <div className="absolute left-14 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm">
-              Hole {nextHole.hole}
-              {nextHole.par !== null && <span className="font-medium text-secondary"> · Par {nextHole.par}</span>}
-              {nextHole.yardage !== null && <span className="font-medium text-secondary"> · {nextHole.yardage} yds</span>}
-            </div>
-          ) : myParticipant ? (
-            <div className="absolute left-14 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-semibold text-secondary shadow-sm">
-              Card complete
-            </div>
           ) : null}
+          {/* M1: "Take me to the first hole" — the round's starting hole, the
+              map fitted to it (fitNonce re-fits even when the chip is already
+              there, so a drag away is one tap back). Sits above the map's
+              bottom-left captions (≈48 px) and the CTA's inset. Its text is
+              never "Hole N" (the chip's strict e2e idiom). */}
+          {displayHole != null && (
+            <button
+              type="button"
+              onClick={() => {
+                setViewedHole(startHole);
+                setFitNonce(n => n + 1);
+              }}
+              aria-label={COPY.GOLF_HOLE.FIRST_HOLE_LABEL(startHole)}
+              title={firstHoleMapped ? undefined : COPY.GOLF_HOLE.FIRST_HOLE_UNMAPPED(startHole)}
+              data-map-first-hole=""
+              className="absolute left-3 z-[500] inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive"
+              style={{ bottom: 24 + (entry.mode === 'score' ? 56 : 0) + 52 }}
+            >
+              <i className="fas fa-backward-step" aria-hidden="true"></i>
+              {COPY.GOLF_HOLE.FIRST_HOLE}
+            </button>
+          )}
           {displayHole != null && entry.mode === 'score' && (
             <button
               type="button"

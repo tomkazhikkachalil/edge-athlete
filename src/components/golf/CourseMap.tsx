@@ -27,6 +27,7 @@ export default function CourseMap(props: {
   onHoleTap?: (hole: number) => void;
   onFix?: (fix: [number, number] | null) => void;
   captionInset?: number;
+  fitNonce?: number;
 }) {
   return <CourseMapInner {...props} />;
 }
