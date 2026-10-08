@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '../holes';
+import { deriveCourseHoles, roundHoleNumbers, startingHoleNumber, stepRoundHole } from '../holes';
 
 const holes = (...nums: number[]) => nums.map(hole => ({ hole }));
 
@@ -51,5 +51,24 @@ describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', (
     expect(stepRoundHole(list, 14, 1)).toBe(1);
     expect(stepRoundHole(list, null, -1)).toBe(1);
     expect(stepRoundHole([], 1, 1)).toBeNull();
+describe('deriveCourseHoles (H2 — an unknown yardage stays unknown)', () => {
+  const course: Array<{ number: number; par: number; yardage: Record<string, number>; handicap?: number }> = [
+    { number: 1, par: 4, yardage: { white: 388, blue: 412 }, handicap: 11 },
+    { number: 2, par: 3, yardage: { blue: 160 }, handicap: 0 },
+    { number: 3, par: 5, yardage: {}, handicap: 3 },
+    { number: 10, par: 4, yardage: { white: 400 } },
+  ];
+  it('the tee ladder: the chosen tee, then white / blue, then any; nothing invents 400', () => {
+    const rows = deriveCourseHoles(course, 'white', 9, 1);
+    expect(rows).toEqual([
+      { hole: 1, par: 4, yardage: 388, handicap: 11 },
+      { hole: 2, par: 3, yardage: 160 },
+      { hole: 3, par: 5, handicap: 3 },
+    ]);
+    expect('yardage' in rows[2]).toBe(false);
+    expect(deriveCourseHoles(course, 'blue', 18, 1)[0].yardage).toBe(412);
+  });
+  it('the hole range and an empty tee key', () => {
+    expect(deriveCourseHoles(course, '', 9, 10)).toEqual([{ hole: 10, par: 4, yardage: 400 }]);
   });
 });
