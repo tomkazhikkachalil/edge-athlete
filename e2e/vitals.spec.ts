@@ -10,6 +10,12 @@ test('vitals: seed → hero → PBs → chart → log → visitor', { tag: '@smo
   const userA = loadQaUser('user.json');
   const stamp = Date.now();
 
+  // A retry re-seeds into the SAME user: the hero's "this week" volume then
+  // reads two workouts (3,080 lbs, seen on the Oct 8 prod probe), so a retry
+  // could never pass. Start from no sessions (the metric rows are plain inserts
+  // and a duplicate changes no PB).
+  await adminClient().from('workout_sessions').delete().eq('profile_id', userA.id);
+
   const api = await apiAs('state.json');
   try {
     const vitalSeed = [
