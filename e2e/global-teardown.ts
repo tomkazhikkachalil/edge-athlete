@@ -59,6 +59,17 @@ export default async function globalTeardown() {
       .select('id');
     if (error) throw error;
     if (data && data.length) console.warn(`[e2e] teardown removed ${data.length} qa-e2e course row(s) a spec left behind`);
+    // The sweep spec's rows are `seed` + `qa-sweep-…` (sweepable on purpose —
+    // the planner skips qa-e2e); the same hour's grace, the same loudness.
+    const sweepRows = await admin
+      .from('golf_courses')
+      .delete()
+      .eq('external_source', 'seed')
+      .like('external_id', 'qa-sweep-%')
+      .lt('created_at', cutoff)
+      .select('id');
+    if (sweepRows.error) throw sweepRows.error;
+    if (sweepRows.data && sweepRows.data.length) console.warn(`[e2e] teardown removed ${sweepRows.data.length} qa-sweep course row(s) a spec left behind`);
   } catch (err) {
     console.error('[e2e] TEARDOWN FAILED for the leaked qa-e2e courses:', err);
     errors.push(err);
