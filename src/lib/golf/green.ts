@@ -65,6 +65,22 @@ function toLocal(origin: [number, number]) {
   return (p: [number, number]): [number, number] => [(p[1] - origin[1]) * kx, (p[0] - origin[0]) * M_PER_DEG];
 }
 
+/** The ring's area in square metres (shoelace, in a local frame); 0 under
+ *  three distinct vertices. */
+export function ringArea(ring: Ring): number {
+  const v = distinctVertices(ring);
+  if (v.length < 3) return 0;
+  const local = toLocal(v[0]);
+  const pts = v.map(local);
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[(i + 1) % pts.length];
+    area += x0 * y1 - x1 * y0;
+  }
+  return Math.abs(area) / 2;
+}
+
 /** The area-weighted centroid of a ring (shoelace, in a local frame); the
  *  vertex mean when the ring has no area. Null under three distinct vertices. */
 export function ringCentroid(ring: Ring): [number, number] | null {

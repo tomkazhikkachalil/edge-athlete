@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { greenDistances, nearestGreen, pointInRing, ringCentroid, ringCrossings, type Ring } from '../green';
+import { greenDistances, nearestGreen, pointInRing, ringArea, ringCentroid, ringCrossings, type Ring } from '../green';
 import { yardsBetween } from '../hole-geometry';
 
 // A 30 m square green centred on (45, -75), built in the same sphere the
@@ -105,5 +105,13 @@ describe('nearestGreen (greens-only, PR 3)', () => {
   it('null with no usable ring', () => {
     expect(nearestGreen(south(200), [])).toBeNull();
     expect(nearestGreen(south(200), [[square[0], square[1]]])).toBeNull();
+  });
+});
+
+describe('ringArea (PR 5)', () => {
+  it('a 30 m square is ~900 m²; a degenerate ring is 0', () => {
+    expect(Math.abs(ringArea(square) - 900)).toBeLessThan(5);
+    expect(ringArea(closed)).toBeCloseTo(ringArea(square), 6);
+    expect(ringArea([square[0], square[1]])).toBe(0);
   });
 });

@@ -638,6 +638,11 @@ export default function LiveRoundPage() {
                 {/* PR 3: greens-only is its own state — the rangefinder
                     still answers "nearest green"; nothing at all is the
                     honest "Not mapped yet". */}
+                {effectiveGeo?.derived === 'features' && displayGeoHole && (
+                  <span className="block whitespace-nowrap text-[10px] font-medium text-tertiary" data-hole-derived="">
+                    {COPY.GOLF_HOLE.DERIVED_NOTE}
+                  </span>
+                )}
                 {awaitingPick ? (
                   <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-pick-nine="">
                     {COPY.GOLF_HOLE.PICK_NINE}

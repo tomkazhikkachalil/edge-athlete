@@ -749,3 +749,32 @@ describe('greensOnlyGeometry', () => {
     expect(greensOnlyGeometry({ version: 0.6, elements: [other, ...theirs, ...mine] }, 'Boundless Golf Club', [45.302 - 1500 / M, -75.7])).toBeNull();
   });
 });
+
+// ── Ref-first green assignment (map sweep PR 5) ──────────────────────────────
+import { parseGreenFeatures, GREEN_REF_M } from '../hole-geometry';
+
+describe('assignGreens — a ring that names the hole wins, within 120 m', () => {
+  const line: [number, number][] = [[45.3, -75.7], [45.303, -75.7]];
+  const end = line[1];
+  const M = (2 * Math.PI * 6371000) / 360;
+  const ringAt = (lat: number, lng: number): [number, number][] => { const d = 10 / M; return [[lat - d, lng - d], [lat - d, lng + d], [lat + d, lng + d], [lat + d, lng - d], [lat - d, lng - d]]; };
+  const containing = ringAt(end[0], end[1]);
+  const named = ringAt(end[0] + 80 / M, end[1]); // 80 m past the end, carries ref=1
+  const farNamed = ringAt(end[0] + 200 / M, end[1]); // 200 m past, ref=1 — too far to trust
+  it('ref within 120 m beats containment; beyond 120 m the ref is ignored', () => {
+    expect(GREEN_REF_M).toBe(120);
+    expect(assignGreens([{ hole: 1, par: 4, line }], [containing, named], [null, 1])[0].ring).toBe(named);
+    expect(assignGreens([{ hole: 1, par: 4, line }], [containing, farNamed], [null, 1])[0].ring).toBe(containing);
+    expect(assignGreens([{ hole: 1, par: 4, line }], [containing, named])[0].ring).toBe(containing); // no refs → as before
+  });
+  it('parseGreenFeatures carries the ref (null when unnumbered) and withGreens uses it', () => {
+    const payload = { elements: [
+      { type: 'way', tags: { golf: 'green', ref: '1' }, geometry: named.map(([lat, lon]) => ({ lat, lon })) },
+      { type: 'way', tags: { golf: 'green' }, geometry: containing.map(([lat, lon]) => ({ lat, lon })) },
+    ] };
+    expect(parseGreenFeatures(payload).map(g => g.ref)).toEqual([1, null]);
+    const g = withGreens({ holes: [{ hole: 1, par: 4, line }], source: 'osm' }, payload);
+    expect(g.greens![0].ring.length).toBe(5);
+    expect(g.greens![0].ring[0][0]).toBeCloseTo(named[0][0], 6);
+  });
+});

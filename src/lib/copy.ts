@@ -134,6 +134,8 @@ export const COPY = {
     FRONT_NINE: 'Front',
     BACK_NINE: 'Back',
     NINE: (label: string) => `Nine ${label}`,
+    // Sweep PR 5: lines synthesised from numbered tees / fairways / greens.
+    DERIVED_NOTE: 'Mapped from tees and greens',
   },
 
   // The course summary card (course flow fixes M3, Oct 2026).
