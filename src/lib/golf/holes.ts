@@ -32,22 +32,6 @@ export function startingHoleNumber(
   return min + holes - 1 <= 18 ? min : 1;
 }
 
-/** The holes a round walks, in order: `n` holes from the starting hole
- *  (10..18 for a back nine). The map chip steps THIS list (M1) — with or
- *  without a line for each hole — never only the mapped ones. */
-export function roundHoleNumbers(startHole: number, holesPlayed: number | null | undefined): number[] {
-  const start = Number.isInteger(startHole) && startHole >= 1 && startHole <= 18 ? startHole : 1;
-  const n = typeof holesPlayed === 'number' && holesPlayed > 0 ? Math.min(holesPlayed, 19 - start) : 19 - start;
-  return Array.from({ length: n }, (_, i) => start + i);
-}
-
-/** The next hole in the list after `current`, cyclic both ways; the first
- *  hole when `current` is not in the list. Null on an empty list. */
-export function stepRoundHole(list: number[], current: number | null | undefined, dir: 1 | -1): number | null {
-  if (list.length === 0) return null;
-  const idx = current == null ? -1 : list.indexOf(current);
-  if (idx < 0) return list[0];
-  return list[(idx + dir + list.length) % list.length];
 export interface DerivedRoundHole {
   hole: number;
   par: number;
@@ -83,4 +67,22 @@ export function deriveCourseHoles(
         ...(typeof hole.handicap === 'number' && hole.handicap > 0 ? { handicap: hole.handicap } : {}),
       };
     });
+}
+
+/** The holes a round walks, in order: `n` holes from the starting hole
+ *  (10..18 for a back nine). The map chip steps THIS list (M1) — with or
+ *  without a line for each hole — never only the mapped ones. */
+export function roundHoleNumbers(startHole: number, holesPlayed: number | null | undefined): number[] {
+  const start = Number.isInteger(startHole) && startHole >= 1 && startHole <= 18 ? startHole : 1;
+  const n = typeof holesPlayed === 'number' && holesPlayed > 0 ? Math.min(holesPlayed, 19 - start) : 19 - start;
+  return Array.from({ length: n }, (_, i) => start + i);
+}
+
+/** The next hole in the list after `current`, cyclic both ways; the first
+ *  hole when `current` is not in the list. Null on an empty list. */
+export function stepRoundHole(list: number[], current: number | null | undefined, dir: 1 | -1): number | null {
+  if (list.length === 0) return null;
+  const idx = current == null ? -1 : list.indexOf(current);
+  if (idx < 0) return list[0];
+  return list[(idx + dir + list.length) % list.length];
 }
