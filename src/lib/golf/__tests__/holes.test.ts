@@ -34,23 +34,6 @@ describe('startingHoleNumber', () => {
   });
 });
 
-describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', () => {
-  it('the round’s holes from its starting hole', () => {
-    expect(roundHoleNumbers(1, 18)).toHaveLength(18);
-    expect(roundHoleNumbers(10, 9)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
-    expect(roundHoleNumbers(1, 9)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(roundHoleNumbers(16, 9)).toEqual([16, 17, 18]); // never past 18
-    expect(roundHoleNumbers(1, null)).toHaveLength(18);
-    expect(roundHoleNumbers(0, 9)[0]).toBe(1);
-  });
-  it('steps cyclically both ways; an unknown current lands on the first', () => {
-    const list = roundHoleNumbers(1, 9);
-    expect(stepRoundHole(list, 9, 1)).toBe(1);
-    expect(stepRoundHole(list, 1, -1)).toBe(9);
-    expect(stepRoundHole(list, 4, 1)).toBe(5);
-    expect(stepRoundHole(list, 14, 1)).toBe(1);
-    expect(stepRoundHole(list, null, -1)).toBe(1);
-    expect(stepRoundHole([], 1, 1)).toBeNull();
 describe('deriveCourseHoles (H2 — an unknown yardage stays unknown)', () => {
   const course: Array<{ number: number; par: number; yardage: Record<string, number>; handicap?: number }> = [
     { number: 1, par: 4, yardage: { white: 388, blue: 412 }, handicap: 11 },
@@ -70,5 +53,25 @@ describe('deriveCourseHoles (H2 — an unknown yardage stays unknown)', () => {
   });
   it('the hole range and an empty tee key', () => {
     expect(deriveCourseHoles(course, '', 9, 10)).toEqual([{ hole: 10, par: 4, yardage: 400 }]);
+  });
+});
+
+describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', () => {
+  it('the round’s holes from its starting hole', () => {
+    expect(roundHoleNumbers(1, 18)).toHaveLength(18);
+    expect(roundHoleNumbers(10, 9)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(roundHoleNumbers(1, 9)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(roundHoleNumbers(16, 9)).toEqual([16, 17, 18]); // never past 18
+    expect(roundHoleNumbers(1, null)).toHaveLength(18);
+    expect(roundHoleNumbers(0, 9)[0]).toBe(1);
+  });
+  it('steps cyclically both ways; an unknown current lands on the first', () => {
+    const list = roundHoleNumbers(1, 9);
+    expect(stepRoundHole(list, 9, 1)).toBe(1);
+    expect(stepRoundHole(list, 1, -1)).toBe(9);
+    expect(stepRoundHole(list, 4, 1)).toBe(5);
+    expect(stepRoundHole(list, 14, 1)).toBe(1);
+    expect(stepRoundHole(list, null, -1)).toBe(1);
+    expect(stepRoundHole([], 1, 1)).toBeNull();
   });
 });
