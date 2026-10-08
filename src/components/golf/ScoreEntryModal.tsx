@@ -611,7 +611,8 @@ export default function ScoreEntryModal({
   //    (hole-detail.ts); every input optional, so the batch stepper and the
   //    feed card see the same header they always had, minus nothing. ──
   const headerHoleNumber = currentHoleData.hole_number ?? holeNumberAtPosition(startingHoleNumber, currentHole);
-  const headerLine = holeLines?.find(h => h.hole === headerHoleNumber)?.line ?? null;
+  const headerHole = holeLines?.find(h => h.hole === headerHoleNumber) ?? null;
+  const headerLine = headerHole?.line ?? null;
   const headerFacts = holeHeaderFacts({
     hole: headerHoleNumber,
     holeData: courseHoleData,
@@ -624,6 +625,7 @@ export default function ScoreEntryModal({
   const headerLive = liveLine({
     fix,
     line: headerLine,
+    green: headerHole?.green ?? null,
     profile: holeElevation?.holes.find(h => h.hole === headerHoleNumber) ?? null,
     cardYards: courseHoleData?.find(h => h.hole === headerHoleNumber)?.yardage ?? null,
   });

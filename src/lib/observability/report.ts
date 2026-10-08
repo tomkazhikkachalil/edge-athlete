@@ -41,3 +41,25 @@ function safe(value: unknown): unknown {
     return String(value);
   }
 }
+
+/**
+ * The operational-but-not-broken channel (course flow fixes H1, Oct 2026):
+ * a provider timed out, answered 5xx, or a budget refused — worth a Sentry
+ * WARNING grouped by `label` + the first string of `extra`, never an error.
+ * Catalog FACTS (a provider genuinely has no tees for a course) are not sent
+ * here at all; they stay on the console.
+ */
+export function reportRouteWarning(label: string, extra: Record<string, unknown> = {}): void {
+  console.warn(label, extra);
+  try {
+    const key = Object.values(extra).find(v => typeof v === 'string') as string | undefined;
+    Sentry.captureMessage(label, {
+      level: 'warning',
+      tags: { area: 'api' },
+      extra: safe(extra) as Record<string, unknown>,
+      fingerprint: [label, key ?? 'none'],
+    });
+  } catch {
+    // Observability must never become the error.
+  }
+}

@@ -33,6 +33,7 @@ import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import type { GolfCourse } from '@/types/golf';
+import { deriveCourseHoles as deriveCourseHolesPure } from '@/lib/golf/holes';
 import { composeCourses, buildComposition, type CourseComposition } from '@/lib/golf/course-sections';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
@@ -339,23 +340,11 @@ export default function GolfComposerSection({
     return () => cancelAnimationFrame(id);
   }, [courseDropdownOpen, availableCourses.length]);
 
-  /** Par/yardage rows for the CURRENT hole range from a catalog course.
-   *  Tee keys are free text now (provider tee names) — selected tee first,
-   *  then white/blue, then ANY tee the course has. */
+  /** Par/yardage rows for the CURRENT hole range from a catalog course —
+   *  the pure rule lives in holes.ts (H2: an unknown yardage stays unknown). */
   const deriveCourseHoles = useCallback(
-    (course: GolfCourse, teeColor: string, holes: number, start: number) => {
-      return course.holes
-        .filter(hole => hole.number >= start && hole.number < start + holes)
-        .map(hole => ({
-          hole: hole.number,
-          par: hole.par,
-          yardage: hole.yardage[teeColor || 'white'] ?? hole.yardage.white ?? hole.yardage.blue
-            ?? Object.values(hole.yardage)[0] ?? 400,
-          // The stroke index rides into the round's hole_data (the route
-          // keeps it; 0 = unknown in the catalog) — the scorer's HCP.
-          ...(typeof hole.handicap === 'number' && hole.handicap > 0 ? { handicap: hole.handicap } : {}),
-        }));
-    },
+    (course: GolfCourse, teeColor: string, holes: number, start: number) =>
+      deriveCourseHolesPure(course.holes, teeColor, holes, start),
     []
   );
 
@@ -935,7 +924,9 @@ export default function GolfComposerSection({
                               ? `Par ${course.totalPar} • ${course.holes.length} holes`
                               : course.source === 'osm'
                                 ? 'Map location only — enter pars manually'
-                                : 'Details load when selected'}
+                                : course.hydratedAt
+                                  ? 'No hole data from the provider yet'
+                                  : 'Details load when selected'}
                           </div>
                         </button>
                       ))}

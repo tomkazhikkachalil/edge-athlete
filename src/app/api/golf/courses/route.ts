@@ -6,6 +6,8 @@ import type { GolfCourse } from '@/types/golf';
 import {
   searchCatalog,
   getCatalogRow,
+  hydrateCourseDetailed,
+  hydrationDue,
   hydrateCourse,
   globalSearch,
   providersConfigured,
@@ -63,6 +65,12 @@ export async function GET(request: NextRequest) {
       // view). Served from golf_courses for 30 days per attempt; a null
       // geometry is a real answer (no unambiguous OSM coverage).
       if (searchParams.get('holes') === '1') {
+        // H1: a thin provider row that was never asked (or whose 7-day stamp
+        // lapsed) is hydrated HERE too — the same touchpoint as `?id=`, so
+        // the live page and the preview card get the tee sheet without a
+        // composer selection first. Seed and OSM rows have nothing to ask.
+        const current = await getCatalogRow(admin, courseId);
+        if (current && hydrationDue(current)) await hydrateCourseDetailed(admin, current);
         const geometry = await getCourseHoleGeometry(admin, courseId, () =>
           consumeProviderBudget(admin, 'overpass')
         );
