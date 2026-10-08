@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
+import { cleanup } from './helpers/cleanup';
 
 // M1 (Oct 2026). Tom: "hole-by-hole browsing is lost for courses that are
 // not fully mapped — the map jumps straight to the user's GPS location."
@@ -113,9 +114,11 @@ test('gps: an unmapped course still browses hole by hole, and the map never jump
     const moved = await coursePin.boundingBox();
     expect(moved === null || Math.abs(moved.x - before.x) > 1 || Math.abs(moved.y - before.y) > 1, 'Follow on pans to the player').toBe(true);
   } finally {
-    await ctx.close();
-    if (roundId) await api.delete(`/api/group-posts/${roundId}?mode=delete`);
-    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
-    await api.dispose();
+    await cleanup('gps-unmapped-course', [
+      () => roundId && api.delete(`/api/group-posts/${roundId}?mode=delete`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => ctx.close(),
+      () => api.dispose(),
+    ]);
   }
 });

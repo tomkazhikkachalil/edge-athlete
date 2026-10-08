@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { adminClient, readErrorBody, apiAs } from './helpers/qa-user';
+import { cleanup } from './helpers/cleanup';
 import { fitsViewportWidth } from './helpers/layout';
 
 // M3 (Oct 2026). Tom: "a bold summary card at the top of a course — hole
@@ -105,8 +106,11 @@ test('course preview: the summary card, the map thumbnail, and the Not fully map
     await expect(thinSummary.locator('[data-course-map-thumb] svg path')).toHaveCount(0);
     expect(await fitsViewportWidth(page)).toBe(true);
   } finally {
-    await ctx.close();
-    for (const id of [richId, thinId]) if (id) await admin.from('golf_courses').delete().eq('id', id);
-    await api.dispose();
+    await cleanup('course-preview', [
+      () => richId && admin.from('golf_courses').delete().eq('id', richId),
+      () => thinId && admin.from('golf_courses').delete().eq('id', thinId),
+      () => ctx.close(),
+      () => api.dispose(),
+    ]);
   }
 });

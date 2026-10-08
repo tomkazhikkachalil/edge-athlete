@@ -416,7 +416,7 @@ describe('targetDistances (player-placed target on the focused hole)', () => {
 });
 
 // ── Green outlines (PR G2, Oct 2026) ────────────────────────────────────────
-import { assignGreens, composeHoleGeometry, greenPoint, parseGreenRings, withGreens, GREEN_ASSIGN_M } from '../hole-geometry';
+import { assignGreens, composeHoleGeometry, greenPoint, isOverpassAnswer, parseGreenRings, withGreens, GREEN_ASSIGN_M } from '../hole-geometry';
 
 /** A closed square `golf=green` way of `half` metres around a point. */
 function greenWay(centre: [number, number], half = 10, tags: Record<string, string> = {}) {
@@ -550,5 +550,20 @@ describe('greenPoint, greenDistanceYards and targetDistances with an outline (PR
     expect(Math.abs(withGreen - plain)).toBeLessThanOrEqual(34);
     expect(targetDistances(hole1[0], end, hole1, ring)!.targetToGreen).toBe(yardsBetween(end, greenPoint(hole1, ring)));
     expect(targetDistances(hole1[0], end, hole1)!.targetToGreen).toBe(0);
+  });
+});
+
+describe('isOverpassAnswer — the envelope guard (sweep prep, Oct 2026)', () => {
+  it('accepts a real answer (the fixtures carry the envelope)', () => {
+    expect(isOverpassAnswer(rideauView)).toBe(true);
+    expect(isOverpassAnswer({ version: 0.6, elements: [] })).toBe(true);
+    expect(isOverpassAnswer({ generator: 'Overpass API', elements: [] })).toBe(true);
+  });
+  it('refuses a throttling stub, a bare object, a non-array elements, junk', () => {
+    expect(isOverpassAnswer({})).toBe(false);
+    expect(isOverpassAnswer({ elements: [] })).toBe(false); // no envelope
+    expect(isOverpassAnswer({ version: 0.6, elements: 'x' })).toBe(false);
+    expect(isOverpassAnswer(null)).toBe(false);
+    expect(isOverpassAnswer('rate_limited')).toBe(false);
   });
 });

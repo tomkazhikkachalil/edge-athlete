@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { cleanup } from './helpers/cleanup';
 import { fitsViewportWidth } from './helpers/layout';
 
 // Hole-detail program PR E (Oct 2026): the scorer's hole header — par, HCP
@@ -164,10 +165,12 @@ test('live hole detail: the header facts, plays-like from the shared fix, the te
     await page.setViewportSize({ width: 320, height: 568 });
     expect(await fitsViewportWidth(page)).toBe(true);
   } finally {
-    await ctx.close();
-    if (roundId) await apiA.delete(`/api/group-posts/${roundId}?mode=delete`);
-    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
-    await apiA.dispose();
-    await apiB.dispose();
+    await cleanup('live-hole-detail', [
+      () => roundId && apiA.delete(`/api/group-posts/${roundId}?mode=delete`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => ctx.close(),
+      () => apiA.dispose(),
+      () => apiB.dispose(),
+    ]);
   }
 });

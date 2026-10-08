@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
+import { cleanup } from './helpers/cleanup';
 
 // Golf near-me program PR B (Oct 2026): the composer's "Near me" — one fix on
 // the tap, the catalog sorted by distance with km chips, and "Playing at X?"
@@ -69,8 +70,10 @@ test('composer: Near me sorts the picker by distance and offers the course you a
     await expect(page.getByPlaceholder(/search for a golf course/i)).toHaveValue(name);
     await expect(page.locator('[data-course-nearby-offer]')).toHaveCount(0);
   } finally {
-    await ctx.close();
-    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
-    await api.dispose();
+    await cleanup('composer-near-me', [
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => ctx.close(),
+      () => api.dispose(),
+    ]);
   }
 });
