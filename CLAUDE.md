@@ -1632,6 +1632,30 @@ const { canView } = await response.json();
    `seed` + `qa-sweep-…` rows older than an hour. Read DEVLOG Oct 8 2026
    PR 1–7 first.
 
+37. **A workout clip is a tile the instant the camera hands it back; the
+   set carries it until it is stored (Workout capture round, Oct 8 2026,
+   zero DDL)** — Tom: a capture during a Vitals workout "kicked me out of the
+   workout and the capture did not complete" (iOS throws the page away while
+   the native camera is up — the Sep 3 2026 rounds; nothing in the app
+   navigates). Capture v2's rule now holds on the set row: `planPickAttach`
+   decides (a camera capture and a library VIDEO attach at once; a library
+   photo and a HEIC open the editor first), NOTHING heavy runs between the
+   hand-back and the tile, and the editor is the tile's pencil. A clip that
+   is not yet uploaded lives IN the set's media as `{ url: 'pending:<localId>' }`
+   (`src/lib/workouts/set-media-pending.ts`, zero imports — the draft
+   persists it for free and it moves with its set), its bytes in IndexedDB
+   `ea-workout-media` (`media-stash.ts` — an **ArrayBuffer, never a Blob**:
+   WebKit refused Blob records on Sep 3; fail-open; the draft's 48 h), the
+   upload in the screen's ONE queue (`useSetMediaUploads`: one at a time —
+   never `Promise.all` — finds the entry by URL when it lands, resumes from
+   the stash on mount, a failed clip is a Retry tile and a toast, never a
+   dropped clip). **Every entries PUT body goes through
+   `stripPendingMedia`**; Finish / Save / Done `settle()` the queue first and
+   stop on a failed clip by name. The tile's `data-set-media-state` is
+   `pending | failed | stored`. e2e: `e2e/workout-capture.spec.ts`
+   (`@mobile`) holds the complete route, reloads, and watches the upload
+   land by itself. Read DEVLOG Oct 8 2026 (Workout capture PR 1) first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1741,6 +1765,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** October 2026 (fix round, parts 1–6; Download the app; Drafts round; Golf course flow fixes) — this file is the single source of truth for project
+**Last Updated:** October 2026 (fix round, parts 1–6; Download the app; Drafts round; Golf course flow fixes; Workout capture round) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.

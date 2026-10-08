@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flag, MoreVertical, Plus, Timer, Trash2 } from 'lucide-react';
 import ExerciseCard from './ExerciseCard';
+import { useSetMediaUploads } from './useSetMediaUploads';
 import AddExerciseSheet from './AddExerciseSheet';
 import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import { MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
+import { isPendingMedia, stripPendingMedia } from '@/lib/workouts/set-media-pending';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import {
   MANUAL_DRAFT_ID,
@@ -169,7 +171,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ savedAt: Date.now(), exercises: stateRef.current.exercises }),
+            // A clip still uploading is `pending:` in its set — never sent
+            // (set-media-pending.ts); the hook writes the stored URL when it lands.
+            body: JSON.stringify({ savedAt: Date.now(), exercises: stripPendingMedia(stateRef.current.exercises) }),
           });
           ok = response.ok;
           setSyncState(ok ? 'saved' : 'error');
@@ -197,7 +201,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   useEffect(() => {
     flushRef.current = () => {
       if (!isServerSession || !session || phase !== 'editing') return;
-      const body = JSON.stringify({ savedAt: Date.now(), exercises: stateRef.current.exercises });
+      const body = JSON.stringify({ savedAt: Date.now(), exercises: stripPendingMedia(stateRef.current.exercises) });
       if (body.length > KEEPALIVE_BODY_LIMIT) return; // draft covers; next debounce syncs
       fetch(`/api/workouts/${session.id}/entries`, {
         method: 'PUT',
@@ -250,6 +254,28 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     // Title persists via the finish PATCH / manual POST — no entries sync needed
   };
 
+  // ── Set clips (workout capture round, Oct 8 2026) ───────────────────────
+  // ONE upload queue for the screen: a capture is a tile at once, its bytes
+  // in IndexedDB, the upload in the background; a reload resumes it. The
+  // hook reads the latest exercises and writes through `mutate` (state →
+  // draft → sync), so a landed clip finds its set by URL, never by index.
+  const getExercises = useCallback(() => stateRef.current.exercises, []);
+  const uploads = useSetMediaUploads({ sessionId: draftId, getExercises, commit: mutate, notify: showError });
+
+  /** Finish / Save wait for the queue; a clip that stayed failed stops them
+   *  with a message — a clip is never dropped silently. */
+  const settleClips = async (): Promise<boolean> => {
+    const { failed } = await uploads.settle();
+    if (failed > 0) {
+      showError(
+        failed === 1 ? 'A clip did not upload' : `${failed} clips did not upload`,
+        'Tap Retry on the clip, or remove it, then finish.'
+      );
+      return false;
+    }
+    return true;
+  };
+
   // ── Finish flows ─────────────────────────────────────────────────────────
   const loadPRs = async (finalExercises: EntryExercise[]) => {
     try {
@@ -296,6 +322,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     if (!session || finishing) return;
     setFinishing(true);
     try {
+      if (!(await settleClips())) return;
       const flushed = await syncNow();
       if (!flushed) throw new Error('Could not save your sets — check your connection and try again.');
       const response = await fetch(`/api/workouts/${session.id}`, {
@@ -313,6 +340,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       }
       const data = await response.json();
       clearDraft(draftId);
+      uploads.clearStash();
       setFinishedSessionId(session.id);
       setFinishedDuration(data.session?.duration_seconds ?? elapsedSeconds);
       await loadPRs(exercises);
@@ -333,6 +361,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     }
     setFinishing(true);
     try {
+      if (!(await settleClips())) return;
       const response = await fetch('/api/workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -342,7 +371,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           title: title || null,
           startedAt: `${manualDate}T12:00:00.000Z`,
           durationSeconds: Math.min(durationMin * 60, 86400),
-          exercises,
+          exercises: stripPendingMedia(stateRef.current.exercises),
         }),
       });
       if (!response.ok) {
@@ -351,6 +380,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       }
       const data = await response.json();
       clearDraft(draftId);
+      uploads.clearStash();
       setFinishedSessionId(data.session.id);
       setFinishedDuration(data.session.duration_seconds ?? durationMin * 60);
       await loadPRs(exercises);
@@ -369,6 +399,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     if (!session || finishing) return;
     setFinishing(true);
     try {
+      if (!(await settleClips())) return;
       const flushed = await syncNow();
       if (!flushed) throw new Error('Could not save your sets — check your connection and try again.');
       // Always send title so the no-fields 400 can't fire
@@ -452,7 +483,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   };
 
   const summary = useMemo(() => computeSummary(exercises), [exercises]);
-  const mediaOptions = useMemo(() => collectWorkoutMedia(exercises), [exercises]);
+  // A clip still uploading never reaches the share step's list (Finish waits
+  // for the queue; this covers a review-mode attach that is mid-flight).
+  const mediaOptions = useMemo(() => collectWorkoutMedia(exercises).filter(m => !isPendingMedia(m)), [exercises]);
 
   // Default the share selection to the first MAX_POST_MEDIA clips
   const mediaDefaultedRef = useRef(false);
@@ -535,6 +568,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const handleDiscard = async () => {
     setDiscardOpen(false);
     clearDraft(draftId);
+    uploads.clearStash();
     if (isServerSession && session) {
       try {
         await fetch(`/api/workouts/${session.id}`, { method: 'DELETE', credentials: 'include' });
@@ -716,7 +750,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             ) : (
               <Flag className="w-4 h-4" aria-hidden="true" />
             )}
-            {mode === 'live' ? 'Finish' : mode === 'review' ? 'Done' : 'Save Workout'}
+            {finishing && uploads.pendingCount > 0
+              ? `Saving ${uploads.pendingCount} ${uploads.pendingCount === 1 ? 'clip' : 'clips'}…`
+              : mode === 'live' ? 'Finish' : mode === 'review' ? 'Done' : 'Save Workout'}
           </button>
         </div>
       </div>
@@ -729,6 +765,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             exercise={exercise}
             onChange={next => mutate(exercises.map((e, i) => (i === index ? next : e)))}
             onDelete={() => mutate(exercises.filter((_, i) => i !== index))}
+            uploads={uploads}
           />
         ))}
 

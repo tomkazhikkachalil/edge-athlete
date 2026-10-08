@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, Copy, Pencil, Plus, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
+import { Camera, Check, Copy, Pencil, Plus, RotateCw, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
+import type { SetMediaUploads } from './useSetMediaUploads';
+import { planPickAttach } from '@/lib/media/capture-attach';
+import { pendingIdOf } from '@/lib/workouts/set-media-pending';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
@@ -56,9 +59,15 @@ interface SetRowProps {
   inputMode: ExerciseInputMode;
   onChange: (next: EntrySet) => void;
   onDelete: () => void;
+  /** The screen's one upload queue (workout capture round, Oct 8 2026). */
+  uploads: SetMediaUploads;
 }
 
-function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
+/** Warm the editor chunk while the camera menu is open — the pencil then
+ *  opens without the "Opening editor…" shell. Fire-and-forget. */
+const warmEditorChunk = () => { void import('@/components/media-editor/MediaEditorModal').catch(() => undefined); };
+
+function SetRow({ set, inputMode, onChange, onDelete, uploads }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,14 +90,22 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   const patch = (partial: Partial<EntrySet>) => onChange({ ...set, ...partial });
   const done = set.completedAt !== null;
 
-  // Per-set media: pick → shared editor → upload immediately (form-check
-  // clips between sets), URLs ride inside the set snapshot through draft +
-  // sync. Pick-time validation mirrors the server allowlist (was missing
-  // entirely — HEIC/oversize used to fail only after the upload). Orphaned
-  // files from discarded workouts are handled by the admin storage sweep.
+  // Per-set media (workout capture round, Oct 8 2026): a camera capture or a
+  // library video ATTACHES AT ONCE as a tile — `pending:<localId>` in the
+  // set, bytes in IndexedDB, the upload queued in the background by the
+  // screen's hook (`planPickAttach` is the one rule; a library photo and a
+  // HEIC still open the editor first). Nothing heavy runs between the
+  // camera's hand-back and the tile, so the page iOS may throw away while
+  // the camera is up has nothing of ours to lose: the set carries the entry
+  // and the hook resumes the upload. The editor is the tile's pencil.
+  // Pick-time validation mirrors the server allowlist. Orphaned files from
+  // discarded workouts are handled by the admin storage sweep.
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   // The editor is replacing THIS tile (the pencil) rather than appending.
   const [replacing, setReplacing] = useState<number | null>(null);
+  // … and when that tile is still pending, the localId whose queued bytes
+  // the edit replaces (no upload here — the hook re-queues).
+  const [replacingPendingId, setReplacingPendingId] = useState<string | null>(null);
   // The upload's local preview per stored URL — the tile shows it the
   // instant a photo is attached (the stored URL is a private-bucket path
   // the browser cannot show on its own). Revoked when the tile goes.
@@ -103,7 +120,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
     };
   }, []);
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = (files: FileList | null, source: 'camera' | 'library') => {
     if (!files || files.length === 0) return;
     const { accepted, rejected } = validateFiles(Array.from(files), {
       maxBytes: SET_MEDIA_MAX_BYTES,
@@ -114,9 +131,14 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
     if (rejected.length > 0) {
       showError('File not added', rejected[0].message);
     }
-    if (accepted.length > 0) {
+    const plan = planPickAttach(accepted, source);
+    if (plan.attach.length > 0) {
+      const entries = uploads.register(plan.attach);
+      onChange({ ...set, media: [...set.media, ...entries].slice(0, MAX_MEDIA_PER_SET) });
+    }
+    if (plan.editor.length > 0) {
       setEditorAssets(
-        accepted.map(file => ({
+        plan.editor.map(file => ({
           id: `${Date.now()}-${Math.random()}`,
           file,
           kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
@@ -128,8 +150,16 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
 
   const handleEditorDone = async (results: EditedMedia[]) => {
     const replaceAt = replacing;
+    const pendingId = replacingPendingId;
     setEditorAssets(null);
     setReplacing(null);
+    setReplacingPendingId(null);
+    // A pending tile's edit: the hook swaps the queued bytes; no upload here.
+    if (pendingId !== null) {
+      const first = results[0];
+      if (first) uploads.replaceWithEdited(pendingId, first.file, first.previewUrl);
+      return;
+    }
     setUploading(true);
     const added: SetMedia[] = [];
     const freshPreviews: Record<string, string> = {};
@@ -164,6 +194,19 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   const reEditMedia = async (index: number) => {
     const item = set.media[index];
     if (!item) return;
+    // A pending or failed tile: the bytes are in memory — open on them.
+    const localId = pendingIdOf(item.url);
+    if (localId) {
+      const file = uploads.fileFor(item.url);
+      if (!file) {
+        showError('Still uploading', 'This clip is being recovered — try again in a moment.');
+        return;
+      }
+      setReplacing(index);
+      setReplacingPendingId(localId);
+      setEditorAssets([{ id: `pending-${localId}`, file, kind: item.type }]);
+      return;
+    }
     setUploading(true);
     try {
       const res = await fetch(previews[item.url] ?? item.url, { credentials: 'include' });
@@ -182,6 +225,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
 
   const removeMedia = (index: number) => {
     const gone = set.media[index];
+    if (gone && pendingIdOf(gone.url)) uploads.forget(gone.url);
     if (gone && previews[gone.url]) {
       URL.revokeObjectURL(previews[gone.url]);
       setPreviews(prev => {
@@ -285,12 +329,15 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
           per-set row has no room to grow, so the camera button opens a
           3-option popover (recording a lift is the app's strongest
           capture case). */}
-      <CaptureInputs onFiles={handleFiles} allowVideo>
+      <CaptureInputs onFiles={files => handleFiles(files, 'camera')} allowVideo>
         {({ openPhoto, openVideo }) => (
           <div className="relative shrink-0" ref={mediaMenuRef}>
             <button
               type="button"
-              onClick={() => setMediaMenuOpen(open => !open)}
+              onClick={() => {
+                setMediaMenuOpen(open => !open);
+                warmEditorChunk();
+              }}
               disabled={uploading || set.media.length >= MAX_MEDIA_PER_SET}
               className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
                 set.media.length > 0
@@ -349,7 +396,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         accept="image/*,video/*"
         multiple
         className="hidden"
-        onChange={e => handleFiles(e.target.files)}
+        onChange={e => handleFiles(e.target.files, 'library')}
       />
 
       {/* Complete toggle — stamps completedAt (drives the rest indicator) */}
@@ -377,18 +424,50 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
     {/* Media thumbnails for this set */}
     {set.media.length > 0 && (
       <div className="flex items-center gap-2 mt-1.5 ml-8 flex-wrap">
-        {set.media.map((media, index) => (
-          <div key={`${media.url}-${index}`} data-set-media-tile="" className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group">
-            <SetMediaThumb url={media.url} type={media.type} preview={previews[media.url]} />
-            <button
-              type="button"
-              onClick={() => reEditMedia(index)}
-              disabled={uploading}
-              className="absolute bottom-0 left-0 w-5 h-5 bg-black/60 text-white rounded-tr-lg flex items-center justify-center hover:bg-violet-600 transition-colors disabled:opacity-50"
-              aria-label="Edit media"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
+        {set.media.map((media, index) => {
+          const status = uploads.statusFor(media.url);
+          const state = status ?? 'stored';
+          return (
+          <div
+            key={`${media.url}-${index}`}
+            data-set-media-tile=""
+            data-set-media-state={state}
+            className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group"
+          >
+            <SetMediaThumb url={media.url} type={media.type} preview={previews[media.url] ?? uploads.previewFor(media.url)} />
+            {state === 'pending' && (
+              <span
+                className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none"
+                role="status"
+                aria-label="Uploading"
+              >
+                <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/40 border-t-white" aria-hidden="true" />
+              </span>
+            )}
+            {state === 'failed' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const localId = pendingIdOf(media.url);
+                  if (localId) uploads.retry(localId);
+                }}
+                className="absolute inset-0 flex items-center justify-center bg-red-900/60 text-white"
+                aria-label="Retry upload"
+              >
+                <RotateCw className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+            {state !== 'failed' && (
+              <button
+                type="button"
+                onClick={() => reEditMedia(index)}
+                disabled={uploading}
+                className="absolute bottom-0 left-0 w-5 h-5 bg-black/60 text-white rounded-tr-lg flex items-center justify-center hover:bg-violet-600 transition-colors disabled:opacity-50"
+                aria-label="Edit media"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => removeMedia(index)}
@@ -398,7 +477,8 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
               <X className="w-3 h-3" />
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
     )}
     {editorAssets && (
@@ -409,6 +489,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         onCancel={() => {
           setEditorAssets(null);
           setReplacing(null);
+          setReplacingPendingId(null);
         }}
       />
     )}
@@ -420,9 +501,10 @@ interface ExerciseCardProps {
   exercise: EntryExercise;
   onChange: (next: EntryExercise) => void;
   onDelete: () => void;
+  uploads: SetMediaUploads;
 }
 
-export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseCardProps) {
+export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: ExerciseCardProps) {
   const inputMode = inputModeFor(exercise);
   const showNotes = exercise.notes !== null;
 
@@ -491,6 +573,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
             inputMode={inputMode}
             onChange={next => updateSet(index, next)}
             onDelete={() => deleteSet(index)}
+            uploads={uploads}
           />
         ))}
       </div>
