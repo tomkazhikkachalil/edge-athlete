@@ -81,6 +81,10 @@ export interface GolfCourse {
   regionCode?: string;
   /** Present only on results of a "near" search — km from the given point. */
   distanceKm?: number;
+  /** When the catalog last ATTEMPTED to fill this row from its provider
+   *  (H1, Oct 2026) — a thin row with a stamp has been asked and the
+   *  provider had nothing; the picker says so instead of promising a load. */
+  hydratedAt?: string;
   holes: CourseHole[];
   totalPar: number;
   /** Course length from the catalog (9 or 18) — sizes the composer grid. */

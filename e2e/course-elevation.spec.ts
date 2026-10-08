@@ -4,9 +4,8 @@ import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 // PR C (Oct 2026): `?holes=1` answers the geometry, the CACHED elevation
 // profile and the row's tee sheet in one call; `?elevation=1` is the
 // computing door: a fresh cache is served as-is, and a course with no
-// profile gets one from Terrain Tiles (T2 — free, no key; the deployment
-// reads the public S3 tiles). Self-seeded courses (the catalog is
-// production-only on staging).
+// profile gets one from Terrain Tiles (T2 — free, no key). Self-seeded
+// courses (the catalog is production-only on staging).
 
 test('course API: holes=1 carries the elevation profile and the tee sheet; elevation=1 serves the cache without a key', async () => {
   const admin = adminClient();
@@ -54,6 +53,8 @@ test('course API: holes=1 carries the elevation profile and the tee sheet; eleva
     expect(body.sheet?.holes[10]).toMatchObject({ number: 11, handicap: 11, yardage: { white: 388, blue: 412 } });
     expect(body.sheet?.courseRating).toEqual({ white: 70.1, blue: 71.9 });
     expect(body.sheet?.slopeRating.blue).toBe(133);
+    // H1: the sheet names its provenance and what is missing (nothing here).
+    expect(body.sheet).toMatchObject({ source: 'qa-e2e', partial: null });
 
     // The computing door with no key on the deployment: the fresh cache, unchanged.
     const compute = await api.get(`/api/golf/courses?id=${courseId}&elevation=1`);
@@ -61,6 +62,41 @@ test('course API: holes=1 carries the elevation profile and the tee sheet; eleva
     expect(((await compute.json()) as { elevation: { holes: unknown[] } | null }).elevation?.holes).toHaveLength(18);
     const after = await admin.from('golf_courses').select('hole_elevation_at').eq('id', courseId).single();
     expect(Date.parse(after.data?.hole_elevation_at as string)).toBe(stamp);
+  } finally {
+    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
+    await api.dispose();
+  }
+});
+
+test('course API: holes=1 on a thin course answers an EMPTY sheet that says so, and asks no provider (H1)', async () => {
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  let courseId = '';
+  try {
+    const seeded = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'qa-e2e',
+        external_id: `thin-${stamp}`,
+        name: `QA Thin Links ${stamp}`,
+        lat: 61.3,
+        lng: -30.5,
+        hole_geometry: null,
+        hole_geometry_at: new Date(stamp - 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const res = await api.get(`/api/golf/courses?id=${courseId}&holes=1`);
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+    const body = (await res.json()) as { geometry: unknown; sheet: { holes: unknown[]; partial: string | null; source: string } | null };
+    expect(body.geometry).toBeNull();
+    expect(body.sheet).toMatchObject({ holes: [], partial: 'no_holes', source: 'qa-e2e' });
+    // `qa-e2e` is not a provider source: nothing was attempted, nothing stamped.
+    const after = await admin.from('golf_courses').select('hydrated_at').eq('id', courseId).single();
+    expect(after.data?.hydrated_at).toBeNull();
   } finally {
     if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
     await api.dispose();

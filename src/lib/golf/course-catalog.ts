@@ -41,6 +41,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { reportRouteWarning } from '@/lib/observability/report';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
@@ -142,6 +143,7 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
     countryCode: row.country_code ?? undefined,
     regionCode: row.region_code ?? undefined,
     distanceKm: typeof row.distance_km === 'number' ? Math.round(row.distance_km * 10) / 10 : undefined,
+    hydratedAt: row.hydrated_at ?? undefined,
     holes: row.hole_data ?? [],
     totalPar: row.total_par ?? 72,
     holesCount: row.holes_count ?? undefined,
@@ -766,14 +768,25 @@ export function providersConfigured(): boolean {
   return openGolfConfigured() || gcaConfigured();
 }
 
-async function fetchJson(url: string, headers?: Record<string, string>): Promise<unknown | null> {
+/** What a provider call came back with (H1): the body, or WHY not — the
+ *  HTTP status, a timeout, or a network error. `fetchJson` below keeps its
+ *  null-on-anything contract for the callers that only degrade. */
+export type FetchJsonResult = { ok: true; body: unknown } | { ok: false; status: number | 'timeout' | 'network' };
+
+async function fetchJsonResult(url: string, headers?: Record<string, string>): Promise<FetchJsonResult> {
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null; // timeout / network — callers degrade to local results
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, body: await res.json() };
+  } catch (e) {
+    const name = (e as { name?: string } | null)?.name ?? '';
+    return { ok: false, status: /abort|timeout/i.test(name) ? 'timeout' : 'network' };
   }
+}
+
+async function fetchJson(url: string, headers?: Record<string, string>): Promise<unknown | null> {
+  const r = await fetchJsonResult(url, headers);
+  return r.ok ? r.body : null; // timeout / network / non-2xx — callers degrade to local results
 }
 
 const gcaHeaders = () => ({ Authorization: `Bearer ${process.env.GOLF_COURSE_API_KEY}` });
@@ -1085,11 +1098,30 @@ export interface CourseSheet {
   holes: CourseHole[];
   courseRating: Record<string, number>;
   slopeRating: Record<string, number>;
+  /** The row's provenance ('seed' | 'opengolfapi' | 'golfcourseapi' | 'osm' …). */
+  source: string;
+  /** What is missing (H1): no hole-by-hole data at all, or holes with no
+   *  yardage on any tee. Null when the sheet is complete. */
+  partial: 'no_holes' | 'no_yardage' | null;
 }
+
+/** The sheet as a pure projection of a row — null only for a missing row;
+ *  an empty `hole_data` is `partial: 'no_holes'` with `holes: []`. */
+export function sheetFromRow(row: Pick<CatalogRow, 'hole_data' | 'course_rating' | 'slope_rating' | 'external_source'>): CourseSheet {
+  const holes = row.hole_data ?? [];
+  const anyYardage = holes.some(h => Object.values(h.yardage ?? {}).some(y => typeof y === 'number' && y > 0));
+  return {
+    holes,
+    courseRating: row.course_rating ?? {},
+    slopeRating: row.slope_rating ?? {},
+    source: row.external_source,
+    partial: holes.length === 0 ? 'no_holes' : anyYardage ? null : 'no_yardage',
+  };
+}
+
 export async function getCourseSheet(admin: SupabaseClient, courseId: string): Promise<CourseSheet | null> {
   const row = await getCatalogRow(admin, courseId);
-  if (!row || !row.hole_data || row.hole_data.length === 0) return null;
-  return { holes: row.hole_data, courseRating: row.course_rating ?? {}, slopeRating: row.slope_rating ?? {} };
+  return row ? sheetFromRow(row) : null;
 }
 
 /** Nominatim reverse result → the location columns a row is still missing. */
@@ -1109,20 +1141,87 @@ function reverseFill(
   };
 }
 
+/** Why a hydration ended the way it did (H1, Oct 2026). `ok` and `fresh`
+ *  are the quiet outcomes; `not_applicable` is a seed / OSM row (nothing to
+ *  ask a provider for); the OPERATIONAL outcomes (`http_5xx`, `timeout`,
+ *  `network`, `budget_refused`) reach Sentry as warnings; the DATA GAPS
+ *  (`no_tees`, `no_yardage_for_tee`, `provider_null`, `http_404`,
+ *  `not_configured`) are catalog facts and stay on the console. */
+export interface HydrationOutcome {
+  source: CatalogRow['external_source'];
+  external_id: string;
+  outcome:
+    | 'ok'
+    | 'fresh'
+    | 'not_applicable'
+    | 'not_configured'
+    | 'budget_refused'
+    | 'provider_null'
+    | 'no_tees'
+    | 'no_yardage_for_tee'
+    | `http_${number}`
+    | 'timeout'
+    | 'network';
+  holes: number;
+  tees: number;
+}
+
+export const HYDRATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Is this row due a provider attempt: a provider source, thin, and not
+ *  attempted within the TTL. The `?holes=1` door asks this before building
+ *  a sheet so the live page and the preview card get the tee sheet without
+ *  a composer selection first (H1). Pure. */
+export function hydrationDue(
+  row: Pick<CatalogRow, 'external_source' | 'hole_data' | 'course_rating' | 'slope_rating' | 'hydrated_at'>,
+  now: number = Date.now()
+): boolean {
+  if (row.external_source !== 'opengolfapi' && row.external_source !== 'golfcourseapi') return false;
+  if (!isThinRow(row)) return false;
+  return !(row.hydrated_at && now - new Date(row.hydrated_at).getTime() < HYDRATE_TTL_MS);
+}
+
+const OPERATIONAL_OUTCOMES = new Set(['budget_refused', 'timeout', 'network']);
+
+function reportHydration(outcome: HydrationOutcome): void {
+  if (outcome.outcome === 'ok' || outcome.outcome === 'fresh' || outcome.outcome === 'not_applicable') return;
+  const operational = OPERATIONAL_OUTCOMES.has(outcome.outcome) || /^http_5\d\d$/.test(outcome.outcome);
+  if (operational) reportRouteWarning('[hydrate] provider trouble', { ...outcome });
+  else console.warn('[hydrate] partial course data', outcome);
+}
+
 /**
  * Hydration on selection: a thin provider row gets one detail call and an
  * in-place UPDATE. Any failure (budget, timeout, bad shape) returns the thin
  * course unchanged — selection must never error on provider weather.
  */
 export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Promise<GolfCourse> {
-  if (row.external_source === 'seed') return rowToCourse(row);
+  return (await hydrateCourseDetailed(admin, row)).course;
+}
+
+/** `hydrateCourse` with its OUTCOME beside the course (H1) — every outcome
+ *  that is not quiet is logged once here, so no caller has to. */
+export async function hydrateCourseDetailed(
+  admin: SupabaseClient,
+  row: CatalogRow
+): Promise<{ course: GolfCourse; outcome: HydrationOutcome }> {
+  const base = { source: row.external_source, external_id: row.external_id };
+  const counts = (r: Pick<CatalogRow, 'hole_data' | 'course_rating'>) => ({
+    holes: r.hole_data?.length ?? 0,
+    tees: new Set([...Object.keys(r.course_rating ?? {}), ...(r.hole_data ?? []).flatMap(h => Object.keys(h.yardage ?? {}))]).size,
+  });
+  const done = (course: GolfCourse, outcome: HydrationOutcome['outcome'], r: Pick<CatalogRow, 'hole_data' | 'course_rating'> = row) => {
+    const full: HydrationOutcome = { ...base, outcome, ...counts(r) };
+    reportHydration(full);
+    return { course, outcome: full };
+  };
+  if (row.external_source === 'seed') return done(rowToCourse(row), 'not_applicable');
   // hydrated_at gates on ATTEMPTED, not on how much data came back: a course
   // whose provider detail is genuinely empty used to look thin forever and
   // re-fetched on every selection. One attempt per 7 days. (Also lets rows
   // hydrated before the details columns existed pick them up once.)
-  const HYDRATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   if (row.hydrated_at && Date.now() - new Date(row.hydrated_at).getTime() < HYDRATE_TTL_MS) {
-    return rowToCourse(row);
+    return done(rowToCourse(row), 'fresh');
   }
 
   // OSM rows: no provider knows their external ids, and their coords ARE
@@ -1146,26 +1245,37 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
       .from('golf_courses')
       .update({ hydrated_at: new Date().toISOString(), ...(filled ?? {}) })
       .eq('id', row.id);
-    return rowToCourse(filled ? { ...row, ...filled } : row);
+    return done(rowToCourse(filled ? { ...row, ...filled } : row), 'not_applicable');
   }
 
   let normalized: NewRow | null = null;
+  // Why the provider branch produced nothing — reported once at the end.
+  let miss: HydrationOutcome['outcome'] = 'not_configured';
+  const readProvider = async (url: string, headers?: Record<string, string>): Promise<unknown | null> => {
+    const r = await fetchJsonResult(url, headers);
+    if (r.ok) {
+      miss = 'provider_null';
+      return r.body;
+    }
+    miss = typeof r.status === 'number' ? (`http_${r.status}` as const) : r.status;
+    return null;
+  };
   if (row.external_source === 'opengolfapi' && openGolfConfigured()) {
     if (await consumeProviderBudget(admin, 'opengolfapi')) {
-      const data = (await fetchJson(
+      const data = (await readProvider(
         `https://api.opengolfapi.org/api/v1/courses/${encodeURIComponent(row.external_id)}`
       )) as OpenGolfDetail | null;
       if (data?.id) normalized = normalizeOpenGolfDetail(data);
-    }
+    } else miss = 'budget_refused';
   } else if (row.external_source === 'golfcourseapi' && gcaConfigured()) {
     if (await consumeProviderBudget(admin, 'golfcourseapi')) {
       // LIVE shape: detail nests under `course` (the published spec says bare).
-      const data = (await fetchJson(
+      const data = (await readProvider(
         `https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(row.external_id)}`,
         gcaHeaders()
       )) as { course?: GcaDetail } | null;
       if (data?.course?.id) normalized = normalizeGcaDetail(data.course);
-    }
+    } else miss = 'budget_refused';
   }
 
   // Coord refinement runs on BOTH hydration outcomes: provider lat/lng is
@@ -1199,7 +1309,7 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
         ...(refined ? { lat: refined.lat, lng: refined.lng } : {}),
       })
       .eq('id', row.id);
-    return rowToCourse(refined ? { ...row, lat: refined.lat, lng: refined.lng } : row);
+    return done(rowToCourse(refined ? { ...row, lat: refined.lat, lng: refined.lng } : row), miss);
   }
 
   const providerCoords = {
@@ -1251,5 +1361,11 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
     .select(CATALOG_ROW_COLUMNS)
     .maybeSingle();
 
-  return rowToCourse((updated as unknown as CatalogRow) ?? row);
+  // The provider answered — but with what? No tees at all, or holes whose
+  // tee boxes disagreed in count (GolfCourseAPI only fills matching boxes)
+  // so no hole carries a yardage: both are real, recorded shapes.
+  const written = (updated as unknown as CatalogRow) ?? { ...row, ...normalized };
+  const anyYardage = (normalized.hole_data ?? []).some(h => Object.values(h.yardage ?? {}).some(y => typeof y === 'number' && y > 0));
+  const outcome: HydrationOutcome['outcome'] = !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
+  return done(rowToCourse(written), outcome, normalized);
 }
