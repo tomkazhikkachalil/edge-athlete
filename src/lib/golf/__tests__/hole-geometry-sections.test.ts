@@ -277,3 +277,93 @@ describe('the section split carries greens (PR G2)', () => {
     expect(south.greens).toEqual([]);
   });
 });
+
+// ── Mixed multiplicity + unlabelled loops (map sweep PR 4) ──────────────────
+import { resolveLoopGeometry, scopeHoleWays, scopedPayload, withGreens, type OverpassElement } from '../hole-geometry';
+import emeraldLinks from './fixtures/overpass-emerald-links.json';
+import royalOttawaCluster from './fixtures/overpass-royal-ottawa-cluster.json';
+
+describe('clusterHoleLoops — the multiplicity table', () => {
+  /** Loop B continues past ref 9 as an 18; loop A closes at 9 — the 18+9 club. */
+  const eighteenPlusNine = () => ({
+    elements: [
+      ...Array.from({ length: 9 }, (_, i) => loopWay(LOOP_A_LNG, i)),
+      ...Array.from({ length: 18 }, (_, i) => loopWay(LOOP_B_LNG, i)),
+    ],
+  });
+  it('an 18 and a nine on one club cluster as [9, 18]', () => {
+    const ways = parseHoleWaysLenient(eighteenPlusNine())!;
+    expect(ways).toHaveLength(27);
+    const loops = clusterHoleLoops(ways)!;
+    expect(loops).not.toBeNull();
+    expect(loops.map(l => l.length).sort((a, b) => a - b)).toEqual([9, 18]);
+    expect(loops.find(l => l.length === 18)!.map(h => h.hole)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+  });
+  it('a multiplicity that INCREASES, a gap in the refs, or a loop that closes off a nine → null', () => {
+    // 1–9 ×2 then 10–18 ×3: two extra 10–18 copies — more back nines than front nines.
+    const increasing = {
+      elements: [
+        ...eighteenPlusNine().elements,
+        ...Array.from({ length: 9 }, (_, i) => loopWay(LOOP_B_LNG + 0.02, i + 9)),
+        ...Array.from({ length: 9 }, (_, i) => loopWay(LOOP_B_LNG + 0.04, i + 9)),
+      ],
+    };
+    expect(clusterHoleLoops(parseHoleWaysLenient(increasing)!)).toBeNull();
+    // Loop B stops at 13: a loop of 13 is not a course.
+    const thirteen = { elements: [...Array.from({ length: 9 }, (_, i) => loopWay(LOOP_A_LNG, i)), ...Array.from({ length: 13 }, (_, i) => loopWay(LOOP_B_LNG, i))] };
+    expect(clusterHoleLoops(parseHoleWaysLenient(thirteen)!)).toBeNull();
+    // Refs 1–9 ×2 with ref 5 missing from one loop: a gap → null.
+    const gap = { elements: twoLoopPayload().elements.filter(e => !(e.tags.ref === '5' && e.geometry[0].lon === LOOP_B_LNG)) };
+    expect(clusterHoleLoops(parseHoleWaysLenient(gap)!)).toBeNull();
+    // Refs starting at 2 → null.
+    const from2 = { elements: twoLoopPayload().elements.filter(e => e.tags.ref !== '1') };
+    expect(clusterHoleLoops(parseHoleWaysLenient(from2)!)).toBeNull();
+  });
+});
+
+describe('resolveLoopGeometry — pickable sections, and the one promotion', () => {
+  const courseOf = (fx: unknown) => (fx as { _course: { name: string; lat: number; lng: number } })._course;
+  const elementsOf = (fx: unknown) => (fx as { elements: OverpassElement[] }).elements;
+  it('Emerald Links: three clean nines nothing labels → sections A, B, C with their own greens', () => {
+    const c = courseOf(emeraldLinks);
+    const els = elementsOf(emeraldLinks);
+    const scoped = scopedPayload(els, scopeHoleWays(els, c.name, [c.lat, c.lng]));
+    const g = resolveLoopGeometry(scoped, 27)!;
+    expect(g).not.toBeNull();
+    expect(g.holes).toEqual([]);
+    expect(g.sections!.map(s => s.label).sort()).toEqual(['A', 'B', 'C']);
+    expect(g.sections!.every(s => s.holes.length === 9 && s.holes.map(h => h.hole).join() === '1,2,3,4,5,6,7,8,9')).toBe(true);
+    const wg = withGreens(g, scoped);
+    expect(wg.sections!.map(s => s.greens!.length)).toEqual([9, 9, 9]);
+    expect(wg.greens).toEqual([]);
+  });
+  it('the labels are deterministic: the same payload twice, and a shuffled element order, give the same letters', () => {
+    const c = courseOf(emeraldLinks);
+    const els = elementsOf(emeraldLinks);
+    const a = resolveLoopGeometry(scopedPayload(els, scopeHoleWays(els, c.name, [c.lat, c.lng])), 27)!;
+    const shuffled = [...els].reverse();
+    const b = resolveLoopGeometry(scopedPayload(shuffled, scopeHoleWays(shuffled, c.name, [c.lat, c.lng])), 27)!;
+    const key = (g: typeof a) => g.sections!.map(s => `${s.label}:${s.holes[0].line[0].join(',')}`).sort().join('|');
+    expect(key(a)).toBe(key(b));
+  });
+  it('the catalog says 18 and exactly one loop is an 18 → that loop IS the course; otherwise sections', () => {
+    const payload = { elements: [...Array.from({ length: 9 }, (_, i) => loopWay(LOOP_A_LNG, i)), ...Array.from({ length: 18 }, (_, i) => loopWay(LOOP_B_LNG, i))] };
+    const promoted = resolveLoopGeometry(payload, 18)!;
+    expect(promoted.holes).toHaveLength(18);
+    expect('sections' in promoted).toBe(false);
+    const club = resolveLoopGeometry(payload, 27)!;
+    expect(club.holes).toEqual([]);
+    expect(club.sections!.map(s => s.holes.length).sort((a, b) => a - b)).toEqual([9, 18]);
+    expect(resolveLoopGeometry(payload, null)!.sections).toHaveLength(2);
+  });
+  it('Royal Ottawa: its 18 and West Nine share a clubhouse hub — a near-tie at the 5th and 10th tees, an honest null', () => {
+    const c = courseOf(royalOttawaCluster);
+    const els = elementsOf(royalOttawaCluster);
+    const scoped = scopedPayload(els, scopeHoleWays(els, c.name, [c.lat, c.lng]));
+    expect(parseHoleWaysLenient(scoped)).toHaveLength(27);
+    expect(resolveLoopGeometry(scoped, 18)).toBeNull();
+  });
+  it('a single loop (no duplicates) is the strict parse’s job → null here', () => {
+    expect(resolveLoopGeometry({ elements: Array.from({ length: 9 }, (_, i) => loopWay(LOOP_A_LNG, i)) }, 9)).toBeNull();
+  });
+});

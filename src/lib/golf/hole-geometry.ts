@@ -557,7 +557,10 @@ export function assignGreens(holes: HoleLine[], rings: Ring[]): GreenRing[] {
 /** The geometry with its greens ALWAYS set — `[]` when the payload holds no
  *  outlines, which is the stamp that stops the cache layer refetching. */
 export function withGreens(geometry: HoleGeometry, payload: unknown): HoleGeometry {
-  return { ...geometry, greens: assignGreens(geometry.holes, parseGreenRings(payload)) };
+  const rings = parseGreenRings(payload);
+  const out: HoleGeometry = { ...geometry, greens: assignGreens(geometry.holes, rings) };
+  if (geometry.sections) out.sections = geometry.sections.map(s => ({ ...s, greens: assignGreens(s.holes, rings) }));
+  return out;
 }
 
 /** The greens-only tier (sweep PR 3) needs this many rings of its own. */
@@ -639,11 +642,16 @@ const NEAR_TOUCH_M = 30;
 const metresBetween = (a: [number, number], b: [number, number]) =>
   haversineKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) * 1000;
 
-/** Split duplicate-ref hole ways into K coherent loops, or null when the
- *  geometry is ambiguous. Requires every ref to appear exactly K times
- *  (K ≥ 2) across N ≥ 9 refs; grows each loop by nearest green→tee chaining
- *  with a global non-conflicting assignment per ref, failing to null on any
- *  over-distance link or near-tie. Exported pure for tests. */
+/** Split duplicate-ref hole ways into coherent loops, or null when the
+ *  geometry is ambiguous. The refs must run 1..max without a gap and their
+ *  MULTIPLICITY must never increase along the run (sweep PR 4: an 18 and a
+ *  nine on one club are refs 1–9 ×2 and 10–18 ×1 — the old "every ref
+ *  exactly K times" rule refused Royal Ottawa's own 27); K = the count at
+ *  ref 1, ≥ 2. Loops grow by nearest green→tee chaining with a global
+ *  non-conflicting assignment per ref; a loop that finds no candidate at
+ *  ref r CLOSES at r−1, which must be a multiple of nine, and never
+ *  reopens; every final loop is a 9 or an 18. Null on any over-distance
+ *  link or near-tie. Exported pure for tests. */
 export function clusterHoleLoops(ways: NamedHoleLine[]): NamedHoleLine[][] | null {
   const byRef = new Map<number, NamedHoleLine[]>();
   for (const w of ways) {
@@ -653,27 +661,31 @@ export function clusterHoleLoops(ways: NamedHoleLine[]): NamedHoleLine[][] | nul
   }
   const refs = [...byRef.keys()].sort((a, b) => a - b);
   if (refs.length < 9) return null;
-  const k = byRef.get(refs[0])!.length;
+  if (refs[0] !== 1 || refs.some((r, i) => r !== i + 1)) return null; // contiguous from 1
+  const k = byRef.get(1)!.length;
   if (k < 2) return null;
-  if (refs.some(r => byRef.get(r)!.length !== k)) return null;
+  for (let i = 1; i < refs.length; i++) {
+    if (byRef.get(refs[i])!.length > byRef.get(refs[i - 1])!.length) return null; // never increasing
+  }
 
-  // Seed K loops from the first ref's ways.
-  const loops: NamedHoleLine[][] = byRef.get(refs[0])!.map(w => [w]);
+  // Seed K loops from ref 1's ways.
+  const loops: NamedHoleLine[][] = byRef.get(1)!.map(w => [w]);
+  const closed = new Set<number>();
 
   for (const ref of refs.slice(1)) {
     const candidates = byRef.get(ref)!;
-    // Distance from each loop's current green to each candidate's tee.
-    const dist = loops.map(loop => {
+    const open = loops.map((_, li) => li).filter(li => !closed.has(li));
+    if (candidates.length > open.length) return null;
+    // Distance from each open loop's current green to each candidate's tee.
+    const dist = new Map<number, number[]>();
+    for (const li of open) {
+      const loop = loops[li];
       const green = loop[loop.length - 1].line[loop[loop.length - 1].line.length - 1];
-      return candidates.map(c => metresBetween(green, c.line[0]));
-    });
+      dist.set(li, candidates.map(c => metresBetween(green, c.line[0])));
+    }
     // Global greedy: accept the smallest non-conflicting pairs.
     const pairs: Array<{ li: number; ci: number; d: number }> = [];
-    for (let li = 0; li < loops.length; li++) {
-      for (let ci = 0; ci < candidates.length; ci++) {
-        pairs.push({ li, ci, d: dist[li][ci] });
-      }
-    }
+    for (const li of open) for (let ci = 0; ci < candidates.length; ci++) pairs.push({ li, ci, d: dist.get(li)![ci] });
     pairs.sort((a, b) => a.d - b.d);
     const loopTaken = new Set<number>();
     const candTaken = new Set<number>();
@@ -691,17 +703,23 @@ export function clusterHoleLoops(ways: NamedHoleLine[]): NamedHoleLine[][] | nul
       // equally to another (near-touching links are exempt — nines that
       // share a clubhouse green/tee cluster can sit close).
       if (p.d > NEAR_TOUCH_M) {
-        for (let li = 0; li < loops.length; li++) {
+        for (const li of open) {
           if (li === p.li) continue;
-          if (p.d > dist[li][p.ci] * ASSIGNMENT_DOMINANCE) return null;
+          if (p.d > dist.get(li)![p.ci] * ASSIGNMENT_DOMINANCE) return null;
         }
       }
       loops[p.li].push(candidates[p.ci]);
     }
+    // The open loops that found nothing close here, at a full nine or 18.
+    for (const li of open) {
+      if (loopTaken.has(li)) continue;
+      if (loops[li].length % 9 !== 0) return null;
+      closed.add(li);
+    }
   }
 
-  // Each loop must be a full, clean run of every ref.
-  if (loops.some(l => l.length !== refs.length)) return null;
+  // Each loop must be a clean nine or eighteen.
+  if (loops.some(l => l.length !== 9 && l.length !== 18)) return null;
   return loops.map(l => l.slice().sort((a, b) => a.hole - b.hole));
 }
 
@@ -803,6 +821,49 @@ export function resolveSectionGeometries(
   const clusters = clusterHoleLoops(ways);
   if (!clusters) return null;
   return assignClustersToSections(clusters, sections, payload);
+}
+
+/** A loop's label, by the compass bearing of its hole-1 tee from the
+ *  centroid of every loop's hole-1 tee, clockwise from north: A, B, C…
+ *  Deterministic, and NEVER a compass word — "North nine" that happened to
+ *  be wrong is a wrong overlay; a letter is only an order. */
+function labelLoops(loops: NamedHoleLine[][]): string[] {
+  const tees = loops.map(l => l[0].line[0]);
+  const clat = tees.reduce((s, t) => s + t[0], 0) / tees.length;
+  const clng = tees.reduce((s, t) => s + t[1], 0) / tees.length;
+  const bearing = (t: [number, number]) => {
+    const y = t[1] - clng;
+    const x = t[0] - clat;
+    return (Math.atan2(y, x) * 180) / Math.PI + 360; // 0 = north, clockwise
+  };
+  const order = loops.map((_, i) => i).sort((a, b) => bearing(tees[a]) - bearing(tees[b]) || a - b);
+  const labels = new Array<string>(loops.length);
+  order.forEach((li, rank) => { labels[li] = String.fromCharCode(65 + rank); });
+  return labels;
+}
+
+/** Tier 3 (sweep PR 4) — the club's hole ways split into CLEAN loops that
+ *  nothing in OSM labels: stored as pickable `sections` ("A", "B", "C"…)
+ *  with `holes: []`, so nothing is drawn before the player (or a clear GPS
+ *  match) picks one. ONE promotion on evidence: the catalog row says 18
+ *  holes and exactly one loop is an 18 → that loop IS the course's `holes`
+ *  (the nine belongs to a sibling row, if one ever exists). Null when the
+ *  loops do not cluster cleanly. Exported pure for tests. */
+export function resolveLoopGeometry(payload: unknown, holesCount: number | null | undefined): HoleGeometry | null {
+  const ways = parseHoleWaysLenient(payload);
+  if (!ways) return null;
+  const loops = clusterHoleLoops(ways);
+  if (!loops || loops.length < 2) return null;
+  const eighteens = loops.filter(l => l.length === 18);
+  if (holesCount === 18 && eighteens.length === 1) {
+    return { holes: eighteens[0].map(({ hole, par, line }) => ({ hole, par, line })), source: 'osm' };
+  }
+  const labels = labelLoops(loops);
+  return {
+    holes: [],
+    source: 'osm',
+    sections: loops.map((l, i) => ({ label: labels[i], holes: l.map(({ hole, par, line }) => ({ hole, par, line })) })),
+  };
 }
 
 /** Merge two nine-hole geometries into one 18-hole geometry for a combo
@@ -1022,7 +1083,7 @@ export async function getCourseHoleGeometry(
 ): Promise<HoleGeometry | null> {
   const { data } = await admin
     .from('golf_courses')
-    .select('id, name, lat, lng, hole_geometry, hole_geometry_at, club_id')
+    .select('id, name, lat, lng, hole_geometry, hole_geometry_at, club_id, holes_count')
     .eq('id', courseId)
     .maybeSingle();
   const row = data as {
@@ -1032,6 +1093,7 @@ export async function getCourseHoleGeometry(
     hole_geometry: HoleGeometry | null;
     hole_geometry_at: string | null;
     club_id?: string | null;
+    holes_count?: number | null;
   } | null;
   if (!row) return null;
   if (
@@ -1085,6 +1147,14 @@ export async function getCourseHoleGeometry(
     }
   }
 
+  // Tier 3 (sweep PR 4): clean loops nothing labels → pickable sections
+  // (or the one 18 the catalog vouches for), over THIS course's ways.
+  if (!geometry && result.payload) {
+    const elements = (result.payload as { elements?: OverpassElement[] }).elements ?? [];
+    const scoped = scopedPayload(elements, scopeHoleWays(elements, row.name, [row.lat, row.lng]));
+    const loops = resolveLoopGeometry(scoped, row.holes_count);
+    if (loops) geometry = withGreens(loops, scoped);
+  }
   // Tier 5 (sweep PR 3): no lines anywhere, but the greens are drawn —
   // keep them unnumbered for the nearest-green rangefinder.
   if (!geometry && result.payload) {

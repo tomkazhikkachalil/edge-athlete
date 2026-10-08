@@ -66,13 +66,14 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // Deriving by id drops them on a swap with no setState in an effect.
   // `holes: null` = asked, none (a designed state the summary names);
   // a different id = not asked yet (the summary makes no claim).
-  const [holeLinesState, setHoleLinesState] = useState<{ id: string; holes: HoleLine[] | null; greens: GreenRing[] | null } | null>(null);
+  const [holeLinesState, setHoleLinesState] = useState<{ id: string; holes: HoleLine[] | null; greens: GreenRing[] | null; sections: number } | null>(null);
   const [focusState, setFocusState] = useState<{ id: string; hole: number } | null>(null);
   const holeLines = holeLinesState?.id === course.id ? holeLinesState.holes : null;
   const holeGreens = holeLinesState?.id === course.id ? holeLinesState.greens : null;
   const holeLinesKnown = holeLinesState?.id === course.id;
   // PR 3: drawn greens with no lines — the summary names it as a softer gap.
   const greensOnly = holeLinesKnown && !holeLines && !!holeGreens?.some(g => g.hole == null);
+  const sectionCount = holeLinesState?.id === course.id ? holeLinesState.sections : 0;
   const focusHole = focusState?.id === course.id ? focusState.hole : null;
   const setFocusHole = (hole: number | null) =>
     setFocusState(hole == null ? null : { id: course.id, hole });
@@ -118,10 +119,10 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`holes ${r.status}`))))
       .then(body => {
         if (cancelled) return;
-        const geometry = body?.geometry as { holes?: HoleLine[]; greens?: GreenRing[] } | null;
+        const geometry = body?.geometry as { holes?: HoleLine[]; greens?: GreenRing[]; sections?: unknown[] } | null;
         const holes = geometry?.holes;
         const greens = geometry?.greens;
-        setHoleLinesState({ id, holes: Array.isArray(holes) && holes.length > 0 ? holes : null, greens: Array.isArray(greens) && greens.length > 0 ? greens : null });
+        setHoleLinesState({ id, holes: Array.isArray(holes) && holes.length > 0 ? holes : null, greens: Array.isArray(greens) && greens.length > 0 ? greens : null, sections: Array.isArray(geometry?.sections) ? geometry!.sections!.length : 0 });
       })
       .catch(() => {
         // Transport/limiter failure — allow a retry on the next mount.
@@ -217,6 +218,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         course={summaryCourse}
         holeLines={holeLinesKnown ? holeLines : undefined}
         greensOnly={greensOnly}
+        sections={sectionCount}
         teeInPlay={teeInPlay}
         onViewMap={viewMap}
         loading={summaryLoading}

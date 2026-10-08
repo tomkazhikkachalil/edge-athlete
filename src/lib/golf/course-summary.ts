@@ -53,7 +53,7 @@ export function courseSummary(
   return { holeCount, par, tees };
 }
 
-export type MappingGap = 'no-hole-data' | 'no-yardage-for-tee' | 'no-map-lines' | 'greens-only';
+export type MappingGap = 'no-hole-data' | 'no-yardage-for-tee' | 'no-map-lines' | 'greens-only' | 'pick-a-nine';
 
 /** What is missing, each named once. `geometry` undefined = not asked yet
  *  (no claim is made); null = asked, none. */
@@ -63,12 +63,16 @@ export function mappingGaps(input: {
   geometry: Array<{ line: [number, number][] }> | null | undefined;
   /** PR 3: no lines, but the greens are drawn — a different, softer gap. */
   greensOnly?: boolean;
+  /** PR 4: the club's nines are mapped but unlabelled — pick one on the map. */
+  sections?: number;
 }): MappingGap[] {
   const gaps: MappingGap[] = [];
   if (input.holes.length === 0) gaps.push('no-hole-data');
   else if (input.teeInPlay && !input.holes.every(h => typeof h.yardage?.[input.teeInPlay!] === 'number' && h.yardage[input.teeInPlay!] > 0)) {
     gaps.push('no-yardage-for-tee');
   }
-  if (input.geometry === null || (Array.isArray(input.geometry) && input.geometry.length === 0)) gaps.push(input.greensOnly ? 'greens-only' : 'no-map-lines');
+  if (input.geometry === null || (Array.isArray(input.geometry) && input.geometry.length === 0)) {
+    gaps.push(input.sections && input.sections >= 2 ? 'pick-a-nine' : input.greensOnly ? 'greens-only' : 'no-map-lines');
+  }
   return gaps;
 }

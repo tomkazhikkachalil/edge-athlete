@@ -128,6 +128,12 @@ export const COPY = {
     // Sweep PR 3: the greens-only tier.
     NEAREST_GREEN: 'Nearest green',
     GREENS_ONLY: 'Greens only',
+    // Sweep PR 4: pickable nines.
+    PICK_NINE: 'Pick a nine',
+    WHICH_NINE: 'Which nine?',
+    FRONT_NINE: 'Front',
+    BACK_NINE: 'Back',
+    NINE: (label: string) => `Nine ${label}`,
   },
 
   // The course summary card (course flow fixes M3, Oct 2026).
@@ -140,6 +146,7 @@ export const COPY = {
     GAP_NO_YARDAGE: (tee: string) => `No yardage for the ${tee} tee`,
     GAP_NO_LINES: 'No map lines',
     GAP_GREENS_ONLY: 'Greens only — nearest-green distances',
+    GAP_PICK_NINE: (n: number) => `${n} nines mapped — pick one on the map`,
   },
 
   // Form Labels

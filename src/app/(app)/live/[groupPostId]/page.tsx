@@ -14,6 +14,7 @@ import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '@/lib/golf/holes';
+import { geometryForRound, pickerRows, readLoopPicks, writeLoopPicks, type LoopPicks } from '@/lib/golf/hole-loops';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { COPY } from '@/lib/copy';
 import { holeHeaderFacts, liveLine, type TeeSheetSource, chipDistanceLines } from '@/lib/golf/hole-detail';
@@ -76,6 +77,14 @@ export default function LiveRoundPage() {
   const [viewedHole, setViewedHole] = useState<number | null>(null);
   // M1: bumped by the first-hole control to re-fit the map to a hole already focused.
   const [fitNonce, setFitNonce] = useState(0);
+  // PR 4: the nine(s) this device picked for a club whose loops carry no
+  // labels — per round, per device (localStorage), never drawn unpicked.
+  const [loopPicks, setLoopPicks] = useState<LoopPicks>(() => readLoopPicks(groupPostId));
+  const pickLoopFor = (key: 'front' | 'back', label: string) => {
+    const next = { ...loopPicks, [key]: label };
+    setLoopPicks(next);
+    writeLoopPicks(groupPostId, next);
+  };
   // Publishes --vvh for the full-height shell (messages-page recipe).
   useVisualViewportHeight();
   // Auto-open once. STATE, not a ref: it is read during render (below), and a
@@ -243,17 +252,24 @@ export default function LiveRoundPage() {
   // Memoised: CourseMapInner keys its label/line effects on this array.
   // Above the early returns — it's a hook.
   const roundHoleData = scorecard?.golf_data?.hole_data ?? null;
+  const holesPlayedForGeo = scorecard?.golf_data?.holes_played ?? 18;
+  // PR 4: a sections geometry draws only the picked / auto-picked loop(s);
+  // anything else passes through untouched.
+  const effectiveGeo = useMemo(
+    () => (holeGeo === undefined ? undefined : geometryForRound(holeGeo, { holesPlayed: holesPlayedForGeo, fix: playerFix, picks: loopPicks })),
+    [holeGeo, holesPlayedForGeo, playerFix, loopPicks]
+  );
   const playedHoles = useMemo(() => {
-    const holes = holeGeo?.holes;
+    const holes = effectiveGeo?.holes;
     if (!holes) return null;
     return holes.map(h => ({
       ...h,
       line: trimLineToYards(h.line, roundHoleData?.find(x => x.hole === h.hole)?.yardage),
       // PR G3: the green's outline rides on the hole so the map, the chip
       // and the scorer measure to the same centre (and get front / back).
-      green: holeGeo?.greens?.find(g => g.hole === h.hole)?.ring,
+      green: effectiveGeo?.greens?.find(g => g.hole === h.hole)?.ring,
     }));
-  }, [holeGeo, roundHoleData]);
+  }, [effectiveGeo, roundHoleData]);
 
   // Open the scorer once, during render rather than in an effect: the page has
   // just fetched, so there is nothing to refresh first, and an effect would
@@ -368,7 +384,9 @@ export default function LiveRoundPage() {
   const displayGeoHole = displayHole != null ? geoHoles?.find(h => h.hole === displayHole) : undefined;
   // PR 3: the greens beside the lines — a numbered ring without a line is
   // still a hole on the map; the unnumbered rings are the greens-only tier.
-  const geoGreens = holeGeo?.greens ?? null;
+  const geoGreens = effectiveGeo?.greens ?? null;
+  const loopRows = pickerRows(holeGeo, holesPlayedN);
+  const awaitingPick = loopRows.length > 0 && !effectiveGeo;
   const displayGreenRing = displayHole != null ? (geoGreens?.find(g => g.hole === displayHole)?.ring ?? null) : null;
   const unnumberedRings = geoGreens?.filter(g => g.hole == null).map(g => g.ring) ?? null;
   const greensOnly = !displayGeoHole && !displayGreenRing && !!unnumberedRings?.length;
@@ -406,7 +424,7 @@ export default function LiveRoundPage() {
     const next = stepRoundHole(roundHoles, displayHole, dir);
     if (next != null) setViewedHole(next);
   };
-  const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole) || !!holeGeo?.greens?.some(g => g.hole === startHole);
+  const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole) || !!geoGreens?.some(g => g.hole === startHole);
 
   return (
     <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
@@ -620,7 +638,11 @@ export default function LiveRoundPage() {
                 {/* PR 3: greens-only is its own state — the rangefinder
                     still answers "nearest green"; nothing at all is the
                     honest "Not mapped yet". */}
-                {greensOnly ? (
+                {awaitingPick ? (
+                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-pick-nine="">
+                    {COPY.GOLF_HOLE.PICK_NINE}
+                  </span>
+                ) : greensOnly ? (
                   <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-greens-only="">
                     {COPY.GOLF_HOLE.GREENS_ONLY}
                   </span>
@@ -663,6 +685,34 @@ export default function LiveRoundPage() {
               </button>
             </div>
           ) : null}
+          {/* PR 4: the nine picker — a club whose loops carry no labels is
+              drawn only after a pick (or an unmistakable GPS match). Letters,
+              never guessed names. Wraps under the chip, clear of the control
+              column at 320 px. */}
+          {loopRows.length > 0 && (
+            <div className="absolute left-14 top-16 z-[500] flex max-w-[calc(100%-14rem)] flex-col gap-1" data-loop-picker="">
+              {loopRows.map(row => (
+                <div key={row.key} className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-surface/90 px-2 py-1 shadow-sm">
+                  <span className="text-xs font-medium text-secondary">
+                    {loopRows.length > 1 ? (row.key === 'front' ? COPY.GOLF_HOLE.FRONT_NINE : COPY.GOLF_HOLE.BACK_NINE) : COPY.GOLF_HOLE.WHICH_NINE}
+                  </span>
+                  {row.labels.map(label => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => pickLoopFor(row.key, label)}
+                      aria-pressed={loopPicks[row.key] === label}
+                      aria-label={COPY.GOLF_HOLE.NINE(label)}
+                      data-loop-pick={`${row.key}:${label}`}
+                      className={`min-h-[36px] min-w-[36px] rounded-md px-2 text-sm font-bold ea-interactive ${loopPicks[row.key] === label ? 'bg-brand text-white' : 'bg-surface-muted text-primary'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           {/* M1: "Take me to the first hole" — the round's starting hole, the
               map fitted to it (fitNonce re-fits even when the chip is already
               there, so a drag away is one tap back). Sits above the map's
