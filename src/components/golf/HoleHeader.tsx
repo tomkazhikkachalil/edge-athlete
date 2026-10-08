@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { COPY } from '@/lib/copy';
 import { toParColorClass, toParLabel } from '@/lib/golf/scoring';
 import { formatRise } from '@/lib/golf/elevation';
-import type { HoleHeaderFacts, LiveLine, TeeRow } from '@/lib/golf/hole-detail';
+import { greenLabel, type HoleHeaderFacts, type LiveLine, type TeeRow } from '@/lib/golf/hole-detail';
 import type { HoleProjection, ProjectedPoint } from '@/lib/golf/hole-svg';
 
 // ── The hole in front of you (hole-detail program PR E, Oct 2026) ───────────
@@ -15,7 +15,8 @@ import type { HoleProjection, ProjectedPoint } from '@/lib/golf/hole-svg';
 //   row B  "Par 4 · HCP 11 · 388 yds · White ▾"  (the tee chip opens an
 //          INLINE list of every tee — never a new z-layer)
 //   row C  "196 yds to green · plays like ≈203 (↑ 7 yd)"  — from a GPS fix
-//          when the map has one, else "Tee → green 388 yds · …"; the
+//          when the map has one ("F 182 · C 196 · B 207 · plays like …" when
+//          the green has an outline, M2), else "Tee → green 388 yds · …"; the
 //          plays-like part only with an elevation profile; the row only with
 //          a line
 //   row D  "You E thru 6 · Sam 5 · Alex 4"  — the running to-par and the
@@ -83,8 +84,14 @@ export default function HoleHeader({ holeNumber, facts, tees, live, running, run
           </ul>
         )}
         {live.kind !== 'none' && live.toGreen != null && (
-          <div className="mt-1 text-sm font-semibold text-primary break-words" aria-live="polite" data-hole-plays-like={live.kind}>
-            {live.kind === 'gps' ? COPY.GOLF_HOLE.TO_GREEN(live.toGreen) : COPY.GOLF_HOLE.TEE_TO_GREEN(live.toGreen)}
+          <div
+            className="mt-1 text-sm font-semibold text-primary break-words"
+            aria-live="polite"
+            data-hole-plays-like={live.kind}
+            data-green-fcb={live.kind === 'gps' && live.front != null && live.back != null ? '' : undefined}
+          >
+            {/* M2: "F 182 · C 196 · B 207" when the green has an outline, else "196 yds to green". */}
+            {live.kind === 'gps' ? greenLabel(live) : COPY.GOLF_HOLE.TEE_TO_GREEN(live.toGreen)}
             {live.playsLike != null && (
               <span className="text-secondary"> · {COPY.GOLF_HOLE.PLAYS_LIKE(live.playsLike)}{rise ? ` (${rise})` : ''}</span>
             )}
