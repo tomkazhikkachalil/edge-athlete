@@ -1,5 +1,11 @@
 # Development Log
 
+## October 7, 2026 — Golf course flow fixes PR P1: the catalog-health probe, the data reference, convention 35 (zero DDL)
+
+The program's last PR. **`e2e/catalog-health.spec.ts`** is Tom's "a check that fails if a known-good course loses its hole data": a PROD-ONLY, read-only probe (`test.skip` off `E2E_TARGET === 'prod'` — the catalog is production-only) through the service role: the six seeded courses that carry a sheet (`KNOWN_GOOD_SHEETS`; production holds twelve seed rows — migration 125's split made Ottawa Hunt a club whose sheets live on its North / South / West section rows, plus Greensmere's two, all listed and never asserted) still carry 18-hole tee sheets numbered 1..18 with a par and a yardage on every hole, and `KNOWN_GOOD_GEOMETRY` (Eagle Creek, the one geometry proven on production by `live-rangefinder`) keeps 18 cached lines; a cache written before G2 (no `greens` key yet) is reported, not failed — it refetches once on the next `?holes=1`. First run on production: 1 passed (Eagle Creek's cache predates G2, as reported). Run: `npm run test:e2e:prod -- catalog-health`.
+
+**`docs/GOLF_COURSE_DATA.md`** is the reference: every source with its key, budget key and attribution (the Terrain Tiles credit line the licence requires; OSM's ODbL), the hydration outcomes table and the SQL-editor unstamp runbook, the geometry + greens shape and the refetch-once rule, the elevation providers' order, the follow / chip / summary rules, and the probes with the two seeding rules (a fresh `hole_geometry_at`, a fresh `hydrated_at`, and `greens: []` since G2). **CLAUDE.md** gains convention 35 and the doc's index line.
+
 ## October 7, 2026 — Golf course flow fixes PR M3: the course at a glance — a bold summary card and an honest "Not fully mapped" (zero DDL)
 
 Tom's spec: "a bold summary card at the top of a course: hole count, total yardage per tee, slope and rating, a map thumbnail labelled 'View course map' as an obvious tap target, large high-contrast stats — and an explicit 'Not fully mapped' state when hole or yardage data is missing, instead of a half-empty preview."
