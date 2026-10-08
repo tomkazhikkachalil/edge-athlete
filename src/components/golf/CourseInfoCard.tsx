@@ -7,6 +7,7 @@ import type { GolfCourse } from '@/types/golf';
 import type { HoleLine } from '@/lib/golf/hole-geometry';
 import CourseMap from '@/components/golf/CourseMap';
 import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
+import CourseSummaryCard from '@/components/golf/CourseSummaryCard';
 import BrandLogo from '@/components/BrandLogo';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { websiteDomain, logoUrl } from '@/lib/logo-dev';
@@ -35,9 +36,15 @@ interface CourseInfoCardProps {
   /** 'hidden': no map affordance at all — the live portal's Map tab owns
    *  maps there; this card stays info-only. */
   mapMode?: 'toggle' | 'hidden';
+  /** M3: where the summary's "View course map" goes when this card has no
+   *  map of its own (`mapMode="hidden"` — the live page's Map tab). */
+  onViewMap?: () => void;
+  /** M3: the tee the round plays — the summary leads with it and names it
+   *  when the card has no yardage for it. */
+  teeInPlay?: string | null;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle' }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null }: CourseInfoCardProps) {
   const [showMap, setShowMap] = useState(defaultOpen);
   // Official scorecard: shown from course.holes when the caller has them;
   // otherwise lazily fetched by catalog id on first expand (embeds carry the
@@ -57,9 +64,12 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // `course` in place (unkeyed mount), and a per-instance flag + unkeyed
   // state drew course A's tees on course B's map and never fetched B.
   // Deriving by id drops them on a swap with no setState in an effect.
-  const [holeLinesState, setHoleLinesState] = useState<{ id: string; holes: HoleLine[] } | null>(null);
+  // `holes: null` = asked, none (a designed state the summary names);
+  // a different id = not asked yet (the summary makes no claim).
+  const [holeLinesState, setHoleLinesState] = useState<{ id: string; holes: HoleLine[] | null } | null>(null);
   const [focusState, setFocusState] = useState<{ id: string; hole: number } | null>(null);
   const holeLines = holeLinesState?.id === course.id ? holeLinesState.holes : null;
+  const holeLinesKnown = holeLinesState?.id === course.id;
   const focusHole = focusState?.id === course.id ? focusState.hole : null;
   const setFocusHole = (hole: number | null) =>
     setFocusState(hole == null ? null : { id: course.id, hole });
@@ -67,6 +77,8 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // Hide/Show map retries — a single 429 from the shared course-search
   // limiter used to disable the preview for the life of the card.
   const holesRequestedFor = useRef<string | null>(null);
+  // M3: the summary's thumbnail scrolls the card's own map into view.
+  const mapRef = useRef<HTMLDivElement>(null);
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
 
   const mapVisible = showMap && hasCoords && mapMode !== 'hidden';
@@ -92,8 +104,10 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       cancelled = true;
     };
   }, [course.id]);
+  // M3: the lines are asked for at card-open (= mount), not at "Show map" —
+  // the summary's thumbnail and its "No map lines" line need the answer.
   useEffect(() => {
-    if (!mapVisible || holesRequestedFor.current === course.id || !UUID_SHAPE.test(course.id)) return;
+    if (holesRequestedFor.current === course.id || !UUID_SHAPE.test(course.id)) return;
     const id = course.id;
     holesRequestedFor.current = id;
     let cancelled = false;
@@ -102,17 +116,48 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       .then(body => {
         if (cancelled) return;
         const holes = (body?.geometry as { holes?: HoleLine[] } | null)?.holes;
-        if (Array.isArray(holes) && holes.length > 0) setHoleLinesState({ id, holes });
+        setHoleLinesState({ id, holes: Array.isArray(holes) && holes.length > 0 ? holes : null });
       })
       .catch(() => {
-        // Transport/limiter failure — allow a retry on the next map open.
+        // Transport/limiter failure — allow a retry on the next mount.
         // (A null geometry is a designed state and lands in `.then`.)
         if (!cancelled && holesRequestedFor.current === id) holesRequestedFor.current = null;
       });
     return () => {
       cancelled = true;
     };
-  }, [mapVisible, course.id]);
+  }, [course.id]);
+
+  // M3: a row that arrived without its tee sheet (an embed's `holes: []`, a
+  // thin catalog row) is asked for ONCE at card-open — the summary's stats
+  // are there without a second tap. The Official-scorecard toggle used to
+  // own this fetch; it now only shows the table. (A thin provider row
+  // stamped within 7 days comes back thin: the summary says so.)
+  const detailRequestedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (detailRequestedFor.current === course.id || !UUID_SHAPE.test(course.id) || course.holes.length > 0) return;
+    const id = course.id;
+    detailRequestedFor.current = id;
+    let cancelled = false;
+    setScorecardLoading(true);
+    fetch(`/api/golf/courses?id=${id}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(body => {
+        if (cancelled) return;
+        setFetchedCourse((body?.course as GolfCourse | null) ?? null);
+        const h = body?.homeOf as { orgName: string; path: string } | undefined;
+        if (h?.path) setHomeOfState({ id, ...h });
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedCourse(null);
+      })
+      .finally(() => {
+        if (!cancelled) setScorecardLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id, course.holes.length]);
 
   const logoDomain = websiteDomain(course.website);
   const logoAvailable = !!logoUrl(logoDomain ?? undefined, 40);
@@ -128,22 +173,21 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     course.description || metaBits.length > 0 || course.website || hasCoords || scorecardPossible;
   if (!hasAnything) return null;
 
-  const toggleScorecard = () => {
-    const next = !showScorecard;
-    setShowScorecard(next);
-    if (next && course.holes.length === 0 && !fetchedCourse && !scorecardLoading) {
-      setScorecardLoading(true);
-      fetch(`/api/golf/courses?id=${course.id}`, { credentials: 'include' })
-        .then(r => (r.ok ? r.json() : null))
-        .then(body => {
-          setFetchedCourse((body?.course as GolfCourse | null) ?? null);
-          const h = body?.homeOf as { orgName: string; path: string } | undefined;
-          if (h?.path) setHomeOfState({ id: course.id, ...h });
-        })
-        .catch(() => setFetchedCourse(null))
-        .finally(() => setScorecardLoading(false));
-    }
-  };
+  const toggleScorecard = () => setShowScorecard(v => !v);
+
+  // M3: the summary's facts — the caller's course, or the detail the card
+  // fetched for a row that arrived without its sheet.
+  const summaryCourse = course.holes.length > 0 ? course : (fetchedCourse ?? course);
+  const summaryLoading = course.holes.length === 0 && !fetchedCourse && scorecardLoading;
+  const viewMap =
+    hasCoords && mapMode !== 'hidden'
+      ? () => {
+          setShowMap(true);
+          requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+        }
+      : mapMode === 'hidden' && hasCoords
+        ? onViewMap
+        : undefined;
 
   // Steps walk the ARRAY (partially mapped courses have gaps in hole
   // numbers); ‹ from the first hole returns to the course overview (null),
@@ -163,6 +207,14 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
 
   return (
     <div className="mt-3 rounded-lg border border-border bg-surface-sunken p-3 text-left">
+      {/* M3: the course at a glance — FIRST, on every surface this card has. */}
+      <CourseSummaryCard
+        course={summaryCourse}
+        holeLines={holeLinesKnown ? holeLines : undefined}
+        teeInPlay={teeInPlay}
+        onViewMap={viewMap}
+        loading={summaryLoading}
+      />
       <div className={logoAvailable ? 'flex items-start gap-3' : ''}>
         {logoAvailable && (
           <BrandLogo domain={logoDomain ?? undefined} name={course.name} size={40} fallback={null} />
@@ -240,13 +292,11 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             <CourseScorecardTable course={scorecardSource} />
           ) : scorecardLoading ? (
             <div className="h-24 animate-pulse rounded-lg border border-border bg-surface" />
-          ) : (
-            <p className="text-xs text-tertiary">No hole-by-hole tee sheet is available for this course.</p>
-          )}
+          ) : null /* the summary's "Not fully mapped" line says it */}
         </div>
       )}
       {mapVisible && (
-        <div className="mt-2">
+        <div className="mt-2" ref={mapRef}>
           {holeLines && holeLines.length > 0 && (
             <div className="mb-2 flex items-center justify-between text-sm">
               <button

@@ -114,6 +114,17 @@ export const COPY = {
     OPEN_MAP_ON: (hole: number) => `Open the map on hole ${hole}`,
   },
 
+  // The course summary card (course flow fixes M3, Oct 2026).
+  GOLF_COURSE: {
+    VIEW_MAP: 'View course map',
+    NOT_FULLY_MAPPED: 'Not fully mapped',
+    HOLES: (n: number) => `${n} holes`,
+    PAR: (n: number) => `Par ${n}`,
+    GAP_NO_HOLE_DATA: 'No hole-by-hole data',
+    GAP_NO_YARDAGE: (tee: string) => `No yardage for the ${tee} tee`,
+    GAP_NO_LINES: 'No map lines',
+  },
+
   // Form Labels
   FORMS: {
     REQUIRED_FIELD: 'This field is required',
