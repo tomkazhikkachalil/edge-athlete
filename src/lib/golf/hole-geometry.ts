@@ -65,7 +65,7 @@ interface OverpassMember {
   geometry?: { lat: number; lon: number }[];
 }
 
-interface OverpassElement {
+export interface OverpassElement {
   type?: string;
   tags?: Record<string, string>;
   geometry?: { lat: number; lon: number }[];
@@ -761,11 +761,24 @@ export function targetDistances(
   };
 }
 
-const MIRRORS = [
+export const MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
-const OVERPASS_UA = 'EdgeAthlete/1.0 (https://edge-athlete.vercel.app)';
+export const OVERPASS_UA = 'EdgeAthlete/1.0 (https://edgeathlete.ca)';
+
+/** A REAL Overpass answer carries its envelope (`version` / `generator` /
+ *  `osm3s`) and an `elements` array. A throttling mirror answers 200 with a
+ *  21-byte stub, and a stub parsed as "no coverage" used to be STAMPED for
+ *  30 days (the sweep program's prep, Oct 2026): anything without the
+ *  envelope is a transport failure — next mirror, nothing stamped. Exported
+ *  pure for tests and for the regional sweep. */
+export function isOverpassAnswer(payload: unknown): payload is { elements: OverpassElement[] } {
+  if (!payload || typeof payload !== 'object') return false;
+  const p = payload as { elements?: unknown; version?: unknown; generator?: unknown; osm3s?: unknown };
+  if (!Array.isArray(p.elements)) return false;
+  return p.version !== undefined || p.generator !== undefined || p.osm3s !== undefined;
+}
 
 export interface HoleGeometryFetch {
   /** False = every mirror failed (transport) — the caller must NOT cache the
@@ -813,10 +826,11 @@ export async function fetchHoleGeometry(
       // A clean-but-invalid response (ambiguous refs, no coverage) is a real
       // answer, not a transport failure.
       const payload = await res.json();
-      // A 200 with a runtime-error remark is a TRUNCATED answer, not a
-      // "no coverage" answer — next mirror; all partial → reached:false,
-      // so nothing is stamped and a later request retries.
-      if (isOverpassPartial(payload)) continue;
+      // A 200 without the Overpass envelope (a throttling mirror's stub)
+      // or with a runtime-error remark is NOT a "no coverage" answer —
+      // next mirror; all failing → reached:false, so nothing is stamped
+      // and a later request retries.
+      if (!isOverpassAnswer(payload) || isOverpassPartial(payload)) continue;
       const resolved = resolveHoleGeometry(payload, courseName, [lat, lng]);
       const geometry = resolved ? withGreens(resolved, payload) : null;
       return { reached: true, geometry, payload };

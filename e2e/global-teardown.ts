@@ -44,6 +44,25 @@ export default async function globalTeardown() {
       errors.push(err);
     }
   }
+  // Sweep prep (Oct 2026): catalog rows a golf spec seeded and never reached
+  // its `finally` for — the rows are `external_source 'qa-e2e'` (staging AND
+  // the prod probes: four "QA GPS Links" rows were found on production). The
+  // hour's grace spares a run still in flight beside this one. Loud.
+  try {
+    const admin = adminClient();
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data, error } = await admin
+      .from('golf_courses')
+      .delete()
+      .eq('external_source', 'qa-e2e')
+      .lt('created_at', cutoff)
+      .select('id');
+    if (error) throw error;
+    if (data && data.length) console.warn(`[e2e] teardown removed ${data.length} qa-e2e course row(s) a spec left behind`);
+  } catch (err) {
+    console.error('[e2e] TEARDOWN FAILED for the leaked qa-e2e courses:', err);
+    errors.push(err);
+  }
   // The state files and the org registry are this run's; a stale user.json or
   // orgs.txt must never be re-read by the next run.
   if (existsSync(authDir)) {

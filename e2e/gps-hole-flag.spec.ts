@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
+import { cleanup } from './helpers/cleanup';
 
 type LatLng = [number, number];
 interface HoleLine {
@@ -261,9 +262,11 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
       await away.close();
     }
   } finally {
-    await ctx.close();
-    if (roundId) await api.delete(`/api/group-posts/${roundId}?mode=delete`);
-    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
-    await api.dispose();
+    await cleanup('gps-hole-flag', [
+      () => roundId && api.delete(`/api/group-posts/${roundId}?mode=delete`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => ctx.close(),
+      () => api.dispose(),
+    ]);
   }
 });
