@@ -416,7 +416,7 @@ describe('targetDistances (player-placed target on the focused hole)', () => {
 });
 
 // ── Green outlines (PR G2, Oct 2026) ────────────────────────────────────────
-import { assignGreens, composeHoleGeometry, parseGreenRings, withGreens, GREEN_ASSIGN_M } from '../hole-geometry';
+import { assignGreens, composeHoleGeometry, greenPoint, parseGreenRings, withGreens, GREEN_ASSIGN_M } from '../hole-geometry';
 
 /** A closed square `golf=green` way of `half` metres around a point. */
 function greenWay(centre: [number, number], half = 10, tags: Record<string, string> = {}) {
@@ -520,5 +520,35 @@ describe('composeHoleGeometry carries greens', () => {
     expect(composeHoleGeometry(nine(true), nine(true))!.greens!.map(g => g.hole)).toEqual([3, 12]);
     expect('greens' in composeHoleGeometry(nine(false), nine(false))!).toBe(false);
     expect(composeHoleGeometry(nine(false), nine(true))!.greens!.map(g => g.hole)).toEqual([12]);
+  });
+});
+
+describe('greenPoint, greenDistanceYards and targetDistances with an outline (PR G3)', () => {
+  const g = parseHoleGeometry(rideauView)!;
+  const hole1 = g.holes[0].line;
+  const end = hole1[hole1.length - 1];
+  const mPerDeg = (2 * Math.PI * 6371000) / 360;
+  const centre: [number, number] = [end[0] + 30 / mPerDeg, end[1]];
+  const d = 10 / mPerDeg;
+  const ring: [number, number][] = [[centre[0] - d, centre[1] - d], [centre[0] - d, centre[1] + d], [centre[0] + d, centre[1] + d], [centre[0] + d, centre[1] - d]];
+
+  it('the point moves to the centroid with an outline, stays at the line end without', () => {
+    expect(greenPoint(hole1)).toEqual(end);
+    expect(greenPoint(hole1, null)).toEqual(end);
+    const p = greenPoint(hole1, ring);
+    expect(p[0]).toBeCloseTo(centre[0], 6);
+    expect(p[1]).toBeCloseTo(centre[1], 6);
+    expect(greenPoint(hole1, [[1, 1], [2, 2]])).toEqual(end); // degenerate ring → the line end
+  });
+
+  it('both distances measure to the centroid, not the line end', () => {
+    const plain = greenDistanceYards(hole1[0], hole1)!;
+    const withGreen = greenDistanceYards(hole1[0], hole1, 1500, ring)!;
+    expect(withGreen).toBe(yardsBetween(hole1[0], greenPoint(hole1, ring)));
+    expect(withGreen).not.toBe(plain);
+    // The centre sits 30 m (33 yd) from the line end whichever way the hole runs.
+    expect(Math.abs(withGreen - plain)).toBeLessThanOrEqual(34);
+    expect(targetDistances(hole1[0], end, hole1, ring)!.targetToGreen).toBe(yardsBetween(end, greenPoint(hole1, ring)));
+    expect(targetDistances(hole1[0], end, hole1)!.targetToGreen).toBe(0);
   });
 });

@@ -50,6 +50,24 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     const lat = 45.3 + i * 0.004;
     return { hole: i + 1, line: [[lat, -75.7], [lat + 0.0015, -75.6996], [lat + 0.003, -75.699]] as LatLng[] };
   });
+  // PR G3: hole 1 carries a green OUTLINE — a 20 m square whose centre sits
+  // 30 m past the line's end. The flag and every "to green" number stand on
+  // that centre, not on the line end.
+  const M_PER_DEG = (2 * Math.PI * 6371000) / 360;
+  const end1 = holes[0].line[holes[0].line.length - 1];
+  const greenCentre: LatLng = [end1[0] + 30 / M_PER_DEG, end1[1]];
+  const gd = 10 / M_PER_DEG;
+  const ring: LatLng[] = [
+    [greenCentre[0] - gd, greenCentre[1] - gd], [greenCentre[0] - gd, greenCentre[1] + gd],
+    [greenCentre[0] + gd, greenCentre[1] + gd], [greenCentre[0] + gd, greenCentre[1] - gd],
+    [greenCentre[0] - gd, greenCentre[1] - gd],
+  ];
+  const yardsBetween = (a: LatLng, b: LatLng) => {
+    const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+    const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos((a[0] * Math.PI) / 180) * Math.cos((b[0] * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return Math.round(2 * 6371 * Math.asin(Math.sqrt(s)) * 1093.6133);
+  };
   let courseId = '';
   let roundId = '';
   const ctx = await phoneContext(browser, holes[0].line[0]);
@@ -62,7 +80,7 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
         name: `QA GPS Links ${stamp}`,
         lat: holes[0].line[0][0],
         lng: holes[0].line[0][1],
-        hole_geometry: { holes: holes.map(h => ({ hole: h.hole, par: 4, line: h.line })), source: 'osm', greens: [] },
+        hole_geometry: { holes: holes.map(h => ({ hole: h.hole, par: 4, line: h.line })), source: 'osm', greens: [{ hole: 1, ring }] },
         hole_geometry_at: new Date().toISOString(),
       })
       .select('id')
@@ -124,7 +142,13 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     expect(fb.y, 'the whole flag sits below the hole chip').toBeGreaterThan(chip.y + chip.height);
     // …and not behind the distance pill either: nothing of the app is drawn
     // over the flag (its tip and its foot are both bare map).
-    await expect(page.getByText(/\d+ yds to green/)).toBeVisible({ timeout: 10_000 });
+    const pill = page.getByText(/\d+ yds to green/);
+    await expect(pill).toBeVisible({ timeout: 10_000 });
+    // …and the number is measured to the outline's CENTRE (30 m past the
+    // line end), from the tee the fix stands on.
+    const pillYds = Number((/(\d+) yds to green/.exec((await pill.textContent()) ?? '') ?? [])[1]);
+    expect(Math.abs(pillYds - yardsBetween(holes[0].line[0], greenCentre))).toBeLessThanOrEqual(3);
+    expect(pillYds - yardsBetween(holes[0].line[0], end1)).toBeGreaterThanOrEqual(28);
     const tipBare = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.leaflet-container'), { x: fb.x + 14, y: fb.y + 6 });
     expect(tipBare, 'the flag is not underneath the distance pill').toBe(true);
     // …inside the map, and never in the way of a tap on the green.

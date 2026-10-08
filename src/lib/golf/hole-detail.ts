@@ -5,6 +5,7 @@
 // like), the running score and the group's scores on a hole. Zero React.
 
 import { greenDistanceYards, polylineYards } from '@/lib/golf/hole-geometry';
+import { greenDistances, type Ring } from '@/lib/golf/green';
 import { metresToYards, playsLikeYards, riseToGreen, type HoleElevationProfile } from '@/lib/golf/elevation';
 import { courseTeeOptions, teeLabel } from '@/lib/golf/tees';
 import type { CourseHole } from '@/types/golf';
@@ -122,7 +123,14 @@ export function teeSheetForHole(sheet: TeeSheetSource | null | undefined, hole: 
 export interface LiveLine {
   /** gps = from where you stand; tee = from the tee; none = no line to measure. */
   kind: 'gps' | 'tee' | 'none';
+  /** To the CENTRE of the green (the outline's centroid when one exists,
+   *  else the line's last point). */
   toGreen: number | null;
+  /** To the front edge of the green — only from a fix, only with an
+   *  outline, never while standing on the green (PR G3). */
+  front: number | null;
+  /** To the back edge — the same rule. */
+  back: number | null;
   /** The elevation-adjusted number, null without a profile. */
   playsLike: number | null;
   /** Yards the green sits above (+) or below (−) the origin; null without a profile. */
@@ -137,18 +145,26 @@ export function liveLine(input: {
   line?: LatLng[] | null;
   profile?: Pick<HoleElevationProfile, 'pts' | 'elev'> | null;
   cardYards?: number | null;
+  /** The green's outline (PR G3): the centre becomes its centroid and a fix
+   *  gets the front / back edges too. */
+  green?: Ring | null;
 }): LiveLine {
+  const none: LiveLine = { kind: 'none', toGreen: null, front: null, back: null, playsLike: null, riseYds: null };
   const line = input.line && input.line.length >= 2 ? input.line : null;
-  if (!line) return { kind: 'none', toGreen: null, playsLike: null, riseYds: null };
-  const fromFix = input.fix ? greenDistanceYards(input.fix, line) : null;
-  const origin: LatLng = input.fix && fromFix != null ? input.fix : line[0];
-  const toGreen = input.fix && fromFix != null ? fromFix : (input.cardYards ?? polylineYards(line));
-  if (toGreen == null) return { kind: 'none', toGreen: null, playsLike: null, riseYds: null };
+  if (!line) return none;
+  const fromFix = input.fix ? greenDistanceYards(input.fix, line, 1500, input.green) : null;
+  const gps = !!input.fix && fromFix != null;
+  const origin: LatLng = gps ? input.fix! : line[0];
+  const toGreen = gps ? fromFix : (input.cardYards ?? polylineYards(line));
+  if (toGreen == null) return none;
+  const edges = gps && input.green ? greenDistances(input.fix!, input.green) : null;
   const riseM = input.profile ? riseToGreen(input.profile, origin) : null;
   const riseYds = riseM == null ? null : metresToYards(riseM);
   return {
-    kind: input.fix && fromFix != null ? 'gps' : 'tee',
+    kind: gps ? 'gps' : 'tee',
     toGreen,
+    front: edges?.front ?? null,
+    back: edges?.back ?? null,
     playsLike: riseYds == null ? null : playsLikeYards(toGreen, riseYds),
     riseYds,
   };
