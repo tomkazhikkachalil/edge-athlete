@@ -539,7 +539,13 @@ export default function LiveRoundPage() {
           tab owns maps here (stacking them was the cramped-UX complaint). */}
       {courseInfo && (
         <div className="mt-4">
-          <CourseInfoCard course={courseInfo} mapMode="hidden" />
+          <CourseInfoCard
+            course={courseInfo}
+            mapMode="hidden"
+            teeInPlay={scorecard.golf_data.tee_color ?? null}
+            // M3: the summary's "View course map" is the Map tab here.
+            onViewMap={mapAvailable ? () => setTab('map') : undefined}
+          />
         </div>
       )}
         </div>

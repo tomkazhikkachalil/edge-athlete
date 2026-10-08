@@ -12,6 +12,7 @@ import { holeYards } from '@/lib/golf/hole-svg';
 import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
 import { requireSiteModule } from '../../_components/require-module';
 import { CourseOverview, GeometryAttribution, HoleDiagram } from '../../_components/HoleMap';
+import { courseSummary } from '@/lib/golf/course-summary';
 import { placeLine, sectionLabel, teeSummary } from '../../_components/CoursesList';
 import CourseStatsCard from '../../_components/CourseStatsCard';
 import MembersOnlyPanel from '../../_components/MembersOnlyPanel';
@@ -86,6 +87,7 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
   const holePhotos = photo?.holes ?? {};
   const hasHolePhotos = Object.keys(holePhotos).length > 0;
   const tees = teeSummary(course);
+  const yardageTotals = courseSummary(course).tees.filter(t => t.yards != null);
   const holes = [...(course.holes ?? [])].sort((a, b) => a.number - b.number);
   const yardTees = courseTeeOptions(course).filter(tee => holes.some(h => typeof h.yardage?.[tee] === 'number'));
   const lineByHole = new Map((geometry?.holes ?? []).map(h => [h.hole, h]));
@@ -170,6 +172,14 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
         {tees.length > 0 && (
           <p className="mt-2 text-xs text-secondary">
             <span className="font-semibold text-primary">Rating / slope:</span> {tees.join(' · ')}
+          </p>
+        )}
+        {/* M3: the same per-tee totals the app's summary card shows — a tee
+            with a yardage on every hole only; never a partial sum. */}
+        {yardageTotals.length > 0 && (
+          <p className="mt-1 text-xs text-secondary" data-course-yardage="">
+            <span className="font-semibold text-primary">Yardage:</span>{' '}
+            {yardageTotals.map(t => `${t.label} ${t.yards!.toLocaleString()} yds`).join(' · ')}
           </p>
         )}
         {holes.length > 0 ? (

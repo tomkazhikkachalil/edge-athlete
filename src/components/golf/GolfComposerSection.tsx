@@ -1019,7 +1019,7 @@ export default function GolfComposerSection({
 
                   {/* Keyed: a course swap remounts the card (and its Leaflet
                       map) cleanly instead of re-using one instance's state. */}
-                  {selectedCourse && <CourseInfoCard key={selectedCourse.id} course={selectedCourse} />}
+                  {selectedCourse && <CourseInfoCard key={selectedCourse.id} course={selectedCourse} teeInPlay={sharedRoundDetails.teeColor} />}
 
                   {/* Help text for manual entry */}
                   {!selectedCourse && sharedRoundDetails.courseName && (
