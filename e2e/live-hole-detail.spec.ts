@@ -131,6 +131,15 @@ test('live hole detail: the header facts, plays-like from the shared fix, the te
     // The map chip speaks the same line (PR F): plays-like with the rise —
     // from the fix, which walked to mid-hole above (3.4 m left = 4 yd).
     await expect(page.locator('[data-chip-plays-like]')).toContainText(/plays like ≈\d+ ↑ 4 yd/, { timeout: 15_000 });
+    // M2: the chip's distance IS the pill's (one origin — the fix), and the
+    // card's "388 yds" is not on the chip while a fix exists.
+    const chipToGreen = page.locator('[data-chip-to-green]');
+    await expect(chipToGreen).toHaveAttribute('data-chip-to-green', 'gps');
+    const chipNum = Number((/(\d+) yds to green/.exec((await chipToGreen.textContent()) ?? '') ?? [])[1]);
+    const pillNum = Number((/(\d+) yds to green/.exec((await page.locator('[data-rangefinder-pill]').textContent()) ?? '') ?? [])[1]);
+    expect(chipNum).toBe(pillNum);
+    await expect(page.locator('[aria-label="Previous hole"]').locator('..')).not.toContainText('388 yds');
+    await expect(page.locator('[data-chip-plays-like]')).toHaveAttribute('data-plays-like-delta', '4');
     await page.getByRole('tab', { name: 'Scorecard' }).click();
     await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
 

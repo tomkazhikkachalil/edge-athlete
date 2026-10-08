@@ -28,6 +28,7 @@ export default function CourseMap(props: {
   onFix?: (fix: [number, number] | null) => void;
   captionInset?: number;
   fitNonce?: number;
+  elevation?: import('@/lib/golf/elevation').HoleElevation | null;
 }) {
   return <CourseMapInner {...props} />;
 }

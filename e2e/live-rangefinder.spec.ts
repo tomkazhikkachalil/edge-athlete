@@ -47,6 +47,14 @@ const num = (s: string, re: RegExp) => {
   return m ? Number(m[1]) : NaN;
 };
 
+/** The pill's centre number: "C 196" when the green has an outline (M2 —
+ *  the refetch-once rule may give Eagle Creek real OSM greens), else
+ *  "196 yds to green". */
+const centreYds = (s: string) => {
+  const trio = s.match(/C (\d+)/);
+  return trio ? Number(trio[1]) : num(s, /(\d+) yds to green/);
+};
+
 /** Bounding box once it has stopped moving (two identical reads 250 ms apart). */
 async function settledBox(locator: import('@playwright/test').Locator) {
   let last = await locator.boundingBox();
@@ -157,10 +165,14 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     const playerMarker = page.locator('.leaflet-marker-icon:has(div[style*="2563eb"])');
     await expect(playerMarker).toHaveCount(1);
 
-    const greenPill = page.getByText(/\d+ yds to green/);
+    const greenPill = page.locator('[data-rangefinder-pill]');
     await expect(greenPill).toBeVisible({ timeout: 5_000 });
+    // With an outline the centre is the centroid, not the line end: allow
+    // the pill's own number to differ from the chord by the outline's reach.
+    const outlined = /C \d+/.test(await greenPill.innerText());
+    const slack = outlined ? 40 : 3;
     const chord = yardsBetween(tee, green);
-    expect(Math.abs(num(await greenPill.innerText(), /(\d+) yds to green/) - chord)).toBeLessThanOrEqual(3);
+    expect(Math.abs(centreYds(await greenPill.innerText()) - chord)).toBeLessThanOrEqual(slack);
 
     // Drop the target on the green: measured from the LIVE fix, not the tee.
     // Leaflet animates fitBounds — wait for the dot's screen position to
@@ -172,24 +184,24 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     await expect(targetPill).toBeVisible({ timeout: 5_000 });
     const t1 = (await targetPill.innerText()).replace(/\s+/g, ' ');
     expect(t1).not.toMatch(/from tee/);
-    expect(num(t1, /· (\d+) to green/)).toBeLessThanOrEqual(5); // the target IS on the green
+    expect(num(t1, /· (\d+) to green/)).toBeLessThanOrEqual(outlined ? 40 : 5); // the target IS on the green (the dot stands on the centre)
     expect(Math.abs(num(t1, /(\d+) to target/) - chord)).toBeLessThanOrEqual(8);
 
     // Walk to mid-hole: both pills follow the fix, still ONE marker.
     await ctx.setGeolocation({ latitude: mid[0], longitude: mid[1], accuracy: 6 });
     const half = yardsBetween(mid, green);
     await expect
-      .poll(async () => num(await greenPill.innerText(), /(\d+) yds to green/), { timeout: 5_000 })
-      .toBeLessThanOrEqual(half + 3);
-    expect(Math.abs(num(await greenPill.innerText(), /(\d+) yds to green/) - half)).toBeLessThanOrEqual(3);
+      .poll(async () => centreYds(await greenPill.innerText()), { timeout: 5_000 })
+      .toBeLessThanOrEqual(half + slack);
+    expect(Math.abs(centreYds(await greenPill.innerText()) - half)).toBeLessThanOrEqual(slack);
     expect(Math.abs(num(await targetPill.innerText(), /(\d+) to target/) - half)).toBeLessThanOrEqual(4);
     await expect(playerMarker).toHaveCount(1);
 
     // On the green.
     await ctx.setGeolocation({ latitude: green[0], longitude: green[1], accuracy: 5 });
     await expect
-      .poll(async () => num(await greenPill.innerText(), /(\d+) yds to green/), { timeout: 5_000 })
-      .toBeLessThanOrEqual(3);
+      .poll(async () => centreYds(await greenPill.innerText()), { timeout: 5_000 })
+      .toBeLessThanOrEqual(slack);
 
     // Re-center is offered while a hole is focused + tracking; using it keeps tracking.
     const recenter = page.getByRole('button', { name: /Re-center/ });

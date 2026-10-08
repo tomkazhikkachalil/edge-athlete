@@ -16,8 +16,8 @@ import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { COPY } from '@/lib/copy';
-import { holeHeaderFacts, liveLine, type TeeSheetSource } from '@/lib/golf/hole-detail';
-import { formatRise, parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
+import { holeHeaderFacts, liveLine, type TeeSheetSource, chipDistanceLines } from '@/lib/golf/hole-detail';
+import { parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
 
 interface HoleDetailState {
   geometry: HoleGeometry | null;
@@ -390,7 +390,9 @@ export default function LiveRoundPage() {
             profile: holeDetail?.elevation?.holes.find(h => h.hole === displayHole) ?? null,
             cardYards: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
           });
-          return { par: facts.par, hcp: facts.hcp, yardage: facts.yards, approx: facts.approx, playsLike: live.playsLike, rise: formatRise(live.riseYds) };
+          // M2: ONE distance line — the live one with a fix (never the card's
+          // yards beside a GPS plays-like), the card's otherwise.
+          return { par: facts.par, hcp: facts.hcp, lines: chipDistanceLines(facts, live) };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {
@@ -565,6 +567,7 @@ export default function LiveRoundPage() {
             focusHole={tab === 'map' ? displayHole : null}
             onHoleTap={h => setViewedHole(h)}
             fitNonce={fitNonce}
+            elevation={holeDetail?.elevation ?? null}
             // The "Score hole N" CTA below sits at bottom-6, centered; on a
             // phone it spans the map's bottom-left captions. Lift them above
             // it (48 px CTA + 8 px gap) whenever the CTA can render.
@@ -588,7 +591,7 @@ export default function LiveRoundPage() {
                   that matters, the phone on the tee. Below sm they wrap onto
                   a second line so the chip's WIDTH doesn't grow into the
                   control stack on the right at 320–375 px. */}
-              <div className="px-1 text-sm font-bold text-primary">
+              <div className="px-1 text-sm font-bold text-primary" aria-live="polite">
                 <span className="whitespace-nowrap">
                   Hole {displayHole}
                   {displayHoleDetail?.par != null && (
@@ -605,21 +608,27 @@ export default function LiveRoundPage() {
                     {COPY.GOLF_HOLE.NOT_MAPPED}
                   </span>
                 )}
-                {displayHoleDetail?.yardage != null && (
-                  <span className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm">
+                {displayHoleDetail?.lines.distance && (
+                  <span
+                    className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm"
+                    data-chip-to-green={displayHoleDetail.lines.source ?? undefined}
+                    data-green-fcb={displayHoleDetail.lines.fcb ? '' : undefined}
+                  >
                     <span className="hidden sm:inline"> · </span>
-                    {displayHoleDetail.approx ? '≈' : ''}
-                    {displayHoleDetail.yardage} yds
+                    {displayHoleDetail.lines.distance}
                   </span>
                 )}
-                {/* PR F: what it plays like, with the rise — its own line
+                {/* PR F / M2: what it plays like, with the rise — its own line
                     below sm (the chip's width must not grow into the control
                     column at 320–375 px), inline from sm up. */}
-                {displayHoleDetail?.playsLike != null && (
-                  <span className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm" data-chip-plays-like="">
+                {displayHoleDetail?.lines.playsLike && (
+                  <span
+                    className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm"
+                    data-chip-plays-like=""
+                    data-plays-like-delta={displayHoleDetail.lines.riseYds ?? undefined}
+                  >
                     <span className="hidden sm:inline"> · </span>
-                    {COPY.GOLF_HOLE.PLAYS_LIKE(displayHoleDetail.playsLike)}
-                    {displayHoleDetail.rise ? ` ${displayHoleDetail.rise}` : ''}
+                    {displayHoleDetail.lines.playsLike}
                   </span>
                 )}
               </div>

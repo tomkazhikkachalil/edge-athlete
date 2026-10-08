@@ -107,8 +107,11 @@ export const COPY = {
   // The scorer's hole header (hole-detail program, Oct 2026).
   GOLF_HOLE: {
     TO_GREEN: (yds: number) => `${yds} yds to green`,
+    /** M2: front / centre / back of the green from a GPS fix with an outline. */
+    FCB: (front: number, centre: number, back: number) => `F ${front} · C ${centre} · B ${back}`,
     TEE_TO_GREEN: (yds: number) => `Tee → green ${yds} yds`,
     PLAYS_LIKE: (yds: number) => `plays like ≈${yds}`,
+    PLAYS_LIKE_WORD: 'plays like',
     THRU: (n: number) => `thru ${n}`,
     TEE_IN_PLAY: 'playing',
     OPEN_MAP_ON: (hole: number) => `Open the map on hole ${hole}`,
