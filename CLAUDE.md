@@ -1546,6 +1546,51 @@ const { canView } = await response.json();
    Migration 254 runs on prod whenever; the code reads a missing column as
    "no elevation". Read DEVLOG Oct 7 2026 PR A–F before touching any of it.
 
+35. **The course flow: the green is a shape, elevation is free, every door
+   hydrates, Follow is a toggle, the course has a summary (Golf course flow
+   fixes, Oct 7 2026, #1103–#1110, ZERO DDL — `docs/GOLF_COURSE_DATA.md` is
+   the reference)** — Tom's spec after convention 34; his answers: no
+   elevation subscription ("not yet"), the "slope calculator" IS the
+   elevation plays-like, pins come from the MAP DATA. **Greens (G1–G3):**
+   `src/lib/golf/green.ts` is the pure leaf (`Ring`, `pointInRing`,
+   `YDS_PER_KM`, `ringCentroid`, `greenDistances` → front / centre / back);
+   the Overpass fetch also asks for `golf=green` and `hole_geometry` carries
+   `greens: [{hole, ring}]` — assigned by the line END (containment, else
+   within 40 m), ALWAYS written (`[]` is the stamp), a pre-G2 cache refetched
+   ONCE through the ordinary path, `parseStoredHoleGeometry` keeps an absent
+   key absent; `greenPoint(line, green?)` (the centroid, else the line end)
+   is THE point every "to green" number and the flag stand on; `LiveLine`
+   carries `front` / `back` (a fix + an outline, never on the green);
+   `HoleLine.green?` is a runtime carrier the live page attaches. **Free
+   elevation (T1–T2):** `terrain-tiles.ts` (pure z14 maths, Terrarium) +
+   `fetchElevationsTerrain` (each tile once, `sharp` injectable) — **Terrain
+   Tiles FIRST, Open-Meteo only behind its key when the tiles fail**
+   (`fetchElevationsAny`); budget key `terrain-tiles`; `source` widens; the
+   attribution line lives in the doc. **Coverage (H1–H2):** `fetchJsonResult`
+   keeps the status; `hydrateCourseDetailed` names every outcome
+   (`HydrationOutcome` — operational ones through `reportRouteWarning`, a
+   Sentry WARNING; data gaps console-only); `hydrationDue` lets `?holes=1`
+   hydrate a thin provider row; `sheetFromRow` carries `source` + `partial`;
+   `deriveCourseHoles` is pure in `holes.ts` and an unknown yardage STAYS
+   unknown (the `?? 400` trimmed real holes). **The map (M1–M2):**
+   `map-follow.ts` — Follow decided ONCE on the first fix (on within 1.5 km
+   of the pin or any tee / green), the toggle `data-map-follow` (undecided |
+   on | paused | off), only the PAN gated, Re-center turns it on, the column
+   `CONTROL_COLUMN_H` 312; the chip walks `roundHoleNumbers` with or without
+   lines ("Not mapped yet"); the "First hole" pill (`fitNonce`; its text is
+   NEVER "Hole N" — the chip's strict e2e idiom); `greenLabel` /
+   `playsLikeShort` / `chipDistanceLines` are the ONE spelling on the pill
+   (`data-rangefinder-pill`, prop `elevation`), the chip (`data-chip-to-green`)
+   and row C — with a fix the LIVE distance, never the card's yards. **The
+   summary (M3):** `course-summary.ts` (`courseSummary` — a tee's total is
+   null when any hole lacks it; `mappingGaps` — no claim before the lines
+   were asked for) + `CourseSummaryCard`, hosted FIRST by `CourseInfoCard`,
+   which now hydrates at card-open (`?holes=1` ungated, `?id=` for a row
+   without its sheet). **Probes:** `catalog-health.spec` (prod only — the six
+   seeded courses WITH sheets keep them, `KNOWN_GOOD_GEOMETRY` its lines);
+   every golf spec self-seeds with `greens: []`, a fresh `hole_geometry_at`
+   and a fresh `hydrated_at`. Read DEVLOG Oct 7 2026 G1–P1 first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1609,6 +1654,9 @@ addition below as a promise to keep it true.
   writer and reader, the pages, the coach view, the rollover carry.
 - `docs/PLAY.md` — the Play program (convention 29): badges, share cards,
   rivalries, live cheers, friend challenges; the principles and each piece's rules.
+- `docs/GOLF_COURSE_DATA.md` — the golf catalog (convention 35): sources, budgets and
+  attribution (Terrain Tiles, OSM), hydration outcomes, the geometry + greens shape and
+  the refetch-once rule, the elevation providers' order, the probes, the unstamp runbook.
 - `docs/ACTIVITIES.md` — imported AND live-recorded GPS activities (convention 30): the normalized
   shape, the FIT-SDK server-only rule, the gate and the three projections,
   Vitals, and Connected apps (mig 247: the connections table, the sealed
@@ -1652,6 +1700,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** October 2026 (fix round, parts 1–6; Download the app; Drafts round PR 1) — this file is the single source of truth for project
+**Last Updated:** October 2026 (fix round, parts 1–6; Download the app; Drafts round; Golf course flow fixes) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.
