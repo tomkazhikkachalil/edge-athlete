@@ -66,6 +66,8 @@ describe('formatRise + parseStoredElevation', () => {
     const parsed = parseStoredElevation(good);
     expect(parsed?.holes.map(h => h.hole)).toEqual([2]);
     expect(parseStoredElevation({ holes: [], source: 'open-meteo' })).toBeNull();
+    // T2: a terrain-tiles profile parses and keeps its source; an unknown source is refused.
+    expect(parseStoredElevation({ holes: [{ hole: 1, pts: [[45, -75], [45.001, -75]], elev: [1, 2] }], source: 'terrain-tiles' })?.source).toBe('terrain-tiles');
     expect(parseStoredElevation({ holes: [{ hole: 1, pts: [[45, -75], [45.001, -75]], elev: [1, 2] }], source: 'osm' })).toBeNull();
     expect(parseStoredElevation(null)).toBeNull();
   });

@@ -107,8 +107,11 @@ export const COPY = {
   // The scorer's hole header (hole-detail program, Oct 2026).
   GOLF_HOLE: {
     TO_GREEN: (yds: number) => `${yds} yds to green`,
+    /** M2: front / centre / back of the green from a GPS fix with an outline. */
+    FCB: (front: number, centre: number, back: number) => `F ${front} · C ${centre} · B ${back}`,
     TEE_TO_GREEN: (yds: number) => `Tee → green ${yds} yds`,
     PLAYS_LIKE: (yds: number) => `plays like ≈${yds}`,
+    PLAYS_LIKE_WORD: 'plays like',
     THRU: (n: number) => `thru ${n}`,
     TEE_IN_PLAY: 'playing',
     OPEN_MAP_ON: (hole: number) => `Open the map on hole ${hole}`,
@@ -122,6 +125,17 @@ export const COPY = {
     FIRST_HOLE_LABEL: (n: number) => `Go to the first hole (hole ${n})`,
     FIRST_HOLE_UNMAPPED: (n: number) => `Hole ${n} has no map line — the chip moves, the map stays`,
     NOT_MAPPED: 'Not mapped yet',
+  },
+
+  // The course summary card (course flow fixes M3, Oct 2026).
+  GOLF_COURSE: {
+    VIEW_MAP: 'View course map',
+    NOT_FULLY_MAPPED: 'Not fully mapped',
+    HOLES: (n: number) => `${n} holes`,
+    PAR: (n: number) => `Par ${n}`,
+    GAP_NO_HOLE_DATA: 'No hole-by-hole data',
+    GAP_NO_YARDAGE: (tee: string) => `No yardage for the ${tee} tee`,
+    GAP_NO_LINES: 'No map lines',
   },
 
   // Form Labels

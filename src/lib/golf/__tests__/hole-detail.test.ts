@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupScoresForHole, holeHeaderFacts, liveLine, runningToPar, teeSheetForHole, type TeeSheetSource } from '../hole-detail';
+import { chipDistanceLines, greenLabel, groupScoresForHole, holeHeaderFacts, liveLine, playsLikeShort, runningToPar, teeSheetForHole, type TeeSheetSource } from '../hole-detail';
 import { sampleHoleLine } from '../elevation';
 import { polylineYards } from '../hole-geometry';
 
@@ -119,5 +119,32 @@ describe('liveLine with a green outline (PR G3)', () => {
     expect(l.toGreen).toBe(0);
     expect(l.front).toBeNull();
     expect(l.back).toBeNull();
+  });
+});
+
+describe('the shared strings (M2): greenLabel, playsLikeShort, chipDistanceLines', () => {
+  const base = { kind: 'gps' as const, toGreen: 196, front: null, back: null, playsLike: 203, riseYds: 7 };
+  it('greenLabel: the trio with edges, "to green" without, null without a number', () => {
+    expect(greenLabel({ ...base, front: 182, back: 207 })).toBe('F 182 · C 196 · B 207');
+    expect(greenLabel(base)).toBe('196 yds to green');
+    expect(greenLabel({ ...base, front: 182 })).toBe('196 yds to green'); // one edge is no trio
+    expect(greenLabel({ ...base, toGreen: null })).toBeNull();
+  });
+  it('playsLikeShort: the ≈ form with the rise; nothing without a profile', () => {
+    expect(playsLikeShort(base)).toBe('≈203 (↑ 7 yd)');
+    expect(playsLikeShort({ ...base, playsLike: 190, riseYds: -8 })).toBe('≈190 (↓ 8 yd)');
+    expect(playsLikeShort({ ...base, playsLike: 196, riseYds: 0.2 })).toBe('≈196');
+    expect(playsLikeShort({ ...base, playsLike: null, riseYds: null })).toBeNull();
+  });
+  it('chipDistanceLines: with a fix the LIVE distance, never the card yards (the PR F regression)', () => {
+    const lines = chipDistanceLines({ yards: 388, approx: false }, base);
+    expect(lines).toEqual({ distance: '196 yds to green', playsLike: 'plays like ≈203 ↑ 7 yd', source: 'gps', fcb: false, riseYds: 7 });
+    expect(chipDistanceLines({ yards: 388, approx: false }, { ...base, front: 182, back: 207 })).toMatchObject({ distance: 'F 182 · C 196 · B 207', fcb: true });
+  });
+  it('chipDistanceLines: without a fix the card yards (≈ when drawn) and the tee plays-like', () => {
+    const tee = { kind: 'tee' as const, toGreen: 388, front: null, back: null, playsLike: 395, riseYds: 7 };
+    expect(chipDistanceLines({ yards: 388, approx: false }, tee)).toEqual({ distance: '388 yds', playsLike: 'plays like ≈395 ↑ 7 yd', source: 'card', fcb: false, riseYds: 7 });
+    expect(chipDistanceLines({ yards: 391, approx: true }, { ...tee, playsLike: null, riseYds: null })).toEqual({ distance: '≈391 yds', playsLike: null, source: 'approx', fcb: false, riseYds: null });
+    expect(chipDistanceLines({ yards: null, approx: false }, { kind: 'none', toGreen: null, front: null, back: null, playsLike: null, riseYds: null })).toEqual({ distance: null, playsLike: null, source: null, fcb: false, riseYds: null });
   });
 });

@@ -20,7 +20,9 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { greenDistanceYards, greenPoint, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
+import { greenPoint, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
+import { chipDistanceLines, greenLabel, liveLine, playsLikeShort } from '@/lib/golf/hole-detail';
+import type { HoleElevation } from '@/lib/golf/elevation';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
 import { followDefault, shouldPan } from '@/lib/golf/map-follow';
 import { COPY } from '@/lib/copy';
@@ -58,6 +60,9 @@ export interface CourseMapInnerProps {
   /** M1: bump to re-fit the view to the focused hole even when the hole
    *  has not changed (the page's "first hole" control after a drag). */
   fitNonce?: number;
+  /** M2: the course's elevation profile — the pill shows the plays-like
+   *  beside the live distance when the focused hole has one. */
+  elevation?: HoleElevation | null;
 }
 
 // The tile layers are shared with the activity route map (src/lib/maps/tiles.ts).
@@ -127,6 +132,7 @@ export default function CourseMapInner({
   onFix,
   captionInset = 0,
   fitNonce = 0,
+  elevation = null,
 }: CourseMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -437,7 +443,14 @@ export default function CourseMapInner({
   const focusedHole = focusHole != null ? holes?.find(h => h.hole === focusHole) : undefined;
   const focusedLine = focusedHole?.line;
   const focusedGreen = focusedHole?.green ?? null;
-  const distanceYds = playerFix && focusedLine ? greenDistanceYards(playerFix, focusedLine, 1500, focusedGreen) : null;
+  // M2: the pill reads the SAME live line as the chip and the scorer
+  // (hole-detail.ts liveLine — the same number greenDistanceYards gave, the
+  // same 1500 yd cap), plus the edges and the plays-like when they exist.
+  const pillLive =
+    playerFix && focusedLine
+      ? liveLine({ fix: playerFix, line: focusedLine, green: focusedGreen, profile: elevation?.holes.find(h => h.hole === focusHole) ?? null })
+      : null;
+  const pillLines = pillLive && pillLive.kind === 'gps' ? chipDistanceLines({ yards: null, approx: false }, pillLive) : null;
 
   // The click handler above reads the focused line via this ref (mirrored
   // in an effect, same as onHoleTapRef — refs aren't read during render).
@@ -637,13 +650,22 @@ export default function CourseMapInner({
                 <span className={labelClass}>Re-center</span>
               </button>
             )}
-            {tracking && distanceYds != null && (
+            {tracking && pillLive?.kind === 'gps' && pillLines?.distance && (
               <p
                 aria-live="polite"
-                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm"
+                data-rangefinder-pill=""
+                data-green-fcb={pillLines.fcb ? '' : undefined}
+                className="inline-flex min-h-[40px] flex-col items-start justify-center rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm"
               >
-                <i className="fas fa-flag text-green-600" aria-hidden="true"></i>
-                {distanceYds} yds to green
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="fas fa-flag text-green-600" aria-hidden="true"></i>
+                  {greenLabel(pillLive)}
+                </span>
+                {playsLikeShort(pillLive) && (
+                  <span className="text-xs font-semibold text-secondary" data-plays-like-delta={pillLines.riseYds ?? undefined}>
+                    {COPY.GOLF_HOLE.PLAYS_LIKE_WORD} {playsLikeShort(pillLive)}
+                  </span>
+                )}
               </p>
             )}
             {targetPill}

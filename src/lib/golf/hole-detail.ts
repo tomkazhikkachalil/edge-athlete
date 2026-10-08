@@ -6,7 +6,8 @@
 
 import { greenDistanceYards, polylineYards } from '@/lib/golf/hole-geometry';
 import { greenDistances, type Ring } from '@/lib/golf/green';
-import { metresToYards, playsLikeYards, riseToGreen, type HoleElevationProfile } from '@/lib/golf/elevation';
+import { formatRise, metresToYards, playsLikeYards, riseToGreen, type HoleElevationProfile } from '@/lib/golf/elevation';
+import { COPY } from '@/lib/copy';
 import { courseTeeOptions, teeLabel } from '@/lib/golf/tees';
 import type { CourseHole } from '@/types/golf';
 
@@ -202,4 +203,53 @@ export function groupScoresForHole(group: GroupPlayer[] | null | undefined, hole
     out.push({ label: p.isSelf ? 'You' : p.name.split(' ')[0] || p.name, strokes: s });
   }
   return out;
+}
+
+// ── The strings the pill, the chip and the scorer share (M2, Oct 2026) ──────
+// ONE spelling of the live distance everywhere: "F 182 · C 196 · B 207" when
+// a green outline gives the edges, "196 yds to green" otherwise; and ONE
+// spelling of the plays-like beside it. The chip pairs the LIVE distance
+// with the live plays-like (PR F paired the card's yardage with a GPS
+// plays-like — two origins on one line).
+
+/** The live distance line, or null without a number. */
+export function greenLabel(live: LiveLine): string | null {
+  if (live.toGreen == null) return null;
+  if (live.front != null && live.back != null) return COPY.GOLF_HOLE.FCB(live.front, live.toGreen, live.back);
+  return COPY.GOLF_HOLE.TO_GREEN(live.toGreen);
+}
+
+/** "≈203 (↑ 7 yd)" — the short form beside a distance; null without a profile. */
+export function playsLikeShort(live: LiveLine): string | null {
+  if (live.playsLike == null) return null;
+  const rise = formatRise(live.riseYds);
+  return `≈${live.playsLike}${rise ? ` (${rise})` : ''}`;
+}
+
+export interface ChipDistanceLines {
+  /** The distance line: the LIVE one with a fix, the card's yardage otherwise. */
+  distance: string | null;
+  /** "plays like ≈203 ↑ 7 yd" — the chip's long form (its e2e idiom). */
+  playsLike: string | null;
+  source: 'gps' | 'card' | 'approx' | null;
+  /** True when the distance line is the front / centre / back trio. */
+  fcb: boolean;
+  /** The rise in whole yards, for the data hook; null without a profile. */
+  riseYds: number | null;
+}
+
+/** What the map chip prints under "Hole N · Par P": with a fix, the live
+ *  distance (never the card's yards) and the live plays-like; without one,
+ *  the card's yards (≈ when drawn) and the tee-based plays-like. */
+export function chipDistanceLines(facts: Pick<HoleHeaderFacts, 'yards' | 'approx'>, live: LiveLine): ChipDistanceLines {
+  const rise = formatRise(live.riseYds);
+  const playsLike = live.playsLike != null ? `${COPY.GOLF_HOLE.PLAYS_LIKE(live.playsLike)}${rise ? ` ${rise}` : ''}` : null;
+  const riseYds = live.riseYds == null ? null : Math.round(live.riseYds);
+  if (live.kind === 'gps' && live.toGreen != null) {
+    return { distance: greenLabel(live), playsLike, source: 'gps', fcb: live.front != null && live.back != null, riseYds };
+  }
+  if (facts.yards != null) {
+    return { distance: `${facts.approx ? '≈' : ''}${facts.yards} yds`, playsLike, source: facts.approx ? 'approx' : 'card', fcb: false, riseYds };
+  }
+  return { distance: null, playsLike, source: null, fcb: false, riseYds };
 }
