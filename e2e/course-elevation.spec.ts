@@ -3,8 +3,10 @@ import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // PR C (Oct 2026): `?holes=1` answers the geometry, the CACHED elevation
 // profile and the row's tee sheet in one call; `?elevation=1` is the
-// computing door and, with no Open-Meteo key on the deployment, serves the
-// cache. Self-seeded course (the catalog is production-only on staging).
+// computing door: a fresh cache is served as-is, and a course with no
+// profile gets one from Terrain Tiles (T2 — free, no key; the deployment
+// reads the public S3 tiles). Self-seeded courses (the catalog is
+// production-only on staging).
 
 test('course API: holes=1 carries the elevation profile and the tee sheet; elevation=1 serves the cache without a key', async () => {
   const admin = adminClient();
@@ -59,6 +61,50 @@ test('course API: holes=1 carries the elevation profile and the tee sheet; eleva
     expect(((await compute.json()) as { elevation: { holes: unknown[] } | null }).elevation?.holes).toHaveLength(18);
     const after = await admin.from('golf_courses').select('hole_elevation_at').eq('id', courseId).single();
     expect(Date.parse(after.data?.hole_elevation_at as string)).toBe(stamp);
+  } finally {
+    if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
+    await api.dispose();
+  }
+});
+
+test('course API: elevation=1 computes a profile from Terrain Tiles for a course with none (T2)', async () => {
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const holes = Array.from({ length: 18 }, (_, i) => {
+    const lat = 61.3 + i * 0.004;
+    return { hole: i + 1, par: 4, line: [[lat, -30.5], [lat + 0.003, -30.499]] };
+  });
+  let courseId = '';
+  try {
+    const seeded = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'qa-e2e',
+        external_id: `terrain-${stamp}`,
+        name: `QA Terrain Links ${stamp}`,
+        lat: holes[0].line[0][0],
+        lng: holes[0].line[0][1],
+        hole_geometry: { holes, source: 'osm', greens: [] },
+        hole_geometry_at: new Date(stamp - 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+
+    const compute = await api.get(`/api/golf/courses?id=${courseId}&elevation=1`);
+    expect(compute.ok(), await readErrorBody(compute)).toBe(true);
+    const body = (await compute.json()) as { elevation: { holes: Array<{ hole: number; pts: unknown[]; elev: number[] }>; source: string } | null };
+    expect(body.elevation, 'the tiles answered').not.toBeNull();
+    expect(body.elevation?.source).toBe('terrain-tiles');
+    expect(body.elevation?.holes).toHaveLength(18);
+    expect(body.elevation?.holes[0].pts).toHaveLength(10);
+    expect(body.elevation?.holes[0].elev).toHaveLength(10);
+    expect(body.elevation?.holes[0].elev.every(e => Number.isFinite(e))).toBe(true);
+    const after = await admin.from('golf_courses').select('hole_elevation_at, hole_elevation').eq('id', courseId).single();
+    expect(after.data?.hole_elevation_at).toBeTruthy();
+    expect((after.data?.hole_elevation as { source: string }).source).toBe('terrain-tiles');
   } finally {
     if (courseId) await admin.from('golf_courses').delete().eq('id', courseId);
     await api.dispose();

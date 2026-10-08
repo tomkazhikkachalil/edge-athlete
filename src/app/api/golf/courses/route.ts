@@ -76,10 +76,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ geometry, elevation, sheet });
       }
       // ?elevation=1 — compute (or refresh) the elevation profile: budgeted,
-      // best-effort, gated on the Open-Meteo key (no key → the cache or null).
+      // best-effort; Terrain Tiles (free, no key) first, Open-Meteo behind
+      // its key as the fallback (T2).
       if (searchParams.get('elevation') === '1') {
         const elevation = await getCourseHoleElevation(admin, courseId, () =>
-          consumeProviderBudget(admin, 'open-meteo')
+          consumeProviderBudget(admin, 'terrain-tiles')
         );
         return NextResponse.json({ elevation });
       }

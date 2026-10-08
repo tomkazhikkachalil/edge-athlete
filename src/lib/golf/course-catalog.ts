@@ -400,6 +400,8 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   // Open-Meteo elevation profiles (254) — two requests per course per 30
   // days (180 sampled coordinates, 100 per request); 100/day ≈ 50 courses.
   'open-meteo': 100,
+  // T2: one hit per COURSE per 30 days (1–4 free tile reads behind it).
+  'terrain-tiles': 400,
 };
 
 /** ONE daily fixed-window hit against `rate_limit_hit` (mig 094). Fail CLOSED:
