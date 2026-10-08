@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import HoleHeader from '@/components/golf/HoleHeader';
 import { groupScoresForHole, holeHeaderFacts, liveLine, runningToPar, teeSheetForHole, type GroupPlayer, type TeeSheetSource } from '@/lib/golf/hole-detail';
 import { holeDiagramWithPoint } from '@/lib/golf/hole-svg';
-import type { HoleLine } from '@/lib/golf/hole-geometry';
+import type { HoleLine, GreenRing } from '@/lib/golf/hole-geometry';
 import type { HoleElevation } from '@/lib/golf/elevation';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -124,6 +124,9 @@ interface ScoreEntryModalProps {
   teeSheet?: TeeSheetSource | null;
   /** The hole lines the map draws (trimmed to the tee in play). */
   holeLines?: HoleLine[] | null;
+  /** PR 3: the green outlines beside the lines — a numbered ring without a
+   *  line, or the unnumbered rings of a greens-only course. */
+  greens?: GreenRing[] | null;
   /** The cached elevation profiles (`?holes=1`'s `elevation`). */
   holeElevation?: HoleElevation | null;
   /** The map's live GPS fix, published up — the scorer never prompts. */
@@ -153,6 +156,7 @@ export default function ScoreEntryModal({
   teeInPlay = null,
   teeSheet = null,
   holeLines = null,
+  greens = null,
   holeElevation = null,
   fix = null,
   group,
@@ -625,7 +629,8 @@ export default function ScoreEntryModal({
   const headerLive = liveLine({
     fix,
     line: headerLine,
-    green: headerHole?.green ?? null,
+    green: headerHole?.green ?? greens?.find(g => g.hole === headerHoleNumber)?.ring ?? null,
+    nearestRings: greens?.filter(g => g.hole == null).map(g => g.ring) ?? null,
     profile: holeElevation?.holes.find(h => h.hole === headerHoleNumber) ?? null,
     cardYards: courseHoleData?.find(h => h.hole === headerHoleNumber)?.yardage ?? null,
   });

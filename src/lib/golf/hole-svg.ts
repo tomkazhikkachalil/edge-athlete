@@ -14,7 +14,7 @@
 // OSM data is ODbL: "© OpenStreetMap contributors" must render wherever
 // these lines do (the component carries the line; readers pass `source`).
 
-import { polylineYards, type GreenRing, type HoleGeometry, type HoleLine } from './hole-geometry';
+import { polylineYards, type GreenRing, type HoleGeometry, type HoleLine, type HoleSection } from './hole-geometry';
 
 export interface ProjectedPoint {
   x: number;
@@ -43,47 +43,71 @@ const isPair = (v: unknown): v is [number, number] =>
   Math.abs(v[0]) <= 90 &&
   Math.abs(v[1]) <= 180;
 
-/** Validate the STORED jsonb shape (not the Overpass payload — that is
- *  hole-geometry.ts's parser). Anything off-shape → null; a hole with
- *  fewer than two points is dropped; zero good holes → null. */
-export function parseStoredHoleGeometry(raw: unknown): HoleGeometry | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const rec = raw as { holes?: unknown; source?: unknown };
-  if (rec.source !== 'osm' || !Array.isArray(rec.holes)) return null;
+const validHoles = (raw: unknown): HoleLine[] => {
+  if (!Array.isArray(raw)) return [];
   const holes: HoleLine[] = [];
-  for (const h of rec.holes) {
+  for (const h of raw) {
     if (!h || typeof h !== 'object') continue;
     const o = h as { hole?: unknown; par?: unknown; line?: unknown };
     if (typeof o.hole !== 'number' || !Number.isInteger(o.hole) || o.hole < 1 || o.hole > 36) continue;
     if (!Array.isArray(o.line)) continue;
     const line = o.line.filter(isPair);
     if (line.length < 2) continue;
-    holes.push({
-      hole: o.hole,
-      par: typeof o.par === 'number' && Number.isInteger(o.par) ? o.par : null,
-      line,
-    });
+    holes.push({ hole: o.hole, par: typeof o.par === 'number' && Number.isInteger(o.par) ? o.par : null, line });
   }
-  if (holes.length === 0) return null;
   holes.sort((a, b) => a.hole - b.hole);
-  const out: HoleGeometry = { holes, source: 'osm' };
-  // PR G2: carry the green outlines. An ABSENT key stays absent (the cache
-  // layer's refetch-once rule keys on it); a present key is carried even
-  // when empty; a malformed entry is dropped, never the whole geometry.
-  const rawGreens = (raw as { greens?: unknown }).greens;
-  if (Array.isArray(rawGreens)) {
-    const greens: GreenRing[] = [];
-    for (const g of rawGreens) {
-      if (!g || typeof g !== 'object') continue;
-      const o = g as { hole?: unknown; ring?: unknown };
-      if (typeof o.hole !== 'number' || !Number.isInteger(o.hole) || o.hole < 1 || o.hole > 36) continue;
-      if (!Array.isArray(o.ring)) continue;
-      const ring = o.ring.filter(isPair);
-      if (ring.length < 3) continue;
-      greens.push({ hole: o.hole, ring });
-    }
-    out.greens = greens;
+  return holes;
+};
+
+/** PR G2 / PR 3: a malformed entry is dropped, never the whole geometry;
+ *  `hole: null` is an UNNUMBERED ring (greens-only). Undefined when the key
+ *  is absent — the cache layer's refetch-once rule keys on absence. */
+const validGreens = (raw: unknown): GreenRing[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+  const greens: GreenRing[] = [];
+  for (const g of raw) {
+    if (!g || typeof g !== 'object') continue;
+    const o = g as { hole?: unknown; ring?: unknown };
+    const numbered = typeof o.hole === 'number' && Number.isInteger(o.hole) && o.hole >= 1 && o.hole <= 36;
+    if (!numbered && o.hole != null) continue;
+    if (!Array.isArray(o.ring)) continue;
+    const ring = o.ring.filter(isPair);
+    if (ring.length < 3) continue;
+    greens.push({ hole: numbered ? (o.hole as number) : null, ring });
   }
+  return greens;
+};
+
+/** Validate the STORED jsonb shape (not the Overpass payload — that is
+ *  hole-geometry.ts's parser). Anything off-shape → null; a hole with
+ *  fewer than two points is dropped. `holes` may be EMPTY when the greens
+ *  or the sections carry the course (sweep PR 3); nothing at all → null.
+ *  Old shapes parse byte-identically. */
+export function parseStoredHoleGeometry(raw: unknown): HoleGeometry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rec = raw as { holes?: unknown; source?: unknown; greens?: unknown; sections?: unknown; derived?: unknown };
+  if (rec.source !== 'osm' || !Array.isArray(rec.holes)) return null;
+  const holes = validHoles(rec.holes);
+  const greens = validGreens(rec.greens);
+  let sections: HoleSection[] | undefined;
+  if (Array.isArray(rec.sections)) {
+    const list: HoleSection[] = [];
+    for (const s of rec.sections) {
+      if (!s || typeof s !== 'object') continue;
+      const o = s as { label?: unknown; holes?: unknown; greens?: unknown };
+      if (typeof o.label !== 'string' || !o.label.trim()) continue;
+      const sh = validHoles(o.holes);
+      if (!sh.length) continue;
+      const sg = validGreens(o.greens);
+      list.push({ label: o.label, holes: sh, ...(sg ? { greens: sg } : {}) });
+    }
+    if (list.length >= 2) sections = list;
+  }
+  if (holes.length === 0 && !(greens && greens.length) && !sections) return null;
+  const out: HoleGeometry = { holes, source: 'osm' };
+  if (greens) out.greens = greens;
+  if (sections) out.sections = sections;
+  if (rec.derived === 'features') out.derived = 'features';
   return out;
 }
 

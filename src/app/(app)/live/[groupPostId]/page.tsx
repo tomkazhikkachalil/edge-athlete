@@ -366,6 +366,12 @@ export default function LiveRoundPage() {
   const displayHole = viewedHole ?? nextHole?.hole ?? (myParticipant ? startHole : null);
   const holeDataArr = scorecard.golf_data.hole_data ?? null;
   const displayGeoHole = displayHole != null ? geoHoles?.find(h => h.hole === displayHole) : undefined;
+  // PR 3: the greens beside the lines — a numbered ring without a line is
+  // still a hole on the map; the unnumbered rings are the greens-only tier.
+  const geoGreens = holeGeo?.greens ?? null;
+  const displayGreenRing = displayHole != null ? (geoGreens?.find(g => g.hole === displayHole)?.ring ?? null) : null;
+  const unnumberedRings = geoGreens?.filter(g => g.hole == null).map(g => g.ring) ?? null;
+  const greensOnly = !displayGeoHole && !displayGreenRing && !!unnumberedRings?.length;
   // The yardage ladder is ONE rule shared with the scorer's hole header
   // (hole-detail.ts holeHeaderFacts, PR D): the round's own hole_data first,
   // then the catalog's sheet, then the OSM way's drawn length flagged
@@ -386,7 +392,8 @@ export default function LiveRoundPage() {
           const live = liveLine({
             fix: playerFix,
             line: displayGeoHole?.line ?? null,
-            green: displayGeoHole?.green ?? null,
+            green: displayGeoHole?.green ?? displayGreenRing,
+            nearestRings: unnumberedRings,
             profile: holeDetail?.elevation?.holes.find(h => h.hole === displayHole) ?? null,
             cardYards: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
           });
@@ -399,7 +406,7 @@ export default function LiveRoundPage() {
     const next = stepRoundHole(roundHoles, displayHole, dir);
     if (next != null) setViewedHole(next);
   };
-  const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole);
+  const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole) || !!holeGeo?.greens?.some(g => g.hole === startHole);
 
   return (
     <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
@@ -570,6 +577,7 @@ export default function LiveRoundPage() {
             autoTrack={roundOpen}
             onFix={setPlayerFix}
             holes={geoHoles}
+            greens={geoGreens}
             focusHole={tab === 'map' ? displayHole : null}
             onHoleTap={h => setViewedHole(h)}
             fitNonce={fitNonce}
@@ -609,11 +617,18 @@ export default function LiveRoundPage() {
                 </span>
                 {/* The course's map data has no line for this hole: say so,
                     or the map just sits on the course pin looking broken. */}
-                {!displayGeoHole && (
+                {/* PR 3: greens-only is its own state — the rangefinder
+                    still answers "nearest green"; nothing at all is the
+                    honest "Not mapped yet". */}
+                {greensOnly ? (
+                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-greens-only="">
+                    {COPY.GOLF_HOLE.GREENS_ONLY}
+                  </span>
+                ) : !displayGeoHole && !displayGreenRing ? (
                   <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-unmapped="">
                     {COPY.GOLF_HOLE.NOT_MAPPED}
                   </span>
-                )}
+                ) : null}
                 {displayHoleDetail?.lines.distance && (
                   <span
                     className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm"
@@ -728,6 +743,7 @@ export default function LiveRoundPage() {
           teeInPlay={scorecard.golf_data.tee_color}
           teeSheet={holeDetail?.sheet ?? null}
           holeLines={playedHoles}
+          greens={geoGreens}
           holeElevation={holeDetail?.elevation ?? null}
           fix={playerFix}
           group={scorecard.participants

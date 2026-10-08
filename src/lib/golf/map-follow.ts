@@ -9,6 +9,7 @@
 // toggle owns it from there.
 
 import { haversineKm } from '@/lib/golf/geocode';
+import { ringCentroid } from '@/lib/golf/green';
 
 /** How close a fix has to be to the course pin — or to any hole's tee or
  *  green — to count as "at the course". A pin at the clubhouse and a player
@@ -20,6 +21,8 @@ export interface FollowContext {
   pin: [number, number];
   /** The hole lines when the cache holds them (tee first, green last). */
   holes?: Array<{ line: [number, number][] }> | null;
+  /** The green outlines (PR 3): a greens-only course has no lines to test. */
+  greens?: Array<{ ring: [number, number][] }> | null;
 }
 
 /** True when the fix is within AT_COURSE_KM of the pin or of any hole's
@@ -30,6 +33,10 @@ export function atCourse(fix: [number, number], ctx: FollowContext, km: number =
   for (const h of ctx.holes ?? []) {
     if (h.line.length === 0) continue;
     if (near(h.line[0]) || near(h.line[h.line.length - 1])) return true;
+  }
+  for (const g of ctx.greens ?? []) {
+    const c = ringCentroid(g.ring);
+    if (c && near(c)) return true;
   }
   return false;
 }

@@ -20,7 +20,8 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { greenPoint, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
+import { greenPoint, targetDistances, type GreenRing, type HoleLine } from '@/lib/golf/hole-geometry';
+import { ringCentroid } from '@/lib/golf/green';
 import { chipDistanceLines, greenLabel, liveLine, playsLikeShort } from '@/lib/golf/hole-detail';
 import type { HoleElevation } from '@/lib/golf/elevation';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
@@ -46,6 +47,10 @@ export interface CourseMapInnerProps {
   defaultLayer?: 'osm' | 'satellite';
   /** Per-hole OSM geometry: numbered labels at every tee. */
   holes?: HoleLine[] | null;
+  /** PR 3: the green outlines independently of the lines — a numbered
+   *  ring with no line still gets its label, dot, flag and distance; the
+   *  UNNUMBERED rings (greens-only) draw faintly and feed "Nearest green". */
+  greens?: GreenRing[] | null;
   /** Fit the view to this hole and draw its tee→green line. Focusing pauses
    *  follow (same as a drag) — Re-center returns to the player. */
   focusHole?: number | null;
@@ -127,6 +132,7 @@ export default function CourseMapInner({
   visible = true,
   defaultLayer = 'osm',
   holes = null,
+  greens = null,
   focusHole = null,
   onHoleTap,
   onFix,
@@ -236,18 +242,27 @@ export default function CourseMapInner({
     if (!map) return;
     holeLabelsRef.current?.remove();
     holeLabelsRef.current = null;
-    if (!holes?.length) return;
+    if (!holes?.length && !greens?.some(g => g.hole != null)) return;
     const group = L.layerGroup();
-    for (const h of holes) {
+    const label = (hole: number, at: [number, number]) => {
       const icon = L.divIcon({
         className: '',
-        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(17,24,39,.82);color:#fff;font:700 11px/22px system-ui;text-align:center;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.5)">${h.hole}</div>`,
+        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(17,24,39,.82);color:#fff;font:700 11px/22px system-ui;text-align:center;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.5)">${hole}</div>`,
         iconSize: [22, 22],
         iconAnchor: [11, 11],
       });
-      const marker = L.marker(h.line[0], { icon, keyboard: false });
-      marker.on('click', () => onHoleTapRef.current?.(h.hole));
+      const marker = L.marker(at, { icon, keyboard: false });
+      marker.on('click', () => onHoleTapRef.current?.(hole));
       group.addLayer(marker);
+    };
+    // PR 3: a numbered green with no line of its own is still a hole.
+    for (const g of greens ?? []) {
+      if (g.hole == null || holes?.some(h => h.hole === g.hole)) continue;
+      const c = ringCentroid(g.ring);
+      if (c) label(g.hole, c);
+    }
+    for (const h of holes ?? []) {
+      label(h.hole, h.line[0]);
     }
     group.addTo(map);
     holeLabelsRef.current = group;
@@ -255,7 +270,7 @@ export default function CourseMapInner({
       holeLabelsRef.current?.remove();
       holeLabelsRef.current = null;
     };
-  }, [holes]);
+  }, [holes, greens]);
 
   // Focused hole: green dot, and the view fits the hole. This is the "bring
   // me to hole N" behavior; it takes the map from follow-the-player
@@ -268,16 +283,21 @@ export default function CourseMapInner({
     focusLineRef.current?.remove();
     focusLineRef.current = null;
     const h = focusHole != null ? holes?.find(x => x.hole === focusHole) : null;
-    if (!h) {
+    // PR 3: a numbered green with no line of its own still focuses — the
+    // dot, the flag and a fit to its ring.
+    const ringOnly = !h && focusHole != null ? (greens?.find(g => g.hole === focusHole)?.ring ?? null) : null;
+    const ringCentre = ringOnly ? ringCentroid(ringOnly) : null;
+    if (!h && !ringCentre) {
       // Nothing focused (the Map tab is not showing, or the hole has no
-      // line): the next focus fits afresh.
+      // line and no numbered green): the next focus fits afresh.
       lastFitRef.current = null;
       return;
     }
     const group = L.layerGroup();
     // The dot and the flag stand on the green's CENTRE: the outline's
     // centroid when the cache holds one (PR G3), else the line's end.
-    const greenAt = greenPoint(h.line, h.green);
+    const greenAt: [number, number] = h ? greenPoint(h.line, h.green) : ringCentre!;
+    const fitPts: [number, number][] = h ? [...h.line, greenAt] : [...ringOnly!, greenAt];
     group.addLayer(
       L.circleMarker(greenAt, {
         radius: 6,
@@ -294,7 +314,7 @@ export default function CourseMapInner({
     // or changing — never because `holes` is a new array: the page rebuilds
     // it on every score poll, and each one yanked the view back to the hole
     // (and took Re-center's follow away again).
-    const fitKey = `${fitNonce}:${h.hole}:${h.line.map(p => `${p[0]},${p[1]}`).join(';')}`;
+    const fitKey = `${fitNonce}:${focusHole}:${fitPts.map(p => `${p[0]},${p[1]}`).join(';')}`;
     if (lastFitRef.current !== fitKey) {
       lastFitRef.current = fitKey;
       // Ref-only: the Re-center button's visibility derives from focusActive
@@ -304,7 +324,7 @@ export default function CourseMapInner({
       // its hole chip over the top of the map and "Score hole N" over the
       // bottom, and a hole that runs straight up the screen put its green —
       // and now its flag — underneath the chip (found by gps-hole-flag.spec).
-      const bounds = L.latLngBounds([...h.line, greenAt]);
+      const bounds = L.latLngBounds(fitPts);
       const fit = (rightPad: number) =>
         map.fitBounds(bounds, { paddingTopLeft: [50, 116], paddingBottomRight: [rightPad, 104], maxZoom: 18, animate: false });
       fit(50);
@@ -322,7 +342,29 @@ export default function CourseMapInner({
       focusLineRef.current?.remove();
       focusLineRef.current = null;
     };
-  }, [focusHole, holes, overlayControls, fitNonce]);
+  }, [focusHole, holes, greens, overlayControls, fitNonce]);
+
+  // PR 3: every ring the cache holds, drawn faintly — the greens-only
+  // course's whole picture, and context on a mapped one. Never interactive
+  // (a tap on a green still places the target).
+  const greenRingsRef = useRef<L.LayerGroup | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    greenRingsRef.current?.remove();
+    greenRingsRef.current = null;
+    if (!greens?.length) return;
+    const group = L.layerGroup();
+    for (const g of greens) {
+      group.addLayer(L.polygon(g.ring, { color: '#16a34a', weight: 1, fillColor: '#16a34a', fillOpacity: 0.14, interactive: false }));
+    }
+    group.addTo(map);
+    greenRingsRef.current = group;
+    return () => {
+      greenRingsRef.current?.remove();
+      greenRingsRef.current = null;
+    };
+  }, [greens]);
 
   // The watcher reads the holes through a ref (registered once at start).
   useEffect(() => {
@@ -436,21 +478,23 @@ export default function CourseMapInner({
   // is DERIVED from the prop so it stays available for the whole hole view —
   // Re-center pans to the player and resumes follow while the hole stays
   // drawn (on-course, the player is standing on that hole anyway).
-  const focusActive = focusHole != null && !!holes?.some(h => h.hole === focusHole);
+  const focusActive = focusHole != null && (!!holes?.some(h => h.hole === focusHole) || !!greens?.some(g => g.hole === focusHole));
   // The rangefinder number: player's live fix → the focused hole's green
   // (line end — "to green", never "to pin"). Null past 1500 yds so a
   // couch-peek shows nothing. Computed on-device; the fix never uploads.
   const focusedHole = focusHole != null ? holes?.find(h => h.hole === focusHole) : undefined;
   const focusedLine = focusedHole?.line;
-  const focusedGreen = focusedHole?.green ?? null;
+  const focusedGreen = focusedHole?.green ?? (focusHole != null ? greens?.find(g => g.hole === focusHole)?.ring : null) ?? null;
+  const unnumberedRings = greens?.filter(g => g.hole == null).map(g => g.ring) ?? null;
   // M2: the pill reads the SAME live line as the chip and the scorer
   // (hole-detail.ts liveLine — the same number greenDistanceYards gave, the
   // same 1500 yd cap), plus the edges and the plays-like when they exist.
-  const pillLive =
-    playerFix && focusedLine
-      ? liveLine({ fix: playerFix, line: focusedLine, green: focusedGreen, profile: elevation?.holes.find(h => h.hole === focusHole) ?? null })
-      : null;
-  const pillLines = pillLive && pillLive.kind === 'gps' ? chipDistanceLines({ yards: null, approx: false }, pillLive) : null;
+  // PR 3: with no line, a numbered green's centre; with neither, the
+  // nearest unnumbered green (greens-only).
+  const pillLive = playerFix
+    ? liveLine({ fix: playerFix, line: focusedLine ?? null, green: focusedGreen, nearestRings: unnumberedRings, profile: elevation?.holes.find(h => h.hole === focusHole) ?? null })
+    : null;
+  const pillLines = pillLive && (pillLive.kind === 'gps' || pillLive.kind === 'nearest') ? chipDistanceLines({ yards: null, approx: false }, pillLive) : null;
 
   // The click handler above reads the focused line via this ref (mirrored
   // in an effect, same as onHoleTapRef — refs aren't read during render).
@@ -650,7 +694,7 @@ export default function CourseMapInner({
                 <span className={labelClass}>Re-center</span>
               </button>
             )}
-            {tracking && pillLive?.kind === 'gps' && pillLines?.distance && (
+            {tracking && (pillLive?.kind === 'gps' || pillLive?.kind === 'nearest') && pillLines?.distance && (
               <p
                 aria-live="polite"
                 data-rangefinder-pill=""

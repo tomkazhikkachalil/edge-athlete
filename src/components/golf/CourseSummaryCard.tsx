@@ -19,6 +19,8 @@ export interface CourseSummaryCardProps {
   course: GolfCourse;
   /** The cached OSM lines: undefined = not asked yet, null = asked, none. */
   holeLines: HoleLine[] | null | undefined;
+  /** PR 3: the course has drawn greens but no lines. */
+  greensOnly?: boolean;
   teeInPlay?: string | null;
   /** Opens the real map; absent → no thumbnail button (no coordinates). */
   onViewMap?: () => void;
@@ -32,11 +34,13 @@ const gapCopy = (gap: MappingGap, teeInPlay?: string | null): string =>
     ? COPY.GOLF_COURSE.GAP_NO_HOLE_DATA
     : gap === 'no-yardage-for-tee'
       ? COPY.GOLF_COURSE.GAP_NO_YARDAGE(teeLabel(teeInPlay ?? ''))
-      : COPY.GOLF_COURSE.GAP_NO_LINES;
+      : gap === 'greens-only'
+        ? COPY.GOLF_COURSE.GAP_GREENS_ONLY
+        : COPY.GOLF_COURSE.GAP_NO_LINES;
 
-export default function CourseSummaryCard({ course, holeLines, teeInPlay, onViewMap, loading = false }: CourseSummaryCardProps) {
+export default function CourseSummaryCard({ course, holeLines, greensOnly = false, teeInPlay, onViewMap, loading = false }: CourseSummaryCardProps) {
   const summary = courseSummary(course, teeInPlay);
-  const gaps = loading ? [] : mappingGaps({ holes: course.holes, teeInPlay, geometry: holeLines });
+  const gaps = loading ? [] : mappingGaps({ holes: course.holes, teeInPlay, geometry: holeLines, greensOnly });
   const thumb = holeLines && holeLines.length > 0 ? courseOverview(holeLines, 100, 8) : null;
   const totals = summary.tees.filter(t => t.yards != null);
 

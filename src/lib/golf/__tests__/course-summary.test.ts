@@ -41,3 +41,10 @@ describe('mappingGaps', () => {
     expect(mappingGaps({ holes, geometry: undefined })).toEqual([]);
   });
 });
+
+describe('mappingGaps — greens-only (PR 3)', () => {
+  it('drawn greens with no lines is the softer gap, not "no map lines"', () => {
+    expect(mappingGaps({ holes, teeInPlay: 'white', geometry: null, greensOnly: true })).toEqual(['greens-only']);
+    expect(mappingGaps({ holes, teeInPlay: 'white', geometry: [], greensOnly: false })).toEqual(['no-map-lines']);
+  });
+});

@@ -127,3 +127,28 @@ describe('holeDiagramWithPoint (the scorer\'s thumbnail, PR D)', () => {
     expect(b?.player).toEqual(b?.green[0]);
   });
 });
+
+describe('parseStoredHoleGeometry — the PR 3 shape (greens-only, sections, derived)', () => {
+  const ring: [number, number][] = [[45.3036, -75.9], [45.3037, -75.9], [45.3037, -75.8999], [45.3036, -75.8999]];
+  it('holes may be empty when the greens carry the course; unnumbered rings keep hole null', () => {
+    const g = parseStoredHoleGeometry({ source: 'osm', holes: [], greens: [{ hole: null, ring }, { hole: 3, ring }, { hole: 'x', ring }] })!;
+    expect(g.holes).toEqual([]);
+    expect(g.greens).toEqual([{ hole: null, ring }, { hole: 3, ring }]);
+  });
+  it('sections need a label and holes; fewer than two drop the key; derived passes only as "features"', () => {
+    const sec = (label: string) => ({ label, holes: [{ hole: 1, par: 4, line: north }], greens: [{ hole: 1, ring }] });
+    const g = parseStoredHoleGeometry({ source: 'osm', holes: [], sections: [sec('A'), sec('B'), { label: '', holes: [{ hole: 1, line: north }] }, { label: 'C', holes: [] }], derived: 'features' })!;
+    expect(g.sections!.map(s => s.label)).toEqual(['A', 'B']);
+    expect(g.sections![0].greens).toEqual([{ hole: 1, ring }]);
+    expect(g.derived).toBe('features');
+    expect(parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: north }], sections: [sec('A')], derived: 'guess' })).toMatchObject({ holes: [expect.anything()] });
+    expect('sections' in parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: north }], sections: [sec('A')] })!).toBe(false);
+    expect('derived' in parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, line: north }], derived: 'guess' })!).toBe(false);
+  });
+  it('nothing at all is still null; the old shapes are unchanged', () => {
+    expect(parseStoredHoleGeometry({ source: 'osm', holes: [], greens: [] })).toBeNull();
+    expect(parseStoredHoleGeometry({ source: 'osm', holes: [] })).toBeNull();
+    const old = parseStoredHoleGeometry({ source: 'osm', holes: [{ hole: 1, par: 4, line: north }], greens: [] })!;
+    expect(old).toEqual({ holes: [{ hole: 1, par: 4, line: north }], source: 'osm', greens: [] });
+  });
+});

@@ -148,3 +148,36 @@ describe('the shared strings (M2): greenLabel, playsLikeShort, chipDistanceLines
     expect(chipDistanceLines({ yards: null, approx: false }, { kind: 'none', toGreen: null, front: null, back: null, playsLike: null, riseYds: null })).toEqual({ distance: null, playsLike: null, source: null, fcb: false, riseYds: null });
   });
 });
+
+describe('liveLine without a line (greens-only, PR 3)', () => {
+  const mPerDeg = (2 * Math.PI * 6371000) / 360;
+  const ring = (lat: number, lng: number): [number, number][] => {
+    const d = 10 / mPerDeg;
+    return [[lat - d, lng - d], [lat - d, lng + d], [lat + d, lng + d], [lat + d, lng - d]];
+  };
+  const fix: [number, number] = [45.3, -75.7];
+  const near = ring(45.3 + 150 / mPerDeg, -75.7);
+  const far = ring(45.3 + 400 / mPerDeg, -75.7);
+  it('a numbered green with no line: gps to its centre with the edges; no fix → none', () => {
+    const l = liveLine({ fix, green: near });
+    expect(l.kind).toBe('gps');
+    expect(l.toGreen).toBe(164);
+    expect(l.front!).toBeLessThan(164);
+    expect(l.back!).toBeGreaterThan(164);
+    expect(l.playsLike).toBeNull();
+    expect(liveLine({ green: near }).kind).toBe('none');
+  });
+  it('no line, no numbered green, unnumbered rings: the NEAREST one, labelled', () => {
+    const l = liveLine({ fix, nearestRings: [far, near] });
+    expect(l.kind).toBe('nearest');
+    expect(l.toGreen).toBe(164);
+    expect(greenLabel(l)).toMatch(/^Nearest green · F \d+ · C 164 · B \d+$/);
+    expect(chipDistanceLines({ yards: 388, approx: false }, l)).toMatchObject({ source: 'gps', fcb: true, distance: expect.stringMatching(/^Nearest green/) });
+    expect(liveLine({ nearestRings: [near] }).kind).toBe('none');
+    expect(liveLine({ fix, nearestRings: [] }).kind).toBe('none');
+  });
+  it('a numbered green wins over the unnumbered rings; past the cap → none', () => {
+    expect(liveLine({ fix, green: near, nearestRings: [far] }).kind).toBe('gps');
+    expect(liveLine({ fix: [46.5, -75.7], green: near }).kind).toBe('none');
+  });
+});
