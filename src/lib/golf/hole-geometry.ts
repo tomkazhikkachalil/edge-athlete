@@ -36,6 +36,11 @@ export interface HoleLine {
   /** Tee→green polyline, [lat,lng] pairs, 6dp. line[0] is the tee,
    *  line[line.length-1] the green (OSM drawing convention). */
   line: [number, number][];
+  /** The green's outline when the cache holds one (PR G3) — a RUNTIME
+   *  convenience the live page attaches from `HoleGeometry.greens` so one
+   *  object carries a hole to the map and the scorer. Never stored here:
+   *  the stored shape keeps `greens` beside `holes`. */
+  green?: Ring;
 }
 
 /** A green's outline, assigned to a hole (PR G2, Oct 2026). */
@@ -667,11 +672,20 @@ export function composeHoleGeometry(
 export function greenDistanceYards(
   fix: [number, number],
   line: [number, number][],
-  maxYds = 1500
+  maxYds = 1500,
+  green?: Ring | null
 ): number | null {
   if (line.length < 2) return null;
-  const yds = yardsBetween(fix, line[line.length - 1]);
+  const yds = yardsBetween(fix, greenPoint(line, green));
   return yds > maxYds ? null : yds;
+}
+
+/** THE point every "to green" number and the flag stand on: the outline's
+ *  centroid when the hole carries one (PR G3 — OSM hole lines are hand-drawn
+ *  and routinely stop at the front edge), else the line's last point. */
+export function greenPoint(line: [number, number][], green?: Ring | null): [number, number] {
+  const c = green ? ringCentroid(green) : null;
+  return c ?? line[line.length - 1];
 }
 
 // YDS_PER_KM lives in green.ts (PR G1).
@@ -737,12 +751,13 @@ export function trimLineToYards(
 export function targetDistances(
   origin: [number, number],
   target: [number, number],
-  line: [number, number][]
+  line: [number, number][],
+  green?: Ring | null
 ): { toTarget: number; targetToGreen: number } | null {
   if (line.length < 2) return null;
   return {
     toTarget: yardsBetween(origin, target),
-    targetToGreen: yardsBetween(target, line[line.length - 1]),
+    targetToGreen: yardsBetween(target, greenPoint(line, green)),
   };
 }
 
