@@ -61,11 +61,11 @@ test('catalog health: the seeded courses keep their tee sheets, and the known-go
     expect(holes, `${r.name}: 18 mapped holes`).toHaveLength(18);
     expect(holes.map(h => h.hole).sort((a, b) => a - b)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
     for (const h of holes) expect(h.line.length, `${r.name} hole ${h.hole}: a line`).toBeGreaterThanOrEqual(2);
-    // G2: a geometry written since the greens landed carries the key (an
-    // empty array when OSM has no outlines); an older cache is refetched
-    // once on the next ?holes=1 — say which it is rather than fail.
-    if (!Array.isArray(r.hole_geometry!.greens)) {
-      console.warn(`[catalog-health] ${r.name}: geometry cached before G2 (no greens key yet; refetched on the next ?holes=1)`);
-    }
+    // The sweep (Oct 8 2026, convention 36) wrote Eagle Creek's 18 green
+    // outlines on production; a known-good course losing them is the same
+    // signal as losing its lines.
+    const greens = (r.hole_geometry as { greens?: unknown[] }).greens;
+    expect(Array.isArray(greens), `${r.name}: the greens key (the sweep writes it)`).toBe(true);
+    expect((greens ?? []).length, `${r.name}: green outlines`).toBe(18);
   }
 });

@@ -184,7 +184,7 @@ export default function GolfMapSweepPanel() {
           <div>
             <dt className="text-xs text-muted">Elevation · tee sheets</dt>
             <dd className="font-medium text-primary" data-sweep-elevation="">
-              {progress.elevation.done} done · {progress.elevation.due} due
+              {progress.elevation.done} done · {progress.elevation.due}{progress.elevation.dueCapped ? '+' : ''} due
               <span className="block text-xs text-muted font-normal">{progress.hydrationDue} provider rows awaiting a sheet</span>
             </dd>
           </div>

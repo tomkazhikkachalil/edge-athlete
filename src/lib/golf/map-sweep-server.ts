@@ -486,7 +486,7 @@ export interface SweepProgress {
   ok: true;
   cells: { total: number; done: number; pending: number; running: number; stale: number };
   courses: { attempted: number; mapped: number; with_greens: number; sections: number; derived: number; greens_only: number; null_no_coverage: number; refused: Record<string, number> };
-  elevation: { done: number; due: number };
+  elevation: { done: number; due: number; dueCapped: boolean };
   hydrationDue: number;
   budgets: Record<string, { count: number; window_start: string } | null>;
   next: Array<{ cell_key: string; tier: number; courses: number; rounds: number; status: string; next_due_at: string }>;
@@ -494,14 +494,27 @@ export interface SweepProgress {
   plan: unknown;
 }
 
+/** PostgREST answers at most this many rows per request (the project's
+ *  max-rows); the cell table is read in pages of it. */
+const PAGE = 1000;
+
 export async function readSweepProgress(admin: SupabaseClient): Promise<SweepProgress | { ok: false; error: string }> {
-  const { data, error } = await admin
-    .from('golf_map_sweep_cells')
-    .select('cell_key, tier, status, priority, courses, rounds, attempted, mapped, with_greens, sections, derived, greens_only, null_no_coverage, refused, next_due_at')
-    .order('priority')
-    .limit(10000);
-  if (error) return { ok: false, error: error.code === '42P01' ? 'migration 255 has not run' : error.message };
-  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  // Every cell, in pages — the first production plan wrote 6,325 cells and a
+  // single `.limit(10000)` came back capped at 1,000 (the panel read "1,000
+  // cells" for the world). Keyset on (priority, cell_key) through ranges.
+  const rows: Array<Record<string, unknown>> = [];
+  for (let from = 0; from < 100_000; from += PAGE) {
+    const { data, error } = await admin
+      .from('golf_map_sweep_cells')
+      .select('cell_key, tier, status, priority, courses, rounds, attempted, mapped, with_greens, sections, derived, greens_only, null_no_coverage, refused, next_due_at')
+      .order('priority')
+      .order('cell_key')
+      .range(from, from + PAGE - 1);
+    if (error) return { ok: false, error: error.code === '42P01' ? 'migration 255 has not run' : error.message };
+    const page = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
   const now = Date.now();
   const num = (v: unknown) => (typeof v === 'number' ? v : 0);
   const cells = { total: rows.length, done: 0, pending: 0, running: 0, stale: 0 };
@@ -519,7 +532,9 @@ export async function readSweepProgress(admin: SupabaseClient): Promise<SweepPro
     .map(r => ({ cell_key: String(r.cell_key), tier: num(r.tier), courses: num(r.courses), rounds: num(r.rounds), status: String(r.status), next_due_at: String(r.next_due_at) }));
   const [elevDone, elevDue, hydr, budgetRows, lastRun, plan] = await Promise.all([
     admin.from('golf_courses').select('id', { count: 'exact', head: true }).not('hole_elevation', 'is', null),
-    admin.rpc('golf_map_sweep_elevation_due', { p_limit: 100000 }),
+    // The RPC's rows are capped by max-rows too: ask for the cap and report
+    // "1,000+" through `dueCapped` rather than a number that is quietly wrong.
+    admin.rpc('golf_map_sweep_elevation_due', { p_limit: PAGE }),
     admin.from('golf_courses').select('id', { count: 'exact', head: true }).in('external_source', ['opengolfapi', 'golfcourseapi']).is('hole_data', null),
     admin.from('rate_limits').select('key, count, window_start').in('key', ['golf-provider:sweep-overpass', 'golf-provider:sweep-terrain']),
     readMeta(admin, 'last_run'),
@@ -533,7 +548,7 @@ export async function readSweepProgress(admin: SupabaseClient): Promise<SweepPro
     ok: true,
     cells,
     courses,
-    elevation: { done: elevDone.count ?? 0, due: Array.isArray(elevDue.data) ? elevDue.data.length : 0 },
+    elevation: { done: elevDone.count ?? 0, due: Array.isArray(elevDue.data) ? elevDue.data.length : 0, dueCapped: Array.isArray(elevDue.data) && elevDue.data.length >= PAGE },
     hydrationDue: hydr.count ?? 0,
     budgets,
     next,
