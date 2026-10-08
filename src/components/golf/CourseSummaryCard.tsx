@@ -21,6 +21,8 @@ export interface CourseSummaryCardProps {
   holeLines: HoleLine[] | null | undefined;
   /** PR 3: the course has drawn greens but no lines. */
   greensOnly?: boolean;
+  /** PR 4: the club's unlabelled nines, when the geometry stores sections. */
+  sections?: number;
   teeInPlay?: string | null;
   /** Opens the real map; absent → no thumbnail button (no coordinates). */
   onViewMap?: () => void;
@@ -29,18 +31,20 @@ export interface CourseSummaryCardProps {
   loading?: boolean;
 }
 
-const gapCopy = (gap: MappingGap, teeInPlay?: string | null): string =>
+const gapCopy = (gap: MappingGap, teeInPlay?: string | null, sections = 0): string =>
   gap === 'no-hole-data'
     ? COPY.GOLF_COURSE.GAP_NO_HOLE_DATA
     : gap === 'no-yardage-for-tee'
       ? COPY.GOLF_COURSE.GAP_NO_YARDAGE(teeLabel(teeInPlay ?? ''))
       : gap === 'greens-only'
         ? COPY.GOLF_COURSE.GAP_GREENS_ONLY
-        : COPY.GOLF_COURSE.GAP_NO_LINES;
+        : gap === 'pick-a-nine'
+          ? COPY.GOLF_COURSE.GAP_PICK_NINE(sections)
+          : COPY.GOLF_COURSE.GAP_NO_LINES;
 
-export default function CourseSummaryCard({ course, holeLines, greensOnly = false, teeInPlay, onViewMap, loading = false }: CourseSummaryCardProps) {
+export default function CourseSummaryCard({ course, holeLines, greensOnly = false, sections = 0, teeInPlay, onViewMap, loading = false }: CourseSummaryCardProps) {
   const summary = courseSummary(course, teeInPlay);
-  const gaps = loading ? [] : mappingGaps({ holes: course.holes, teeInPlay, geometry: holeLines, greensOnly });
+  const gaps = loading ? [] : mappingGaps({ holes: course.holes, teeInPlay, geometry: holeLines, greensOnly, sections });
   const thumb = holeLines && holeLines.length > 0 ? courseOverview(holeLines, 100, 8) : null;
   const totals = summary.tees.filter(t => t.yards != null);
 
@@ -74,7 +78,7 @@ export default function CourseSummaryCard({ course, holeLines, greensOnly = fals
             <span className="rounded-full bg-surface-muted px-2 py-0.5 font-black uppercase tracking-wide text-primary">{COPY.GOLF_COURSE.NOT_FULLY_MAPPED}</span>
             {gaps.map(g => (
               <span key={g} className="text-secondary" data-course-gap={g}>
-                {gapCopy(g, teeInPlay)}
+                {gapCopy(g, teeInPlay, sections)}
               </span>
             ))}
           </div>
