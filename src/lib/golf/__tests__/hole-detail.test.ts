@@ -85,3 +85,39 @@ describe('runningToPar + groupScoresForHole', () => {
     expect(groupScoresForHole(null, 2, 'me')).toEqual([]);
   });
 });
+
+describe('liveLine with a green outline (PR G3)', () => {
+  // A 20 m square green centred 30 m past the line's end, due north.
+  const mPerDeg = (2 * Math.PI * 6371000) / 360;
+  const end = line[line.length - 1];
+  const centre: [number, number] = [end[0] + 30 / mPerDeg, end[1]];
+  const d = 10 / mPerDeg;
+  const dl = d / Math.cos((centre[0] * Math.PI) / 180);
+  const green: [number, number][] = [
+    [centre[0] - d, centre[1] - dl], [centre[0] - d, centre[1] + dl], [centre[0] + d, centre[1] + dl], [centre[0] + d, centre[1] - dl],
+  ];
+  it('from a fix: the centre is the centroid, front < centre < back', () => {
+    const plain = liveLine({ fix: line[0], line });
+    const l = liveLine({ fix: line[0], line, green });
+    expect(l.kind).toBe('gps');
+    expect(l.toGreen!).toBeGreaterThan(plain.toGreen!);
+    expect(l.toGreen! - plain.toGreen!).toBeGreaterThanOrEqual(30);
+    expect(l.toGreen! - plain.toGreen!).toBeLessThanOrEqual(36);
+    expect(l.front!).toBeLessThan(l.toGreen!);
+    expect(l.back!).toBeGreaterThan(l.toGreen!);
+    expect(l.back! - l.front!).toBeGreaterThanOrEqual(20);
+    expect(l.back! - l.front!).toBeLessThanOrEqual(24);
+  });
+  it('without a fix, or without an outline, front and back are null and the rest is unchanged', () => {
+    expect(liveLine({ line, green, cardYards: 388 })).toMatchObject({ kind: 'tee', toGreen: 388, front: null, back: null });
+    expect(liveLine({ fix: line[0], line })).toMatchObject({ front: null, back: null });
+    expect(liveLine({})).toMatchObject({ kind: 'none', front: null, back: null });
+  });
+  it('standing on the green: a centre, no edges', () => {
+    const l = liveLine({ fix: centre, line, green });
+    expect(l.kind).toBe('gps');
+    expect(l.toGreen).toBe(0);
+    expect(l.front).toBeNull();
+    expect(l.back).toBeNull();
+  });
+});

@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { greenDistanceYards, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
+import { greenDistanceYards, greenPoint, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
 import { followDefault, shouldPan } from '@/lib/golf/map-follow';
 import { COPY } from '@/lib/copy';
@@ -269,8 +269,11 @@ export default function CourseMapInner({
       return;
     }
     const group = L.layerGroup();
+    // The dot and the flag stand on the green's CENTRE: the outline's
+    // centroid when the cache holds one (PR G3), else the line's end.
+    const greenAt = greenPoint(h.line, h.green);
     group.addLayer(
-      L.circleMarker(h.line[h.line.length - 1], {
+      L.circleMarker(greenAt, {
         radius: 6,
         color: '#ffffff',
         weight: 2,
@@ -278,7 +281,7 @@ export default function CourseMapInner({
         fillOpacity: 1,
       })
     );
-    group.addLayer(L.marker(h.line[h.line.length - 1], { icon: flagIcon(), interactive: false, keyboard: false }));
+    group.addLayer(L.marker(greenAt, { icon: flagIcon(), interactive: false, keyboard: false }));
     group.addTo(map);
     focusLineRef.current = group;
     // Fit when the focus MOVES — another hole, or this hole's line arriving
@@ -295,7 +298,7 @@ export default function CourseMapInner({
       // its hole chip over the top of the map and "Score hole N" over the
       // bottom, and a hole that runs straight up the screen put its green —
       // and now its flag — underneath the chip (found by gps-hole-flag.spec).
-      const bounds = L.latLngBounds(h.line);
+      const bounds = L.latLngBounds([...h.line, greenAt]);
       const fit = (rightPad: number) =>
         map.fitBounds(bounds, { paddingTopLeft: [50, 116], paddingBottomRight: [rightPad, 104], maxZoom: 18, animate: false });
       fit(50);
@@ -304,7 +307,7 @@ export default function CourseMapInner({
       // lands under it loses its flag behind the very pill that names it —
       // so that hole is fitted again with the column's width kept clear.
       if (overlayControls) {
-        const green = map.latLngToContainerPoint(h.line[h.line.length - 1]);
+        const green = map.latLngToContainerPoint(greenAt);
         const underColumn = green.x > map.getSize().x - CONTROL_COLUMN_W && green.y - FLAG_H < CONTROL_COLUMN_H;
         if (underColumn) fit(CONTROL_COLUMN_W);
       }
@@ -431,8 +434,10 @@ export default function CourseMapInner({
   // The rangefinder number: player's live fix → the focused hole's green
   // (line end — "to green", never "to pin"). Null past 1500 yds so a
   // couch-peek shows nothing. Computed on-device; the fix never uploads.
-  const focusedLine = focusHole != null ? holes?.find(h => h.hole === focusHole)?.line : undefined;
-  const distanceYds = playerFix && focusedLine ? greenDistanceYards(playerFix, focusedLine) : null;
+  const focusedHole = focusHole != null ? holes?.find(h => h.hole === focusHole) : undefined;
+  const focusedLine = focusedHole?.line;
+  const focusedGreen = focusedHole?.green ?? null;
+  const distanceYds = playerFix && focusedLine ? greenDistanceYards(playerFix, focusedLine, 1500, focusedGreen) : null;
 
   // The click handler above reads the focused line via this ref (mirrored
   // in an effect, same as onHoleTapRef — refs aren't read during render).
@@ -445,7 +450,7 @@ export default function CourseMapInner({
   // from the couch (or before tracking starts) still gets real numbers.
   const targetOrigin: [number, number] | null = focusedLine ? (playerFix ?? focusedLine[0]) : null;
   const targetYds =
-    activeTarget && focusedLine && targetOrigin ? targetDistances(targetOrigin, activeTarget, focusedLine) : null;
+    activeTarget && focusedLine && targetOrigin ? targetDistances(targetOrigin, activeTarget, focusedLine, focusedGreen) : null;
 
   // THE hole line — one line, and it's the thing you interact with (Tom:
   // "just have the single line"). Straight tee-in-play→green until a target
@@ -464,9 +469,9 @@ export default function CourseMapInner({
       targetMarkerRef.current = null;
       return;
     }
-    const green = focusedLine[focusedLine.length - 1];
+    const green = greenPoint(focusedLine, focusedGreen);
     const vertices: [number, number][] =
-      activeTarget && targetOrigin ? [targetOrigin, activeTarget, green] : focusedLine;
+      activeTarget && targetOrigin ? [targetOrigin, activeTarget, green] : [...focusedLine, green];
     const group = L.layerGroup();
     group.addLayer(L.polyline(vertices, { color: '#ffffff', weight: 6, opacity: 0.85 }));
     group.addLayer(L.polyline(vertices, { color: '#7c3aed', weight: 3, opacity: 0.95 }));
@@ -503,7 +508,7 @@ export default function CourseMapInner({
       targetLinesRef.current?.remove();
       targetLinesRef.current = null;
     };
-  }, [activeTarget, focusedLine, targetOrigin]);
+  }, [activeTarget, focusedLine, focusedGreen, targetOrigin]);
 
   const targetPill = targetYds && (
     <div
