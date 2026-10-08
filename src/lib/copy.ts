@@ -125,6 +125,9 @@ export const COPY = {
     FIRST_HOLE_LABEL: (n: number) => `Go to the first hole (hole ${n})`,
     FIRST_HOLE_UNMAPPED: (n: number) => `Hole ${n} has no map line — the chip moves, the map stays`,
     NOT_MAPPED: 'Not mapped yet',
+    // Sweep PR 3: the greens-only tier.
+    NEAREST_GREEN: 'Nearest green',
+    GREENS_ONLY: 'Greens only',
   },
 
   // The course summary card (course flow fixes M3, Oct 2026).
@@ -136,6 +139,7 @@ export const COPY = {
     GAP_NO_HOLE_DATA: 'No hole-by-hole data',
     GAP_NO_YARDAGE: (tee: string) => `No yardage for the ${tee} tee`,
     GAP_NO_LINES: 'No map lines',
+    GAP_GREENS_ONLY: 'Greens only — nearest-green distances',
   },
 
   // Form Labels

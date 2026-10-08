@@ -43,20 +43,34 @@ export interface HoleLine {
   green?: Ring;
 }
 
-/** A green's outline, assigned to a hole (PR G2, Oct 2026). */
+/** A green's outline (PR G2, Oct 2026). `hole` is null for an UNNUMBERED
+ *  ring — the greens-only tier (sweep PR 3): a course whose greens are drawn
+ *  but carry no hole number keeps them for the nearest-green rangefinder. */
 export interface GreenRing {
-  hole: number;
+  hole: number | null;
   /** Closed [lat,lng] ring, 6dp. */
   ring: Ring;
 }
 
+/** One of a club's unlabelled clean loops (sweep PR 4): a pickable nine. */
+export interface HoleSection {
+  label: string;
+  holes: HoleLine[];
+  greens?: GreenRing[];
+}
+
 export interface HoleGeometry {
+  /** May be EMPTY when `greens` (greens-only) or `sections` carry the course. */
   holes: HoleLine[];
   source: 'osm';
   /** The `golf=green` outlines assigned to holes (by the line END). ABSENT
    *  on a geometry cached before PR G2 — the cache layer refetches such a
    *  row once; PRESENT and empty when OSM has no outlines here (the stamp). */
   greens?: GreenRing[];
+  /** Pickable loops when the club's nines carry no labels (≥ 2 entries). */
+  sections?: HoleSection[];
+  /** Lines synthesised from numbered tees / fairways / greens (PR 5). */
+  derived?: 'features';
 }
 
 interface OverpassMember {
@@ -391,7 +405,10 @@ export function scopeHoleWays(
   elements: OverpassElement[],
   courseName: string | null | undefined,
   point: [number, number] | null | undefined,
-  select: (el: OverpassElement) => boolean = isHoleWay
+  select: (el: OverpassElement) => boolean = isHoleWay,
+  /** "The own set is already the answer" — the strict parse for hole ways;
+   *  a count for rings or features. */
+  valid: (own: OverpassElement[]) => boolean = own => parseHoleGeometry({ elements: own }) !== null
 ): ScopedWays {
   const name = (courseName ?? '').trim();
   const candidates = elements.filter(select);
@@ -406,7 +423,7 @@ export function scopeHoleWays(
     const pts = elementPoints(el);
     return pts.length > 0 && pts.filter(p => insideRings(p, B.rings)).length * 2 >= pts.length;
   });
-  if (parseHoleGeometry({ elements: own })) return { ways: own, boundary: B, mode: 'own' };
+  if (valid(own)) return { ways: own, boundary: B, mode: 'own' };
   const others = boundaries.filter(b => !b.matches);
   const ownSet = new Set(own);
   const near = candidates.filter(el => {
@@ -541,6 +558,36 @@ export function assignGreens(holes: HoleLine[], rings: Ring[]): GreenRing[] {
  *  outlines, which is the stamp that stops the cache layer refetching. */
 export function withGreens(geometry: HoleGeometry, payload: unknown): HoleGeometry {
   return { ...geometry, greens: assignGreens(geometry.holes, parseGreenRings(payload)) };
+}
+
+/** The greens-only tier (sweep PR 3) needs this many rings of its own. */
+export const GREENS_ONLY_MIN = 9;
+const isGreenEl = (el: OverpassElement) => el?.tags?.golf === 'green';
+
+/** Tier 5 — the course has no usable hole lines but OSM has drawn its
+ *  greens: keep the rings this course owns (the claims scope, with "≥ 9
+ *  rings" as the own-set test) as UNNUMBERED greens — the rangefinder reads
+ *  the nearest one. Never a line, never a hole number. Null under
+ *  GREENS_ONLY_MIN. Exported pure for tests. */
+export function greensOnlyGeometry(
+  payload: unknown,
+  courseName: string | null | undefined,
+  point?: [number, number] | null
+): HoleGeometry | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements)) return null;
+  const scoped = scopeHoleWays(elements, courseName, point, isGreenEl, own => own.length >= GREENS_ONLY_MIN);
+  if (scoped.mode === 'unclaimed' && point) {
+    // A boundary-less course beside clubs that have polygons: the same
+    // 800 m rule as the lines — every ring must sit near the course point.
+    const rings = parseGreenRings({ elements: scoped.ways });
+    const near = rings.filter(r => { const c = ringCentroid(r); return !!c && haversineKm({ lat: c[0], lng: c[1] }, { lat: point[0], lng: point[1] }) * 1000 <= UNCLAIMED_MAX_M; });
+    if (near.length < GREENS_ONLY_MIN) return null;
+    return { holes: [], source: 'osm', greens: near.map(ring => ({ hole: null, ring })) };
+  }
+  const rings = parseGreenRings({ elements: scoped.ways });
+  if (rings.length < GREENS_ONLY_MIN) return null;
+  return { holes: [], source: 'osm', greens: rings.map(ring => ({ hole: null, ring })) };
 }
 
 // ── Multi-course clubs (migration 125): cluster-splitting + combos ──────────
@@ -769,6 +816,7 @@ export function composeHoleGeometry(
     !!g && g.holes.length === 9 && g.holes.every(h => h.hole >= 1 && h.hole <= 9);
   if (!isNine(front) || !isNine(back)) return null;
   const composed: HoleGeometry = {
+    ...(front.derived || back.derived ? { derived: 'features' as const } : {}),
     holes: [
       ...front.holes,
       ...back.holes.map(h => ({ ...h, hole: h.hole + 9 })),
@@ -778,8 +826,8 @@ export function composeHoleGeometry(
   if (front.greens || back.greens) {
     composed.greens = [
       ...(front.greens ?? []),
-      ...(back.greens ?? []).map(g => ({ ...g, hole: g.hole + 9 })),
-    ].sort((a, b) => a.hole - b.hole);
+      ...(back.greens ?? []).map(g => ({ ...g, hole: g.hole == null ? null : g.hole + 9 })),
+    ].sort((a, b) => (a.hole ?? 99) - (b.hole ?? 99));
   }
   return composed;
 }
@@ -1035,6 +1083,12 @@ export async function getCourseHoleGeometry(
     } catch (sectionError) {
       console.error('Section geometry split failed (non-fatal):', sectionError);
     }
+  }
+
+  // Tier 5 (sweep PR 3): no lines anywhere, but the greens are drawn —
+  // keep them unnumbered for the nearest-green rangefinder.
+  if (!geometry && result.payload) {
+    geometry = greensOnlyGeometry(result.payload, row.name, [row.lat, row.lng]);
   }
 
   await admin

@@ -39,3 +39,15 @@ describe('shouldPan', () => {
     expect(shouldPan(null, false)).toBe(false);
   });
 });
+
+describe('atCourse counts the greens (greens-only, PR 3)', () => {
+  it('on 100 m from a drawn green 7 km from the pin, with no lines at all', () => {
+    const M = (2 * Math.PI * 6371000) / 360;
+    const c: [number, number] = [45.3 + 7000 / M, -75.7];
+    const d = 10 / M;
+    const ring: [number, number][] = [[c[0] - d, c[1] - d], [c[0] - d, c[1] + d], [c[0] + d, c[1] + d], [c[0] + d, c[1] - d]];
+    const fix: [number, number] = [c[0] + 100 / M, c[1]];
+    expect(atCourse(fix, { pin, holes: null })).toBe(false);
+    expect(atCourse(fix, { pin, holes: null, greens: [{ ring }] })).toBe(true);
+  });
+});

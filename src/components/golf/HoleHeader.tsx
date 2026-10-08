@@ -91,7 +91,7 @@ export default function HoleHeader({ holeNumber, facts, tees, live, running, run
             data-green-fcb={live.kind === 'gps' && live.front != null && live.back != null ? '' : undefined}
           >
             {/* M2: "F 182 · C 196 · B 207" when the green has an outline, else "196 yds to green". */}
-            {live.kind === 'gps' ? greenLabel(live) : COPY.GOLF_HOLE.TEE_TO_GREEN(live.toGreen)}
+            {live.kind === 'tee' ? COPY.GOLF_HOLE.TEE_TO_GREEN(live.toGreen) : greenLabel(live)}
             {live.playsLike != null && (
               <span className="text-secondary"> · {COPY.GOLF_HOLE.PLAYS_LIKE(live.playsLike)}{rise ? ` (${rise})` : ''}</span>
             )}

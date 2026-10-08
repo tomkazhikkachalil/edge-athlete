@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { greenDistances, pointInRing, ringCentroid, ringCrossings, type Ring } from '../green';
+import { greenDistances, nearestGreen, pointInRing, ringCentroid, ringCrossings, type Ring } from '../green';
 import { yardsBetween } from '../hole-geometry';
 
 // A 30 m square green centred on (45, -75), built in the same sphere the
@@ -91,5 +91,19 @@ describe('greenDistances', () => {
   });
   it('a two-vertex ring is null', () => {
     expect(greenDistances(south(200), [square[0], square[1]])).toBeNull();
+  });
+});
+
+describe('nearestGreen (greens-only, PR 3)', () => {
+  it('picks the ring whose centre is nearest and returns its trio', () => {
+    const far: Ring = square.map(([a, b]) => [a + 0.01, b] as [number, number]);
+    const n = nearestGreen(south(200), [far, square])!;
+    expect(n.index).toBe(1);
+    expect(n.distances.centre).toBe(200);
+    expect(n.distances.front!).toBeLessThan(200);
+  });
+  it('null with no usable ring', () => {
+    expect(nearestGreen(south(200), [])).toBeNull();
+    expect(nearestGreen(south(200), [[square[0], square[1]]])).toBeNull();
   });
 });

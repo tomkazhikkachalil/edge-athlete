@@ -5,7 +5,7 @@
 // like), the running score and the group's scores on a hole. Zero React.
 
 import { greenDistanceYards, polylineYards } from '@/lib/golf/hole-geometry';
-import { greenDistances, type Ring } from '@/lib/golf/green';
+import { greenDistances, nearestGreen, type Ring } from '@/lib/golf/green';
 import { formatRise, metresToYards, playsLikeYards, riseToGreen, type HoleElevationProfile } from '@/lib/golf/elevation';
 import { COPY } from '@/lib/copy';
 import { courseTeeOptions, teeLabel } from '@/lib/golf/tees';
@@ -122,8 +122,10 @@ export function teeSheetForHole(sheet: TeeSheetSource | null | undefined, hole: 
 }
 
 export interface LiveLine {
-  /** gps = from where you stand; tee = from the tee; none = no line to measure. */
-  kind: 'gps' | 'tee' | 'none';
+  /** gps = from where you stand; tee = from the tee; nearest = from where you
+   *  stand to the NEAREST unnumbered green (greens-only, PR 3); none = nothing
+   *  to measure. */
+  kind: 'gps' | 'tee' | 'nearest' | 'none';
   /** To the CENTRE of the green (the outline's centroid when one exists,
    *  else the line's last point). */
   toGreen: number | null;
@@ -149,10 +151,28 @@ export function liveLine(input: {
   /** The green's outline (PR G3): the centre becomes its centroid and a fix
    *  gets the front / back edges too. */
   green?: Ring | null;
+  /** The course's UNNUMBERED greens (greens-only, PR 3): with no line and
+   *  no numbered green, a fix measures to the nearest of them. */
+  nearestRings?: Ring[] | null;
 }): LiveLine {
   const none: LiveLine = { kind: 'none', toGreen: null, front: null, back: null, playsLike: null, riseYds: null };
   const line = input.line && input.line.length >= 2 ? input.line : null;
-  if (!line) return none;
+  if (!line) {
+    // No line to walk: a numbered green still has a centre and edges from a
+    // fix (never from a tee — there is none); otherwise the nearest ring.
+    if (!input.fix) return none;
+    if (input.green) {
+      const d = greenDistances(input.fix, input.green);
+      if (!d || d.centre > 1500) return none;
+      return { kind: 'gps', toGreen: d.centre, front: d.front, back: d.back, playsLike: null, riseYds: null };
+    }
+    if (input.nearestRings?.length) {
+      const n = nearestGreen(input.fix, input.nearestRings);
+      if (!n || n.distances.centre > 1500) return none;
+      return { kind: 'nearest', toGreen: n.distances.centre, front: n.distances.front, back: n.distances.back, playsLike: null, riseYds: null };
+    }
+    return none;
+  }
   const fromFix = input.fix ? greenDistanceYards(input.fix, line, 1500, input.green) : null;
   const gps = !!input.fix && fromFix != null;
   const origin: LatLng = gps ? input.fix! : line[0];
@@ -215,7 +235,11 @@ export function groupScoresForHole(group: GroupPlayer[] | null | undefined, hole
 /** The live distance line, or null without a number. */
 export function greenLabel(live: LiveLine): string | null {
   if (live.toGreen == null) return null;
-  if (live.front != null && live.back != null) return COPY.GOLF_HOLE.FCB(live.front, live.toGreen, live.back);
+  const trio = live.front != null && live.back != null;
+  if (live.kind === 'nearest') {
+    return `${COPY.GOLF_HOLE.NEAREST_GREEN} · ${trio ? COPY.GOLF_HOLE.FCB(live.front!, live.toGreen, live.back!) : `${live.toGreen} yds`}`;
+  }
+  if (trio) return COPY.GOLF_HOLE.FCB(live.front!, live.toGreen, live.back!);
   return COPY.GOLF_HOLE.TO_GREEN(live.toGreen);
 }
 
@@ -245,7 +269,7 @@ export function chipDistanceLines(facts: Pick<HoleHeaderFacts, 'yards' | 'approx
   const rise = formatRise(live.riseYds);
   const playsLike = live.playsLike != null ? `${COPY.GOLF_HOLE.PLAYS_LIKE(live.playsLike)}${rise ? ` ${rise}` : ''}` : null;
   const riseYds = live.riseYds == null ? null : Math.round(live.riseYds);
-  if (live.kind === 'gps' && live.toGreen != null) {
+  if ((live.kind === 'gps' || live.kind === 'nearest') && live.toGreen != null) {
     return { distance: greenLabel(live), playsLike, source: 'gps', fcb: live.front != null && live.back != null, riseYds };
   }
   if (facts.yards != null) {

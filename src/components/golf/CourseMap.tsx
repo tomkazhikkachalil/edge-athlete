@@ -23,6 +23,7 @@ export default function CourseMap(props: {
   visible?: boolean;
   defaultLayer?: 'osm' | 'satellite';
   holes?: import('@/lib/golf/hole-geometry').HoleLine[] | null;
+  greens?: import('@/lib/golf/hole-geometry').GreenRing[] | null;
   focusHole?: number | null;
   onHoleTap?: (hole: number) => void;
   onFix?: (fix: [number, number] | null) => void;

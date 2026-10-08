@@ -127,6 +127,19 @@ export function ringCrossings(from: [number, number], to: [number, number], ring
   return out;
 }
 
+/** The nearest of several rings to a position (by centroid) and its trio —
+ *  the greens-only rangefinder (sweep PR 3): a course whose greens are
+ *  drawn but not numbered still answers "how far to the green ahead".
+ *  Null without a usable ring. */
+export function nearestGreen(fix: [number, number], rings: Ring[]): { index: number; ring: Ring; distances: GreenDistances } | null {
+  let best: { index: number; ring: Ring; distances: GreenDistances } | null = null;
+  rings.forEach((ring, index) => {
+    const d = greenDistances(fix, ring);
+    if (d && (!best || d.centre < best.distances.centre)) best = { index, ring, distances: d };
+  });
+  return best;
+}
+
 export interface GreenDistances {
   /** Yards to the front edge; null on the green or with no clean crossing. */
   front: number | null;

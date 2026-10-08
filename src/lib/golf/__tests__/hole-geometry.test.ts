@@ -714,3 +714,38 @@ describe('scopeHoleWays — the rules on synthetic data', () => {
     expect(kept.filter(e => e.tags?.golf === 'hole')).toHaveLength(0);
   });
 });
+
+// ── Tier 5: greens-only (map sweep PR 3) ────────────────────────────────────
+import { greensOnlyGeometry, GREENS_ONLY_MIN } from '../hole-geometry';
+import greensmere from './fixtures/overpass-greensmere.json';
+
+describe('greensOnlyGeometry', () => {
+  it('Greensmere: no hole way at all, 38 drawn greens, none numbered → unnumbered rings for the nearest-green rangefinder', () => {
+    const c = courseOf(greensmere);
+    expect(resolveHoleGeometry(greensmere, c.name, [c.lat, c.lng])).toBeNull();
+    const g = greensOnlyGeometry(greensmere, c.name, [c.lat, c.lng])!;
+    expect(g).not.toBeNull();
+    expect(g.holes).toEqual([]);
+    expect(g.source).toBe('osm');
+    expect(g.greens!.length).toBeGreaterThanOrEqual(30);
+    expect(g.greens!.every(x => x.hole === null && x.ring.length >= 4)).toBe(true);
+    expect('sections' in g).toBe(false);
+  });
+  it('needs GREENS_ONLY_MIN rings; a course with lines never comes here (the caller orders the tiers)', () => {
+    expect(GREENS_ONLY_MIN).toBe(9);
+    const few = { version: 0.6, elements: elementsOf(greensmere).filter(e => e.tags?.golf !== 'green').concat(elementsOf(greensmere).filter(e => e.tags?.golf === 'green').slice(0, 5)) };
+    expect(greensOnlyGeometry(few, courseOf(greensmere).name, [courseOf(greensmere).lat, courseOf(greensmere).lng])).toBeNull();
+    expect(greensOnlyGeometry(null, 'x', [0, 0])).toBeNull();
+  });
+  it('a boundary-less course beside a club with a polygon keeps only the unclaimed rings within 800 m', () => {
+    const M = (2 * Math.PI * 6371000) / 360;
+    const ringAt = (lat: number, lng: number): OverpassElement => ({ type: 'way', tags: { golf: 'green' }, geometry: [{ lat, lon: lng }, { lat: lat + 15 / M, lon: lng }, { lat: lat + 15 / M, lon: lng + 15 / M }, { lat, lon: lng + 15 / M }, { lat, lon: lng }] });
+    const other: OverpassElement = { type: 'way', tags: { leisure: 'golf_course', name: 'Other GC' }, geometry: [{ lat: 45.31, lon: -75.71 }, { lat: 45.31, lon: -75.69 }, { lat: 45.32, lon: -75.69 }, { lat: 45.32, lon: -75.71 }, { lat: 45.31, lon: -75.71 }] };
+    const theirs = Array.from({ length: 12 }, (_, i) => ringAt(45.311 + i * 0.0005, -75.7));
+    const mine = Array.from({ length: 10 }, (_, i) => ringAt(45.3 + i * 0.0004, -75.7));
+    const g = greensOnlyGeometry({ version: 0.6, elements: [other, ...theirs, ...mine] }, 'Boundless Golf Club', [45.302, -75.7])!;
+    expect(g.greens).toHaveLength(10);
+    // From 1.5 km away the same rings are not this course's.
+    expect(greensOnlyGeometry({ version: 0.6, elements: [other, ...theirs, ...mine] }, 'Boundless Golf Club', [45.302 - 1500 / M, -75.7])).toBeNull();
+  });
+});
