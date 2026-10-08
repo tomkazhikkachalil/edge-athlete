@@ -155,6 +155,8 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       'lib/orgs/scoped-members.ts': 4,
       // a comment on the rebuilt unique
       'lib/orgs/structure-import.ts': 2,
+      // golf_courses.club_id names a golf_clubs row (migration 125), not an org
+      'lib/golf/map-sweep-server.ts': 8,
     };
     const root = join(__dirname, '..', '..', '..');
     const over: string[] = [];
