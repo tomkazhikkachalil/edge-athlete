@@ -112,6 +112,16 @@ export const COPY = {
     THRU: (n: number) => `thru ${n}`,
     TEE_IN_PLAY: 'playing',
     OPEN_MAP_ON: (hole: number) => `Open the map on hole ${hole}`,
+    // M1: the explicit Follow toggle and the first-hole control.
+    FOLLOW_ME: 'Follow me',
+    FOLLOW_ON: 'Stop following my position',
+    FOLLOW_OFF: 'Follow my position',
+    // The visible word is never "Hole N": the e2e idiom `getByText(/^Hole N\b/)`
+    // is strict and must keep resolving to the chip alone.
+    FIRST_HOLE: 'First hole',
+    FIRST_HOLE_LABEL: (n: number) => `Go to the first hole (hole ${n})`,
+    FIRST_HOLE_UNMAPPED: (n: number) => `Hole ${n} has no map line — the chip moves, the map stays`,
+    NOT_MAPPED: 'Not mapped yet',
   },
 
   // The course summary card (course flow fixes M3, Oct 2026).
