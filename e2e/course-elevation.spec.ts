@@ -28,7 +28,7 @@ test('course API: holes=1 carries the elevation profile and the tee sheet; eleva
         hole_data: holes.map(h => ({ number: h.hole, par: 4, yardage: { white: 388, blue: 412 }, handicap: h.hole })),
         course_rating: { white: 70.1, blue: 71.9 },
         slope_rating: { white: 125, blue: 133 },
-        hole_geometry: { holes, source: 'osm' },
+        hole_geometry: { holes, source: 'osm', greens: [] },
         hole_geometry_at: new Date(stamp - 60_000).toISOString(),
         hole_elevation: { holes: profile, sampled: 'line10', source: 'open-meteo' },
         hole_elevation_at: new Date(stamp).toISOString(),

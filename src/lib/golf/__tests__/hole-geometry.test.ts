@@ -414,3 +414,111 @@ describe('targetDistances (player-placed target on the focused hole)', () => {
     expect(targetDistances(tee, layup, [])).toBeNull();
   });
 });
+
+// ── Green outlines (PR G2, Oct 2026) ────────────────────────────────────────
+import { assignGreens, composeHoleGeometry, parseGreenRings, withGreens, GREEN_ASSIGN_M } from '../hole-geometry';
+
+/** A closed square `golf=green` way of `half` metres around a point. */
+function greenWay(centre: [number, number], half = 10, tags: Record<string, string> = {}) {
+  const mPerDeg = (2 * Math.PI * 6371000) / 360;
+  const dLat = half / mPerDeg;
+  const dLng = half / (mPerDeg * Math.cos((centre[0] * Math.PI) / 180));
+  const [lat, lng] = centre;
+  return {
+    type: 'way',
+    tags: { golf: 'green', ...tags },
+    geometry: [
+      { lat: lat - dLat, lon: lng - dLng },
+      { lat: lat - dLat, lon: lng + dLng },
+      { lat: lat + dLat, lon: lng + dLng },
+      { lat: lat + dLat, lon: lng - dLng },
+      { lat: lat - dLat, lon: lng - dLng },
+    ],
+  };
+}
+
+/** Rideau View's real hole ways plus a synthetic square green at each line end. */
+function rideauWithGreens() {
+  const g = parseHoleGeometry(rideauView)!;
+  const payload = JSON.parse(JSON.stringify(rideauView)) as { elements: unknown[] };
+  for (const h of g.holes) payload.elements.push(greenWay(h.line[h.line.length - 1]));
+  return { geometry: g, payload };
+}
+
+describe('parseGreenRings', () => {
+  it('reads closed golf=green ways and relation outers; ignores holes and junk', () => {
+    const { payload } = rideauWithGreens();
+    expect(parseGreenRings(payload)).toHaveLength(18);
+    expect(parseGreenRings(rideauView)).toEqual([]);
+    expect(parseGreenRings(null)).toEqual([]);
+    const rel = {
+      elements: [
+        {
+          type: 'relation',
+          tags: { golf: 'green' },
+          members: [
+            { type: 'way', role: 'outer', geometry: greenWay([45.2, -75.68]).geometry.slice(0, 3) },
+            { type: 'way', role: 'outer', geometry: greenWay([45.2, -75.68]).geometry.slice(2) },
+          ],
+        },
+      ],
+    };
+    expect(parseGreenRings(rel)).toHaveLength(1);
+  });
+
+  it('drops an unclosed way', () => {
+    const open = greenWay([45.2, -75.68]);
+    open.geometry.pop();
+    expect(parseGreenRings({ elements: [open] })).toEqual([]);
+  });
+});
+
+describe('assignGreens', () => {
+  it('assigns every green by the line end and drops a stray ring', () => {
+    const { geometry, payload } = rideauWithGreens();
+    const stray = greenWay([geometry.holes[0].line[0][0] - 0.01, geometry.holes[0].line[0][1]]);
+    payload.elements.push(stray);
+    const greens = assignGreens(geometry.holes, parseGreenRings(payload));
+    expect(greens.map(g => g.hole)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(greens.every(g => g.ring.length === 5)).toBe(true);
+  });
+
+  it('a ring just past the line end still belongs to the hole; one far past does not', () => {
+    const line: [number, number][] = [[45.3, -75.7], [45.303, -75.7]];
+    const mPerDeg = (2 * Math.PI * 6371000) / 360;
+    const near = greenWay([45.303 + (GREEN_ASSIGN_M - 15) / mPerDeg, -75.7]);
+    const far = greenWay([45.303 + (GREEN_ASSIGN_M + 60) / mPerDeg, -75.7]);
+    expect(assignGreens([{ hole: 1, par: 4, line }], parseGreenRings({ elements: [near] }))).toHaveLength(1);
+    expect(assignGreens([{ hole: 1, par: 4, line }], parseGreenRings({ elements: [far] }))).toHaveLength(0);
+  });
+
+  it('a double green serves two holes', () => {
+    const shared = greenWay([45.3, -75.7], 25);
+    const a: [number, number][] = [[45.297, -75.7], [45.2999, -75.7]];
+    const b: [number, number][] = [[45.303, -75.7], [45.3001, -75.7]];
+    const greens = assignGreens([{ hole: 1, par: 4, line: a }, { hole: 9, par: 4, line: b }], parseGreenRings({ elements: [shared] }));
+    expect(greens.map(g => g.hole)).toEqual([1, 9]);
+    expect(greens[0].ring).toBe(greens[1].ring);
+  });
+
+  it('withGreens always sets the key — [] when OSM has no outlines (the stamp)', () => {
+    const g = parseHoleGeometry(rideauView)!;
+    expect(withGreens(g, rideauView).greens).toEqual([]);
+    const { payload } = rideauWithGreens();
+    expect(withGreens(g, payload).greens).toHaveLength(18);
+    expect(withGreens(g, payload).holes).toBe(g.holes);
+  });
+});
+
+describe('composeHoleGeometry carries greens', () => {
+  const nine = (greens: boolean): Parameters<typeof composeHoleGeometry>[0] => ({
+    source: 'osm',
+    holes: Array.from({ length: 9 }, (_, i) => ({ hole: i + 1, par: 4, line: [[45.3 + i * 0.001, -75.7], [45.3005 + i * 0.001, -75.7]] as [number, number][] })),
+    ...(greens ? { greens: [{ hole: 3, ring: [[45.302, -75.7], [45.3021, -75.7], [45.3021, -75.6999], [45.302, -75.6999]] as [number, number][] }] } : {}),
+  });
+  it('renumbers the back nine’s greens and omits the key when neither side has one', () => {
+    expect(composeHoleGeometry(nine(true), nine(true))!.greens!.map(g => g.hole)).toEqual([3, 12]);
+    expect('greens' in composeHoleGeometry(nine(false), nine(false))!).toBe(false);
+    expect(composeHoleGeometry(nine(false), nine(true))!.greens!.map(g => g.hole)).toEqual([12]);
+  });
+});

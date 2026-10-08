@@ -62,7 +62,7 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
         name: `QA GPS Links ${stamp}`,
         lat: holes[0].line[0][0],
         lng: holes[0].line[0][1],
-        hole_geometry: { holes: holes.map(h => ({ hole: h.hole, par: 4, line: h.line })), source: 'osm' },
+        hole_geometry: { holes: holes.map(h => ({ hole: h.hole, par: 4, line: h.line })), source: 'osm', greens: [] },
         hole_geometry_at: new Date().toISOString(),
       })
       .select('id')
