@@ -31,3 +31,40 @@ export function startingHoleNumber(
   const holes = typeof holesPlayed === 'number' && holesPlayed > 0 ? holesPlayed : numbers.length;
   return min + holes - 1 <= 18 ? min : 1;
 }
+
+export interface DerivedRoundHole {
+  hole: number;
+  par: number;
+  yardage?: number;
+  handicap?: number;
+}
+
+/**
+ * Par / yardage / stroke-index rows for a hole range from a catalog course
+ * (the composer's `deriveCourseHoles`, pure since H2, Oct 2026). Tee keys
+ * are free text (provider tee names) — the selected tee first, then white /
+ * blue, then ANY tee the course has. **An unknown yardage stays unknown:**
+ * the old `?? 400` default rode into the round's hole_data as a fact and
+ * then TRIMMED the hole's OSM line to 400 yards (`trimLineToYards`), cutting
+ * a real 480-yard hole short on the map; downstream every reader already
+ * treats a missing yardage as "fall back to the sheet, then the drawn line".
+ * A catalog handicap of 0 is unknown and is left out.
+ */
+export function deriveCourseHoles(
+  courseHoles: Array<{ number: number; par: number; yardage: Record<string, number>; handicap?: number }>,
+  teeColor: string,
+  holes: number,
+  start: number
+): DerivedRoundHole[] {
+  return courseHoles
+    .filter(hole => hole.number >= start && hole.number < start + holes)
+    .map(hole => {
+      const y = hole.yardage?.[teeColor || 'white'] ?? hole.yardage?.white ?? hole.yardage?.blue ?? Object.values(hole.yardage ?? {})[0];
+      return {
+        hole: hole.number,
+        par: hole.par,
+        ...(typeof y === 'number' && Number.isFinite(y) && y > 0 ? { yardage: y } : {}),
+        ...(typeof hole.handicap === 'number' && hole.handicap > 0 ? { handicap: hole.handicap } : {}),
+      };
+    });
+}
