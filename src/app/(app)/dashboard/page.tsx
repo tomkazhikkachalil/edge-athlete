@@ -10,6 +10,7 @@ import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
 import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
+import GolfMapSweepPanel from '@/components/admin/GolfMapSweepPanel';
 import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
 import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -362,6 +363,9 @@ export default function AdminDashboardPage() {
 
         {/* Data foundation F5b: the backfill's door — no developer console needed. */}
         <PerformanceBackfillPanel />
+
+        {/* Map sweep (Oct 8 2026, mig 255): the course-map sweep's door — progress and the batches. */}
+        <GolfMapSweepPanel />
 
         {/* Departed accounts (Sep 24 2026): purge a parked account now — the door. */}
         <AccountPurgePanel />

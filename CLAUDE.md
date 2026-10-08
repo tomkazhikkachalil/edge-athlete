@@ -1591,6 +1591,47 @@ const { canView } = await response.json();
    every golf spec self-seeds with `greens: []`, a fresh `hole_geometry_at`
    and a fresh `hydrated_at`. Read DEVLOG Oct 7 2026 G1–P1 first.
 
+36. **Every course OSM can map IS mapped, by a sweep, through ONE pipeline
+   whose every refusal is honest (Golf map sweep, Oct 8 2026, #1111–#1117,
+   mig 255 the ONLY DDL — `docs/GOLF_COURSE_DATA.md` "The five tiers" and
+   "The sweep" are the reference)** — Tom: "take a sweep to ensure we have
+   all the courses possibly mapped — not the lazy route"; his picks:
+   unnamed clean nines are PICKABLE (letters, never a guessed name; nothing
+   drawn before a pick or a clear tee), a greens-only course gets
+   NEAREST-GREEN distances (never a fake line). **One pipeline:**
+   `hole-geometry.ts resolveCourseTiers` is THE order (strict lines over
+   the boundary CLAIMS scope → labelled sections → unlabelled loops →
+   feature-derived lines → greens-only); the lazy path and the sweep both
+   run it and `map-sweep.test.ts` pins the same bytes for the same payload.
+   `scopeHoleWays` is the one scoping decision (a neighbour's polygon
+   EXCLUDES its holes; a course's own sloppy polygon never vetoes it; no
+   boundary → the unclaimed ways within 800 m); `clusterHoleLoops` is a
+   multiplicity table (18 + 9 clusters; a near-tie is a null); `hole-
+   features.ts` draws a line only from ≥ 9 uniquely numbered greens;
+   `assignGreens` is ref-first. **The stored shape grew without DDL:**
+   `holes` may be `[]` iff `greens` or `sections` carry the course;
+   `greens[].hole` may be null; `sections` (≥ 2, `label`); `derived:
+   'features'` — `parseStoredHoleGeometry` is the one reader and the
+   `'greens' in` refetch-once rule stands. `hole-loops.ts` (pure) answers
+   the live page's three questions (`pickLoop` — 150 m and a 2× rival;
+   `geometryForRound`; `pickerRows`; the pick in `localStorage
+   golf:loops:<groupPostId>`); `liveLine` gained `kind: 'nearest'`.
+   **The sweep (255):** `map-sweep.ts` (pure cells, the regional query,
+   SEGMENT-distance filtering, the planner, the backoff) +
+   `map-sweep-server.ts` (claim → time guard → `sweep-overpass` budget →
+   the mirror ladder with persisted cooldowns → the envelope / partial /
+   EMPTY-ANSWER REGRESSION guards → the pipeline → stamps in chunks of 8
+   with the elevation RE-ATTEST → done +28 d, or parked with backoff and
+   ZERO course writes); `golf_map_sweep_claim` leases `FOR UPDATE SKIP
+   LOCKED`; a transport failure NEVER stamps; `isOverpassAnswer` makes a
+   stub 200 transport. Doors: the dashboard **Course map sweep** panel over
+   `POST /api/admin/golf-map-sweep` (dry run by DEFAULT) and pg_cron
+   `golf-map-sweep` every 2 min → `/api/cron/golf-map-sweep`. e2e: a
+   spec's `finally` is `cleanup()` — database steps first, each in its own
+   try/catch, the browser last; the teardown backstop sweeps `qa-e2e` and
+   `seed` + `qa-sweep-…` rows older than an hour. Read DEVLOG Oct 8 2026
+   PR 1–7 first.
+
 ---
 
 ## 🔧 Common Tasks
