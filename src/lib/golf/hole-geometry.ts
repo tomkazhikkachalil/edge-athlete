@@ -368,6 +368,8 @@ function pickBoundary(
 }
 
 const isHoleWay = (el: OverpassElement) => el?.tags?.golf === 'hole';
+/** Exported for the sweep's metrics. */
+export const isHoleWayElement = isHoleWay;
 
 /** How far from its own polygon's ring a way may sit and still be this
  *  course's — hand-drawn boundaries routinely clip a perimeter hole. */
@@ -784,7 +786,7 @@ function sectionTokens(sectionName: string | null | undefined): Set<string> {
   );
 }
 
-interface SectionRowLite {
+export interface SectionRowLite {
   id: string;
   name: string;
   section_name?: string | null;
@@ -1122,6 +1124,72 @@ export async function fetchHoleGeometry(
   return { reached: false, geometry: null };
 }
 
+export type GeometryTier = 'lines' | 'sections_evidence' | 'loops' | 'features' | 'greens_only';
+
+/** Why a course got nothing — the sweep's metrics (map sweep PR 6). */
+export type NullReason = 'no_coverage' | 'greens_only' | 'unlabeled' | 'duplicate_refs' | 'short' | 'boundary';
+
+export interface CourseTiers {
+  geometry: HoleGeometry | null;
+  /** The tier that answered, or null. */
+  tier: GeometryTier | null;
+  /** Sibling section rows the evidence split labelled (written by the caller). */
+  siblings: Map<string, HoleGeometry>;
+  /** Why nothing answered (null when something did). */
+  reason: NullReason | null;
+}
+
+/** Why the strict parse of THIS course's scoped ways refused them. */
+function classifyScoped(elements: OverpassElement[], scoped: ScopedWays): NullReason {
+  const holeWays = elements.filter(isHoleWay);
+  if (!holeWays.length) return elements.some(isGreenEl) ? 'greens_only' : 'no_coverage';
+  if (!scoped.ways.length) return 'boundary';
+  const refs = scoped.ways.map(w => w.tags?.ref ?? '');
+  if (refs.some(r => !/^\d+$/.test(r))) return 'unlabeled';
+  if (new Set(refs).size !== refs.length) return 'duplicate_refs';
+  if (refs.length < 9) return 'short';
+  return 'boundary';
+}
+
+/** THE pipeline — the lazy path (`getCourseHoleGeometry`) and the regional
+ *  sweep run exactly this, in this order, first non-null wins:
+ *   1. the strict lines over the claims scope (`resolveHoleGeometry`)
+ *   2. the evidence-labelled section split over the scoped ways (a club with
+ *      section rows) — the siblings come back for the caller to write
+ *   3. clean loops nothing labels → pickable sections (`resolveLoopGeometry`)
+ *   4. lines from numbered tees / fairways / greens (`resolveFeatureGeometry`)
+ *   5. the drawn-but-unnumbered greens (`greensOnlyGeometry`)
+ *  Exported pure for tests. */
+export function resolveCourseTiers(
+  payload: unknown,
+  course: { name: string | null; lat: number; lng: number; holesCount?: number | null },
+  sections: SectionRowLite[] = []
+): CourseTiers {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements ?? [];
+  const point: [number, number] = [course.lat, course.lng];
+  const none = (reason: NullReason): CourseTiers => ({ geometry: null, tier: null, siblings: new Map(), reason });
+  if (!Array.isArray(elements)) return none('no_coverage');
+  const lines = resolveHoleGeometry(payload, course.name, point);
+  if (lines) return { geometry: withGreens(lines, payload), tier: 'lines', siblings: new Map(), reason: null };
+  const scoped = scopeHoleWays(elements, course.name, point);
+  const scopedPl = scopedPayload(elements, scoped);
+  if (sections.length) {
+    const assigned = resolveSectionGeometries(scopedPl, sections);
+    if (assigned) {
+      const siblings = new Map<string, HoleGeometry>();
+      for (const [id, g] of assigned) siblings.set(id, withGreens(g, scopedPl));
+      return { geometry: null, tier: 'sections_evidence', siblings, reason: null };
+    }
+  }
+  const loops = resolveLoopGeometry(scopedPl, course.holesCount);
+  if (loops) return { geometry: withGreens(loops, scopedPl), tier: 'loops', siblings: new Map(), reason: null };
+  const features = resolveFeatureGeometry(payload, course.name, point);
+  if (features) return { geometry: features, tier: 'features', siblings: new Map(), reason: null };
+  const greens = greensOnlyGeometry(payload, course.name, point);
+  if (greens) return { geometry: greens, tier: 'greens_only', siblings: new Map(), reason: null };
+  return none(classifyScoped(elements, scoped));
+}
+
 const GEOMETRY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** The cache layer the API serves: 30-day cache in golf_courses (attempted
@@ -1161,60 +1229,36 @@ export async function getCourseHoleGeometry(
   if (!(await consumeBudget())) return row.hole_geometry; // no stamp — retry later
   const result = await fetchHoleGeometry(row.lat, row.lng, row.name);
   if (!result.reached) return row.hole_geometry; // transport-only failure — no stamp
-  let geometry = result.geometry;
 
-  // Multi-course club whose payload the strict/scoped parse refused
-  // (duplicate refs inside one boundary): try the section split. One fetch
-  // labels EVERY sibling it can prove, each written to its own row — and a
-  // null stays a real, stamped "ambiguous" answer, retried in 30 days.
-  if (!geometry && row.club_id && result.payload) {
-    try {
+  // THE pipeline (resolveCourseTiers) — the same five tiers the regional
+  // sweep runs. A club with section rows hands the evidence split its
+  // siblings; each labelled sibling is written to its own row with the same
+  // stamp; a null stays a real, stamped "no coverage" answer, retried in 30
+  // days.
+  let geometry: HoleGeometry | null = null;
+  try {
+    let sections: SectionRowLite[] = [];
+    if (row.club_id) {
       const { data: siblingRows } = await admin
         .from('golf_courses')
         .select('id, name, section_name')
         .eq('club_id', row.club_id)
         .not('section_name', 'is', null);
-      const sections = (siblingRows ?? []) as Array<{ id: string; name: string; section_name: string | null }>;
-      // The split sees THIS course's ways (the claims scope), never a
-      // neighbour's: Royal Ottawa's 27 alone, not the cluster's 45.
-      const elements = (result.payload as { elements?: OverpassElement[] }).elements ?? [];
-      const assigned = resolveSectionGeometries(scopedPayload(elements, scopeHoleWays(elements, row.name, [row.lat, row.lng])), sections);
-      if (assigned) {
-        const stamp = new Date().toISOString();
-        for (const [sectionId, geo] of assigned) {
-          if (sectionId === courseId) continue; // this row is stamped below
-          await admin
-            .from('golf_courses')
-            // Each sibling picks its own greens out of the ONE payload (the
-            // assignment is by its holes' line ends).
-            .update({ hole_geometry: withGreens(geo, result.payload), hole_geometry_at: stamp })
-            .eq('id', sectionId);
-        }
-        const own = assigned.get(courseId);
-        geometry = own ? withGreens(own, result.payload) : null;
-      }
-    } catch (sectionError) {
-      console.error('Section geometry split failed (non-fatal):', sectionError);
+      sections = (siblingRows ?? []) as SectionRowLite[];
     }
-  }
-
-  // Tier 3 (sweep PR 4): clean loops nothing labels → pickable sections
-  // (or the one 18 the catalog vouches for), over THIS course's ways.
-  if (!geometry && result.payload) {
-    const elements = (result.payload as { elements?: OverpassElement[] }).elements ?? [];
-    const scoped = scopedPayload(elements, scopeHoleWays(elements, row.name, [row.lat, row.lng]));
-    const loops = resolveLoopGeometry(scoped, row.holes_count);
-    if (loops) geometry = withGreens(loops, scoped);
-  }
-  // Tier 4 (sweep PR 5): no hole ways, but numbered tees / fairways /
-  // greens — lines synthesised from the features.
-  if (!geometry && result.payload) {
-    geometry = resolveFeatureGeometry(result.payload, row.name, [row.lat, row.lng]);
-  }
-  // Tier 5 (sweep PR 3): no lines anywhere, but the greens are drawn —
-  // keep them unnumbered for the nearest-green rangefinder.
-  if (!geometry && result.payload) {
-    geometry = greensOnlyGeometry(result.payload, row.name, [row.lat, row.lng]);
+    const tiers = resolveCourseTiers(result.payload, { name: row.name, lat: row.lat, lng: row.lng, holesCount: row.holes_count }, sections);
+    geometry = tiers.geometry;
+    if (tiers.siblings.size) {
+      const stamp = new Date().toISOString();
+      for (const [sectionId, geo] of tiers.siblings) {
+        if (sectionId === courseId) continue; // this row is stamped below
+        await admin.from('golf_courses').update({ hole_geometry: geo, hole_geometry_at: stamp }).eq('id', sectionId);
+      }
+      geometry = tiers.siblings.get(courseId) ?? geometry;
+    }
+  } catch (tierError) {
+    console.error('Geometry tiers failed (non-fatal):', tierError);
+    geometry = result.geometry;
   }
 
   await admin

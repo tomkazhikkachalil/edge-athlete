@@ -404,6 +404,12 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   'open-meteo': 100,
   // T2: one hit per COURSE per 30 days (1–4 free tile reads behind it).
   'terrain-tiles': 400,
+  // Map sweep PR 6 — its OWN keys, so the sweep never starves a live map
+  // open: one regional Overpass query per CELL (≈15 % of Overpass's ~10k/day
+  // fair use at one in flight with 3 s gaps; ~4,500 cells in ~3 days, ~160
+  // a day at steady state), and one terrain hit per course (≤ 4 S3 reads).
+  'sweep-overpass': 1500,
+  'sweep-terrain': 3000,
 };
 
 /** ONE daily fixed-window hit against `rate_limit_hit` (mig 094). Fail CLOSED:
