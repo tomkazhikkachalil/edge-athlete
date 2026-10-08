@@ -29,6 +29,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { haversineKm } from '@/lib/golf/geocode';
 import { pointInRing, ringCentroid, YDS_PER_KM, type Ring } from '@/lib/golf/green';
+import { deriveHoleGeometry, parseGolfFeatures, DERIVED_MIN_GREENS } from '@/lib/golf/hole-features';
 
 export interface HoleLine {
   hole: number;
@@ -499,12 +500,12 @@ export const GREEN_ASSIGN_M = 40;
 const toRing = (geom: { lat: number; lon: number }[] | undefined): Ring =>
   (geom ?? []).filter(validPt).map(g => [Number(g.lat.toFixed(6)), Number(g.lon.toFixed(6))] as [number, number]);
 
-/** Every closed `golf=green` ring in an Overpass payload. Exported pure for
- *  tests. */
-export function parseGreenRings(payload: unknown): Ring[] {
+/** Every closed `golf=green` ring in an Overpass payload, with the hole
+ *  number its `ref` tag names (null when unnumbered). Exported pure for tests. */
+export function parseGreenFeatures(payload: unknown): Array<{ ring: Ring; ref: number | null }> {
   const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
   if (!Array.isArray(elements)) return [];
-  const rings: Ring[] = [];
+  const out: Array<{ ring: Ring; ref: number | null }> = [];
   for (const el of elements) {
     if (el?.tags?.golf !== 'green') continue;
     let found: Ring[] = [];
@@ -517,23 +518,45 @@ export function parseGreenRings(payload: unknown): Ring[] {
           .map(m => toRing(m.geometry))
       );
     }
-    for (const r of found) if (r.length >= 4) rings.push(r);
+    const ref = /^\d+$/.test(el.tags?.ref ?? '') ? Number(el.tags!.ref) : null;
+    for (const r of found) if (r.length >= 4) out.push({ ring: r, ref });
   }
-  return rings;
+  return out;
 }
+
+/** Every closed `golf=green` ring in an Overpass payload. Exported pure for
+ *  tests. */
+export function parseGreenRings(payload: unknown): Ring[] {
+  return parseGreenFeatures(payload).map(g => g.ring);
+}
+
+/** A ring whose `ref` names the hole counts first, but only within this of
+ *  the line's end — a neighbour's "ref=3" must not pull across a fence. */
+export const GREEN_REF_M = 120;
 
 /** Assign rings to holes by the line END: containment first, else the
  *  nearest ring within GREEN_ASSIGN_M. Holes with nothing are absent; a ring
  *  may appear under two holes. Exported pure for tests. */
-export function assignGreens(holes: HoleLine[], rings: Ring[]): GreenRing[] {
+export function assignGreens(holes: HoleLine[], rings: Ring[], refs?: Array<number | null>): GreenRing[] {
   const out: GreenRing[] = [];
   if (!rings.length) return out;
   for (const h of holes) {
     const end = h.line[h.line.length - 1];
     if (!end) continue;
-    const containing = rings.filter(r => pointInRing(end, r));
     let pick: Ring | null = null;
-    if (containing.length === 1) {
+    // PR 5: the ring that NAMES the hole wins, when it sits within GREEN_REF_M.
+    if (refs) {
+      let best = GREEN_REF_M;
+      rings.forEach((r, i) => {
+        if (refs[i] !== h.hole) return;
+        const d = pointInRing(end, r) ? 0 : metresToRing(end, r);
+        if (d <= best) { best = d; pick = r; }
+      });
+    }
+    const containing = pick ? [] : rings.filter(r => pointInRing(end, r));
+    if (pick) {
+      // decided by ref
+    } else if (containing.length === 1) {
       pick = containing[0];
     } else if (containing.length > 1) {
       let best = Infinity;
@@ -557,10 +580,35 @@ export function assignGreens(holes: HoleLine[], rings: Ring[]): GreenRing[] {
 /** The geometry with its greens ALWAYS set — `[]` when the payload holds no
  *  outlines, which is the stamp that stops the cache layer refetching. */
 export function withGreens(geometry: HoleGeometry, payload: unknown): HoleGeometry {
-  const rings = parseGreenRings(payload);
-  const out: HoleGeometry = { ...geometry, greens: assignGreens(geometry.holes, rings) };
-  if (geometry.sections) out.sections = geometry.sections.map(s => ({ ...s, greens: assignGreens(s.holes, rings) }));
+  const features = parseGreenFeatures(payload);
+  const rings = features.map(f => f.ring);
+  const refs = features.map(f => f.ref);
+  const out: HoleGeometry = { ...geometry, greens: assignGreens(geometry.holes, rings, refs) };
+  if (geometry.sections) out.sections = geometry.sections.map(s => ({ ...s, greens: assignGreens(s.holes, rings, refs) }));
   return out;
+}
+
+const isGolfFeatureEl = (el: OverpassElement) => el?.tags?.golf === 'tee' || el?.tags?.golf === 'fairway' || el?.tags?.golf === 'green';
+
+/** Tier 4 (sweep PR 5) — the feature-tagged course: the numbered tees,
+ *  fairways and greens this course owns (the claims scope with "≥ 9
+ *  numbered greens" as the own-set test; the 800 m rule on the tees for a
+ *  boundary-less course), synthesised into lines by hole-features.ts.
+ *  Exported pure for tests. */
+export function resolveFeatureGeometry(
+  payload: unknown,
+  courseName: string | null | undefined,
+  point?: [number, number] | null
+): HoleGeometry | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements)) return null;
+  const numberedGreens = (own: OverpassElement[]) =>
+    own.filter(el => el.tags?.golf === 'green' && /^\d+$/.test(el.tags?.ref ?? '')).length >= DERIVED_MIN_GREENS;
+  const scoped = scopeHoleWays(elements, courseName, point, isGolfFeatureEl, numberedGreens);
+  const g = deriveHoleGeometry(parseGolfFeatures(scoped.ways));
+  if (!g) return null;
+  if (scoped.mode === 'unclaimed' && point && g.holes.length && teeCentroidMetres(g, point) > UNCLAIMED_MAX_M) return null;
+  return g;
 }
 
 /** The greens-only tier (sweep PR 3) needs this many rings of its own. */
@@ -1038,6 +1086,9 @@ export async function fetchHoleGeometry(
     // statement: a timeout still lands in the heaviest statement, and
     // isOverpassPartial turns that into a transport failure as before.
     `(way["golf"="green"]${around};relation["golf"="green"]${around};);out geom;` +
+    // PR 5: the numbered tees and fairways of a feature-tagged course —
+    // points only (`out center`), so the payload stays light.
+    `(node["golf"="tee"]${around};way["golf"="tee"]${around};way["golf"="fairway"]${around};);out center;` +
     // Named boundaries only — unnamed polygons are dropped by the scoper
     // anyway, and a smaller statement is less likely to time out.
     `(way["leisure"="golf_course"]["name"]${around};relation["leisure"="golf_course"]["name"]${around};);out geom;`;
@@ -1154,6 +1205,11 @@ export async function getCourseHoleGeometry(
     const scoped = scopedPayload(elements, scopeHoleWays(elements, row.name, [row.lat, row.lng]));
     const loops = resolveLoopGeometry(scoped, row.holes_count);
     if (loops) geometry = withGreens(loops, scoped);
+  }
+  // Tier 4 (sweep PR 5): no hole ways, but numbered tees / fairways /
+  // greens — lines synthesised from the features.
+  if (!geometry && result.payload) {
+    geometry = resolveFeatureGeometry(result.payload, row.name, [row.lat, row.lng]);
   }
   // Tier 5 (sweep PR 3): no lines anywhere, but the greens are drawn —
   // keep them unnumbered for the nearest-green rangefinder.
