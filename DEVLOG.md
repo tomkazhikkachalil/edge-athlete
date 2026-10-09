@@ -1,5 +1,15 @@
 # Development Log
 
+## October 9, 2026 — Post-merge check: production on `d4eeffbb`, every surface green
+
+Tom's full checklist again after #1130 merged ("web, large screen, mobile, and downloaded app"). No code changes.
+
+- **The gate on the merged `main` `d4eeffbb`:** lint 0 warnings, typecheck clean, **4,794 tests in 511 files**, the build, 240 client chunks within the iOS 15 / Safari 15 floor.
+- **Production signed out on `d4eeffbb`:** health ok; the launch gate 307 → `/auth/coming-soon`; the installable app's manifest (`id /feed`, `standalone`, three icons) and icons, `/sw.js` and `?static=1`, robots — all 200; the 18 deployed door-page chunks (downloaded as iOS 15 Safari, `/_next/static/immutable/chunks/`) parse and call within the floor.
+- **Production signed in — 14 specs across the surfaces** (health, feed-post, edit-profile, profile-spacing, install-app — the downloaded app's states —, get-started-mobile, likes, post-views, notifications-clear, drafts, workout-capture, workout-review, activities-map-frame, heic-photo), one project per run: **desktop 10/10** (1.3 min), **phone Chromium 24/24** (3.3 min), **Android 23 + 1 flaky** (4.2 min), **phone WebKit 21 + 3 flaky** (8.0 min). Every flaky test passed on its retry: `get-started-mobile` (the card not yet shown within 15 s), `likes` (the seeded post not yet on the feed within 30 s), and **`edit-profile` on WebKit — its SECOND flake today**: after "Save Basic" the server still held the old bio 20 s later. Run alone on production three times with tracing and no retries: **3/3 passed**; not reproduced. It has only failed inside long full runs on the iPhone engine. Recorded as the first thing to watch, and as a check for Tom's iPhone (edit the bio, save, reload).
+- **Production re-read clean** after the probe: 0 QA users, 0 QA courses; 2 profiles, 13 posts, 4 shared rounds, 3 workouts.
+- **Open PRs:** none after this. Nothing in flight.
+
 ## October 9, 2026 — Maintenance pass: all green on main `7e4a43ae`; one spec taught production's chunk path
 
 Tom's standing checklist after the day's rounds (workout capture, every phone, the route frame, GPS accuracy). No product code changes; one e2e spec fix.
