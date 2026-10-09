@@ -1,5 +1,13 @@
 # Development Log
 
+## October 9, 2026 — Security Advisor round, PR A: the custom-domain lookups use the server key
+
+Tom pasted production's Supabase Security Advisor (31 WARNs) and asked for a plan that fixes everything without breaking anything. This PR is the code half that must deploy BEFORE migration 257 revokes `anon` / `authenticated` EXECUTE on `resolve_org_site_host` / `resolve_org_site_domain` (171's anon-granted lookups).
+
+- `src/lib/org-sites/domain-cache.ts rpc()` sends `SUPABASE_SERVICE_ROLE_KEY` instead of the anon key. Present in Vercel Production and Preview. Read at runtime: the built output was searched for the key's signature — **0 hits in `.next/static` and in `.next/server`**.
+- `CUSTOM_DOMAINS` is not set in production, so these lookups do not run there today; the switch is future-proofing with no live path to break. Fail-open is unchanged.
+- Proof: `npm run verify` 0 (4,807 tests); guardrails pass.
+
 ## October 9, 2026 — Posting, PR 3: every posting surface speaks the same way
 
 Tom's model, everywhere a post is made: the ACCOUNT decides who sees it; per item, only **Post it** or **Only me**. PR 3 of 3.

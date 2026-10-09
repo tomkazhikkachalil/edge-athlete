@@ -1,8 +1,10 @@
 // ── Custom-host resolution for the Edge middleware (phase 6b C2) ────────────
 // ZERO imports (the subdomain.ts rule): the edge bundle pulls one tiny
-// module. Two lookups, both through the anon-granted SECURITY DEFINER RPCs
-// from migration 171 (THE bounded posture-A exception — they answer only
-// verified host ↔ slug pairs for published sites):
+// module. Two lookups, both through the SECURITY DEFINER RPCs from migration
+// 171 (they answer only verified host ↔ slug pairs for published sites),
+// called with the SERVICE-ROLE key (Oct 9 2026): the Security Advisor flagged
+// them as anon-executable, so 257 revokes anon / authenticated EXECUTE. The
+// key is read at runtime on the server (never NEXT_PUBLIC, never inlined):
 //   resolveHost(host)     → { slug, active } | null   (custom host → site)
 //   resolveSlugDomain(slug) → domain | null           (apex /{slug} → 301?)
 // A module-level TTL map absorbs the per-request cost (Fluid/edge isolates
@@ -36,7 +38,8 @@ export function isAppHost(host: string, appHost: string): boolean {
 
 async function rpc<T>(name: string, body: Record<string, string>): Promise<T | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Server-only (middleware runs on the server; nothing NEXT_PUBLIC here).
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   try {
     const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
