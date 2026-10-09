@@ -22,6 +22,8 @@ import { ACTIVITY_MEDIA_MAX } from '@/lib/activities/media';
 import { sportForActivity } from '@/lib/activities/sport-bridge';
 import { isSportEnabled } from '@/lib/features';
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
+import { postActivity } from '@/lib/activities/share-client';
+import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth';
@@ -430,6 +432,13 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
   const sport = sportForActivity(a.type);
   const sportEnabled = sport !== null && isSportEnabled(sport);
   const [shareAs, setShareAs] = useState<'training' | 'sport'>('training');
+  // Who sees the post is the POSTING account's call (src/lib/posts/audience.ts):
+  // self, or the athlete a guardian is acting for. Unknown reads as private.
+  const { user: me, profile: myProfile, activeProfile } = useAuth();
+  const actingForOther = !!me && a.profileId !== me.id;
+  const accountVisibility = actingForOther
+    ? (activeProfile?.id === a.profileId ? activeProfile.visibility ?? null : null)
+    : (myProfile?.visibility ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPhoto, setConfirmPhoto] = useState<ActivityMediaView | null>(null);
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
@@ -575,32 +584,21 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
   const share = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/posts', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postType: shareAs === 'sport' && sportEnabled ? sport : 'general',
-          caption: caption.trim(),
-          visibility: 'public',
-          stats_data: { type: 'activity', activity_id: a.id },
-          // Self, or the athlete a guardian manages — the server's acting gate decides.
-          targetProfileId: a.profileId,
-        }),
+      const result = await postActivity({
+        activityId: a.id,
+        sport: shareAs === 'sport' && sportEnabled ? sport : null,
+        caption,
+        targetProfileId: a.profileId,
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showError('Not shared', typeof json.error === 'string' ? json.error : 'Please try again.');
+      if (!result.ok) {
+        showError('Not shared', result.error);
         return;
       }
-      const post = json.post ?? json;
-      onChanged({ postId: (post?.id as string | undefined) ?? 'shared' });
+      onChanged({ postId: result.postId ?? 'shared' });
       closeShare();
       showSuccess(
-        post?.status === 'pending_approval' ? 'Sent for approval' : shareAs === 'sport' && sportEnabled ? `Posted as a ${getSportDefinition(sport!).display_name} result` : 'Shared to your feed'
+        result.pendingApproval ? 'Sent for approval' : shareAs === 'sport' && sportEnabled ? `Posted as a ${getSportDefinition(sport!).display_name} result` : 'Shared to your feed'
       );
-    } catch {
-      showError('Not shared', 'Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -839,6 +837,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-base text-primary"
             />
           </label>
+          <AccountAudienceLine accountVisibility={accountVisibility} hideChange={actingForOther} />
           <div className="flex gap-3">
             <button type="button" disabled={busy} onClick={() => void share()} className="ea-cta rounded-lg px-4 py-2 font-semibold min-h-[44px] disabled:opacity-50" data-activity-share-post>
               Post

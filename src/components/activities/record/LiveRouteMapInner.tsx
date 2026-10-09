@@ -152,7 +152,10 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
   }, [photos, points, startedAt]);
 
   return (
-    <div className="relative">
+    // `isolate`: Leaflet's panes are z-index 400+; without a stacking context
+    // here they rise above the page's own layers — the review sheet (z-50)
+    // opened with the map drawn over its top half (Oct 9 2026).
+    <div className="relative isolate">
       <div ref={containerRef} className="h-[40vh] min-h-[220px] w-full" data-record-map="" />
       {!follow && (
         <button

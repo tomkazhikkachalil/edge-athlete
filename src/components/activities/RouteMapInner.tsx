@@ -237,7 +237,9 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
   const pill =
     'absolute z-[400] rounded-full bg-surface/95 px-3 py-1.5 text-sm font-semibold text-primary shadow-md border border-border min-h-[36px]';
   return (
-    <div className="relative">
+    // `isolate` keeps Leaflet's z-400 panes inside the map, under the page's
+    // dialogs (the recorder's review sheet sat under its map — Oct 9 2026).
+    <div className="relative isolate">
       <div
         ref={containerRef}
         className={`h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden${layer === 'osm' ? ' ea-route-frame' : ''}`}

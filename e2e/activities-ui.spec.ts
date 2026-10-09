@@ -66,6 +66,8 @@ test('import a GPX and a FIT, open one, share it, delete it @mobile', async ({ b
     // Share to feed: the post exists and carries the server's card.
     await page.locator('[data-activity-share]').click();
     await page.locator('[data-activity-share-panel] textarea').fill('Felt good');
+    // Who sees it is the account's call — said above Post, no per-post switch.
+    await expect(page.locator('[data-activity-share-panel] [data-account-audience]')).toBeVisible();
     await page.locator('[data-activity-share-post]').click();
     await expect(page.getByText('On your feed')).toBeVisible({ timeout: 15_000 });
     const { data: post } = await adminClient().from('posts').select('id, caption, stats_data').eq('profile_id', u.id).single();

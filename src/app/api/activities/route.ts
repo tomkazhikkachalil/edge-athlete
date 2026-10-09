@@ -9,6 +9,7 @@ import { importActivity } from '@/lib/activities/write-server';
 
 /**
  * POST /api/activities — import one .GPX / .TCX activity (Activities, 245).
+ * `onlyMe: true` (the recorder's review) saves it Only me in the same call.
  *
  * The browser parsed the file (a long ride's XML can exceed the 4.5 MB
  * request cap) and sends the compact columnar payload (wire.ts, ≤ 10,000
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
-    const { activity, targetProfileId } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown };
+    const { activity, targetProfileId, onlyMe } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown; onlyMe?: unknown };
 
     const gate = await resolveActingProfile(
       user.id,
@@ -68,6 +69,23 @@ export async function POST(request: NextRequest) {
         : {}),
     });
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+    // The recorder's review chose Only me (Oct 9 2026): private from the
+    // moment it exists — set here, not by a second call that could fail and
+    // leave it on the profile. Idempotent, so a retried save (the same
+    // live:<recordingId>, a duplicate) lands Only me too; never on an
+    // activity that is already on the feed.
+    if (onlyMe === true) {
+      const { error: omErr } = await admin
+        .from('activities')
+        .update({ only_me: true })
+        .eq('id', outcome.id)
+        .eq('profile_id', gate.actorId)
+        .is('post_id', null);
+      if (omErr) {
+        reportRouteError('[activities] only-me on import failed:', omErr);
+        return NextResponse.json({ error: 'Could not save the activity as Only me. Try again.' }, { status: 500 });
+      }
+    }
     return NextResponse.json({ id: outcome.id, duplicate: outcome.duplicate }, { status: outcome.duplicate ? 200 : 201 });
   } catch (error) {
     if (error instanceof Response) return error;
