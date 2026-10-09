@@ -3,8 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flag, MoreVertical, Plus, Timer, Trash2 } from 'lucide-react';
-import ExerciseCard from './ExerciseCard';
+import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
 import { useSetMediaUploads } from './useSetMediaUploads';
+import { MediaEditor } from '@/components/media-editor';
+import type { EditedMedia, MediaAsset } from '@/lib/media/types';
+import { uploadPostMedia } from '@/lib/media/upload';
+import { fetchStoredMediaFile } from '@/lib/workouts/set-media-file';
+import {
+  defaultShareOrder,
+  moveShare,
+  pruneShareOrder,
+  removeMediaAt,
+  replaceMediaAt,
+  replaceShareUrl,
+  shareList,
+  toggleShare,
+} from '@/lib/workouts/share-media';
 import AddExerciseSheet from './AddExerciseSheet';
 import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
@@ -25,6 +39,7 @@ import {
   collectWorkoutMedia,
   formatElapsed,
   MAX_POST_MEDIA,
+  type CollectedMedia,
 } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
@@ -93,7 +108,14 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [caption, setCaption] = useState('');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<Set<number>>(new Set());
+  // The post's carousel IS this order (workout capture round PR 2): clip URLs,
+  // never indices — an edit swaps a URL in place, a removal prunes it.
+  const [shareOrder, setShareOrder] = useState<string[]>([]);
+  /** The share step's pencil: the clip being edited, and the editor's asset. */
+  const [shareEditor, setShareEditor] = useState<{ clip: CollectedMedia; assets: MediaAsset[] } | null>(null);
+  const [shareClipBusy, setShareClipBusy] = useState(false);
+  /** The share step's bin: the clip awaiting the confirm. */
+  const [removeClip, setRemoveClip] = useState<CollectedMedia | null>(null);
 
   // Save-as-routine (summary phase). Name is null until the user types, so
   // the input tracks the final title without an effect.
@@ -492,8 +514,67 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   useEffect(() => {
     if (phase !== 'share' || mediaDefaultedRef.current) return;
     mediaDefaultedRef.current = true;
-    setSelectedMedia(new Set(mediaOptions.slice(0, MAX_POST_MEDIA).map((_, i) => i)));
+    setShareOrder(defaultShareOrder(mediaOptions, MAX_POST_MEDIA));
   }, [phase, mediaOptions]);
+  const shareClips = useMemo(() => shareList(mediaOptions, shareOrder), [mediaOptions, shareOrder]);
+
+  // ── The share step's clip controls (PR 2) ───────────────────────────────
+  // An edit or a removal changes the SET (through mutate → the draft → the
+  // entries PUT, which review mode already relies on for a completed
+  // session), then the order follows; the draft is cleared once the server
+  // has it, so a later reopen never offers to "restore" the share-step edit.
+  const saveShareEdit = async (next: EntryExercise[]) => {
+    mutate(next);
+    const ok = await syncNow();
+    if (ok) clearDraft(draftId);
+    else showError('Not saved yet', 'Your change is kept on this device and will save when you are back online.');
+  };
+  const editShareClip = async (clip: CollectedMedia) => {
+    if (shareClipBusy) return;
+    setShareClipBusy(true);
+    try {
+      const file = await fetchStoredMediaFile(clip.url, clip.type);
+      setShareEditor({ clip, assets: [{ id: `share-${clip.url}`, file, kind: clip.type }] });
+    } catch (err) {
+      showError('Could not open the clip', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setShareClipBusy(false);
+    }
+  };
+  const shareEditorDone = async (results: EditedMedia[]) => {
+    const target = shareEditor?.clip;
+    setShareEditor(null);
+    const first = results[0];
+    if (!target || !first) return;
+    setShareClipBusy(true);
+    try {
+      const uploaded = await uploadPostMedia(first.file);
+      const next = replaceMediaAt(stateRef.current.exercises, target, { url: uploaded.url, type: uploaded.type });
+      if (next !== stateRef.current.exercises) {
+        setShareOrder(prev => replaceShareUrl(prev, target.url, uploaded.url));
+        await saveShareEdit(next);
+      }
+    } catch (err) {
+      showError('Upload failed', err instanceof Error ? err.message : 'Could not save the edited clip');
+    } finally {
+      setShareClipBusy(false);
+    }
+  };
+  const confirmRemoveClip = async () => {
+    const target = removeClip;
+    setRemoveClip(null);
+    if (!target) return;
+    setShareClipBusy(true);
+    try {
+      const next = removeMediaAt(stateRef.current.exercises, target);
+      if (next !== stateRef.current.exercises) {
+        setShareOrder(prev => pruneShareOrder(prev, collectWorkoutMedia(next)));
+        await saveShareEdit(next);
+      }
+    } finally {
+      setShareClipBusy(false);
+    }
+  };
 
   const handleShare = async () => {
     if (!finishedSessionId || sharing) return;
@@ -509,8 +590,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           postCategory: 'training',
           caption,
           visibility: 'public',
-          media: mediaOptions
-            .filter((_, index) => selectedMedia.has(index))
+          // The carousel is the chosen order (shareOrder), not the reading order.
+          media: shareClips.selected
             .slice(0, MAX_POST_MEDIA)
             .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order })),
           taggedProfiles: [],
@@ -616,24 +697,43 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
 
   if (phase === 'share') {
     return (
-      <ShareStep
-        caption={caption}
-        onCaptionChange={setCaption}
-        mediaOptions={mediaOptions}
-        selectedMedia={selectedMedia}
-        onToggleMedia={index =>
-          setSelectedMedia(prev => {
-            const next = new Set(prev);
-            if (next.has(index)) next.delete(index);
-            else next.add(index);
-            return next;
-          })
-        }
-        sharing={sharing}
-        error={shareError}
-        onShare={handleShare}
-        onKeepPrivate={handleKeepPrivate}
-      />
+      <>
+        <ShareStep
+          caption={caption}
+          onCaptionChange={setCaption}
+          clips={shareClips}
+          onToggleClip={url => setShareOrder(prev => toggleShare(prev, url, MAX_POST_MEDIA))}
+          onMoveClip={(url, dir) => setShareOrder(prev => moveShare(prev, url, dir))}
+          onEditClip={clip => void editShareClip(clip)}
+          onRemoveClip={clip => setRemoveClip(clip)}
+          clipsBusy={shareClipBusy || sharing}
+          sharing={sharing}
+          error={shareError}
+          onShare={handleShare}
+          onKeepPrivate={handleKeepPrivate}
+        />
+        {shareEditor && (
+          <MediaEditor
+            assets={shareEditor.assets}
+            config={SET_MEDIA_EDITOR_CONFIG}
+            onDone={shareEditorDone}
+            onCancel={() => setShareEditor(null)}
+          />
+        )}
+        <ConfirmModal
+          isOpen={removeClip !== null}
+          title="Remove this clip?"
+          message={
+            removeClip
+              ? `It is deleted from ${removeClip.exerciseName} set ${removeClip.setNumber} and from this workout, and your post will not include it. This cannot be undone.`
+              : ''
+          }
+          confirmText="Remove"
+          cancelText="Keep it"
+          onConfirm={() => void confirmRemoveClip()}
+          onCancel={() => setRemoveClip(null)}
+        />
+      </>
     );
   }
 
