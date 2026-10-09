@@ -117,3 +117,37 @@ export function removePendingMedia<E extends PendingEntryExercise>(exercises: E[
   const target = pendingUrl(localId);
   return mapMedia(exercises, localId, media => media.filter(m => m.url !== target));
 }
+
+interface NamedEntryExercise extends PendingEntryExercise {
+  name: string;
+  sets: Array<PendingEntrySet & { setNumber: number }>;
+}
+
+/**
+ * A clip whose bytes are in the stash but whose entry is gone from the sets
+ * (PR 4, Oct 9 2026): the stripped snapshot landed on the server before the
+ * page was thrown away, so the server copy — newer than the draft — won the
+ * reload and carried no pending entry. The stash record knows the clip's
+ * PLACE (exercise name + set number); put the entry back there. Returns the
+ * same array when the clip is already present, the place no longer exists,
+ * or the set is at its media cap — the caller then drops the bytes and says so.
+ */
+export function reattachPendingMedia<E extends NamedEntryExercise>(
+  exercises: E[],
+  clip: { localId: string; type: 'image' | 'video'; exerciseName: string; setNumber: number },
+  maxPerSet: number
+): E[] {
+  const url = pendingUrl(clip.localId);
+  for (const exercise of exercises) for (const set of exercise.sets) if ((set.media ?? []).some(m => m.url === url)) return exercises;
+  const exerciseIndex = exercises.findIndex(e => e.name === clip.exerciseName);
+  if (exerciseIndex < 0) return exercises;
+  const setIndex = exercises[exerciseIndex].sets.findIndex(s => s.setNumber === clip.setNumber);
+  if (setIndex < 0) return exercises;
+  const set = exercises[exerciseIndex].sets[setIndex];
+  if ((set.media ?? []).length >= maxPerSet) return exercises;
+  return exercises.map((e, ei) =>
+    ei !== exerciseIndex
+      ? e
+      : { ...e, sets: e.sets.map((s, si) => (si !== setIndex ? s : { ...s, media: [...(s.media ?? []), { url, type: clip.type }] })) }
+  );
+}

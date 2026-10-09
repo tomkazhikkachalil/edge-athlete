@@ -24,11 +24,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EntryExercise, SetMedia } from '@/lib/workouts/entries';
-import { openMediaStash, type MediaStash } from '@/lib/workouts/media-stash';
+import { MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
+import { openMediaStash, type MediaStash, type StashPlace } from '@/lib/workouts/media-stash';
 import {
   pendingIdOf,
   pendingLocalIds,
   pendingUrl,
+  reattachPendingMedia,
   removePendingMedia,
   replacePendingMedia,
 } from '@/lib/workouts/set-media-pending';
@@ -37,8 +39,10 @@ export type SetMediaStatus = 'pending' | 'failed';
 
 export interface SetMediaUploads {
   /** Pending entries to append to a set — the caller patches the set; the
-   *  hook has already stashed the bytes and queued the upload. */
-  register(files: File[]): SetMedia[];
+   *  hook has already stashed the bytes (with the clip's PLACE, so a resume
+   *  can put the entry back if the server copy won the reload without it)
+   *  and queued the upload. */
+  register(files: File[], place: StashPlace): SetMedia[];
   /** Re-queue a failed clip. */
   retry(localId: string): void;
   /** The clip is leaving its set (the caller removes the entry): stop
@@ -144,7 +148,7 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
     });
   }, [sessionId, setStatus]);
 
-  const register = useCallback((files: File[]): SetMedia[] => {
+  const register = useCallback((files: File[], place: StashPlace): SetMedia[] => {
     const entries: SetMedia[] = [];
     for (const file of files) {
       const localId = newLocalId();
@@ -152,7 +156,7 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
       const preview = URL.createObjectURL(file);
       setStatus(localId, 'pending', preview);
       entries.push({ url: pendingUrl(localId), type: file.type.startsWith('video/') ? 'video' : 'image' });
-      void stash()?.save(sessionId, localId, file).catch(() => undefined);
+      void stash()?.save(sessionId, localId, file, Date.now(), place).catch(() => undefined);
       enqueue(localId, file);
     }
     return entries;
@@ -187,17 +191,42 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
     enqueue(localId, file);
   }, [enqueue, sessionId, setStatus]);
 
-  // Resume after a reload: the pending ids still in the sets look for their bytes.
+  // Resume after a reload: the pending ids still in the sets look for their
+  // bytes — and the stash's clips whose ENTRY is gone (the server copy won the
+  // reload after the stripped snapshot landed) are put back in their place.
   const resumedRef = useRef(false);
   useEffect(() => {
     if (resumedRef.current) return;
     resumedRef.current = true;
-    const ids = pendingLocalIds(latest.current.getExercises());
-    if (ids.length === 0) return;
     const store = stash();
     let cancelled = false;
     (async () => {
+      const { getExercises: read, commit: write } = latest.current;
       let lost = 0;
+      // The working snapshot is carried in a LOCAL — `read()` goes through a
+      // ref that React refreshes only after the next render, so a write made
+      // here is not visible to a read made in the same tick.
+      let current = read();
+      // 1. Orphaned bytes → their entry, by place (exercise name + set number).
+      const stashed = store ? await store.listSession(sessionId).catch(() => []) : [];
+      if (cancelled) return;
+      const present = new Set(pendingLocalIds(current));
+      for (const entry of stashed) {
+        if (present.has(entry.localId)) continue;
+        const type = entry.file.type.startsWith('video/') ? 'video' : 'image';
+        const next = entry.place
+          ? reattachPendingMedia(current, { localId: entry.localId, type, ...entry.place }, MAX_MEDIA_PER_SET)
+          : current;
+        if (next !== current) {
+          current = next;
+          write(next);
+        } else {
+          lost += 1; // no place, the place is gone, or the set is full — the bytes go
+          void store?.remove(sessionId, entry.localId).catch(() => undefined);
+        }
+      }
+      // 2. Every pending id now in the sets looks for its bytes.
+      const ids = pendingLocalIds(current);
       for (const localId of ids) {
         const file = store ? await store.load(sessionId, localId).catch(() => null) : null;
         if (cancelled) return;
@@ -207,9 +236,11 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
           enqueue(localId, file);
         } else {
           lost += 1;
-          const { getExercises: read, commit: write } = latest.current;
-          const next = removePendingMedia(read(), localId);
-          if (next !== read()) write(next);
+          const next = removePendingMedia(current, localId);
+          if (next !== current) {
+            current = next;
+            write(next);
+          }
         }
       }
       if (lost > 0) {

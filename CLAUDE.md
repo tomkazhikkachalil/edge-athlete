@@ -1645,10 +1645,14 @@ const { canView } = await response.json();
    (`src/lib/workouts/set-media-pending.ts`, zero imports — the draft
    persists it for free and it moves with its set), its bytes in IndexedDB
    `ea-workout-media` (`media-stash.ts` — an **ArrayBuffer, never a Blob**:
-   WebKit refused Blob records on Sep 3; fail-open; the draft's 48 h), the
-   upload in the screen's ONE queue (`useSetMediaUploads`: one at a time —
-   never `Promise.all` — finds the entry by URL when it lands, resumes from
-   the stash on mount, a failed clip is a Retry tile and a toast, never a
+   WebKit refused Blob records on Sep 3; fail-open; the draft's 48 h) **with
+   the clip's PLACE** (`place: { exerciseName, setNumber }` — the stash is the
+   durable record of "a clip was attached HERE"; when the stripped snapshot
+   landed before a reload and the server copy won without the entry, the
+   resume puts it back with `reattachPendingMedia`), the upload in the
+   screen's ONE queue (`useSetMediaUploads`: one at a time — never
+   `Promise.all` — finds the entry by URL when it lands, resumes from the
+   stash on mount, a failed clip is a Retry tile and a toast, never a
    dropped clip). **Every entries PUT body goes through
    `stripPendingMedia`**; Finish / Save / Done `settle()` the queue first and
    stop on a failed clip by name. The tile's `data-set-media-state` is
@@ -1669,8 +1673,14 @@ const { canView } = await response.json();
    `LiveClock` — never in the screen's state. **The entries PUT's stale-write
    guard is LIVE-only** (`entries-stale.ts`): a completed session's
    `last_activity_at` is its END time (a manual log can put it in the
-   future), so review-mode edits are never guarded and never move it. Read
-   DEVLOG Oct 8–9 2026 (Workout capture PR 1–3) first.
+   future), so review-mode edits are never guarded and never move it. **The
+   replace is ONE transaction serialized per session (mig 256,
+   `replace_workout_entries`, FOR UPDATE on the session row; the route
+   falls back to the three-call path on 42883 pre-256)** — two PUTs in
+   flight (the debounced save + a reload's keepalive flush) used to both
+   pass the guard and both reinsert, every exercise twice;
+   `e2e/workout-entries-race.spec.ts` is the pin. Read DEVLOG Oct 8–9 2026
+   (Workout capture PR 1–4) first.
 
 ---
 

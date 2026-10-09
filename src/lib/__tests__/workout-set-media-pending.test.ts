@@ -5,6 +5,7 @@ import {
   pendingIdOf,
   pendingLocalIds,
   pendingUrl,
+  reattachPendingMedia,
   removePendingMedia,
   replacePendingMedia,
   stripPendingMedia,
@@ -88,6 +89,23 @@ describe('set-media-pending — the pending clip spelled once', () => {
     expect(removePendingMedia(before, 'nope')).toBe(before);
   });
 
+  it('re-attaches an orphaned clip to its place, and refuses when the place is gone, the clip is present, or the set is full', () => {
+    const base = workout();
+    const back = reattachPendingMedia(base, { localId: 'p9', type: 'image', exerciseName: 'Row', setNumber: 1 }, 4);
+    expect(back[1].sets[0].media.map(m => m.url)).toEqual([pendingUrl('p2'), pendingUrl('p9')]);
+    expect(back[0]).toBe(base[0]);
+    // already present → same array
+    expect(reattachPendingMedia(base, { localId: 'p1', type: 'image', exerciseName: 'Bench', setNumber: 1 }, 4)).toBe(base);
+    // the exercise or the set is gone → same array
+    expect(reattachPendingMedia(base, { localId: 'p9', type: 'image', exerciseName: 'Deadlift', setNumber: 1 }, 4)).toBe(base);
+    expect(reattachPendingMedia(base, { localId: 'p9', type: 'image', exerciseName: 'Bench', setNumber: 7 }, 4)).toBe(base);
+    // the set is at its cap → same array
+    expect(reattachPendingMedia(base, { localId: 'p9', type: 'video', exerciseName: 'Bench', setNumber: 1 }, 2)).toBe(base);
+    // an empty set takes it
+    const toEmpty = reattachPendingMedia(base, { localId: 'p9', type: 'video', exerciseName: 'Bench', setNumber: 2 }, 4);
+    expect(toEmpty[0].sets[1].media).toEqual([{ url: pendingUrl('p9'), type: 'video' }]);
+  });
+
   it('collectWorkoutMedia carries pending entries (the share step filters them)', () => {
     const all = collectWorkoutMedia(workout());
     expect(all.map(m => m.url)).toEqual([STORED, pendingUrl('p1'), pendingUrl('p2')]);
@@ -105,6 +123,13 @@ describe('media-stash — the bytes codec and the expiry rule', () => {
     expect(file.name).toBe('IMG_1.jpg');
     expect(file.type).toBe('image/jpeg');
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+
+  it('carries the clip’s place when given, and leaves the key absent otherwise (older records)', () => {
+    const withPlace = toStashRecord('s', 'l', new ArrayBuffer(0), { type: 'image/jpeg', name: 'a.jpg' }, 0, { exerciseName: 'Bench', setNumber: 2 });
+    expect(withPlace.place).toEqual({ exerciseName: 'Bench', setNumber: 2 });
+    const without = toStashRecord('s', 'l', new ArrayBuffer(0), { type: 'image/jpeg', name: 'a.jpg' }, 0);
+    expect('place' in without).toBe(false);
   });
 
   it('names a file that arrived nameless', () => {

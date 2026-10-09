@@ -24,6 +24,14 @@ export const STASH_DB_VERSION = 1;
 export const STASH_STORE = 'files';
 export const STASH_TTL_MS = DRAFT_TTL_MS;
 
+/** Where a clip belongs — the stash is the durable record of "a clip was
+ *  attached HERE"; the set's `pending:` entry is derived from it on resume
+ *  when the server copy won the reload without it (PR 4). */
+export interface StashPlace {
+  exerciseName: string;
+  setNumber: number;
+}
+
 export interface StashRecord {
   sessionId: string;
   localId: string;
@@ -31,11 +39,20 @@ export interface StashRecord {
   type: string;
   name: string;
   savedAt: number;
+  /** Absent on records written before PR 4. */
+  place?: StashPlace;
 }
 
 /** The stored shape of a file — pure, so the codec is testable without a browser. */
-export function toStashRecord(sessionId: string, localId: string, bytes: ArrayBuffer, file: { type: string; name: string }, now: number): StashRecord {
-  return { sessionId, localId, bytes, type: file.type, name: file.name, savedAt: now };
+export function toStashRecord(
+  sessionId: string,
+  localId: string,
+  bytes: ArrayBuffer,
+  file: { type: string; name: string },
+  now: number,
+  place?: StashPlace
+): StashRecord {
+  return { sessionId, localId, bytes, type: file.type, name: file.name, savedAt: now, ...(place ? { place } : {}) };
 }
 
 /** A File again, from a record. */
@@ -79,9 +96,17 @@ function tx<T>(db: IDBDatabase, mode: IDBTransactionMode, run: (s: IDBObjectStor
   });
 }
 
+export interface StashEntry {
+  localId: string;
+  file: File;
+  place: StashPlace | null;
+}
+
 export interface MediaStash {
-  save(sessionId: string, localId: string, file: File, now?: number): Promise<void>;
+  save(sessionId: string, localId: string, file: File, now?: number, place?: StashPlace): Promise<void>;
   load(sessionId: string, localId: string, now?: number): Promise<File | null>;
+  /** Every unexpired clip of a session, with its place. */
+  listSession(sessionId: string, now?: number): Promise<StashEntry[]>;
   remove(sessionId: string, localId: string): Promise<void>;
   clearSession(sessionId: string): Promise<void>;
   /** Drops every record older than the TTL, across sessions. */
@@ -95,16 +120,24 @@ export function openMediaStash(): MediaStash | null {
   if (!hasIndexedDb()) return null;
   const dbp = openDb();
   return {
-    async save(sessionId, localId, file, now = Date.now()) {
+    async save(sessionId, localId, file, now = Date.now(), place) {
       const bytes = await file.arrayBuffer();
       const db = await dbp;
-      await tx(db, 'readwrite', s => s.put(toStashRecord(sessionId, localId, bytes, file, now)));
+      await tx(db, 'readwrite', s => s.put(toStashRecord(sessionId, localId, bytes, file, now, place)));
     },
     async load(sessionId, localId, now = Date.now()) {
       const db = await dbp;
       const row = await tx<StashRecord | undefined>(db, 'readonly', s => s.get([sessionId, localId]) as IDBRequest<StashRecord | undefined>);
       if (!row || isStashExpired(row, now)) return null;
       return fileFromStashRecord(row);
+    },
+    async listSession(sessionId, now = Date.now()) {
+      const db = await dbp;
+      const rows = (await tx<StashRecord[]>(db, 'readonly', s => s.getAll(sessionRange(sessionId)) as IDBRequest<StashRecord[]>)) ?? [];
+      return rows
+        .filter(r => !isStashExpired(r, now))
+        .sort((a, b) => a.savedAt - b.savedAt)
+        .map(r => ({ localId: r.localId, file: fileFromStashRecord(r), place: r.place ?? null }));
     },
     async remove(sessionId, localId) {
       const db = await dbp;
