@@ -2,8 +2,9 @@
 
 // ── The recorder's GPS watch (Live Activities) ──────────────────────────────
 // `watchPosition` with the golf rangefinder's policy, lifted into a hook
-// (CourseMapInner.tsx stays as it is this round): high accuracy, a 5 s
-// cache, a 15 s timeout; only PERMISSION_DENIED stops the watch — TIMEOUT and
+// (CourseMapInner.tsx stays as it is this round): high accuracy, NO cached
+// fix (maximumAge 0 — GPS accuracy round, Oct 9 2026: a route is built from
+// fresh fixes only), a 15 s timeout; only PERMISSION_DENIED stops the watch — TIMEOUT and
 // POSITION_UNAVAILABLE are the phone thinking (a tunnel, a standstill) and
 // the watch keeps going. The browser only delivers fixes while the page is in
 // the foreground with the screen on; the screen's wake lock and its
@@ -74,7 +75,7 @@ export function useWatchPosition(opts: { enabled: boolean; onFix: (fix: GeoFix) 
         }
         // TIMEOUT / POSITION_UNAVAILABLE: temporary — the watch continues.
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [opts.enabled]);

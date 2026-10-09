@@ -18,6 +18,7 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '../catalog';
 import { cumulativeDistances, estimateSteps, haversineM, PAUSE_GAP_S } from '../normalize';
 import { normalizeSegments, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '../segments';
 import { toWire } from '../wire';
+import { liveRoute } from '../gps-filter';
 import type { ActivityPoint } from '../types';
 import type { WireActivity } from '../wire';
 
@@ -28,9 +29,9 @@ export type FixVerdict = 'ok' | 'inaccurate' | 'too_fast' | 'stale';
 
 /** Fixes less precise than this are not a position. */
 export const MAX_ACCURACY_M = 50;
-/** A hop faster than the type's maxSpeed × this is a GPS jump (the server
- *  cleans again at 3×). */
-export const SPEED_SLACK = 1.5;
+/** Kept for callers that read it; the jump rule itself lives in gps-filter.ts
+ *  (measured against the filtered position) since the GPS accuracy round. */
+export { SPEED_SLACK } from '../gps-filter';
 /** The window the live "current pace" reads over. */
 export const PACE_WINDOW_S = 30;
 /** A hidden page longer than this is told about on return. */
@@ -160,14 +161,11 @@ export function admitFix(
 ): FixVerdict {
   if (typeof fix.accuracy === 'number' && fix.accuracy > MAX_ACCURACY_M) return 'inaccurate';
   const prev = state.points[state.points.length - 1];
-  if (prev) {
-    if (fix.t <= prev.t) return 'stale';
-    if (typeof prev.lat === 'number' && typeof prev.lng === 'number') {
-      const dt = (fix.t - prev.t) / 1000;
-      const speed = haversineM(prev.lat, prev.lng, fix.lat, fix.lng) / Math.max(dt, 0.001);
-      if (speed > ACTIVITY_TYPE_DEFS[state.type].maxSpeed * SPEED_SLACK) return 'too_fast';
-    }
-  }
+  if (prev && fix.t <= prev.t) return 'stale';
+  // A jump is NOT refused here any more (GPS accuracy round, Oct 9 2026): the
+  // recording keeps every raw fix so the filter (gps-filter.ts) — which
+  // measures a jump against the FILTERED position, where one wild fix cannot
+  // drag the next — decides, on the phone and on the server alike.
   return 'ok';
 }
 
@@ -186,6 +184,7 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       }
       const point: ActivityPoint = { t: event.fix.t, lat: event.fix.lat, lng: event.fix.lng };
       if (typeof event.fix.ele === 'number' && Number.isFinite(event.fix.ele)) point.ele = event.fix.ele;
+      if (typeof event.fix.accuracy === 'number' && Number.isFinite(event.fix.accuracy)) point.acc = event.fix.accuracy;
       return { ...state, points: [...state.points, point] };
     }
     case 'pause': {
@@ -278,13 +277,17 @@ export interface LiveTotals {
   steps: number | null;
   /** The last admitted fix's accuracy is the screen's; this says how long ago it came. */
   lastFixAgeS: number | null;
+  /** GPS fixes are arriving but the cold start has not settled yet (gps-filter.ts). */
+  gpsSettling: boolean;
 }
 
 /** What the screen shows while recording. The server recomputes every one. */
 export function liveTotals(state: RecordingState, now: number, heightCm: number | null | undefined): LiveTotals {
   const elapsed = elapsedS(state, now);
   const def = ACTIVITY_TYPE_DEFS[state.type];
-  const pts = state.points;
+  // The FILTERED route (gps-filter.ts) — the same fold the server stores, so
+  // the distance on the screen is the distance saved.
+  const pts = liveRoute(state.points, state.type);
   let distanceM = 0;
   let movingS = 0;
   let gain: number | null = null;
@@ -350,6 +353,7 @@ export function liveTotals(state: RecordingState, now: number, heightCm: number 
     currentSpeedMps: currentSpeed,
     steps: estimateSteps(state.type, distanceM, movingS, heightCm),
     lastFixAgeS: lastFix ? Math.max(0, Math.round((now - lastFix.t) / 1000)) : null,
+    gpsSettling: state.points.some(p => typeof p.lat === 'number') && !pts.some(p => typeof p.lat === 'number'),
   };
 }
 

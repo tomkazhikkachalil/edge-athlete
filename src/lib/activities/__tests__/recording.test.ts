@@ -17,6 +17,7 @@ import { flushDue, FLUSH_EVERY_MS, FLUSH_EVERY_POINTS, isExpired, metaOf, RECORD
 import { parseWireActivity } from '../wire-schema';
 import { fromWire } from '../wire';
 import { cleanPoints, summarize } from '../normalize';
+import { filterTrack, liveRoute } from '../gps-filter';
 
 const T0 = Date.UTC(2026, 9, 4, 14, 0, 0);
 const REC_ID = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f40';
@@ -43,8 +44,13 @@ describe('the recorder — a pure state machine', () => {
     s = reduce(s, { type: 'fix', fix: fixAt(1, 1.4) }); // out of order
     s = reduce(s, { type: 'fix', fix: fixAt(3, 500) }); // a 250 m/s hop on a walk — a GPS jump
     s = reduce(s, { type: 'fix', fix: fixAt(4, 5.6) });
-    expect(s.points).toHaveLength(2);
-    expect(s.rejected).toEqual({ inaccurate: 1, stale: 1, tooFast: 1 });
+    // GPS accuracy round (Oct 9 2026): the jump is KEPT as a raw fix (the
+    // recording keeps every raw fix for re-processing) and the FILTER refuses
+    // it — measured against the filtered position, on the phone and the server.
+    expect(s.points).toHaveLength(3);
+    expect(s.points[1].acc).toBe(8);
+    expect(s.rejected).toEqual({ inaccurate: 1, stale: 1, tooFast: 0 });
+    expect(filterTrack(s.points, 'walk').points.some(p => (p.lat as number) > LAT0 + 400 / 111_195)).toBe(false);
     expect(admitFix(s, fixAt(5, 7))).toBe('ok');
   });
 
@@ -99,9 +105,14 @@ describe('the recorder — a pure state machine', () => {
     const dist = 119 * 1.4;
     const t = liveTotals(s, T0 + 120_000, 180);
     expect(t.elapsedS).toBe(120);
-    expect(Math.abs(t.distanceM - dist)).toBeLessThan(1);
-    expect(t.movingS).toBe(119);
-    expect(t.avgPaceSPerM).toBeCloseTo(119 / dist, 2);
+    // The filtered route (gps-filter.ts) starts once the cold start settles
+    // (the first SETTLE_FIXES fixes) and its velocity starts from rest, so it
+    // reads a few metres under the true walk — never over.
+    expect(t.distanceM).toBeLessThanOrEqual(dist);
+    expect(dist - t.distanceM).toBeLessThan(12);
+    expect(t.gpsSettling).toBe(false);
+    expect(t.movingS).toBeGreaterThan(100);
+    expect(t.avgPaceSPerM).toBeCloseTo(t.movingS / t.distanceM, 2);
     expect(t.currentPaceSPerM).toBeCloseTo(1 / 1.4, 1);
     expect(t.steps).toBe(Math.round(t.distanceM / (1.8 * 0.413)));
     expect(t.lastFixAgeS).toBe(0);
@@ -115,7 +126,8 @@ describe('the recorder — a pure state machine', () => {
     const s = walk(300, 1.5);
     const live = liveTotals(s, T0 + 300_000, null);
     const n = fromWire({ ...toRecordingWire(reduce(s, { type: 'finish', now: T0 + 300_000 }), 'UTC') });
-    const summary = summarize(n, cleanPoints(n));
+    // The writer's live path: the same filter over the cleaned raw fixes.
+    const summary = summarize(n, liveRoute(cleanPoints(n, { jumps: false }), n.type));
     expect(Math.abs(live.distanceM - summary.distanceM!)).toBeLessThan(2);
     expect(Math.abs(live.movingS - summary.movingS!)).toBeLessThanOrEqual(1);
   });

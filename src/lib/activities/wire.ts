@@ -36,14 +36,16 @@ export interface WireActivity {
   cad?: (number | null)[];
   pwr?: (number | null)[];
   dist?: (number | null)[];
+  /** `live` only: each fix's reported accuracy (m) — the GPS filter's input. */
+  acc?: (number | null)[];
   /** `live` only: the device's id for this recording (→ external_id `live:<id>`). */
   recordingId?: string;
   /** `live` only: the segments marked during the recording. */
   segments?: ActivitySegment[];
 }
 
-type Col = 'lat' | 'lng' | 'ele' | 'hr' | 'cad' | 'pwr' | 'dist';
-const DP: Readonly<Record<Col, number>> = { lat: 6, lng: 6, ele: 1, hr: 0, cad: 0, pwr: 0, dist: 1 };
+type Col = 'lat' | 'lng' | 'ele' | 'hr' | 'cad' | 'pwr' | 'dist' | 'acc';
+const DP: Readonly<Record<Col, number>> = { lat: 6, lng: 6, ele: 1, hr: 0, cad: 0, pwr: 0, dist: 1, acc: 1 };
 const COLS = Object.keys(DP) as Col[];
 
 export function toWire(n: Omit<NormalizedActivity, 'format'> & { format: WireFormat }, tz: string | null): WireActivity {

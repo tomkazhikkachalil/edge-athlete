@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { audienceFor, pinFor, projectActivity, projectActivityDetail, type ActivityMediaRow, type ActivityRow } from '../visibility';
+import { audienceFor, pinFor, projectActivity, projectActivityDetail, projectStream, type ActivityMediaRow, type ActivityRow } from '../visibility';
 import { buildStream, routePreview } from '../stream';
 import { cleanPoints } from '../normalize';
 import { line } from './fixtures';
@@ -117,6 +117,19 @@ describe('the projections (the access rule)', () => {
     const short = { ...row, route_preview: null };
     expect(projectActivity(short, 'viewer').hasRoute).toBe(false);
     expect(projectActivity(short, 'owner').hasRoute).toBe(true);
+  });
+});
+
+describe('a live recording\'s raw fixes never leave the server (GPS accuracy round)', () => {
+  it('projectStream strips `raw` for the owner, a viewer and a supervised viewer alike', () => {
+    const withRaw = { ...stream, raw: { s: [0, 1], lat: [45.4, 45.40001], lng: [-75.7, -75.70001], acc: [8, null] } };
+    for (const audience of ['owner', 'viewer', 'supervised_viewer'] as const) {
+      const out = projectStream(withRaw, audience)!;
+      expect(out, audience).not.toHaveProperty('raw');
+      expect(JSON.stringify(out), audience).not.toContain('"acc"');
+    }
+    // The owner still gets the whole (filtered) route.
+    expect(projectStream(withRaw, 'owner')!.lat).toEqual(stream.lat);
   });
 });
 

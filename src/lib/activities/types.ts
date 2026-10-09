@@ -26,6 +26,9 @@ export interface ActivityPoint {
   pwr?: number;
   /** the device's own cumulative distance (m), when it records one */
   dist?: number;
+  /** the phone recorder's reported horizontal accuracy (m) — the GPS filter's
+   *  measurement noise (gps-filter.ts). Live recordings only. */
+  acc?: number;
 }
 
 /** What the device itself reported (a FIT session, a TCX lap sum). Kept
@@ -82,6 +85,10 @@ export interface ActivityStream {
   hr?: (number | null)[];
   cad?: (number | null)[];
   pwr?: (number | null)[];
+  /** A LIVE recording's raw fixes, kept for re-processing (GPS accuracy round,
+   *  Oct 9 2026). SERVER-ONLY: `projectStream` deletes it for every audience —
+   *  raw fixes would undo the 200 m trim. */
+  raw?: { s: number[]; lat: number[]; lng: number[]; acc: (number | null)[] };
 }
 
 export interface Split {

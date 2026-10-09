@@ -38,8 +38,11 @@ const inRange = (v: number | undefined, lo: number, hi: number) =>
  * and drop the FIX (never the sample) of a GPS jump — a hop faster than 3×
  * the type's plausible top speed. Returns new objects; the input is untouched.
  */
-export function cleanPoints(n: NormalizedActivity): ActivityPoint[] {
-  const max = ACTIVITY_TYPE_DEFS[n.type].maxSpeed * 3;
+export function cleanPoints(n: NormalizedActivity, opts: { jumps?: boolean } = {}): ActivityPoint[] {
+  // `jumps: false` — a LIVE recording's raw fixes go to the GPS filter, which
+  // judges a jump against the FILTERED position (gps-filter.ts); this raw
+  // fix-to-fix rule would blank ordinary half-second wobble (Oct 9 2026).
+  const max = opts.jumps === false ? Infinity : ACTIVITY_TYPE_DEFS[n.type].maxSpeed * 3;
   const sorted = n.points
     .filter(p => Number.isFinite(p.t))
     .map((p, i) => ({ p, i }))
@@ -72,6 +75,8 @@ export function cleanPoints(n: NormalizedActivity): ActivityPoint[] {
     if (pwr !== undefined) p.pwr = Math.round(pwr);
     const dist = inRange(raw.dist, 0, 2_000_000);
     if (dist !== undefined) p.dist = dist;
+    const acc = inRange(raw.acc, 0, 10_000);
+    if (acc !== undefined && p.lat !== undefined) p.acc = acc;
     out.push(p);
   }
   return out;
