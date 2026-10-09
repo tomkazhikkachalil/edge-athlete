@@ -30,7 +30,7 @@ test('workout drafts: finished-undecided in Drafts → Keep private; a live one 
     expect(read.ok(), await readErrorBody(read)).toBe(true);
     expect((await read.json()).session.share_decided_at).toBeTruthy();
 
-    // A live workout: Finish from the reopen prompt → the share step → Keep private.
+    // A live workout: Finish from the reopen prompt → the share step → Only me.
     const live = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(live.status(), await readErrorBody(live)).toBe(201);
     const liveId = (await live.json()).session.id as string;
@@ -47,7 +47,9 @@ test('workout drafts: finished-undecided in Drafts → Keep private; a live one 
     await expect(prompt).toBeVisible({ timeout: 20_000 });
     await prompt.locator('[data-reopen-finish]').click();
     await page.waitForURL(`**/app/workout/${liveId}?share=1`, { timeout: 20_000 });
-    await page.getByRole('button', { name: 'Keep private' }).click();
+    // Only me (not on the feed — the share decision recorded), then Save for me.
+    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-share-done="only_me"]').click();
     await page.waitForURL('**/athlete', { timeout: 20_000 });
     await expect.poll(async () => (await (await api.get(`/api/workouts/${liveId}`)).json()).session.share_decided_at ?? null, { timeout: 15_000 }).toBeTruthy();
     const drafts = await api.get('/api/drafts');

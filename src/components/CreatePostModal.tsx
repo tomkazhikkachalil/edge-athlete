@@ -36,6 +36,8 @@ import { uploadingLine, weightedProgress } from '@/lib/media/upload-progress';
 import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
+import { POST_VISIBILITY, isPrivateAccount } from '@/lib/posts/audience';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -115,7 +117,8 @@ interface PostPreviewProps {
   tags: string[];
   hashtags: string[];
   mediaFiles: MediaFile[];
-  visibility: 'public' | 'private';
+  /** The posting account's visibility — who will see it (audience.ts). */
+  accountVisibility: string | null;
   taggedPeople?: {id: string; name: string}[];
   holeParSource?: { hole: number; par: number }[] | null;
   // Round data (one flow — every golf round previews as the shared scorecard)
@@ -682,7 +685,7 @@ export default function CreatePostModal({
         // D-2). Throws on round-create failure, landing in the catch below.
         const groupPost = await submitSharedRound(golfValue, {
           caption,
-          visibility,
+          visibility: POST_VISIBILITY,
           mediaFiles,
           uploadMediaWithPoster,
           showSuccess,
@@ -732,7 +735,8 @@ export default function CreatePostModal({
         caption: caption.trim(),
         tags: selectedTags,
         hashtags,
-        visibility,
+        // The account decides who sees it (src/lib/posts/audience.ts).
+        visibility: POST_VISIBILITY,
         media: uploadedMedia.map((file, index) => ({
           url: file.url,
           type: file.type,
@@ -1344,37 +1348,11 @@ export default function CreatePostModal({
             )}
           </div>
 
-          {/* Visibility */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-secondary mb-3">Visibility</label>
-            <div className="flex gap-4">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  value="public"
-                  checked={visibility === 'public'}
-                  onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                  className="mr-2"
-                />
-                <span className="text-sm">
-                  <i className="fas fa-globe mr-1 text-muted"></i>
-                  Public
-                </span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  value="private"
-                  checked={visibility === 'private'}
-                  onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                  className="mr-2"
-                />
-                <span className="text-sm">
-                  <i className="fas fa-lock mr-1 text-muted"></i>
-                  Private
-                </span>
-              </label>
-            </div>
+          {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — said, never a
+              per-post switch. A guardian posting as an athlete sees the
+              athlete's account; the Change link is the poster's own settings. */}
+          <div className="mb-6" data-composer-audience="">
+            <AccountAudienceLine accountVisibility={(activeProfile ?? profile)?.visibility ?? null} hideChange={!!activeProfile} />
           </div>
         </div>
 
@@ -1464,7 +1442,7 @@ export default function CreatePostModal({
           tags={selectedTags}
           hashtags={hashtags}
           mediaFiles={mediaFiles}
-          visibility={visibility}
+          accountVisibility={(activeProfile ?? profile)?.visibility ?? null}
           taggedPeople={taggedProfilesData}
           sharedRoundDetails={golfValue.sharedRoundDetails}
           sharedRoundParticipants={golfValue.sharedRoundParticipantsData}
@@ -1658,7 +1636,7 @@ function PostPreview({
   tags,
   hashtags,
   mediaFiles,
-  visibility,
+  accountVisibility,
   taggedPeople = [],
   sharedRoundDetails,
   sharedRoundParticipants = [],
@@ -1694,7 +1672,7 @@ function PostPreview({
                 <div>
                   <div className="font-semibold text-primary">Your Name</div>
                   <div className="text-sm text-muted">
-                    Just now • {visibility === 'public' ? '🌍 Public' : '🔒 Private'}
+                    Just now • {isPrivateAccount(accountVisibility) ? 'Your fans' : 'Anyone'}
                   </div>
                 </div>
               </div>

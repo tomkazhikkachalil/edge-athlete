@@ -9,6 +9,7 @@ import { useSetMediaUploads } from './useSetMediaUploads';
 import { MediaEditor } from '@/components/media-editor';
 import type { EditedMedia, MediaAsset } from '@/lib/media/types';
 import { uploadPostMedia } from '@/lib/media/upload';
+import { POST_VISIBILITY } from '@/lib/posts/audience';
 import { fetchStoredMediaFile } from '@/lib/workouts/set-media-file';
 import {
   defaultShareOrder,
@@ -573,7 +574,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           postType: 'general',
           postCategory: 'training',
           caption,
-          visibility: 'public',
+          // The account decides who sees it (src/lib/posts/audience.ts).
+          visibility: POST_VISIBILITY,
           // The carousel is the chosen order (shareOrder), not the reading order.
           media: shareClips.selected
             .slice(0, MAX_POST_MEDIA)

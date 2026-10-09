@@ -12,6 +12,8 @@ import { backOr } from '@/lib/nav-back';
 import { COPY } from '@/lib/copy';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import { refreshDrafts } from '@/hooks/useDrafts';
+import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
+import { POST_VISIBILITY } from '@/lib/posts/audience';
 
 // ── The review screen (Drafts round, Oct 2026) ───────────────────────────────
 // After Finish, before Post. The draft's own card, a notes field (the post's
@@ -117,7 +119,8 @@ export default function DraftReviewPage() {
     setBusy('post');
     try {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (!(await save({ caption, visibility }))) { showError('Could not save your notes', 'Please try again.'); return; }
+      // Posting writes it public: the account's privacy decides who sees it.
+      if (!(await save({ caption, visibility: POST_VISIBILITY }))) { showError('Could not save your notes', 'Please try again.'); return; }
       const res = await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId, action: 'post' }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not post it', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
@@ -251,19 +254,9 @@ export default function DraftReviewPage() {
               {saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Saved' : saved === 'failed' ? 'Not saved — check your connection' : 'Saved as you type'}
             </p>
           </div>
-          <div>
-            <label htmlFor="draft-visibility" className="block text-sm font-semibold text-primary mb-1">Who can see it</label>
-            <select
-              id="draft-visibility"
-              value={visibility}
-              onChange={e => { const v = e.target.value === 'private' ? 'private' : 'public'; setVisibility(v); scheduleSave({ caption, visibility: v }); }}
-              className={field}
-              data-draft-visibility=""
-            >
-              <option value="public">Everyone</option>
-              <option value="private">Followers only</option>
-            </select>
-          </div>
+          {/* Who sees it is the ACCOUNT's call (src/lib/posts/audience.ts) —
+              said here, never a per-post choice. */}
+          {isOwner && <AccountAudienceLine />}
           <div className="flex flex-wrap gap-3 pt-2">
             <button type="button" onClick={() => void handlePost()} disabled={busy !== null || !isOwner} className="px-5 py-2 min-h-[44px] rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover disabled:opacity-50" data-draft-post="">
               {busy === 'post' ? 'Posting…' : 'Post'}

@@ -57,7 +57,7 @@ test('the review step edits a clip in place, orders the carousel, removes a clip
     workoutId = (await created.json()).session.id as string;
 
     await page.goto(`/app/workout/${workoutId}?share=1`);
-    await expect(page.getByRole('heading', { name: 'Share your workout?' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Nice workout!' })).toBeVisible({ timeout: 20_000 });
     const rows = page.locator('[data-share-clip]');
     await expect(rows).toHaveCount(3);
     const positions = () => rows.evaluateAll(els => els.map(el => el.getAttribute('data-share-position')));
@@ -105,7 +105,9 @@ test('the review step edits a clip in place, orders the carousel, removes a clip
     await expect.poll(async () => (await setUrlsNow()).length, { timeout: 20_000 }).toBe(2);
 
     // Share: the post carries the two clips in the chosen order, the edited one first.
-    await page.getByRole('button', { name: 'Share to Feed' }).click();
+    // Post it is preselected (the one choice — src/lib/posts/audience.ts); Post.
+    await expect(page.locator('[data-post-choice] [data-choice="post"]')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('[data-share-done="post"]').click();
     // The FACT first (the session carries its post), the navigation after —
     // under load the profile page can take longer than the share did.
     await expect.poll(async () => {

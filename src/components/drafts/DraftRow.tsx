@@ -117,9 +117,9 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
         ) : item.kind === 'workout' ? (
           <>
             <button type="button" className={btn} disabled={busy !== null} onClick={() => void keepPrivate()} data-draft-keep-private="">
-              {busy === 'post' ? 'Saving…' : 'Keep private'}
+              {busy === 'post' ? 'Saving…' : 'Only me'}
             </button>
-            <Link href={item.href} className={cta} data-draft-share="">Share</Link>
+            <Link href={item.href} className={cta} data-draft-share="">Post it</Link>
           </>
         ) : (
           <>
