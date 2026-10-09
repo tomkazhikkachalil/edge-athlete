@@ -13,6 +13,13 @@
 //   browser that understands nonces IGNORES them (the Google strict-CSP
 //   recipe); they are not a hole in modern browsers. Dev adds 'unsafe-eval'
 //   (Turbopack HMR) — dev is also always report-only, see the middleware.
+//   'wasm-unsafe-eval' (Oct 9 2026, every-phone PR 6): WebAssembly
+//   compilation ONLY — never JavaScript eval — for the HEIC decoder a
+//   Samsung's high-efficiency photo needs in Chrome on Android
+//   (heic-decode.ts). Without it `WebAssembly.Module()` is a CSP violation
+//   and the photo was skipped. Chrome 97+ / Safari 16+ honour the token; a
+//   browser that does not understand it ignores it (and no iPhone reaches
+//   that decoder — Safari hands the page a JPEG).
 // * style-src keeps 'unsafe-inline': React style={{}} props app-wide +
 //   Leaflet's runtime-injected styles. Unavoidable today.
 // * img/media: OSM + ArcGIS tiles, logo.dev, Giphy media, Supabase storage
@@ -64,7 +71,7 @@ export function buildCsp(nonce: string, opts?: { dev?: boolean; scriptHashes?: r
   const hashes = (opts?.scriptHashes ?? []).map(h => ` ${h}`).join('');
   return [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}'${hashes} 'strict-dynamic' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}'${hashes} 'strict-dynamic' 'wasm-unsafe-eval' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,
