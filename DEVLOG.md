@@ -1,5 +1,13 @@
 # Development Log
 
+## October 9, 2026 — Your own profile opens at the top
+
+**Tom:** "fix the scroll on my own profile" — `/athlete` opened ~90 px down on a phone and ~200 px on a desktop (noticed during the cover-header round; already on `main` before it).
+
+- **The cause, traced** (every scroll call and scroll event logged with its stack while the page loaded): `ProfileMediaTabs` keeps the active tab visible in its sideways phone scroller with `scrollIntoView({ inline: 'nearest', block: 'nearest' })` on mount. `scrollIntoView` scrolls EVERY scrollable ancestor, and `block: 'nearest'` is not "don't move vertically" — with the tab strip below the fold, the nearest way to show it IS to scroll the page down. The comment beside it claimed the opposite.
+- **The fix:** the strip moves itself only — `scroller.scrollLeft = nearestScrollLeft(…)` (`src/lib/scroll-inline.ts`, pure, unit-tested: visible → no move; past an edge → the smallest move; wider than the view → its start). The page never moves. The viewer route `/athlete/[id]` used the same component and had the same jump.
+- **Proof:** `e2e/profile-open-top.spec.ts` (desktop + `@mobile`): the owner's `/athlete` and `/athlete/<id>` are still at `scrollY 0` three seconds after the network settles — green on desktop, phone Chromium, WebKit and Android; `vitals-mobile.spec` (`?tab=vitals` lands the tab in the strip) green on the three phone projects; profile-buckets + profile-spacing green.
+
 ## October 9, 2026 — The profile picture sits half over the cover, on every profile including your own
 
 **Tom, after #1133:** "we go half" — the picture straddles the cover's bottom edge, half on the photo, half on the card. And: "it only changes when you view other profiles … you don't notice it on your own profile."
