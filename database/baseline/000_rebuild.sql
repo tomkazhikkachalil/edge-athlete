@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-08T22:07:30.668514+00:00 from server 17.6 by
+-- Generated 2026-10-09T04:26:17.438044+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 255.
+-- public.schema_dump() (migration 227). Ledger head at generation: 256.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -36,7 +36,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (113; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (114; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -2733,6 +2733,83 @@ BEGIN
       (v_window_start + make_interval(secs => p_window_seconds) - now())))::integer)
   END;
   RETURN NEXT;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status text;
+  v_last timestamptz;
+  v_exercise record;
+  v_set jsonb;
+  v_exercise_id uuid;
+BEGIN
+  -- The lock: concurrent PUTs for the same session queue here, one at a time.
+  SELECT status, last_activity_at INTO v_status, v_last
+    FROM public.workout_sessions
+   WHERE id = p_session_id AND profile_id = p_profile_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'not_found');
+  END IF;
+
+  -- The stale rule, inside the lock (live sessions only — entries-stale.ts).
+  IF v_status <> 'completed' AND v_last IS NOT NULL AND p_saved_at <= v_last THEN
+    RETURN jsonb_build_object('ok', false, 'stale', true);
+  END IF;
+
+  DELETE FROM public.workout_exercises WHERE session_id = p_session_id;
+
+  FOR v_exercise IN
+    SELECT value AS ex, (ordinality - 1)::int AS position
+      FROM jsonb_array_elements(COALESCE(p_exercises, '[]'::jsonb)) WITH ORDINALITY
+  LOOP
+    INSERT INTO public.workout_exercises (session_id, profile_id, name, exercise_key, category, position, notes)
+    VALUES (
+      p_session_id,
+      p_profile_id,
+      v_exercise.ex->>'name',
+      v_exercise.ex->>'exerciseKey',
+      COALESCE(v_exercise.ex->>'category', 'strength'),
+      v_exercise.position,
+      v_exercise.ex->>'notes'
+    )
+    RETURNING id INTO v_exercise_id;
+
+    FOR v_set IN SELECT value FROM jsonb_array_elements(COALESCE(v_exercise.ex->'sets', '[]'::jsonb))
+    LOOP
+      INSERT INTO public.workout_sets (
+        exercise_id, profile_id, set_number, reps, weight, weight_unit,
+        duration_seconds, distance, distance_unit, completed_at, media
+      )
+      VALUES (
+        v_exercise_id,
+        p_profile_id,
+        (v_set->>'setNumber')::int,
+        (v_set->>'reps')::int,
+        (v_set->>'weight')::numeric,
+        v_set->>'weightUnit',
+        (v_set->>'durationSeconds')::int,
+        (v_set->>'distance')::numeric,
+        v_set->>'distanceUnit',
+        (v_set->>'completedAt')::timestamptz,
+        COALESCE(v_set->'media', '[]'::jsonb)
+      );
+    END LOOP;
+  END LOOP;
+
+  -- A live session's activity moves with the write; a completed one keeps its end.
+  IF v_status <> 'completed' THEN
+    UPDATE public.workout_sessions SET last_activity_at = p_saved_at WHERE id = p_session_id;
+  END IF;
+
+  RETURN jsonb_build_object('ok', true);
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -10839,7 +10916,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (113) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (114) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -13383,6 +13460,81 @@ BEGIN
       (v_window_start + make_interval(secs => p_window_seconds) - now())))::integer)
   END;
   RETURN NEXT;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status text;
+  v_last timestamptz;
+  v_exercise record;
+  v_set jsonb;
+  v_exercise_id uuid;
+BEGIN
+  -- The lock: concurrent PUTs for the same session queue here, one at a time.
+  SELECT status, last_activity_at INTO v_status, v_last
+    FROM public.workout_sessions
+   WHERE id = p_session_id AND profile_id = p_profile_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'not_found');
+  END IF;
+
+  -- The stale rule, inside the lock (live sessions only — entries-stale.ts).
+  IF v_status <> 'completed' AND v_last IS NOT NULL AND p_saved_at <= v_last THEN
+    RETURN jsonb_build_object('ok', false, 'stale', true);
+  END IF;
+
+  DELETE FROM public.workout_exercises WHERE session_id = p_session_id;
+
+  FOR v_exercise IN
+    SELECT value AS ex, (ordinality - 1)::int AS position
+      FROM jsonb_array_elements(COALESCE(p_exercises, '[]'::jsonb)) WITH ORDINALITY
+  LOOP
+    INSERT INTO public.workout_exercises (session_id, profile_id, name, exercise_key, category, position, notes)
+    VALUES (
+      p_session_id,
+      p_profile_id,
+      v_exercise.ex->>'name',
+      v_exercise.ex->>'exerciseKey',
+      COALESCE(v_exercise.ex->>'category', 'strength'),
+      v_exercise.position,
+      v_exercise.ex->>'notes'
+    )
+    RETURNING id INTO v_exercise_id;
+
+    FOR v_set IN SELECT value FROM jsonb_array_elements(COALESCE(v_exercise.ex->'sets', '[]'::jsonb))
+    LOOP
+      INSERT INTO public.workout_sets (
+        exercise_id, profile_id, set_number, reps, weight, weight_unit,
+        duration_seconds, distance, distance_unit, completed_at, media
+      )
+      VALUES (
+        v_exercise_id,
+        p_profile_id,
+        (v_set->>'setNumber')::int,
+        (v_set->>'reps')::int,
+        (v_set->>'weight')::numeric,
+        v_set->>'weightUnit',
+        (v_set->>'durationSeconds')::int,
+        (v_set->>'distance')::numeric,
+        v_set->>'distanceUnit',
+        (v_set->>'completedAt')::timestamptz,
+        COALESCE(v_set->'media', '[]'::jsonb)
+      );
+    END LOOP;
+  END LOOP;
+
+  -- A live session's activity moves with the write; a completed one keeps its end.
+  IF v_status <> 'completed' THEN
+    UPDATE public.workout_sessions SET last_activity_at = p_saved_at WHERE id = p_session_id;
+  END IF;
+
+  RETURN jsonb_build_object('ok', true);
 END;
 $function$;
 
@@ -16734,6 +16886,8 @@ REVOKE EXECUTE ON FUNCTION public.provenance_inventory() FROM PUBLIC, anon, auth
 GRANT EXECUTE ON FUNCTION public.provenance_inventory() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.resolve_org_site_host(p_host text) FROM PUBLIC, anon, authenticated, service_role;
@@ -17024,6 +17178,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
+COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
 COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
@@ -17430,7 +17585,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (252, '252_post_views.sql', 'rebuild-000'),
   (253, '253_drafts.sql', 'rebuild-000'),
   (254, '254_hole_elevation.sql', 'rebuild-000'),
-  (255, '255_golf_map_sweep.sql', 'rebuild-000')
+  (255, '255_golf_map_sweep.sql', 'rebuild-000'),
+  (256, '256_workout_entries_atomic_replace.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17439,12 +17595,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 131 | 113 | 173 | 255
+-- Expected: 000 REBUILT | 131 | 114 | 173 | 256
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_131,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_113,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_114,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_255;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_256;
 
