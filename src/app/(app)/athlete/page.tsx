@@ -4,8 +4,8 @@ import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { coverProxyUrl } from '@/lib/media/cover-url';
+import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
@@ -648,163 +648,148 @@ export default function AthleteProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}
         <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden mb-6 sm:mb-8">
-          {/* Cover photo (3:1, cropped in the media editor; gradient until set) */}
-          <div className="relative w-full aspect-[3/1] max-h-64">
-            {profile?.cover_url ? (
-              <Image
-                // Covers live in the now-private uploads bucket; serve via the
-                // public per-profile cover endpoint (raw URL 404s post-flip).
-                src={coverProxyUrl(profile.id, profile.cover_url)!}
-                alt="Profile cover"
-                fill
-                preload
-                sizes="(max-width: 1280px) 100vw, 1232px"
-                className="object-cover"
-                unoptimized
-              />
-            ) : (
-              <div
-                className="w-full h-full bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500"
-                aria-hidden="true"
-              />
-            )}
-            <CoverPhotoUploader
-              onUploaded={() => refreshProfile()}
-              render={({ open, openCamera, uploading }) => (
-                <div ref={coverMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setCoverMenuOpen(v => !v)}
-                    disabled={uploading}
-                    aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
-                    aria-expanded={coverMenuOpen}
-                    className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
-                  >
-                    {uploading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-                    ) : (
-                      <i className="fas fa-camera" aria-hidden="true"></i>
-                    )}
-                  </button>
-                  {coverMenuOpen && (
-                    <div className="absolute bottom-14 right-2 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCoverMenuOpen(false);
-                          openCamera();
-                        }}
-                        className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                      >
-                        <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCoverMenuOpen(false);
-                          open();
-                        }}
-                        className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                      >
-                        <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            />
-          </div>
-          <div className="p-4 sm:p-6 lg:p-8">
-            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
-              {/* Profile Picture with Rating */}
-              <div className="relative flex-shrink-0 mx-auto sm:mx-0">
-                <LazyImage
-                  src={profile?.avatar_url}
-                  alt={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
-                  className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white shadow-lg"
-                  width={192}
-                  height={192}
-                  priority
-                  fallback={
-                    <div
-                      className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-4 border-white shadow-lg"
-                      role="img"
-                      aria-label={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
+          {/* Cover photo (3:1, cropped in the media editor; gradient until set)
+              with the profile picture half over its bottom edge. */}
+          <ProfileCoverHeader
+            coverSrc={coverProxyUrl(profile?.id, profile?.cover_url)}
+            size="lg"
+            rowClassName="px-4 sm:px-6 lg:px-8 flex justify-center sm:justify-start"
+            overlay={
+              <CoverPhotoUploader
+                onUploaded={() => refreshProfile()}
+                render={({ open, openCamera, uploading }) => (
+                  <div ref={coverMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCoverMenuOpen(v => !v)}
+                      disabled={uploading}
+                      aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
+                      aria-expanded={coverMenuOpen}
+                      className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
                     >
-                      <span className="text-tertiary font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
-                        {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
-                      </span>
-                    </div>
-                  }
-                />
-                
-                {/* Rating Bubble */}
-                {athleticScore > 0 && (
-                  <div
-                    className="absolute -top-2 -right-2 bg-brand text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
-                    role="img"
-                    aria-label="Athlete rating"
-                  >
-                    {athleticScore}
-                  </div>
-                )}
-                
-                {/* Avatar Upload Button */}
-                <div className="absolute -bottom-2 -right-2" ref={avatarMenuRef}>
-                  <AvatarUploader
-                    mode="immediate"
-                    onUploaded={handleAvatarUploaded}
-                    render={({ open, openCamera, uploading }) => (
-                      <div className="relative">
+                      {uploading ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                      ) : (
+                        <i className="fas fa-camera" aria-hidden="true"></i>
+                      )}
+                    </button>
+                    {coverMenuOpen && (
+                      <div className="absolute bottom-14 right-2 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
                         <button
                           type="button"
-                          onClick={() => setAvatarMenuOpen(v => !v)}
-                          disabled={uploading}
-                          className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
-                            uploading ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
-                          aria-expanded={avatarMenuOpen}
+                          onClick={() => {
+                            setCoverMenuOpen(false);
+                            openCamera();
+                          }}
+                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
                         >
-                          {uploading ? (
-                            <div
-                              className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
-                              aria-hidden="true"
-                            ></div>
-                          ) : (
-                            <i className="fas fa-camera text-white" aria-hidden="true"></i>
-                          )}
+                          <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
                         </button>
-                        {avatarMenuOpen && (
-                          <div className="absolute bottom-16 right-0 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAvatarMenuOpen(false);
-                                openCamera();
-                              }}
-                              className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                            >
-                              <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAvatarMenuOpen(false);
-                                open();
-                              }}
-                              className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                            >
-                              <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
-                            </button>
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverMenuOpen(false);
+                            open();
+                          }}
+                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                        >
+                          <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
+                        </button>
                       </div>
                     )}
-                  />
+                  </div>
+                )}
+              />
+            }
+          >
+            <LazyImage
+              src={profile?.avatar_url}
+              alt={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
+              className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white shadow-lg"
+              width={192}
+              height={192}
+              priority
+              fallback={
+                <div
+                  className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-4 border-white shadow-lg"
+                  role="img"
+                  aria-label={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
+                >
+                  <span className="text-tertiary font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
+                    {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
+                  </span>
                 </div>
+              }
+            />
+
+            {/* Rating Bubble */}
+            {athleticScore > 0 && (
+              <div
+                className="absolute -top-2 -right-2 bg-brand text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
+                role="img"
+                aria-label="Athlete rating"
+              >
+                {athleticScore}
               </div>
-              
+            )}
+
+            {/* Avatar Upload Button */}
+            <div className="absolute -bottom-2 -right-2" ref={avatarMenuRef}>
+              <AvatarUploader
+                mode="immediate"
+                onUploaded={handleAvatarUploaded}
+                render={({ open, openCamera, uploading }) => (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setAvatarMenuOpen(v => !v)}
+                      disabled={uploading}
+                      className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
+                        uploading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
+                      aria-expanded={avatarMenuOpen}
+                    >
+                      {uploading ? (
+                        <div
+                          className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
+                          aria-hidden="true"
+                        ></div>
+                      ) : (
+                        <i className="fas fa-camera text-white" aria-hidden="true"></i>
+                      )}
+                    </button>
+                    {avatarMenuOpen && (
+                      <div className="absolute bottom-16 right-0 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAvatarMenuOpen(false);
+                            openCamera();
+                          }}
+                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                        >
+                          <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAvatarMenuOpen(false);
+                            open();
+                          }}
+                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                        >
+                          <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              />
+            </div>
+          </ProfileCoverHeader>
+          <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
               {/* Profile Information */}
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
