@@ -1,10 +1,15 @@
 /**
- * Does this visitor want less data? (Oct 9 2026 — lifted out of the
- * site-live island so the app has ONE rule.) Two signals the browser gives:
- * `navigator.connection.saveData` (Chrome's Data Saver / Lite mode) and the
- * `prefers-reduced-data` media query. Either means: do not start optional
- * network work on your own — the live scoreboard does not poll, the activity
- * page shows the route's line drawing instead of a tiled map until asked.
+ * Does this visitor want less data? (Oct 9 2026.) Two signals the browser
+ * gives: `navigator.connection.saveData` (Chrome's Data Saver / Lite mode)
+ * and the `prefers-reduced-data` media query. Either means: do not start
+ * optional network work on your own — the activity page shows the route's
+ * line drawing instead of a tiled map until asked.
+ *
+ * The public site's live scoreboard asks the same question with its own
+ * two lines: guardrail B4.11 pins that island to React and the pure feed
+ * modules, so it cannot import this file. The two are kept EQUAL by test
+ * (`autoPollAllowed` is `reducedDataFrom`'s complement) — change one, change
+ * the other.
  *
  * The rule is pure (`reducedDataFrom`) so it unit-tests in node; the reader
  * (`prefersReducedData`) touches the browser and is feature-checked for the
