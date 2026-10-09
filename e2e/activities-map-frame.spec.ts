@@ -94,9 +94,12 @@ test('the route map is a framed picture: no free pan, bounded zoom, Fit route, r
     // Fit route: the default framing again.
     await page.locator('[data-route-fit]').click();
     await expect.poll(async () => (await camera(page)).zoom, { timeout: 10_000 }).toBe(start.zoom);
-    const refit = await camera(page);
-    expect(Math.abs(refit.center[0] - start.center[0])).toBeLessThan(1e-3);
-    expect(Math.abs(refit.center[1] - start.center[1])).toBeLessThan(1e-3);
+    // The zoom lands before the animated pan does (WebKit read 0.0012° off
+    // mid-glide, Oct 9 2026): poll the centre too, never a single read.
+    await expect.poll(async () => {
+      const refit = await camera(page);
+      return Math.max(Math.abs(refit.center[0] - start.center[0]), Math.abs(refit.center[1] - start.center[1]));
+    }, { timeout: 10_000 }).toBeLessThan(1e-3);
 
     // Pinch out (Chromium's synthetic gesture; WebKit has none here): the
     // zoom never falls below the minimum — the whole route, no wider.
