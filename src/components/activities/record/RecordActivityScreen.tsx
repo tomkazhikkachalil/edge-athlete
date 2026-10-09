@@ -53,7 +53,13 @@ import LiveRouteMap from './LiveRouteMap';
 import RecorderControls from './RecorderControls';
 import SegmentSheet from './SegmentSheet';
 import RecorderPhotos from './RecorderPhotos';
-import FinishSheet from './FinishSheet';
+import FinishSheet, { type FinishDetails } from './FinishSheet';
+import { postActivity } from '@/lib/activities/share-client';
+import { sportForActivity } from '@/lib/activities/sport-bridge';
+import { isSportEnabled } from '@/lib/features';
+import { getSportDefinition } from '@/lib/sports/SportRegistry';
+import { whoSeesPost } from '@/lib/posts/audience';
+import type { LatLng } from '@/lib/activities/polyline';
 
 const localZone = (): string | null => {
   try {
@@ -336,7 +342,7 @@ export default function RecordActivityScreen() {
     dispatch({ type: 'finish', now: Date.now() });
     setFinishing(true);
   };
-  const save = async (name: string, manualDistanceM: number | null) => {
+  const save = async ({ name, manualDistanceM, choice, caption, sport }: FinishDetails) => {
     const s0 = stateRef.current;
     if (!s0 || s0.status !== 'finished') return;
     setSaving(true);
@@ -353,7 +359,8 @@ export default function RecordActivityScreen() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activity: wire, ...(targetProfileId ? { targetProfileId } : {}) }),
+        // Only me is set in the SAME call — private from the moment it exists.
+        body: JSON.stringify({ activity: wire, ...(targetProfileId ? { targetProfileId } : {}), ...(choice === 'only_me' ? { onlyMe: true } : {}) }),
       });
       const json = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok || !json.id) throw new Error(json.error || 'Could not save the activity.');
@@ -367,7 +374,16 @@ export default function RecordActivityScreen() {
         }).catch(() => undefined);
       }
       await store?.clear(latest.id).catch(() => undefined);
-      showSuccess('Saved', 'Your activity is in Vitals.');
+      if (choice === 'post') {
+        // The activity is saved either way; a failed post leaves it on its
+        // page, where "Share to feed" still offers it.
+        const posted = await postActivity({ activityId: json.id, sport, caption, targetProfileId });
+        if (!posted.ok) showError('Saved — not posted', `${posted.error} You can share it from this page.`);
+        else if (posted.pendingApproval) showSuccess('Sent for approval');
+        else showSuccess(sport ? `Posted as a ${getSportDefinition(sport).display_name} result` : 'Posted', whoSeesPost(accountVisibility));
+      } else {
+        showSuccess('Saved — only you can see it', 'It is in your Vitals, not on the feed.');
+      }
       router.push(`/activities/${json.id}`);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Could not save the activity.');
@@ -406,6 +422,15 @@ export default function RecordActivityScreen() {
   const lastFix = state?.points[state.points.length - 1];
   const stale = !!lastFix && state?.status === 'recording' && now - lastFix.t > 20_000;
   const def = state ? ACTIVITY_TYPE_DEFS[state.type] : null;
+  // The review (FinishSheet): the drawn route, the sport it may be posted as,
+  // and the POSTING account's privacy — the athlete a guardian acts for, else self.
+  const reviewRoute = useMemo<LatLng[]>(
+    () => drawnRoute.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number').map(p => [p.lat as number, p.lng as number]),
+    [drawnRoute]
+  );
+  const bridged = stateType ? sportForActivity(stateType) : null;
+  const sportOption = bridged && isSportEnabled(bridged) ? bridged : null;
+  const accountVisibility = (activeProfile ?? profile)?.visibility ?? null;
 
   if (!initialAuthCheckComplete || !user) return null;
 
@@ -534,6 +559,14 @@ export default function RecordActivityScreen() {
           photos={state.photos}
           saving={saving}
           error={saveError}
+          summary={{
+            distanceM: totals?.distanceM ?? 0,
+            elapsedS: totals?.elapsedS ?? 0,
+            movingS: totals?.movingS ?? 0,
+            route: reviewRoute,
+          }}
+          sportOption={sportOption}
+          accountVisibility={accountVisibility}
           onSave={save}
           onDiscard={() => setDiscardOpen(true)}
           onDropFailed={dropFailed}

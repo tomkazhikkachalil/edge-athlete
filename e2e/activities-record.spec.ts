@@ -121,6 +121,8 @@ test('record a run: fixes draw, a segment is marked, a reload resumes, Finish sa
     // Finish → Save.
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-choice="only_me"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -169,6 +171,8 @@ test('a jittery phone: standing still adds nothing, a walk reads close to its tr
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     const shown = await distance();
+    // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-choice="only_me"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -230,6 +234,8 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     await expect(page.locator('[data-record-save]')).toBeDisabled(); // no distance yet
     await page.locator('[data-record-distance-input]').fill('25');
+    // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-choice="only_me"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -240,5 +246,85 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
+
+// Finish is ONE review (Oct 9 2026, Tom: "it's not the easiest to identify if
+// you want to post or not"): the walk's route and numbers, then ONE decision
+// — Post it (who sees it follows the ACCOUNT: anyone on a public one, approved
+// fans on a private one) or Only me (in Vitals, not on the feed). Post it is
+// the default; Done does it all.
+test('Finish is a review: Post it by default posts the run; Only me keeps it in Vitals @mobile', async ({ browser, browserName }) => {
+  test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
+  test.setTimeout(180_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  const { data: before } = await admin.from('profiles').select('visibility').eq('id', user.id).single();
+  const cleanup = async () => {
+    const { data: rows } = await admin.from('activities').select('id, post_id').eq('profile_id', user.id).eq('source', 'live');
+    const postIds = (rows ?? []).map(r => r.post_id).filter((x): x is string => !!x);
+    if (postIds.length) await admin.from('posts').delete().in('id', postIds);
+    await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  };
+  await cleanup();
+  const ctx = await recorderContext(browser, { mode: 'run' });
+  const recordARun = async (page: import('@playwright/test').Page) => {
+    await page.goto('/activities/record');
+    // The 'run' stub's fixes are a brisk run (5 m/s) — a walk at that pace is
+    // refused as implausible by the server.
+    await page.locator('[data-record-type="run"]').click({ timeout: 20_000 });
+    await page.locator('[data-record-start]').click();
+    // Long enough for the server's plausibility read (a few seconds of a
+    // brisk run is "faster than a run can go"), as the run test above records.
+    await expect.poll(async () => Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance')), { timeout: 30_000 }).toBeGreaterThan(40);
+    await page.waitForTimeout(4_000);
+    await page.locator('[data-record-finish]').click();
+    await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+  };
+  try {
+    // A PUBLIC account: Post it is preselected and says anyone sees it.
+    await admin.from('profiles').update({ visibility: 'public' }).eq('id', user.id);
+    const page = await ctx.newPage();
+    await recordARun(page);
+    const sheet = page.locator('[data-record-finish-sheet]');
+    await expect(sheet.getByRole('heading', { name: 'Nice run!' })).toBeVisible();
+    await expect(sheet.locator('[data-record-review-summary]')).toContainText('Distance');
+    await expect(sheet.locator('[data-record-review-route]')).toBeVisible();
+    await expect(sheet.locator('[data-choice="post"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.locator('[data-choice="post"]')).toContainText('Anyone can see it');
+    await expect(sheet.locator('[data-record-save]')).toHaveText('Post');
+    // The decision is one tap away on a phone — no scrolling to reach it.
+    await expect(sheet.locator('[data-record-save]')).toBeInViewport({ ratio: 1 });
+    const caption = `review walk ${Date.now()}`;
+    await sheet.locator('[data-record-caption]').fill(caption);
+    await sheet.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const posted = page.url().split('/').pop()!;
+    const { data: a1 } = await admin.from('activities').select('post_id, only_me').eq('id', posted).single();
+    expect(a1!.only_me).toBe(false);
+    expect(a1!.post_id, 'Done posted it').toBeTruthy();
+    const { data: p1 } = await admin.from('posts').select('visibility, caption, status').eq('id', a1!.post_id!).single();
+    expect(p1).toMatchObject({ visibility: 'public', caption, status: 'published' });
+
+    // A PRIVATE account: the line says approved fans; Only me posts nothing.
+    // (The first run goes first: a second recording within a minute of the
+    // same length is the SAME activity to the dedupe rule — dedupe.ts.)
+    await cleanup();
+    await admin.from('profiles').update({ visibility: 'private' }).eq('id', user.id);
+    await recordARun(page);
+    await expect(sheet.locator('[data-choice="post"]')).toContainText('approved fans');
+    await sheet.locator('[data-choice="only_me"]').click();
+    await expect(sheet.locator('[data-choice="only_me"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.locator('[data-record-caption]')).toHaveCount(0);
+    await expect(sheet.locator('[data-record-save]')).toHaveText('Save for me');
+    await sheet.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const kept = page.url().split('/').pop()!;
+    const { data: a2 } = await admin.from('activities').select('post_id, only_me').eq('id', kept).single();
+    expect(a2).toMatchObject({ only_me: true, post_id: null });
+  } finally {
+    await ctx.close();
+    await cleanup();
+    await admin.from('profiles').update({ visibility: before?.visibility ?? 'private' }).eq('id', user.id);
   }
 });
