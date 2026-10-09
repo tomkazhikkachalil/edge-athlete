@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flag, MoreVertical, Plus, Timer, Trash2 } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
+import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
 import { MediaEditor } from '@/components/media-editor';
 import type { EditedMedia, MediaAsset } from '@/lib/media/types';
@@ -124,30 +125,14 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [routineSaved, setRoutineSaved] = useState(false);
   const [routineError, setRoutineError] = useState('');
 
-  // ── Live timer (derived from started_at, never counted) ─────────────────
-  // The tick stores the TIMESTAMP, not a throwaway counter: reading Date.now()
-  // during render is impure (react-hooks/purity) and makes the displayed time
-  // depend on whenever React happens to re-render. Now the rendered value is
-  // exactly the ticked value.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (mode !== 'live' || phase !== 'editing') return;
-    const tick = () => setNow(Date.now());
-    const interval = setInterval(tick, 1000);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') tick();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [mode, phase]);
+  // ── Live timer ───────────────────────────────────────────────────────────
+  // Derived from started_at, never counted — and it TICKS IN A LEAF
+  // (`LiveClock`, PR 3 of the capture round): the one-second tick used to be
+  // this screen's state and re-rendered every exercise row and an open media
+  // editor each second. The finish fallback reads the clock once, here.
+  const elapsedNow = () => (session ? Math.max(0, Math.floor((Date.now() - Date.parse(session.started_at)) / 1000)) : 0);
 
-  const elapsedSeconds =
-    mode === 'live' && session ? Math.floor((now - Date.parse(session.started_at)) / 1000) : 0;
-
-  // Rest indicator: seconds since the most recent completed set
+  // Rest indicator: seconds since the most recent completed set (LiveClock shows it)
   const lastCompletedMs = useMemo(() => {
     let latest = 0;
     for (const exercise of exercises) {
@@ -157,7 +142,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     }
     return latest;
   }, [exercises]);
-  const restSeconds = lastCompletedMs > 0 ? Math.floor((now - lastCompletedMs) / 1000) : null;
 
   // ── Server sync engine (live mode): debounced single-flight PUT ──────────
   // Latest exercises/title for the async sync + draft writers below. Written
@@ -364,7 +348,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       clearDraft(draftId);
       uploads.clearStash();
       setFinishedSessionId(session.id);
-      setFinishedDuration(data.session?.duration_seconds ?? elapsedSeconds);
+      setFinishedDuration(data.session?.duration_seconds ?? elapsedNow());
       await loadPRs(exercises);
       setPhase('summary');
     } catch (err) {
@@ -781,17 +765,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             button was pushed ~19px past the container (3px past the viewport,
             producing a horizontally scrolling page). */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {mode === 'live' ? (
+          {mode === 'live' && session ? (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-1.5 text-brand-fg-strong">
-                <Timer className="w-5 h-5" aria-hidden="true" />
-                <span className="text-2xl font-bold tabular-nums">{formatElapsed(elapsedSeconds)}</span>
-              </div>
-              {restSeconds !== null && restSeconds < 3600 && (
-                <span className="text-xs text-muted whitespace-nowrap">
-                  Rest {formatElapsed(restSeconds)}
-                </span>
-              )}
+              <LiveClock startedAt={session.started_at} lastCompletedMs={lastCompletedMs} />
               {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
               {syncState === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
               {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
