@@ -1,16 +1,5 @@
 # Development Log
 
-## October 9, 2026 — Another athlete's profile: the cover photo fills the card (zero DDL)
-
-**Tom's spec:** on someone else's profile, their background photo fills the whole profile card, edge to edge, in place of the white inside; it stays inside the card's border and corners; the details sit on a translucent panel that follows the theme (light: white at 60–75 %, dark text; dark: near-black at 50–65 %, light text), blurred behind with a solid fallback, as theme tokens, switching instantly; no photo → a theme gradient; lazy with a blurred placeholder.
-
-- **`src/components/profile/ProfileCoverCard.tsx`** is the one shell, used by BOTH viewer routes (`/athlete/[id]` and `/u/[username]`). The card keeps its border, radius, shadow and spacing; the photo is an `absolute inset-0` layer clipped by the card's `overflow-hidden`, so nothing reaches the page. The top `h-24 / sm:h-32` shows the photo alone (where the banner was); the details sit on the panel inset 12–16 px. The owner's own `/athlete` page is unchanged.
-- **The blur is a SIBLING of the details, never their ancestor:** `backdrop-filter` makes an element the containing block of every `position: fixed` descendant, which would trap a confirm or popover inside the card.
-- **Tokens** (`globals.css`, `--profile-panel-*` + `--profile-cover-fallback`, light and dark twins): `.profile-glass` is the panel's fill — near-solid by default, translucent + `blur(14px)` under `@supports` (the repo's first; `-webkit-` for the iOS 15 floor); `.profile-panel` re-points the five text tiers and the inset surface (the `.vt-scope` pattern), so `text-muted` stays ≥ 4.5:1 over an all-white OR all-black photo — the house muted grey on a 65 % dark panel over white was ≈ 1.8:1. The alphas sit at the top of Tom's bands (75 % / 65 %) for the same reason. No JS reads the theme: a toggle repaints through `data-theme`.
-- **Placeholder:** the cover endpoint answers `?w=32` (the ONLY width it accepts; anything else is a 400) with a 32 px JPEG through `sharp`; `coverPlaceholderUrl` beside `coverProxyUrl`. The full image is `loading="lazy"` and fades in over it.
-- **Route parity fixed on the way:** `/u/` never showed a cover at all — `/api/public/profile` now returns `cover` / `coverPlaceholder` (the public proxy forms; the raw `cover_url` never leaves), and the avatar's `border-white` became `border-surface`.
-- **Proof:** `e2e/profile-cover-card.spec.ts` (desktop + `@mobile`) — the photo's box equals the card's, the panel inside it, the card clips with a radius, no sideways scroll, a theme flip repaints the glass with no navigation, no cover = a gradient — passes on desktop, phone Chromium, WebKit and Android. Screenshots over a white, a black and a busy photo, in both themes, read cleanly.
-
 ## October 9, 2026 — Post-merge check: production on `d4eeffbb`, every surface green
 
 Tom's full checklist again after #1130 merged ("web, large screen, mobile, and downloaded app"). No code changes.

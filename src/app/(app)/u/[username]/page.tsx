@@ -27,7 +27,6 @@ import {
 } from '@/lib/formatters';
 import { MapPin, School, Users, Calendar, Trophy, Lock } from 'lucide-react';
 import { formatPlace } from '@/lib/geo/regions';
-import ProfileCoverCard from '@/components/profile/ProfileCoverCard';
 
 interface PublicProfile {
   id: string;
@@ -37,10 +36,6 @@ interface PublicProfile {
   last_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  /** The cover's public proxy URL + its 32px placeholder; optional so a
-   *  cached response from before they existed parses (the gradient shows). */
-  cover?: string | null;
-  coverPlaceholder?: string | null;
   bio: string | null;
   sport: string | null;
   position: string | null;
@@ -312,18 +307,15 @@ export default function PublicProfilePage() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Profile Header */}
-        {/* The cover photo fills the whole card; the details sit on a
-            theme-following panel (ProfileCoverCard). */}
-        <ProfileCoverCard
-          coverSrc={profile.cover ?? null}
-          placeholderSrc={profile.coverPlaceholder ?? null}
-          className="rounded-xl shadow-sm border border-border"
-        >
+        <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
+          {/* Cover area */}
+          <div className="h-24 sm:h-32 bg-gradient-to-r from-violet-500 to-violet-600" />
+
           {/* Profile info */}
-          <div className="p-4 sm:p-6">
+          <div className="px-4 sm:px-6 pb-6">
             {/* Avatar */}
-            <div className="mb-4">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-surface bg-surface shadow-md overflow-hidden">
+            <div className="-mt-12 sm:-mt-16 mb-4">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface shadow-md overflow-hidden">
                 {profile.avatar_url ? (
                   <LazyImage
                     src={profile.avatar_url}
@@ -504,7 +496,7 @@ export default function PublicProfilePage() {
               </div>
             </div>
           </div>
-        </ProfileCoverCard>
+        </div>
 
         {/* Section switcher — Overview keeps the classic single-scroll page;
             Vitals mounts the redesigned dashboard (same component as the

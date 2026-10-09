@@ -1696,17 +1696,6 @@ const { canView } = await response.json();
    `e2e/workout-entries-race.spec.ts` is the pin. Read DEVLOG Oct 8–9 2026
    (Workout capture PR 1–4) first.
 
-38. **Another athlete's profile card wears their cover photo (Oct 9 2026, zero
-   DDL)** — `src/components/profile/ProfileCoverCard.tsx` on BOTH viewer routes
-   (`/athlete/[id]`, `/u/[username]`; the owner's `/athlete` is unchanged): the
-   photo fills the card and is clipped by it; the details sit on a panel whose
-   fill (`.profile-glass`) and text tiers (`.profile-panel`) are the
-   `--profile-panel-*` tokens in `globals.css`, light and dark twins. The
-   blurred glass is a SIBLING of the details — never put `backdrop-filter` on
-   an ancestor of content (it traps `position: fixed` children). The
-   placeholder is the cover endpoint's `?w=32`, the one width it accepts.
-   `e2e/profile-cover-card.spec.ts` is the pin.
-
 ---
 
 ## 🔧 Common Tasks
