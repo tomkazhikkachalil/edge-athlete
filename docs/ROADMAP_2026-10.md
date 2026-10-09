@@ -63,6 +63,18 @@ Not started; a program of its own, after the fix round.
   `docs/ACTIVITIES.md` "Recording live"). What stays native: recording with
   the screen OFF or the app in the background, a real step count from the
   health store, and the watch itself.
+- **Scheduled (Tom, Oct 9 2026): before the launch gate opens to the general
+  public** (the site is live but gated). **iPhone first.** Its first feature is
+  recording with the phone locked — walk, run, hike and ride only (golf and the
+  other sports stay foreground). The web recorder already tells the athlete so.
+  Prerequisites found that day: this Mac has no Xcode (command-line tools
+  only), no CocoaPods, Java, Android SDK or Homebrew; 37 GB free, 8 GB memory.
+  Tom installs Xcode from the Mac App Store (~15–20 GB) and enrols in the Apple
+  Developer Program to run beyond 7-day test builds. Still to decide: how the
+  app holds the site — recommended, the live site inside a Capacitor shell with
+  the free community background-geolocation plugin feeding the existing
+  recorder (`src/lib/activities/gps-filter.ts`), since the app's server routes
+  cannot be bundled.
 - **Costs to plan for:** Apple Developer Program US$99 / year, Google Play
   US$25 once; a Mac with Xcode, a real iPhone and Watch to test on; App Store
   and Play review; a third surface to keep working beside web and phone-width
