@@ -7,11 +7,26 @@
 // (nulls at both ends), so this never re-derives privacy — it only draws.
 // Start / finish markers are the owner's (a viewer's ends are not the
 // real ends, and a marker would pretend otherwise).
+//
+// A FRAMED picture, not a navigation tool (Oct 9 2026, route-frame.ts): the
+// camera lives inside the padded box around the route (`maxBounds`, viscosity
+// 1 — it STOPS at the edge), zooms out no further than the box filling the
+// container and in no further than street level, has no zoom control (a
+// "Fit route" button instead), no scroll-wheel zoom (the page scrolls), no
+// keyboard or box zoom. Leaflet has no rotation or tilt. The base map is
+// muted (`ea-route-frame`, globals.css) so the route is the focus. The box is
+// computed from the stream THIS viewer was given — never stored.
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
+import { FRAME, padBounds, routeBounds, type GeoBounds } from '@/lib/activities/route-frame';
+
+const reducedMotion = () =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const toLatLngBounds = (b: GeoBounds) => L.latLngBounds([b.south, b.west], [b.north, b.east]);
 
 export interface RouteMapInnerProps {
   lat: (number | null)[];
@@ -66,13 +81,54 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
   const markerRef = useRef<L.Marker | null>(null);
   const rangeRef = useRef<L.Polyline | null>(null);
   const pinsRef = useRef<L.LayerGroup | null>(null);
+  const routeBoundsRef = useRef<L.LatLngBounds | null>(null);
   const [layer, setLayer] = useState<'osm' | 'satellite'>('osm');
+
+  /** The default framing: the route with a little room, no motion under reduced motion. */
+  const fitRoute = (map: L.Map, animate: boolean) => {
+    const rb = routeBoundsRef.current;
+    if (rb) map.fitBounds(rb, { padding: [FRAME.fitPaddingPx, FRAME.fitPaddingPx], animate: animate && !reducedMotion() });
+  };
+
+  /** The camera, mirrored onto the container for the e2e hooks (read-only). */
+  const mirror = (map: L.Map, frame: GeoBounds | null) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const c = map.getCenter();
+    el.dataset.mapZoom = String(map.getZoom());
+    el.dataset.mapMinZoom = String(map.getMinZoom());
+    el.dataset.mapMaxZoom = String(map.getMaxZoom());
+    el.dataset.mapCenter = `${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+    if (frame) el.dataset.mapBounds = `${frame.south},${frame.west},${frame.north},${frame.east}`;
+    el.dataset.mapAnimate = reducedMotion() ? 'false' : 'true';
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const segs = segments(lat, lng);
-    const map = L.map(containerRef.current, { scrollWheelZoom: false, zoomControl: true });
+    const rb = routeBounds(lat, lng);
+    const frame = rb ? padBounds(rb) : null;
+    const still = reducedMotion();
+    const map = L.map(containerRef.current, {
+      scrollWheelZoom: false,
+      zoomControl: false,
+      boxZoom: false,
+      keyboard: false,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      maxZoom: FRAME.maxZoom,
+      maxBounds: frame ? toLatLngBounds(frame) : undefined,
+      maxBoundsViscosity: 1.0,
+      zoomAnimation: !still,
+      fadeAnimation: !still,
+      markerZoomAnimation: !still,
+      attributionControl: false,
+    });
+    // The OSM / Esri credit is a licence condition, not chrome: kept, without the "Leaflet" link.
+    L.control.attribution({ prefix: false }).addTo(map);
     mapRef.current = map;
+    routeBoundsRef.current = rb ? toLatLngBounds(rb) : null;
     tileRef.current = L.tileLayer(OSM_TILES.url, { maxZoom: OSM_TILES.maxZoom, attribution: OSM_TILES.attribution }).addTo(map);
     for (const s of segs) {
       L.polyline(s, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
@@ -85,9 +141,38 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
       L.marker(first, { icon: dot('#16a34a', 16), title: 'Start' }).addTo(map);
       L.marker(last, { icon: dot('#dc2626', 16), title: 'Finish' }).addTo(map);
     }
-    const all = segs.flat();
-    if (all.length > 0) map.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
-    else map.setView([0, 0], 1);
+    if (rb && frame) {
+      fitRoute(map, false);
+      // Zooming out stops where the padded box fills the container — the whole
+      // route visible and the map no wider. Recomputed on every resize (a
+      // phone turned sideways — and the container's FIRST real size: WebKit
+      // can hand the map a container that is still settling, so the initial
+      // fit is one level off until this fires), and the route refitted.
+      const applyMinZoom = () => {
+        const min = Math.min(map.getBoundsZoom(toLatLngBounds(frame), false), FRAME.maxZoom);
+        map.setMinZoom(min);
+        if (map.getZoom() < min) fitRoute(map, false);
+        mirror(map, frame);
+      };
+      applyMinZoom();
+      const ro = typeof ResizeObserver === 'function'
+        ? new ResizeObserver(() => {
+            map.invalidateSize({ animate: false });
+            fitRoute(map, false);
+            applyMinZoom();
+          })
+        : null;
+      ro?.observe(containerRef.current);
+      map.on('moveend zoomend', () => mirror(map, frame));
+      return () => {
+        ro?.disconnect();
+        map.remove();
+        mapRef.current = null;
+        markerRef.current = null;
+      };
+    }
+    map.setView([0, 0], 1);
+    mirror(map, null);
     return () => {
       map.remove();
       mapRef.current = null;
@@ -149,15 +234,30 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
     else markerRef.current = L.marker([a, b], { icon: dot('#7c3aed', 14), interactive: false }).addTo(map);
   }, [highlightIndex, lat, lng]);
 
+  const pill =
+    'absolute z-[400] rounded-full bg-surface/95 px-3 py-1.5 text-sm font-semibold text-primary shadow-md border border-border min-h-[36px]';
   return (
     <div className="relative">
-      <div ref={containerRef} className="h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden" data-activity-map />
+      <div
+        ref={containerRef}
+        className={`h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden${layer === 'osm' ? ' ea-route-frame' : ''}`}
+        data-activity-map
+        data-route-frame=""
+      />
+      <button type="button" onClick={() => setLayer(l => (l === 'osm' ? 'satellite' : 'osm'))} className={`${pill} top-2 right-2`}>
+        {layer === 'osm' ? 'Satellite' : 'Map'}
+      </button>
       <button
         type="button"
-        onClick={() => setLayer(l => (l === 'osm' ? 'satellite' : 'osm'))}
-        className="absolute top-2 right-2 z-[400] rounded-full bg-surface/95 px-3 py-1.5 text-sm font-semibold text-primary shadow-md border border-border min-h-[36px]"
+        onClick={() => {
+          const map = mapRef.current;
+          if (map) fitRoute(map, true);
+        }}
+        className={`${pill} bottom-2 right-2`}
+        aria-label="Fit route"
+        data-route-fit=""
       >
-        {layer === 'osm' ? 'Satellite' : 'Map'}
+        Fit route
       </button>
     </div>
   );

@@ -43,6 +43,8 @@ import { segmentStats, splits } from '@/lib/activities/stream';
 import type { ActivityDetailView, ActivityMediaView } from '@/lib/activities/visibility';
 import ActivityStreamChart from './ActivityStreamChart';
 import RouteMap from './RouteMap';
+import RouteThumb from './RouteThumb';
+import { prefersReducedData } from '@/lib/net/reduced-data';
 
 // The shared media editor (the pencil on a photo) — loaded only when opened.
 const MediaEditor = dynamic(() => import('@/components/media-editor').then(m => m.MediaEditor), { ssr: false });
@@ -174,6 +176,10 @@ function ActivityBody({
     [a.stream, a.segments]
   );
   const [picked, setPicked] = useState<string | null>(null);
+  // Save-Data / reduced-data, read once when the screen mounts (client-only —
+  // the page's server render is a shell, so there is no hydration to mismatch).
+  const [reducedData] = useState(() => prefersReducedData());
+  const [liveMap, setLiveMap] = useState(false);
   const highlightRange = useMemo<[number, number] | null>(() => {
     const row = segmentRows.find(r => r.seg.id === picked);
     return row?.stat ? [row.stat.startIndex, row.stat.endIndex] : null;
@@ -190,6 +196,9 @@ function ActivityBody({
       ? `/u/${athlete.handle}?tab=activities`
       : `/athlete/${athlete.id}?tab=activities`;
   const showMap = a.hasRoute && !!a.stream?.lat && !!a.stream?.lng;
+  // The live map waits for a tap under Save-Data; without a preview to show
+  // instead, the map it is.
+  const staticRoute = reducedData && !liveMap && !!a.routePreview;
 
   const stats: { label: string; value: string }[] = [
     { label: 'Distance', value: formatDistance(a.distanceM, unit) },
@@ -237,7 +246,27 @@ function ActivityBody({
         ))}
       </dl>
 
-      {showMap && <RouteMap lat={a.stream!.lat!} lng={a.stream!.lng!} showEnds={!!a.owner} highlightIndex={hover} highlightRange={highlightRange} pins={pins} />}
+      {showMap && staticRoute && (
+        // Save-Data / reduced-data (Oct 9 2026): the route's line drawing — the
+        // same picture the feed shows — instead of a tiled map, until asked.
+        <div
+          className="relative h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden bg-surface-sunken text-brand-fg-strong p-6 flex items-center justify-center"
+          data-route-static=""
+        >
+          <RouteThumb preview={a.routePreview} className="h-full w-full" w={320} h={180} />
+          <button
+            type="button"
+            onClick={() => setLiveMap(true)}
+            className="absolute bottom-2 right-2 z-10 rounded-full bg-surface/95 px-3 py-1.5 text-sm font-semibold text-primary shadow-md border border-border min-h-[36px]"
+            data-route-show-map=""
+          >
+            Show map
+          </button>
+        </div>
+      )}
+      {showMap && !staticRoute && (
+        <RouteMap lat={a.stream!.lat!} lng={a.stream!.lng!} showEnds={!!a.owner} highlightIndex={hover} highlightRange={highlightRange} pins={pins} />
+      )}
       {a.notes && (
         <p className="whitespace-pre-wrap text-base text-primary" data-activity-notes>
           {a.notes}
