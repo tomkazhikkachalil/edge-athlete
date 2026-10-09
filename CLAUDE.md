@@ -1662,8 +1662,15 @@ const { canView } = await response.json();
    new URL INTO THE SET (`replaceMediaAt` → `mutate` → the entries PUT; the
    post shows the edited clip because the set holds it — no second copy);
    Remove asks through `ConfirmModal` naming the set. `data-share-clip` /
-   `data-share-position` are the hooks; `e2e/workout-review.spec.ts`. Read
-   DEVLOG Oct 8–9 2026 (Workout capture PR 1–2) first.
+   `data-share-position` are the hooks; `e2e/workout-review.spec.ts`. **The
+   page (PR 3):** the signed-out bounce is `/?next=/app/workout/<id>` (never
+   a bare `/`), the load is ONE per (user id, workout) and a failed re-read
+   never replaces a loaded editor, and the one-second tick lives in
+   `LiveClock` — never in the screen's state. **The entries PUT's stale-write
+   guard is LIVE-only** (`entries-stale.ts`): a completed session's
+   `last_activity_at` is its END time (a manual log can put it in the
+   future), so review-mode edits are never guarded and never move it. Read
+   DEVLOG Oct 8–9 2026 (Workout capture PR 1–3) first.
 
 ---
 

@@ -1,5 +1,18 @@
 # Development Log
 
+## October 9, 2026 — Workout capture PR 3: the workout page never throws a live editor away; the clock ticks in a leaf (zero DDL)
+
+The last of the three. PR 1 (#1120) is on production and proven there: `workout-capture.spec` against the live app at phone width — the tile within 5 s, the reload mid-upload, the Retry tile, Finish → the review — **1 passed, 34 s**. PR 2 (#1121) is in CI as this is written. Branch `feat/workout-capture-page-hardening`.
+
+**What ships:**
+- **`src/app/(app)/app/workout/[id]/page.tsx`**: the signed-out bounce carries the way back — `router.replace('/?next=/app/workout/<id>')` (the sign-in page already honoured `?next=` for the invite claim). This is the tail of Tom's "kicked out": after iOS throws the page away with the camera up and the auth boot's 5 s timeout fires on gym signal, the athlete landed on `/` with no path back to the live workout; now sign-in returns them to it, the sets from the draft, the clock from `started_at`. The load is ONE per (user id, workout) — keyed on the user's **id**, not the object: a refocus or a token refresh hands a new object with the same id and used to re-fetch under a live editor, and a re-fetch that failed replaced a working editor with "Workout not found". The owner check and the error screen belong to the first load only (a failed first load lets a remount try again).
+- **`LiveClock.tsx`**: the one-second tick moves into a leaf — the elapsed time and the rest indicator re-render alone. Until now the tick was the editor screen's state and re-rendered every exercise row and an open media editor (with its video) every second. Still derived from `started_at` and re-ticked on `visibilitychange`; the finish fallback reads the clock once (`elapsedNow`). `data-live-clock` is the hook.
+- CLAUDE.md convention 37 extended.
+
+**Proof:** `e2e/workout-page-guard.spec.ts` (`@mobile`, a signed-out context): `/app/workout/<id>` → `/?next=/app/workout/<id>` with the sign-in button. **phone Chromium 1 passed (39 s), phone WebKit 1 passed (35 s)** — its first form looked for a "Log in / Sign in" button and the sign-in page's reads "Login", one word; the redirect itself was right both times. `workout-capture.spec` (its timer assertion now reads `LiveClock`) with `workout-drafts` · `workout-photos` · `reopen-prompt`: **6 passed** on phone Chromium (2.1 min); `workout-capture` **1 passed** on phone WebKit; `vitals` **1 passed** on desktop. `npm run verify` on the branch: exit 0 — lint 0, **4,765 tests in 507 files**, the build, **237 client chunks** within the iOS 15 / Safari 15 floor. Both earlier PRs are on production and proven there (`workout-capture` 1/1 in 34 s, `workout-review` 1/1 in 32 s, phone width, prod re-read clean after).
+
+---
+
 ## October 9, 2026 — Workout capture PR 2: the review step edits, orders and removes the clips, then posts (zero DDL)
 
 Tom's spec, steps 3–5: "at the end of the workout, the user can review everything captured … edit photos and videos … then creates a post from the edited media", reusing the editor we already have. His decision in planning: the workout's own share screen grows these, no hand-off to the post composer. Branch `feat/workout-capture-review`, on top of PR 1.

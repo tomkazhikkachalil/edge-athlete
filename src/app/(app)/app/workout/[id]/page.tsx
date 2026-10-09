@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -42,13 +42,29 @@ export default function WorkoutSessionPage() {
   /** null until the ?share= param has been read (see ShareParamReader). */
   const [wantShare, setWantShare] = useState<boolean | null>(null);
   const handleShareParam = useCallback((share: boolean) => setWantShare(share), []);
+  const userId = user?.id ?? null;
 
+  // Signed out → the sign-in page, WITH the way back (workout capture round
+  // PR 3, Oct 9 2026): after iOS throws the page away with the camera up and
+  // the auth boot's 5 s timeout fires on gym signal, the athlete used to land
+  // on `/` with no path back to the live workout. `/` honours `?next=`.
   useEffect(() => {
-    if (!authLoading && !user) router.push('/');
-  }, [user, authLoading, router]);
+    if (!authLoading && !user && sessionId) {
+      router.replace(`/?next=${encodeURIComponent(`/app/workout/${sessionId}`)}`);
+    }
+  }, [user, authLoading, router, sessionId]);
 
+  // ONE load per (user, workout). Keyed on the user's ID, not the object: a
+  // refocus or token refresh hands a new object with the same id and must not
+  // re-fetch under a live editor — and a re-fetch that failed used to replace
+  // a working editor with "Workout not found" (page.tsx:95). The owner check
+  // and the error screen belong to the FIRST load only.
+  const loadedForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!user || !sessionId) return;
+    if (!userId || !sessionId) return;
+    const key = `${userId}:${sessionId}`;
+    if (loadedForRef.current === key) return;
+    loadedForRef.current = key;
     let cancelled = false;
     (async () => {
       try {
@@ -59,13 +75,16 @@ export default function WorkoutSessionPage() {
         }
         const data = await response.json();
         if (cancelled) return;
-        if (data.session.profile_id !== user.id) {
+        if (data.session.profile_id !== userId) {
           router.push('/athlete');
           return;
         }
         setSession(data.session);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load workout');
+        if (!cancelled) {
+          loadedForRef.current = null; // let a remount try again
+          setError(err instanceof Error ? err.message : 'Failed to load workout');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,7 +92,7 @@ export default function WorkoutSessionPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, sessionId, router]);
+  }, [userId, sessionId, router]);
 
   if (authLoading || !user || loading) {
     return (
