@@ -5,6 +5,9 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 
+/** The one placeholder width `?w=` may name. */
+const PLACEHOLDER_WIDTH = '32';
+
 /**
  * GET /api/media/cover/[id] — public cover-photo streamer.
  *
@@ -18,6 +21,10 @@ import { reportRouteError } from '@/lib/observability/report';
  * never accepts an arbitrary bucket/key, so it can't be used to reach private
  * post/message media — it can only ever serve a cover, which is public anyway.
  * Anonymous access is allowed (covers show on public profiles).
+ *
+ * `?w=32` (the ONE accepted width) answers a tiny JPEG of the same cover — the
+ * blurred placeholder the profile card paints while the full image loads.
+ * Any other `w` is a 400, so the endpoint can't be used as a free resizer.
  */
 export async function GET(
   request: NextRequest,
@@ -30,6 +37,10 @@ export async function GET(
     const { id } = await params;
     if (!isUuid(id)) {
       return NextResponse.json({ error: 'Invalid cover ID' }, { status: 400 });
+    }
+    const width = request.nextUrl.searchParams.get('w');
+    if (width !== null && width !== PLACEHOLDER_WIDTH) {
+      return NextResponse.json({ error: 'Unsupported width' }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
 
@@ -56,6 +67,27 @@ export async function GET(
       .createSignedUrl(parsed.key, 60);
     if (signErr || !signed?.signedUrl) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (width) {
+      const original = await fetch(signed.signedUrl, { cache: 'no-store' });
+      if (!original.ok) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      const sharp = (await import('sharp')).default;
+      const tiny = await sharp(Buffer.from(await original.arrayBuffer()))
+        .rotate()
+        .resize({ width: Number(PLACEHOLDER_WIDTH) })
+        .jpeg({ quality: 40 })
+        .toBuffer();
+      return new NextResponse(new Uint8Array(tiny), {
+        status: 200,
+        headers: {
+          'content-type': 'image/jpeg',
+          'content-disposition': 'inline',
+          'cache-control': 'public, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
+        },
+      });
     }
 
     const range = request.headers.get('range');

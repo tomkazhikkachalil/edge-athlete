@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
-import { coverProxyUrl } from '@/lib/media/cover-url';
+import { coverProxyUrl, coverPlaceholderUrl } from '@/lib/media/cover-url';
+import ProfileCoverCard from '@/components/profile/ProfileCoverCard';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -327,31 +327,13 @@ export default function AthleteProfilePage() {
           </div>
         </div>
 
-        {/* Profile Info Section */}
-        <div className="bg-surface rounded-lg shadow-sm border border-border mb-6 overflow-hidden">
-          {/* Cover photo (3:1; gradient until the athlete sets one) */}
-          {profile.cover_url ? (
-            // The 3:1 ratio moves to this wrapper so <Image fill> has a
-            // positioned parent to fill; the gradient branch keeps it inline.
-            <div className="relative w-full aspect-[3/1] max-h-64">
-              <Image
-                // Covers live in the now-private uploads bucket; serve via the
-                // public per-profile cover endpoint (raw URL 404s post-flip).
-                src={coverProxyUrl(profile.id, profile.cover_url)!}
-                alt=""
-                fill
-                preload
-                sizes="(max-width: 1280px) 100vw, 1232px"
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-          ) : (
-            <div
-              className="w-full aspect-[3/1] max-h-64 bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500"
-              aria-hidden="true"
-            />
-          )}
+        {/* Profile Info Section — the cover photo fills the whole card and the
+            details sit on a theme-following panel (ProfileCoverCard). */}
+        <ProfileCoverCard
+          coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
+          placeholderSrc={coverPlaceholderUrl(profile.id, profile.cover_url)}
+          className="rounded-lg shadow-sm border border-border mb-6"
+        >
           <div className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
           {/* Profile Image with Score Badge */}
@@ -374,7 +356,7 @@ export default function AthleteProfilePage() {
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-3">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-primary break-words min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary break-words min-w-0">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
@@ -416,7 +398,7 @@ export default function AthleteProfilePage() {
 
 
             {profile.bio && (
-              <p className="text-black dark:text-primary font-semibold text-lg mb-6">
+              <p className="text-primary font-semibold text-lg mb-6">
                 {profile.bio}
               </p>
             )}
@@ -505,7 +487,7 @@ export default function AthleteProfilePage() {
           </div>
           </div>
         </div>
-        </div>
+        </ProfileCoverCard>
 
       {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
       <div id="media-section" className="bg-surface rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
