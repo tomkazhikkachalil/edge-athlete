@@ -210,3 +210,19 @@ describe('aclGrantees (the proacl → grantees rule)', () => {
     expect(sql).not.toContain('GRANT EXECUTE ON FUNCTION public.c()');
   });
 });
+
+describe('the private schema (257 / 258)', () => {
+  it('creates the schema with the source USAGE, and qualifies a private helper', async () => {
+    const { emitSchemas, emitFunctionGrants, emitComments } = await import('../../../scripts/rebuild-baseline-core.mjs');
+    const schemas = emitSchemas([{ name: 'private', usage: { anon: true, authenticated: true, service_role: true }, comment: 'RLS helpers' }]);
+    expect(schemas).toContain('CREATE SCHEMA IF NOT EXISTS private;');
+    expect(schemas).toContain('REVOKE ALL ON SCHEMA private FROM PUBLIC;');
+    expect(schemas).toContain('GRANT USAGE ON SCHEMA private TO anon, authenticated, service_role;');
+    expect(emitSchemas(undefined)).toBe('');
+    const helper = { schema: 'private', name: 'has_profile_access', identity_args: 'p_profile_id uuid, p_roles text[]', kind: 'f', grants: { anon: true, authenticated: true, service_role: true }, comment: 'x' };
+    expect(emitFunctionGrants([helper])).toContain('GRANT EXECUTE ON FUNCTION private.has_profile_access(p_profile_id uuid, p_roles text[]) TO anon, authenticated, service_role;');
+    expect(emitComments([], [helper])).toContain('COMMENT ON FUNCTION private.has_profile_access(');
+    // A function with no schema (a pre-258 dump) stays public.
+    expect(emitFunctionGrants([{ name: 'a', identity_args: '', kind: 'f', grants: {} }])).toContain('public.a()');
+  });
+});

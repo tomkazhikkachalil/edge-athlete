@@ -400,6 +400,31 @@ report of why this section exists.
 
 `authority_audit` (like `org_staff_audit`, 178) is append-only: its trigger runs `forbid_mutation()` on UPDATE and DELETE. An FK with `ON DELETE SET NULL` is an UPDATE of the audit row, so the trigger REFUSES it — an FK to `profiles` would fail the deletion engine's profile delete (the 056 lesson), and an FK to `tickets` would fail `delete_ticket`. So an append-only table names people and tickets by bare uuid, and `authority-audit.test.ts` pins that its CREATE TABLE has no `REFERENCES`. The FKs 240 DOES add (`org_sites.held_ticket_id`, `org_claim_invites.ticket_id`, `org_site_news.deleted_by`) each have their leading index — the 239 coverage test holds every FK to it. A CHECK that forbids the NULL an FK's SET NULL would write (`org_claim_invites_recovery_shape`: a recovery token needs its ticket) makes the parent's delete fail too: the app deletes the children first (`deleteTicket`).
 
+## RLS helpers live in `private`; the Security Advisor's accepted items (migrations 257–258, Oct 9 2026)
+
+- **A SECURITY DEFINER function that an RLS policy calls goes in the `private`
+  schema, never `public`.** `public` is exposed by the Data API, so every such
+  helper there is callable at `/rest/v1/rpc/…` (the Advisor's lints 0028 /
+  0029). `private` is not exposed; `anon`, `authenticated` and `service_role`
+  have USAGE on it, the EXECUTE grants are the function's own, and policies
+  reach the function by OID. 257 moved the eight existing helpers
+  (`can_view_group_post`, `participant_group_post`, `hole_score_group_post`,
+  `is_group_post_creator / _organizer / _participant`, `has_profile_access`,
+  `is_conversation_participant`). A function BODY that calls one names it
+  `private.<helper>` (257 re-declared `update_user_handle` for exactly that).
+- **A trigger function needs no EXECUTE grant** — firing a trigger does not
+  check the caller's EXECUTE; revoke it from PUBLIC / anon / authenticated.
+- **`pg_trgm` and `unaccent` live in `extensions`.** A function that uses
+  them sets `search_path = public, extensions` (as `search_normalize` does).
+- **`schema_dump()` (258) exports `private` too** — the schemas with the API
+  roles' USAGE and each function's schema — so `000_rebuild.sql` creates the
+  schema and its helpers before the policies that call them.
+- **Accepted, by decision (Tom):** `pg_net` stays in `public` — it does not
+  support `SET SCHEMA`, and a drop + create pauses the pg_cron jobs that call
+  `net.http_post`; its objects live in the `net` schema regardless. The
+  leaked-password protection is a dashboard toggle (Authentication → Attack
+  Protection), not SQL.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

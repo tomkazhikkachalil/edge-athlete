@@ -1722,6 +1722,15 @@ const { canView } = await response.json();
    rides the create call (`onlyMe`), posting is `activities/share-client.ts
    postActivity`. Read DEVLOG Oct 9 2026 (Posting PR 1–3) first.
 
+40. **The Security Advisor stays clean; RLS helpers live in `private` (Oct 9
+   2026, migs 257–258)** — a SECURITY DEFINER function a policy calls goes in
+   the non-API schema `private` (never `public`, where it is an open RPC);
+   a body that calls one names `private.<helper>`; trigger functions carry no
+   EXECUTE grants; `pg_trgm` / `unaccent` live in `extensions`; `pg_net` in
+   `public` is the ONE accepted Advisor item (Tom). `schema_dump()` exports
+   `private`, so the baseline rebuilds it. `docs/HARDENING.md` B6 is the
+   check; `database/MIGRATIONS.md` has the rules.
+
 ---
 
 ## 🔧 Common Tasks
