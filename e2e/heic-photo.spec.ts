@@ -18,7 +18,9 @@ const DECODER_MIN_BYTES = 400_000;
 const bigChunks = (page: import('@playwright/test').Page) =>
   page.evaluate(min =>
     (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
-      .filter(e => e.name.includes('/_next/static/chunks/') && (e.transferSize > min || e.encodedBodySize > min)).length,
+      // Any static chunk path (production serves `/_next/static/immutable/chunks/`),
+      // and any size the browser reports (a service-worker response reads 0 on the wire).
+      .filter(e => e.name.includes('/_next/static/') && e.name.includes('/chunks/') && Math.max(e.transferSize, e.encodedBodySize, e.decodedBodySize) > min).length,
   DECODER_MIN_BYTES);
 
 test('a HEIC photo opens in the editor and attaches; the decoder is fetched only for it @mobile', async ({ page, browserName }) => {
