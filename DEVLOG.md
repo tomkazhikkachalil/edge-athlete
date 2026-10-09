@@ -1,5 +1,9 @@
 # Development Log
 
+## October 9, 2026 — The native app waits until before the doors open to everyone
+
+Tom started the native-app round for locked-phone tracking, then parked it: more edits come first, and the app is due **before the launch gate opens to the general public** (the site is live but gated). Decided: **iPhone first**. The prerequisites and the open shell decision are recorded in `docs/ROADMAP_2026-10.md` §2. No code changes.
+
 ## October 9, 2026 — GPS accuracy: one filter on the phone and the server; standing still adds nothing (zero DDL)
 
 **Tom, after a test walk:** "the recorded path was jittery and inaccurate. My position jumped back and forth and the route did not follow where I actually walked. Tracking also stopped whenever the phone was locked." His decision in planning: accuracy now, in the web app; **locked-phone recording is the first feature of the native-app round** — a web page gets no GPS while the phone is locked on any phone, and no browser offers a background-location permission.
