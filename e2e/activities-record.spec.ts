@@ -12,7 +12,7 @@ const PHONE = { width: 390, height: 844 };
 const LAT0 = 43.65;
 const LNG0 = -79.38;
 
-async function recorderContext(browser: Browser, opts: { mode: 'run' | 'timeout' | 'denied' }): Promise<BrowserContext> {
+async function recorderContext(browser: Browser, opts: { mode: 'run' | 'timeout' | 'denied' | 'jitter' }): Promise<BrowserContext> {
   const ctx = await browser.newContext({
     storageState: 'e2e/.auth/state.json',
     viewport: PHONE,
@@ -32,6 +32,36 @@ async function recorderContext(browser: Browser, opts: { mode: 'run' | 'timeout'
         }
         if (mode === 'timeout') setTimeout(() => fail(3), 300);
         let n = Number(sessionStorage.getItem(key) ?? '0');
+        // 'jitter' (GPS accuracy round): a phone standing still for 40 fixes
+        // with ±12 m of wobble, then walking north at 1.4 m/s with ±5 m —
+        // seeded, so the run is the same every time.
+        let seed = 7;
+        const rand = () => {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          return seed / 2 ** 32 - 0.5;
+        };
+        if (mode === 'jitter') {
+          const id = window.setInterval(() => {
+            n += 1;
+            sessionStorage.setItem(key, String(n));
+            const still = n <= 40;
+            const northM = still ? 0 : (n - 40) * 0.7;
+            const noise = still ? 24 : 10;
+            success({
+              coords: {
+                latitude: lat0 + (northM + rand() * noise) / 111_195,
+                longitude: lng0 + (rand() * noise) / 80_000,
+                accuracy: still ? 15 : 8,
+                altitude: 100 + rand() * 4,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null,
+              },
+              timestamp: Date.now(),
+            } as GeolocationPosition);
+          }, 500);
+          return id;
+        }
         const id = window.setInterval(() => {
           n += 1;
           sessionStorage.setItem(key, String(n));
@@ -104,6 +134,47 @@ test('record a run: fixes draw, a segment is marked, a reload resumes, Finish sa
     await page.goto('/activities/record');
     await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-record-resume-offer]')).toHaveCount(0);
+  } finally {
+    await ctx.close();
+    await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
+
+test('a jittery phone: standing still adds nothing, a walk reads close to its true length, and the saved distance is the one on screen @mobile', async ({ browser, browserName }) => {
+  test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
+  test.setTimeout(150_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  const ctx = await recorderContext(browser, { mode: 'jitter' });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="walk"]').click({ timeout: 20_000 });
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    const distance = async () => Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance'));
+    // 40 fixes standing still with ±12 m of wobble: raw, that is ~200 m of zigzag.
+    // The header's GPS state settles from "Finding GPS…" to tracking (an empty
+    // label once the screen already stays awake — so the attribute, not visibility).
+    await expect(page.locator('[data-record-gps-state]')).toHaveAttribute('data-record-gps-state', 'tracking', { timeout: 15_000 });
+    await page.waitForTimeout(17_000);
+    expect(await distance(), 'standing still adds no distance').toBe(0);
+    // Then a straight walk of 0.7 m per fix: once 60 m are walked, the screen reads close to it.
+    await page.waitForTimeout(43_000); // ~86 walking fixes ≈ 60 m
+    const walked = await distance();
+    expect(walked).toBeGreaterThan(40);
+    expect(walked).toBeLessThan(75);
+    // Finish → Save: the server's filter reads the same fixes the same way.
+    await page.locator('[data-record-finish]').click();
+    await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    const shown = await distance();
+    await page.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const id = page.url().split('/').pop()!;
+    const { data: row } = await admin.from('activities').select('source, distance_m').eq('id', id).single();
+    expect(row!.source).toBe('live');
+    expect(Math.abs(Number(row!.distance_m) - shown), `saved ${row!.distance_m} vs screen ${shown}`).toBeLessThan(5);
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');

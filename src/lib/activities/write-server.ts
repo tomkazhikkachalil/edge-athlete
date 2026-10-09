@@ -18,6 +18,7 @@ import { DEDUPE_START_WINDOW_S, findDuplicate, incomingIsRicher } from './dedupe
 import { cleanPoints, defaultActivityName, estimateSteps, fileExternalId, implausibility, localParts, summarize } from './normalize';
 import { normalizeSegments, segmentsFromRow, type ActivitySegment } from './segments';
 import { buildStream, routePreview } from './stream';
+import { liveRoute } from './gps-filter';
 import type { NormalizedActivity } from './types';
 
 type Admin = SupabaseClient;
@@ -51,7 +52,13 @@ export async function importActivity(
     heightCm?: number | null;
   }
 ): Promise<ImportOutcome> {
-  const cleaned = cleanPoints(n);
+  const source0: ActivitySource = opts.source ?? 'file';
+  const raw = cleanPoints(n, { jumps: source0 !== 'live' });
+  // A LIVE recording is the phone's raw fixes: the GPS filter (gps-filter.ts)
+  // draws and totals it exactly as the phone did; the raw fixes are kept,
+  // server-only, for re-processing. A watch or file was smoothed by its device.
+  const isLive = source0 === 'live';
+  const cleaned = isLive ? liveRoute(raw, n.type) : raw;
   if (cleaned.length < 2) return { ok: false, status: 422, error: 'This file has too few samples to be an activity.' };
   const summary = summarize(n, cleaned);
   const why = implausibility(n, summary, opts.now);
@@ -131,6 +138,18 @@ export async function importActivity(
 
   const id: string = existing?.id ?? crypto.randomUUID();
   const stream = buildStream(cleaned);
+  if (isLive) {
+    const fixes = raw.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number');
+    if (fixes.length > 0) {
+      const t0 = raw[0].t;
+      stream.raw = {
+        s: fixes.map(p => Math.round((p.t - t0) / 100) / 10),
+        lat: fixes.map(p => p.lat as number),
+        lng: fixes.map(p => p.lng as number),
+        acc: fixes.map(p => (typeof p.acc === 'number' ? p.acc : null)),
+      };
+    }
+  }
   const path = streamPathFor(profileId, id);
   const { error: upErr } = await admin.storage
     .from(STREAM_BUCKET)

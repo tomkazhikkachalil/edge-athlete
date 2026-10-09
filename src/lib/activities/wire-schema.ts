@@ -38,6 +38,7 @@ export const WireActivitySchema = z
     cad: col(0, 400),
     pwr: col(0, 3000),
     dist: col(0, 2_000_000),
+    acc: col(0, 10_000),
     // Live Activities (251): the recorder's own id and the segments it marked.
     recordingId: z.string().uuid().optional(),
     segments: SegmentsSchema.optional(),
@@ -45,7 +46,7 @@ export const WireActivitySchema = z
   .strict()
   .superRefine((w, ctx) => {
     const n = w.dt.length;
-    for (const k of ['lat', 'lng', 'ele', 'hr', 'cad', 'pwr', 'dist'] as const) {
+    for (const k of ['lat', 'lng', 'ele', 'hr', 'cad', 'pwr', 'dist', 'acc'] as const) {
       const c = w[k];
       if (c && c.length !== n) ctx.addIssue({ code: 'custom', path: [k], message: `${k} must have one value per sample` });
     }
@@ -55,6 +56,9 @@ export const WireActivitySchema = z
     // A recording names itself; a file never carries the recorder's fields.
     if (w.format === 'live' && !w.recordingId) {
       ctx.addIssue({ code: 'custom', path: ['recordingId'], message: 'a live recording names its recordingId' });
+    }
+    if (w.format !== 'live' && w.acc !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['acc'], message: 'accuracy belongs to a live recording' });
     }
     if (w.format !== 'live' && (w.recordingId !== undefined || w.segments !== undefined)) {
       ctx.addIssue({ code: 'custom', path: ['format'], message: 'recordingId and segments belong to a live recording' });

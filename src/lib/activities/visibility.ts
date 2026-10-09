@@ -218,6 +218,13 @@ export function projectActivity(row: ActivityRow, audience: ActivityAudience): A
 /** The stream each audience receives. */
 export function projectStream(stream: ActivityStream | null, audience: ActivityAudience): ActivityStream | null {
   if (!stream) return null;
+  // A live recording's raw fixes (GPS accuracy round) are SERVER-ONLY, for
+  // every audience: they would undo the 200 m trim, and nobody draws them.
+  if (stream.raw) {
+    const { raw: _raw, ...withoutRaw } = stream;
+    void _raw;
+    stream = withoutRaw;
+  }
   if (audience === 'owner') return stream;
   if (audience === 'viewer') return trimStream(stream);
   const rest: ActivityStream = { ...stream };

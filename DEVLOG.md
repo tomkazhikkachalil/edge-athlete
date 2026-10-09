@@ -1,5 +1,31 @@
 # Development Log
 
+## October 9, 2026 — GPS accuracy: one filter on the phone and the server; standing still adds nothing (zero DDL)
+
+**Tom, after a test walk:** "the recorded path was jittery and inaccurate. My position jumped back and forth and the route did not follow where I actually walked. Tracking also stopped whenever the phone was locked." His decision in planning: accuracy now, in the web app; **locked-phone recording is the first feature of the native-app round** — a web page gets no GPS while the phone is locked on any phone, and no browser offers a background-location permission.
+
+**What the recorder did:** every fix within 50 m and under 1.5 × the type's top speed (a walk: 6 m/s) was a route point, and distance summed raw hops — normal phone wobble passed both and drew zigzags. Measured on synthetic tracks at one fix a second, a 1 km loop's raw hops add up to **6–16 km**.
+
+**What ships — `src/lib/activities/gps-filter.ts`** (pure, deterministic; the same fold on the phone and in the writer, so the saved distance is the one on screen):
+- **Refusals:** the type's accuracy limit (walk / run / hike 30 m, ride 35 m, swim 50 m); a fix not after the last; a jump past maxSpeed × 1.5 beyond three accuracy radii, measured against the FILTERED position (one wild fix can no longer drag the next).
+- **Cold start:** nothing recorded until 3 fixes in a row are within 20 m (or 30 s pass); the route starts at their **mean** — the first form started at the last raw fix and the sweep caught it: one seed held 14 points 16 m off the street.
+- **Kalman:** constant velocity per axis in a local metre frame, measurement noise = accuracy², process noise per type, a manoeuvre boost for a fix far outside the prediction.
+- **Emission:** a point only when the filter is confidently moving (speed above the type's moving speed and 1.5 of its own SD) and has left the last drawn point by more than **6 of its own SD**; moving under that, nothing — so each hop spans its true time (the first form repeated the position and moving time read 10 s on a 2-minute walk; the recorder test caught it); standing still, the last point repeats (time passes, 0 m). The track ends at the last fix, at the filtered position while still moving.
+- **Elevation:** a 5-sample median before the 3 m hysteresis.
+- **Tuned by measurement, not guesses:** a sweep over 12 seeds × 5 / 8 / 12 m of noise × step thresholds 3–6 settled on 6 SD and walking process noise 0.2 m/s²: the loop within 3.2 %, a square block within 2 %, drawn points under 60 % as far off the streets as raw, two minutes standing still: **0 m**.
+
+**The data path:** `ActivityPoint.acc` and the wire's `acc` column (live only — the schema refuses it on a file); the recorder keeps every raw fix (only stale and > 50 m are refused at the door; a jump is the filter's call now) and `liveTotals` totals the filtered route, with `gpsSettling` → the header's "Finding GPS…"; the map draws the filtered route; `watchPosition` takes no cached fix (`maximumAge: 0`). The writer runs `liveRoute` for `source 'live'` (watch and file imports untouched) and stores the raw fixes in the stream's `raw` block for re-processing — **server-only: `projectStream` strips it for every audience, owner included** (raw fixes would undo the 200 m trim). The start screen gains: "Recording with the phone locked comes with the Edge Athlete app — for now keep this screen open."
+
+**Proof:** unit — `gps-filter.test.ts` (11: the loop and the square at 5–12 m with outliers, standing still 0 m and one position, walk–stand–walk within 5 %, a run and a ride within 4 %, the cold start, the refusals, a missing accuracy, positionless samples, the fold = the steps), `recording.test.ts` updated to the new rules (a jump kept raw and refused by the filter; distance a few metres under the true walk, never over; live = server on the same fixes), `visibility.test.ts` (raw stripped for all three audiences); all 158 activities tests. e2e `activities-record.spec` gains a jittery phone (40 fixes standing still with ±12 m, then a walk with ±5 m): standing still reads 0, the walk reads close to its length, the saved distance matches the screen.
+
+**Two server-side faults the e2e found, both fixed here:**
+- **The old jump pass ran before the filter.** `cleanPoints` blanks any raw hop over 3 × the type's top speed — half-second wobble does that (12 m in 0.5 s) — so the server filtered 85 of 130 fixes while the phone filtered all 130, and the blanked samples kept their timestamps without a position. The phone read 64 s moving, the server 4 s, and the import was refused as "faster than a walk can go". The live path now calls `cleanPoints(n, { jumps: false })` (the filter judges jumps against the filtered position), and `filterTrack` drops position-less samples whenever the track has positions (a timer type's bookends still pass whole). On the same fixes, phone and server now read **71.3 m and 64 s, identical**.
+- **A stop and the walk after it shared one hop**, so the minutes stood counted as moving. The filter now marks the restart — a point at the held position the moment it is confidently moving again — and the unit test pins it: 400 s walked and 120 s stood reads 360–440 s moving.
+
+**e2e, the built app on staging:** `activities-record` (4 + the new jittery test) and `activities-after` — **phone Chromium 5/5, Android 5/5**; phone WebKit 3 passed, 3 skipped (the recorder's scripted GPS stub is Chromium-only, by design). `npm run verify` on the branch: exit 0 — lint 0, **4,794 tests in 511 files**, the build, 240 client chunks within the iOS 15 / Safari 15 floor. Still Tom's: a real walk with the screen on (the path follows the streets, the distance within a few percent of the map's, two minutes standing adds nothing); the locked-phone checks wait for the native round.
+
+---
+
 ## October 9, 2026 — The route map is a framed picture, not a navigation tool (zero DDL)
 
 **Tom's spec:** after a Vitals activity is posted, "the route map on the post is a fully interactive map. Users can pan anywhere in the world and zoom without limit. It reads as a navigation tool rather than a snapshot of the activity." Pinch to zoom in for detail or out to the whole route, never leave the area around it, the same on every phone browser and the installed app, never a slower feed.

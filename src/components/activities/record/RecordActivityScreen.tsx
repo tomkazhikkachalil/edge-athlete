@@ -45,6 +45,7 @@ import {
 import { flushDue, openRecordingStore, type RecordingMeta, type RecordingStore } from '@/lib/activities/record/storage';
 import { useWatchPosition, queryGeoPermission, type GeoFix } from '@/lib/activities/record/geolocation';
 import { hasWakeLock, useWakeLock } from '@/lib/activities/record/wake-lock';
+import { liveRoute } from '@/lib/activities/gps-filter';
 import type { SegmentKind } from '@/lib/activities/segments';
 import TypePicker from './TypePicker';
 import LiveStats from './LiveStats';
@@ -398,6 +399,10 @@ export default function RecordActivityScreen() {
   );
 
   const totals = state ? liveTotals(state, now, heightCm) : null;
+  // The map draws the FILTERED route (gps-filter.ts) — the one the server stores.
+  const statePoints = state?.points;
+  const stateType = state?.type;
+  const drawnRoute = useMemo(() => (statePoints && stateType ? liveRoute(statePoints, stateType) : []), [statePoints, stateType]);
   const lastFix = state?.points[state.points.length - 1];
   const stale = !!lastFix && state?.status === 'recording' && now - lastFix.t > 20_000;
   const def = state ? ACTIVITY_TYPE_DEFS[state.type] : null;
@@ -412,8 +417,8 @@ export default function RecordActivityScreen() {
         </button>
         <h1 className="flex-1 truncate text-base font-bold text-primary">{def ? `Record · ${def.label}` : 'Record an activity'}</h1>
         {running && gpsType && (
-          <span className="text-xs text-muted" aria-live="polite">
-            {wakeHeld ? 'Screen stays on' : hasWakeLock() ? '' : 'Keep your screen on'}
+          <span className="text-xs text-muted" aria-live="polite" data-record-gps-state={totals?.gpsSettling ? 'settling' : 'tracking'}>
+            {totals?.gpsSettling ? 'Finding GPS…' : wakeHeld ? 'Screen stays on' : hasWakeLock() ? '' : 'Keep your screen on'}
           </span>
         )}
       </header>
@@ -443,7 +448,7 @@ export default function RecordActivityScreen() {
       {!state && checkedResume && !resumeOffer && (
         <main className="mx-auto max-w-xl px-4 py-4">
           <p className="mb-4 text-sm text-secondary">
-            Pick what you are about to do. Edge Athlete records only while this app is open with the screen on; the screen stays awake where your phone allows it. Steps are an estimate.
+            Pick what you are about to do. Edge Athlete records only while this app is open with the screen on; the screen stays awake where your phone allows it. Recording with the phone locked comes with the Edge Athlete app — for now keep this screen open. Steps are an estimate.
           </p>
           <TypePicker onPick={pick} />
         </main>
@@ -473,7 +478,7 @@ export default function RecordActivityScreen() {
           )}
           {gpsType && state.status !== 'idle' && (
             <LiveRouteMap
-              points={state.points}
+              points={drawnRoute}
               startedAt={state.startedAt}
               segments={state.segments}
               openSegmentFromS={state.openSegmentFromS}

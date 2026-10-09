@@ -196,6 +196,26 @@ Read from Polar's own pages on Oct 1 2026 (the API reference; the API License Ag
 
 **Adding a provider** is now: an adapter from its payload to a `NormalizedActivity` (FIT deliveries reuse `parse-fit-server.ts`); its connect / callback / webhook routes writing through `connections-server.ts` and `importActivity({ source, externalId })` with the provider's own id; `stage: 'live'` in `PROVIDER_DEFS`; its attribution wherever its brand rules ask. Read the provider's current agreement FIRST — a term that forbids showing an activity to followers stops the adapter (Strava's did).
 
+## GPS quality (Oct 9 2026)
+
+Tom, after a test walk: the path was jittery and the position jumped back and forth. The recorder had kept every fix within 50 m that did not imply more than 1.5 × the type's top speed, and summed raw hops — ordinary phone wobble drew zigzags and inflated distance (at one fix a second, a 1 km loop's raw hops add up to 5–15 km).
+
+**One filter, phone and server alike** — `src/lib/activities/gps-filter.ts`, pure and deterministic; `liveRoute(points, type)` is what the recorder draws and totals and what the writer stores for `source 'live'` (watch and file imports were smoothed by their device and are untouched):
+
+| Step | Rule |
+| --- | --- |
+| Refuse | accuracy worse than the type allows (walk / run / hike 30 m, ride 35 m, swim 50 m); not after the last accepted fix; a jump past maxSpeed × 1.5 beyond 3 × its accuracy, measured against the FILTERED position |
+| Settle | nothing is recorded until 3 consecutive fixes are within 20 m (or 30 s pass); the route starts at their mean. The screen says "Finding GPS…" |
+| Smooth | a constant-velocity Kalman filter per axis in a local metre frame; measurement noise = accuracy², process noise from the type (walk 0.2, run 1.0, ride 1.5 m/s²), boosted for one step on a manoeuvre (a fix far outside the prediction) |
+| Emit | a point only when the filter is confidently moving AND has left the last drawn point by more than 6 of its own standard deviations; moving under that: nothing (the next hop spans its true time); standing still: the last point repeats (time passes, 0 m) |
+| Elevation | a 5-sample median before the 3 m hysteresis |
+
+Measured on seeded synthetic tracks (one fix a second, Gaussian noise, the phone's reported accuracy at 1.5 × the noise, 5 % outliers): a 1 km loop within 3.2 % at 5–12 m of noise (raw: 6–16 km), a square block within 2 %, the drawn points under 60 % as far off the streets as the raw fixes, two minutes standing still with 10 m of noise: 0 m.
+
+**Raw is kept, server-side only.** The recording keeps every raw fix with its accuracy (the wire's `acc` column, live only); the stored stream carries them in its `raw` block so a better filter can re-process later. `projectStream` strips `raw` for EVERY audience, the owner included — raw fixes would undo the 200 m trim, and nothing draws them.
+
+**Locked phone.** A web page gets no GPS while the phone is locked or the app is in the background, on any phone; no browser offers a background-location permission. The recorder holds a wake lock, says so before a walk, keeps the recording in IndexedDB and names a gap on return. Recording with the phone locked is the first feature of the native-app round (`docs/ROADMAP_2026-10.md`).
+
 ## Recording live (Live Activities program, Oct 4 2026)
 
 Tom: "When I walk, it's recorded the same way as a workout … reps and sets. Not
