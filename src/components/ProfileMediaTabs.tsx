@@ -17,6 +17,7 @@ import type { SportSkillCard } from '@/lib/sports/server/types';
 import { useToast } from './Toast';
 import VitalsTab from './VitalsTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
+import { nearestScrollLeft } from '@/lib/scroll-inline';
 
 // Static filter catalogs — the dropdowns are aspirational (show the whole
 // platform's sport list and a wide year range, not just what this athlete
@@ -391,8 +392,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     const scroller = tabScrollerRef.current;
     if (!scroller) return;
     const btn = scroller.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
-    // block:'nearest' so the page never jumps vertically on mount.
-    btn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    if (!btn) return;
+    // Moves the STRIP only. scrollIntoView also scrolled the page — even
+    // with block:'nearest', a strip below the fold IS nearest by scrolling
+    // down — and opened the owner's /athlete 90–200 px down.
+    scroller.scrollLeft = nearestScrollLeft(scroller.scrollLeft, scroller.getBoundingClientRect(), btn.getBoundingClientRect());
   }, [activeTab]);
 
   // A ?tab= DEEP LINK must land the tab strip on screen from the URL alone —
