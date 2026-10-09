@@ -1,5 +1,16 @@
 # Development Log
 
+## October 9, 2026 — Maintenance pass (evening): all green on main `5504edbe`; the map-frame spec waits for the glide
+
+Tom's standing checklist after the day's profile rounds (#1132–#1135). One e2e spec fix; no product code changes.
+
+- **The gate on main `5504edbe`** (`npm run verify`, exit 0): lint 0; **4,798 tests in 512 files**; the build; 240 client chunks within the iOS 15 / Safari 15 floor. `npm audit --omit=dev` 0; guardrails pass (the two standing advisories). `check:schema` staging and production OK — ledger 255 rows, head 256 on both.
+- **Production, signed out:** health ok on `5504edbe`; the launch gate 307 → coming-soon (`/`, `/help`, `/contact`); manifest (`id /feed`, `standalone`), the three icons, `/sw.js` and `?static=1`, robots 200; the 18 deployed door-page chunks (downloaded as iOS 15 Safari) pass the floor gate.
+- **Production, signed in — the maintenance set (Oct 9's 35 + `profile-cover-card`, `profile-open-top`; 38 files), ONE project per run:** desktop **34 passed** (4.5 min); phone Chromium **47 passed** (8.9 min); Android **47 passed** (9.2 min); phone WebKit **42 passed, 3 skipped, 2 flaky** (11.3 min — the skips are the recorder's Chromium-only GPS stub).
+- **The flakes:** `activities-map-frame` on WebKit — its SECOND pass in a row, so a too-tight wait as recorded: after "Fit route" the spec polled the zoom, then read the centre ONCE; Leaflet lands the zoom before the animated pan, and WebKit read 0.0012° off mid-glide (the bound is 0.001°). The spec now polls the centre too — **3/3 on production WebKit with retries off**, 1/1 phone Chromium. `scout-shortlist` on WebKit — the Shortlist POST stayed in flight for the whole 10 s on attempt one; the retry passed; **2/2 alone** on production WebKit. Recorded to watch, not changed.
+- **Production re-read clean** after the probe: 0 QA users, 0 QA courses; 2 profiles, 14 posts, 4 shared rounds, 3 workouts.
+- **Watch next pass:** `scout-shortlist` on WebKit (a second slow POST = look at the route under load); `edit-profile` on WebKit did NOT flake this time.
+
 ## October 9, 2026 — Your own profile opens at the top
 
 **Tom:** "fix the scroll on my own profile" — `/athlete` opened ~90 px down on a phone and ~200 px on a desktop (noticed during the cover-header round; already on `main` before it).
