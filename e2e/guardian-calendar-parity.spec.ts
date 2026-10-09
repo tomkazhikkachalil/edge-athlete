@@ -196,7 +196,11 @@ test('the create form offers "Who is this for?" and places the child on the even
     await expect(
       page.getByText('Adds them as a guest — every guardian sees it on their schedule.')
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Create event' }).click();
+    // Scoped to the form for the same reason as the chip above: the header's
+    // always-mounted drawer carries a "Create Event" entry, and a role query
+    // matches names case-insensitively — under the Android project (Pixel 7
+    // emulation) that entry counted as a second button.
+    await page.locator('form').getByRole('button', { name: 'Create event' }).click();
     await expect(page.getByText('Event created')).toBeVisible({ timeout: 10_000 });
 
     // Server-side truth: the child holds a guest row on the new event.

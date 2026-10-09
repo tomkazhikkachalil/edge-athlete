@@ -274,9 +274,17 @@ The lessons generalize:
 - **Give important tabs/sections a deep link** (`?tab=…`) so they are addressable
   from navigation, tests, and shares regardless of viewport.
 - e2e runs default to 1280×800 (`playwright.config.ts`); specs tagged `@mobile` run
-  in the narrow `mobile` project (390×844) AND in `webkit-mobile` (the same specs on
-  WebKit — every iPhone browser, Chrome included, is WebKit) — add one for any
-  surface whose phone behavior matters.
+  in THREE phone projects — `mobile` (Chromium at 390×844, emulation OFF: the honest
+  layout ruler), `webkit-mobile` (the same specs on WebKit — every iPhone browser,
+  Chrome included, is WebKit) and `android` (Chromium as a Pixel 7: the Android user
+  agent, touch, DPR 2.6, 412×915, emulation ON — what a Pixel / Samsung / any Android
+  phone presents; Oct 9 2026) — add one for any surface whose phone behavior matters.
+  The three are a developer-side cost only (≈2.5 min each on this Mac and in CI's
+  smoke job); nothing ships to a phone. **Never run the whole `@mobile` set in ONE
+  invocation against staging** (177 specs ≈ 1.4 h; the free tier degrades and the
+  late specs time out) — run it by area, one project at a time. A spec's locator
+  must survive the header's always-mounted drawer (`Create Event`, the child's name):
+  scope to the `form`.
 
 ### The browser floor is a rule, not a framework default (Sep 2026)
 

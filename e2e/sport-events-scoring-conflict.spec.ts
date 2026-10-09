@@ -68,11 +68,20 @@ test('group card: offline holes land beside a partner\'s write; a real conflict 
       }, { timeout: 15_000 }).toMatchObject({ strokes: 4, version: 2 });
 
       // A fresh conflict: A posts 7 (version 3); B re-scores hole 3 against the card's 2 → asks → Keep theirs.
+      // B goes OFFLINE first (the first phase's shape): A's write reaches B's
+      // card over realtime within about a second, and a save made AFTER that
+      // carries the new version and conflicts with nothing — correct, but not
+      // what this phase tests. Holding B offline keeps the card's 2 stale
+      // until the save is queued, whatever the engine's speed (the Android
+      // project lost that race where the iPhone-width run won it).
+      await ctxB.setOffline(true);
       const again = await s.apiA.post(`/api/golf/scorecards/${rowB}/scores`, { data: { scores: [{ hole_number: 3, strokes: 7 }] } });
       expect(again.status(), await readErrorBody(again)).toBe(201);
       await cell(3).click();
       await expect(page.locator(`[data-gsc-editor="${s.userB.id}:3"]`)).toBeVisible();
       await page.locator('[data-gsc-save]').click();
+      await expect(cell(3)).toHaveAttribute('data-gsc-state', 'pending');
+      await ctxB.setOffline(false);
       await expect(cell(3)).toHaveAttribute('data-gsc-state', 'conflict', { timeout: 30_000 });
       await page.locator('[data-gsc-editor]').getByRole('button', { name: 'Close the editor' }).click();
       await cell(3).click();
