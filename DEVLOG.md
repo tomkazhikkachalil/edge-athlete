@@ -1,5 +1,15 @@
 # Development Log
 
+## October 9, 2026 — Security Advisor round, PR B: migrations 257–258 (on staging and production)
+
+Tom pasted production's Supabase Security Advisor — 31 WARNs — and asked for "a plan to fix everything without breaking anything". The audit first (both live catalogs): the golf RLS helpers were granted to `anon` ON PURPOSE (063, public live rounds read signed out), `has_profile_access` / `is_conversation_participant` likewise for signed-in users — revoking would have broken rounds, realtime, guardians and messages; no app code calls any helper by RPC; one function body (`update_user_handle`) named one; the "trigram users" were `RAISE '%'` placeholders except `search_normalize`, already `search_path = public, extensions`.
+
+- **257** (`257_security_advisor_cleanup.sql`): `haversine_km` gets `search_path = ''`; the two comment-like TRIGGER functions lose EXECUTE; the eight RLS helpers MOVE to the non-API schema `private` (policies follow by OID, grants travel with the function); `update_user_handle` re-declared verbatim with `private.has_profile_access`; `resolve_org_site_host/_domain` revoked from anon / authenticated (PR A #1140 moved the middleware to the server key first; custom domains are off in production); `pg_trgm` and `unaccent` → `extensions`. **`pg_net` accepted** (Tom: it cannot `SET SCHEMA`; drop + create pauses the cron jobs).
+- **258** (`258_schema_dump_private_schema.sql`): regenerating the baseline after 257 showed policies naming `private.*` with neither the schema nor the helpers in the file — a fresh build would have failed. `schema_dump()` now exports the `private` schema (with the API roles' USAGE) and each function's schema; `scripts/rebuild-baseline-core.mjs` emits `emitSchemas` first and schema-qualifies function grants and comments (unit-tested). `000_rebuild.sql` regenerated from production at head 258.
+- **Run:** Tom ran 257 and 258 on production (SQL editor); both on staging via `staging-sql.mjs`; `check:schema` OK on both, ledger head 258. A helper's RPC now answers 404.
+- **Proof:** production probe after 257 (desktop, 15 specs — golf rounds and scoring, invites, likes, comments, messages, guardians, search, scout search, edit profile): 37 passed; the one failure is `people-location-search`'s signed-out "Near me", which the launch gate redirects on production by design — green on staging with the other 28. Health 0.13–0.36 s throughout.
+- **Tom owes:** the leaked-password toggle (Authentication → Attack Protection) and a re-run of the Advisor — expected: `pg_net` only.
+
 ## October 9, 2026 — Security Advisor round, PR A: the custom-domain lookups use the server key
 
 Tom pasted production's Supabase Security Advisor (31 WARNs) and asked for a plan that fixes everything without breaking anything. This PR is the code half that must deploy BEFORE migration 257 revokes `anon` / `authenticated` EXECUTE on `resolve_org_site_host` / `resolve_org_site_domain` (171's anon-granted lookups).

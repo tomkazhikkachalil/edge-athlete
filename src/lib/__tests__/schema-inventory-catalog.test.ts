@@ -516,6 +516,14 @@ describe('the real chain', () => {
     expect(r.grantDrift.filter(g => !newer((g as { at?: string }).at)).map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
     expect(r.triggerDrift.filter(d => !newer((d as { at?: string }).at))).toEqual([]);
     expect(r.staleTriggerClaims.filter(c => !newer(c.at))).toEqual([]);
-    expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
+    // 257 moved the RLS helpers out of public (the Security Advisor's 0028 / 0029):
+    // a catalog saved at or after 257 lists none of them as public SECURITY DEFINER.
+    if (catalogHead >= 257) {
+      for (const k of ['is_conversation_participant(uuid,uuid)', 'can_view_group_post(uuid)', 'has_profile_access(uuid,text[])']) {
+        expect(r.secdefPublic.map(s => s.key), k).not.toContain(k);
+      }
+    } else {
+      expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
+    }
   });
 });

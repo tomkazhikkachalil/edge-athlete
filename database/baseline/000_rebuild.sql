@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-09T04:26:17.438044+00:00 from server 17.6 by
+-- Generated 2026-10-09T23:30:28.036513+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 256.
+-- public.schema_dump() (migration 227). Ledger head at generation: 258.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -20,14 +20,20 @@
 SET check_function_bodies = off;
 
 
+-- ── Schemas ───────────────────────────────────────────────────────────────────
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM PUBLIC;
+GRANT USAGE ON SCHEMA private TO anon, authenticated, service_role;
+COMMENT ON SCHEMA private IS 'SECURITY DEFINER helpers that RLS policies call (257). Never exposed through the Data API; the policies reach them by OID.';
+
 -- ── Extensions ────────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
-CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
 -- ── Enum types ────────────────────────────────────────────────────────────────
@@ -37,6 +43,124 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
 
 -- ── Functions, pass 1 (114; failures silenced, pass 2 is authoritative) ───────
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND (visibility = 'public' OR creator_id = auth.uid())
+  ) OR EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.has_profile_access(p_profile_id uuid, p_roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profile_access
+    WHERE profile_id = p_profile_id
+      AND user_id = (select auth.uid())
+      AND role = ANY (p_roles)
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.hole_score_group_post(gps_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT gpp.group_post_id
+  FROM public.golf_participant_scores gps
+  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
+  WHERE gps.id = gps_id;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.is_conversation_participant(conv_id uuid, user_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants
+    WHERE conversation_id = conv_id
+      AND profile_id = user_id
+      AND left_at IS NULL
+      AND held_at IS NULL
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.is_group_post_creator(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND creator_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.is_group_post_organizer(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+      AND role IN ('creator', 'organizer')
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.is_group_post_participant(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION private.participant_group_post(p_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT group_post_id FROM public.group_post_participants WHERE id = p_id;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -306,23 +430,6 @@ BEGIN
         updated_at = now()
     WHERE id = round_uuid;
 END;
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.can_view_group_post(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_posts
-    WHERE id = gp_id AND (visibility = 'public' OR creator_id = auth.uid())
-  ) OR EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -2055,45 +2162,16 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[])
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profile_access
-    WHERE profile_id = p_profile_id
-      AND user_id = (select auth.uid())
-      AND role = ANY (p_roles)
-  );
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
  RETURNS double precision
  LANGUAGE sql
  IMMUTABLE PARALLEL SAFE
+ SET search_path TO ''
 AS $function$
   SELECT 2 * 6371 * asin(sqrt(
     power(sin(radians(lat2 - lat1) / 2), 2) +
     cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)
   ))
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.hole_score_group_post(gps_id uuid)
- RETURNS uuid
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT gpp.group_post_id
-  FROM public.golf_participant_scores gps
-  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
-  WHERE gps.id = gps_id;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -2125,66 +2203,6 @@ BEGIN
   WHERE id = NEW.post_id;
   RETURN NEW;
 END;
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM conversation_participants
-    WHERE conversation_id = conv_id
-      AND profile_id = user_id
-      AND left_at IS NULL
-      AND held_at IS NULL
-  );
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.is_group_post_creator(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_posts
-    WHERE id = gp_id AND creator_id = auth.uid()
-  );
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.is_group_post_organizer(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-      AND role IN ('creator', 'organizer')
-  );
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.is_group_post_participant(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -2517,17 +2535,6 @@ BEGIN
       public.place_context(NEW.place_id))), 'D');
   RETURN NEW;
 END;
-$function$;
-EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
-END $pass1$;
-DO $pass1$ BEGIN
-CREATE OR REPLACE FUNCTION public.participant_group_post(p_id uuid)
- RETURNS uuid
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT group_post_id FROM public.group_post_participants WHERE id = p_id;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -2913,6 +2920,21 @@ BEGIN
       'server_version', current_setting('server_version'),
       'ledger', v_ledger
     ),
+    'schemas', (
+      -- 258: the app's own non-API schemas (257 moved the RLS helpers into
+      -- `private`), with the API roles' USAGE, so a rebuild creates them.
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', n.nspname,
+               'usage', jsonb_build_object(
+                 'anon', has_schema_privilege('anon', n.oid, 'USAGE'),
+                 'authenticated', has_schema_privilege('authenticated', n.oid, 'USAGE'),
+                 'service_role', has_schema_privilege('service_role', n.oid, 'USAGE')
+               ),
+               'comment', obj_description(n.oid, 'pg_namespace')
+             ) ORDER BY n.nspname), '[]'::jsonb)
+      FROM pg_namespace n
+      WHERE n.nspname IN ('private')
+    ),
     'extensions', (
       SELECT COALESCE(jsonb_agg(jsonb_build_object('name', e.extname, 'schema', n.nspname, 'version', e.extversion) ORDER BY e.extname), '[]'::jsonb)
       FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
@@ -3038,6 +3060,7 @@ BEGIN
     ),
     'functions', (
       SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'schema', n.nspname,
                'name', p.proname,
                'identity_args', pg_get_function_identity_arguments(p.oid),
                'kind', p.prokind,
@@ -3049,11 +3072,11 @@ BEGIN
                  'service_role', has_function_privilege('service_role', p.oid, 'EXECUTE')
                ),
                'comment', obj_description(p.oid, 'pg_proc')
-             ) ORDER BY p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
+             ) ORDER BY n.nspname, p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
       JOIN pg_language  l ON l.oid = p.prolang
-      WHERE n.nspname = 'public'
+      WHERE n.nspname IN ('public', 'private')
         AND p.prokind IN ('f', 'p')
         AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
     ),
@@ -4108,7 +4131,7 @@ BEGIN
       current_setting('request.jwt.claims', true)::jsonb->>'role', '');
     IF NOT (jwt_role = 'service_role'
             OR p_profile_id = auth.uid()
-            OR public.has_profile_access(p_profile_id, ARRAY['owner','guardian'])) THEN
+            OR private.has_profile_access(p_profile_id, ARRAY['owner','guardian'])) THEN
       RETURN QUERY SELECT FALSE, 'Not permitted to set this handle', NULL::TEXT;
       RETURN;
     END IF;
@@ -10545,16 +10568,16 @@ CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows USING btree (
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
 CREATE INDEX IF NOT EXISTS idx_follows_status ON public.follows USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
-CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
-CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_country_region ON public.golf_courses USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_elevation_due ON public.golf_courses USING btree (hole_elevation_at) WHERE (hole_geometry IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_hydrated_at ON public.golf_courses USING btree (hydrated_at DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_lat ON public.golf_courses USING btree (lat);
-CREATE INDEX IF NOT EXISTS idx_golf_courses_name_raw_trgm ON public.golf_courses USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_name_raw_trgm ON public.golf_courses USING gin (name extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_place ON public.golf_courses USING btree (place_id);
-CREATE INDEX IF NOT EXISTS idx_golf_courses_region_raw_trgm ON public.golf_courses USING gin (region gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_region_raw_trgm ON public.golf_courses USING gin (region extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_search ON public.golf_courses USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS idx_golf_hole_scores_participant ON public.golf_hole_scores USING btree (golf_participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree (round_id, hole_number);
@@ -10565,7 +10588,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_participant ON public.gol
 CREATE INDEX IF NOT EXISTS idx_golf_scores_entered_by ON public.golf_participant_scores USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_id ON public.golf_rounds USING btree (course_id);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_prefix ON public.golf_rounds USING btree (lower(course) COLLATE "C");
-CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_trgm ON public.golf_rounds USING gin (lower(course) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_trgm ON public.golf_rounds USING gin (lower(course) extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_date ON public.golf_rounds USING btree (date DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_golf_rounds_group_mirror ON public.golf_rounds USING btree (group_post_id, profile_id);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_profile_date ON public.golf_rounds USING btree (profile_id, date DESC);
@@ -10674,7 +10697,7 @@ CREATE INDEX IF NOT EXISTS idx_org_staff_invites_season_id ON public.org_staff_i
 CREATE INDEX IF NOT EXISTS idx_organizations_country_region ON public.organizations USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_organizations_kind ON public.organizations USING btree (kind);
 CREATE INDEX IF NOT EXISTS idx_organizations_lat ON public.organizations USING btree (lat);
-CREATE INDEX IF NOT EXISTS idx_organizations_name_trgm ON public.organizations USING gin (lower(name) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_organizations_name_trgm ON public.organizations USING gin (lower(name) extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_organizations_owner ON public.organizations USING btree (owner_profile_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_place ON public.organizations USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_search ON public.organizations USING gin (search_vector);
@@ -10688,7 +10711,7 @@ CREATE INDEX IF NOT EXISTS idx_places_ascii_norm ON public.places USING btree (s
 CREATE INDEX IF NOT EXISTS idx_places_country_region ON public.places USING btree (country_code, region_code);
 CREATE INDEX IF NOT EXISTS idx_places_lat ON public.places USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_places_name_norm ON public.places USING btree (search_normalize(name));
-CREATE INDEX IF NOT EXISTS idx_places_name_trgm ON public.places USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_places_name_trgm ON public.places USING gin (name extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_places_population ON public.places USING btree (population DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_places_search ON public.places USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS idx_platform_admins_granted_by ON public.platform_admins USING btree (granted_by);
@@ -10750,14 +10773,14 @@ CREATE INDEX IF NOT EXISTS idx_profiles_country_region ON public.profiles USING 
 CREATE INDEX IF NOT EXISTS idx_profiles_deletion_requested ON public.profiles USING btree (deletion_requested_at) WHERE (deletion_requested_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_profiles_departed ON public.profiles USING btree (departed_at) WHERE (departed_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_profiles_first_name_prefix ON public.profiles USING btree (lower(first_name) COLLATE "C");
-CREATE INDEX IF NOT EXISTS idx_profiles_first_name_trgm ON public.profiles USING gin (lower(first_name) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_profiles_first_name_trgm ON public.profiles USING gin (lower(first_name) extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_full_name_prefix ON public.profiles USING btree (lower(full_name) COLLATE "C");
-CREATE INDEX IF NOT EXISTS idx_profiles_full_name_trgm ON public.profiles USING gin (lower(full_name) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_profiles_full_name_trgm ON public.profiles USING gin (lower(full_name) extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_handle_prefix ON public.profiles USING btree (lower(handle) COLLATE "C");
-CREATE INDEX IF NOT EXISTS idx_profiles_handle_trgm ON public.profiles USING gin (lower(handle) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_profiles_handle_trgm ON public.profiles USING gin (lower(handle) extensions.gin_trgm_ops);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_handle_unique_lower ON public.profiles USING btree (lower(handle));
 CREATE INDEX IF NOT EXISTS idx_profiles_last_name_prefix ON public.profiles USING btree (lower(last_name) COLLATE "C");
-CREATE INDEX IF NOT EXISTS idx_profiles_last_name_trgm ON public.profiles USING gin (lower(last_name) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_profiles_last_name_trgm ON public.profiles USING gin (lower(last_name) extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_lat ON public.profiles USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_profiles_moderation ON public.profiles USING btree (moderation_state) WHERE (moderation_state <> 'active'::text);
 CREATE INDEX IF NOT EXISTS idx_profiles_moderation_ticket_id ON public.profiles USING btree (moderation_ticket_id);
@@ -10917,6 +10940,108 @@ SELECT id,
 ALTER VIEW public.leagues SET (security_invoker = true);
 
 -- ── Functions, pass 2 (114) ───────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND (visibility = 'public' OR creator_id = auth.uid())
+  ) OR EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.has_profile_access(p_profile_id uuid, p_roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profile_access
+    WHERE profile_id = p_profile_id
+      AND user_id = (select auth.uid())
+      AND role = ANY (p_roles)
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.hole_score_group_post(gps_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT gpp.group_post_id
+  FROM public.golf_participant_scores gps
+  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
+  WHERE gps.id = gps_id;
+$function$;
+
+CREATE OR REPLACE FUNCTION private.is_conversation_participant(conv_id uuid, user_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants
+    WHERE conversation_id = conv_id
+      AND profile_id = user_id
+      AND left_at IS NULL
+      AND held_at IS NULL
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.is_group_post_creator(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND creator_id = auth.uid()
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.is_group_post_organizer(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+      AND role IN ('creator', 'organizer')
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.is_group_post_participant(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION private.participant_group_post(p_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT group_post_id FROM public.group_post_participants WHERE id = p_id;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11173,21 +11298,6 @@ BEGIN
         updated_at = now()
     WHERE id = round_uuid;
 END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.can_view_group_post(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_posts
-    WHERE id = gp_id AND (visibility = 'public' OR creator_id = auth.uid())
-  ) OR EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid)
@@ -12838,41 +12948,16 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[])
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profile_access
-    WHERE profile_id = p_profile_id
-      AND user_id = (select auth.uid())
-      AND role = ANY (p_roles)
-  );
-$function$;
-
 CREATE OR REPLACE FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
  RETURNS double precision
  LANGUAGE sql
  IMMUTABLE PARALLEL SAFE
+ SET search_path TO ''
 AS $function$
   SELECT 2 * 6371 * asin(sqrt(
     power(sin(radians(lat2 - lat1) / 2), 2) +
     cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)
   ))
-$function$;
-
-CREATE OR REPLACE FUNCTION public.hole_score_group_post(gps_id uuid)
- RETURNS uuid
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT gpp.group_post_id
-  FROM public.golf_participant_scores gps
-  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
-  WHERE gps.id = gps_id;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
@@ -12900,58 +12985,6 @@ BEGIN
   WHERE id = NEW.post_id;
   RETURN NEW;
 END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM conversation_participants
-    WHERE conversation_id = conv_id
-      AND profile_id = user_id
-      AND left_at IS NULL
-      AND held_at IS NULL
-  );
-$function$;
-
-CREATE OR REPLACE FUNCTION public.is_group_post_creator(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_posts
-    WHERE id = gp_id AND creator_id = auth.uid()
-  );
-$function$;
-
-CREATE OR REPLACE FUNCTION public.is_group_post_organizer(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-      AND role IN ('creator', 'organizer')
-  );
-$function$;
-
-CREATE OR REPLACE FUNCTION public.is_group_post_participant(gp_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT EXISTS (
-    SELECT 1 FROM public.group_post_participants
-    WHERE group_post_id = gp_id AND profile_id = auth.uid()
-  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.is_valid_handle(input_handle text)
@@ -13260,15 +13293,6 @@ BEGIN
       public.place_context(NEW.place_id))), 'D');
   RETURN NEW;
 END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.participant_group_post(p_id uuid)
- RETURNS uuid
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT group_post_id FROM public.group_post_participants WHERE id = p_id;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.place_context(p_place_id uuid)
@@ -13632,6 +13656,21 @@ BEGIN
       'server_version', current_setting('server_version'),
       'ledger', v_ledger
     ),
+    'schemas', (
+      -- 258: the app's own non-API schemas (257 moved the RLS helpers into
+      -- `private`), with the API roles' USAGE, so a rebuild creates them.
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', n.nspname,
+               'usage', jsonb_build_object(
+                 'anon', has_schema_privilege('anon', n.oid, 'USAGE'),
+                 'authenticated', has_schema_privilege('authenticated', n.oid, 'USAGE'),
+                 'service_role', has_schema_privilege('service_role', n.oid, 'USAGE')
+               ),
+               'comment', obj_description(n.oid, 'pg_namespace')
+             ) ORDER BY n.nspname), '[]'::jsonb)
+      FROM pg_namespace n
+      WHERE n.nspname IN ('private')
+    ),
     'extensions', (
       SELECT COALESCE(jsonb_agg(jsonb_build_object('name', e.extname, 'schema', n.nspname, 'version', e.extversion) ORDER BY e.extname), '[]'::jsonb)
       FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
@@ -13757,6 +13796,7 @@ BEGIN
     ),
     'functions', (
       SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'schema', n.nspname,
                'name', p.proname,
                'identity_args', pg_get_function_identity_arguments(p.oid),
                'kind', p.prokind,
@@ -13768,11 +13808,11 @@ BEGIN
                  'service_role', has_function_privilege('service_role', p.oid, 'EXECUTE')
                ),
                'comment', obj_description(p.oid, 'pg_proc')
-             ) ORDER BY p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
+             ) ORDER BY n.nspname, p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
       JOIN pg_language  l ON l.oid = p.prolang
-      WHERE n.nspname = 'public'
+      WHERE n.nspname IN ('public', 'private')
         AND p.prokind IN ('f', 'p')
         AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
     ),
@@ -14761,7 +14801,7 @@ BEGIN
       current_setting('request.jwt.claims', true)::jsonb->>'role', '');
     IF NOT (jwt_role = 'service_role'
             OR p_profile_id = auth.uid()
-            OR public.has_profile_access(p_profile_id, ARRAY['owner','guardian'])) THEN
+            OR private.has_profile_access(p_profile_id, ARRAY['owner','guardian'])) THEN
       RETURN QUERY SELECT FALSE, 'Not permitted to set this handle', NULL::TEXT;
       RETURN;
     END IF;
@@ -15202,27 +15242,27 @@ CREATE POLICY athlete_achievements_guardian_write ON public.athlete_achievements
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS athlete_achievements_profile_access_select ON public.athlete_achievements;
 CREATE POLICY athlete_achievements_profile_access_select ON public.athlete_achievements
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS athlete_equipment_guardian_write ON public.athlete_equipment;
 CREATE POLICY athlete_equipment_guardian_write ON public.athlete_equipment
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS athlete_equipment_profile_access_select ON public.athlete_equipment;
 CREATE POLICY athlete_equipment_profile_access_select ON public.athlete_equipment
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS equipment_delete_policy ON public.athlete_equipment;
 CREATE POLICY equipment_delete_policy ON public.athlete_equipment
   AS PERMISSIVE
@@ -15268,14 +15308,14 @@ CREATE POLICY athlete_vitals_guardian_write ON public.athlete_vitals
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS athlete_vitals_profile_access_select ON public.athlete_vitals;
 CREATE POLICY athlete_vitals_profile_access_select ON public.athlete_vitals
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS comment_likes_delete_policy ON public.comment_likes;
 CREATE POLICY comment_likes_delete_policy ON public.comment_likes
   AS PERMISSIVE
@@ -15323,7 +15363,7 @@ CREATE POLICY "Participants can view participant list" ON public.conversation_pa
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid)));
+  USING (private.is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS "Users can update own participant row" ON public.conversation_participants;
 CREATE POLICY "Users can update own participant row" ON public.conversation_participants
   AS PERMISSIVE
@@ -15335,13 +15375,13 @@ CREATE POLICY "Participants can update group settings" ON public.conversations
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING (is_conversation_participant(id, ( SELECT auth.uid() AS uid)));
+  USING (private.is_conversation_participant(id, ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS "Participants can view conversations" ON public.conversations;
 CREATE POLICY "Participants can view conversations" ON public.conversations
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (is_conversation_participant(id, ( SELECT auth.uid() AS uid)));
+  USING (private.is_conversation_participant(id, ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS carpool_claims_select ON public.event_carpool_claims;
 CREATE POLICY carpool_claims_select ON public.event_carpool_claims
   AS PERMISSIVE
@@ -15426,7 +15466,7 @@ CREATE POLICY hole_scores_select_policy ON public.golf_hole_scores
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (can_view_group_post(hole_score_group_post(golf_participant_id)));
+  USING (private.can_view_group_post(private.hole_score_group_post(golf_participant_id)));
 DROP POLICY IF EXISTS hole_scores_update_policy ON public.golf_hole_scores;
 CREATE POLICY hole_scores_update_policy ON public.golf_hole_scores
   AS PERMISSIVE
@@ -15460,7 +15500,7 @@ CREATE POLICY golf_holes_profile_access_select ON public.golf_holes
   TO public
   USING ((EXISTS ( SELECT 1
    FROM golf_rounds r
-  WHERE ((r.id = golf_holes.round_id) AND has_profile_access(r.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
+  WHERE ((r.id = golf_holes.round_id) AND private.has_profile_access(r.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
 DROP POLICY IF EXISTS golf_holes_select_policy ON public.golf_holes;
 CREATE POLICY golf_holes_select_policy ON public.golf_holes
   AS PERMISSIVE
@@ -15495,7 +15535,7 @@ CREATE POLICY golf_scores_select_policy ON public.golf_participant_scores
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (can_view_group_post(participant_group_post(participant_id)));
+  USING (private.can_view_group_post(private.participant_group_post(participant_id)));
 DROP POLICY IF EXISTS golf_scores_update_policy ON public.golf_participant_scores;
 CREATE POLICY golf_scores_update_policy ON public.golf_participant_scores
   AS PERMISSIVE
@@ -15517,8 +15557,8 @@ CREATE POLICY golf_rounds_guardian_write ON public.golf_rounds
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS golf_rounds_insert_policy ON public.golf_rounds;
 CREATE POLICY golf_rounds_insert_policy ON public.golf_rounds
   AS PERMISSIVE
@@ -15530,7 +15570,7 @@ CREATE POLICY golf_rounds_profile_access_select ON public.golf_rounds
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS golf_rounds_select_policy ON public.golf_rounds;
 CREATE POLICY golf_rounds_select_policy ON public.golf_rounds
   AS PERMISSIVE
@@ -15641,25 +15681,25 @@ CREATE POLICY participants_delete_policy ON public.group_post_participants
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((is_group_post_creator(group_post_id) OR is_group_post_organizer(group_post_id)));
+  USING ((private.is_group_post_creator(group_post_id) OR private.is_group_post_organizer(group_post_id)));
 DROP POLICY IF EXISTS participants_insert_policy ON public.group_post_participants;
 CREATE POLICY participants_insert_policy ON public.group_post_participants
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((is_group_post_creator(group_post_id) OR is_group_post_organizer(group_post_id)));
+  WITH CHECK ((private.is_group_post_creator(group_post_id) OR private.is_group_post_organizer(group_post_id)));
 DROP POLICY IF EXISTS participants_select_policy ON public.group_post_participants;
 CREATE POLICY participants_select_policy ON public.group_post_participants
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR can_view_group_post(group_post_id)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.can_view_group_post(group_post_id)));
 DROP POLICY IF EXISTS participants_update_policy ON public.group_post_participants;
 CREATE POLICY participants_update_policy ON public.group_post_participants
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR is_group_post_creator(group_post_id) OR is_group_post_organizer(group_post_id)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.is_group_post_creator(group_post_id) OR private.is_group_post_organizer(group_post_id)));
 DROP POLICY IF EXISTS group_posts_delete_policy ON public.group_posts;
 CREATE POLICY group_posts_delete_policy ON public.group_posts
   AS PERMISSIVE
@@ -15677,7 +15717,7 @@ CREATE POLICY group_posts_select_policy ON public.group_posts
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((creator_id = ( SELECT auth.uid() AS uid)) OR (visibility = 'public'::text) OR is_group_post_participant(id)));
+  USING (((creator_id = ( SELECT auth.uid() AS uid)) OR (visibility = 'public'::text) OR private.is_group_post_participant(id)));
 DROP POLICY IF EXISTS group_posts_update_policy ON public.group_posts;
 CREATE POLICY group_posts_update_policy ON public.group_posts
   AS PERMISSIVE
@@ -15695,7 +15735,7 @@ CREATE POLICY "Participants can add reactions" ON public.message_reactions
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) AND is_conversation_participant(( SELECT messages.conversation_id
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) AND private.is_conversation_participant(( SELECT messages.conversation_id
    FROM messages
   WHERE (messages.id = message_reactions.message_id)), ( SELECT auth.uid() AS uid))));
 DROP POLICY IF EXISTS "Participants can view reactions" ON public.message_reactions;
@@ -15703,7 +15743,7 @@ CREATE POLICY "Participants can view reactions" ON public.message_reactions
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (is_conversation_participant(( SELECT messages.conversation_id
+  USING (private.is_conversation_participant(( SELECT messages.conversation_id
    FROM messages
   WHERE (messages.id = message_reactions.message_id)), ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS "Users can remove own reactions" ON public.message_reactions;
@@ -15717,7 +15757,7 @@ CREATE POLICY "Authed users can file reports" ON public.message_reports
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK (((reporter_id = ( SELECT auth.uid() AS uid)) AND ((conversation_id IS NULL) OR is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid)))));
+  WITH CHECK (((reporter_id = ( SELECT auth.uid() AS uid)) AND ((conversation_id IS NULL) OR private.is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid)))));
 DROP POLICY IF EXISTS "Reporters can view own reports" ON public.message_reports;
 CREATE POLICY "Reporters can view own reports" ON public.message_reports
   AS PERMISSIVE
@@ -15729,13 +15769,13 @@ CREATE POLICY "Participants can insert messages" ON public.messages
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK (((sender_id = ( SELECT auth.uid() AS uid)) AND is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid))));
+  WITH CHECK (((sender_id = ( SELECT auth.uid() AS uid)) AND private.is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid))));
 DROP POLICY IF EXISTS "Participants can view messages" ON public.messages;
 CREATE POLICY "Participants can view messages" ON public.messages
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((deleted_at IS NULL) AND is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid))));
+  USING (((deleted_at IS NULL) AND private.is_conversation_participant(conversation_id, ( SELECT auth.uid() AS uid))));
 DROP POLICY IF EXISTS "Sender can soft-delete own message" ON public.messages;
 CREATE POLICY "Sender can soft-delete own message" ON public.messages
   AS PERMISSIVE
@@ -15795,7 +15835,7 @@ CREATE POLICY performances_profile_access_select ON public.performances
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS performances_select_policy ON public.performances;
 CREATE POLICY performances_select_policy ON public.performances
   AS PERMISSIVE
@@ -15889,7 +15929,7 @@ CREATE POLICY post_media_profile_access_select ON public.post_media
   TO public
   USING ((EXISTS ( SELECT 1
    FROM posts p
-  WHERE ((p.id = post_media.post_id) AND has_profile_access(p.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
+  WHERE ((p.id = post_media.post_id) AND private.has_profile_access(p.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
 DROP POLICY IF EXISTS post_media_select_policy ON public.post_media;
 CREATE POLICY post_media_select_policy ON public.post_media
   AS PERMISSIVE
@@ -15947,8 +15987,8 @@ CREATE POLICY posts_guardian_write ON public.posts
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS posts_insert_policy ON public.posts;
 CREATE POLICY posts_insert_policy ON public.posts
   AS PERMISSIVE
@@ -15960,7 +16000,7 @@ CREATE POLICY posts_profile_access_select ON public.posts
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS posts_select_policy ON public.posts;
 CREATE POLICY posts_select_policy ON public.posts
   AS PERMISSIVE
@@ -16016,7 +16056,7 @@ CREATE POLICY profiles_profile_access_select ON public.profiles
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS profiles_select_policy ON public.profiles;
 CREATE POLICY profiles_select_policy ON public.profiles
   AS PERMISSIVE
@@ -16072,7 +16112,7 @@ CREATE POLICY season_highlights_profile_access_select ON public.season_highlight
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS season_highlights_select_policy ON public.season_highlights;
 CREATE POLICY season_highlights_select_policy ON public.season_highlights
   AS PERMISSIVE
@@ -16178,8 +16218,8 @@ CREATE POLICY workout_exercises_guardian_write ON public.workout_exercises
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS workout_exercises_insert_policy ON public.workout_exercises;
 CREATE POLICY workout_exercises_insert_policy ON public.workout_exercises
   AS PERMISSIVE
@@ -16191,7 +16231,7 @@ CREATE POLICY workout_exercises_profile_access_select ON public.workout_exercise
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS workout_exercises_select_policy ON public.workout_exercises;
 CREATE POLICY workout_exercises_select_policy ON public.workout_exercises
   AS PERMISSIVE
@@ -16265,8 +16305,8 @@ CREATE POLICY workout_sessions_guardian_write ON public.workout_sessions
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS workout_sessions_insert_policy ON public.workout_sessions;
 CREATE POLICY workout_sessions_insert_policy ON public.workout_sessions
   AS PERMISSIVE
@@ -16278,7 +16318,7 @@ CREATE POLICY workout_sessions_profile_access_select ON public.workout_sessions
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS workout_sessions_select_policy ON public.workout_sessions;
 CREATE POLICY workout_sessions_select_policy ON public.workout_sessions
   AS PERMISSIVE
@@ -16304,8 +16344,8 @@ CREATE POLICY workout_sets_guardian_write ON public.workout_sets
   AS PERMISSIVE
   FOR ALL
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
+  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
 DROP POLICY IF EXISTS workout_sets_insert_policy ON public.workout_sets;
 CREATE POLICY workout_sets_insert_policy ON public.workout_sets
   AS PERMISSIVE
@@ -16317,7 +16357,7 @@ CREATE POLICY workout_sets_profile_access_select ON public.workout_sets
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS workout_sets_select_policy ON public.workout_sets;
 CREATE POLICY workout_sets_select_policy ON public.workout_sets
   AS PERMISSIVE
@@ -16732,6 +16772,22 @@ REVOKE ALL ON SEQUENCE public.tickets_number_seq FROM anon, authenticated, servi
 GRANT USAGE ON SEQUENCE public.tickets_number_seq TO anon, authenticated, service_role;
 
 -- ── Function grants ───────────────────────────────────────────────────────────
+REVOKE EXECUTE ON FUNCTION private.can_view_group_post(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.can_view_group_post(gp_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.has_profile_access(p_profile_id uuid, p_roles text[]) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.has_profile_access(p_profile_id uuid, p_roles text[]) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.hole_score_group_post(gps_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.hole_score_group_post(gps_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.is_conversation_participant(conv_id uuid, user_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.is_conversation_participant(conv_id uuid, user_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.is_group_post_creator(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.is_group_post_creator(gp_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.is_group_post_organizer(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.is_group_post_organizer(gp_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.is_group_post_participant(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.is_group_post_participant(gp_id uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION private.participant_group_post(p_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.participant_group_post(p_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.auto_update_display_name() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.auto_update_display_name() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.backfill_places_from_text(p_table regclass) FROM PUBLIC, anon, authenticated, service_role;
@@ -16746,8 +16802,6 @@ REVOKE EXECUTE ON FUNCTION public.calculate_golf_participant_totals() FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.calculate_golf_participant_totals() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) TO service_role;
-REVOKE EXECUTE ON FUNCTION public.can_view_group_post(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can_view_group_post(gp_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.check_handle_availability(input_handle text, current_profile_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -16765,7 +16819,7 @@ GRANT EXECUTE ON FUNCTION public.create_profile_with_owner(p_profile jsonb) TO s
 REVOKE EXECUTE ON FUNCTION public.create_stub_profile(p_id uuid, p_email text, p_first_name text, p_last_name text, p_created_by uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.create_stub_profile(p_id uuid, p_email text, p_first_name text, p_last_name text, p_created_by uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.decrement_comment_likes_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.decrement_comment_likes_count() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.decrement_comment_likes_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.decrement_post_save_count() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.decrement_post_save_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.enforce_guardian_cap() FROM PUBLIC, anon, authenticated, service_role;
@@ -16828,24 +16882,12 @@ REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authentic
 GRANT EXECUTE ON FUNCTION public.handle_new_user() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.handle_updated_at() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.handle_updated_at() TO service_role;
-REVOKE EXECUTE ON FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[]) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[]) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) TO PUBLIC, anon, authenticated, service_role;
-REVOKE EXECUTE ON FUNCTION public.hole_score_group_post(gps_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.hole_score_group_post(gps_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_comment_likes_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.increment_comment_likes_count() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.increment_comment_likes_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_post_save_count() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.increment_post_save_count() TO PUBLIC, anon, authenticated, service_role;
-REVOKE EXECUTE ON FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid) TO PUBLIC, anon, authenticated, service_role;
-REVOKE EXECUTE ON FUNCTION public.is_group_post_creator(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_group_post_creator(gp_id uuid) TO anon, authenticated, service_role;
-REVOKE EXECUTE ON FUNCTION public.is_group_post_organizer(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_group_post_organizer(gp_id uuid) TO anon, authenticated, service_role;
-REVOKE EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
@@ -16870,8 +16912,6 @@ REVOKE EXECUTE ON FUNCTION public.organizations_kind_immutable() FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION public.organizations_kind_immutable() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.organizations_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.organizations_search_vector_update() TO service_role;
-REVOKE EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.place_context(p_place_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.place_context(p_place_id uuid) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -16889,9 +16929,9 @@ GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_win
 REVOKE EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.resolve_org_site_host(p_host text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.resolve_org_site_host(p_host text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_org_site_host(p_host text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.schema_dump() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.schema_dump() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
@@ -17586,7 +17626,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (253, '253_drafts.sql', 'rebuild-000'),
   (254, '254_hole_elevation.sql', 'rebuild-000'),
   (255, '255_golf_map_sweep.sql', 'rebuild-000'),
-  (256, '256_workout_entries_atomic_replace.sql', 'rebuild-000')
+  (256, '256_workout_entries_atomic_replace.sql', 'rebuild-000'),
+  (257, '257_security_advisor_cleanup.sql', 'rebuild-000'),
+  (258, '258_schema_dump_private_schema.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17595,12 +17637,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 131 | 114 | 173 | 256
+-- Expected: 000 REBUILT | 131 | 114 | 173 | 258
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_131,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_114,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_256;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_258;
 

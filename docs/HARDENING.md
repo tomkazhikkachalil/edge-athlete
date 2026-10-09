@@ -242,6 +242,18 @@ The guardrails script enforces the mechanical half (no `'use client'`,
   rows after 400 (`runAnalyticsPrune`). Sweep: `summary.analytics` in the
   daily response; no mark older than 2 days remains; `ANALYTICS_SALT` is set.
 
+### B6. The Supabase Security Advisor (Oct 9 2026, migrations 257–258)
+
+Re-run it (Supabase → Advisors → Security Advisor) at every stage gate. The
+expected list is **one WARN: `extension_in_public` — `pg_net`**, accepted by
+decision (it cannot be moved without pausing the cron jobs; see
+`database/MIGRATIONS.md` "RLS helpers live in `private`"). Anything else is new
+and gets fixed the same way: an RLS helper moves to `private`, a trigger
+function loses its EXECUTE grants, a function gains a fixed `search_path`, an
+anon RPC the server can call with its own key is revoked from `anon` /
+`authenticated`. Leaked-password protection is ON (Authentication → Attack
+Protection).
+
 ## Backlog (Tier 2) — scheduled, not yet done
 
 **From the Sep 2026 phase-3 R5 close (public-segment perf, accepted for now)**

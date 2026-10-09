@@ -31,6 +31,24 @@ function section(title) {
   return `\n-- ── ${title} ${'─'.repeat(Math.max(3, 74 - title.length))}\n`;
 }
 
+/**
+ * The app's own non-API schemas (258: `private`, where 257 moved the RLS
+ * helpers). Created before anything that names them; PUBLIC loses the
+ * default USAGE and the API roles get exactly what the source had.
+ */
+export function emitSchemas(schemas) {
+  return (schemas ?? []).map(sc => {
+    const name = ident(sc.name);
+    const roles = API_ROLES.filter(r => sc.usage?.[r]);
+    return [
+      `CREATE SCHEMA IF NOT EXISTS ${name};`,
+      `REVOKE ALL ON SCHEMA ${name} FROM PUBLIC;`,
+      ...(roles.length ? [`GRANT USAGE ON SCHEMA ${name} TO ${roles.join(', ')};`] : []),
+      ...(sc.comment ? [`COMMENT ON SCHEMA ${name} IS ${q(sc.comment)};`] : []),
+    ].join('\n');
+  }).join('\n\n');
+}
+
 export function emitExtensions(exts) {
   return exts.map(e => `CREATE EXTENSION IF NOT EXISTS ${ident(e.name)}${e.schema && e.schema !== 'pg_catalog' ? ` WITH SCHEMA ${ident(e.schema)}` : ''};`).join('\n');
 }
@@ -173,7 +191,7 @@ export function aclGrantees(acl, owner = 'postgres') {
 
 export function emitFunctionGrants(functions) {
   return functions.map(f => {
-    const sig = `public.${ident(f.name)}(${f.identity_args ?? ''})`;
+    const sig = `${ident(f.schema ?? 'public')}.${ident(f.name)}(${f.identity_args ?? ''})`;
     const kind = f.kind === 'p' ? 'PROCEDURE' : 'FUNCTION';
     if ('acl' in f) {
       const grantees = aclGrantees(f.acl, f.owner ?? 'postgres');
@@ -240,7 +258,7 @@ export function emitComments(tables, functions) {
     if (t.comment) out.push(`COMMENT ON TABLE public.${ident(t.name)} IS ${q(t.comment)};`);
     for (const c of t.columns ?? []) if (c.comment) out.push(`COMMENT ON COLUMN public.${ident(t.name)}.${ident(c.name)} IS ${q(c.comment)};`);
   }
-  for (const f of functions) if (f.comment) out.push(`COMMENT ON ${f.kind === 'p' ? 'PROCEDURE' : 'FUNCTION'} public.${ident(f.name)}(${f.identity_args ?? ''}) IS ${q(f.comment)};`);
+  for (const f of functions) if (f.comment) out.push(`COMMENT ON ${f.kind === 'p' ? 'PROCEDURE' : 'FUNCTION'} ${ident(f.schema ?? 'public')}.${ident(f.name)}(${f.identity_args ?? ''}) IS ${q(f.comment)};`);
   return out.join('\n');
 }
 
@@ -321,6 +339,7 @@ export function buildRebuildSql(dump, opts = {}) {
 
 SET check_function_bodies = off;
 `);
+  parts.push(section('Schemas') + emitSchemas(dump.schemas ?? []));
   parts.push(section('Extensions') + emitExtensions(dump.extensions ?? []));
   parts.push(section('Enum types') + emitTypes(dump.types ?? []));
   parts.push(section('Sequences') + emitSequences(seqs));
