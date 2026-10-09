@@ -1,5 +1,14 @@
 # Development Log
 
+## October 9, 2026 — Another athlete's profile: the cover ends just below a floating avatar (#1132 reverted)
+
+**Tom, after seeing #1132 on production:** "not the biggest fan" — revert the full-card photo and translucent panel. Instead the cover photo comes down to just under the profile picture, and the picture hovers slightly above it, its border never touching an edge.
+
+- **#1132 reverted whole** (the panel, its tokens, the `?w=32` placeholder, the spec, convention 38).
+- **`src/components/profile/ProfileCoverHeader.tsx`** on BOTH viewer routes (`/athlete/[id]`, `/u/[username]`): a `p-4 sm:p-6` block whose padding IS the layout — the photo fills it, so it always ends that padding below the avatar, and the avatar sits inset from every edge with `shadow-xl`. Name, bio and stats follow on the card as before. No cover → the violet gradient the old banner used. The owner's `/athlete` is unchanged.
+- **Kept from #1132:** `/u/` shows the cover (it never had one) — `/api/public/profile` returns `cover`, the public proxy form; the raw `cover_url` never leaves.
+- **Proof:** `e2e/profile-cover-card.spec.ts` (rewritten) — the avatar ≥ 8 px from the photo's left, right, top and bottom edges; the photo ends ≤ 48 px below it; the name below the photo; no sideways scroll; the gradient without a cover — green on desktop, phone Chromium, WebKit and Android. Screenshots at 375 and 1280 px, light and dark, both routes.
+
 ## October 9, 2026 — Post-merge check: production on `d4eeffbb`, every surface green
 
 Tom's full checklist again after #1130 merged ("web, large screen, mobile, and downloaded app"). No code changes.

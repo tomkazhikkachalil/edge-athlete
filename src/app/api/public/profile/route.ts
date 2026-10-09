@@ -4,6 +4,7 @@ import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { coverProxyUrl } from '@/lib/media/cover-url';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { reportRouteError } from '@/lib/observability/report';
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
         last_name,
         full_name,
         avatar_url,
+        cover_url,
         bio,
         sport,
         school,
@@ -79,7 +81,9 @@ export async function GET(request: NextRequest) {
 
     // Follow stats: the trigger-maintained columns (229) — two COUNT(*)
     // over every accepted edge per view used to sit here (Round 3).
-    const { followers_count: followersCountCol, following_count: followingCountCol, ...profileFields } = profile as typeof profile & { followers_count: number | null; following_count: number | null };
+    // cover_url leaves only as its public proxy form (`cover` below) — the raw
+    // bucket URL 404s since the uploads bucket went private.
+    const { followers_count: followersCountCol, following_count: followingCountCol, cover_url: coverUrlCol, ...profileFields } = profile as typeof profile & { followers_count: number | null; following_count: number | null; cover_url: string | null };
 
     // Fetch posts count — media-only since the statements split (074): the
     // headline number counts portfolio posts, matching the athlete pages'
@@ -239,6 +243,7 @@ export async function GET(request: NextRequest) {
       profile: {
         ...profileFields,
         ...(bodyHidden ? { height_cm: null, weight_kg: null, weight_unit: null } : {}),
+        cover: coverProxyUrl(profile.id, coverUrlCol),
         followersCount: followersCountCol ?? 0,
         followingCount: followingCountCol ?? 0,
         postsCount: Math.max((postsCount || 0) - (statementsTotal || 0), 0)

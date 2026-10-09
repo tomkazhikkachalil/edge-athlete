@@ -27,6 +27,7 @@ import {
 } from '@/lib/formatters';
 import { MapPin, School, Users, Calendar, Trophy, Lock } from 'lucide-react';
 import { formatPlace } from '@/lib/geo/regions';
+import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
 
 interface PublicProfile {
   id: string;
@@ -36,6 +37,9 @@ interface PublicProfile {
   last_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  /** The cover's public proxy URL; optional so a cached response from before
+   *  it existed parses (the gradient shows). */
+  cover?: string | null;
   bio: string | null;
   sport: string | null;
   position: string | null;
@@ -308,30 +312,28 @@ export default function PublicProfilePage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Profile Header */}
         <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
-          {/* Cover area */}
-          <div className="h-24 sm:h-32 bg-gradient-to-r from-violet-500 to-violet-600" />
+          {/* Cover photo, ending just below the profile picture that floats
+              on it (gradient until the athlete sets one). */}
+          <ProfileCoverHeader coverSrc={profile.cover ?? null}>
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface overflow-hidden">
+              {profile.avatar_url ? (
+                <LazyImage
+                  src={profile.avatar_url}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center">
+                  <span className="text-2xl sm:text-3xl font-bold text-white">
+                    {getInitials(displayName)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </ProfileCoverHeader>
 
           {/* Profile info */}
-          <div className="px-4 sm:px-6 pb-6">
-            {/* Avatar */}
-            <div className="-mt-12 sm:-mt-16 mb-4">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface shadow-md overflow-hidden">
-                {profile.avatar_url ? (
-                  <LazyImage
-                    src={profile.avatar_url}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center">
-                    <span className="text-2xl sm:text-3xl font-bold text-white">
-                      {getInitials(displayName)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
+          <div className="p-4 sm:p-6">
             {/* Name and Handle */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
