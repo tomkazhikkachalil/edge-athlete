@@ -6,6 +6,7 @@ import SetMediaThumb from './SetMediaThumb';
 import type { SetMediaUploads } from './useSetMediaUploads';
 import { planPickAttach } from '@/lib/media/capture-attach';
 import { pendingIdOf } from '@/lib/workouts/set-media-pending';
+import { fetchStoredMediaFile } from '@/lib/workouts/set-media-file';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
@@ -18,7 +19,8 @@ import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 
-const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
+/** The set clips' editor — the share step opens the same one (PR 2). */
+export const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5'],
   allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
   maxAssets: MAX_MEDIA_PER_SET,
@@ -209,11 +211,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads }: SetRowProps) {
     }
     setUploading(true);
     try {
-      const res = await fetch(previews[item.url] ?? item.url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Could not open the media');
-      const blob = await res.blob();
-      const ext = blob.type.split('/')[1] || (item.type === 'video' ? 'mp4' : 'jpg');
-      const file = new File([blob], `set-media.${ext}`, { type: blob.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg') });
+      const file = await fetchStoredMediaFile(previews[item.url] ?? item.url, item.type);
       setReplacing(index);
       setEditorAssets([{ id: `re-edit-${index}-${item.url}`, file, kind: item.type }]);
     } catch (err) {

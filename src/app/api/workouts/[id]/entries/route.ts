@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
+import { entriesWriteIsStale, entriesWriteStampsActivity } from '@/lib/workouts/entries-stale';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -12,9 +13,13 @@ import { reportRouteError } from '@/lib/observability/report';
  * the source of truth (mirrored to localStorage + here, debounced + on a
  * keepalive flush). Body: { savedAt: epochMs, exercises: EntryExercise[] }.
  *
- * Stale-write guard: snapshots with savedAt <= last_activity_at no-op with
- * { stale: true } — an out-of-order debounce/keepalive race can never
- * overwrite a newer snapshot.
+ * Stale-write guard (LIVE sessions only — `entries-stale.ts`): snapshots
+ * with savedAt <= last_activity_at no-op with { stale: true } — an
+ * out-of-order debounce/keepalive race can never overwrite a newer
+ * snapshot. A COMPLETED session's last_activity_at is its END time (which a
+ * manual log can put in the future), so review-mode edits are never
+ * guarded and never move it (Oct 9 2026 — the share step's Edit / Remove
+ * used to be dropped silently until the clock passed the workout's end).
  *
  * The delete-then-reinsert pair is not a true transaction (two admin-client
  * calls). On a set-insert failure we retry once, then 500 — the client draft
@@ -46,7 +51,7 @@ export async function PUT(
 
     const { data: session, error: fetchError } = await supabase
       .from('workout_sessions')
-      .select('profile_id, last_activity_at')
+      .select('profile_id, status, last_activity_at')
       .eq('id', id)
       .single();
 
@@ -57,8 +62,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Stale-write guard
-    if (session.last_activity_at && savedAt <= Date.parse(session.last_activity_at)) {
+    // Stale-write guard — live sessions only (see the header).
+    if (entriesWriteIsStale({ status: session.status, lastActivityAt: session.last_activity_at, savedAt })) {
       return NextResponse.json({ stale: true, savedAt });
     }
 
@@ -123,10 +128,14 @@ export async function PUT(
       }
     }
 
-    await supabase
-      .from('workout_sessions')
-      .update({ last_activity_at: new Date(savedAt).toISOString() })
-      .eq('id', id);
+    // A live session's activity moves with every write; a completed one keeps
+    // its end time (the sweep and the history read it as the END).
+    if (entriesWriteStampsActivity(session.status)) {
+      await supabase
+        .from('workout_sessions')
+        .update({ last_activity_at: new Date(savedAt).toISOString() })
+        .eq('id', id);
+    }
 
     return NextResponse.json({ ok: true, savedAt });
   } catch (error) {

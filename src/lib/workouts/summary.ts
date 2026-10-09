@@ -137,18 +137,23 @@ export function formatSetLine(set: EntrySet): string {
 export interface CollectedMedia extends SetMedia {
   exerciseName: string;
   setNumber: number;
+  /** Where the clip lives (workout capture round PR 2, Oct 8 2026) — the
+   *  share step edits and removes a clip IN its set by these. */
+  exerciseIndex: number;
+  setIndex: number;
+  mediaIndex: number;
 }
 
 /** All set media across the workout, ordered by exercise then set number. */
 export function collectWorkoutMedia(exercises: EntryExercise[]): CollectedMedia[] {
   const collected: CollectedMedia[] = [];
-  for (const exercise of exercises) {
-    for (const set of exercise.sets) {
-      for (const media of set.media ?? []) {
-        collected.push({ ...media, exerciseName: exercise.name, setNumber: set.setNumber });
-      }
-    }
-  }
+  exercises.forEach((exercise, exerciseIndex) => {
+    exercise.sets.forEach((set, setIndex) => {
+      (set.media ?? []).forEach((media, mediaIndex) => {
+        collected.push({ ...media, exerciseName: exercise.name, setNumber: set.setNumber, exerciseIndex, setIndex, mediaIndex });
+      });
+    });
+  });
   return collected;
 }
 

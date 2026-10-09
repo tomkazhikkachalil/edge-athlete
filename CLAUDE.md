@@ -1654,7 +1654,16 @@ const { canView } = await response.json();
    stop on a failed clip by name. The tile's `data-set-media-state` is
    `pending | failed | stored`. e2e: `e2e/workout-capture.spec.ts`
    (`@mobile`) holds the complete route, reloads, and watches the upload
-   land by itself. Read DEVLOG Oct 8 2026 (Workout capture PR 1) first.
+   land by itself. **The review step (PR 2, Oct 9):** the share screen's
+   clips are an ordered LIST — the selection is clip URLs in CAROUSEL order
+   (`src/lib/workouts/share-media.ts`, zero imports: `toggleShare` /
+   `moveShare` / `replaceShareUrl` / `pruneShareOrder` / `shareList`), never
+   indices; Edit opens the SAME editor the set rows use and Done writes the
+   new URL INTO THE SET (`replaceMediaAt` → `mutate` → the entries PUT; the
+   post shows the edited clip because the set holds it — no second copy);
+   Remove asks through `ConfirmModal` naming the set. `data-share-clip` /
+   `data-share-position` are the hooks; `e2e/workout-review.spec.ts`. Read
+   DEVLOG Oct 8–9 2026 (Workout capture PR 1–2) first.
 
 ---
 

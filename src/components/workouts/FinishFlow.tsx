@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Award, Bookmark, Check, Dumbbell, Globe, Lock, Timer, TrendingUp } from 'lucide-react';
+import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Lock, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
 import { celebratePR } from '@/lib/celebrate';
 import {
@@ -195,27 +195,125 @@ export function FinishSummary({
 interface ShareStepProps {
   caption: string;
   onCaptionChange: (next: string) => void;
-  /** All set media in the workout; selected indices become the post's carousel. */
-  mediaOptions: CollectedMedia[];
-  selectedMedia: Set<number>;
-  onToggleMedia: (index: number) => void;
+  /** The workout's clips: the selected ones in CAROUSEL order, then the rest
+   *  (workout capture round PR 2, Oct 8 2026 — `shareList`). */
+  clips: { selected: CollectedMedia[]; rest: CollectedMedia[] };
+  onToggleClip: (url: string) => void;
+  onMoveClip: (url: string, dir: -1 | 1) => void;
+  /** The pencil: the same editor the set rows use; Done replaces the clip in its set. */
+  onEditClip: (clip: CollectedMedia) => void;
+  /** Remove asks first (the house ConfirmModal, hosted by the screen). */
+  onRemoveClip: (clip: CollectedMedia) => void;
+  /** An edit or a removal is saving — the clip controls wait. */
+  clipsBusy: boolean;
   sharing: boolean;
   error: string;
   onShare: () => void;
   onKeepPrivate: () => void;
 }
 
+const CLIP_ICON_BUTTON =
+  'inline-flex h-10 w-10 items-center justify-center rounded-lg text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+
+function ShareClipRow({
+  clip,
+  position,
+  total,
+  busy,
+  onToggle,
+  onMove,
+  onEdit,
+  onRemove,
+}: {
+  clip: CollectedMedia;
+  /** 1-based place in the carousel, or null when excluded. */
+  position: number | null;
+  total: number;
+  busy: boolean;
+  onToggle: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const selected = position !== null;
+  const label = `${clip.exerciseName} set ${clip.setNumber}`;
+  return (
+    <li
+      data-share-clip={clip.url}
+      data-share-selected={selected ? 'true' : 'false'}
+      data-share-position={position ?? ''}
+      className={`flex items-center gap-3 rounded-xl border border-border bg-surface p-2 ${selected ? '' : 'opacity-70'}`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={busy}
+        className={`relative w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-surface-sunken ${selected ? 'ring-2 ring-violet-500' : ''}`}
+        aria-label={`${selected ? 'Exclude' : 'Include'} ${label} media`}
+        aria-pressed={selected}
+      >
+        <SetMediaThumb url={clip.url} type={clip.type} size={64} />
+        {selected && (
+          <span className="absolute top-1 left-1 min-w-5 h-5 px-1 bg-brand text-white rounded-full text-xs font-bold flex items-center justify-center">
+            {position}
+          </span>
+        )}
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-primary truncate">{label}</p>
+        <p className="text-xs text-muted">{selected ? `In the post · ${position} of ${total}` : 'Not in the post'}</p>
+        <div className="flex items-center gap-0.5 mt-1 -ml-2">
+          <button type="button" onClick={onEdit} disabled={busy} className={CLIP_ICON_BUTTON} aria-label={`Edit ${label} clip`}>
+            <Pencil className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={busy || !selected || position === 1}
+            className={CLIP_ICON_BUTTON}
+            aria-label={`Move ${label} clip up`}
+          >
+            <ChevronUp className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={busy || !selected || position === total}
+            className={CLIP_ICON_BUTTON}
+            aria-label={`Move ${label} clip down`}
+          >
+            <ChevronDown className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            className={`${CLIP_ICON_BUTTON} hover:text-red-600 dark:hover:text-red-400`}
+            aria-label={`Remove ${label} clip`}
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function ShareStep({
   caption,
   onCaptionChange,
-  mediaOptions,
-  selectedMedia,
-  onToggleMedia,
+  clips,
+  onToggleClip,
+  onMoveClip,
+  onEditClip,
+  onRemoveClip,
+  clipsBusy,
   sharing,
   error,
   onShare,
   onKeepPrivate,
 }: ShareStepProps) {
+  const totalClips = clips.selected.length + clips.rest.length;
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5">
       <div className="text-center">
@@ -225,41 +323,46 @@ export function ShareStep({
         </p>
       </div>
 
-      {/* Set media picker — selected clips become the post's photo/video carousel */}
-      {mediaOptions.length > 0 && (
+      {/* The clips, in the order they will carousel: tap a thumbnail to
+          include or exclude, the arrows set the order, the pencil opens the
+          editor, the bin removes the clip from the workout (asks first). */}
+      {totalClips > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-sm font-semibold text-primary">Include your clips</p>
+            <p className="text-sm font-semibold text-primary">Your clips</p>
             <p className="text-xs text-muted">
-              {selectedMedia.size}/{Math.min(mediaOptions.length, MAX_POST_MEDIA)} selected
+              {clips.selected.length}/{Math.min(totalClips, MAX_POST_MEDIA)} in the post
             </p>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {mediaOptions.map((media, index) => {
-              const isSelected = selectedMedia.has(index);
-              const atCap = !isSelected && selectedMedia.size >= MAX_POST_MEDIA;
-              return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => !atCap && onToggleMedia(index)}
-                  disabled={atCap}
-                  className={`relative aspect-square rounded-lg overflow-hidden bg-surface-sunken transition-all ${
-                    isSelected ? 'ring-2 ring-violet-500' : 'opacity-60 hover:opacity-90'
-                  } ${atCap ? 'cursor-not-allowed' : ''}`}
-                  aria-label={`${isSelected ? 'Exclude' : 'Include'} ${media.exerciseName} set ${media.setNumber} media`}
-                >
-                  <SetMediaThumb url={media.url} type={media.type} size={96} />
-                  {isSelected && (
-                    <span className="absolute top-1 right-1 w-5 h-5 bg-brand rounded-full flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" aria-hidden="true" />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {mediaOptions.length > MAX_POST_MEDIA && (
+          <ol className="space-y-2" aria-label="Clips in the post, in order" data-share-clips="">
+            {clips.selected.map((clip, i) => (
+              <ShareClipRow
+                key={clip.url}
+                clip={clip}
+                position={i + 1}
+                total={clips.selected.length}
+                busy={clipsBusy}
+                onToggle={() => onToggleClip(clip.url)}
+                onMove={dir => onMoveClip(clip.url, dir)}
+                onEdit={() => onEditClip(clip)}
+                onRemove={() => onRemoveClip(clip)}
+              />
+            ))}
+            {clips.rest.map(clip => (
+              <ShareClipRow
+                key={clip.url}
+                clip={clip}
+                position={null}
+                total={clips.selected.length}
+                busy={clipsBusy}
+                onToggle={() => onToggleClip(clip.url)}
+                onMove={() => undefined}
+                onEdit={() => onEditClip(clip)}
+                onRemove={() => onRemoveClip(clip)}
+              />
+            ))}
+          </ol>
+          {totalClips > MAX_POST_MEDIA && (
             <p className="text-xs text-faint mt-1.5">
               Posts carry up to {MAX_POST_MEDIA} clips — the first {MAX_POST_MEDIA} were selected.
             </p>
