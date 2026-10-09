@@ -63,13 +63,15 @@ interface SetRowProps {
   onDelete: () => void;
   /** The screen's one upload queue (workout capture round, Oct 8 2026). */
   uploads: SetMediaUploads;
+  /** The clip's PLACE in the stash record, with the set number (PR 4). */
+  exerciseName: string;
 }
 
 /** Warm the editor chunk while the camera menu is open — the pencil then
  *  opens without the "Opening editor…" shell. Fire-and-forget. */
 const warmEditorChunk = () => { void import('@/components/media-editor/MediaEditorModal').catch(() => undefined); };
 
-function SetRow({ set, inputMode, onChange, onDelete, uploads }: SetRowProps) {
+function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,7 +137,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads }: SetRowProps) {
     }
     const plan = planPickAttach(accepted, source);
     if (plan.attach.length > 0) {
-      const entries = uploads.register(plan.attach);
+      const entries = uploads.register(plan.attach, { exerciseName, setNumber: set.setNumber });
       onChange({ ...set, media: [...set.media, ...entries].slice(0, MAX_MEDIA_PER_SET) });
     }
     if (plan.editor.length > 0) {
@@ -572,6 +574,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
             onChange={next => updateSet(index, next)}
             onDelete={() => deleteSet(index)}
             uploads={uploads}
+            exerciseName={exercise.name}
           />
         ))}
       </div>

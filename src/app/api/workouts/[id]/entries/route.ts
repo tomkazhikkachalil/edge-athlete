@@ -13,6 +13,12 @@ import { reportRouteError } from '@/lib/observability/report';
  * the source of truth (mirrored to localStorage + here, debounced + on a
  * keepalive flush). Body: { savedAt: epochMs, exercises: EntryExercise[] }.
  *
+ * Since migration 256 the replace is ONE transaction serialized per session
+ * (`replace_workout_entries`, FOR UPDATE on the session row) — two PUTs in
+ * flight at once used to both pass the guard and both reinsert (every
+ * exercise twice; the capture round's production probe caught it). The
+ * three-call path below it is the pre-256 fallback (42883).
+ *
  * Stale-write guard (LIVE sessions only — `entries-stale.ts`): snapshots
  * with savedAt <= last_activity_at no-op with { stale: true } — an
  * out-of-order debounce/keepalive race can never overwrite a newer
@@ -62,6 +68,32 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    // ONE transaction, serialized per session (256, Oct 9 2026): the lock, the
+    // stale rule, the delete, the reinsert and the activity stamp happen
+    // inside `replace_workout_entries`. Two PUTs in flight at once (the
+    // debounced save and a reload's keepalive flush) used to both pass the
+    // guard below and both reinsert — every exercise twice. Pre-256 (42883:
+    // the function is missing) the three-call path below still runs.
+    const { data: replaced, error: rpcError } = await supabase.rpc('replace_workout_entries', {
+      p_session_id: id,
+      p_profile_id: user.id,
+      p_saved_at: new Date(savedAt).toISOString(),
+      p_exercises: validated.exercises,
+    });
+    if (!rpcError) {
+      const result = (replaced ?? {}) as { ok?: boolean; stale?: boolean; error?: string };
+      if (result.ok) return NextResponse.json({ ok: true, savedAt });
+      if (result.stale) return NextResponse.json({ stale: true, savedAt });
+      if (result.error === 'not_found') return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
+      reportRouteError('Entries replace: unexpected RPC result:', result);
+      return NextResponse.json({ error: 'Failed to save workout entries' }, { status: 500 });
+    }
+    if (rpcError.code !== '42883') {
+      reportRouteError('Entries replace: RPC failed:', rpcError);
+      return NextResponse.json({ error: 'Failed to save workout entries' }, { status: 500 });
+    }
+
+    // ── Pre-256 fallback: the three-call path ──────────────────────────────
     // Stale-write guard — live sessions only (see the header).
     if (entriesWriteIsStale({ status: session.status, lastActivityAt: session.last_activity_at, savedAt })) {
       return NextResponse.json({ stale: true, savedAt });
