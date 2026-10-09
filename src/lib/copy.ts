@@ -324,6 +324,21 @@ export const COPY = {
     GENERIC_ERROR: 'Failed to save changes',
   },
 
+  // Who sees what you post (Oct 9 2026, Tom): the ACCOUNT decides — a public
+  // account, anyone; a private one, your approved fans. Per item the only
+  // choice is Post it or Only me. Never a per-post "followers only".
+  // src/lib/posts/audience.ts reads these.
+  AUDIENCE: {
+    QUESTION: 'Who sees it?',
+    POST_IT: 'Post it',
+    ONLY_ME: 'Only me',
+    WHO_PUBLIC: 'Anyone can see it — on the feed and your profile',
+    WHO_PRIVATE: 'Only your approved fans can see it — your account is private',
+    ONLY_ME_LINE: 'Not on the feed — only you can see it',
+    LEGACY_FANS_ONLY: 'Only your fans see this post',
+    CHANGE: 'Change',
+  },
+
   // Download the app (Oct 2026) — the web app installed from the browser,
   // no store. One platform rule decides which steps a device is shown
   // (src/lib/install/platform.ts); the limits named here are Apple's and

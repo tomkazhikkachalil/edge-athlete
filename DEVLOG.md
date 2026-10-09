@@ -1,5 +1,13 @@
 # Development Log
 
+## October 9, 2026 — Posting, PR 1: who sees a post is the account's call; one post by its link follows the feed's rule
+
+**Tom:** after an activity "it's not the easiest to identify if you want to post or not", and the private / public difference "is not clear when you post". His model, said plainly: **the account decides** — a public account, anyone sees what you post; a private one, your approved fans. The only per-item choice is **Post it** or **Only me** (private: not on the feed, only you see it — an activity stays in your Vitals). Never a per-post "followers only". Three PRs; this is the groundwork.
+
+- **The shared words:** `COPY.AUDIENCE` + `src/lib/posts/audience.ts` (`PostChoice`, `DEFAULT_CHOICE = 'post'`, `whoSeesPost(accountVisibility)`, `onlyMeLine(place)`; a post is written `public` and the feed's rule applies the account's privacy; an unknown account reads as private — never over-promise). Two components: `PostChoicePicker` (two big cards, Post it / Only me, `data-choice`) and `AccountAudienceLine` (the one-liner with a "Change" link to `/settings?tab=privacy`). Wired in by PRs 2–3.
+- **Fixed on the way — `GET /api/posts/[id]`:** it admitted ANY signed-in viewer to a followers-only post on a public account (`canViewProfile` says yes for a public profile), ANYONE to a public post on a PRIVATE account, and anyone to a draft or hidden post. It now applies the feed's rule through the pure `src/lib/posts/read-gate.ts canReadPost` — the owner and their guardian always; anyone else a PUBLISHED post, public on a public account for all, otherwise approved fans only — 404, never 403. The other single-post reader (`GET /api/posts?postId`) already did. Its one UI caller (`/app/sport/[sport_key]/activity/[id]`) is unaffected.
+- **Proof:** unit tests for `audience.ts` and `read-gate.ts`; `e2e/post-read-gate.spec.ts` — a stranger 404s on a followers-only post, on a draft, and on a private account's public post; an approved fan opens both; the owner always.
+
 ## October 9, 2026 — Maintenance pass (evening): all green on main `5504edbe`; the map-frame spec waits for the glide
 
 Tom's standing checklist after the day's profile rounds (#1132–#1135). One e2e spec fix; no product code changes.

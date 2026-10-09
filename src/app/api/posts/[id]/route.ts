@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { canViewProfile } from '@/lib/privacy';
+import { canReadPost } from '@/lib/posts/read-gate';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(
@@ -38,7 +39,8 @@ export async function GET(
           last_name,
           avatar_url,
           sport,
-          school
+          school,
+          visibility
         ),
         media:post_media (
           id,
@@ -88,20 +90,35 @@ export async function GET(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Private-post gate: a private post is visible only to its owner and to
-    // viewers permitted to see the author's profile. Return 404 (not 403) so
-    // the endpoint doesn't confirm a hidden post's existence.
-    if (post.visibility === 'private') {
-      const ownerId = post.profile_id as string;
-      const isOwner = viewerId === ownerId;
-      let allowed = isOwner;
-      if (!allowed && viewerId) {
-        const { canView } = await canViewProfile(ownerId, viewerId);
-        allowed = canView;
-      }
-      if (!allowed) {
-        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-      }
+    // The read gate (`canReadPost` — the feed's rule): the owner and their
+    // guardian always; anyone else a PUBLISHED post, public on a public
+    // account for all, otherwise approved fans only. 404, never 403, so the
+    // endpoint doesn't confirm a hidden post exists.
+    const ownerId = post.profile_id as string;
+    const isOwner = viewerId === ownerId;
+    const author = (Array.isArray(post.profile) ? post.profile[0] : post.profile) as { visibility?: string | null } | null;
+    let hasAccess = false;
+    let isFan = false;
+    if (viewerId && !isOwner) {
+      const [access, follow] = await Promise.all([
+        FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES
+          ? supabase.from('profile_access').select('role').eq('user_id', viewerId).eq('profile_id', ownerId).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase.from('follows').select('status').eq('follower_id', viewerId).eq('following_id', ownerId).maybeSingle(),
+      ]);
+      hasAccess = !!access.data;
+      isFan = follow.data?.status === 'accepted';
+    }
+    const allowed = canReadPost({
+      isOwner,
+      hasAccess,
+      isFan,
+      postVisibility: post.visibility ?? null,
+      profileVisibility: author?.visibility ?? null,
+      status: (post as { status?: string | null }).status ?? null,
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     // Proxy this post's media bytes (governed by the post rule; id = post.id).
