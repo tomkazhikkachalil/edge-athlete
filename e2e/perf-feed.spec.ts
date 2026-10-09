@@ -123,9 +123,13 @@ async function run(page: Page, engine: string) {
   console.log(`[perf] ${JSON.stringify(sample)}`);
   test.info().annotations.push({ type: 'perf', description: JSON.stringify(sample) });
   if (BASELINE) return;
-  // Coming back to the app keeps the feed: no reload, no notification refetch.
+  // Coming back to the app keeps the feed: no reload.
   expect(sample.afterRefocus.posts, 'the feed reloaded when the app came back').toBe(0);
-  expect(sample.afterRefocus.notifications, 'notifications refetched when the app came back').toBe(0);
+  // The bell re-reads ONCE on a return to the foreground, at most every 20 s
+  // (Oct 4 2026 — the installed app's realtime socket drops in the background,
+  // so a read made elsewhere was never seen until a reload). One read is the
+  // rule; a second would be the auth refocus storm this spec exists to catch.
+  expect(sample.afterRefocus.notifications, 'notifications refetched more than once when the app came back').toBeLessThanOrEqual(1);
   // A token refresh is not a new person: nothing reloads.
   expect(sample.afterTokenRefresh.posts, 'the feed reloaded on a token refresh').toBe(0);
   // (The bell may re-read after its live connection reconnects — the

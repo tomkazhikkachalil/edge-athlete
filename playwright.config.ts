@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import { E2E_BASE_URL, bypassHeaders } from './e2e/helpers/qa-user';
 import { POLAR_E2E_ENV } from './e2e/helpers/polar-mock';
 import { PUSH_E2E_ENV } from './e2e/helpers/push-mock';
@@ -80,6 +80,23 @@ export default defineConfig({
       // worker is kept out of THIS harness only; the Chromium projects still
       // run with it and prove the cache (e2e/sw-static-cache.spec.ts).
       use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, serviceWorkers: 'block' },
+    },
+    // The ANDROID profile (every-phone round, Oct 9 2026 — Tom: "Apple,
+    // android, google, etc."): Chromium again, but as a Pixel 7 — the Android
+    // user agent, touch, DPR 2.6, 412×915 and mobile EMULATION ON. Three phone
+    // projects, three questions: `mobile` is the honest layout ruler (emulation
+    // OFF — see `use` above), `webkit-mobile` is the iPhone engine, `android`
+    // is the device a Pixel / Samsung / any Android phone presents (the install
+    // prompt branch, touch events, the Android UA every `installMode` and push
+    // rule reads). The same fake camera as `mobile`. Nothing to install.
+    {
+      name: 'android',
+      grep: /@mobile/,
+      use: {
+        ...devices['Pixel 7'],
+        permissions: ['camera', 'microphone'],
+        launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
+      },
     },
   ],
   // Only build/serve locally. Targeting a real deployment (E2E_BASE_URL) must
