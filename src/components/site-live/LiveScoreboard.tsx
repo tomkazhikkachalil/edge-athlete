@@ -11,16 +11,14 @@
 // snapshot and the card's "Follow the game →" link stand on their own.
 
 import { useEffect, useState } from 'react';
-import { autoPollAllowed, gameIn, watchGame } from '@/lib/org-sites/live-poll';
+import { gameIn, watchGame } from '@/lib/org-sites/live-poll';
 import type { LiveFeedGame } from '@/lib/org-sites/live-feed';
+import { prefersReducedData } from '@/lib/net/reduced-data';
 import { refreshNow, subscribeFeed } from './feed-poller';
 
-function reducedData(): boolean {
-  if (typeof window === 'undefined') return false;
-  const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-  const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-data: reduce)').matches : false;
-  return !autoPollAllowed({ saveData: conn?.saveData === true, reducedData: mq });
-}
+// The ONE reduced-data rule (src/lib/net/reduced-data.ts, Oct 9 2026 — the
+// activity page reads it too); `autoPollAllowed` is its complement, pinned by test.
+const reducedData = prefersReducedData;
 
 function Side({ name, score, align, showScore }: { name: string; score: number | null; align: 'start' | 'end'; showScore: boolean }) {
   return (

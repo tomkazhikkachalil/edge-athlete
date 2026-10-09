@@ -1333,3 +1333,10 @@ html:not([data-theme="dark"]) .dark-theme-only {
   font-style: normal;
   font-display: swap;
 }
+
+/* The activity route map is a FRAMED picture (Oct 9 2026, route-frame.ts):
+   the base map is muted so the violet route is the focus. Only on the
+   OpenStreetMap layer — the class comes off when Satellite is shown. */
+.ea-route-frame .leaflet-tile-pane {
+  filter: saturate(0.35) brightness(1.04);
+}

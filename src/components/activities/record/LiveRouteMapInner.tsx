@@ -117,7 +117,7 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
       }
       if (followRef.current) {
         if (points.length === 1) map.setView(at, 17);
-        else map.panTo(at, { animate: true });
+        else map.panTo(at, { animate: !(typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) });
       }
     }
   }, [points, accuracy]);
