@@ -144,7 +144,7 @@ test('a set clip is a tile at once, survives a reload mid-upload, a failed uploa
     // 6. Finish waits for the queue and carries every clip into the review step.
     await page.getByRole('button', { name: 'Finish' }).click();
     await page.getByRole('button', { name: 'Continue' }).click({ timeout: 30_000 });
-    await expect(page.getByRole('heading', { name: 'Share your workout?' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Nice workout!' })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('button', { name: /Bench Press set 1 media/ })).toHaveCount(expected);
 
     // What landed in storage, for the teardown.

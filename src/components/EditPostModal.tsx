@@ -13,6 +13,7 @@ import { recipeEnvelope } from '@/lib/media/recipes';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { COPY } from '@/lib/copy';
+import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
 
 interface Post {
   id: string;
@@ -51,7 +52,6 @@ export default function EditPostModal({
 
   const [caption, setCaption] = useState(post.caption || '');
   const [hashtags, setHashtags] = useState<string[]>(post.hashtags || []);
-  const [visibility, setVisibility] = useState(post.visibility || 'public');
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
   const [customHashtag, setCustomHashtag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,7 +168,6 @@ export default function EditPostModal({
     setSyncedPost(post);
     setCaption(post.caption || '');
     setHashtags(post.hashtags || []);
-    setVisibility(post.visibility || 'public');
   }
 
   const addHashtag = (tag: string) => {
@@ -204,7 +203,8 @@ export default function EditPostModal({
           postId: post.id,
           caption: caption.trim(),
           hashtags: hashtags,
-          visibility: visibility
+          // No visibility: an edit never changes who sees the post — the
+          // account decides (src/lib/posts/audience.ts); the PUT keeps it.
         }),
       });
 
@@ -234,7 +234,6 @@ export default function EditPostModal({
   const isDirty = () =>
     caption !== (post.caption || '') ||
     JSON.stringify(hashtags) !== JSON.stringify(post.hashtags || []) ||
-    visibility !== (post.visibility || 'public') ||
     customHashtag.trim() !== '';
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
@@ -391,41 +390,10 @@ export default function EditPostModal({
             )}
           </div>
 
-          {/* Visibility */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-secondary mb-2">
-              Privacy
-            </label>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setVisibility('public')}
-                className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
-                  visibility === 'public'
-                    ? 'border-violet-500 bg-brand-soft'
-                    : 'border-border hover:border-border-strong'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <i className="fas fa-globe text-lg"></i>
-                  <span className="font-medium">Public</span>
-                </div>
-                <p className="text-xs text-muted mt-1">Anyone can see this post</p>
-              </button>
-              <button
-                onClick={() => setVisibility('private')}
-                className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
-                  visibility === 'private'
-                    ? 'border-violet-500 bg-brand-soft'
-                    : 'border-border hover:border-border-strong'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <i className="fas fa-lock text-lg"></i>
-                  <span className="font-medium">Private</span>
-                </div>
-                <p className="text-xs text-muted mt-1">Only you can see this</p>
-              </button>
-            </div>
+          {/* Who sees it: the account's call, said — never a per-post switch.
+              A followers-only post from before Oct 9 2026 keeps that, marked. */}
+          <div className="mb-6" data-edit-post-audience="">
+            <AccountAudienceLine legacyFansOnly={post.visibility === 'private'} />
           </div>
         </div>
 

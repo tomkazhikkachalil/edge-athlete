@@ -1,5 +1,15 @@
 # Development Log
 
+## October 9, 2026 — Posting, PR 3: every posting surface speaks the same way
+
+Tom's model, everywhere a post is made: the ACCOUNT decides who sees it; per item, only **Post it** or **Only me**. PR 3 of 3.
+
+- **Workout share** (`FinishFlow.tsx ShareStep`): "Nice workout!" → `PostChoicePicker` (Only me = "… in your training history") → the clips and the caption only when posting → ONE button that names the outcome (**Post** / **Save for me**; `data-share-done`). Only me is the existing `keepPrivate` decision; a post is written `POST_VISIBILITY`. The Drafts row says **Only me** / **Post it** too.
+- **Golf draft review** (`/athlete/drafts/[postId]`): the "Who can see it: Everyone / Followers only" select is gone; `AccountAudienceLine` says who will see it; Post writes it public.
+- **Composer** (`CreatePostModal`): the Public / Private radios are gone; `AccountAudienceLine` above Create Post (a guardian posting as an athlete sees the athlete's account, no Change link); the preview reads "Anyone" / "Your fans"; every post (and a shared round) is written public.
+- **Edit post** (`EditPostModal`): the Privacy cards — whose Private line wrongly said "Only you can see this" — are gone; an edit never sends `visibility` (the PUT keeps it); a followers-only post from before today is marked "Only your fans see this post".
+- **Proof:** `e2e/post-audience.spec.ts` (desktop + `@mobile`: the composer's line on a public and a private account, no switch); `workout-review` (Post it preselected → Post), `workout-drafts` (Only me → Save for me), `workout-capture` (the new heading) — green on desktop, mobile, android, webkit-mobile; screenshots read.
+
 ## October 9, 2026 — Posting, PR 2: Finish is ONE review — what you did, then Post it or Only me
 
 **Tom:** after a walk "it's not the easiest to identify if you want to post or not". Before: Finish showed Name / Discard / Save only; posting was a separate "Share to feed" later on the activity page, always public; hiding it was a separate "Only me" toggle.

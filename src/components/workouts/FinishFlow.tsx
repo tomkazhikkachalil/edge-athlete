@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Lock, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
+import PostChoicePicker from '@/components/posts/PostChoicePicker';
+import { DEFAULT_CHOICE, type PostChoice } from '@/lib/posts/audience';
 import { celebratePR } from '@/lib/celebrate';
 import {
   formatDuration,
@@ -313,20 +315,24 @@ export function ShareStep({
   onShare,
   onKeepPrivate,
 }: ShareStepProps) {
+  const [choice, setChoice] = useState<PostChoice>(DEFAULT_CHOICE);
+  const posting = choice === 'post';
   const totalClips = clips.selected.length + clips.rest.length;
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-primary">Share your workout?</h1>
-        <p className="text-muted mt-1">
-          Post it to your feed — or keep it in your private training history.
-        </p>
+        <h1 className="text-2xl font-bold text-primary">Nice workout!</h1>
+        <p className="text-muted mt-1">Post it, or keep it to yourself.</p>
       </div>
+
+      {/* The one decision (src/lib/posts/audience.ts): Post it — who sees it
+          follows the account — or Only me, kept in your training history. */}
+      <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your training history" disabled={sharing} />
 
       {/* The clips, in the order they will carousel: tap a thumbnail to
           include or exclude, the arrows set the order, the pencil opens the
           editor, the bin removes the clip from the workout (asks first). */}
-      {totalClips > 0 && (
+      {posting && totalClips > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-2">
             <p className="text-sm font-semibold text-primary">Your clips</p>
@@ -370,13 +376,16 @@ export function ShareStep({
         </div>
       )}
 
-      <textarea
-        value={caption}
-        onChange={e => onCaptionChange(e.target.value.slice(0, 2000))}
-        rows={3}
-        placeholder="How did it go? (optional caption)"
-        className="w-full px-4 py-3 border border-border-strong rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
-      />
+      {posting && (
+        <textarea
+          value={caption}
+          onChange={e => onCaptionChange(e.target.value.slice(0, 2000))}
+          rows={3}
+          placeholder="How did it go? (optional caption)"
+          className="w-full px-4 py-3 border border-border-strong rounded-xl text-base resize-none"
+          data-share-caption=""
+        />
+      )}
 
       {error && (
         <div className="px-3 py-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
@@ -386,25 +395,19 @@ export function ShareStep({
 
       <button
         type="button"
-        onClick={onShare}
+        onClick={posting ? onShare : onKeepPrivate}
         disabled={sharing}
         className="w-full flex items-center justify-center gap-2 py-3 bg-brand text-white rounded-xl font-bold text-base hover:bg-brand-hover transition-colors disabled:opacity-60"
+        data-share-done={choice}
       >
         {sharing ? (
           <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
-        ) : (
+        ) : posting ? (
           <Globe className="w-5 h-5" aria-hidden="true" />
+        ) : (
+          <Lock className="w-5 h-5" aria-hidden="true" />
         )}
-        Share to Feed
-      </button>
-      <button
-        type="button"
-        onClick={onKeepPrivate}
-        disabled={sharing}
-        className="w-full flex items-center justify-center gap-2 py-3 text-tertiary font-semibold hover:text-primary transition-colors disabled:opacity-60"
-      >
-        <Lock className="w-4 h-4" aria-hidden="true" />
-        Keep private
+        {posting ? 'Post' : 'Save for me'}
       </button>
     </div>
   );

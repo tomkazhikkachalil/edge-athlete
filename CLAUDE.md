@@ -1706,6 +1706,22 @@ const { canView } = await response.json();
    and a photo ending below the avatar (#1133) — don't bring either back.
    `e2e/profile-cover-card.spec.ts` is the pin.
 
+39. **Who sees a post is the ACCOUNT's call; per item only Post it or Only me
+   (Posting round, Oct 9 2026, zero DDL)** — Tom: a public account means anyone
+   sees what you post, a private one your approved fans; the only per-item
+   choice is Post it or Only me (not on the feed; an activity stays in Vitals,
+   a workout in your training history). **Never a per-post "followers only"
+   control.** `src/lib/posts/audience.ts` + `COPY.AUDIENCE` are the words;
+   `PostChoicePicker` (the two cards — the recorder's review, the workout
+   share) and `AccountAudienceLine` (the one-liner — the composer, Edit post,
+   a draft's review, an activity's later share) the only UI. Posts are written
+   `POST_VISIBILITY` ('public') and the feed's rule applies the account;
+   an edit never changes visibility; pre-Oct 9 followers-only posts keep it.
+   One post by its id follows the feed's rule (`posts/read-gate.ts
+   canReadPost`). Finish on the recorder is ONE review (`FinishSheet`): Only me
+   rides the create call (`onlyMe`), posting is `activities/share-client.ts
+   postActivity`. Read DEVLOG Oct 9 2026 (Posting PR 1–3) first.
+
 ---
 
 ## 🔧 Common Tasks
