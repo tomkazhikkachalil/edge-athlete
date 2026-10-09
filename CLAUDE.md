@@ -1696,13 +1696,15 @@ const { canView } = await response.json();
    `e2e/workout-entries-race.spec.ts` is the pin. Read DEVLOG Oct 8–9 2026
    (Workout capture PR 1–4) first.
 
-38. **Another athlete's profile card: the cover ends just below a floating
-   avatar (Oct 9 2026, zero DDL)** — `src/components/profile/
-   ProfileCoverHeader.tsx` on BOTH viewer routes (`/athlete/[id]`,
-   `/u/[username]`; the owner's `/athlete` is unchanged). Its padding is the
-   layout: the avatar never touches an edge and the photo stops just under it.
-   Tom REJECTED a whole-card photo under a translucent panel (#1132, reverted)
-   — don't bring it back. `e2e/profile-cover-card.spec.ts` is the pin.
+38. **Every profile card opens with the cover and the picture half over its
+   edge (Oct 9 2026, zero DDL)** — `src/components/profile/
+   ProfileCoverHeader.tsx` on the owner's `/athlete` AND both viewer routes
+   (`/athlete/[id]`, `/u/[username]`): a 3:1 banner, the avatar row pulled up
+   by exactly half the avatar (`size` picks the per-breakpoint margin — change
+   the avatar size and the map together), controls on the photo through
+   `overlay`. Tom REJECTED a whole-card photo under a translucent panel (#1132)
+   and a photo ending below the avatar (#1133) — don't bring either back.
+   `e2e/profile-cover-card.spec.ts` is the pin.
 
 ---
 

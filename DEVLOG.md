@@ -1,5 +1,14 @@
 # Development Log
 
+## October 9, 2026 — The profile picture sits half over the cover, on every profile including your own
+
+**Tom, after #1133:** "we go half" — the picture straddles the cover's bottom edge, half on the photo, half on the card. And: "it only changes when you view other profiles … you don't notice it on your own profile."
+
+- **`ProfileCoverHeader`** is now the 3:1 cover banner (`max-h-64`, the old banner's shape) and an avatar row pulled up by exactly half the avatar per breakpoint (`size: 'lg'` = w-32/40/48 → `-mt-16 sm:-mt-20 lg:-mt-24`; `'md'` = w-24/32 for `/u/`), above the photo (`z-10`) with `shadow-xl`. An `overlay` slot carries controls drawn on the photo.
+- **The owner's `/athlete` uses it too:** the change-cover button rides in `overlay`; the avatar keeps its rating bubble and upload button pinned to it. All three profile surfaces now share one header.
+- **Proof:** `e2e/profile-cover-card.spec.ts` now opens the OWNER's page first, then both viewer routes. On each it checks that the photo's bottom edge crosses the avatar's middle (±4 px), the avatar starts on the photo and sits ≥ 8 px off the card's side, the name is below the photo, and there is no sideways scroll; with no cover, a gradient. Green on desktop, phone Chromium, WebKit and Android; screenshots at 375 / 1280 px, light and dark.
+- **Noticed, not changed:** the owner's `/athlete` opens scrolled ~90–200 px down (measured on `main` before this change too) — a separate look.
+
 ## October 9, 2026 — Another athlete's profile: the cover ends just below a floating avatar (#1132 reverted)
 
 **Tom, after seeing #1132 on production:** "not the biggest fan" — revert the full-card photo and translucent panel. Instead the cover photo comes down to just under the profile picture, and the picture hovers slightly above it, its border never touching an edge.

@@ -312,9 +312,9 @@ export default function PublicProfilePage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Profile Header */}
         <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
-          {/* Cover photo, ending just below the profile picture that floats
-              on it (gradient until the athlete sets one). */}
-          <ProfileCoverHeader coverSrc={profile.cover ?? null}>
+          {/* Cover photo with the profile picture half over its bottom edge
+              (gradient until the athlete sets one). */}
+          <ProfileCoverHeader coverSrc={profile.cover ?? null} size="md" rowClassName="px-4 sm:px-6">
             <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface overflow-hidden">
               {profile.avatar_url ? (
                 <LazyImage

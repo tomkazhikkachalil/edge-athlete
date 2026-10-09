@@ -329,11 +329,12 @@ export default function AthleteProfilePage() {
 
         {/* Profile Info Section */}
         <div className="bg-surface rounded-lg shadow-sm border border-border mb-6 overflow-hidden">
-          {/* Cover photo, ending just below the profile picture that floats
-              on it (gradient until the athlete sets one). */}
+          {/* Cover photo with the profile picture half over its bottom edge
+              (gradient until the athlete sets one). */}
           <ProfileCoverHeader
             coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
-            className="flex justify-center sm:justify-start"
+            size="lg"
+            rowClassName="px-4 sm:px-6 flex justify-center sm:justify-start"
           >
             {profile.avatar_url ? (
               <LazyImage
