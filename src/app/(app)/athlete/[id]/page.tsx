@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { coverProxyUrl, coverPlaceholderUrl } from '@/lib/media/cover-url';
-import ProfileCoverCard from '@/components/profile/ProfileCoverCard';
+import { coverProxyUrl } from '@/lib/media/cover-url';
+import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -327,17 +327,14 @@ export default function AthleteProfilePage() {
           </div>
         </div>
 
-        {/* Profile Info Section — the cover photo fills the whole card and the
-            details sit on a theme-following panel (ProfileCoverCard). */}
-        <ProfileCoverCard
-          coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
-          placeholderSrc={coverPlaceholderUrl(profile.id, profile.cover_url)}
-          className="rounded-lg shadow-sm border border-border mb-6"
-        >
-          <div className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
-          {/* Profile Image with Score Badge */}
-          <div className="relative flex-shrink-0">
+        {/* Profile Info Section */}
+        <div className="bg-surface rounded-lg shadow-sm border border-border mb-6 overflow-hidden">
+          {/* Cover photo, ending just below the profile picture that floats
+              on it (gradient until the athlete sets one). */}
+          <ProfileCoverHeader
+            coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
+            className="flex justify-center sm:justify-start"
+          >
             {profile.avatar_url ? (
               <LazyImage
                 src={profile.avatar_url}
@@ -351,12 +348,13 @@ export default function AthleteProfilePage() {
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
-          </div>
-
+          </ProfileCoverHeader>
+          <div className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-3">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-primary break-words min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-primary break-words min-w-0">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
@@ -398,7 +396,7 @@ export default function AthleteProfilePage() {
 
 
             {profile.bio && (
-              <p className="text-primary font-semibold text-lg mb-6">
+              <p className="text-black dark:text-primary font-semibold text-lg mb-6">
                 {profile.bio}
               </p>
             )}
@@ -487,7 +485,7 @@ export default function AthleteProfilePage() {
           </div>
           </div>
         </div>
-        </ProfileCoverCard>
+        </div>
 
       {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
       <div id="media-section" className="bg-surface rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">

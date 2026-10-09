@@ -24,17 +24,3 @@ export function coverProxyUrl(
   const seg = coverUrl.split('?')[0].split('/').pop() || '';
   return `/api/media/cover/${profileId}${seg ? `?v=${encodeURIComponent(seg)}` : ''}`;
 }
-
-/**
- * The same cover as a 32px-wide JPEG (`?w=32` on the cover endpoint) — the
- * blurred placeholder `ProfileCoverCard` paints while the full image loads.
- * Shares the `?v` cache-buster, so a new cover refreshes both.
- */
-export function coverPlaceholderUrl(
-  profileId: string | null | undefined,
-  coverUrl: string | null | undefined
-): string | null {
-  const full = coverProxyUrl(profileId, coverUrl);
-  if (!full) return null;
-  return `${full}${full.includes('?') ? '&' : '?'}w=32`;
-}
