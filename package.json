@@ -51,6 +51,7 @@
     "emoji-picker-react": "^4.18.0",
     "jose": "^6.2.12",
     "leaflet": "^1.9.4",
+    "libheif-js": "1.23.5",
     "lucide-react": "^1.28.0",
     "mediabunny": "^1.52.2",
     "next": "^16.2.12",

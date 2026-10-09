@@ -280,7 +280,13 @@ The lessons generalize:
   agent, touch, DPR 2.6, 412×915, emulation ON — what a Pixel / Samsung / any Android
   phone presents; Oct 9 2026) — add one for any surface whose phone behavior matters.
   The three are a developer-side cost only (≈2.5 min each on this Mac and in CI's
-  smoke job); nothing ships to a phone. **Never run the whole `@mobile` set in ONE
+  smoke job); nothing ships to a phone. **HEIC (Oct 9 2026):** a Samsung's
+  high-efficiency photo reaches Chrome as HEIC (sometimes with an empty type);
+  `decode.ts` tries the browser first and, only when both native decoders fail
+  AND `heic-brand.ts` says HEIF, fetches the WebAssembly decoder
+  (`heic-decode.ts`, `import('libheif-js/wasm-bundle')` — dynamic, nowhere else;
+  LGPL-3.0 as a separately loaded module) — a JPEG phone and every iPhone never
+  download it. The server never sees HEIC; 3GP video stays refused by decision. **Never run the whole `@mobile` set in ONE
   invocation against staging** (177 specs ≈ 1.4 h; the free tier degrades and the
   late specs time out) — run it by area, one project at a time. A spec's locator
   must survive the header's always-mounted drawer (`Create Event`, the child's name):

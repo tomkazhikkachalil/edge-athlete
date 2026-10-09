@@ -13,8 +13,15 @@ describe('buildCsp', () => {
   });
 
   it('prod has NO unsafe-eval; dev adds it (Turbopack HMR)', () => {
-    expect(prod).not.toContain('unsafe-eval');
+    // The exact token: 'wasm-unsafe-eval' (below) contains the substring.
+    expect(prod).not.toContain("'unsafe-eval'");
     expect(dev).toContain("'unsafe-eval'");
+  });
+
+  it("admits WebAssembly compilation only ('wasm-unsafe-eval') — the HEIC decoder in Chrome on Android (Oct 9 2026)", () => {
+    const script = prod.split('; ').find(d => d.startsWith('script-src'))!;
+    expect(script.split(' ')).toContain("'wasm-unsafe-eval'");
+    expect(script.split(' ')).not.toContain("'unsafe-eval'");
   });
 
   it('connect-src includes Supabase, realtime, and BOTH Sentry ingest forms', () => {
@@ -77,8 +84,8 @@ describe('the public theme script is admitted by HASH under the nonce policy (Oc
   it('a hash rides script-src beside the nonce; without one the policy is byte-identical to before', async () => {
     const { buildCsp } = await import('../csp');
     const plain = buildCsp('n0nce').split('; ').find(d => d.startsWith('script-src'))!;
-    expect(plain).toBe("script-src 'self' 'nonce-n0nce' 'strict-dynamic' 'unsafe-inline' https:");
+    expect(plain).toBe("script-src 'self' 'nonce-n0nce' 'strict-dynamic' 'wasm-unsafe-eval' 'unsafe-inline' https:");
     const hashed = buildCsp('n0nce', { scriptHashes: ["'sha256-abc='"] }).split('; ').find(d => d.startsWith('script-src'))!;
-    expect(hashed).toBe("script-src 'self' 'nonce-n0nce' 'sha256-abc=' 'strict-dynamic' 'unsafe-inline' https:");
+    expect(hashed).toBe("script-src 'self' 'nonce-n0nce' 'sha256-abc=' 'strict-dynamic' 'wasm-unsafe-eval' 'unsafe-inline' https:");
   });
 });

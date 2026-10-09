@@ -6,7 +6,13 @@
  * coordinate space with zero orientation branches. Canvas re-encode then
  * strips EXIF from the output — the uploaded file can never disagree with
  * its pixels (and GPS metadata is dropped, a small privacy win).
+ *
+ * HEIC (every-phone round PR 6, Oct 9 2026): when BOTH native decoders fail
+ * and the file is a HEIF by type or by its first bytes, the WebAssembly
+ * decoder is fetched (only then) and its JPEG decodes natively.
  */
+
+import { HEIF_SNIFF_BYTES, isHeifCandidate } from './heic-brand';
 
 export interface DecodedImage {
   /** Drawable source with orientation already applied. */
@@ -18,6 +24,23 @@ export interface DecodedImage {
 }
 
 export async function decodeImage(file: File): Promise<DecodedImage> {
+  try {
+    return await decodeNatively(file);
+  } catch (err) {
+    // The browser could not decode it. A HEIF (Samsung's "high efficiency
+    // pictures" in Chrome on Android — iPhones hand a web page JPEG) gets ONE
+    // more chance through the lazily fetched WebAssembly decoder
+    // (heic-decode.ts); the JPEG it produces then decodes natively. Anything
+    // else — and a HEIC the decoder cannot read — rethrows as before.
+    const head = new Uint8Array(await file.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
+    if (!isHeifCandidate(file.type, head)) throw err;
+    const { decodeHeicToJpeg } = await import('./heic-decode');
+    const jpeg = await decodeHeicToJpeg(file);
+    return decodeNatively(jpeg);
+  }
+}
+
+async function decodeNatively(file: File): Promise<DecodedImage> {
   // Preferred: createImageBitmap applies EXIF via imageOrientation.
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
