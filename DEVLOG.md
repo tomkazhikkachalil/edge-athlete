@@ -1,5 +1,16 @@
 # Development Log
 
+## October 9, 2026 — Maintenance pass: all green on main `7e4a43ae`; one spec taught production's chunk path
+
+Tom's standing checklist after the day's rounds (workout capture, every phone, the route frame, GPS accuracy). No product code changes; one e2e spec fix.
+
+- **The gate on main `7e4a43ae`** (`npm run verify`, exit 0): lint 0; **4,794 tests in 511 files**; the build; 240 client chunks within the iOS 15 / Safari 15 floor. `npm audit --omit=dev` 0; guardrails pass (the two standing advisories). `check:schema` on staging and production OK — every live table, policy (173), function (114), trigger (109) and grant owned; ledger 255 rows, head 256 on both.
+- **Production, signed out:** health ok on `7e4a43ae`; the launch gate 307 → `/auth/coming-soon`; manifest, the three icons, `/sw.js` and `?static=1`, robots 200. The **deployed** chunks — 18 from the four door pages, downloaded as iOS 15 Safari — pass the floor gate (production now serves them from `/_next/static/immutable/chunks/`; the recipe's path pattern was widened).
+- **Production, signed in — the maintenance set (Oct 8's 30 + `workout-capture`, `workout-review`, `workout-entries-race`, `heic-photo`, `activities-map-frame`), ONE project per run:** desktop **32 passed** (4.6 min); phone Chromium **43 passed, 1 failed** (10.2 min); **Android 42 passed, 2 failed** (12.4 min, the new project's first maintenance run); phone WebKit **39 passed, 3 skipped, 2 flaky** (12.3 min — `activities-map-frame` and `edit-profile` passed on retry; the skips are the recorder's Chromium-only GPS stub).
+- **The failures, neither a product fault:** `heic-photo` — the HEIC photo opened and attached on production both times; only the spec's "the decoder chunk was fetched" check missed it, because it matched `/_next/static/chunks/` and production serves `/_next/static/immutable/chunks/`. The spec now matches any static chunk path and any reported size (a service-worker response reads 0 on the wire). `results-hide` on Android — the retry died on `read ETIMEDOUT` to production. Re-run alone on production: `heic-photo` + `results-hide` **3/3 on phone Chromium, 3/3 on Android**. Production re-read clean (0 QA users, 0 QA courses; 2 profiles, 13 posts, 4 shared rounds, 3 workouts).
+- **Watch next pass:** the two WebKit flakes (a second in a row means a too-tight wait, not a fault).
+- **Open PRs:** none after this. Nothing in flight.
+
 ## October 9, 2026 — The native app waits until before the doors open to everyone
 
 Tom started the native-app round for locked-phone tracking, then parked it: more edits come first, and the app is due **before the launch gate opens to the general public** (the site is live but gated). Decided: **iPhone first**. The prerequisites and the open shell decision are recorded in `docs/ROADMAP_2026-10.md` §2. No code changes.
