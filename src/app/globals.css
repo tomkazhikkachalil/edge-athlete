@@ -56,6 +56,20 @@
   --text-faint: #9ca3af;      /* was text-gray-400 */
   --text-inverse: #ffffff;    /* text on --surface-inverse */
 
+  /* Profile cover card (another user's profile): the translucent panel the
+   * details sit on over the cover photo — read by .profile-glass and
+   * .profile-panel below. The alpha is the upper end of the 60–75% band and
+   * the muted tier is darkened so text holds 4.5:1 even over a black photo. */
+  --profile-panel-bg: rgb(255 255 255 / 0.75);
+  --profile-panel-solid: rgb(255 255 255 / 0.94); /* no backdrop-filter */
+  --profile-panel-fg: #111827;
+  --profile-panel-secondary: #1f2937;
+  --profile-panel-muted: #374151;
+  --profile-panel-faint: #4b5563;
+  --profile-panel-inset: rgb(255 255 255 / 0.5);
+  --profile-panel-border: rgb(255 255 255 / 0.6);
+  --profile-cover-fallback: linear-gradient(135deg, #ede9fe 0%, #f3f4f6 55%, #e5e7eb 100%);
+
   --border-default: #e5e7eb;  /* was border-gray-200 */
   --border-subtle: #f3f4f6;   /* was border-gray-100 */
   --border-strong: #d1d5db;   /* was border-gray-300 (inputs) */
@@ -336,6 +350,18 @@ body {
   --text-muted: #98918a;     /* ~5:1 */
   --text-faint: #78716c;     /* decorative only */
   --text-inverse: #1f1a16;
+
+  /* Profile cover card — 65% near-black (the upper end of 50–65%); every text
+   * tier stays light so it holds 4.5:1 even over a pure-white photo. */
+  --profile-panel-bg: rgb(12 10 9 / 0.65);
+  --profile-panel-solid: rgb(12 10 9 / 0.9);
+  --profile-panel-fg: #f7f4f1;
+  --profile-panel-secondary: #ece7e2;
+  --profile-panel-muted: #e2ddd8;
+  --profile-panel-faint: #c8c1ba;
+  --profile-panel-inset: rgb(0 0 0 / 0.25);
+  --profile-panel-border: rgb(255 255 255 / 0.14);
+  --profile-cover-fallback: linear-gradient(135deg, #2a2140 0%, #1f1a16 55%, #171310 100%);
 
   --border-default: #332d27;
   --border-subtle: #2a241f;
@@ -656,6 +682,46 @@ body {
   /* Dark elevation still rides the surface ramp; shadows deepen, stay soft. */
   --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
   --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+}
+
+/* ── PROFILE COVER CARD (another user's profile) ─────────────────────────────
+ * ProfileCoverCard paints the cover photo across the whole card and puts the
+ * details on a translucent, theme-following panel. Two classes, two jobs:
+ *
+ * .profile-glass — the panel's BACKGROUND, an empty absolutely-positioned
+ *   sibling of the details. The blur lives here and never on an ancestor of
+ *   the details: a backdrop-filter ancestor becomes the containing block for
+ *   position:fixed descendants (FollowButton's confirm, popovers) and traps
+ *   them inside the card. Without backdrop-filter support it is a near-solid
+ *   fill instead (@supports below).
+ * .profile-panel — the details' scope: re-points the five text tiers and the
+ *   inset surface to the panel tokens (the .vt-scope pattern), so existing
+ *   text-primary / text-muted / bg-surface-muted read correctly on the glass.
+ *
+ * Both read only CSS variables, so a theme toggle repaints them instantly.
+ * Shared-class contract holds: no display/width here; callers own layout. */
+.profile-glass {
+  background: var(--profile-panel-solid);
+  border: 1px solid var(--profile-panel-border);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .profile-glass {
+    background: var(--profile-panel-bg);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+  }
+}
+.profile-panel {
+  color: var(--profile-panel-fg);
+  --text-primary: var(--profile-panel-fg);
+  --text-secondary: var(--profile-panel-secondary);
+  --text-tertiary: var(--profile-panel-muted);
+  --text-muted: var(--profile-panel-muted);
+  --text-faint: var(--profile-panel-faint);
+  --surface-muted: var(--profile-panel-inset);
+}
+.profile-cover-fallback {
+  background-image: var(--profile-cover-fallback);
 }
 
 /* ── ORG APP DIALECT (".org-app-scope") — Org Pages Program R2 ──────────────
