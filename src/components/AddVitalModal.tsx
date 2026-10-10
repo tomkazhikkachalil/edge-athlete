@@ -345,6 +345,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           </div>
           <button
             onClick={requestClose}
+            aria-label="Close"
             className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-surface-sunken text-muted transition-colors"
           >
             <i className="fas fa-times text-sm"></i>
@@ -523,6 +524,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                         <button
                           type="button"
                           onClick={() => removeFile(f.id)}
+                          aria-label="Remove file"
                           className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
                         >
                           <i className="fas fa-times text-xs" style={{ fontSize: '9px' }}></i>

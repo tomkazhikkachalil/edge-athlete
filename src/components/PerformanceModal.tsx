@@ -154,6 +154,7 @@ export default function PerformanceModal({
               <button
                 type="button"
                 onClick={onClose}
+                aria-label="Close"
                 className="text-faint hover:text-muted transition-colors"
               >
                 <i className="fas fa-times text-xl"></i>

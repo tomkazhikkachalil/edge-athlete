@@ -579,7 +579,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortType)}
-              className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              aria-label="Sort"
+              className="px-3 py-2 border border-border-strong rounded-lg text-sm"
             >
               <option value="newest">Newest First</option>
               <option value="most_engaged">Most Engaged</option>
@@ -589,7 +590,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             <select
               value={mediaFilter}
               onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
-              className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              aria-label="Media type"
+              className="px-3 py-2 border border-border-strong rounded-lg text-sm"
             >
               <option value="all">All Types</option>
               <option value="photos">Photos Only</option>

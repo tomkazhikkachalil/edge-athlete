@@ -1416,6 +1416,7 @@ export default function CreatePostModal({
                     {profile.name}
                     <button
                       onClick={() => removeTaggedPerson(profile.id)}
+                      aria-label={`Remove ${profile.name}`}
                       className="ml-1 hover:text-violet-900 dark:hover:text-violet-200"
                     >
                       <i className="fas fa-times text-xs"></i>
@@ -1743,6 +1744,7 @@ function PostPreview({
           <h3 className="text-lg font-semibold text-primary">Post Preview</h3>
           <button
             onClick={onClose}
+            aria-label="Close preview"
             className="p-2 hover:bg-gray-200 dark:hover:bg-stone-800 rounded-lg transition-colors"
           >
             <i className="fas fa-times text-tertiary"></i>

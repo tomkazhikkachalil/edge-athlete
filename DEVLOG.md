@@ -1,5 +1,19 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 5: accessibility and code health
+
+- **Every icon-only button has a name.** A brace-aware scan of every `<button>` with no text, `aria-label` or `title` found 19. Labelled: Back, Close (×4), Close preview, Remove <name> (tags, people, members), Remove file / image / attachment. The sign-up form's two location "buttons" did nothing, so they are now `aria-hidden` icons. The GIF tiles are named by their images; NumberWheel's ± buttons are `aria-hidden` by design (the spinbutton is the control).
+- **axe-core (WCAG 2 A/AA)** over feed, profile, Vitals, Drafts, Settings, Explore and Notifications, at 375 and 1280, light and dark. Fixed:
+  - the hidden avatar and cover file inputs now have labels;
+  - the profile and Stats sort / media-type selects are named, and their `focus:ring` overrides are gone (the global ring is the rule);
+  - the toast container is a `region` (an `aria-label` on a plain div is prohibited);
+  - LazyImage's fallback is `aria-hidden` when it has no alt (`role="img"` without a name).
+  - After: **only colour contrast remains**: 96 nodes, all the `text-faint` token (2.5:1 light, 3.6:1 dark), which globals.css documents as *decorative-only, deliberately below AA*, but which carries real text in places (timestamps, menu group headings, "coming soon" chips), plus the "No achievements yet" chip at 4.39:1. Raising the token restyles 141 files, so that is Tom's call (report).
+- **Font scaling:** at a 200 % root size and 375 px every core screen stays readable. Three (feed, Vitals, Explore) gain a horizontal scroll from off-layout elements (the right-rail footer links); listed.
+- **Dead code:** `ParticipantAttestationModal.tsx`, `filters/YearSelect.tsx`, `types/post.ts` and `getFeatureFlag` / `logFeatureFlags` are gone. `design-tokens.ts` is unused but named by CLAUDE.md convention 5, so it stays.
+- **`.env.example`** names every variable the code reads (29 were missing) and drops `NEXT_PUBLIC_FEATURE_CALENDAR` / `_CHAT_DOCK` (read nowhere).
+- **Production vs preview** env names (`vercel env ls`, names only) differ only where intended: SMTP, VAPID, `NEXT_PUBLIC_LAUNCH_GATE`, the golf plan, `SUPABASE_JWT_SECRET` (preview verifies sessions over the network) are production-only; `NEXT_PUBLIC_FEATURE_CONNECTED_APPS` is preview-only by decision.
+
 ## October 10, 2026 — Maintenance pass, PR 4: security and privacy
 
 - **Every image door reads the bytes** (`src/lib/media/image-meta.ts`, pure).

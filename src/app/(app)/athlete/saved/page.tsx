@@ -296,6 +296,7 @@ export default function SavedPostsPage() {
           <div className="flex items-center gap-4 mb-2">
             <button
               onClick={() => backOr(router, '/athlete')}
+              aria-label="Back"
               className="text-tertiary hover:text-primary"
             >
               <i className="fas fa-arrow-left text-xl"></i>
