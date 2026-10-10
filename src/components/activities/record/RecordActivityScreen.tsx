@@ -45,7 +45,7 @@ import {
 import { flushDue, openRecordingStore, type RecordingMeta, type RecordingStore } from '@/lib/activities/record/storage';
 import { useWatchPosition, queryGeoPermission, type GeoFix } from '@/lib/activities/record/geolocation';
 import { hasWakeLock, useWakeLock } from '@/lib/activities/record/wake-lock';
-import { liveRoute } from '@/lib/activities/gps-filter';
+import { liveRouteGrowing } from '@/lib/activities/gps-filter';
 import type { SegmentKind } from '@/lib/activities/segments';
 import TypePicker from './TypePicker';
 import LiveStats from './LiveStats';
@@ -418,7 +418,7 @@ export default function RecordActivityScreen() {
   // The map draws the FILTERED route (gps-filter.ts) — the one the server stores.
   const statePoints = state?.points;
   const stateType = state?.type;
-  const drawnRoute = useMemo(() => (statePoints && stateType ? liveRoute(statePoints, stateType) : []), [statePoints, stateType]);
+  const drawnRoute = useMemo(() => (statePoints && stateType ? liveRouteGrowing(statePoints, stateType) : []), [statePoints, stateType]);
   const lastFix = state?.points[state.points.length - 1];
   const stale = !!lastFix && state?.status === 'recording' && now - lastFix.t > 20_000;
   const def = state ? ACTIVITY_TYPE_DEFS[state.type] : null;

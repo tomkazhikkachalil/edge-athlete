@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ACCURACY_M, filterTrack, initialFilterState, SETTLE_FIXES, stepFilter, type RawFix } from '../gps-filter';
+import { DEFAULT_ACCURACY_M, filterTrack, initialFilterState, liveRoute, liveRouteGrowing, SETTLE_FIXES, stepFilter, type RawFix } from '../gps-filter';
 import { cumulativeDistances } from '../normalize';
 import type { ActivityType } from '../catalog';
 
@@ -300,5 +300,32 @@ describe('gps-filter — a faithful route from a noisy phone', () => {
     expect(a.points.slice(0, stepped.length)).toEqual(stepped);
     expect(a.points.length - stepped.length).toBeLessThanOrEqual(1);
     expect(a.points[a.points.length - 1].t).toBe(raw[raw.length - 1].t);
+  });
+
+  // Maintenance pass, Oct 10 2026: the recorder used to re-fold the WHOLE
+  // track about three times a second. liveRouteGrowing carries the fold on —
+  // and must answer exactly what the full fold answers, at every fix.
+  it('the growing route equals the full route at every fix — pauses, elevation, a stop, a new track', () => {
+    const r = rng(41);
+    const raw: RawFix[] = [];
+    let t = 0;
+    for (; t < 200; t++) raw.push({ ...at(t, 1.3 * t + gauss(r) * 6, gauss(r) * 6, 9), ele: 70 + t * 0.05 + gauss(r) * 2 });
+    for (let k = 0; k < 60; k++, t++) raw.push({ ...at(t, 260 + gauss(r) * 6, gauss(r) * 6, 9), ele: 80 + gauss(r) * 2 });
+    t += 90; // a pause: no fixes
+    for (let k = 0; k < 150; k++, t++) raw.push(at(t, 260 + 1.4 * k + gauss(r) * 6, gauss(r) * 6, 9));
+    let grown: RawFix[] = [];
+    for (const f of raw) {
+      grown = [...grown, f];
+      const inc = liveRouteGrowing(grown, 'walk');
+      expect(inc).toEqual(liveRoute(grown, 'walk'));
+      // The same array again is the same answer, not a recomputation.
+      expect(liveRouteGrowing(grown, 'walk')).toBe(inc);
+    }
+    // Not an extension (a resumed draft's fresh objects, another type, an older array): a fresh fold, still equal.
+    const fresh = raw.map(p => ({ ...p }));
+    expect(liveRouteGrowing(fresh, 'walk')).toEqual(liveRoute(fresh, 'walk'));
+    expect(liveRouteGrowing(fresh, 'run')).toEqual(liveRoute(fresh, 'run'));
+    const older = fresh.slice(0, 120);
+    expect(liveRouteGrowing(older, 'run')).toEqual(liveRoute(older, 'run'));
   });
 });
