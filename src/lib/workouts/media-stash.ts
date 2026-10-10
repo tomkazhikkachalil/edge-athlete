@@ -148,12 +148,16 @@ export function openMediaStash(): MediaStash | null {
       await tx(db, 'readwrite', s => s.delete(sessionRange(sessionId)));
     },
     async sweepExpired(now = Date.now()) {
+      // A cursor, one record at a time — never every stashed video in memory at once.
       const db = await dbp;
-      const rows = (await tx<StashRecord[]>(db, 'readonly', s => s.getAll() as IDBRequest<StashRecord[]>)) ?? [];
-      const expired = rows.filter(r => isStashExpired(r, now));
-      if (expired.length === 0) return;
       await tx(db, 'readwrite', s => {
-        for (const r of expired) s.delete([r.sessionId, r.localId]);
+        const req = s.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          if (isStashExpired(cursor.value as StashRecord, now)) cursor.delete();
+          cursor.continue();
+        };
       });
     },
   };

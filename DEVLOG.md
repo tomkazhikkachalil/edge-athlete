@@ -1,5 +1,22 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 2: device impact (CPU, camera, storage)
+
+A read-only sweep of what the web app does to a phone found the leaks below. Everything else held: polls pause when hidden, Leaflet maps are removed on unmount, observers disconnect, `clearWatch` and the wake-lock release are where they belong, and the service worker's cache is capped.
+- **The recorder re-folded the whole track about 3× a second** (`liveTotals` on every clock tick, plus the map's `liveRoute`). `gps-filter.ts liveRouteGrowing` now carries the fold on for a growing track. The end-of-track rule runs on a copy (`finishFold`), and the 5-sample elevation median is redone only from the first changed sample − 2 (`smoothElevationAfter`). `recording.ts` keeps the route's sums per route (a WeakMap). The result is pinned **equal to `liveRoute` at every fix** (with pauses, a stop, elevation, a new track, another type, an older array). On this Mac at 10k points: 6.3 ms of every second before, **0.08 ms per fix** after; a phone is 5–10× slower in both. The server keeps `liveRoute`.
+- **The live map kept every provisional end point** (`LiveRouteMapInner` only appended, while the filter moves or replaces the last point on every fix) and drew a small kink per fix. The settled points stay; the tail is redrawn.
+- **The camera stayed live in the background**, and Cancel mid-recording still delivered a clip (`recorder.onstop` was never cleared). Now:
+  - going to the background finishes a recording and delivers it as it stands, or stops an idle preview;
+  - coming back restarts the preview;
+  - Cancel and unmount detach the stop handler first (`discardRecording`), unmount only: a parent's new `onClose` used to end a recording.
+  - Pinned by `in-app-camera.spec` (every track `ended` when hidden, live again on return, no tile after Cancel).
+- **The workout clip stash was never swept** (`sweepExpired` had no callers, and it read every record into memory). It now walks a cursor and runs when the set-media queue mounts. The recorder's `purgeExpired` also drops point and photo rows whose recording row is gone, reading keys only.
+- **The composer revoked preview URLs on every attach** (an unmount effect that depended on `mediaFiles`). Previews are now released on removal, reset and unmount.
+
+Deferred with reasons:
+- Video export and image rendering in a Web Worker: the largest main-thread cost left, and a rewrite of `media/video.ts` and `render.ts`.
+- The 15-minute `refreshSession` that runs while hidden: harmless, and supabase-js refreshes itself.
+
 ## October 10, 2026 — Maintenance pass, PR 1: patch and minor dependency updates
 
 Tom's maintenance pass (health, performance, scale, release), safety rules: patch and minor updates only, majors listed for approval. Four commits, each verified on its own (`npm run verify`, the browser floor included: 257 client chunks within iOS 15):

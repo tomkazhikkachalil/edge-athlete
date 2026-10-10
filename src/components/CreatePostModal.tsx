@@ -78,6 +78,13 @@ interface MediaFile {
   uploadProgress?: number;
 }
 
+function revokePreviews(files: readonly MediaFile[]): void {
+  for (const f of files) {
+    if (f.preview) URL.revokeObjectURL(f.preview);
+    if (f.posterPreviewUrl) URL.revokeObjectURL(f.posterPreviewUrl);
+  }
+}
+
 // Golf composer state lives in src/components/golf/GolfComposerSection.tsx
 // (sport-cleanup D-2; one-flow unification retired the individual scorecard).
 
@@ -265,6 +272,7 @@ export default function CreatePostModal({
     setCaption('');
     setSelectedTags([]);
     setHashtags([]);
+    revokePreviews(mediaFiles);
     setMediaFiles([]);
     setStatLineData(null);
     setVisibility('public');
@@ -808,17 +816,14 @@ export default function CreatePostModal({
     }
   };
 
-  // Clean up previews on unmount
+  // Release the previews on unmount only. (The effect used to depend on
+  // mediaFiles, so attaching a second file revoked the FIRST file's preview
+  // while it was still on screen.) Removal, replacement and reset revoke their own.
+  const mediaFilesRef = useRef(mediaFiles);
   useEffect(() => {
-    return () => {
-      mediaFiles.forEach(file => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview);
-        }
-        if (file.posterPreviewUrl) URL.revokeObjectURL(file.posterPreviewUrl);
-      });
-    };
+    mediaFilesRef.current = mediaFiles;
   }, [mediaFiles]);
+  useEffect(() => () => revokePreviews(mediaFilesRef.current), []);
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);

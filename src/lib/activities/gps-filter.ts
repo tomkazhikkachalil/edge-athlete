@@ -294,31 +294,48 @@ export interface FilterTally {
   tooFast: number;
 }
 
-/** The fold: every fix through `stepFilter`. A track with no positions at all
- *  (a timer type's bookends) passes through untouched. */
-export function filterTrack(points: readonly ActivityPoint[], type: ActivityType): { points: ActivityPoint[]; tally: FilterTally } {
-  let state = initialFilterState(type);
-  const out: ActivityPoint[] = [];
-  const tally: FilterTally = { ok: 0, held: 0, between: 0, settling: 0, inaccurate: 0, stale: 0, tooFast: 0 };
-  // A GPS track drops its position-less samples (a lost fix carries no place,
-  // and a timestamp without one would break the moving-time arithmetic); a
-  // track with NO positions at all — a timer type's bookends — passes whole.
-  const hasPositions = points.some(p => typeof p.lat === 'number' && typeof p.lng === 'number');
-  for (const p of points) {
-    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') {
-      if (!hasPositions) out.push(p);
+/** A fold in progress: the filter's state and what it has drawn so far from
+ *  the first `n` samples. Drawn points are only ever APPENDED while folding —
+ *  the end-of-track rule runs on a copy (`finishFold`) — so a growing track
+ *  can be folded on from where it stopped (`liveRoute`). */
+interface Fold {
+  type: ActivityType;
+  hasPositions: boolean;
+  state: FilterState;
+  out: ActivityPoint[];
+  tally: FilterTally;
+  n: number;
+}
+
+function newFold(type: ActivityType, hasPositions: boolean): Fold {
+  return { type, hasPositions, state: initialFilterState(type), out: [], tally: { ok: 0, held: 0, between: 0, settling: 0, inaccurate: 0, stale: 0, tooFast: 0 }, n: 0 };
+}
+
+const hasPosition = (p: ActivityPoint) => typeof p.lat === 'number' && typeof p.lng === 'number';
+
+function foldOn(fold: Fold, points: readonly ActivityPoint[]): void {
+  for (let i = fold.n; i < points.length; i++) {
+    const p = points[i];
+    // A GPS track drops its position-less samples (a lost fix carries no
+    // place, and a timestamp without one would break the moving-time
+    // arithmetic); a track with NO positions at all — a timer type's
+    // bookends — passes whole.
+    if (!hasPosition(p)) {
+      if (!fold.hasPositions) fold.out.push(p);
       continue;
     }
-    const step = stepFilter(state, p as RawFix);
-    state = step.state;
-    if (step.verdict === 'too_fast') tally.tooFast += 1;
-    else tally[step.verdict] += 1;
-    if (step.point) out.push(step.point);
+    const step = stepFilter(fold.state, p as RawFix);
+    fold.state = step.state;
+    if (step.verdict === 'too_fast') fold.tally.tooFast += 1;
+    else fold.tally[step.verdict] += 1;
+    if (step.point) fold.out.push(step.point);
   }
-  // The end of the track: the drawn route trails the filter by up to one step
-  // while moving — the LAST point moves to the filtered position when it has
-  // left the last drawn one by more than its own uncertainty (a walker who
-  // stopped at the end does not: the wobble stays inside it).
+  fold.n = points.length;
+}
+
+function finishFold(fold: Fold): ActivityPoint[] {
+  const out = fold.out.slice();
+  const state = fold.state;
   // The end of the track keeps the whole elapsed time: a final point at the
   // last accepted fix, at the filtered position when it has left the last
   // drawn one by more than its own uncertainty, else where it was drawn.
@@ -340,7 +357,15 @@ export function filterTrack(points: readonly ActivityPoint[], type: ActivityType
     if (state.lastT > last.t) out.push({ t: state.lastT, lat: ll.lat, lng: ll.lng });
     else out[lastPos] = { ...last, lat: ll.lat, lng: ll.lng };
   }
-  return { points: out, tally };
+  return out;
+}
+
+/** The fold: every fix through `stepFilter`. A track with no positions at all
+ *  (a timer type's bookends) passes through untouched. */
+export function filterTrack(points: readonly ActivityPoint[], type: ActivityType): { points: ActivityPoint[]; tally: FilterTally } {
+  const fold = newFold(type, points.some(hasPosition));
+  foldOn(fold, points);
+  return { points: finishFold(fold), tally: { ...fold.tally } };
 }
 
 /** A phone's altitude wobbles by metres a second: a 5-sample running median
@@ -368,4 +393,62 @@ export function smoothElevation(points: readonly ActivityPoint[]): ActivityPoint
  *  total it: the filter, then the elevation median. */
 export function liveRoute(points: readonly ActivityPoint[], type: ActivityType): ActivityPoint[] {
   return smoothElevation(filterTrack(points, type).points);
+}
+
+/** The same route, for a track that only GROWS (the recorder appends a fix at
+ *  a time): the last call's fold is carried on, so a fix costs its own step
+ *  instead of a pass over the whole track, and the elevation median is redone
+ *  only near the changed tail. A track that is not an extension of the last
+ *  one (another type, a resumed draft, an older array) folds from scratch.
+ *  The result is the same, point for point, as `liveRoute` — pinned by test. */
+let growing: { fold: Fold; input: readonly ActivityPoint[]; first: ActivityPoint | undefined; lastIn: ActivityPoint | undefined; finished: ActivityPoint[]; route: ActivityPoint[] } | null = null;
+
+export function liveRouteGrowing(points: readonly ActivityPoint[], type: ActivityType): ActivityPoint[] {
+  const c = growing;
+  if (c && c.fold.type === type && c.input === points) return c.route;
+  const hasPositions = points.some(hasPosition);
+  const extends_ =
+    c !== null &&
+    c.fold.type === type &&
+    c.fold.hasPositions === hasPositions &&
+    c.fold.n > 0 &&
+    points.length >= c.fold.n &&
+    points[0] === c.first &&
+    points[c.fold.n - 1] === c.lastIn;
+  const fold = extends_ ? c.fold : newFold(type, hasPositions);
+  foldOn(fold, points);
+  const finished = finishFold(fold);
+  const route = extends_ ? smoothElevationAfter(finished, c.finished, c.route) : smoothElevation(finished);
+  growing = { fold, input: points, first: points[0], lastIn: points[points.length - 1], finished, route };
+  return route;
+}
+
+/** `smoothElevation(next)`, reusing `prevOut` (= `smoothElevation(prev)`) for
+ *  every sample whose 5-wide window lies wholly before the first point that
+ *  differs between `prev` and `next`. */
+function smoothElevationAfter(next: readonly ActivityPoint[], prev: readonly ActivityPoint[], prevOut: readonly ActivityPoint[]): ActivityPoint[] {
+  const idx: number[] = [];
+  next.forEach((p, i) => {
+    if (typeof p.ele === 'number') idx.push(i);
+  });
+  let prevCount = 0;
+  for (const p of prev) if (typeof p.ele === 'number') prevCount += 1;
+  if (idx.length < ELEVATION_MEDIAN_WINDOW || prevCount < ELEVATION_MEDIAN_WINDOW) return smoothElevation(next);
+  let m = 0;
+  const limit = Math.min(prev.length, next.length);
+  while (m < limit && prev[m] === next[m]) m += 1;
+  let changedRank = 0;
+  while (changedRank < idx.length && idx[changedRank] < m) changedRank += 1;
+  const half = Math.floor(ELEVATION_MEDIAN_WINDOW / 2);
+  // A sample's median reads ranks k±half: everything from changedRank − half on is redone.
+  const from = Math.max(0, changedRank - half);
+  const out = next.slice();
+  for (let k = 0; k < from; k++) out[idx[k]] = prevOut[idx[k]];
+  for (let k = from; k < idx.length; k++) {
+    const window: number[] = [];
+    for (let j = Math.max(0, k - half); j <= Math.min(idx.length - 1, k + half); j++) window.push(next[idx[j]].ele as number);
+    window.sort((a, b) => a - b);
+    out[idx[k]] = { ...next[idx[k]], ele: window[Math.floor(window.length / 2)] };
+  }
+  return out;
 }

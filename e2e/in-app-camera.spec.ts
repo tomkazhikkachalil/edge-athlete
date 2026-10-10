@@ -46,3 +46,59 @@ test('the in-app camera attaches a photo and a recorded clip as tiles @mobile', 
   await expect(dialog2).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(2, { timeout: 10_000 });
 });
+
+// Maintenance pass (Oct 10 2026): the camera never stays on behind the app.
+// Going to the background ends every track (the device's indicator turns
+// off) and coming back starts the preview again; Cancel mid-recording
+// delivers nothing.
+test('the in-app camera lets go of the camera when hidden, and a cancel delivers nothing @mobile', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit has no fake camera device; the path is proved on Chromium');
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+    const w = window as unknown as { __streams: MediaStream[] };
+    w.__streams = [];
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async c => {
+      const s = await original(c);
+      w.__streams.push(s);
+      return s;
+    };
+  });
+  const setVisibility = (state: 'hidden' | 'visible') =>
+    page.evaluate(s => {
+      Object.defineProperty(document, 'visibilityState', { get: () => s, configurable: true });
+      Object.defineProperty(document, 'hidden', { get: () => s === 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+  const liveTracks = () =>
+    page.evaluate(() => (window as unknown as { __streams: MediaStream[] }).__streams.flatMap(s => s.getTracks()).filter(t => t.readyState === 'live').length);
+
+  await page.goto('/feed');
+  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: 'Camera not working? Use the in-app camera' }).click();
+  const dialog = page.getByRole('dialog', { name: 'In-app camera' });
+  const video = page.getByTestId('in-app-camera-video');
+  await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+  expect(await liveTracks()).toBeGreaterThan(0);
+
+  await setVisibility('hidden');
+  await expect.poll(liveTracks, { timeout: 5_000 }).toBe(0);
+  await setVisibility('visible');
+  await expect.poll(liveTracks, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+
+  // Record, then Cancel: no tile, and the camera is off.
+  await dialog.getByRole('button', { name: 'Video' }).click();
+  await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+  const start = dialog.getByRole('button', { name: 'Start recording' });
+  await expect(start).toBeEnabled({ timeout: 10_000 });
+  await start.click();
+  await expect(dialog.getByText(/● \d+s/)).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(1500);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(0);
+  await expect.poll(liveTracks, { timeout: 5_000 }).toBe(0);
+});

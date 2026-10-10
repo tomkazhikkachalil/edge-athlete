@@ -200,6 +200,9 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
     resumedRef.current = true;
     const store = stash();
     let cancelled = false;
+    // Clips older than the stash's 48 h (abandoned workouts) are dropped
+    // across every session — the stash never grows without bound.
+    void store?.sweepExpired().catch(() => {});
     (async () => {
       const { getExercises: read, commit: write } = latest.current;
       let lost = 0;

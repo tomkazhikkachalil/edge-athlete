@@ -18,7 +18,7 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '../catalog';
 import { cumulativeDistances, estimateSteps, haversineM, PAUSE_GAP_S } from '../normalize';
 import { normalizeSegments, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '../segments';
 import { toWire } from '../wire';
-import { liveRoute } from '../gps-filter';
+import { liveRouteGrowing } from '../gps-filter';
 import type { ActivityPoint } from '../types';
 import type { WireActivity } from '../wire';
 
@@ -281,39 +281,55 @@ export interface LiveTotals {
   gpsSettling: boolean;
 }
 
+const sumsByRoute = new WeakMap<readonly ActivityPoint[], { movingSpeed: number; distanceM: number; movingS: number; gain: number | null }>();
+
+function routeSums(pts: readonly ActivityPoint[], movingSpeed: number): { distanceM: number; movingS: number; gain: number | null } {
+  const hit = sumsByRoute.get(pts);
+  if (hit && hit.movingSpeed === movingSpeed) return hit;
+  const d = cumulativeDistances(pts);
+  const distanceM = d[d.length - 1];
+  let movingS = 0;
+  let gain: number | null = null;
+  let anchor: number | null = null;
+  for (let i = 1; i < pts.length; i++) {
+    const dt = (pts[i].t - pts[i - 1].t) / 1000;
+    if (dt <= 0 || dt > PAUSE_GAP_S) continue;
+    const speed = (d[i] - d[i - 1]) / dt;
+    if (speed >= movingSpeed) movingS += dt;
+  }
+  for (const p of pts) {
+    if (typeof p.ele !== 'number') continue;
+    if (anchor === null) {
+      anchor = p.ele;
+      gain = 0;
+      continue;
+    }
+    const delta = p.ele - anchor;
+    if (delta >= 3) {
+      gain = (gain ?? 0) + delta;
+      anchor = p.ele;
+    } else if (delta <= -3) anchor = p.ele;
+  }
+  const sums = { movingSpeed, distanceM, movingS, gain };
+  sumsByRoute.set(pts, sums);
+  return sums;
+}
+
 /** What the screen shows while recording. The server recomputes every one. */
 export function liveTotals(state: RecordingState, now: number, heightCm: number | null | undefined): LiveTotals {
   const elapsed = elapsedS(state, now);
   const def = ACTIVITY_TYPE_DEFS[state.type];
   // The FILTERED route (gps-filter.ts) — the same fold the server stores, so
   // the distance on the screen is the distance saved.
-  const pts = liveRoute(state.points, state.type);
+  // The screen calls this every clock second; the route and its sums only
+  // change when a fix arrives (liveRouteGrowing answers the same array for
+  // the same points, and the sums are kept per route).
+  const pts = liveRouteGrowing(state.points, state.type);
   let distanceM = 0;
   let movingS = 0;
   let gain: number | null = null;
   if (pts.length >= 2) {
-    const d = cumulativeDistances(pts);
-    distanceM = d[d.length - 1];
-    let anchor: number | null = null;
-    for (let i = 1; i < pts.length; i++) {
-      const dt = (pts[i].t - pts[i - 1].t) / 1000;
-      if (dt <= 0 || dt > PAUSE_GAP_S) continue;
-      const speed = (d[i] - d[i - 1]) / dt;
-      if (speed >= def.movingSpeed) movingS += dt;
-    }
-    for (const p of pts) {
-      if (typeof p.ele !== 'number') continue;
-      if (anchor === null) {
-        anchor = p.ele;
-        gain = 0;
-        continue;
-      }
-      const delta = p.ele - anchor;
-      if (delta >= 3) {
-        gain = (gain ?? 0) + delta;
-        anchor = p.ele;
-      } else if (delta <= -3) anchor = p.ele;
-    }
+    ({ distanceM, movingS, gain } = routeSums(pts, def.movingSpeed));
   } else if (state.manualDistanceM !== null) {
     distanceM = state.manualDistanceM;
     movingS = elapsed;
