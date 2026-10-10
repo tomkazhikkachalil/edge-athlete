@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/lib/notifications';
 import type { Conversation, Message } from '@/types/messages';
+import { shouldPoll } from '@/lib/net/online';
 
 interface MessagesContextType {
   conversations: Conversation[];
@@ -259,20 +260,24 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       // the net under a dropped socket, and at 30 s it was two function
       // calls per user per half-minute on every page.
       pollTimerRef.current = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
+        if (!shouldPoll()) return;
         const pollController = new AbortController();
         fetchConversations(pollController.signal);
         refreshUnreadCount(pollController.signal);
       }, 120_000);
 
       const onVisible = () => {
-        if (document.hidden) return;
+        if (!shouldPoll()) return;
         const c = new AbortController();
         fetchConversations(c.signal);
         refreshUnreadCount(c.signal);
       };
       document.addEventListener('visibilitychange', onVisible);
-      visibilityCleanupRef.current = () => document.removeEventListener('visibilitychange', onVisible);
+      window.addEventListener('online', onVisible);
+      visibilityCleanupRef.current = () => {
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('online', onVisible);
+      };
     } else {
       // Clear state on logout
       fetchAbortRef.current?.abort();

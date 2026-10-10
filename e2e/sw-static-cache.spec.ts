@@ -31,8 +31,14 @@ test('the worker caches hashed files and the app still talks @mobile', async ({ 
         }),
       { timeout: 30_000 }
     )
-    .toMatch(/\/sw\.js\?static=1$/);
+    .toMatch(/\/sw\.js\?static=1&v=[A-Za-z0-9_-]+$/);
 
+  // Activated before the reload: install waits for the offline page's
+  // precache (Oct 10 2026), and a reload that lands mid-install is a page
+  // the worker never saw — controlled only from its next navigation.
+  await expect
+    .poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration('/'))?.active?.state ?? null), { timeout: 30_000 })
+    .toBe('activated');
   await page.reload();
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30_000 });
 
@@ -46,8 +52,10 @@ test('the worker caches hashed files and the app still talks @mobile', async ({ 
     // build and a deployment; the cache rule is the prefix, not the folder).
     const entry = performance.getEntriesByType('resource').find(e => e.name.includes('/_next/static/') && e.name.endsWith('.js'));
     if (!entry) return null;
-    const cache = await caches.open('ea-static-v1');
-    const hit = await cache.match(entry.name);
+    // The cache carries the build's name (one per deploy).
+    const names = (await caches.keys()).filter(n => n.startsWith('ea-static-'));
+    if (names.length !== 1) return { url: entry.name, cached: false };
+    const hit = await (await caches.open(names[0])).match(entry.name);
     return { url: entry.name, cached: !!hit };
   });
   expect(served, 'a chunk the page loaded').not.toBeNull();

@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // The build id the service worker's URL carries (src/lib/sw/static-cache.ts):
+  // the deploy's commit on Vercel, 'local' elsewhere.
+  env: {
+    NEXT_PUBLIC_BUILD_ID: (process.env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 12),
+  },
   // Image optimization configuration
   images: {
     // Allow images from Supabase Storage and common image sources

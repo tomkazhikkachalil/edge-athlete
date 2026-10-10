@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { shouldPoll } from '@/lib/net/online';
 
 /**
  * Is anything actually live right now?
@@ -34,20 +35,24 @@ let sharedTimer: ReturnType<typeof setInterval> | null = null;
 function startSharedTimer() {
   if (sharedTimer) return;
   sharedTimer = setInterval(() => {
-    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    if (!shouldPoll()) return;
     fetchLiveCount();
   }, REFRESH_MS);
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+  if (typeof document !== 'undefined') window.addEventListener('online', onVisible);
 }
 function stopSharedTimerIfUnused() {
   if (subscribers.size > 0 || !sharedTimer) return;
   clearInterval(sharedTimer);
   sharedTimer = null;
-  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onVisible);
+  }
 }
 /** Back to the tab after a while: one catch-up fetch, only when the cache is stale. */
 function onVisible() {
-  if (document.visibilityState === 'visible' && Date.now() - cachedAt > STALE_MS) fetchLiveCount();
+  if (shouldPoll() && Date.now() - cachedAt > STALE_MS) fetchLiveCount();
 }
 
 async function fetchLiveCount(): Promise<number> {

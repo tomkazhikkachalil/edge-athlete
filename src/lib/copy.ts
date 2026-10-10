@@ -343,6 +343,11 @@ export const COPY = {
   // no store. One platform rule decides which steps a device is shown
   // (src/lib/install/platform.ts); the limits named here are Apple's and
   // Google's, said plainly.
+  // The offline banner (maintenance pass, Oct 10 2026).
+  NETWORK: {
+    OFFLINE: "You're offline. What you record or write is saved on this device and sends when you're back.",
+    BACK_ONLINE: 'Back online',
+  },
   INSTALL: {
     MENU: 'Get the app',
     CTA: 'Download the app',

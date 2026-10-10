@@ -14,6 +14,7 @@ import type { EventApi } from '@/lib/sport-events/client';
 import type { EventMediaView } from '@/lib/sport-events/media';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import { shouldPoll } from '@/lib/net/online';
 
 interface Props {
   view: SportEventViewPayload;
@@ -55,10 +56,11 @@ export default function EventGalleryTab({ view, api, version }: Props) {
     const run = () => { if (!cancelled) void load(); };
     run();
     if (!live) return () => { cancelled = true; };
-    const t = window.setInterval(() => { if (document.visibilityState === 'visible') run(); }, LIVE_POLL_MS); // hidden tabs do not poll (Round 3)
-    const onVisible = () => { if (document.visibilityState === 'visible') run(); };
+    const t = window.setInterval(() => { if (shouldPoll()) run(); }, LIVE_POLL_MS); // hidden tabs do not poll (Round 3)
+    const onVisible = () => { if (shouldPoll()) run(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+    window.addEventListener('online', onVisible);
+    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); };
   }, [load, live, version, user?.id]);
 
   const onFiles = async (list: FileList) => {

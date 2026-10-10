@@ -29,14 +29,29 @@ export const STATIC_CACHE_QUERY = 'static=1';
 // bundle (`env.X` through a parameter is never replaced — the first cut did
 // that and the registrar read `undefined` in every browser).
 const FLAG = process.env.NEXT_PUBLIC_SW_STATIC_CACHE;
+// The build this bundle belongs to (next.config.ts inlines it from the deploy's
+// commit). It is part of the worker's URL, so each deploy installs a new
+// worker and drops the previous deploy's cached assets (public/sw.js).
+const BUILD = process.env.NEXT_PUBLIC_BUILD_ID;
+
+/** A cache-safe build tag: letters, digits, `-` and `_`, at most 40. */
+export function buildTag(value: string | undefined = BUILD): string {
+  const clean = (value ?? '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  return clean || 'v1';
+}
 
 export function staticCacheEnabled(value: string | undefined = FLAG): boolean {
   return value === '1';
 }
 
 /** The ONE service-worker URL for this deployment — every registration uses it. */
-export function swUrl(enabled: boolean): string {
-  return enabled ? `/sw.js?${STATIC_CACHE_QUERY}` : '/sw.js';
+export function swUrl(enabled: boolean, build: string = buildTag()): string {
+  return enabled ? `/sw.js?${STATIC_CACHE_QUERY}&v=${buildTag(build)}` : '/sw.js';
+}
+
+/** The worker's cache for a build (public/sw.js names it the same way). */
+export function staticCacheName(build: string = buildTag()): string {
+  return `ea-static-${buildTag(build)}`;
 }
 
 /** The only requests the worker may answer from its cache. */

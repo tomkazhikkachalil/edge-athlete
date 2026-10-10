@@ -407,7 +407,10 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (public folder)
+     * - offline.html (the service worker's static offline page — precached
+     *   at install whatever the session, so neither the launch gate's
+     *   redirect nor a per-request CSP nonce may touch it; it holds no data)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|offline\\.html$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

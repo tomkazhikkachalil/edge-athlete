@@ -27,6 +27,7 @@ import PushCard from '@/components/push/PushCard';
 const NEW_POSTS_POLL_MS = 60_000;
 const NEW_POSTS_MIN_GAP_MS = 20_000;
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
+import { shouldPoll } from '@/lib/net/online';
 
 /** A stable no-op for PostCard's unused onComment (the card is memo'd). */
 const noop = () => {};
@@ -197,7 +198,7 @@ export default function FeedPage() {
     let cancelled = false;
     let lastPollAt = 0;
     const poll = async () => {
-      if (cancelled || document.visibilityState !== 'visible') return;
+      if (cancelled || !shouldPoll()) return;
       if (feedScopeRef.current === 'orgs') return;
       const top = postsRef.current[0];
       if (!top) return; // an empty feed reloads through loadFeed
@@ -221,13 +222,14 @@ export default function FeedPage() {
     };
     const timer = setInterval(poll, NEW_POSTS_POLL_MS);
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastPollAt > NEW_POSTS_MIN_GAP_MS) void poll();
+      if (shouldPoll() && Date.now() - lastPollAt > NEW_POSTS_MIN_GAP_MS) void poll();
     };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
     return () => {
       cancelled = true;
       clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
     };
   }, [user, showSuccess]);
 

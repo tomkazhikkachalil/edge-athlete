@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { isRoundLive, shouldShowStaleNotice } from '@/lib/golf/round-status';
 import { classifyScoreEvent } from '@/lib/golf/round-access';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import { shouldPoll } from '@/lib/net/online';
 
 // ── useSharedRound ────────────────────────────────────────────────────────────
 // The single source of truth for a shared golf round's live state, and the seam
@@ -211,7 +212,7 @@ export function useSharedRound({
     // …but never from a hidden tab (Round 3): the visibility effect below
     // refreshes once on return, which is what a backgrounded viewer needs.
     const interval = setInterval(
-      () => { if (document.visibilityState === 'visible') refresh(); },
+      () => { if (shouldPoll()) refresh(); },
       connectionState === 'live' ? POLL_LIVE_MS : POLL_FALLBACK_MS
     );
     return () => clearInterval(interval);
@@ -223,10 +224,14 @@ export function useSharedRound({
   useEffect(() => {
     if (!enabled) return;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (shouldPoll()) refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
+    };
   }, [enabled, refresh]);
 
   // Minute tick: re-render so isRoundLive re-evaluates

@@ -12,6 +12,7 @@ import { offersBracket, type RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import BracketView from './BracketView';
 import RoundSwitcher from './RoundSwitcher';
+import { shouldPoll } from '@/lib/net/online';
 
 interface Props {
   view: SportEventViewPayload;
@@ -62,10 +63,11 @@ export default function EventMatchesTab({ view, api, version, selected, onSelect
     };
     void load();
     // Hidden tabs do not poll; a return to the tab loads once (Round 3).
-    const tick = live ? window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000) : null;
-    const onVisible = () => { if (live && document.visibilityState === 'visible') void load(); };
+    const tick = live ? window.setInterval(() => { if (shouldPoll()) void load(); }, 15_000) : null;
+    const onVisible = () => { if (live && shouldPoll()) void load(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; if (tick !== null) window.clearInterval(tick); document.removeEventListener('visibilitychange', onVisible); };
+    window.addEventListener('online', onVisible);
+    return () => { cancelled = true; if (tick !== null) window.clearInterval(tick); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); };
   }, [api, bracket, roundId, version, live]);
 
   const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} includeBracket={offersBracket('matches', view.rounds, !!event.match?.bracket)} label="Matches round" />;

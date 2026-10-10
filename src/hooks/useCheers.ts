@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cheerEmoji, emptyTotals, freshEvents, type CheerFeed, type CheerKey } from '@/lib/play/cheers';
+import { shouldPoll } from '@/lib/net/online';
 
 const POLL_MS = 10_000;
 /** A round that is not live (finished, not started) is read once a minute —
@@ -75,15 +76,16 @@ export function useCheers(contextKey: string, enabled = true) {
     const load = () => { if (!cancelled) void poll(); };
     load();
     const tick = () => {
-      if (document.visibilityState !== 'visible') return;
+      if (!shouldPoll()) return;
       // Not live: the quiet cadence (a finished round left open polled 6×/min forever).
       if (liveRef.current === false && Date.now() - lastPoll.current < QUIET_POLL_MS) return;
       load();
     };
     const t = window.setInterval(tick, POLL_MS);
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    const onVisible = () => { if (shouldPoll()) load(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+    window.addEventListener('online', onVisible);
+    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); };
   }, [poll, enabled]);
 
   const send = useCallback(async (cheer: CheerKey): Promise<SendOutcome> => {

@@ -1,5 +1,40 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 3: offline (Tom's rules)
+
+Tom's section 7, verbatim in intent:
+- keep the caching (hashed JS/CSS only; never pages, API answers or user data);
+- old asset versions go after each deploy;
+- ONE precached static offline page with Retry and no user data;
+- a banner when the connection drops, with requests paused until it returns;
+- in-progress workouts, drafts and captured media kept on the device until they upload.
+
+- **A worker per build.**
+  - The registration URL is `/sw.js?static=1&v=<build>`. `next.config.ts` inlines `NEXT_PUBLIC_BUILD_ID` from `VERCEL_GIT_COMMIT_SHA`, and `static-cache.ts buildTag/swUrl/staticCacheName` are pure and tested.
+  - A deploy therefore installs a fresh worker whose cache is `ea-static-<build>`, and activate deletes every other cache. Before this, the fixed `ea-static-v1` let old chunks leave only through the 400-entry trim.
+  - A tab still on the old build that misses a chunk is caught by the existing version-skew reload.
+- **The offline page.**
+  - `public/offline.html` is static, light and dark by `prefers-color-scheme`, with the mark inlined as a data URI so it needs no network. It has a "Try again" button and reloads by itself on `online`.
+  - It is precached at install; a precache failure never blocks the install.
+  - Only a NAVIGATION that fails reaches it. A navigation is otherwise the network, using navigation preload where the browser has it.
+  - The middleware matcher skips `offline.html`, because the launch gate would redirect a signed-out install's precache and a per-request nonce would block its inline script.
+  - Pinned: exactly one `cache.put` (the static asset), and the navigation branch never puts.
+- **The banner and the pause.**
+  - `net/online.ts` is the one store (`navigator.onLine` plus `online`/`offline` through `useSyncExternalStore`; the server reads online). `shouldPoll()` = visible AND online.
+  - The eleven pollers (feed, LiveNowStrip, live-now, round stats, shared round, cheers, event gallery and matches, transfer, notifications, messages) tick only on `shouldPoll()` and catch up on `online` as they do on return. The outboxes already waited for the connection.
+  - `OfflineBanner` is mounted once in the `(app)` root, above the tab bar and the dock lane, with `role="status"`; it shows "Back online" for 2.5 s.
+- **Captured media kept.**
+  - The composer's attachments go to the existing IndexedDB stash (`workouts/media-stash.ts`, session `composer`: ArrayBuffers, never Blobs, 48 h, swept) 600 ms after the tile appears (Capture v2 holds), within a 250 MB cap.
+  - The crash draft counts them (`mediaCount`), so a media-only post is offered back too. Restore re-attaches them as they were attached; edit recipes are not kept.
+  - Dismiss, a successful post and a confirmed discard clear them. Only what THIS session stashed is ever removed by the sync, so a reload never wipes what the offer is about to restore.
+  - Workouts and the recorder already kept theirs (PR 1–4 of the workout capture round, Live Activities).
+- **Manifest:** a 192 px maskable icon beside the 512.
+
+e2e:
+- `offline.spec` (`@mobile`): the banner's three states; the precache holding only `/offline.html` plus `/_next/static/*`; an offline navigation showing the page, Try again staying, reconnecting reloading; the photo restored after a reload, and Dismiss clearing it.
+- `sw-static-cache.spec` waits for `activated` before its reload: install now waits for the precache, and a reload mid-install is a page the worker never saw.
+- `helpers/deploy.ts` reads a CLI preview's empty commit as none.
+
 ## October 10, 2026 — Maintenance pass, PR 2: device impact (CPU, camera, storage)
 
 A read-only sweep of what the web app does to a phone found the leaks below. Everything else held: polls pause when hidden, Leaflet maps are removed on unmount, observers disconnect, `clearWatch` and the wake-lock release are where they belong, and the service worker's cache is capped.
