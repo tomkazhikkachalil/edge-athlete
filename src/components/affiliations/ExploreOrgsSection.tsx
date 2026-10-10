@@ -202,10 +202,10 @@ export default function ExploreOrgsSection({ sportKey }: ExploreOrgsSectionProps
       )}
 
       <div className="mt-4 pt-3 border-t border-border-subtle flex flex-wrap gap-3">
-        <Link href="/league/start" className="text-sm text-brand-fg hover:text-brand-fg-strong">
+        <Link href="/league/start" className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:text-brand-fg-strong">
           Start a league →
         </Link>
-        <Link href="/club/start" className="text-sm text-brand-fg hover:text-brand-fg-strong">
+        <Link href="/club/start" className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:text-brand-fg-strong">
           Start a club →
         </Link>
       </div>

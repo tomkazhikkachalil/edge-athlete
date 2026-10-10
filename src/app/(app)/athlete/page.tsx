@@ -705,17 +705,17 @@ export default function AthleteProfilePage() {
             <LazyImage
               src={profile?.avatar_url}
               alt={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
-              className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white shadow-lg"
+              className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white dark:border-surface shadow-lg"
               width={192}
               height={192}
               priority
               fallback={
                 <div
-                  className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-4 border-white shadow-lg"
+                  className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center border-4 border-white dark:border-surface shadow-lg"
                   role="img"
                   aria-label={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
                 >
-                  <span className="text-tertiary font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
+                  <span className="text-white font-bold text-4xl sm:text-5xl" aria-hidden="true">
                     {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
                   </span>
                 </div>
@@ -901,7 +901,7 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('followers');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-tertiary hover:text-brand-fg transition-colors"
+                      className="flex items-center gap-1 min-h-[44px] -my-3 text-tertiary hover:text-brand-fg transition-colors"
                     >
                       <span className="font-semibold text-primary">{followersCount}</span>
                       <span>Fans</span>
@@ -911,7 +911,7 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('following');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-tertiary hover:text-brand-fg transition-colors"
+                      className="flex items-center gap-1 min-h-[44px] -my-3 text-tertiary hover:text-brand-fg transition-colors"
                     >
                       <span className="font-semibold text-primary">{followingCount}</span>
                       <span>Following</span>

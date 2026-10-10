@@ -1230,7 +1230,7 @@ export default function CreatePostModal({
               </label>
               <button
                 onClick={() => setShowHashtagSuggestions(!showHashtagSuggestions)}
-                className="text-sm text-brand-fg hover:text-brand-fg-strong"
+                className="relative after:absolute after:content-[''] after:-inset-y-3 after:-inset-x-1 text-sm text-brand-fg hover:text-brand-fg-strong"
               >
                 {showHashtagSuggestions ? 'Hide' : 'Show'} suggestions
               </button>

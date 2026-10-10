@@ -35,7 +35,7 @@ export default function AccountAudienceLine({ accountVisibility, legacyFansOnly,
         {!hideChange && !legacyFansOnly && (
           <>
             {' '}
-            <Link href={PRIVACY_SETTINGS_HREF} className="font-semibold text-brand-fg hover:underline">
+            <Link href={PRIVACY_SETTINGS_HREF} className="relative after:absolute after:content-[''] after:-inset-y-3 after:-inset-x-1 font-semibold text-brand-fg hover:underline">
               {COPY.AUDIENCE.CHANGE}
             </Link>
           </>
