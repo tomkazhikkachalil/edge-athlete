@@ -9,7 +9,7 @@ test('the in-app camera attaches a photo and a recorded clip as tiles @mobile', 
   test.setTimeout(120_000);
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
 
   // Touch-only affordance: the mobile project's device has maxTouchPoints > 1
@@ -18,7 +18,7 @@ test('the in-app camera attaches a photo and a recorded clip as tiles @mobile', 
     Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
   });
   await page.reload();
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await page.getByRole('button', { name: 'Camera not working? Use the in-app camera' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'In-app camera' });
@@ -75,7 +75,7 @@ test('the in-app camera lets go of the camera when hidden, and a cancel delivers
     page.evaluate(() => (window as unknown as { __streams: MediaStream[] }).__streams.flatMap(s => s.getTracks()).filter(t => t.readyState === 'live').length);
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await page.getByRole('button', { name: 'Camera not working? Use the in-app camera' }).click();
   const dialog = page.getByRole('dialog', { name: 'In-app camera' });
   const video = page.getByTestId('in-app-camera-video');

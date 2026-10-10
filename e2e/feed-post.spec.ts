@@ -13,7 +13,7 @@ test('create a text post from the feed composer and see it render', { tag: '@smo
   // so match on the stable prefix. (Locator trap on this app: the nav drawer
   // is ALWAYS mounted off-canvas, so loose role locators can resolve to
   // hidden drawer copies; keep names anchored and specific.)
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
 
   const composer = page.getByPlaceholder('Share your thoughts...');
   await expect(composer).toBeVisible();

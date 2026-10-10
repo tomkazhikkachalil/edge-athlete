@@ -27,7 +27,7 @@ test('a HEIC photo opens in the editor and attaches; the decoder is fetched only
   test.setTimeout(150_000);
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   const atStart = await bigChunks(page);
 

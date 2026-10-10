@@ -11,7 +11,7 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   const composer = page.getByPlaceholder('Share your thoughts...');
   await expect(composer).toBeVisible();
 
@@ -372,7 +372,7 @@ test('look tools: copy a look across a multi-photo session', async ({ page }) =>
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles([fixture, fixture]);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
@@ -441,7 +441,7 @@ test('video editor: clips/crop/cover tools, frame step, split within the asset',
     return Array.from(new Uint8Array(await blob.arrayBuffer()));
   });
 
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page
     .locator('input[type="file"][multiple]')

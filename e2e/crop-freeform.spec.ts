@@ -41,7 +41,7 @@ async function drag(page: Page, handle: string, fx: number, fy: number): Promise
 
 async function openEditor(page: Page): Promise<void> {
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles(FIXTURE);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
@@ -266,7 +266,7 @@ async function videoCrop(page: Page): Promise<void> {
     return { data: Array.from(new Uint8Array(await blob.arrayBuffer())), mime };
   });
 
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles({
     name: clip.mime === 'video/webm' ? 'clip.webm' : 'clip.mp4',

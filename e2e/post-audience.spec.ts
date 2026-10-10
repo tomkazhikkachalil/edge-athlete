@@ -8,7 +8,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 
 async function openComposer(page: Page) {
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible({ timeout: 20_000 });
 }
 

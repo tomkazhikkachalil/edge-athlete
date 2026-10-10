@@ -8,7 +8,7 @@ test('log an already-played round and see the scorecard post', { tag: '@smoke' }
   const courseName = `QA Smoke Course ${Date.now()}`;
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
 
   // Post Type → sport selector → Golf. The selector is a z-[60] overlay ON
   // TOP of the composer, so an unscoped /golf/i can resolve to a covered
@@ -71,7 +71,7 @@ test('log an already-played round and see the scorecard post', { tag: '@smoke' }
 // front — and, critically, seeding it must NOT count as unsaved work.
 test('shared golf round: the creator is on the scorecard before any partner', async ({ page }) => {
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await page.getByRole('button', { name: /general post/i }).click();
   const sportSelector = page.locator('div[class*="z-[60]"]');
   await sportSelector.getByPlaceholder('Search sports...').fill('golf');
@@ -100,7 +100,7 @@ test('shared golf round: the creator is on the scorecard before any partner', as
 test('@mobile Quick entry opens the stepper and writes back to the grid', { tag: '@smoke' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await page.getByRole('button', { name: /general post/i }).click();
   const sportSelector = page.locator('div[class*="z-[60]"]');
   await sportSelector.getByPlaceholder('Search sports...').fill('golf');
