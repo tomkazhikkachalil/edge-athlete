@@ -1,5 +1,13 @@
 # Development Log
 
+## October 9, 2026 — Appearance round, PR 1: runs and rides keep their moving time (a GPS filter fix)
+
+The appearance audit showed a run with "Moving time 0:00" and "Avg pace —" beside splits of 5:33 /km. It is a real bug from the GPS accuracy round (#1128), not the seed: `gps-filter.ts` drew a point only while the filter was **confidently** moving — speed over the type's threshold AND ≥ 1.5 × its own velocity uncertainty — and tested that at EVERY fix. A run's and a ride's velocity uncertainty sits high (process noise 1.0 / 1.5), so at a steady pace the test flickered; each flicker marked a fake stop (the held point redrawn), and the long hops between real points fell past the 30 s pause rule. **Measured on the real filter** (600 s straight tracks, 3 seeds, phone-reported accuracy 1.5 × the noise): a 3 m/s run counted **8–60 %** of its time as moving, rides under 6 m/s as low as 3 %, a 1 m/s walk at 6–10 m noise 10–21 %. Distance stayed right (≤ 2 % error) — only moving time and pace were wrong, on the phone (`liveTotals`) and on the server alike.
+
+**The fix — hysteresis:** confidence is needed to START moving from a stop (so standing still still draws nothing); once moving, a stop is the filtered speed falling under **half** the type's moving speed (`STOP_SPEED_K`). Tried and rejected by the same simulation: capping the confidence term (standing still drifted ~50 m), lower process noise for runs (the filter stopped tracking at all), drawing points by displacement or on a timer (zigzag distance, up to 11 % off). Result: every run and ride case **86–99 %** moving, standing still **0 m** at 6–15 m noise for every profile, distance unchanged; the one slow case left (a 1 m/s walk at 15 m accuracy) was as low before.
+
+- **Proof:** three unit tests that FAIL on the old filter (a steady run or ride at real accuracies ≥ 90 % moving and ≤ 3 % distance error; a run with a two-minute stop keeps the stop out; run / ride profiles standing still add 0 m); the 160 existing activity tests pass unchanged (the accuracy sweeps, standing still, walk-stand-walk). e2e: `activities-record` gains a 2.8 m/s jog at 12 m accuracy through the real recorder — moving time > half the elapsed time and a pace on the page (it saved ~0 before) — green on phone Chromium and Android; the other recorder and activity specs green.
+
 ## October 9, 2026 — Production log sweep: two noisy logs made honest
 
 Tom asked for a sweep of production's errors (Vercel runtime logs: 500s back to Oct 4, error-level lines for Oct 9 — the retention). Nothing user-facing is open:

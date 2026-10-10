@@ -12,7 +12,7 @@ const PHONE = { width: 390, height: 844 };
 const LAT0 = 43.65;
 const LNG0 = -79.38;
 
-async function recorderContext(browser: Browser, opts: { mode: 'run' | 'timeout' | 'denied' | 'jitter' }): Promise<BrowserContext> {
+async function recorderContext(browser: Browser, opts: { mode: 'run' | 'jog' | 'timeout' | 'denied' | 'jitter' }): Promise<BrowserContext> {
   const ctx = await browser.newContext({
     storageState: 'e2e/.auth/state.json',
     viewport: PHONE,
@@ -57,6 +57,20 @@ async function recorderContext(browser: Browser, opts: { mode: 'run' | 'timeout'
                 heading: null,
                 speed: null,
               },
+              timestamp: Date.now(),
+            } as GeolocationPosition);
+          }, 500);
+          return id;
+        }
+        if (mode === 'jog') {
+          // 1.4 m every 500 ms north at 12 m accuracy: a 2.8 m/s (6:00/km) jog —
+          // under the speed the old "confidently moving" test needed at that
+          // accuracy, so it saved "Moving time 0:00" (Oct 9 2026).
+          const id = window.setInterval(() => {
+            n += 1;
+            sessionStorage.setItem(key, String(n));
+            success({
+              coords: { latitude: lat0 + (n * 1.4) / 111_195, longitude: lng0, accuracy: 12, altitude: 100, altitudeAccuracy: null, heading: null, speed: 2.8 },
               timestamp: Date.now(),
             } as GeolocationPosition);
           }, 500);
@@ -326,5 +340,36 @@ test('Finish is a review: Post it by default posts the run; Only me keeps it in 
     await ctx.close();
     await cleanup();
     await admin.from('profiles').update({ visibility: before?.visibility ?? 'private' }).eq('id', user.id);
+  }
+});
+
+test('a steady 6:00/km jog saves its moving time and pace @mobile', async ({ browser, browserName }) => {
+  test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
+  test.setTimeout(150_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  const ctx = await recorderContext(browser, { mode: 'jog' });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="run"]').click({ timeout: 20_000 });
+    await page.locator('[data-record-start]').click();
+    await expect.poll(async () => Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance')), { timeout: 45_000 }).toBeGreaterThan(80);
+    await page.waitForTimeout(20_000);
+    await page.locator('[data-record-finish]').click();
+    await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const id = page.url().split('/').pop()!;
+    const { data: row } = await admin.from('activities').select('moving_s, elapsed_s, distance_m').eq('id', id).single();
+    expect(Number(row!.distance_m)).toBeGreaterThan(80);
+    expect(row!.moving_s, `moving ${row!.moving_s} s of ${row!.elapsed_s} s`).toBeGreaterThan(0.5 * row!.elapsed_s); // the cold start and the confident first step take the rest of a short recording
+    // The page shows a pace, never "—".
+    await expect(page.getByText(/\d+:\d{2} \/km/).first()).toBeVisible({ timeout: 15_000 });
+  } finally {
+    await ctx.close();
+    await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
   }
 });

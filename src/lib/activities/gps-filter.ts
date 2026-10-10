@@ -55,8 +55,11 @@ export const SPEED_SLACK = 1.5;
 export const MIN_STEP_M = 3;
 /** … and further than this many of its own standard deviations. */
 export const STEP_SD_K = 6;
-/** Moving needs the filtered speed this many of its own standard deviations clear of zero. */
+/** Starting to move needs the filtered speed this many of its own standard deviations clear of zero. */
 export const SPEED_SD_K = 1.5;
+/** Once moving, a stop is the filtered speed falling under this share of the
+ *  type's moving speed — not the confidence test above flickering (Oct 9 2026). */
+export const STOP_SPEED_K = 0.5;
 /** A fix whose normalised innovation (2 axes) passes this is a manoeuvre … */
 export const MANOEUVRE_NIS = 9;
 /** … and the process noise is boosted by this for that step. */
@@ -219,11 +222,19 @@ export function stepFilter(state: FilterState, fix: RawFix): { state: FilterStat
   const posSd = Math.sqrt(Math.max(0, (e.a + n.a) / 2));
   const stepM = Math.max(MIN_STEP_M, STEP_SD_K * posSd);
 
-  // Moving means confidently moving: the filtered speed above the type's
-  // threshold AND clear of its own uncertainty (noise alone gives a
-  // stationary filter a small, uncertain velocity).
+  // Moving, with hysteresis. From a stop, it takes CONFIDENT movement: the
+  // filtered speed above the type's threshold AND clear of its own
+  // uncertainty (noise alone gives a stationary filter a small, uncertain
+  // velocity — so standing still never starts a track). Once moving, it
+  // stays moving until the filtered speed actually drops under half the
+  // threshold. Requiring confidence at every fix let it flicker while a
+  // runner was moving at a steady pace (a run's or a ride's velocity
+  // uncertainty sits high): each flicker drew a fake stop, and a 3 m/s run
+  // at typical accuracy saved 8–15 % of its time as moving — "Moving time
+  // 0:00", "Avg pace —" (the Oct 9 2026 appearance audit found it).
   const velSd = Math.sqrt(Math.max(0, (e.c + n.c) / 2));
-  const moving = speed >= def.movingSpeed && speed >= SPEED_SD_K * velSd;
+  const confident = speed >= def.movingSpeed && speed >= SPEED_SD_K * velSd;
+  const moving = state.still ? confident : speed >= STOP_SPEED_K * def.movingSpeed;
 
   if (moving && state.still) {
     // The restart: a point at the held position, now — the stop ends here.
