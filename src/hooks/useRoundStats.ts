@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EventApi } from '@/lib/sport-events/client';
 import type { RoundStatsPayload } from '@/lib/sport-events/stats-server';
+import { shouldPoll } from '@/lib/net/online';
 
 const LIVE_POLL_MS = 5_000;
 const IDLE_POLL_MS = 30_000;
@@ -37,11 +38,12 @@ export function useRoundStats(api: EventApi, roundId: string | null, live: boole
     load();
     // The 5 s live poll pauses while the tab is hidden (Round 3); the
     // visibilitychange listener below loads once on return.
-    const tick = () => { if (document.visibilityState === 'visible') load(); };
+    const tick = () => { if (shouldPoll()) load(); };
     const t = window.setInterval(tick, live ? LIVE_POLL_MS : IDLE_POLL_MS);
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    const onVisible = () => { if (shouldPoll()) load(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+    window.addEventListener('online', onVisible);
+    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); };
   }, [refresh, roundId, live, enabled]);
 
   return { data, state, refresh };

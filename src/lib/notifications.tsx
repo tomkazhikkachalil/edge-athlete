@@ -11,6 +11,7 @@ import { celebrationFor } from '@/lib/play/celebration';
 import { useToast } from '@/components/Toast';
 import { closeShownNotifications } from '@/lib/push/client';
 import { pushTag } from '@/lib/push/payload';
+import { shouldPoll } from '@/lib/net/online';
 
 /** A return to the foreground re-reads the list at most this often (the
  *  feed's own tab-return gap) — reads done elsewhere (a tap on a phone
@@ -440,14 +441,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (!user || typeof document === 'undefined') return;
     let lastReturn = 0;
     const onVisible = () => {
-      if (document.hidden) return;
+      if (!shouldPoll()) return;
       const now = Date.now();
       if (now - lastReturn < RETURN_MIN_GAP_MS) return;
       lastReturn = now;
       void fetchNotificationsRef.current?.({ reset: true });
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
+    };
   }, [user]);
 
   // Set up real-time subscription for new and updated notifications.

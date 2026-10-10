@@ -16,6 +16,7 @@ import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ReopenPromptHost from '@/components/drafts/ReopenPromptHost';
+import OfflineBanner from '@/components/net/OfflineBanner';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -142,6 +143,8 @@ export default async function RootLayout({
                   bell; this device's subscription stays current. */}
               <PushHost />
               <StaticCacheRegistrar />
+              {/* Offline: a calm banner; pollers pause (net/online.ts). */}
+              <OfflineBanner />
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}
               <ChatDockMount />

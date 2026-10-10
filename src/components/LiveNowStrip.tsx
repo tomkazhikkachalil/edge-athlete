@@ -8,6 +8,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import type { LiveEventCard } from '@/lib/sport-events/live-now';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import { shouldPoll } from '@/lib/net/online';
 
 interface LivePlayer {
   profile_id: string;
@@ -78,14 +79,15 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     // A hidden tab does not poll (Round 3); returning to it catches up — but
     // only when what it shows is older than 30 s (speed round, Oct 2026: a
     // phone switching apps every few seconds refetched both lists each time).
-    const tick = () => { if (document.visibilityState === 'visible') run(); };
+    const tick = () => { if (shouldPoll()) run(); };
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastRun > 30_000) run();
+      if (shouldPoll() && Date.now() - lastRun > 30_000) run();
     };
     const interval = setInterval(tick, REFRESH_MS);
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
     return () => {
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
       cancelled = true;
       clearInterval(interval);
     };

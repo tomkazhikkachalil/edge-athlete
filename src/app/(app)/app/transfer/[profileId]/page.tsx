@@ -7,6 +7,7 @@ import BrandBar from '@/components/BrandBar';
 import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
+import { shouldPoll } from '@/lib/net/online';
 import {
   formatCountdown,
   terminalTransferNotice,
@@ -82,12 +83,13 @@ export default function TransferPage() {
   // and refresh on tab re-focus so "waiting" screens advance on their own.
   useEffect(() => {
     if (!transfer) return;
-    const interval = setInterval(() => { if (!document.hidden) load(); }, 30_000); // hidden tabs do not poll (Round 3)
-    const onVisible = () => { if (!document.hidden) load(); };
+    const interval = setInterval(() => { if (shouldPoll()) load(); }, 30_000); // hidden tabs do not poll (Round 3)
+    const onVisible = () => { if (shouldPoll()) load(); };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
     };
   }, [transfer, load]);
 
