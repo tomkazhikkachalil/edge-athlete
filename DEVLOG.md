@@ -1,5 +1,15 @@
 # Development Log
 
+## October 9, 2026 — Production log sweep: two noisy logs made honest
+
+Tom asked for a sweep of production's errors (Vercel runtime logs: 500s back to Oct 4, error-level lines for Oct 9 — the retention). Nothing user-facing is open:
+- **Fixed already:** 4 × `/api/activities` 500 "mime type application/gzip is not supported" (Oct 4 19:12, one minute) — migration 250, the same day. 1 × workout entries 500 (FK 23503, Oct 9 00:19) — the pre-256 fallback path; 256's `replace_workout_entries` answers 404 `not_found` and is live on both databases.
+- **The afternoon slowdown (20:07–21:25 UTC):** every push-sweep and map-sweep timeout / 500 falls inside it; the 21:25 push failure's body is **Supabase's own HTML error page** (their gateway, not ours). Earlier statement timeouts at 14:31, 15:00 (live-now count, sport settings) and post-view timeouts at 18:43 / 18:51. A support ticket is drafted for Tom.
+
+**Fixed here:**
+- **CSP reports** (`src/lib/csp-report.ts cspViolations`, pure + tested): a Reporting API post is a BATCH that also carries deprecation / intervention reports; the route read only item 0 as a violation, so 32 non-violations a day logged as empty `{"blocked":"","page":"","sample":""}` errors and a real violation later in a batch was never logged. Now every `csp-violation` in a batch is logged (5 per post at most), nothing else.
+- **Mail to reserved addresses** (`src/lib/email-recipients.ts`, pure + tested): a send whose every recipient is `example.com|net|org` or `.test / .example / .invalid / .localhost` (QA accounts, a departed account's `@departed.invalid`) is skipped in `deliver()` with an info line — it used to 550 and log an error (and a Sentry event) on every QA run.
+
 ## October 9, 2026 — Security Advisor round, PR B: migrations 257–258 (on staging and production)
 
 Tom pasted production's Supabase Security Advisor — 31 WARNs — and asked for "a plan to fix everything without breaking anything". The audit first (both live catalogs): the golf RLS helpers were granted to `anon` ON PURPOSE (063, public live rounds read signed out), `has_profile_access` / `is_conversation_participant` likewise for signed-in users — revoking would have broken rounds, realtime, guardians and messages; no app code calls any helper by RPC; one function body (`update_user_handle`) named one; the "trigram users" were `RAISE '%'` placeholders except `search_normalize`, already `search_path = public, extensions`.
