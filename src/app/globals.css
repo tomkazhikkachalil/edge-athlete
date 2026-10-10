@@ -245,6 +245,18 @@ body {
      row of any page clears the bar. The --vvh shells subtract it themselves. */
   padding-bottom: var(--ea-tabbar-h, 0px);
 }
+/* Desktop: the chat dock's pill (44 px, bottom-right) is on screen — its
+   lane is reserved so the end of every page scrolls clear of it. ChatDock
+   sets the attribute only while it renders; the tab bar is 0 at lg:. The
+   full-height --vvh shells subtract --ea-dock-h as they do the tab bar. */
+@media (min-width: 1024px) {
+  html[data-chat-dock] {
+    --ea-dock-h: 3.5rem;
+  }
+  html[data-chat-dock] body {
+    padding-bottom: calc(var(--ea-tabbar-h, 0px) + var(--ea-dock-h));
+  }
+}
 
 /* Selection color — subtle brand polish */
 ::selection {

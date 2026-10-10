@@ -1,5 +1,17 @@
 # Development Log
 
+## October 9, 2026 — Appearance round, PR 2: the shell and the feed
+
+From the appearance audit (H1, M2, M3, L1, L3, L5). No flow changes.
+
+- **H1 — the chat dock's lane.** On desktop the Messages pill sits fixed at the bottom-right and hid the last row of every page (the calendar's "Upcoming" tab, a profile's Fans row at the bottom of the window). ChatDock now sets `html[data-chat-dock]` while it renders; at `lg:` that defines `--ea-dock-h` (3.5 rem) and the body's bottom padding adds it to the tab bar's, so the end of every page scrolls clear; the full-height `--vvh` shells (messages, a live round) subtract it like the tab bar.
+- **M2 — short times.** `src/lib/time/short-ago.ts shortAgo` (pure, tested): Just now · 5m · 3h · 2d · Oct 9 · Oct 9, 2025. PostCard renders it in a `<time dateTime title>` (the full date on hover); "less than a minute ago" used to truncate the sport label beside it on a phone.
+- **M3 — one owner menu.** The owner's Pin / Edit / Hide / Delete live in the "…" menu (`PostOwnerMenu`) at EVERY width; the desktop row of up to four unlabelled icons is retired. A small amber pin marks your own pinned post (the retired pin button was the only marker, and a phone never had one). Specs updated: round-delete, media-reedit, results-hide open "Post options" first.
+- **L1 — suggestions.** Names wrap to two lines instead of "John Kazhi…"; the feed sidebar's compact card shows "Fan" (`FollowButton compactLabel`, the accessible name stays "Become a Fan").
+- **L3 — the composer hint.** "Add a caption or media to post" is a calm hint (info icon, secondary text), not a red error on an untouched composer — it explains the disabled Post.
+- **L5 — no UTC twin on your own training.** `venueTimeLabel` returns nothing for an item carrying `activity` (workouts, training posts — their `'UTC'` only feeds the grid math); a real UTC venue still gets its label (tested).
+- **Proof:** `npm run verify` 0; `short-ago` + `venue-time` unit tests; feed-post, results-hide, round-delete, media-reedit, drafts, likes, post-audience, live-hole-detail green on desktop (12) and phone (8).
+
 ## October 9, 2026 — Appearance round, PR 1: runs and rides keep their moving time (a GPS filter fix)
 
 The appearance audit showed a run with "Moving time 0:00" and "Avg pace —" beside splits of 5:33 /km. It is a real bug from the GPS accuracy round (#1128), not the seed: `gps-filter.ts` drew a point only while the filter was **confidently** moving — speed over the type's threshold AND ≥ 1.5 × its own velocity uncertainty — and tested that at EVERY fix. A run's and a ride's velocity uncertainty sits high (process noise 1.0 / 1.5), so at a steady pace the test flickered; each flicker marked a fake stop (the held point redrawn), and the long hops between real points fell past the 30 s pause rule. **Measured on the real filter** (600 s straight tracks, 3 seeds, phone-reported accuracy 1.5 × the noise): a 3 m/s run counted **8–60 %** of its time as moving, rides under 6 m/s as low as 3 %, a 1 m/s walk at 6–10 m noise 10–21 %. Distance stayed right (≤ 2 % error) — only moving time and pace were wrong, on the phone (`liveTotals`) and on the server alike.

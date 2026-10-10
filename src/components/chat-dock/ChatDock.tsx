@@ -184,6 +184,17 @@ export default function ChatDock() {
     setChatDockHidden(true); // persists + notifies (setHidden via subscribe)
   }, []);
 
+  // Reserve the dock's lane on desktop: while the pill is on screen the page
+  // gets bottom padding (globals.css `html[data-chat-dock]`), so the last
+  // row of any page scrolls clear of it instead of sitting under it.
+  const showing = enabled && !suppressed && !(hidden && !hasWindows);
+  useEffect(() => {
+    if (!showing) return;
+    const root = document.documentElement;
+    root.setAttribute('data-chat-dock', '');
+    return () => root.removeAttribute('data-chat-dock');
+  }, [showing]);
+
   if (!enabled || suppressed) return null;
   if (hidden && !hasWindows) return null;
 
