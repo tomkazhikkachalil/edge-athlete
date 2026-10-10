@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { prepareImage } from '@/lib/media/image-meta';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Extensions derived from the validated MIME type — never from the client
@@ -58,9 +59,15 @@ export async function POST(request: NextRequest) {
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
     
-    // Convert File to ArrayBuffer then to Buffer
+    // Convert File to ArrayBuffer then to Buffer. An image's bytes must BE the
+    // declared image, and its location metadata leaves on the server (image-meta.ts).
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let buffer = Buffer.from(arrayBuffer);
+    if (isImage) {
+      const prepared = prepareImage(new Uint8Array(arrayBuffer), fileType);
+      if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
+      if (prepared.changed) buffer = Buffer.from(prepared.bytes);
+    }
     
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage

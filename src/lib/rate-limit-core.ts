@@ -11,6 +11,11 @@ export interface RateLimitRule {
   keyBy: 'ip' | 'user';
   /** Optional 429 body override (login UIs surface this text). */
   message?: string;
+  /** SHADOW: count and LOG what would be refused, never refuse (maintenance
+   *  pass, Oct 10 2026 — Tom: "log hits before blocking anyone"). A shadow
+   *  bucket becomes a real one only after its logs show real traffic sits
+   *  well under it. */
+  shadow?: boolean;
 }
 
 const ATTEMPTS_MESSAGE = 'Too many attempts. Please wait a few minutes.';
@@ -224,6 +229,11 @@ export const RATE_LIMITS = {
   // re-subscribes on every app start when its endpoint rotated; 30/h is
   // several devices' worth of normal use.
   'push-subscribe': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Every authenticated WRITE (POST/PUT/PATCH/DELETE through requireAuth),
+  // per account, in SHADOW — logged, never refused (maintenance pass, Oct 10
+  // 2026). Generous on purpose: two writes a second for a whole minute is
+  // far beyond a person; the log says whether anyone real comes near it.
+  'write-general': { max: 120, windowSeconds: 60, keyBy: 'user', shadow: true },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

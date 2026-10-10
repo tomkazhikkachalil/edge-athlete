@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import { isScoutAccount } from '@/lib/recruiting/scout-access';
+import { isScoutAccount } from '@/lib/recruiting/scout-account';
 import ScoutSearch from '@/components/recruiting/ScoutSearch';
 
 // ── /app/scout/search — "Find athletes" (Recruiting skeleton R4) ──────────

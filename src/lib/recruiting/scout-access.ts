@@ -6,22 +6,9 @@
 
 import type { NextRequest } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
-import { isStubEmail } from '@/lib/config/stubs-config';
+import { isScoutAccount, type ScoutCandidate } from './scout-account';
 
-export interface ScoutCandidate {
-  user_type: string | null | undefined;
-  supervision_state?: string | null;
-  email?: string | null;
-}
-
-/** PURE: a scout account is a claimed, unsupervised profile of type 'scout'. */
-export function isScoutAccount(p: ScoutCandidate | null | undefined): boolean {
-  if (!p) return false;
-  if (p.user_type !== 'scout') return false;
-  if (p.supervision_state === 'supervised') return false;
-  if (isStubEmail(p.email)) return false;
-  return true;
-}
+export { isScoutAccount, type ScoutCandidate };
 
 /** The route gate: a session whose profile is a scout account, else a
  *  thrown 403 in the requireAuth style (401 rides through from requireAuth). */

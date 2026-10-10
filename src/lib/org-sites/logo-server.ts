@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
+import { prepareImage } from '@/lib/media/image-meta';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -57,6 +58,9 @@ export async function siteLogoPOST(
     );
   }
 
+  // The bytes must BE the declared image; location metadata leaves on the server (image-meta.ts).
+  const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+  if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
   const ext =
     file.type === 'image/png'
       ? 'png'
@@ -69,7 +73,7 @@ export async function siteLogoPOST(
 
   const { error: uploadError } = await admin.storage
     .from('uploads')
-    .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    .upload(filePath, prepared.bytes, { contentType: file.type, cacheControl: '3600', upsert: false });
   if (uploadError) {
     console.error(`${TAG} upload error:`, uploadError);
     return NextResponse.json({ error: 'Failed to upload the logo' }, { status: 500 });

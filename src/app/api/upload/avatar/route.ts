@@ -3,6 +3,7 @@ import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { revalidatePublicHead } from '@/lib/profiles/public-head';
+import { prepareImage } from '@/lib/media/image-meta';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -75,9 +76,11 @@ export async function POST(request: NextRequest) {
     const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    // The bytes must BE the declared image; location metadata leaves on the
+    // server too (image-meta.ts — the device strip is no longer the only one).
+    const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+    if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
+    const buffer = prepared.bytes;
 
     // Upload with the service-role client — storage writes should not depend
     // on the bucket accepting anonymous uploads. Try known bucket names.

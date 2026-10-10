@@ -58,6 +58,25 @@ export function shouldReportFailOpen(now: number): { report: boolean; count: num
   return { report: true, count };
 }
 
+/** One log line per action per minute: how many requests went over its
+ *  budget since the last line (maintenance pass, Oct 10 2026 — a 429 used to
+ *  leave no trace). Never the identifier: the action and the count are what
+ *  tuning needs. Pure over the module map, exported for the test. */
+const LIMIT_LOG_MS = 60_000;
+const limitLog = new Map<string, { at: number; count: number }>();
+
+export function logLimitHit(action: string, outcome: 'blocked' | 'would-block', now: number): boolean {
+  const key = `${action}:${outcome}`;
+  const entry = limitLog.get(key) ?? { at: 0, count: 0 };
+  entry.count += 1;
+  limitLog.set(key, entry);
+  if (now - entry.at < LIMIT_LOG_MS) return false;
+  console.warn(`[RATE-LIMIT] ${outcome} "${action}": ${entry.count} over budget since the last line`);
+  entry.at = now;
+  entry.count = 0;
+  return true;
+}
+
 /**
  * Check-and-consume one hit against the named action's budget.
  * Returns a ready 429 NextResponse when over the limit, null otherwise.
@@ -100,6 +119,11 @@ export async function enforceRateLimit(
 
     const row = data as { allowed: boolean; retry_after_seconds: number };
     if (row.allowed) return null;
+
+    // Over the budget: always on the record (throttled per action), and a
+    // SHADOW bucket stops there — it never refuses anyone.
+    logLimitHit(action, rule.shadow ? 'would-block' : 'blocked', Date.now());
+    if (rule.shadow) return null;
 
     return NextResponse.json(
       { error: rule.message ?? 'Too many requests. Please try again later.' },

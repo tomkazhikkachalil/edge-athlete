@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { ORG_MEDIA_FILE_RE } from '@/lib/org-sites/validate';
 import { ORG_MEDIA_PREFIX } from '@/lib/org-sites/pages-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { fetchWithHeaderTimeout, isAbortError, STORAGE_ANSWER_TIMEOUT_MS } from '@/lib/net/fetch-timeout';
 
 /**
  * GET /api/media/org-media/[siteId]/[file] — public page-image streamer.
@@ -42,10 +43,13 @@ export async function GET(
     }
 
     const range = request.headers.get('range');
-    const upstream = await fetch(signed.signedUrl, {
-      headers: range ? { Range: range } : {},
-      cache: 'no-store',
-    });
+    // Storage must start answering within the budget; the body then streams
+    // untimed (a hung host used to hold the function for its whole duration).
+    const upstream = await fetchWithHeaderTimeout(
+      signed.signedUrl,
+      { headers: range ? { Range: range } : {}, cache: 'no-store' },
+      STORAGE_ANSWER_TIMEOUT_MS
+    );
     if (!upstream.ok && upstream.status !== 206) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
@@ -65,6 +69,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
+    if (isAbortError(error)) return NextResponse.json({ error: 'Storage did not answer in time' }, { status: 504 });
     reportRouteError('[org-media-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { after, NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { parseCookieHeader } from './cookies';
@@ -141,6 +141,23 @@ export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}
   return { supabase, user, error };
 }
 
+/** Every authenticated write counts against the SHADOW 'write-general'
+ *  bucket — AFTER the response (`after`), so it costs the request nothing,
+ *  and it never refuses (rate-limit-core.ts). Imported lazily: rate-limit.ts
+ *  imports this module. Outside a request scope (a unit test) it does nothing. */
+function observeWrite(request: NextRequest, userId: string): void {
+  const method = request.method?.toUpperCase?.() ?? 'GET';
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+  try {
+    after(async () => {
+      const { enforceRateLimit } = await import('@/lib/rate-limit');
+      await enforceRateLimit(request, 'write-general', { userId });
+    });
+  } catch {
+    /* no request scope — nothing to observe */
+  }
+}
+
 export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) {
   try {
     const { user, error } = await resolveAuth(request, opts);
@@ -152,6 +169,7 @@ export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) 
       );
     }
 
+    observeWrite(request, user.id);
     return user;
   } catch (err) {
     if (err instanceof Response) {

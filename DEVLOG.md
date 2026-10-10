@@ -1,5 +1,32 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 4: security and privacy
+
+- **Every image door reads the bytes** (`src/lib/media/image-meta.ts`, pure).
+  - It sniffs the real format (JPEG, PNG, GIF, WebP by magic bytes). A file whose bytes are not the declared image is refused with a 400, and on the direct-upload path the stored object is discarded.
+  - It strips location and identifying metadata LOSSLESSLY: JPEG APP1/APP13 (keeping a minimal Orientation, `exif-strip.ts`), PNG `eXIf`/`iTXt`/`tEXt`/`zTXt`, WebP `EXIF`/`XMP ` (its VP8X flags cleared and the RIFF size rewritten).
+  - The device strip used to be the only one, so an old tab, a script or a direct PUT stored GPS in a public bucket.
+  - Doors: the direct-upload complete step (a clean image is still a move; a changed one is written and the incoming object discarded), avatar, cover, equipment, post-media, upload, org logo, team logo, site images, game media, support screenshots. Fail-open on a parse problem, like the device strip.
+  - Pinned by `image-meta.test.ts` and `e2e/upload-image-check.spec.ts`: a JPEG carrying a GPS marker, PUT straight to the signed URL, is stored without it; an SVG declared as PNG is refused and nothing is kept.
+- **Timeouts.** Giphy now has 6 s (a 504 with a plain message). The six storage-streaming proxies (cover, org logo, team logo, org media, org gallery, contest media) now have `fetchWithHeaderTimeout`: 10 s for storage to START answering, with the body streaming untimed, so a long video is never cut. A timeout is a 504. Every other provider already had one (the audit's list).
+- **Rate limits, logged before anyone is blocked** (Tom's rule).
+  - A 429 used to leave no trace. `logLimitHit` now writes one line per action per minute with the count, never the identifier.
+  - A rule may be a SHADOW (counted and logged, never refused). `write-general` (120 per minute per account) counts every authenticated write through `requireAuth`, AFTER the response (`after()`), so it costs the request nothing.
+  - A shadow bucket becomes real only once its logs show real traffic well under it. The 178 route files without their own limit are covered this way, instead of 178 hand edits.
+- **Permissions-Policy: `camera=(self), microphone=(self)`.** Found by the PR 2 preview probe.
+  - The policy had been `camera=()` since the hardening sprint, which forbids the camera to the site ITSELF. The in-app camera fallback has never started in production.
+  - A local `next start` ignores `vercel.json`, so its spec passed.
+  - Third parties still get neither.
+- **CSP stays enforced, unchanged.** Since the Oct 9 report-parser fix, production logged no violation in ~18 hours of probes and use, so there is nothing legitimate to unblock and nothing new to add (any new directive goes report-only first).
+
+- **Server code out of a browser bundle.** The scout pages imported `isScoutAccount` from `scout-access.ts`, which imports `auth-server.ts` (and its admin client), so that module was bundled into a client chunk (no secret leaked: the service key is not `NEXT_PUBLIC`). The pure check is now `scout-account.ts`, and the client chunk count fell from 258 to 257. `auth-server.ts` now imports `after`, which Next refuses in a client graph, so the build itself fails if it is ever pulled into the browser again.
+
+Listed, not changed:
+- HSTS `preload` (hard to undo).
+- The `server-only` package (a new dependency).
+- A global timeout on the admin Supabase client (cron and backfill work runs long).
+- The route-auth audit matches by file, not by handler (a public GET beside a gated POST passes).
+
 ## October 10, 2026 — Maintenance pass, PR 3: offline (Tom's rules)
 
 Tom's section 7, verbatim in intent:
