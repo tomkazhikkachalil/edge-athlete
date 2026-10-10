@@ -48,7 +48,7 @@ export default function RoundedBarChart({
               title={bar.meta ?? `${bar.label}: ${formatValue(bar.value)}`}
             >
               {showValue && (
-                <span className="text-[10px] font-bold text-secondary tabular-nums leading-none">
+                <span className="text-xs font-bold text-secondary tabular-nums leading-none">
                   {formatValue(bar.value)}
                 </span>
               )}
@@ -74,7 +74,7 @@ export default function RoundedBarChart({
         {bars.map((bar, i) => (
           <span
             key={`${bar.label}-${i}`}
-            className={`flex-1 text-center text-[10px] leading-none truncate ${bar.highlight ? 'font-bold text-secondary' : 'text-faint'}`}
+            className={`flex-1 text-center text-xs leading-none truncate ${bar.highlight ? 'font-bold text-secondary' : 'text-faint'}`}
           >
             {bar.label}
           </span>

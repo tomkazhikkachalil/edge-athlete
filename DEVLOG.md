@@ -1,5 +1,14 @@
 # Development Log
 
+## October 9, 2026 — Appearance round, PR 4: Vitals, Settings, Drafts, sign-in in dark
+
+From the appearance audit (M4, M5, L2, L6). No flow changes.
+
+- **M4 — Vitals.** The header is ONE primary (Start Workout) and three matching secondary pills (Log past workout, Record activity, Import activity): one height (44 px), one outline, one hover. The Activities section inside Vitals no longer repeats Record / Import (only "Connect a watch", where the flag shows it) — one door per screen; `activities-doors` and `activities-profile` now check the header's pill and that the section's duplicate is gone. Chart and hero labels go from 10–11 px to 12 px; two section labels move from the decorative faint grey to the readable muted grey.
+- **M5 — Settings tabs.** Ten tabs are wider than the 1024 px column; at 1280 px "Messaging" and everything after it hid behind a 24 px fade. From `lg:` the strip wraps; phones keep the scroller and its (now 32 px) fades.
+- **L2 — Drafts buttons.** Resume / Post it / Review are links, and an `<a>` does not centre its label like a `<button>`: `btn` and `cta` are both `inline-flex` centred, with the same border, so the row lines up.
+- **L6 — sign-in in dark.** The "New here?" / "Opening soon" panel stays the bright brand violet in light and becomes a deep violet-to-stone gradient in dark; its white role buttons (and "Notify me", and `/u/`'s "Get Started") become translucent tiles with a soft ring in dark.
+- **Proof:** `npm run verify` 0; vitals, vitals-mobile, activities-doors, activities-profile, drafts, workout-drafts, appearance green on desktop and phone.
 ## October 9, 2026 — Appearance round, PR 3: profile and media
 
 From the appearance audit (H2, H4, M1, M6, L4). No flow changes.

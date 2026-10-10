@@ -704,21 +704,21 @@ export default function Home() {
           {/* Sign Up Section — the launch gate (Sep 30 2026) replaces it with
               "opening soon" while NEXT_PUBLIC_LAUNCH_GATE=1 (the API refuses too). */}
           {gated ? (
-            <div className="w-full lg:w-1/2 bg-brand p-6 sm:p-8 lg:p-12 text-white flex flex-col items-center justify-center text-center" data-signup-gated>
+            <div className="w-full lg:w-1/2 bg-brand dark:bg-gradient-to-br dark:from-violet-950 dark:to-stone-900 dark:border-l dark:border-white/5 p-6 sm:p-8 lg:p-12 text-white flex flex-col items-center justify-center text-center" data-signup-gated>
               <h2 className="text-2xl sm:text-3xl font-bold mb-4">Opening soon</h2>
               <p className="text-sm sm:text-base max-w-sm">Sign-ups are closed while we finish up. Leave your email on the coming-soon page and we’ll let you know.</p>
-              <Link href="/auth/coming-soon" className="mt-6 inline-block bg-white text-violet-600 py-3 px-5 rounded-md font-semibold hover:bg-violet-100 transition duration-300">
+              <Link href="/auth/coming-soon" className="mt-6 inline-block bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-5 rounded-md font-semibold hover:bg-violet-100 transition duration-300">
                 Notify me
               </Link>
             </div>
           ) : (
-          <div className="w-full lg:w-1/2 bg-brand p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
+          <div className="w-full lg:w-1/2 bg-brand dark:bg-gradient-to-br dark:from-violet-950 dark:to-stone-900 dark:border-l dark:border-white/5 p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
             <div className="flex flex-col items-center justify-center flex-grow">
               <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-center">New Here?</h2>
               <p className="mb-6 text-center text-sm sm:text-base">Choose your role and sign up to discover new opportunities!</p>
               <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full max-w-sm">
                 <button 
-                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                   onClick={handleAthleteClick}
                 >
                   <i className="fas fa-person-running mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
@@ -726,21 +726,21 @@ export default function Home() {
                 </button>
                 <button 
                   onClick={() => handleOrgClick('club')}
-                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-shield mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Club</span>
                 </button>
                 <button 
                   onClick={() => handleOrgClick('league')}
-                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-trophy mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>League</span>
                 </button>
                 <button 
                   onClick={() => handleWaitlistClick('Fan')}
-                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-star mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Fan</span>

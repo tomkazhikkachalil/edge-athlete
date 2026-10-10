@@ -153,7 +153,7 @@ export default function VitalsHero({
             ariaLabel={`Active ${activeDays} of 7 days this week`}
           >
             <span className="text-3xl font-bold text-primary tabular-nums">{activeDays}</span>
-            <span className="text-[11px] text-muted uppercase tracking-wide">of 7 days</span>
+            <span className="text-xs text-muted uppercase tracking-wide">of 7 days</span>
           </ProgressRing>
           <span className="text-xs text-muted uppercase tracking-wide">Active days</span>
         </div>
@@ -187,7 +187,7 @@ export default function VitalsHero({
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-muted uppercase tracking-wide">Latest personal best</span>
               {isRecentPB(pb.recordedAt) && (
-                <span className="vt-pop inline-flex rounded-full bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                <span className="vt-pop inline-flex rounded-full bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
                   New!
                 </span>
               )}

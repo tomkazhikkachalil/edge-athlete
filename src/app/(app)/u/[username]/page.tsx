@@ -740,14 +740,14 @@ export default function PublicProfilePage() {
 
         {/* Sign up CTA for logged out users */}
         {!user && (
-          <div className="mt-6 bg-gradient-to-r from-violet-600 to-violet-700 rounded-xl p-6 text-center text-white">
+          <div className="mt-6 bg-gradient-to-r from-violet-600 to-violet-700 dark:from-violet-950 dark:to-stone-900 dark:ring-1 dark:ring-white/5 rounded-xl p-6 text-center text-white">
             <h3 className="text-lg font-semibold mb-2">Join Edge Athlete</h3>
             <p className="text-violet-100 mb-4">
               Create your athlete profile and connect with {displayName}
             </p>
             <Link
               href="/"
-              className="inline-flex items-center px-6 py-2 bg-white text-violet-600 rounded-lg hover:bg-violet-50 transition-colors font-medium"
+              className="inline-flex items-center min-h-[44px] px-6 bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 rounded-lg hover:bg-violet-50 transition-colors font-medium"
             >
               Get Started
             </Link>

@@ -109,8 +109,9 @@ test('activities live inside Vitals on /u/ and /athlete; the feed card; the Crea
     // and the Create sheet's Activity door.
     const pageA = await ctxA.newPage();
     await pageA.goto(`/athlete/${a.id}?tab=activities`);
-    await expect(pageA.locator('[data-activities-import-link]')).toBeVisible({ timeout: 20_000 });
-    await expect(pageA.locator('[data-vitals-import-activity]')).toBeVisible();
+    // One Import door per screen: the Vitals header's (Oct 9 2026).
+    await expect(pageA.locator('[data-vitals-import-activity]')).toBeVisible({ timeout: 20_000 });
+    await expect(pageA.locator('[data-activities-import-link]')).toHaveCount(0);
     await pageA.goto('/sports/explore');
     await pageA.getByRole('button', { name: 'Create', exact: true }).first().click();
     await pageA.locator('[data-create-activity]').click();

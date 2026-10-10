@@ -16,11 +16,12 @@ test('the recorder is reachable from Vitals and from Create @mobile', async ({ p
   await expect(page).toHaveURL(/\/activities\/record$/);
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
 
+  // ?tab=activities opens Vitals at its Activities section: the header's pill
+  // is the one Record door on that screen (Oct 9 2026 — the section's
+  // duplicate link was retired).
   await page.goto(`/athlete/${user.id}?tab=activities`);
-  const link = page.locator('[data-activities-record-link]');
-  await expect(link).toBeVisible({ timeout: 20_000 });
-  await link.click();
-  await expect(page).toHaveURL(/\/activities\/record$/);
+  await expect(page.locator('[data-vitals-record-activity]')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('[data-activities-record-link]')).toHaveCount(0);
 
   await page.goto('/feed');
   await page.getByRole('button', { name: 'Create' }).first().click();
