@@ -80,11 +80,13 @@ test('completed round: deleting the feed post deletes the round underneath', asy
     // button (no onDelete). Round-aware confirm copy proves the wiring.
     // Scoped to the overlay: the same post also renders in the feed list
     // behind the modal, and both trashes are (correctly) wired now.
+    // The owner's actions are the "…" menu at every width (Oct 9 2026).
     await page
       .locator('div.fixed.inset-0')
-      .getByRole('button', { name: 'Delete post' })
+      .getByRole('button', { name: 'Post options' })
       .first()
       .click();
+    await page.locator('[data-menu-item="delete"]').click();
     await expect(page.getByText('Delete this round?')).toBeVisible();
     // The server's own answer, not only the state after it: this case failed
     // once in a long batch (the round still there after 15 s) and passed
@@ -259,14 +261,9 @@ async function deleteFinishedForGood(browser: import('@playwright/test').Browser
     await expect(popup.locator('[data-testid="post-card"]')).toBeVisible({ timeout: 20_000 });
     // BOTH doors are offered on a finished for-fun round.
     const menu = popup.getByRole('button', { name: 'Post options' });
-    if (viewport.width < 640) {
-      await menu.click();
-      await expect(page.locator('[data-menu-item="delete"]')).toHaveText(/Hide from profile/);
-      await page.locator('[data-menu-item="delete-for-good"]').click();
-    } else {
-      await expect(popup.locator('[data-post-delete="hide"]')).toBeVisible();
-      await popup.locator('[data-post-delete="for-good"]').click();
-    }
+    await menu.click();
+    await expect(page.locator('[data-menu-item="delete"]')).toHaveText(/Hide from profile/);
+    await page.locator('[data-menu-item="delete-for-good"]').click();
     await expect(page.getByText('Delete it for good?')).toBeVisible();
     await expect(page.getByText(/stops counting toward your handicap and stats/)).toBeVisible();
     const answered = page.waitForResponse(r => r.url().includes(`/api/posts?postId=${postId}`) && r.request().method() === 'DELETE');

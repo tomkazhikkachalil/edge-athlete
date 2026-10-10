@@ -5,7 +5,8 @@ import { likedFor, rememberLike } from '@/lib/likes/store';
 import { useViewBeacon } from '@/hooks/useViewBeacon';
 import { recordView } from '@/lib/views/client';
 import { countLabel } from '@/lib/views/format';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
+import { shortAgo } from '@/lib/time/short-ago';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { draftReviewHref } from '@/lib/drafts/list';
@@ -341,7 +342,10 @@ function PostCard({
     post.profile.full_name
   );
 
-  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+  // Compact on purpose (Just now · 5m · 3h · 2d · Oct 9): the long form
+  // truncated the sport label on a phone. The full time is the title.
+  const timeAgo = shortAgo(post.created_at);
+  const timeFull = format(new Date(post.created_at), 'PPpp');
 
   // Chip identity: a 'training' CATEGORY post (077) wears the Training chip
   // regardless of sport_key (backfilled rows carry sport_key='general' —
@@ -729,7 +733,7 @@ function PostCard({
                   rightward UNDER the owner cluster, which read as "the
                   Private badge sits on the name" at 390px. */}
               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                <span className="text-sm text-secondary font-medium whitespace-nowrap truncate">{timeAgo}</span>
+                <time dateTime={post.created_at} title={timeFull} className="text-sm text-secondary font-medium whitespace-nowrap truncate" data-post-time="">{timeAgo}</time>
                 {chipKey && (
                   <>
                     <span className="text-sm text-secondary font-medium">•</span>
@@ -778,61 +782,16 @@ function PostCard({
             </>
           )}
 
-          {/* Pin, Edit and Delete — owner only. From sm up: three 44px
-              buttons. Below sm: ONE "…" menu (PostOwnerMenu, portaled) —
-              three 44px targets were 148px of a ~326px card and left the
-              author column ~66px ("Prob…"); 44px is the touch floor, so
-              the count had to drop, not the size. The sm+ buttons come
-              FIRST in DOM order so role queries by name resolve to them.
-              (Sep 8 2026, refinement 3.) */}
-          {isOwner && (
-            <div className="hidden sm:flex items-center gap-2">
-              <button
-                onClick={handleTogglePin}
-                disabled={pinBusy}
-                className={`transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center justify-center disabled:opacity-60 ${
-                  isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-primary hover:text-amber-500'
-                }`}
-                title={isPinned ? 'Unpin from profile' : 'Pin to profile'}
-                aria-label={isPinned ? 'Unpin from profile' : 'Pin to profile'}
-                aria-pressed={isPinned}
-              >
-                <i className="fas fa-thumbtack text-sm"></i>
-              </button>
-              <button
-                onClick={() => onEdit?.(post.id)}
-                className="text-primary hover:text-brand-fg transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-brand-soft flex items-center justify-center"
-                title="Edit post"
-              >
-                <i className="fas fa-edit text-sm"></i>
-              </button>
-              {/* Only when the mount actually wired onDelete — the confirm
-                  handler no-ops without it, and a trash icon that silently
-                  does nothing already shipped once (the /feed?post= mount). */}
-              {onDelete && !isProfileHidden && (!hidesInstead || offersHide) && (
-                <button
-                  onClick={handleDeleteClick}
-                  className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
-                  title={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : 'Delete post'}
-                  aria-label={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : 'Delete post'}
-                  data-post-delete={hidesInstead ? 'hide' : 'delete'}
-                >
-                  <i className={`fas ${hidesInstead ? 'fa-eye-slash' : 'fa-trash'} text-sm`}></i>
-                </button>
-              )}
-              {/* A for-fun result can also be deleted for good (Oct 2026). */}
-              {onDelete && offersDeleteForGood && (
-                <button
-                  onClick={handleDeleteForGoodClick}
-                  className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
-                  title={COPY.FORMS.DELETE_RESULT_LABEL}
-                  aria-label={COPY.FORMS.DELETE_RESULT_LABEL}
-                  data-post-delete="for-good"
-                >
-                  <i className="fas fa-trash text-sm"></i>
-                </button>
-              )}
-            </div>
+          {/* Pin, Edit, Hide and Delete — owner only, ONE "…" menu
+              (PostOwnerMenu, portaled) at every width: the sm+ row of up to
+              four unlabelled 44px icons was retired in the Oct 9 2026
+              appearance round (a stranger's card already had a "…" there;
+              on a phone four targets ate the author column). */}
+          {/* The one pinned marker (the retired desktop pin button was it). */}
+          {isOwner && isPinned && (
+            <span className="text-amber-500 dark:text-amber-400 px-1" role="img" aria-label="Pinned to profile" title="Pinned to profile" data-post-pinned="">
+              <i className="fas fa-thumbtack text-sm" aria-hidden="true"></i>
+            </span>
           )}
           {isOwner && (
             <PostOwnerMenu

@@ -215,7 +215,7 @@ export default function ConnectionSuggestions({
                     router.push(`/athlete/${suggestion.suggested_id}`);
                   }
                 }}
-                className="font-semibold text-primary hover:text-brand-fg truncate block text-sm w-full text-left"
+                className="font-semibold text-primary hover:text-brand-fg line-clamp-2 break-words block text-sm w-full text-left"
               >
                 {suggestion.suggested_name}
               </button>
@@ -243,6 +243,7 @@ export default function ConnectionSuggestions({
                 profileId={suggestion.suggested_id}
                 currentUserId={profileId}
                 size="sm"
+                compactLabel={compact}
                 onFollowChange={(isFollowing) => {
                   // Only dismiss once they actually followed — an unfollow
                   // used to permanently dismiss the suggestion too

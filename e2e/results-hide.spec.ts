@@ -169,13 +169,8 @@ async function hideSeenToHappen(browser: import('@playwright/test').Browser, vie
     await page.goto('/feed');
     const feedCard = page.locator('[data-testid="post-card"]').filter({ hasText: course }).first();
     await expect(feedCard).toBeVisible({ timeout: 20_000 });
-    const menu = feedCard.getByRole('button', { name: 'Post options' });
-    if (await menu.isVisible()) {
-      await menu.click();
-      await page.locator('[data-menu-item="delete"]').click();
-    } else {
-      await feedCard.locator('[data-post-delete="hide"]').click();
-    }
+    await feedCard.getByRole('button', { name: 'Post options' }).click();
+    await page.locator('[data-menu-item="delete"]').click();
     await expect(page.getByText('Hide from your profile?')).toBeVisible();
     // The card leaves at the tap (optimistic); the SERVER's answer is what the
     // checks below depend on — a slow first attempt on prod WebKit once ran

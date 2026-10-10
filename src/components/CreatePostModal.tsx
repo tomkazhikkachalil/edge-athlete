@@ -1363,9 +1363,11 @@ export default function CreatePostModal({
             "Create Post" button ran to 424px in a 375px viewport). */}
         <div className="flex flex-col gap-3 p-4 border-t border-border bg-surface-muted sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="text-sm text-tertiary">
+            {/* What the disabled Post needs, as a calm hint — not a red
+                error before anything was tried (Oct 9 2026 appearance round). */}
             {!isValidForSubmission() && (
-              <span className="text-red-600 dark:text-red-400">
-                <i className="fas fa-exclamation-circle mr-1"></i>
+              <span className="text-secondary" data-composer-hint="">
+                <i className="fas fa-circle-info mr-1.5 text-brand-fg" aria-hidden="true"></i>
                 {postType === 'golf'
                   ? (() => {
                       // Name the ACTUAL missing fields — a dead grey button
@@ -1378,7 +1380,7 @@ export default function CreatePostModal({
                         ? `Missing: ${missing.join(', ')}`
                         : 'Please complete the round details';
                     })()
-                  : 'Add caption or media to post'
+                  : 'Add a caption or media to post'
                 }
               </span>
             )}

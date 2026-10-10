@@ -15,6 +15,9 @@ interface FollowButtonProps {
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
   className?: string;
+  /** A narrow card (the feed's suggestions): "Become a Fan" reads "Fan" on
+   *  screen; the accessible name stays "Become a Fan". */
+  compactLabel?: boolean;
 }
 
 export default function FollowButton({
@@ -24,7 +27,8 @@ export default function FollowButton({
   onStatsLoaded,
   size = 'md',
   showCount = false,
-  className = ''
+  className = '',
+  compactLabel = false
 }: FollowButtonProps) {
   const { user, activeProfile } = useAuth();
   const currentUserId = propCurrentUserId || user?.id;
@@ -227,7 +231,13 @@ export default function FollowButton({
     return (
       <>
         <i className="fas fa-heart mr-1"></i>
-        Become a Fan
+        {compactLabel ? (
+          <>
+            <span className="sr-only">Become a </span>Fan
+          </>
+        ) : (
+          'Become a Fan'
+        )}
       </>
     );
   };
