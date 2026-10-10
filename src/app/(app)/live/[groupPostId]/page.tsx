@@ -427,7 +427,7 @@ export default function LiveRoundPage() {
   const firstHoleMapped = !!geoHoles?.some(h => h.hole === startHole) || !!geoGreens?.some(g => g.hole === startHole);
 
   return (
-    <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
+    <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px) - var(--ea-dock-h, 0px))' }}>
       <AppHeader />
       {/* Compact strip: back link + view switcher. The old page stacked the
           map under the scoring card — cramped on a phone mid-round; each

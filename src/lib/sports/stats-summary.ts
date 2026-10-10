@@ -150,6 +150,22 @@ function genericStatsSummary(statsData: Record<string, unknown> | null): StatsSu
     };
   }
 
+  // A shared activity (a run, a ride, a walk …): its name, then distance and
+  // time. The generic path below read "Name: Evening Run • Steps: 3592" —
+  // field labels instead of the activity (the Oct 9 2026 appearance audit).
+  if (statsData.type === 'activity') {
+    const name = typeof statsData.name === 'string' ? statsData.name.trim() : '';
+    const metres = num(statsData.distance_m);
+    const seconds = num(statsData.moving_s) || num(statsData.elapsed_s);
+    const detail = [
+      metres ? (metres >= 1000 ? `${(metres / 1000).toFixed(2)} km` : `${Math.round(metres)} m`) : null,
+      seconds ? formatDuration(seconds) : null,
+    ].filter(Boolean);
+    const primaryLine = name || (detail.length ? (detail.shift() as string) : '');
+    if (!primaryLine) return null;
+    return { primaryLine, secondaryLine: detail.length ? detail.join(' · ') : null };
+  }
+
   // Generic fallback. Skips the payload's own plumbing — a discriminator and
   // foreign keys are never what the athlete did.
   const IGNORED = new Set(['type', 'sport_key', 'date']);

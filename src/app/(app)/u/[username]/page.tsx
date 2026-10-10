@@ -80,6 +80,9 @@ interface RecentPost {
   likes_count: number;
   comments_count: number;
   post_media: PostMedia[];
+  /** A media-less post's coarse kind (Oct 9 2026); optional so a cached
+   *  response from before it parses. */
+  tile?: { kind: 'round' | 'activity' | 'stats' | 'text'; label: string | null; icon: string | null };
 }
 
 /** Text-only posts (the statements split, migration 074). */
@@ -315,7 +318,7 @@ export default function PublicProfilePage() {
           {/* Cover photo with the profile picture half over its bottom edge
               (gradient until the athlete sets one). */}
           <ProfileCoverHeader coverSrc={profile.cover ?? null} size="md" rowClassName="px-4 sm:px-6">
-            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface overflow-hidden">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-surface bg-surface overflow-hidden">
               {profile.avatar_url ? (
                 <LazyImage
                   src={profile.avatar_url}
@@ -662,9 +665,28 @@ export default function PublicProfilePage() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center p-3">
-                      <p className="text-xs text-muted text-center line-clamp-4">
-                        {post.caption || 'No content'}
+                    // The /athlete media grid's look (MediaGridItem): the
+                    // kind's surface, icon and label, then the caption.
+                    <div
+                      className={`w-full h-full flex flex-col items-center justify-center gap-1.5 p-3 text-center ${
+                        post.tile?.kind === 'round'
+                          ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 dark:from-green-950/40 dark:via-emerald-950/40 dark:to-green-950/60'
+                          : post.tile?.kind === 'activity' || post.tile?.kind === 'stats'
+                          ? 'bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 dark:from-violet-950/40 dark:via-purple-950/40 dark:to-violet-950/60'
+                          : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-stone-900 dark:to-stone-800'
+                      }`}
+                      data-u-tile={post.tile?.kind ?? 'text'}
+                    >
+                      {post.tile?.icon && (
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${post.tile.kind === 'round' ? 'bg-green-600' : 'bg-brand'}`}>
+                          <i className={`fas fa-${post.tile.icon} text-white text-sm`} aria-hidden="true"></i>
+                        </span>
+                      )}
+                      {post.tile?.label && (
+                        <span className="text-xs font-semibold uppercase tracking-wide text-tertiary">{post.tile.label}</span>
+                      )}
+                      <p className={`text-sm text-primary line-clamp-3 ${post.tile?.label ? 'font-semibold' : ''}`}>
+                        {post.caption || (post.tile?.label ? '' : 'No content')}
                       </p>
                     </div>
                   )}
@@ -697,7 +719,7 @@ export default function PublicProfilePage() {
               <div className="mt-4 text-center">
                 <Link
                   href={`/athlete/${profile.id}`}
-                  className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
+                  className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
                 >
                   View All Posts
                 </Link>

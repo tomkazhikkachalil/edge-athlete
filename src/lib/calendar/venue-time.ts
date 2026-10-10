@@ -84,9 +84,13 @@ export function zoneShortName(timeZone: string, ms: number = Date.now()): string
  * `viewerTz` is injectable so tests never depend on the runner's zone.
  */
 export function venueTimeLabel(
-  e: { starts_at: string; all_day: boolean; timezone: string },
+  e: { starts_at: string; all_day: boolean; timezone: string; activity?: unknown },
   viewerTz: string = viewerTimeZone()
 ): string | null {
+  // Your own training (activity-overlay.ts: workouts, training posts) has no
+  // venue — its 'UTC' only feeds the grid math; it showed as a stray
+  // "· 12:34 AM UTC" beside your own time (Oct 9 2026 appearance round).
+  if (e.activity) return null;
   if (e.all_day || !e.timezone || e.timezone === viewerTz) return null;
   const ms = Date.parse(e.starts_at);
   if (!Number.isFinite(ms)) return null;

@@ -3,11 +3,12 @@
 import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu';
 
 /**
- * The post card's owner actions (pin / edit / delete) as ONE "…" button
- * below `sm`. From `sm` up PostCard renders the three 44px buttons and this
- * component's trigger is `sm:hidden`. Since Spec 2 the menu itself is the
- * shared ActionMenu (the portal, the placement and the dismissal live
- * there); this file keeps the owner's rows.
+ * The post card's owner actions (pin / edit / hide / delete) as ONE "…"
+ * button at EVERY width (Oct 9 2026 appearance round — desktop used to show
+ * up to four unlabelled icons while a phone showed this menu, and a stranger's
+ * card already had a "…" there). Since Spec 2 the menu itself is the shared
+ * ActionMenu (the portal, the placement and the dismissal live there); this
+ * file keeps the owner's rows.
  */
 interface Props {
   isPinned: boolean;
@@ -32,5 +33,5 @@ export default function PostOwnerMenu({ isPinned, pinBusy, onTogglePin, onEdit, 
     ...(onDelete ? [{ key: 'delete', label: deleteLabel ?? 'Delete post', icon: deleteLabel ? 'fa-eye-slash' : 'fa-trash', onSelect: onDelete, ...(deleteLabel ? {} : { tone: 'danger' as const }) }] : []),
     ...(onDeleteForGood ? [{ key: 'delete-for-good', label: 'Delete for good', icon: 'fa-trash', onSelect: onDeleteForGood, tone: 'danger' as const }] : []),
   ];
-  return <ActionMenu items={items} ariaLabel="Post options" triggerClassName="sm:hidden" />;
+  return <ActionMenu items={items} ariaLabel="Post options" />;
 }

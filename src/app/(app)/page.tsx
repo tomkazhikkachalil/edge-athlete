@@ -678,7 +678,7 @@ export default function Home() {
                   required
                 />
                 <div className="mt-2 text-right">
-                  <Link href="/forgot-password" className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
+                  <Link href="/forgot-password" className="relative after:absolute after:content-[''] after:-inset-y-3 after:-inset-x-1 text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
                     Forgot password?
                   </Link>
                 </div>
@@ -757,13 +757,13 @@ export default function Home() {
               {/* Phase 9 V6 + program 11 L3: the public directories — real pages, no account. */}
               <Link
                 href="/clubs"
-                className="mt-3 block text-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
+                className="mt-1 flex min-h-[44px] items-center justify-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
               >
                 Find a golf club near you
               </Link>
               <Link
                 href="/leagues"
-                className="mt-2 block text-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
+                className="flex min-h-[44px] items-center justify-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
               >
                 Find a league near you
               </Link>

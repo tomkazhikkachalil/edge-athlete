@@ -73,7 +73,7 @@ export default function FilterBar({
           type="button"
           disabled={!hasActive}
           onClick={onClearAll}
-          className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
+          className={`relative after:absolute after:content-[''] after:-inset-y-3 after:-inset-x-1 inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
             hasActive
               ? 'text-brand-fg hover:text-brand-fg-strong cursor-pointer'
               : 'text-faint cursor-not-allowed'

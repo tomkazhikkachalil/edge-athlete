@@ -14,6 +14,10 @@ import { buildStatHighlights, type StatPlayer } from '@/lib/sports/post-stat-hig
 import { toParColorClass } from '@/lib/golf/scoring';
 import { getInitials } from '@/lib/formatters';
 import { buildStatsSummary } from '@/lib/sports/stats-summary';
+import RouteThumb from '@/components/activities/RouteThumb';
+import { isActivityPostStats } from '@/lib/activities/post-card';
+import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
+import { formatDistance, formatDuration as formatActivityDuration, readUnitPreference } from '@/lib/activities/format';
 
 export interface MediaItem {
   id: string;
@@ -126,6 +130,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
     [item, viewerId]
   );
   const hasRound = !!item.golf_round || !!item.group_scorecard;
+  const activity = !hasRound && isActivityPostStats(item.stats_data) ? item.stats_data : null;
   const players = highlights?.players ?? [];
 
   // Determine content to display for non-media tiles.
@@ -156,7 +161,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
             <i className="fas fa-golf-ball text-white text-sm" aria-hidden="true"></i>
           </span>
           <div className="text-center min-w-0 w-full">
-            <div className="text-[11px] font-bold text-primary line-clamp-2 leading-tight">
+            <div className="text-xs font-bold text-primary line-clamp-2 leading-tight">
               {highlights.moment}
             </div>
             <div
@@ -166,11 +171,11 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
             >
               {highlights.hero.value}
             </div>
-            <div className="text-[9px] font-semibold uppercase tracking-wide text-muted">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">
               {highlights.hero.label}
             </div>
             {(players.length > 0 || highlights.meta?.length) && (
-              <div className="text-[10px] text-tertiary font-medium mt-0.5 truncate">
+              <div className="text-xs text-tertiary font-medium mt-0.5 truncate">
                 {/* players[] is CREATION order now — the gross under the hero
                     must belong to the same athlete the hero describes
                     (viewer's row, else the leader), not whoever was entered
@@ -198,6 +203,40 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
       );
     }
 
+    // A shared activity: its route as the picture, then what it was — the
+    // feed card's look at tile scale (the generic summary used to print
+    // "Name: Evening Run • Steps: 3592" here).
+    if (activity) {
+      const def = ACTIVITY_TYPE_DEFS[activity.activity_type];
+      const unit = readUnitPreference();
+      const line = [
+        activity.distance_m ? formatDistance(activity.distance_m, unit) : null,
+        formatActivityDuration(activity.moving_s || activity.elapsed_s),
+      ].filter(Boolean).join(' · ');
+      return (
+        <div className="flex h-full w-full flex-col text-left" data-tile-activity="">
+          {activity.route_preview ? (
+            <div className="min-h-0 flex-1 px-3 pt-3 text-brand-fg">
+              <RouteThumb preview={activity.route_preview} className="block h-full w-full" w={160} h={110} />
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand">
+                <i className={`fas fa-${def.icon} text-white text-sm`} aria-hidden="true"></i>
+              </span>
+            </div>
+          )}
+          <div className="px-3 pb-3 pt-1.5">
+            <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-primary">
+              <i className={`fas fa-${def.icon} text-brand-fg`} aria-hidden="true"></i>
+              <span className="truncate">{activity.name}</span>
+            </div>
+            <div className="text-xs text-secondary tabular-nums truncate">{line}</div>
+          </div>
+        </div>
+      );
+    }
+
     // Non-golf stat lines keep the schema-driven summary.
     if (hasStats && item.stats_data) {
       const summary = buildStatsSummary({ statsData: item.stats_data });
@@ -213,11 +252,11 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
               <i className="fas fa-chart-line text-white text-sm" aria-hidden="true"></i>
             </span>
             <div className="text-center">
-              <div className="text-[11px] font-bold text-primary line-clamp-2 leading-tight">
+              <div className="text-xs font-bold text-primary line-clamp-2 leading-tight">
                 {summary.primaryLine}
               </div>
               {summary.secondaryLine && (
-                <div className="text-[10px] text-brand-fg-strong font-semibold line-clamp-1 mt-0.5">
+                <div className="text-xs text-brand-fg-strong font-semibold line-clamp-1 mt-0.5">
                   {summary.secondaryLine}
                 </div>
               )}
@@ -280,7 +319,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
             ? 'bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 dark:from-violet-950/40 dark:via-purple-950/40 dark:to-violet-950/60'
             : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-stone-900 dark:to-stone-800'
         }`}>
-          <div className="text-center w-full">
+          <div className={`text-center w-full ${activity ? 'h-full' : ''}`}>
             {typeof getTextContent() === 'string' ? (
               <p className="text-sm text-secondary line-clamp-4 px-4">
                 {getTextContent()}
@@ -320,7 +359,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
         <div className="absolute top-2 right-2 flex gap-1">
           {/* Not on golf tiles: the score band/stat body already says it, and
               two labels for one fact is noise at this size. */}
-          {hasStats && !hasRound && (
+          {hasStats && !hasRound && !activity && (
             <span className="px-2 py-1 bg-brand text-white text-xs font-semibold rounded-full">
               + Stats
             </span>

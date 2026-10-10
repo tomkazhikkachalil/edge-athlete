@@ -136,3 +136,19 @@ describe('buildStatsSummary — golf dispatch', () => {
     expect(buildStatsSummary({ golfRound: null, statsData: null })).toBeNull();
   });
 });
+
+describe('buildStatsSummary — a shared activity (Oct 9 2026)', () => {
+  it('reads the name, then distance and time — never field labels', () => {
+    const s = buildStatsSummary({
+      statsData: { type: 'activity', activity_id: 'a1', activity_type: 'run', name: 'Evening Run', occurred_on: '2026-10-09', distance_m: 2690, elapsed_s: 900, moving_s: 897, steps: 3592 },
+    });
+    expect(s?.primaryLine).toBe('Evening Run');
+    expect(s?.secondaryLine).toMatch(/^2\.69 km · /);
+    expect(`${s?.primaryLine} ${s?.secondaryLine}`).not.toMatch(/Name:|Steps:/);
+  });
+
+  it('a short one reads metres; no moving time falls back to elapsed', () => {
+    const s = buildStatsSummary({ statsData: { type: 'activity', name: 'Cool-down', distance_m: 480, elapsed_s: 300, moving_s: 0 } });
+    expect(s?.secondaryLine).toMatch(/^480 m · /);
+  });
+});
