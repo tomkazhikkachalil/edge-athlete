@@ -164,13 +164,13 @@ export default function SettingsPage() {
                 width — they scroll cleanly instead of showing a scrollbar
                 band. `scrollbar-hide` costs the only native overflow cue,
                 so the gradients below stand in for it. */}
-            <nav ref={tabNavRef} className="flex overflow-x-auto scrollbar-hide" aria-label="Settings tabs">
+            <nav ref={tabNavRef} className="flex overflow-x-auto scrollbar-hide lg:flex-wrap lg:overflow-visible lg:px-2" aria-label="Settings tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   ref={(el) => { tabRefs.current[tab.id] = el; }}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 lg:px-4 py-4 lg:py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'border-brand text-brand-fg'
                       : 'border-transparent text-tertiary hover:text-primary hover:border-border-strong'
@@ -181,18 +181,21 @@ export default function SettingsPage() {
                 </button>
               ))}
             </nav>
-            {/* Decorative overflow cues. `from-surface` is a theme token, so
-                these follow light/dark with no extra work. */}
+            {/* Decorative overflow cues (phones and tablets). From lg: the tabs
+                WRAP instead — ten tabs are wider than the 1024px column, and a
+                scroller with a 24px fade hid "Messaging" and everything after
+                it on a desktop (Oct 9 2026 appearance round). `from-surface`
+                is a theme token, so these follow light/dark. */}
             {tabOverflow.left && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-surface to-transparent"
+                className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface to-transparent lg:hidden"
               />
             )}
             {tabOverflow.right && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-surface to-transparent"
+                className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent lg:hidden"
               />
             )}
           </div>

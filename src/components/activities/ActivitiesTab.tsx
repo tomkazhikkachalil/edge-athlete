@@ -108,22 +108,16 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
         </div>
         {state.isOwner && (
           <div className="flex flex-wrap items-center gap-3">
-            {/* Connections are the account's own (Settings): offered to the
-                athlete, never to a guardian looking at their athlete's Vitals. */}
+            {/* Record and Import live in the Vitals header above (one door
+                each per screen — Oct 9 2026 appearance round). Connections
+                are the account's own (Settings): offered to the athlete,
+                never to a guardian looking at their athlete's Vitals. */}
             {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
-              <Link href="/settings?tab=connections" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-connect-link>
+              <Link href="/settings?tab=connections" className="vt-pill inline-flex shrink-0 items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted hover:text-primary transition-colors" data-activities-connect-link>
                 <i className="fas fa-link text-xs" aria-hidden="true" />
                 Connect a watch
               </Link>
             )}
-            <Link href="/activities/record" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-brand text-brand-fg rounded-full text-sm font-semibold hover:bg-brand-soft transition-colors min-h-[40px]" data-activities-record-link>
-              <i className="fas fa-location-dot text-xs" aria-hidden="true" />
-              Record activity
-            </Link>
-            <Link href="/activities/import" className="vt-pill inline-flex shrink-0 items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[40px]" data-activities-import-link>
-              <i className="fas fa-file-arrow-up text-xs" aria-hidden="true" />
-              Import activity
-            </Link>
           </div>
         )}
       </div>

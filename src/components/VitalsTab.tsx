@@ -411,7 +411,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               <button
                 onClick={openStartWorkout}
                 disabled={startingWorkout}
-                className="vt-pill flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-full font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
+                className="vt-pill flex items-center gap-2 min-h-[44px] px-5 bg-brand text-white rounded-full font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
               >
                 {startingWorkout ? (
                   <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />
@@ -422,14 +422,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               </button>
               <button
                 onClick={() => router.push('/app/workout/new')}
-                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted transition-colors"
+                className="vt-pill flex items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted hover:text-primary transition-colors"
               >
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
               <button
                 onClick={() => router.push('/activities/record')}
-                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-brand text-brand-fg rounded-full font-semibold text-sm hover:bg-brand-soft transition-colors"
+                className="vt-pill flex items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted hover:text-primary transition-colors"
                 data-vitals-record-activity
               >
                 <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
@@ -437,7 +437,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               </button>
               <button
                 onClick={() => router.push('/activities/import')}
-                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted transition-colors"
+                className="vt-pill flex items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted hover:text-primary transition-colors"
                 data-vitals-import-activity
               >
                 <FileUp className="w-3.5 h-3.5" aria-hidden="true" />

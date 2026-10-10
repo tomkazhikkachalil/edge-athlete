@@ -185,7 +185,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
       <div role="group" aria-label="Tracking" className="space-y-2.5 mb-4">
         {groups.map(group => (
           <div key={group.key}>
-            <div className="text-[11px] font-semibold text-faint uppercase tracking-wide mb-2">
+            <div className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
               {group.label}
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -232,7 +232,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
 
       {milestoneChips.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-faint uppercase tracking-wide mr-1">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide mr-1">
             Milestones
           </span>
           {milestoneChips.map((point, i) => (

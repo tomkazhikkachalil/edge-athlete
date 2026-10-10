@@ -23,8 +23,12 @@ function when(iso: string | null): string {
 }
 
 const KIND_ICON: Record<DraftItem['kind'], string> = { round: 'fa-golf-ball-tee', workout: 'fa-dumbbell', recording: 'fa-person-walking' };
-const btn = 'px-3 py-2 min-h-[44px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive disabled:opacity-50';
-const cta = 'px-3 py-2 min-h-[44px] rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover disabled:opacity-50';
+// inline-flex + centred on BOTH: Resume / Post it / Review are links, and an
+// <a> does not centre its label the way a <button> does (Oct 9 2026 — Resume
+// sat taller with its label at the top). The cta's transparent border keeps
+// the two the same height.
+const btn = 'inline-flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive disabled:opacity-50';
+const cta = 'inline-flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg border border-transparent bg-brand text-white text-sm font-semibold hover:bg-brand-hover disabled:opacity-50';
 
 export default function DraftRow({ item, onChanged }: { item: DraftItem; onChanged: () => void }) {
   const router = useRouter();
