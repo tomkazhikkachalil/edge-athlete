@@ -1,5 +1,15 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 1: patch and minor dependency updates
+
+Tom's maintenance pass (health, performance, scale, release), safety rules: patch and minor updates only, majors listed for approval. Four commits, each verified on its own (`npm run verify`, the browser floor included: 257 client chunks within iOS 15):
+- types, `@playwright/test` 1.64 (its typings stopped inferring a self-referencing loop variable — `performance-backfill.spec.ts` names its types), `eslint-config-next` 16.4;
+- `@supabase/supabase-js` 2.117, `@supabase/ssr` 0.12.7, `zod` 4.6, `@sentry/nextjs` 10.76, `lucide-react`, `mediabunny` 1.61, `nodemailer` 10.1, `react-easy-crop`, `emoji-picker-react` 4.22, `@garmin/fitsdk` 21.218;
+- `next` 16.4.0;
+- `react` / `react-dom` 19.3.
+
+`npm audit --omit=dev`: 0. Known, dev-only: `braces` (stack exhaustion on hostile glob patterns) through `eslint-config-next` → `fast-glob@3.3.1`; no fixed `braces` exists and it runs only at lint time on our own globs. **Majors held for Tom:** `@sentry/nextjs` 11, `eslint` 10, `typescript` 7, `vitest` 5, `emoji-picker-react` 5, `@types/node` 26, `react-grid-layout` 2.3 (pinned `~`).
+
 ## October 9, 2026 — Appearance round, PR 5: a clean signal keeps its moving time (GPS filter)
 
 PR 1's hysteresis fixed the noisy run; a simulation with NOISE-FREE fixes found the rest of H3. With a wide or missing accuracy (the 15 m default) the velocity's own uncertainty stays above a walking or jogging speed for good, so the "confident" start never fired — a clean, steady walk drew two points and saved Moving time 0:00. And once moving, the 6-SD step at that accuracy is ~35 m: a 1 m/s walk drew a point every 35 s, and `summarize` reads any hop over `PAUSE_GAP_S` (30 s) as a stop.
