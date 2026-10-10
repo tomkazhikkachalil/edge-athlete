@@ -41,7 +41,8 @@ export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: num
     try {
       const res = await fetch(`${E2E_BASE_URL}/api/health`, { cache: 'no-store', headers: bypassHeaders() });
       const body = (await res.json().catch(() => ({}))) as { commit?: string | null };
-      const commit = typeof body.commit === 'string' ? body.commit : null;
+      // A CLI deploy (no Git) reports an empty commit — the same as none.
+      const commit = typeof body.commit === 'string' && body.commit ? body.commit : null;
       if (commit === null) {
         console.warn('[e2e] the target reports no build commit — probing whatever is deployed');
         return;

@@ -18,23 +18,47 @@
  * offline mode and no stale page after a deploy (conv. 31). Registered as a
  * plain `/sw.js`, there is no fetch handler at all, as before.
  *
+ * OFFLINE PAGE + VERSIONED CACHE (maintenance pass, Oct 10 2026 — Tom's rule:
+ * cache hashed JS/CSS only, never pages, API responses or user data; ONE
+ * precached static offline page). The registration URL carries the build
+ * (`/sw.js?static=1&v=<build>`, static-cache.ts swUrl), so every deploy
+ * installs a fresh worker whose cache is `ea-static-<build>`; activate deletes
+ * every other cache — old asset versions do not outlive the deploy. A
+ * NAVIGATION goes to the network as before; only when the network fails does
+ * the worker answer with `/offline.html` (static: no user data, a Retry
+ * button). Navigation preload, where the browser has it, keeps the worker off
+ * the navigation's critical path.
+ *
  * The payload's shape is src/lib/push/payload.ts (`PushPayload`); its `url` is
  * already a same-origin path, and it is checked again here.
  */
 
-var STATIC_CACHE = 'ea-static-v1';
+var SW_PARAMS = new URL(self.location.href).searchParams;
+var BUILD = (SW_PARAMS.get('v') || 'v1').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'v1';
+var STATIC_CACHE = 'ea-static-' + BUILD;
 var STATIC_CACHE_MAX_ENTRIES = 400;
 var STATIC_PREFIX = '/_next/static/';
-var staticCacheOn = new URL(self.location.href).searchParams.get('static') === '1';
+var OFFLINE_PAGE = '/offline.html';
+var staticCacheOn = SW_PARAMS.get('static') === '1';
 
-self.addEventListener('install', function () {
+self.addEventListener('install', function (event) {
   self.skipWaiting();
+  if (!staticCacheOn) return;
+  // The offline page is precached; a failure here never blocks the install.
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then(function (cache) {
+      return cache.add(new Request(OFFLINE_PAGE, { cache: 'reload' }));
+    }).catch(function () {})
+  );
 });
 
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
+      staticCacheOn && self.registration.navigationPreload && typeof self.registration.navigationPreload.enable === 'function'
+        ? self.registration.navigationPreload.enable().catch(function () {})
+        : Promise.resolve(),
       // Any cache this worker does not own (an older version's) goes.
       caches.keys().then(function (names) {
         return Promise.all(
@@ -58,6 +82,20 @@ self.addEventListener('fetch', function (event) {
   if (!staticCacheOn) return;
   var request = event.request;
   if (request.method !== 'GET') return;
+  // A page load: the network, always — the cache is never asked for a page.
+  // Only a FAILED load (offline) is answered, with the static offline page.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      Promise.resolve(event.preloadResponse)
+        .then(function (preloaded) { return preloaded || fetch(request); })
+        .catch(function () {
+          return caches.match(OFFLINE_PAGE, { cacheName: STATIC_CACHE }).then(function (page) {
+            return page || Response.error();
+          });
+        })
+    );
+    return;
+  }
   var url;
   try {
     url = new URL(request.url);

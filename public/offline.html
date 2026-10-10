@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>You're offline · Edge Athlete</title>
+<!--
+  The ONE page the service worker keeps (maintenance pass, Oct 10 2026):
+  precached at install, answered only when a navigation cannot reach the
+  network. Static — no user data, no request of its own beyond a reload.
+  Light and dark follow the device. In-progress recordings, workouts, scores
+  and drafts stay on the phone and send when the connection returns.
+-->
+<style>
+  :root { --bg:#f7f6fb; --card:#ffffff; --fg:#17151f; --muted:#5d5873; --line:#e3e0ef; --brand:#7c3aed; --brand-fg:#ffffff; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14121b; --card:#1d1a27; --fg:#ece9f5; --muted:#a59fbd; --line:#2e2a3d; --brand:#8b5cf6; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; display: flex; align-items: center; justify-content: center; padding: 24px 16px; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  main { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 32px 24px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06); }
+  img { width: 56px; height: 56px; border-radius: 14px; display: block; margin: 0 auto 16px; }
+  h1 { font-size: 24px; line-height: 1.25; margin: 0 0 8px; }
+  p { margin: 0 0 24px; color: var(--muted); }
+  button { appearance: none; border: 0; border-radius: 999px; background: var(--brand); color: var(--brand-fg); font: 600 16px/1 inherit; font-family: inherit; min-height: 44px; padding: 0 24px; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .note { margin: 16px 0 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="data:image/png;base64,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" alt="" width="56" height="56">
+  <h1>You're offline</h1>
+  <p>Edge Athlete can't reach the internet right now. Anything you were recording or writing is saved on this device and will send when you're back online.</p>
+  <button type="button" id="retry">Try again</button>
+  <p class="note" role="status" aria-live="polite" id="status"></p>
+</main>
+<script>
+  (function () {
+    var retry = document.getElementById('retry');
+    var status = document.getElementById('status');
+    function go() { status.textContent = 'Reconnecting…'; location.reload(); }
+    retry.addEventListener('click', go);
+    window.addEventListener('online', go);
+  })();
+</script>
+</body>
+</html>
