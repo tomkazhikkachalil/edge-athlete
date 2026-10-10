@@ -137,6 +137,15 @@ export function openRecordingStore(): RecordingStore | null {
       const db = await dbp;
       const all = (await tx<RecordingMeta[]>(db, 'recordings', 'readonly', s => s.getAll() as IDBRequest<RecordingMeta[]>)) ?? [];
       for (const m of all) if (isExpired(m, now)) await this.clear(m.id);
+      // Point batches and photos whose recording row is gone (a crash between
+      // writes, or a clear that stopped part-way) — read by KEY only, so no
+      // photo bytes are loaded to find them.
+      const live = new Set(all.filter(m => !isExpired(m, now)).map(m => m.id));
+      for (const store of ['points', 'photos'] as const) {
+        const keys = (await tx<IDBValidKey[]>(db, store, 'readonly', s => s.getAllKeys())) ?? [];
+        const orphans = keys.filter(k => Array.isArray(k) && !live.has(String(k[0])));
+        if (orphans.length > 0) await tx(db, store, 'readwrite', s => orphans.forEach(k => s.delete(k)));
+      }
     },
   };
 }
