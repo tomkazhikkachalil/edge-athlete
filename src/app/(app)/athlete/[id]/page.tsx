@@ -340,12 +340,12 @@ export default function AthleteProfilePage() {
               <LazyImage
                 src={profile.avatar_url}
                 alt="Profile Picture"
-                className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-violet-500"
+                className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white dark:border-surface"
                 width={192}
                 height={192}
               />
             ) : (
-              <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-violet-500 border-4 border-violet-500 flex items-center justify-center text-white text-4xl sm:text-5xl font-bold">
+              <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gradient-to-br from-violet-500 to-violet-600 border-4 border-white dark:border-surface flex items-center justify-center text-white text-4xl sm:text-5xl font-bold">
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
@@ -411,7 +411,7 @@ export default function AthleteProfilePage() {
                     setFollowersModalTab('followers');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-primary font-bold hover:text-brand-fg transition-colors"
+                  className="flex items-center gap-1 min-h-[44px] -my-3 text-primary font-bold hover:text-brand-fg transition-colors"
                 >
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Fans</span>
@@ -421,7 +421,7 @@ export default function AthleteProfilePage() {
                     setFollowersModalTab('following');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-primary font-bold hover:text-brand-fg transition-colors"
+                  className="flex items-center gap-1 min-h-[44px] -my-3 text-primary font-bold hover:text-brand-fg transition-colors"
                 >
                   <span className="font-bold">{followStats.followingCount}</span>
                   <span>Following</span>

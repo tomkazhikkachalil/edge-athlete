@@ -4,6 +4,8 @@ import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
+import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { coverProxyUrl } from '@/lib/media/cover-url';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
@@ -152,6 +154,10 @@ export async function GET(request: NextRequest) {
         created_at: p.created_at,
         likes_count: p.likes_count,
         comments_count: p.comments_count,
+        // What a media-less tile is (Oct 9 2026 appearance round — those
+        // tiles were grey boxes with a caption). A coarse label and an icon
+        // ONLY: no numbers, route, or ids leave this CDN-cached stranger read.
+        tile: recentPostTile(p),
         // Anonymous page, but the bytes still route through the proxy (these
         // are public posts, so the proxy serves them to anyone).
         post_media: (p.post_media as Array<{ media_url: string }> | null || []).map(m => ({
@@ -274,4 +280,19 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** The coarse kind of a recent post, for a tile with no photo. Public facts only. */
+function recentPostTile(p: { stats_data: unknown; round_id: unknown; group_post_id: unknown; sport_key: string | null }): { kind: 'round' | 'activity' | 'stats' | 'text'; label: string | null; icon: string | null } {
+  if (p.round_id || p.group_post_id) return { kind: 'round', label: 'Golf round', icon: 'golf-ball' };
+  const sd = p.stats_data as { type?: unknown; activity_type?: unknown } | null;
+  if (sd && sd.type === 'activity' && isActivityType(sd.activity_type)) {
+    const def = ACTIVITY_TYPE_DEFS[sd.activity_type];
+    return { kind: 'activity', label: def.label, icon: def.icon };
+  }
+  if (sd && typeof sd === 'object' && Object.keys(sd).length > 0) {
+    const sport = p.sport_key ? SPORT_REGISTRY[p.sport_key as SportKey] : undefined;
+    return { kind: 'stats', label: sport ? `${sport.display_name} stats` : 'Stats', icon: 'chart-line' };
+  }
+  return { kind: 'text', label: null, icon: null };
 }

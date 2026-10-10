@@ -1,5 +1,16 @@
 # Development Log
 
+## October 9, 2026 — Appearance round, PR 3: profile and media
+
+From the appearance audit (H2, H4, M1, M6, L4). No flow changes.
+
+- **H2 — the activity tile.** A shared activity on the profile grid was the generic stats summary: "Name: Evening Run • Steps: 3592". `MediaGridItem` now draws it like the feed card at tile scale — the route's line drawing (`RouteThumb`, the same server-trimmed preview the feed shows), the activity's icon and name, then distance · time — and drops the "+ Stats" badge (the tile IS the activity). `buildStatsSummary` gained an `activity` branch for every other surface (name, then "2.69 km · 14:57"; tested).
+- **L4 — no text under 12 px on tiles.** The golf tile's course (11 → 12 px), "TO PAR" (9 → 12 px) and meta (10 → 12 px), and the stats tile's lines, all `text-xs`.
+- **M1 — `/u/` tiles.** Recent Posts without a photo were grey boxes with a caption. `/api/public/profile` adds a coarse `tile {kind, label, icon}` per post (round → "Golf round", an activity → its type, stats → "<Sport> stats", text) — public facts only, nothing numeric, no route, no ids, so the CDN-cached stranger read stays safe; the page renders the media grid's surface (green for a round, violet for an activity or stats), the icon, the label and the caption.
+- **M6 — one avatar.** The owner's `/athlete` fallback was grey initials while every other view was violet: all three profile heroes now share the violet-gradient initials and a white ring (the card colour in dark).
+- **H4 — 44 px tap areas** with the house recipes (an inline link gets an invisible `after:` hit area, a row control `min-h-[44px]` with a negative margin so the row keeps its height): Fans / Following on both profile routes, FilterBar's "Clear all filters", the account line's "Change", the composer's "Show suggestions", Explore's "Start a league / club", `/u/`'s "View All Posts", sign-in's "Forgot password?" and the two "Find a … near you" links. (The header's Create and the Fan button already had `after:` hit areas — the audit's 30 px reading was the visible box.)
+- **Proof:** `npm run verify` 0; `stats-summary` unit tests; profile-cover-card, profile-open-top, profile-spacing, profile-buckets, profile-orgs, activities-ui, post-audience green on desktop and phone.
+
 ## October 9, 2026 — Appearance round, PR 1: runs and rides keep their moving time (a GPS filter fix)
 
 The appearance audit showed a run with "Moving time 0:00" and "Avg pace —" beside splits of 5:33 /km. It is a real bug from the GPS accuracy round (#1128), not the seed: `gps-filter.ts` drew a point only while the filter was **confidently** moving — speed over the type's threshold AND ≥ 1.5 × its own velocity uncertainty — and tested that at EVERY fix. A run's and a ride's velocity uncertainty sits high (process noise 1.0 / 1.5), so at a steady pace the test flickered; each flicker marked a fake stop (the held point redrawn), and the long hops between real points fell past the 30 s pause rule. **Measured on the real filter** (600 s straight tracks, 3 seeds, phone-reported accuracy 1.5 × the noise): a 3 m/s run counted **8–60 %** of its time as moving, rides under 6 m/s as low as 3 %, a 1 m/s walk at 6–10 m noise 10–21 %. Distance stayed right (≤ 2 % error) — only moving time and pace were wrong, on the phone (`liveTotals`) and on the server alike.
