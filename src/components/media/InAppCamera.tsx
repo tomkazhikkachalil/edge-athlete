@@ -125,6 +125,19 @@ function stopStream(video: HTMLVideoElement | null, stream: MediaStream | null):
   });
 }
 
+/** Stops a recording WITHOUT delivering it: the stop handler is detached first,
+ *  so a cancel (or leaving the screen) never hands the caller a clip. */
+function discardRecording(recorder: MediaRecorder | null): void {
+  if (!recorder || recorder.state === 'inactive') return;
+  recorder.onstop = null;
+  recorder.ondataavailable = null;
+  try {
+    recorder.stop();
+  } catch {
+    /* ignore */
+  }
+}
+
 interface InAppCameraProps {
   onCapture: (file: File) => void;
   onClose: () => void;
@@ -152,6 +165,8 @@ export default function InAppCamera({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to start the stream again after the page was hidden (see below).
+  const [streamKey, setStreamKey] = useState(0);
   const recordingMime = mode === 'video' ? pickRecordingMime() : null;
 
   // Start (and on flip / mode change, restart) the stream with deadlines.
@@ -218,24 +233,55 @@ export default function InAppCamera({
     };
     // onStreamReady is a diagnostic hook; re-running the stream on its identity would flicker the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facing, mode]);
+  }, [facing, mode, streamKey]);
 
-  // Escape closes; recording stops with the component.
+  // The app going to the background releases the camera and the microphone
+  // (the device's indicator turns off): a recording in progress is FINISHED
+  // and delivered as it stands — never lost — and an idle preview simply
+  // stops. Coming back starts the preview again.
+  useEffect(() => {
+    let released = false;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        const recorder = recorderRef.current;
+        if (recorder && recorder.state !== 'inactive') {
+          try {
+            recorder.stop();
+          } catch {
+            /* ignore */
+          }
+        }
+        stopStream(videoRef.current, streamRef.current);
+        streamRef.current = null;
+        released = true;
+        setReady(false);
+      } else if (released) {
+        released = false;
+        setStreamKey(k => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  // Escape closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      if (recordTimerRef.current) clearTimeout(recordTimerRef.current);
-      try {
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
-      } catch {
-        /* ignore */
-      }
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Leaving the screen mid-recording discards it (unmount only — a parent
+  // re-render that hands a new onClose must never end a recording).
+  useEffect(
+    () => () => {
+      if (recordTimerRef.current) clearTimeout(recordTimerRef.current);
+      discardRecording(recorderRef.current);
+    },
+    []
+  );
 
   const restart = (next: { facing?: CameraFacing; mode?: CameraMode }) => {
     setReady(false);
@@ -336,6 +382,8 @@ export default function InAppCamera({
 
   const closeNow = () => {
     // Synchronous teardown BEFORE the parent unmounts us — never awaited.
+    // A recording in progress is a CANCEL: nothing is delivered.
+    discardRecording(recorderRef.current);
     stopStream(videoRef.current, streamRef.current);
     streamRef.current = null;
     onClose();
