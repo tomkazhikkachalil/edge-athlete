@@ -35,8 +35,8 @@ export default function LazyImage({
       <div
         className={`bg-gray-200 dark:bg-stone-800 flex items-center justify-center ${className}`}
         style={{ width, height }}
-        role="img"
-        aria-label={alt}
+        // A decorative image (empty alt) is hidden from assistive tech; a named one keeps its name.
+        {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}
       >
         <i className="fas fa-image text-faint" aria-hidden="true"></i>
       </div>

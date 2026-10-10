@@ -91,6 +91,7 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
       <input
         ref={setInputEl}
         type="file"
+        aria-label="Choose a cover photo"
         accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif"
         className="sr-only"
         onChange={e => {
@@ -101,6 +102,7 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
       <input
         ref={setCameraEl}
         type="file"
+        aria-label="Take a cover photo"
         accept="image/*"
         capture="environment"
         className="sr-only"

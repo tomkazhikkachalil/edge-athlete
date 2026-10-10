@@ -117,6 +117,7 @@ export default function AvatarUploader({
       <input
         ref={setInputEl}
         type="file"
+        aria-label="Choose a profile photo"
         accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif"
         className="sr-only"
         onChange={e => {
@@ -127,6 +128,7 @@ export default function AvatarUploader({
       <input
         ref={setCameraEl}
         type="file"
+        aria-label="Take a profile photo"
         accept="image/*"
         capture="user"
         className="sr-only"
