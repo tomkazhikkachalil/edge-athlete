@@ -210,6 +210,42 @@ describe('gps-filter — a faithful route from a noisy phone', () => {
     }
   });
 
+  // A clean signal whose reported accuracy is wide (or missing — the 15 m
+  // default) made the 6-SD step ~35 m: a walk, jog or easy ride drew a point
+  // only every 30+ s, and every such hop read as a STOP — moving time 0:00.
+  it('a clean track with a wide or missing accuracy still counts its time as moving', () => {
+    const cases: Array<[ActivityType, number, number | undefined]> = [
+      ['walk', 1.0, undefined], ['walk', 1.3, 20], ['run', 2.5, undefined], ['run', 3, 20], ['ride', 4, undefined], ['ride', 6, 20],
+    ];
+    for (const [type, speed, acc] of cases) {
+      const fixes: RawFix[] = [];
+      for (let t = 0; t <= 600; t++) {
+        const f = at(t, speed * t, 0, acc ?? 0);
+        if (acc === undefined) delete f.acc;
+        fixes.push(f);
+      }
+      const pts = filterTrack(fixes, type).points;
+      const moving = movingOf(pts, speed * 0.5);
+      expect(moving / 600, `${type} ${speed} m/s acc ${acc ?? 'none'}: moving ${moving.toFixed(0)} s of 600`).toBeGreaterThan(0.9);
+      expect(Math.abs(total(pts) - speed * 600) / (speed * 600), `${type} ${speed} m/s acc ${acc ?? 'none'}: distance`).toBeLessThan(0.03);
+    }
+  });
+
+  it('standing still with a wide or missing accuracy adds nothing', () => {
+    for (const type of ['walk', 'run', 'ride'] as const) {
+      for (const acc of [undefined, 25]) {
+        const r = rng(acc ?? 7);
+        const still: RawFix[] = [];
+        for (let t = 0; t < 300; t++) {
+          const f = at(t, gauss(r) * 4, gauss(r) * 4, acc ?? 0);
+          if (acc === undefined) delete f.acc;
+          still.push(f);
+        }
+        expect(total(filterTrack(still, type).points), `${type} acc ${acc ?? 'none'}`).toBe(0);
+      }
+    }
+  });
+
   it('a cold start waits for the signal to settle: bad first fixes never start the route', () => {
     const fixes: RawFix[] = [
       at(0, 0, 0, 25), at(1, 40, -30, 25), at(2, -20, 15, 25), // poor (over 20 m) — the run resets
