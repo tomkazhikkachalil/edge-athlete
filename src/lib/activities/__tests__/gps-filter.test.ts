@@ -153,6 +153,63 @@ describe('gps-filter — a faithful route from a noisy phone', () => {
     }
   });
 
+  // The Oct 9 2026 audit: the "confidently moving" test flickered at a
+  // steady pace, each flicker a fake stop — a 3 m/s run at typical accuracy
+  // saved 8–15 % of its time as moving ("Moving time 0:00", "Avg pace —").
+  const movingOf = (pts: readonly { t: number; lat?: number; lng?: number }[], movingSpeed: number) => {
+    const d = cumulativeDistances(pts);
+    let moving = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const dt = (pts[i].t - pts[i - 1].t) / 1000;
+      if (dt > 0 && dt <= 30 && (d[i] - d[i - 1]) / dt >= movingSpeed) moving += dt;
+    }
+    return moving;
+  };
+  const straight = (seed: number, speed: number, sigma: number, seconds: number): RawFix[] => {
+    const r = rng(seed);
+    const out: RawFix[] = [];
+    for (let t = 0; t <= seconds; t++) out.push(at(t, speed * t + gauss(r) * sigma, gauss(r) * sigma, sigma * 1.5));
+    return out;
+  };
+
+  it('a steady run or ride counts its time as moving at real phone accuracies', () => {
+    const cases: Array<[ActivityType, number, number, number]> = [
+      ['run', 2.6, 3, 0.8], ['run', 3, 6, 0.8], ['run', 3, 10, 0.8], ['run', 3.5, 10, 0.8],
+      ['ride', 4.5, 6, 1.5], ['ride', 6, 10, 1.5], ['ride', 8, 10, 1.5],
+    ];
+    for (const [type, speed, sigma, movingSpeed] of cases) {
+      const pts = filterTrack(straight(21, speed, sigma, 600), type).points;
+      const moving = movingOf(pts, movingSpeed);
+      expect(moving / 600, `${type} ${speed} m/s σ${sigma}: moving ${moving.toFixed(0)} s of 600`).toBeGreaterThan(0.9);
+      expect(Math.abs(total(pts) - speed * 600) / (speed * 600), `${type} ${speed} m/s σ${sigma}: distance`).toBeLessThan(0.03);
+    }
+  });
+
+  it('a run with a two-minute stop: the stop is not moving time and adds no distance', () => {
+    const r = rng(23);
+    const fixes: RawFix[] = [];
+    let t = 0;
+    for (; t <= 300; t++) fixes.push(at(t, 3 * t + gauss(r) * 6, gauss(r) * 6, 9));
+    for (let k = 0; k < 120; k++, t++) fixes.push(at(t, 900 + gauss(r) * 6, gauss(r) * 6, 9));
+    for (let k = 0; k <= 300; k++, t++) fixes.push(at(t, 900 + 3 * k + gauss(r) * 6, gauss(r) * 6, 9));
+    const pts = filterTrack(fixes, 'run').points;
+    expect(Math.abs(total(pts) - 1800) / 1800, `${total(pts).toFixed(0)} m`).toBeLessThan(0.04);
+    const moving = movingOf(pts, 0.8);
+    expect(moving, `moving ${moving.toFixed(0)} s`).toBeGreaterThan(540);
+    expect(moving, `moving ${moving.toFixed(0)} s`).toBeLessThan(640);
+  });
+
+  it('standing still with a run or ride profile still adds nothing', () => {
+    for (const type of ['run', 'ride'] as const) {
+      for (const sigma of [6, 10, 15]) {
+        const r = rng(sigma * 3);
+        const still: RawFix[] = [];
+        for (let t = 0; t < 180; t++) still.push(at(t, gauss(r) * sigma, gauss(r) * sigma, sigma * 1.5));
+        expect(total(filterTrack(still, type).points), `${type} σ${sigma}`).toBe(0);
+      }
+    }
+  });
+
   it('a cold start waits for the signal to settle: bad first fixes never start the route', () => {
     const fixes: RawFix[] = [
       at(0, 0, 0, 25), at(1, 40, -30, 25), at(2, -20, 15, 25), // poor (over 20 m) — the run resets
