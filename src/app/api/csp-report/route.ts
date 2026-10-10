@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { cspViolations } from '@/lib/csp-report';
 
 /**
  * POST /api/csp-report — CSP violation sink (hardening round).
@@ -21,21 +22,9 @@ export async function POST(request: NextRequest) {
     if (limited) return new Response(null, { status: 204 }); // never 429 a reporter
 
     const raw = (await request.text()).slice(0, MAX_BODY_BYTES);
-    let summary = raw.slice(0, 500);
-    try {
-      const parsed = JSON.parse(raw);
-      // report-uri shape: { "csp-report": {...} }; report-to: [{ body: {...} }]
-      const body = parsed?.['csp-report'] ?? (Array.isArray(parsed) ? parsed[0]?.body : parsed);
-      if (body && typeof body === 'object') {
-        summary = JSON.stringify({
-          directive: body['violated-directive'] ?? body.effectiveDirective,
-          blocked: String(body['blocked-uri'] ?? body.blockedURL ?? '').slice(0, 200),
-          page: String(body['document-uri'] ?? body.documentURL ?? '').slice(0, 200),
-          sample: String(body['script-sample'] ?? body.sample ?? '').slice(0, 100),
-        });
-      }
-    } catch { /* keep the raw slice */ }
-    reportRouteError('[csp-report]', summary);
+    // Only real violations — every one in a Reporting API batch; the batch's
+    // other report types (deprecation, intervention…) are not errors.
+    for (const v of cspViolations(raw)) reportRouteError('[csp-report]', JSON.stringify(v));
   } catch { /* a failed report must never surface */ }
   return new Response(null, { status: 204 });
 }

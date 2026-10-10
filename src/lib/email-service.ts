@@ -2,6 +2,7 @@
 // and SendMailOptions types are named exports, not a namespace.
 import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer';
 import * as Sentry from '@sentry/nextjs';
+import { onlyReservedRecipients, recipientList } from './email-recipients';
 
 /** What the ticket mails read — a projection, never the whole row (src/lib/tickets/types.ts TicketRow satisfies it). */
 export interface TicketMailShape {
@@ -86,6 +87,12 @@ export class EmailService {
    * so a dead mail pipe is visible.
    */
   private async deliver(kind: string, mail: SendMailOptions): Promise<boolean> {
+    // A QA account's @example.com or a departed account's @departed.invalid:
+    // no provider can deliver it — skip quietly instead of logging a 550.
+    if (onlyReservedRecipients(recipientList(mail.to, mail.cc, mail.bcc))) {
+      console.info(`[EMAIL] skipped (${kind}): reserved test address`);
+      return false;
+    }
     try {
       await this.transporter.sendMail(mail);
       return true;
