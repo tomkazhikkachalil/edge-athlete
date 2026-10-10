@@ -1,5 +1,5 @@
 import { purgePost } from './helpers/results';
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIResponse } from '@playwright/test';
 import {
   adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody, E2E_BASE_URL,
 } from './helpers/qa-user';
@@ -68,9 +68,9 @@ test('performance backfill: admin gate, contract, and an idempotent live run ove
     let cursor: string | null = null;
     let upserted = 0;
     for (let i = 0; i < 20; i++) {
-      const live = await adminApi.post('/api/admin/performance-backfill', { data: { source: 'posts', dryRun: false, ...(cursor ? { cursor } : {}) } });
+      const live: APIResponse = await adminApi.post('/api/admin/performance-backfill', { data: { source: 'posts', dryRun: false, ...(cursor ? { cursor } : {}) } });
       expect(live.ok(), await readErrorBody(live)).toBe(true);
-      const body = await live.json();
+      const body: { dryRun: boolean; upserted: number; nextCursor: string | null; truncated: boolean } = await live.json();
       expect(body.dryRun).toBe(false);
       upserted += body.upserted;
       cursor = body.nextCursor;
