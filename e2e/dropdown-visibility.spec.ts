@@ -159,7 +159,7 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
       for (const viewport of [WIDE, NARROW]) {
         await page.setViewportSize(viewport);
         await page.goto('/feed');
-        await page.getByRole('button', { name: /what's on your mind/i }).click();
+        await page.getByRole('button', { name: /create a post/i }).click();
 
         // The sport selector is a z-[60] overlay ON TOP of the composer, so an
         // unscoped /golf/i can resolve to a covered element underneath.

@@ -10,7 +10,7 @@ test('a camera photo attaches as a tile at once; Edit is one tap away @mobile', 
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
 
   // The photo CAPTURE input (single-file, accept=image/*) — not the library one.
@@ -77,7 +77,7 @@ test('a camera video attaches as a tile at once and posts @mobile', async ({ pag
     return { data: btoa(s), mime };
   });
 
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   const clip = {
     name: base64.mime === 'video/mp4' ? 'clip.mp4' : 'clip.webm',

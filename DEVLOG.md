@@ -1,5 +1,19 @@
 # Development Log
 
+## October 10, 2026 — Quick fixes: Vitals beside Stats, "Create a post", a new post starts General
+
+Tom's three asks:
+- **Vitals sits beside Stats** on the profile tab bar of the owner's `/athlete` and a viewer's `/athlete/[id]` (`ProfileMediaTabs`): Media · Stats · Vitals · Tagged · Equipment · Achievements, the same order `/u/` already used. The buttons are generated from the one `tabs` array, so icon, spacing, count chip and active state are unchanged. At 390 px Vitals is now visible without scrolling the bar.
+- **The feed box says "Create a post"** (it said "What's on your mind, <name>?"). The 13 specs that opened the composer by that name now use `/create a post/i`, which never matches the modal's own "Create Post" submit or the header's "Create new post".
+- **A new post always starts as a plain General post.** The feed and the owner's profile seeded the composer with the athlete's own sport, so a golfer's composer opened on Golf (a 2025 comment in `header-create.spec` already recorded it hiding the caption box).
+  - Now: the feed, its quick buttons, the header's Create → Post and the profile composer all start General.
+  - Only an explicit "log a <sport>" door presets a sport, for that ONE open (the feed's `composerSport`, cleared on close):
+    - `/feed?create=1&sport=` (onboarding's finish, and the golf rounds page's "Log a round", which relied on the old fallback and now says `&sport=golf`);
+    - the empty feed's "log a <sport>" button;
+    - the Get Started card's "Log your first round".
+  - The sport picker and everything in it is unchanged.
+  - Pinned by `composer-default-general.spec`: a golfer's feed composer opens on General Post with the caption box and no course field, Golf is still one pick away, and the tab order holds on both profile routes, desktop and phone (mobile, android, webkit-mobile).
+
 ## October 10, 2026 — Maintenance pass, PR 6: measurements, the first bottleneck, the report
 
 `docs/HARDENING.md` gains **"Scaling: the first thing to break"**:

@@ -84,7 +84,7 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
   await feedCard.getByRole('button', { name: 'Dismiss get started checklist' }).click();
   await expect(feedCard).toBeHidden();
   await feed.reload();
-  await expect(feed.getByRole('button', { name: /what's on your mind/i })).toBeVisible({
+  await expect(feed.getByRole('button', { name: /create a post/i })).toBeVisible({
     timeout: 15_000,
   });
   await expect(feed.getByTestId('get-started-card')).toHaveCount(0);

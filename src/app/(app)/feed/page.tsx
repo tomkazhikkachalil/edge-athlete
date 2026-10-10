@@ -105,12 +105,19 @@ export default function FeedPage() {
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
-  // Deep link: /feed?create=1[&sport=<key>] opens the composer, preset to
-  // the sport when given (onboarding's final CTA). window.location instead
-  // of useSearchParams — this page is statically prerendered and must not
-  // need a Suspense wrap. The sport must be captured BEFORE replaceState
-  // scrubs the URL.
-  const [deepLinkSport, setDeepLinkSport] = useState<SportKey | null>(null);
+  // A new post starts as a plain General post (Tom, Oct 10 2026) — never the
+  // athlete's own sport. Only an explicit "log a <sport>" door presets one:
+  // the deep link /feed?create=1&sport=<key> (onboarding's final CTA, the
+  // golf rounds page) and the "log your first round" buttons below. The
+  // intent lasts one open: closing the composer clears it.
+  // window.location instead of useSearchParams — this page is statically
+  // prerendered and must not need a Suspense wrap. The sport must be
+  // captured BEFORE replaceState scrubs the URL.
+  const [composerSport, setComposerSport] = useState<SportKey | null>(null);
+  const openComposer = (sport: SportKey | null = null) => {
+    setComposerSport(sport);
+    setIsCreatePostModalOpen(true);
+  };
   // Effect-owned deliberately: reads window.location and scrubs it with
   // replaceState — neither is possible during render.
   useEffect(() => {
@@ -119,7 +126,7 @@ export default function FeedPage() {
     if (params.get('create') === '1') {
       const sportKey = resolveSportKey(params.get('sport'));
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (isComposerSport(sportKey)) setDeepLinkSport(sportKey);
+      if (isComposerSport(sportKey)) setComposerSport(sportKey);
       setIsCreatePostModalOpen(true);
       window.history.replaceState(null, '', '/feed');
     }
@@ -174,7 +181,8 @@ export default function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, feedScope]);
 
-  // The athlete's own sport drives composer defaults + empty-state copy
+  // The athlete's own sport drives the empty-state copy and its "log a <sport>"
+  // button — never the composer's default (a new post starts General).
   const profileSportKey = resolveSportKey(profile?.sport);
   const profileDefaultSport = isComposerSport(profileSportKey) ? profileSportKey : null;
 
@@ -472,7 +480,7 @@ export default function FeedPage() {
       {/* Unified Header */}
       <AppHeader
         showSearch={true}
-        onCreatePost={() => setIsCreatePostModalOpen(true)}
+        onCreatePost={() => openComposer()}
       />
 
       {/* Main Layout */}
@@ -503,10 +511,10 @@ export default function FeedPage() {
                   </div>
                 )}
                 <button
-                  onClick={() => setIsCreatePostModalOpen(true)}
+                  onClick={() => openComposer()}
                   className="ea-interactive flex-1 bg-surface-sunken rounded-lg px-3 sm:px-4 py-2.5 text-left text-muted text-sm sm:text-base"
                 >
-                  What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
+                  Create a post
                 </button>
               </div>
               {/* `py-3.5 -my-3.5` grows these from 16px tall to a 44px touch
@@ -516,15 +524,15 @@ export default function FeedPage() {
                   buys hit area, not visual weight. */}
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                  <button onClick={() => openComposer()} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
                     <i className="fas fa-image text-faint transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                  <button onClick={() => openComposer()} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
                     <i className="fas fa-chart-line text-faint transition-colors duration-[150ms] group-hover:text-brand-fg"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                  <button onClick={() => openComposer()} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
                     <i className="fas fa-trophy text-faint transition-colors duration-[150ms] group-hover:text-amber-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
@@ -542,7 +550,7 @@ export default function FeedPage() {
                 My orgs (public posts from org peers) */}
             {/* First-run checklist for new accounts — the day-one golfer's
                 guidance (self-hiding: age gate, dismissal, all-steps-done). */}
-            <GetStartedCard onLogRound={() => setIsCreatePostModalOpen(true)} />
+            <GetStartedCard onLogRound={() => openComposer(profileDefaultSport)} />
             {/* "Download the app" — phones and tablets, once. Kept the NEXT
                 SIBLING of the card above: globals.css hides it while that
                 card shows, so a new account never gets two cards at once. */}
@@ -660,7 +668,7 @@ export default function FeedPage() {
                   </p>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                     <button
-                      onClick={() => setIsCreatePostModalOpen(true)}
+                      onClick={() => openComposer(profileDefaultSport)}
                       className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
                     >
                       {profileDefaultSport ? (
@@ -761,10 +769,13 @@ export default function FeedPage() {
       {/* Create Post Modal */}
       <CreatePostModal
         isOpen={isCreatePostModalOpen}
-        onClose={() => setIsCreatePostModalOpen(false)}
+        onClose={() => {
+          setIsCreatePostModalOpen(false);
+          setComposerSport(null);
+        }}
         userId={user?.id || ''}
         onPostCreated={handlePostCreated}
-        defaultSportKey={deepLinkSport ?? profileDefaultSport ?? 'general'}
+        defaultSportKey={composerSport ?? 'general'}
       />
 
       {/* Edit Post Modal */}

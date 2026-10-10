@@ -51,7 +51,7 @@ test('composer: Near me sorts the picker by distance and offers the course you a
 
     const page = await ctx.newPage();
     await page.goto('/feed');
-    await page.getByRole('button', { name: /what's on your mind/i }).click();
+    await page.getByRole('button', { name: /create a post/i }).click();
     await page.getByRole('button', { name: /general post/i }).click();
     const sportSelector = page.locator('div[class*="z-[60]"]');
     await sportSelector.getByPlaceholder('Search sports...').fill('golf');

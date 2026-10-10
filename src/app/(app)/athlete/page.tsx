@@ -21,7 +21,7 @@ import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import PostDetailModal from '@/components/PostDetailModal';
-import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
+import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
 
 // Heavy / rarely-open modals — split into their own chunks. Cuts First Load
@@ -1112,11 +1112,9 @@ export default function AthleteProfilePage() {
         isOpen={isCreatePostModalOpen}
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
-        defaultSportKey={(() => {
-          // Composer opens preset to the athlete's declared sport
-          const key = resolveSportKey(profile?.sport);
-          return isComposerSport(key) ? key : 'general';
-        })()}
+        // A new post starts as a plain General post (Tom, Oct 10 2026) —
+        // never the athlete's own sport; the sport picker is one tap away.
+        defaultSportKey="general"
         onPostCreated={(newPost) => {
           // Refresh athlete data
           if (user?.id) {

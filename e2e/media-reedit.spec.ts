@@ -18,7 +18,7 @@ test('media re-edit after publish: new render, original preserved on the same ro
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
 
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   const composer = page.getByPlaceholder('Share your thoughts...');
   await expect(composer).toBeVisible();
 

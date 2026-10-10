@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 
 test('the offline banner comes and goes with the connection @mobile', async ({ page, context }) => {
   await page.goto('/feed');
-  await expect(page.getByRole('button', { name: /what's on your mind/i })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: /create a post/i })).toBeVisible({ timeout: 30_000 });
   const banner = page.locator('[data-offline-banner]');
   await expect(banner).toHaveAttribute('data-offline-banner', 'hidden');
   await context.setOffline(true);
@@ -54,7 +54,7 @@ test('a captured photo waits on the device: a reload offers the post back with i
   test.setTimeout(120_000);
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
   await page.goto('/feed');
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   // The camera hand-back (the photo CAPTURE input): a tile at once.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles(fixture);
@@ -63,7 +63,7 @@ test('a captured photo waits on the device: a reload offers the post back with i
   await page.waitForTimeout(2_000);
 
   await page.reload();
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   const offer = page.getByText(/You have an unfinished post/);
   await expect(offer).toContainText('1 photo or video');
   await page.getByRole('button', { name: 'Restore', exact: true }).click();
@@ -71,11 +71,11 @@ test('a captured photo waits on the device: a reload offers the post back with i
 
   // Discarding clears it: no offer next time.
   await page.reload();
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByText(/You have an unfinished post/)).toBeVisible();
   await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
   await page.reload();
-  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await expect(page.getByText(/You have an unfinished post/)).toHaveCount(0);
 });
