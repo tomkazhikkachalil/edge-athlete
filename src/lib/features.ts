@@ -90,21 +90,5 @@ export function hasEnabledSports(): boolean {
   return FEATURE_FLAGS.FEATURE_SPORTS.length > 0;
 }
 
-/**
- * Get feature flag value by key
- */
-export function getFeatureFlag<K extends keyof typeof FEATURE_FLAGS>(key: K): typeof FEATURE_FLAGS[K] {
-  return FEATURE_FLAGS[key];
-}
-
-/**
- * Development helper - log current feature flag status
- */
-export function logFeatureFlags(): void {
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    // Feature flags loaded
-  }
-}
-
 // Export for easy testing and debugging
 export { FEATURE_FLAGS as flags };
