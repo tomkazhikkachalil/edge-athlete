@@ -58,6 +58,8 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
   const lineRef = useRef<L.Polyline | null>(null);
   const casingRef = useRef<L.Polyline | null>(null);
   const drawnRef = useRef(0);
+  // How many of the line's points are settled (all but the route's provisional end).
+  const settledRef = useRef(0);
   const playerRef = useRef<L.Marker | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const segmentLayerRef = useRef<L.LayerGroup | null>(null);
@@ -86,24 +88,34 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
       lineRef.current = null;
       casingRef.current = null;
       drawnRef.current = 0;
+      settledRef.current = 0;
       playerRef.current = null;
       circleRef.current = null;
     };
   }, []);
 
-  // Append the new fixes only.
+  // Append the new points only — but the route's LAST point is provisional
+  // (gps-filter's end-of-track rule moves or replaces it with every fix), so it
+  // is redrawn each time rather than kept: keeping it left a kink per fix.
   useEffect(() => {
     const map = mapRef.current;
     const line = lineRef.current;
     const casing = casingRef.current;
     if (!map || !line || !casing) return;
+    const latLngs = (line.getLatLngs() as L.LatLng[]).slice(0, settledRef.current);
+    let lastPositioned = -1;
     for (let i = drawnRef.current; i < points.length; i++) {
       const p = points[i];
       if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
-      line.addLatLng([p.lat, p.lng]);
-      casing.addLatLng([p.lat, p.lng]);
+      latLngs.push(L.latLng(p.lat, p.lng));
+      lastPositioned = i;
     }
-    drawnRef.current = points.length;
+    if (lastPositioned >= 0) {
+      line.setLatLngs(latLngs);
+      casing.setLatLngs(latLngs.slice());
+      settledRef.current = latLngs.length - 1;
+      drawnRef.current = lastPositioned;
+    }
     const last = points[points.length - 1];
     if (last && typeof last.lat === 'number' && typeof last.lng === 'number') {
       const at: L.LatLngTuple = [last.lat, last.lng];
