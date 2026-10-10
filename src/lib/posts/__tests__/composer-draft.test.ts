@@ -66,4 +66,15 @@ describe('parseComposerDraft', () => {
       isEmptyComposerDraft({ postType: 'general', caption: '  ', hashtags: [], tags: [], visibility: 'public' })
     ).toBe(true);
   });
+
+  // Maintenance pass, Oct 10 2026: captured media waits in the device stash;
+  // the draft only counts it, so a media-only post is offered back too.
+  it('a media count alone keeps a draft, clamped and integer; zero or junk is no media', () => {
+    const mediaOnly = JSON.stringify({ v: 1, savedAt: NOW, caption: '', mediaCount: 2 });
+    expect(parseComposerDraft(mediaOnly, NOW)?.mediaCount).toBe(2);
+    expect(parseComposerDraft(JSON.stringify({ v: 1, savedAt: NOW, caption: 'x', mediaCount: 99.7 }), NOW)?.mediaCount).toBe(10);
+    expect(parseComposerDraft(JSON.stringify({ v: 1, savedAt: NOW, caption: '', mediaCount: 0 }), NOW)).toBeNull();
+    expect(parseComposerDraft(JSON.stringify({ v: 1, savedAt: NOW, caption: 'x', mediaCount: '3' }), NOW)?.mediaCount).toBeUndefined();
+    expect(isEmptyComposerDraft({ postType: 'general', caption: '', hashtags: [], tags: [], visibility: 'public', mediaCount: 1 })).toBe(false);
+  });
 });

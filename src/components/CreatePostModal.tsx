@@ -28,6 +28,7 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
+import { openMediaStash, type MediaStash } from '@/lib/workouts/media-stash';
 import { attachOriginalInBackground, uploadPostMedia } from '@/lib/media/upload';
 import { prepareImageForUpload } from '@/lib/media/post-time-resize';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
@@ -77,6 +78,10 @@ interface MediaFile {
    *  before the upload starts, 1 when its parts are sent. */
   uploadProgress?: number;
 }
+
+/** The composer's session in the device media stash, and its size cap. */
+const COMPOSER_STASH = 'composer';
+const COMPOSER_STASH_MAX_BYTES = 250 * 1024 * 1024;
 
 function revokePreviews(files: readonly MediaFile[]): void {
   for (const f of files) {
@@ -242,10 +247,81 @@ export default function CreatePostModal({
         visibility,
         // The golf section rides along only while it holds real work (G1).
         ...(golfValue.isDirty ? { golf: golfValue } : {}),
+        ...(mediaFiles.length > 0 ? { mediaCount: mediaFiles.length } : {}),
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [isOpen, postType, caption, hashtags, selectedTags, visibility, golfValue]);
+  }, [isOpen, postType, caption, hashtags, selectedTags, visibility, golfValue, mediaFiles.length]);
+
+  // Captured media is kept on the device until the post is made (maintenance
+  // pass, Oct 10 2026): each attachment's bytes go to the IndexedDB stash a
+  // moment AFTER its tile appears (Capture v2 — nothing heavy before the
+  // tile), and leave it when removed, posted or discarded. Only what THIS
+  // session stashed is ever removed here — an earlier session's files wait
+  // for the restore offer.
+  const stashRef = useRef<MediaStash | null | undefined>(undefined);
+  const stashedIdsRef = useRef<Set<string>>(new Set());
+  const composerStash = () => {
+    if (stashRef.current === undefined) stashRef.current = openMediaStash();
+    return stashRef.current;
+  };
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      const store = composerStash();
+      if (!store) return;
+      const current = new Set(mediaFiles.map(m => m.id));
+      for (const id of Array.from(stashedIdsRef.current)) {
+        if (current.has(id)) continue;
+        stashedIdsRef.current.delete(id);
+        void store.remove(COMPOSER_STASH, id).catch(() => {});
+      }
+      let budget = COMPOSER_STASH_MAX_BYTES;
+      for (const m of mediaFiles) {
+        const file = m.file ?? m.sourceFile;
+        if (!file) continue;
+        budget -= file.size;
+        if (budget < 0) break;
+        if (stashedIdsRef.current.has(m.id)) continue;
+        stashedIdsRef.current.add(m.id);
+        void store.save(COMPOSER_STASH, m.id, file).catch(() => stashedIdsRef.current.delete(m.id));
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [isOpen, mediaFiles]);
+  const clearComposerStash = () => {
+    stashedIdsRef.current.clear();
+    const store = composerStash();
+    if (store) void store.clearSession(COMPOSER_STASH).catch(() => {});
+  };
+  const restoreStashedMedia = async () => {
+    const store = composerStash();
+    if (!store) return;
+    const entries = await store.listSession(COMPOSER_STASH).catch(() => []);
+    if (entries.length === 0) return;
+    setMediaFiles(prev => {
+      const have = new Set(prev.map(m => m.id));
+      const room = Math.max(0, MAX_MEDIA_FILES - prev.length);
+      const restored = entries
+        .filter(e => !have.has(e.localId))
+        .slice(0, room)
+        .map((e): MediaFile => {
+          stashedIdsRef.current.add(e.localId);
+          const objectUrl = URL.createObjectURL(e.file);
+          return {
+            id: e.localId,
+            url: objectUrl,
+            type: e.file.type.startsWith('video/') ? 'video' : 'image',
+            size: e.file.size,
+            file: e.file,
+            preview: objectUrl,
+            sourceFile: e.file,
+            edited: false,
+          };
+        });
+      return restored.length ? [...prev, ...restored] : prev;
+    });
+  };
 
   // Tagging people
   const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
@@ -297,6 +373,7 @@ export default function CreatePostModal({
     // Explicit exit (confirmed discard or successful post) — the draft's job
     // is crash recovery, not resurrecting decisions.
     clearComposerDraft();
+    clearComposerStash();
     setAvailableDraft(null);
     reset();
     onClose();
@@ -870,6 +947,7 @@ export default function CreatePostModal({
               <i className="fas fa-clock-rotate-left text-brand-fg" aria-hidden="true"></i>
               <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
                 You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
+                {availableDraft.mediaCount ? ` (${availableDraft.mediaCount} ${availableDraft.mediaCount === 1 ? 'photo or video' : 'photos or videos'})` : ''}
               </p>
               <button
                 type="button"
@@ -887,6 +965,7 @@ export default function CreatePostModal({
                     setGolfSeed(availableDraft.golf);
                     setSportSectionResetKey(k => k + 1);
                   }
+                  if (availableDraft.mediaCount) void restoreStashedMedia();
                   setAvailableDraft(null);
                 }}
                 className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
@@ -897,6 +976,7 @@ export default function CreatePostModal({
                 type="button"
                 onClick={() => {
                   clearComposerDraft();
+                  clearComposerStash();
                   setAvailableDraft(null);
                 }}
                 className="min-h-[44px] px-3 rounded-full text-sm font-medium text-secondary hover:bg-surface-sunken"
