@@ -198,7 +198,7 @@ export default function NewConversationModal({ onClose }: Props) {
                     className="inline-flex items-center gap-1.5 bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong text-xs font-medium rounded-full px-3 py-1"
                   >
                     {mName}
-                    <button onClick={() => handleToggleMember(m)} className="hover:text-violet-900 dark:hover:text-violet-100">
+                    <button onClick={() => handleToggleMember(m)} aria-label={`Remove ${mName}`} className="hover:text-violet-900 dark:hover:text-violet-100">
                       <i className="fas fa-times text-xs"></i>
                     </button>
                   </span>

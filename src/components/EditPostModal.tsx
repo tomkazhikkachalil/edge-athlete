@@ -259,6 +259,7 @@ export default function EditPostModal({
           <h2 className="text-xl font-bold text-primary">Edit Post</h2>
           <button
             onClick={requestClose}
+            aria-label="Close"
             className="text-faint hover:text-tertiary transition-colors"
           >
             <i className="fas fa-times text-xl"></i>
@@ -340,6 +341,7 @@ export default function EditPostModal({
                     {tag}
                     <button
                       onClick={() => removeHashtag(tag)}
+                      aria-label={`Remove ${tag}`}
                       className="hover:text-violet-900 dark:hover:text-violet-200"
                     >
                       <i className="fas fa-times text-xs"></i>

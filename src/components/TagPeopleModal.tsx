@@ -200,6 +200,7 @@ export default function TagPeopleModal({
                   </span>
                   <button
                     onClick={() => toggleProfile(profile)}
+                    aria-label={`Remove ${getDisplayName(profile)}`}
                     className="text-faint hover:text-red-600 dark:hover:text-red-400"
                   >
                     <i className="fas fa-times text-xs"></i>

@@ -442,6 +442,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           <button
             type="button"
             onClick={removeAttachment}
+            aria-label="Remove attachment"
             className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
           >
             <i className="fas fa-times text-xs"></i>
