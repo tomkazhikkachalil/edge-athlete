@@ -1,5 +1,20 @@
 # Development Log
 
+## October 10, 2026 — Maintenance pass, PR 6: measurements, the first bottleneck, the report
+
+`docs/HARDENING.md` gains **"Scaling: the first thing to break"**:
+- **The load ramp** (5 → 50 workers, against a preview on the free-tier staging database):
+  - CDN-cached reads (`/u/` payload, explore) held about 1,770 req/s at 50 workers, p95 40 ms, 0 errors.
+  - An uncached read that reaches Postgres (`/api/health`, one round trip) held about 100 req/s, then hit p95 2.7 s at 35 workers and 20 s timeouts with 11 % errors at 50; staging took a minute to recover.
+  - Course search answered 429s per IP after a few seconds, as designed.
+- **The first thing to break is the database on uncached, per-viewer paths**, the signed-in feed above all. The plan is ordered: measure production's number in a quiet window, split the feed's cacheable post bodies from the viewer's flags, the compute add-on, then sample the limiter if writes dominate.
+- **Core Web Vitals on production** (signed in; Pixel 7 profile with 4× CPU at 1.6 Mbps / 150 ms; WebKit iPhone unthrottled):
+  - Profile and recorder pass everywhere: LCP ≤ 1.1 s, CLS ≤ 0.07, INP ≤ 56 ms.
+  - **The feed misses on a cold mid-range Android load: LCP 5.2 s, CLS 0.35** (WebKit: LCP 2.5 s).
+  - The layout-shift sources were recorded: the Get Started card appearing after its fetch (it pushes the feed 246 px for any account with an unfinished checklist), and the sidebar suggestions' skeleton collapsing. The fix is a layout decision, so it is listed for Tom.
+- **Production after the four merges:** no error-level or 500 lines in the Vercel logs for 6 h, no `[RATE-LIMIT]` lines, and no CSP violations since the Oct 9 parser fix.
+- **Backups:** Pro means daily backups; the restore was drilled Sep 30 (the snapshot restored into staging, #1019).
+
 ## October 10, 2026 — Maintenance pass, PR 5: accessibility and code health
 
 - **Every icon-only button has a name.** A brace-aware scan of every `<button>` with no text, `aria-label` or `title` found 19. Labelled: Back, Close (×4), Close preview, Remove <name> (tags, people, members), Remove file / image / attachment. The sign-up form's two location "buttons" did nothing, so they are now `aria-hidden` icons. The GIF tiles are named by their images; NumberWheel's ± buttons are `aria-hidden` by design (the spinbutton is the control).

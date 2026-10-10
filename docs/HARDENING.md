@@ -418,7 +418,45 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 
 ---
 
+## Scaling: the first thing to break (measured Oct 10 2026, maintenance pass)
+
+**Method.** Ramped concurrency (5 → 10 → 20 → 35 → 50 workers, 12 s each) from this Mac, against a Vercel preview with the bypass header. The preview reads the FREE-tier staging database, so these numbers show where the shape bends, not production's ceiling. Production is on Supabase Pro.
+
+| Route (anonymous) | Cache | 20 workers | 50 workers |
+| --- | --- | --- | --- |
+| `/api/public/profile` | CDN `s-maxage=60` | 695 req/s, p95 39 ms, 0 % err | 1,774 req/s, p95 40 ms, 0 % err |
+| `/api/explore` | CDN `s-maxage=30` | 695 req/s, p95 37 ms | 1,772 req/s, p95 38 ms |
+| `/api/health` | none — one DB round trip | 103 req/s, p95 316 ms | **18 req/s, p95 20 s, 11 % err** (35 workers: p95 2.7 s) |
+| `/api/golf/courses?q=` | anon CDN 300 s + `search` bucket | 429 per IP after a few seconds (the limiter, as designed) | — |
+
+**The first thing to break is the database on an UNCACHED read path.**
+- Everything the CDN answers is effectively unlimited for us.
+- Every request that reaches Postgres (through PostgREST, which pools) is bounded by the instance. At the staging tier that is roughly 100 simple round trips a second before p95 climbs. Collapse followed at 50 concurrent, with 20 s timeouts, and staging needed a minute to recover.
+- The hottest uncached path in production is the signed-in feed (`GET /api/posts`, `private, no-store`, per viewer, several queries plus the viewer's like and save embeds). The next are the per-viewer profile reads and the notification and message polls (paused when hidden or offline since Oct 10).
+- Every authenticated write now also makes one `rate_limit_hit` RPC: the shadow `write-general` bucket. It runs after the response, so it adds latency to no one, but it is one extra small write per write.
+
+**Plan, in order of leverage:**
+1. **Know production's number.** Run the same ramp once against production read paths in a quiet window, with Tom's OK, or read Supabase's own metrics during a busy hour. Watch `pg_stat_statements` for the feed's statements: mean time × calls.
+2. **Cache what is viewer-independent at the edge.** Org sites, `/u/`, explore, standings and course facets already are. The feed's per-viewer part can't be, but its post bodies could be split from the viewer's flags (a cached page of posts plus a small per-viewer "liked/saved" call).
+3. **Compute.** The Supabase compute add-on (noted Oct 4, not pulled) is the one-click step when step 1 shows CPU or connections as the limit.
+4. **The limiter's own cost.** If writes dominate, move the shadow bucket to a sampled check (1 in N) or to an in-memory pre-filter before the RPC.
+
+Front end (Core Web Vitals on production, signed in, a Pixel 7 profile and an iPhone; DevTools-protocol throttling):
+
+| Page | Mid-range Android (4× CPU, 1.6 Mbps / 150 ms), cold | iPhone (WebKit, unthrottled) |
+| --- | --- | --- |
+| `/feed` | LCP **5.2 s**, CLS **0.35**, INP 40 ms, 728 KB JS | LCP 2.5 s, INP 16 ms, 543 KB JS |
+| `/athlete` | LCP 1.1 s, CLS 0.07 | LCP 0.4 s |
+| `/activities/record` | LCP 1.1 s, CLS 0 | LCP 0.4 s |
+
+The feed misses LCP (cold) and CLS. The layout-shift sources were recorded:
+1. The **Get Started card** appears after `/api/profile/getting-started` answers (~2.3 s) and pushes the feed down 246 px. This affects every account with an unfinished checklist.
+2. The sidebar suggestions' skeleton collapses when the list resolves.
+
+The fix is a design decision (reserve the card's space from the profile we already hold, or render it below the scope chips), so it is listed for Tom, not made. WebKit reports neither LCP nor layout shifts the same way, so its CLS reads 0.
+
 ## Change log
+- **Oct 10 2026 (maintenance pass)** — every image door sniffs the bytes and strips location metadata on the server; storage-proxy and Giphy timeouts; logged 429s and the shadow `write-general` bucket; Permissions-Policy `camera=(self), microphone=(self)` (the in-app camera was blocked for the site itself); a per-build service-worker cache plus one static offline page; `auth-server.ts` out of a client bundle. See "Scaling: the first thing to break".
 - **Oct 2 2026 (phone notifications, mig 248)** — five routes:
   - `POST/DELETE /api/push/subscriptions`: session; the `push-subscribe` user bucket; https endpoints only; DELETE scoped to the caller.
   - `POST /api/push/test`: session; the same bucket; the caller's own devices only.
