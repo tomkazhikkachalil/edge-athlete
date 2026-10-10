@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
+const GIPHY_TIMEOUT_MS = 6_000;
 const GIPHY_BASE = 'https://api.giphy.com/v1/gifs';
 const LIMIT = 20;
 
@@ -47,6 +48,8 @@ export async function GET(request: NextRequest) {
 
     const res = await fetch(`${endpoint}?${params.toString()}`, {
       next: { revalidate: 60 }, // cache for 60s
+      // A slow Giphy never holds the picker (or the function) for long.
+      signal: AbortSignal.timeout(GIPHY_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -68,6 +71,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ gifs });
   } catch (error) {
     if (error instanceof Response) return error;
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      return NextResponse.json({ error: 'GIF search is slow right now — try again' }, { status: 504 });
+    }
     reportRouteError('GET /api/gifs/search error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
