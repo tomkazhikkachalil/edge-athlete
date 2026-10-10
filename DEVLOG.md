@@ -19,6 +19,8 @@
   - Third parties still get neither.
 - **CSP stays enforced, unchanged.** Since the Oct 9 report-parser fix, production logged no violation in ~18 hours of probes and use, so there is nothing legitimate to unblock and nothing new to add (any new directive goes report-only first).
 
+- **Server code out of a browser bundle.** The scout pages imported `isScoutAccount` from `scout-access.ts`, which imports `auth-server.ts` (and its admin client), so that module was bundled into a client chunk (no secret leaked: the service key is not `NEXT_PUBLIC`). The pure check is now `scout-account.ts`, and the client chunk count fell from 258 to 257. `auth-server.ts` now imports `after`, which Next refuses in a client graph, so the build itself fails if it is ever pulled into the browser again.
+
 Listed, not changed:
 - HSTS `preload` (hard to undo).
 - The `server-only` package (a new dependency).

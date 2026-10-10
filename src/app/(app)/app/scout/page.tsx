@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import { isScoutAccount } from '@/lib/recruiting/scout-access';
+import { isScoutAccount } from '@/lib/recruiting/scout-account';
 import ScoutShortlist from '@/components/recruiting/ScoutShortlist';
 
 // ── /app/scout — the scout's home (Recruiting skeleton R2) ────────────────
