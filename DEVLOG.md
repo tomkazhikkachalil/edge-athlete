@@ -1,5 +1,16 @@
 # Development Log
 
+## October 9, 2026 — Appearance round, PR 5: a clean signal keeps its moving time (GPS filter)
+
+PR 1's hysteresis fixed the noisy run; a simulation with NOISE-FREE fixes found the rest of H3. With a wide or missing accuracy (the 15 m default) the velocity's own uncertainty stays above a walking or jogging speed for good, so the "confident" start never fired — a clean, steady walk drew two points and saved Moving time 0:00. And once moving, the 6-SD step at that accuracy is ~35 m: a 1 m/s walk drew a point every 35 s, and `summarize` reads any hop over `PAUSE_GAP_S` (30 s) as a stop.
+
+`gps-filter.ts`, two rules and one tidy:
+- **A start by ground covered** (`START_SD_K` 4): from a stop, the filtered position more than 4 of its own SDs from the held point at the type's moving speed on average since that point was drawn also starts the track — the hop from the held point IS the travel (drawn as `ok`, not the restart's held point).
+- **Drawn on time while moving** (`MAX_DRAW_GAP_S` 15, `DUE_SD_K` 4): a moving filter draws at least every 15 s once the step clears 4 SDs of wobble. 2 SDs drew the wobble on the noisy 1 km loop (+7 %); 4 keeps every existing sweep inside its bound.
+- **The track's end** uses the filter's own moving verdict (`!state.still`) instead of re-deriving "confident" — the trailing stretch of a clean walk was dropped.
+
+Standing still is untouched: neither rule fires on a filter that is not moving, and a still phone's wobble stays inside 4 SDs (new test: walk / run / ride × no accuracy / 25 m, 300 s → 0 m). New test: a clean walk, jog and ride with a missing or 20 m accuracy keep > 90 % moving and distance within 3 %. A fix worse than the 20 m settle limit still waits out the 30 s cold start by design (so the test's wide cases are 20 m, not 25–30).
+
 ## October 9, 2026 — Appearance round, PR 4: Vitals, Settings, Drafts, sign-in in dark
 
 From the appearance audit (M4, M5, L2, L6). No flow changes.

@@ -55,6 +55,16 @@ export const SPEED_SLACK = 1.5;
 export const MIN_STEP_M = 3;
 /** … and further than this many of its own standard deviations. */
 export const STEP_SD_K = 6;
+/** While moving, a point is drawn at least this often (once past MIN_STEP_M),
+ *  however wide the step rule is — a drawn gap longer than the moving-time
+ *  rule's PAUSE_GAP_S (30 s) reads as a stop. */
+export const MAX_DRAW_GAP_S = 15;
+/** A start by GROUND COVERED: the filtered position this many of its own SDs
+ *  from the held point, at the type's moving speed on average since it was
+ *  drawn — a clean, steady signal whose velocity never looks "confident". */
+export const START_SD_K = 4;
+/** A point drawn on time must still clear this many SDs of wobble. */
+export const DUE_SD_K = 4;
 /** Starting to move needs the filtered speed this many of its own standard deviations clear of zero. */
 export const SPEED_SD_K = 1.5;
 /** Once moving, a stop is the filtered speed falling under this share of the
@@ -111,6 +121,8 @@ export interface FilterState {
   /** The last EMITTED position (metres in the frame). */
   outE: number;
   outN: number;
+  /** When the last point was drawn (ms). */
+  outT: number;
   /** The filter was standing still on the last fix — the next moving fix
    *  marks the restart at the held position, so a stop and the walk after it
    *  are separate hops (moving time stays honest). */
@@ -121,7 +133,7 @@ const M_PER_DEG_LAT = 111_320;
 
 export function initialFilterState(type: ActivityType): FilterState {
   const zero: Axis = { p: 0, v: 0, a: 0, b: 0, c: 0 };
-  return { type, phase: 'settling', goodRun: 0, firstT: null, runLat: 0, runLng: 0, lat0: 0, lng0: 0, mPerDegLng: M_PER_DEG_LAT, e: zero, n: zero, lastT: 0, outE: 0, outN: 0, still: false };
+  return { type, phase: 'settling', goodRun: 0, firstT: null, runLat: 0, runLng: 0, lat0: 0, lng0: 0, mPerDegLng: M_PER_DEG_LAT, e: zero, n: zero, lastT: 0, outE: 0, outN: 0, outT: 0, still: false };
 }
 
 function predict(x: Axis, dt: number, q: number): Axis {
@@ -153,7 +165,7 @@ function update(x: Axis, z: number, r: number): Axis {
 function startTracking(state: FilterState, fix: RawFix, acc: number): FilterState {
   const mPerDegLng = M_PER_DEG_LAT * Math.max(0.01, Math.cos((fix.lat * Math.PI) / 180));
   const axis: Axis = { p: 0, v: 0, a: acc * acc, b: 0, c: 4 };
-  return { ...state, phase: 'tracking', lat0: fix.lat, lng0: fix.lng, mPerDegLng, e: axis, n: axis, lastT: fix.t, outE: 0, outN: 0, still: true };
+  return { ...state, phase: 'tracking', lat0: fix.lat, lng0: fix.lng, mPerDegLng, e: axis, n: axis, lastT: fix.t, outE: 0, outN: 0, outT: fix.t, still: true };
 }
 
 function toLatLng(state: FilterState, e: number, n: number): { lat: number; lng: number } {
@@ -234,15 +246,32 @@ export function stepFilter(state: FilterState, fix: RawFix): { state: FilterStat
   // 0:00", "Avg pace —" (the Oct 9 2026 appearance audit found it).
   const velSd = Math.sqrt(Math.max(0, (e.c + n.c) / 2));
   const confident = speed >= def.movingSpeed && speed >= SPEED_SD_K * velSd;
-  const moving = state.still ? confident : speed >= STOP_SPEED_K * def.movingSpeed;
+  // A clean signal reported with a wide (or missing) accuracy keeps the
+  // velocity's uncertainty above a walking or jogging speed for good, so
+  // "confident" never fires: the start is then the ground actually covered —
+  // well outside the position's own wobble, at moving speed on average.
+  const sinceOut = (fix.t - state.outT) / 1000;
+  const covered = sinceOut > 0 && moved >= Math.max(MIN_STEP_M, START_SD_K * posSd) && moved / sinceOut >= def.movingSpeed;
+  const moving = state.still ? confident || covered : speed >= STOP_SPEED_K * def.movingSpeed;
 
+  if (moving && state.still && !confident) {
+    // Started by ground covered: the hop from the held point IS the travel.
+    const next: FilterState = { ...state, e, n, lastT: fix.t, outE: e.p, outN: n.p, outT: fix.t, still: false };
+    return { state: next, point: emit(fix, toLatLng(next, e.p, n.p)), verdict: 'ok' };
+  }
   if (moving && state.still) {
     // The restart: a point at the held position, now — the stop ends here.
-    const next: FilterState = { ...state, e, n, lastT: fix.t, still: false };
+    const next: FilterState = { ...state, e, n, lastT: fix.t, outT: fix.t, still: false };
     return { state: next, point: emit(fix, toLatLng(next, state.outE, state.outN)), verdict: 'between' };
   }
-  if (moving && moved >= stepM) {
-    const next: FilterState = { ...state, e, n, lastT: fix.t, outE: e.p, outN: n.p, still: false };
+  // A step: past the uncertainty — or, already moving, due and clear of the
+  // wobble. At the default 15 m accuracy 6 SD is ~35 m: a 1 m/s walk would draw a
+  // point every 35 s, and every hop over 30 s counts as a STOP — a steady
+  // walk, jog or ride saved "Moving time 0:00". Only a MOVING filter is drawn
+  // on time, so standing still still adds nothing.
+  const due = (fix.t - state.outT) / 1000 >= MAX_DRAW_GAP_S && moved >= Math.max(MIN_STEP_M, DUE_SD_K * posSd);
+  if (moving && (moved >= stepM || due)) {
+    const next: FilterState = { ...state, e, n, lastT: fix.t, outE: e.p, outN: n.p, outT: fix.t, still: false };
     return { state: next, point: emit(fix, toLatLng(next, e.p, n.p)), verdict: 'ok' };
   }
   const next: FilterState = { ...state, e, n, lastT: fix.t, still: !moving };
@@ -304,10 +333,9 @@ export function filterTrack(points: readonly ActivityPoint[], type: ActivityType
     const last = out[lastPos];
     const posSd = Math.sqrt(Math.max(0, (state.e.a + state.n.a) / 2));
     const moved = Math.hypot(state.e.p - state.outE, state.n.p - state.outN);
-    const speed = Math.hypot(state.e.v, state.n.v);
-    const velSd = Math.sqrt(Math.max(0, (state.e.c + state.n.c) / 2));
-    const stillMoving = speed >= ACTIVITY_TYPE_DEFS[state.type].movingSpeed && speed >= SPEED_SD_K * velSd;
-    const useFiltered = stillMoving || moved >= Math.max(MIN_STEP_M, STEP_SD_K * posSd);
+    // Still moving at the last fix (the filter's own verdict, hysteresis and
+    // all) → the trailing stretch is travel.
+    const useFiltered = !state.still || moved >= Math.max(MIN_STEP_M, STEP_SD_K * posSd);
     const ll = useFiltered ? toLatLng(state, state.e.p, state.n.p) : { lat: last.lat as number, lng: last.lng as number };
     if (state.lastT > last.t) out.push({ t: state.lastT, lat: ll.lat, lng: ll.lng });
     else out[lastPos] = { ...last, lat: ll.lat, lng: ll.lng };
