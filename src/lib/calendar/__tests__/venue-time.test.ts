@@ -24,6 +24,13 @@ describe('venueTimeLabel', () => {
     expect(venueTimeLabel(summerGame, DENVER)).toBeNull();
   });
 
+  it('is null for your own training (a workout or training post has no venue)', () => {
+    const workout = { starts_at: '2026-10-10T00:34:00.000Z', all_day: false, timezone: 'UTC', activity: { source: 'workout' } };
+    expect(venueTimeLabel(workout, NY)).toBeNull();
+    // …while the same instant on a real UTC venue still gets its label.
+    expect(venueTimeLabel({ ...workout, activity: undefined }, NY)).toBe('12:34 AM UTC');
+  });
+
   it('is null for all-day events', () => {
     expect(venueTimeLabel({ ...summerGame, all_day: true }, LA)).toBeNull();
   });

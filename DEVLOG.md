@@ -10,6 +10,17 @@ From the appearance audit (H2, H4, M1, M6, L4). No flow changes.
 - **M6 — one avatar.** The owner's `/athlete` fallback was grey initials while every other view was violet: all three profile heroes now share the violet-gradient initials and a white ring (the card colour in dark).
 - **H4 — 44 px tap areas** with the house recipes (an inline link gets an invisible `after:` hit area, a row control `min-h-[44px]` with a negative margin so the row keeps its height): Fans / Following on both profile routes, FilterBar's "Clear all filters", the account line's "Change", the composer's "Show suggestions", Explore's "Start a league / club", `/u/`'s "View All Posts", sign-in's "Forgot password?" and the two "Find a … near you" links. (The header's Create and the Fan button already had `after:` hit areas — the audit's 30 px reading was the visible box.)
 - **Proof:** `npm run verify` 0; `stats-summary` unit tests; profile-cover-card, profile-open-top, profile-spacing, profile-buckets, profile-orgs, activities-ui, post-audience green on desktop and phone.
+## October 9, 2026 — Appearance round, PR 2: the shell and the feed
+
+From the appearance audit (H1, M2, M3, L1, L3, L5). No flow changes.
+
+- **H1 — the chat dock's lane.** On desktop the Messages pill sits fixed at the bottom-right and hid the last row of every page (the calendar's "Upcoming" tab, a profile's Fans row at the bottom of the window). ChatDock now sets `html[data-chat-dock]` while it renders; at `lg:` that defines `--ea-dock-h` (3.5 rem) and the body's bottom padding adds it to the tab bar's, so the end of every page scrolls clear; the full-height `--vvh` shells (messages, a live round) subtract it like the tab bar.
+- **M2 — short times.** `src/lib/time/short-ago.ts shortAgo` (pure, tested): Just now · 5m · 3h · 2d · Oct 9 · Oct 9, 2025. PostCard renders it in a `<time dateTime title>` (the full date on hover); "less than a minute ago" used to truncate the sport label beside it on a phone.
+- **M3 — one owner menu.** The owner's Pin / Edit / Hide / Delete live in the "…" menu (`PostOwnerMenu`) at EVERY width; the desktop row of up to four unlabelled icons is retired. A small amber pin marks your own pinned post (the retired pin button was the only marker, and a phone never had one). Specs updated: round-delete, media-reedit, results-hide open "Post options" first.
+- **L1 — suggestions.** Names wrap to two lines instead of "John Kazhi…"; the feed sidebar's compact card shows "Fan" (`FollowButton compactLabel`, the accessible name stays "Become a Fan").
+- **L3 — the composer hint.** "Add a caption or media to post" is a calm hint (info icon, secondary text), not a red error on an untouched composer — it explains the disabled Post.
+- **L5 — no UTC twin on your own training.** `venueTimeLabel` returns nothing for an item carrying `activity` (workouts, training posts — their `'UTC'` only feeds the grid math); a real UTC venue still gets its label (tested).
+- **Proof:** `npm run verify` 0; `short-ago` + `venue-time` unit tests; feed-post, results-hide, round-delete, media-reedit, drafts, likes, post-audience, live-hole-detail green on desktop (12) and phone (8).
 
 ## October 9, 2026 — Appearance round, PR 1: runs and rides keep their moving time (a GPS filter fix)
 

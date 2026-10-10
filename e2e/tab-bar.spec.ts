@@ -79,6 +79,12 @@ test('tab bar: absent on a large screen — the header keeps the places', { tag:
   await page.goto('/feed');
   await expect(page.getByRole('navigation', { name: 'Main' }).or(page.locator('header'))).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-tab-bar]')).toBeHidden();
-  const padding = await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom));
-  expect(padding).toBe(0);
+  // No tab bar's padding here — only the chat dock's lane when its pill is on
+  // screen (Oct 9 2026: html[data-chat-dock] → --ea-dock-h, 3.5rem).
+  const { padding, dock } = await page.evaluate(() => {
+    const root = document.documentElement;
+    const lane = root.hasAttribute('data-chat-dock') ? parseFloat(getComputedStyle(root).getPropertyValue('--ea-dock-h')) * parseFloat(getComputedStyle(root).fontSize) : 0;
+    return { padding: parseFloat(getComputedStyle(document.body).paddingBottom), dock: lane };
+  });
+  expect(padding).toBe(dock);
 });

@@ -52,7 +52,9 @@ test('media re-edit after publish: new render, original preserved on the same ro
 
   // Re-edit via Edit Post → Media pencil. The Edit button renders only on
   // OWN posts, and this fresh QA user owns exactly one.
-  await page.getByRole('button', { name: 'Edit post' }).first().click();
+  // The owner's actions are the "…" menu at every width (Oct 9 2026).
+  await page.getByRole('button', { name: 'Post options' }).first().click();
+  await page.locator('[data-menu-item="edit"]').click();
   await expect(page.getByRole('heading', { name: 'Edit Post' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit media', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
