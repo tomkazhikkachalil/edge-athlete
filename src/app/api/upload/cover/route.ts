@@ -3,6 +3,7 @@ import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { prepareImage } from '@/lib/media/image-meta';
 
 /**
  * POST /api/upload/cover — profile cover/banner image.
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // The bytes must BE the declared image; location metadata leaves on the
+    // server too (image-meta.ts — the device strip is no longer the only one).
+    const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+    if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
+
     // Previous cover path (deleted after a successful swap)
     const { data: profileRow } = await supabase
       .from('profiles')
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const { error: uploadError } = await supabase.storage
       .from('uploads')
-      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+      .upload(filePath, prepared.bytes, { contentType: file.type, cacheControl: '3600', upsert: false });
     if (uploadError) {
       reportRouteError('Cover upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload cover image' }, { status: 500 });

@@ -6,6 +6,7 @@ import { isUuid } from '@/lib/uuid';
 import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from '@/lib/media/video-scrub-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { EXT_BY_TYPE, MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import { prepareImage } from '@/lib/media/image-meta';
 
 // THE OLD DOOR (Oct 2026): uploadPostMedia now uploads DIRECT to storage
 // (intent/ + complete/, src/lib/media/upload-rules.ts) because Vercel refuses
@@ -77,6 +78,16 @@ export async function POST(request: NextRequest) {
     let body: Blob = file;
     let contentType = file.type;
     let scrubbed = false;
+    if (allowedImageTypes.includes(file.type)) {
+      // The bytes must BE the declared image; location metadata leaves on the
+      // server too (image-meta.ts — the device strip is no longer the only one).
+      const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+      if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
+      if (prepared.changed) {
+        body = new Blob([prepared.bytes as BlobPart], { type: file.type });
+        scrubbed = true;
+      }
+    }
     if (SCRUBBABLE_VIDEO.has(file.type)) {
       const result = await scrubVideoMetadata(new Uint8Array(await file.arrayBuffer()), file.type);
       if (result.scrubbed) {

@@ -30,6 +30,7 @@ import { signMediaToken } from '@/lib/media/token';
 import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
+import { prepareImage } from '@/lib/media/image-meta';
 import {
   resolveCompetitionAccess,
   rosterByTeam,
@@ -244,8 +245,15 @@ export async function contestMediaUploadPOST(
     );
   }
 
+  // An image's bytes must BE the declared image; its location metadata leaves on the server (image-meta.ts).
+  let body: File | Uint8Array = file;
+  if (IMAGE_TYPES.has(file.type)) {
+    const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+    if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
+    body = prepared.bytes;
+  }
   const storagePath = `contest-media/${contestId}/${crypto.randomUUID()}.${ext}`;
-  const { error: uploadError } = await admin.storage.from('uploads').upload(storagePath, file, {
+  const { error: uploadError } = await admin.storage.from('uploads').upload(storagePath, body, {
     contentType: file.type,
     cacheControl: '3600',
     upsert: false,

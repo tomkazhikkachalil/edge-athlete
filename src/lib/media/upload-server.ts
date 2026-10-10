@@ -10,10 +10,17 @@
  * written to `posts/`; everything else is MOVED there server-side (no bytes
  * through the function). Fail-open on the scrub, exactly like the old door:
  * an upload never dies in the scrubber.
+ *
+ * An IMAGE (maintenance pass, Oct 10 2026) is read back too: its bytes must
+ * BE the declared image (image-meta.ts sniff — refused and discarded
+ * otherwise), and location / identifying metadata is stripped on the server,
+ * losslessly, when the device left any (a skipped client strip no longer
+ * stores GPS). A clean image is still a move.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from './video-scrub-server';
+import { prepareImage } from './image-meta';
 import {
   incomingKey,
   MAX_UPLOAD_BYTES,
@@ -114,7 +121,35 @@ export async function finalizeIncomingUpload(
     }
   }
 
-  // Not scrubbed (an image, a webm, or a fail-open scrub): a server-side move.
+  if (kind === 'image') {
+    const { data: blob, error } = await admin.storage.from(BUCKET).download(path);
+    if (!error && blob) {
+      const prepared = prepareImage(new Uint8Array(await blob.arrayBuffer()), parsed.type);
+      if (!prepared.ok) {
+        await discard(admin, path);
+        return { ok: false, status: 400, error: prepared.error };
+      }
+      if (prepared.changed) {
+        const target = postsKey(ownerId, parsed.id, finalExt);
+        const { error: writeError } = await admin.storage
+          .from(BUCKET)
+          .upload(target, new Blob([prepared.bytes as BlobPart], { type: parsed.type }), {
+            contentType: parsed.type,
+            cacheControl: '3600',
+            upsert: false,
+          });
+        if (!writeError) {
+          await discard(admin, path);
+          return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed: true };
+        }
+        console.warn('[upload] stripped image write failed; keeping the original:', writeError);
+      }
+    } else {
+      console.warn('[upload] could not read the image back for the check; storing as-is:', error);
+    }
+  }
+
+  // Not rewritten (a clean image, a webm, or a fail-open scrub): a server-side move.
   const target = postsKey(ownerId, parsed.id, finalExt);
   const { error: moveError } = await admin.storage.from(BUCKET).move(path, target);
   if (moveError) return { ok: false, status: 500, error: 'Failed to upload file' };

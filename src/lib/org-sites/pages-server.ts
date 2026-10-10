@@ -22,6 +22,7 @@ import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { isValidPageSlug, PAGES_PER_SITE_MAX, type PageCreateInput, type PagePatchInput } from './validate';
 import { blocksFromPageLayout, orderedPages, pageLayoutFromBody, parsePageLayout, blankPageLayout, type SnapshotPage } from '@/lib/site-builder/pages';
 import { applyDraftAction, loadDraftSnapshot, loadRows, loadSitePointers, rowsSnapshot, writeDraftLayout } from './revisions-server';
+import { prepareImage } from '@/lib/media/image-meta';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -192,6 +193,9 @@ export async function siteAssetPOST(
       { status: 400 }
     );
   }
+  // The bytes must BE the declared image; location metadata leaves on the server (image-meta.ts).
+  const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+  if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
   const ext =
     file.type === 'image/png'
       ? 'png'
@@ -203,7 +207,7 @@ export async function siteAssetPOST(
   const filePath = `${ORG_MEDIA_PREFIX}${site.id}/${crypto.randomUUID()}.${ext}`;
   const { error } = await admin.storage
     .from('uploads')
-    .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    .upload(filePath, prepared.bytes, { contentType: file.type, cacheControl: '3600', upsert: false });
   if (error) {
     console.error(`${TAG} asset upload error:`, error);
     return NextResponse.json({ error: 'Failed to upload the image' }, { status: 500 });

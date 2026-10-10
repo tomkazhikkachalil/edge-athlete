@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { prepareImage } from '@/lib/media/image-meta';
 
 /**
  * POST /api/tickets/attachment — a screenshot for a support request
@@ -34,7 +35,10 @@ export async function POST(request: NextRequest) {
 
     const path = `${user.id}/tickets/${crypto.randomUUID()}.${ext}`;
     const admin = getSupabaseAdmin();
-    const { error } = await admin.storage.from('uploads').upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, cacheControl: '3600', upsert: false });
+    // The bytes must BE the declared image; location metadata leaves on the server (image-meta.ts).
+    const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
+    if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400, headers });
+    const { error } = await admin.storage.from('uploads').upload(path, prepared.bytes, { contentType: file.type, cacheControl: '3600', upsert: false });
     if (error) {
       reportRouteError('[POST /api/tickets/attachment] upload failed:', error.message);
       return NextResponse.json({ error: 'Could not upload the screenshot' }, { status: 500, headers });
