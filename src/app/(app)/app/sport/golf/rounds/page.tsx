@@ -239,7 +239,7 @@ export default function GolfRoundsListPage() {
             </p>
             {!courseSearch && holesFilter === 'all' && (
               <Link
-                href="/feed?create=1"
+                href="/feed?create=1&sport=golf"
                 className="inline-flex items-center bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 <i className="fas fa-golf-ball mr-2"></i>
