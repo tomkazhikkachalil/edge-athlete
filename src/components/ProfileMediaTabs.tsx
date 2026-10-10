@@ -62,7 +62,7 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
-const TAB_IDS: TabType[] = ['all', 'stats', 'tagged', 'equipment', 'vitals', 'achievements'];
+const TAB_IDS: TabType[] = ['all', 'stats', 'vitals', 'tagged', 'equipment', 'achievements'];
 
 /** Activities were their own tab until Oct 1 2026; they are a section of
  *  Vitals now. The old deep link (`?tab=activities` — the import page, the
@@ -440,9 +440,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
+    // Vitals sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
+    { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
     { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
     { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
-    { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
   ];
 
