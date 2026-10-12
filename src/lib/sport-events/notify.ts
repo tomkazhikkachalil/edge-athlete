@@ -24,8 +24,11 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder' | 'sport_event_match' | 'sport_event_live';
 
+/** The bells this inserter writes beyond the events': the daily cron's unfinished-session reminder (mig 259). */
+export type SessionBell = 'session_reminder';
+
 export interface BellCopy {
-  type: SportEventBell;
+  type: SportEventBell | SessionBell;
   title: string;
   message: string | null;
   action_url: string;

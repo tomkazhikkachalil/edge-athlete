@@ -1731,6 +1731,40 @@ const { canView } = await response.json();
    `private`, so the baseline rebuilds it. `docs/HARDENING.md` B6 is the
    check; `database/MIGRATIONS.md` has the rules.
 
+41. **A session is a place you can always get back to (Resume pill program,
+   Oct 12 2026, #1155–#1157, mig 259 the ONLY DDL)** — Tom's spec: resume an
+   in-progress workout, activity or round from anywhere. His decisions: the
+   7-day sweep KEEPS the Oct 6 rule (finish as played when anything was
+   recorded, discard only the empty — the spec's "deleted" is not adopted);
+   the recording engine lives at the app ROOT; recordings stay DEVICE-ONLY
+   (no server mirror, no reminder for them); the reopen prompt stays beside
+   the pill. **The pill** (`src/components/sessions/ResumePill.tsx`,
+   root-mounted; rules pure in `src/lib/sessions/pill.ts`): while a workout
+   or a round is in progress (or a recording on THIS phone), one pill on
+   every signed-in page the tab bar knows — never on a session's own screen
+   (`sessions/paths.ts isSessionScreen`, the ONE list `reopenSkipsPath`
+   shares) — the kind, a clock DERIVED from `DraftItem.clockStartAt` (a
+   round's `created_at`, a workout's `started_at`, a recording's start plus
+   its pauses; never counted), one metric ("Thru 2/9", "5 sets", the live
+   distance); `sessions/progress-store.ts` is how the session's screen
+   publishes the live number; every door that starts or ends a session calls
+   `refreshDrafts()`. `z-[35]`; `.ea-resume-pill` sits over `--ea-tabbar-h`
+   (which already carries the inset — the custom property's fallback is the
+   inset itself). **The engine** (`RecordingProvider` in the `(app)` layout,
+   `RecordingEngineHost` a `next/dynamic` headless chunk mounted only when a
+   recording exists or starts, `engine-store.ts` → `useRecording()`): the
+   GPS watch, the wake lock, the device store (EVERY fix written; the open
+   batch rewritten, closed at 10), the photo uploads — leaving the recorder
+   changes nothing; the page is a VIEW. `recording.ts restoreRecording`:
+   away ≤ `GAP_ENDS_RECORDING_MS` (12 h) → still recording, the time away a
+   GAP (a note on the screen, a dashed bridge on the map — `route-gaps.ts`);
+   longer → paused where last known. 7-day retention is ONE number everywhere
+   (`session-retention.test.ts`). **The reminder** (`sessions/abandon-
+   reminder*.ts`, `session_reminder` — mig 259): the daily cron, the day
+   BEFORE the sweeps, bells the round's creator / the workout's owner once
+   (deduped on the bell's metadata) saying which will happen. Read DEVLOG
+   Oct 12 2026 PR 1–3 first.
+
 ---
 
 ## 🔧 Common Tasks
