@@ -1,10 +1,13 @@
 'use client';
 
-// The LIVE map (Live Activities): ONE polyline extended with each admitted
-// fix — never redrawn — a player marker with its accuracy circle (the golf
-// rangefinder's), the segments as coloured spans, photo pins, follow mode
-// with a Re-center button. RouteMapInner draws once on mount by design,
-// which is why this is its own component rather than a prop.
+// The LIVE map (Live Activities): the route as RUNS of solid polyline, each
+// extended with the admitted fixes — never redrawn — broken where the app
+// could not record (the phone locked, the app closed: `gaps`, resume pill
+// program Oct 12 2026) by a straight DASHED bridge; a player marker with its
+// accuracy circle (the golf rangefinder's), the segments as coloured spans,
+// photo pins, follow mode with a Re-center button. RouteMapInner draws once
+// on mount by design, which is why this is its own component rather than a
+// prop.
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -12,6 +15,8 @@ import 'leaflet/dist/leaflet.css';
 import { OSM_TILES } from '@/lib/maps/tiles';
 import type { ActivityPoint } from '@/lib/activities/types';
 import type { ActivitySegment, SegmentKind } from '@/lib/activities/segments';
+import type { RecordingGap } from '@/lib/activities/record/recording';
+import { gapBetween } from '@/lib/activities/record/route-gaps';
 
 export interface LiveRouteMapInnerProps {
   points: ActivityPoint[];
@@ -20,7 +25,14 @@ export interface LiveRouteMapInnerProps {
   openSegmentFromS: number | null;
   photos: Array<{ localId: string; atS: number }>;
   accuracy: number | null;
+  /** Spans the app could not record — the line breaks there, a dashed bridge across (route-gaps.ts). */
+  gaps?: readonly RecordingGap[];
 }
+
+const LINE_COLOUR = '#7c3aed';
+const lineStyle = (): L.PolylineOptions => ({ color: LINE_COLOUR, weight: 4 });
+const casingStyle = (): L.PolylineOptions => ({ color: '#ffffff', weight: 7, opacity: 0.9 });
+const bridgeStyle = (): L.PolylineOptions => ({ color: LINE_COLOUR, weight: 3, opacity: 0.7, dashArray: '6 8', interactive: false });
 
 const SEGMENT_COLOURS: Record<SegmentKind, string> = { sprint: '#dc2626', climb: '#d97706', interval: '#2563eb', recovery: '#16a34a', lap: '#7c3aed' };
 
@@ -52,14 +64,19 @@ function indexAt(points: ActivityPoint[], startedAt: number, atS: number): numbe
   return best;
 }
 
-export default function LiveRouteMapInner({ points, startedAt, segments, openSegmentFromS, photos, accuracy }: LiveRouteMapInnerProps) {
+export default function LiveRouteMapInner({ points, startedAt, segments, openSegmentFromS, photos, accuracy, gaps = [] }: LiveRouteMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // The CURRENT run's line + casing; finished runs stay on the map untouched.
   const lineRef = useRef<L.Polyline | null>(null);
   const casingRef = useRef<L.Polyline | null>(null);
+  const runsLayerRef = useRef<L.LayerGroup | null>(null);
+  const bridgeLayerRef = useRef<L.LayerGroup | null>(null);
   const drawnRef = useRef(0);
-  // How many of the line's points are settled (all but the route's provisional end).
+  // How many of the current line's points are settled (all but the route's provisional end).
   const settledRef = useRef(0);
+  // The last positioned point drawn — where a bridge starts when a gap follows it.
+  const lastDrawnRef = useRef<ActivityPoint | null>(null);
   const playerRef = useRef<L.Marker | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const segmentLayerRef = useRef<L.LayerGroup | null>(null);
@@ -75,8 +92,10 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
     const map = L.map(containerRef.current, { scrollWheelZoom: false, zoomControl: false, attributionControl: true });
     mapRef.current = map;
     L.tileLayer(OSM_TILES.url, { maxZoom: OSM_TILES.maxZoom, attribution: OSM_TILES.attribution }).addTo(map);
-    casingRef.current = L.polyline([], { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
-    lineRef.current = L.polyline([], { color: '#7c3aed', weight: 4 }).addTo(map);
+    runsLayerRef.current = L.layerGroup().addTo(map);
+    bridgeLayerRef.current = L.layerGroup().addTo(map);
+    casingRef.current = L.polyline([], casingStyle()).addTo(runsLayerRef.current);
+    lineRef.current = L.polyline([], lineStyle()).addTo(runsLayerRef.current);
     segmentLayerRef.current = L.layerGroup().addTo(map);
     photoLayerRef.current = L.layerGroup().addTo(map);
     map.setView([0, 0], 2);
@@ -87,8 +106,11 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
       mapRef.current = null;
       lineRef.current = null;
       casingRef.current = null;
+      runsLayerRef.current = null;
+      bridgeLayerRef.current = null;
       drawnRef.current = 0;
       settledRef.current = 0;
+      lastDrawnRef.current = null;
       playerRef.current = null;
       circleRef.current = null;
     };
@@ -97,17 +119,34 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
   // Append the new points only — but the route's LAST point is provisional
   // (gps-filter's end-of-track rule moves or replaces it with every fix), so it
   // is redrawn each time rather than kept: keeping it left a kink per fix.
+  // A recorded GAP between the last drawn fix and the next ends the current
+  // run: a dashed bridge spans it and a fresh line + casing start after it.
   useEffect(() => {
     const map = mapRef.current;
-    const line = lineRef.current;
-    const casing = casingRef.current;
-    if (!map || !line || !casing) return;
-    const latLngs = (line.getLatLngs() as L.LatLng[]).slice(0, settledRef.current);
+    const runs = runsLayerRef.current;
+    const bridges = bridgeLayerRef.current;
+    if (!map || !runs || !bridges || !lineRef.current || !casingRef.current) return;
+    let line = lineRef.current;
+    let casing = casingRef.current;
+    let latLngs = (line.getLatLngs() as L.LatLng[]).slice(0, settledRef.current);
     let lastPositioned = -1;
     for (let i = drawnRef.current; i < points.length; i++) {
       const p = points[i];
       if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
+      const prev = lastDrawnRef.current;
+      if (prev && latLngs.length > 0 && gaps.length > 0 && gapBetween(prev, p, gaps) && typeof prev.lat === 'number' && typeof prev.lng === 'number') {
+        // Close the run as drawn (its provisional end included), bridge, start anew.
+        line.setLatLngs(latLngs);
+        casing.setLatLngs(latLngs.slice());
+        L.polyline([[prev.lat, prev.lng], [p.lat, p.lng]], bridgeStyle()).addTo(bridges);
+        casing = L.polyline([], casingStyle()).addTo(runs);
+        line = L.polyline([], lineStyle()).addTo(runs);
+        casingRef.current = casing;
+        lineRef.current = line;
+        latLngs = [];
+      }
       latLngs.push(L.latLng(p.lat, p.lng));
+      lastDrawnRef.current = p;
       lastPositioned = i;
     }
     if (lastPositioned >= 0) {
@@ -132,7 +171,7 @@ export default function LiveRouteMapInner({ points, startedAt, segments, openSeg
         else map.panTo(at, { animate: !(typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) });
       }
     }
-  }, [points, accuracy]);
+  }, [points, accuracy, gaps]);
 
   // Segments: redrawn when they change (rare).
   useEffect(() => {

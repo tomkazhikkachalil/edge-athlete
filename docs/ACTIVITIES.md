@@ -245,11 +245,35 @@ superseded for the web app.
   elapsed from clock deltas, never an interval counter; `toRecordingWire` →
   the ONE import payload with `format: 'live'`, `recordingId`, `segments`).
   `record/storage.ts` keeps the recording in IndexedDB as it goes (points in
-  batches of 10 fixes / 15 s, the pending photo blobs; 48 h) — a reload or a
-  killed app offers "Resume your walk?" and the time away becomes a pause.
+  batches of 10 fixes / 15 s, the pending photo blobs; **7 days** — the
+  retention every unfinished session has, since the resume pill program).
   `record/geolocation.ts` is the rangefinder's `watchPosition` policy (only
   PERMISSION_DENIED stops the watch); `record/wake-lock.ts` is feature-detected
-  and re-requested on return. A hidden page opens a gap the return toast names.
+  and re-requested on return. A hidden page opens a gap.
+- **The engine lives under the app's root (resume pill program, Oct 12
+  2026).** `RecordingProvider` (in the `(app)` layout) owns the recording for
+  the whole app; `RecordingEngineHost` — a `next/dynamic` chunk mounted only
+  when a recording exists on the device or the recorder starts one, so the
+  root chunk never carries the engine — runs the events, the GPS watch, the
+  wake lock, the flushes (the meta on every non-fix event; EVERY fix — the
+  open points batch is rewritten and closes at 10; everything on `pagehide`)
+  and the photo uploads, and publishes what it knows through
+  `engine-store.ts` (`useRecording()`). **Leaving the recorder changes
+  nothing**: the app is still in the foreground on the feed, so GPS keeps
+  arriving; the resume pill carries the live distance and brings you back.
+  Until this, the page owned the engine — an in-app navigation stopped GPS,
+  lost up to 15 s of points, and on return the clock rolled back to the last
+  save. **Restore** (`recording.ts restoreRecording`, at boot): a recording
+  still RECORDING comes back recording when the time away is within
+  `GAP_ENDS_RECORDING_MS` (12 h) — the clock runs on from the start, the time
+  away is a gap (an open one is extended); longer and it comes back PAUSED
+  where it was last known (the import refuses > 48 h anyway). A gap longer
+  than 30 s is a note on the screen ("Tracking paused while the app was
+  closed", `data-record-gap-note`) and a **dashed bridge on the map**
+  (`route-gaps.ts gapBetween` / `splitAtGaps`: the solid line is one run per
+  tracked stretch). The reopen prompt, the Drafts page and the pill read the
+  one engine (`drafts/recording-like.ts`); the Vitals recording banner is
+  gone. Only the athlete's own Pause pauses.
 - **The screen** (`src/components/activities/record/`): the grouped picker,
   the live numbers (distance, the last-30 s pace, average pace, elevation,
   "~N steps (est.)" for the step types, a GPS chip), a LIVE Leaflet map (one

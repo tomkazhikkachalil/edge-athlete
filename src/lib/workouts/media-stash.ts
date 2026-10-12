@@ -14,7 +14,7 @@
  * untouched — only the reload-recovery is lost, and the screen says so
  * when it happens.
  *
- * TTL = the draft's 48 h: a stashed clip whose draft has expired is noise.
+ * TTL = the draft's (7 days since Oct 12 2026): a stashed clip whose draft has expired is noise.
  */
 
 import { DRAFT_TTL_MS } from './draft';

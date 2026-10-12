@@ -4,6 +4,11 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useDrafts } from '@/hooks/useDrafts';
+import { useRecording } from '@/components/activities/record/RecordingProvider';
+import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
+import { formatDistance, readUnitPreference } from '@/lib/activities/format';
+import { buildDraftsList } from '@/lib/drafts/list';
+import { recordingDraftLike } from '@/lib/drafts/recording-like';
 import { PILL_KIND_ICON, pickPillSession, pillElapsedS, pillLabel, pillMetric, pillShows } from '@/lib/sessions/pill';
 import { getProgressVersion, readProgress, subscribeProgress } from '@/lib/sessions/progress-store';
 import { formatElapsed } from '@/lib/workouts/summary';
@@ -29,19 +34,33 @@ export default function ResumePill() {
   const drafts = useDrafts(!!user);
   // Re-render when a session screen publishes a new number.
   useSyncExternalStore(subscribeProgress, getProgressVersion, () => 0);
+  // The recording on THIS device comes from the root engine, merged in first
+  // (the Drafts page and the reopen prompt describe it the same way).
+  const rec = useRecording();
+  const recording = recordingDraftLike(rec.engine?.state ?? null, rec.engine?.lastTouchedAt ?? null, ACTIVITY_TYPE_DEFS);
+  const recordingItems = recording ? buildDraftsList({ rounds: [], workouts: [], recording }).inProgress : [];
 
   const signedIn = initialAuthCheckComplete && !!user;
-  const item = signedIn ? pickPillSession(drafts.inProgress) : null;
+  const candidates = recordingItems.length > 0 ? [...recordingItems, ...drafts.inProgress].sort(newestFirst) : drafts.inProgress;
+  const item = signedIn ? pickPillSession(candidates) : null;
   if (!item || !pillShows({ pathname, signedIn })) return null;
-  return <Pill item={item} onOpen={() => router.push(item.href)} />;
+  const href = item.kind === 'recording' ? '/activities/record' : item.href;
+  return <Pill item={item} onOpen={() => router.push(href)} distance={item.kind === 'recording' ? now => rec.engine?.totals(now, null)?.distanceM ?? null : undefined} />;
 }
 
-function Pill({ item, onOpen }: { item: DraftItem; onOpen: () => void }) {
-  const now = useClock(item.clockStartAt !== null);
-  const elapsedS = pillElapsedS(item.clockStartAt, now);
+const ts = (iso: string | null): number => {
+  const t = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isNaN(t) ? 0 : t;
+};
+const newestFirst = (a: DraftItem, b: DraftItem): number => (ts(b.lastActivityAt) || ts(b.startedAt)) - (ts(a.lastActivityAt) || ts(a.startedAt));
+
+function Pill({ item, onOpen, distance }: { item: DraftItem; onOpen: () => void; distance?: (now: number) => number | null }) {
+  const now = useClock(item.clockStartAt !== null && !item.clockPausedAt);
+  const elapsedS = pillElapsedS(item.clockStartAt, now, item.clockPausedAt);
   const elapsed = elapsedS === null ? null : formatElapsed(elapsedS);
-  const progress = readProgress(item.kind, item.id) ?? item.progress;
-  const metric = pillMetric(item, progress);
+  const published = readProgress(item.kind, item.id) ?? item.progress;
+  const progress = distance ? { ...(published ?? {}), distanceM: distance(now) } : published;
+  const metric = pillMetric(item, progress, m => formatDistance(m, readUnitPreference()));
   return (
     <div className="ea-resume-pill pointer-events-none fixed inset-x-0 z-[35] flex justify-center px-4" data-resume-pill-host="">
       <button

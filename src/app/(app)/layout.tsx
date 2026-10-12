@@ -17,6 +17,7 @@ import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ReopenPromptHost from '@/components/drafts/ReopenPromptHost';
 import ResumePill from '@/components/sessions/ResumePill';
+import { RecordingProvider } from '@/components/activities/record/RecordingProvider';
 import OfflineBanner from '@/components/net/OfflineBanner';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
@@ -130,6 +131,10 @@ export default async function RootLayout({
               {/* "Download the app": the install signals + the one guide,
                   for every page (the sign-in page included). */}
               <InstallAppProvider>
+              {/* The live activity recording lives HERE, for the whole app
+                  (the GPS watch, the wake lock, the device store) — the
+                  recorder page is a view; leaving it changes nothing. */}
+              <RecordingProvider>
               {/* Drafts: once per app open, Resume / Finish / Discard what is in progress. */}
               <ReopenPromptHost />
               {/* The resume pill: the way back into a workout, a recording or a
@@ -155,6 +160,7 @@ export default async function RootLayout({
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />
+              </RecordingProvider>
               </InstallAppProvider>
               </EditProfileProvider>
             </MessagesProvider>

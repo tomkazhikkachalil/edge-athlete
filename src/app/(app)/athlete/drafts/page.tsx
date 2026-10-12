@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -8,8 +8,9 @@ import { useAuth } from '@/lib/auth';
 import { backOr } from '@/lib/nav-back';
 import { useDrafts, refreshDrafts } from '@/hooks/useDrafts';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
-import { openRecordingStore } from '@/lib/activities/record/storage';
-import { buildDraftsList, type DraftItem, type DraftRecordingLike } from '@/lib/drafts/list';
+import { buildDraftsList, type DraftItem } from '@/lib/drafts/list';
+import { recordingDraftLike } from '@/lib/drafts/recording-like';
+import { useRecording } from '@/components/activities/record/RecordingProvider';
 import DraftRow from '@/components/drafts/DraftRow';
 
 // ── Drafts (Drafts round, Oct 2026) ──────────────────────────────────────────
@@ -22,24 +23,14 @@ export default function DraftsPage() {
   const router = useRouter();
   const { user, initialAuthCheckComplete } = useAuth();
   const snapshot = useDrafts(!!user);
-  const [recording, setRecording] = useState<DraftRecordingLike | null>(null);
+  // The phone's own recording: the root engine (RecordingProvider), the same
+  // row the reopen prompt and the resume pill describe.
+  const rec = useRecording();
+  const recording = recordingDraftLike(rec.engine?.state ?? null, rec.engine?.lastTouchedAt ?? null, ACTIVITY_TYPE_DEFS);
 
   useEffect(() => {
     if (!user) return;
     void refreshDrafts();
-    const store = openRecordingStore();
-    if (!store) return;
-    let cancelled = false;
-    store
-      .findUnfinished(user.id, Date.now())
-      .then(meta => {
-        if (cancelled || !meta) return;
-        setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt, startedAt: meta.startedAt });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
   }, [user]);
 
   if (!initialAuthCheckComplete) {

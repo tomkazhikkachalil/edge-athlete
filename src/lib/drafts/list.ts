@@ -23,6 +23,8 @@ export interface DraftItem {
    *  `date` is a day; a workout: started_at; a recording: its start). Derived
    *  from this timestamp, never counted, so a closed app changes nothing. */
   clockStartAt: string | null;
+  /** ISO — a recording the athlete PAUSED: the clock stands here (recordings only). */
+  clockPausedAt?: string | null;
   /** ISO — the last thing that happened to it (a score, a set, a save). */
   lastActivityAt: string | null;
   /** The one number the pill shows beside the clock, as the server last saw it
@@ -101,6 +103,10 @@ export interface DraftRecordingLike {
   savedAt: number;
   /** Epoch ms — when the recording started (the pill's clock); null before Start. */
   startedAt?: number | null;
+  /** Closed pauses so far (ms) — the clock runs from startedAt + this. */
+  pausedTotalMs?: number;
+  /** Epoch ms while the athlete has it paused — the clock stands here. */
+  pausedAt?: number | null;
 }
 
 export interface DraftsList {
@@ -189,7 +195,8 @@ export function buildDraftsList(input: {
       state: 'in_progress',
       title: `${input.recording.label} (on this phone)`,
       startedAt: iso,
-      clockStartAt: typeof input.recording.startedAt === 'number' ? new Date(input.recording.startedAt).toISOString() : null,
+      clockStartAt: typeof input.recording.startedAt === 'number' ? new Date(input.recording.startedAt + (input.recording.pausedTotalMs ?? 0)).toISOString() : null,
+      clockPausedAt: typeof input.recording.pausedAt === 'number' ? new Date(input.recording.pausedAt).toISOString() : null,
       lastActivityAt: iso,
       progress: null,
       href: '/activities/record',

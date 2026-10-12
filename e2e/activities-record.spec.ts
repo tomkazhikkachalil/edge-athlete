@@ -3,10 +3,12 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The recorder (Live Activities PR 4), as far as a browser can play it: a
 // stubbed `watchPosition` feeds a scripted run; the screen marks a segment,
-// survives a reload (the resume offer), finishes and saves — the row lands as
-// `source 'live'` with the segment and a step estimate. A TIMEOUT from the
-// phone keeps recording; PERMISSION_DENIED says where to turn it on. A timer
-// type takes the distance at finish. Phone-width, as the real thing is.
+// survives a reload (the root engine restores it, still recording — resume
+// pill program, Oct 12 2026), keeps recording while you read the feed,
+// finishes and saves — the row lands as `source 'live'` with the segment and
+// a step estimate. A TIMEOUT from the phone keeps recording;
+// PERMISSION_DENIED says where to turn it on. A timer type takes the
+// distance at finish. Phone-width, as the real thing is.
 
 const PHONE = { width: 390, height: 844 };
 const LAT0 = 43.65;
@@ -99,7 +101,7 @@ test.beforeAll(async () => {
   test.skip(!!probe.error, `migration 251 not applied on this target (${probe.error?.code})`);
 });
 
-test('record a run: fixes draw, a segment is marked, a reload resumes, Finish saves a live activity @mobile', async ({ browser, browserName }) => {
+test('record a run: fixes draw, a segment is marked, a reload keeps recording, Finish saves a live activity @mobile', async ({ browser, browserName }) => {
   test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
   test.setTimeout(180_000);
   const user = loadQaUser('user.json');
@@ -123,14 +125,14 @@ test('record a run: fixes draw, a segment is marked, a reload resumes, Finish sa
     await page.locator('[data-record-mark]').click();
     await page.locator('[data-record-segment-kind="sprint"]').click();
     await expect(page.locator('[data-record-segments="1"]')).toBeVisible();
-    // A reload: the recording is on the phone; resume it.
+    // A reload: the recording is on the phone and comes back as it was —
+    // still RECORDING (the time away is a gap, not a pause), the segment kept.
+    const distanceBefore = Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance'));
     await page.reload();
-    await expect(page.locator('[data-record-resume-offer]')).toBeVisible({ timeout: 20_000 });
-    await page.locator('[data-record-resume-yes]').click();
-    await expect(page.locator('[data-record-screen="paused"]')).toBeVisible();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-record-segments="1"]')).toBeVisible();
-    await page.locator('[data-record-resume]').click();
-    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await expect(page.locator('[data-record-resume-offer]')).toHaveCount(0);
+    await expect.poll(async () => Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance')), { timeout: 20_000 }).toBeGreaterThan(distanceBefore);
     await page.waitForTimeout(3_000);
     // Finish → Save.
     await page.locator('[data-record-finish]').click();
@@ -146,13 +148,84 @@ test('record a run: fixes draw, a segment is marked, a reload resumes, Finish sa
     expect(row!.segments[0]).toMatchObject({ kind: 'sprint' });
     expect(Number(row!.distance_m)).toBeGreaterThan(30);
     expect(row!.elapsed_s).toBeGreaterThan(10);
-    // Nothing left on the phone; the screen offers nothing to resume.
+    // Nothing left on the phone: the picker, and no pill anywhere.
     await page.goto('/activities/record');
     await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('[data-record-resume-offer]')).toHaveCount(0);
+    await page.goto('/feed');
+    await expect(page.getByRole('link', { name: 'Feed' }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-resume-pill^="recording:"]')).toHaveCount(0);
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
+
+test('leaving the recorder keeps recording: the pill on the feed shows the distance growing, a tap comes back with every fix kept @mobile', async ({ browser, browserName }) => {
+  test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
+  test.setTimeout(150_000);
+  const ctx = await recorderContext(browser, { mode: 'run' });
+  try {
+    const page = await ctx.newPage();
+    // Enter the recorder IN-APP from the feed's drawer, so Back is an in-app
+    // navigation back to the feed (a cold page has only about:blank behind it).
+    await page.goto('/feed');
+    await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
+    await page.getByRole('button', { name: 'Record Activity' }).click();
+    await page.waitForURL(/\/activities\/record/, { timeout: 20_000 });
+    await page.locator('[data-record-type="run"]').click({ timeout: 20_000 });
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await expect.poll(async () => Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance')), { timeout: 20_000 }).toBeGreaterThan(20);
+    const before = Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance'));
+
+    // Back is an in-app navigation. No "Leave the recording?" — leaving changes nothing now.
+    await page.locator('[data-record-back]').click();
+    await page.waitForURL(/\/feed/, { timeout: 20_000 });
+    await expect(page.locator('[data-reopen-prompt]')).toHaveCount(0);
+    const pill = page.locator('[data-resume-pill^="recording:"]');
+    await expect(pill).toBeVisible({ timeout: 20_000 });
+    await expect(pill.locator('[data-resume-pill-title]')).toContainText('Run');
+    await expect(pill.locator('[data-resume-pill-elapsed]')).toHaveText(/^\d+:\d\d/);
+    // The GPS watch is the app's now: the distance keeps growing off the recorder.
+    const readKm = async () => {
+      const text = await pill.locator('[data-resume-pill-metric]').innerText();
+      return parseFloat(text);
+    };
+    const km0 = await readKm();
+    await expect.poll(readKm, { timeout: 15_000 }).toBeGreaterThan(km0);
+    // What the pill shows the moment before the full load — the distance that must survive it.
+    const kmBeforeReload = await readKm();
+    // Another page — a full load this time (the app reopened): the engine
+    // restores the recording from the device, still recording; the reopen
+    // prompt asks once (dismiss it — its backdrop covers the pill), the pill is there.
+    await page.goto('/calendar');
+    const later = page.locator('[data-reopen-later]');
+    await later.waitFor({ state: 'visible', timeout: 12_000 }).catch(() => undefined);
+    if (await later.isVisible()) {
+      await later.click();
+      await expect(later).toBeHidden();
+    }
+    await expect(page.locator('[data-resume-pill^="recording:"]')).toBeVisible({ timeout: 20_000 });
+
+    // A tap lands back on the recorder, still recording, every fix kept, no gap note (the app never left).
+    await page.locator('[data-resume-pill^="recording:"]').click();
+    await page.waitForURL(/\/activities\/record/, { timeout: 20_000 });
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible({ timeout: 20_000 });
+    const after = Number(await page.locator('[data-record-distance]').getAttribute('data-record-distance'));
+    // Every fix kept: nothing recorded before the full load is gone (the pill
+    // rounds to 10 m), and the run grew while the recorder was out of sight.
+    expect(after, `after ${after} m vs ${kmBeforeReload} km before the reload`).toBeGreaterThanOrEqual(kmBeforeReload * 1000 - 10);
+    expect(after).toBeGreaterThan(before);
+    await expect(page.locator('[data-record-gap-note]')).toHaveCount(0);
+    await expect(page.locator('[data-resume-pill]')).toHaveCount(0);
+
+    // Discard through the finish sheet: the pill goes with it.
+    await page.locator('[data-record-finish]').click();
+    await page.locator('[data-record-discard]').click();
+    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 10_000 });
+  } finally {
+    await ctx.close();
   }
 });
 

@@ -219,6 +219,12 @@ export const COPY = {
     REOPEN_DISCARD_RECORDING: 'The recording on this phone is deleted. Nothing was saved, and this cannot be undone.',
     REOPEN_DISCARD_ACTION: 'Discard for good',
     REOPEN_BODY: 'Closing the app never ends anything. Resume to keep going, Finish to record it as it stands, or Discard it. You can also find it under Drafts.',
+    /** The recorder's note after a gap the app could not record (the phone locked, the app closed). */
+    RECORD_GAP_TITLE: 'Tracking paused while the app was closed.',
+    RECORD_GAP_BODY: (seconds: number): string => {
+      const span = seconds >= 120 ? `${Math.round(seconds / 60)} min` : `${seconds} s`;
+      return `${span} were not recorded — the timer kept running, and the map shows the gap as a dashed line. Keep the app open with the screen on while recording.`;
+    },
     POST_DRAFT_LABEL: 'Post',
     POSTED_TITLE: 'Posted',
     POSTED_BODY: 'It is on the feed and your profile now.',
