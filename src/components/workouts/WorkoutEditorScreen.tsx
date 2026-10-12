@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flag, MoreVertical, Pause, Play, Plus, Timer } from 'lucide-react';
+import { Flag, Layers, MoreVertical, Pause, Play, Plus, Repeat, Timer } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
 import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
@@ -22,6 +22,10 @@ import {
   toggleShare,
 } from '@/lib/workouts/share-media';
 import AddExerciseSheet from './AddExerciseSheet';
+import ExerciseGroupCard from './ExerciseGroupCard';
+import { addRound, addToGroup, deleteRound, GROUP_HINT, GROUP_LABEL, makeGroup, removeFromGroup, removeGroup, renderItems, setRounds, ungroup } from '@/lib/workouts/groups';
+import { newId } from '@/lib/ids';
+import type { ExerciseGroupKind } from '@/lib/workouts/entries';
 import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
@@ -98,6 +102,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     mode === 'review' && initialPhase === 'share' ? 'share' : 'editing'
   );
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  // PR 3: the sheet's purpose — one exercise, a new superset / circuit (optionally seeded from an existing exercise), or more members for a group.
+  const [addMode, setAddMode] = useState<{ kind: 'single' } | { kind: ExerciseGroupKind; seed?: string } | { kind: 'addTo'; groupId: string }>({ kind: 'single' });
+  const openAdd = (mode: typeof addMode) => {
+    setAddMode(mode);
+    setAddSheetOpen(true);
+  };
   const [discardOpen, setDiscardOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
@@ -904,15 +914,35 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
 
       {/* Exercises */}
       <div className="space-y-3">
-        {exercises.map((exercise, index) => (
-          <ExerciseCard
-            key={exercise.clientId}
-            exercise={exercise}
-            onChange={next => mutate(exercises.map((e, i) => (i === index ? next : e)))}
-            onDelete={() => mutate(exercises.filter((_, i) => i !== index))}
-            uploads={uploads}
-          />
-        ))}
+        {renderItems(exercises).map(item =>
+          item.type === 'single' ? (
+            <ExerciseCard
+              key={item.exercise.clientId}
+              exercise={item.exercise}
+              onChange={next => mutate(exercises.map(e => (e.clientId === item.exercise.clientId ? next : e)))}
+              onDelete={() => mutate(exercises.filter(e => e.clientId !== item.exercise.clientId))}
+              uploads={uploads}
+            />
+          ) : (
+            <ExerciseGroupCard
+              key={item.group.groupId}
+              group={item.group}
+              uploads={uploads}
+              onChangeMember={(clientId, next) => mutate(exercises.map(e => (e.clientId === clientId ? next : e)))}
+              onRemoveMember={clientId => mutate(removeFromGroup(exercises, clientId))}
+              onAddExercise={() => openAdd({ kind: 'addTo', groupId: item.group.groupId })}
+              onSetRounds={rounds => {
+                const out = setRounds(exercises, item.group.groupId, rounds);
+                if (out.rounds > rounds) showError('A round still holds data', `Rounds stay at ${out.rounds} — clear or delete that round first.`);
+                mutate(out.exercises);
+              }}
+              onAddRound={() => mutate(addRound(exercises, item.group.groupId))}
+              onDeleteRound={roundIndex => mutate(deleteRound(exercises, item.group.groupId, roundIndex))}
+              onUngroup={() => mutate(ungroup(exercises, item.group.groupId))}
+              onRemoveGroup={() => mutate(removeGroup(exercises, item.group.groupId))}
+            />
+          )
+        )}
 
         {exercises.length === 0 && (
           <div className="text-center py-10 border border-dashed border-border-strong rounded-xl">
@@ -928,19 +958,49 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
 
         <button
           type="button"
-          onClick={() => setAddSheetOpen(true)}
+          onClick={() => openAdd({ kind: 'single' })}
           disabled={exercises.length >= MAX_EXERCISES}
           className="w-full flex items-center justify-center gap-2 py-3.5 bg-surface border-2 border-dashed border-violet-300 dark:border-violet-700 text-brand-fg-strong rounded-xl font-bold text-base hover:bg-brand-soft transition-colors disabled:opacity-50"
         >
           <Plus className="w-5 h-5" />
           Add Exercise
         </button>
+        {/* PR 3: a superset or a circuit — several exercises picked at once (groups.ts). */}
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => openAdd({ kind: 'superset' })} disabled={exercises.length >= MAX_EXERCISES - 1} className="ea-interactive flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-3 text-sm font-semibold text-primary disabled:opacity-50" data-workout-add-group="superset">
+            <Layers className="w-4 h-4 text-brand-fg-strong" aria-hidden="true" />
+            Add superset
+          </button>
+          <button type="button" onClick={() => openAdd({ kind: 'circuit' })} disabled={exercises.length >= MAX_EXERCISES - 1} className="ea-interactive flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-3 text-sm font-semibold text-primary disabled:opacity-50" data-workout-add-group="circuit">
+            <Repeat className="w-4 h-4 text-brand-fg-strong" aria-hidden="true" />
+            Add circuit
+          </button>
+        </div>
       </div>
 
       <AddExerciseSheet
         isOpen={addSheetOpen}
         onClose={() => setAddSheetOpen(false)}
         onAdd={exercise => mutate([...exercises, exercise])}
+        multi={
+          addMode.kind === 'single'
+            ? null
+            : addMode.kind === 'addTo'
+              ? { title: 'Add to this group', hint: 'Pick one or more exercises to add.', min: 1, cta: n => (n === 0 ? 'Pick an exercise' : `Add ${n} to the group`), onAddMany: picks => mutate(picks.reduce((acc, p) => addToGroup(acc, addMode.groupId, p), exercises)) }
+              : {
+                  title: addMode.seed ? `${GROUP_LABEL[addMode.kind]} with ${exercises.find(e => e.clientId === addMode.seed)?.name ?? 'this exercise'}` : `Add ${GROUP_LABEL[addMode.kind].toLowerCase()}`,
+                  hint: GROUP_HINT[addMode.kind],
+                  min: addMode.seed ? 1 : 2,
+                  cta: n => {
+                    const total = n + (addMode.seed ? 1 : 0);
+                    return total < 2 ? `Pick ${2 - total} more` : `Create ${GROUP_LABEL[addMode.kind].toLowerCase()} (${total})`;
+                  },
+                  onAddMany: picks => {
+                    const seed = addMode.seed ? exercises.find(e => e.clientId === addMode.seed) : undefined;
+                    mutate(makeGroup(exercises, addMode.kind, seed ? [seed, ...picks] : picks, newId()));
+                  },
+                }
+        }
       />
 
       <ConfirmModal

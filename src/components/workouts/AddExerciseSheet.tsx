@@ -16,11 +16,14 @@ interface AddExerciseSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (exercise: EntryExercise) => void;
+  /** PR 3: pick SEVERAL for a superset / circuit — taps collect, the footer creates. `min` picks before the footer enables (2 for a new group, 1 when adding to one or seeding from an exercise). */
+  multi?: { title: string; hint: string; min: number; cta: (count: number) => string; onAddMany: (exercises: EntryExercise[]) => void } | null;
 }
 
-/** Bottom sheet: search the catalog or add a custom exercise. */
-export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExerciseSheetProps) {
+/** Bottom sheet: search the catalog or add a custom exercise (or several, for a group). */
+export default function AddExerciseSheet({ isOpen, onClose, onAdd, multi = null }: AddExerciseSheetProps) {
   const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState<EntryExercise[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useBodyScrollLock(isOpen);
@@ -30,7 +33,10 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
   const [wasOpen, setWasOpen] = useState(isOpen);
   if (wasOpen !== isOpen) {
     setWasOpen(isOpen);
-    if (isOpen) setQuery('');
+    if (isOpen) {
+      setQuery('');
+      setPicked([]);
+    }
   }
 
   useEffect(() => {
@@ -44,22 +50,25 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
     .map(category => ({ category, exercises: results.filter(e => e.category === category) }))
     .filter(group => group.exercises.length > 0);
 
-  const pick = (exercise: CatalogExercise) => {
-    onAdd({
-      clientId: newId(),
-      name: exercise.label,
-      exerciseKey: exercise.key,
-      category: exercise.category,
-      notes: null,
-      sets: [],
-    });
+  const take = (exercise: EntryExercise) => {
+    if (multi) {
+      setPicked(prev => [...prev, exercise]);
+      setQuery('');
+      inputRef.current?.focus();
+      return;
+    }
+    onAdd(exercise);
     onClose();
   };
-
+  const pick = (exercise: CatalogExercise) => take({ clientId: newId(), name: exercise.label, exerciseKey: exercise.key, category: exercise.category, notes: null, sets: [] });
   const addCustom = () => {
     const name = query.trim().slice(0, 80);
     if (!name) return;
-    onAdd({ clientId: newId(), name, exerciseKey: null, category: 'other', notes: null, sets: [] });
+    take({ clientId: newId(), name, exerciseKey: null, category: 'other', notes: null, sets: [] });
+  };
+  const createGroup = () => {
+    if (!multi || picked.length < multi.min) return;
+    multi.onAddMany(picked);
     onClose();
   };
 
@@ -73,7 +82,7 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
         {/* Header + search */}
         <div className="shrink-0 p-4 border-b border-border-subtle">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-primary">Add Exercise</h2>
+            <h2 className="text-lg font-bold text-primary">{multi ? multi.title : 'Add Exercise'}</h2>
             <button
               type="button"
               onClick={onClose}
@@ -83,6 +92,22 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
               <X className="w-5 h-5" />
             </button>
           </div>
+          {multi && (
+            <div className="mb-3" data-group-picks={picked.length}>
+              <p className="text-xs text-secondary">{multi.hint}</p>
+              {picked.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {picked.map((p, i) => (
+                    <li key={p.clientId}>
+                      <button type="button" onClick={() => setPicked(prev => prev.filter((_, k) => k !== i))} className="ea-interactive inline-flex min-h-[32px] items-center gap-1 rounded-full bg-brand-soft px-3 text-xs font-semibold text-brand-fg-strong" aria-label={`Remove ${p.name} from the picks`}>
+                        {i + 1}. {p.name} <X className="w-3 h-3" aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none" />
             <input
@@ -131,6 +156,13 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
             <p className="px-3 py-6 text-sm text-muted text-center">No exercises found.</p>
           )}
         </div>
+        {multi && (
+          <div className="shrink-0 border-t border-border-subtle p-3">
+            <button type="button" onClick={createGroup} disabled={picked.length < multi.min} className="ea-cta w-full min-h-[48px] rounded-xl text-base font-semibold text-white disabled:opacity-50" data-group-create="">
+              {multi.cta(picked.length)}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -166,7 +166,7 @@ describe('reattachPendingMedia — the stable id first, the name second (260)', 
     expect(card).toMatch(/onChange\(\{ \.\.\.exercise, name: next \}\)/);
     expect(card).toMatch(/data-exercise-rename-input=""/);
     const editor = fs.readFileSync(path.join(process.cwd(), 'src/components/workouts/WorkoutEditorScreen.tsx'), 'utf8');
-    expect(editor).toMatch(/key=\{exercise\.clientId\}/);
+    expect(editor).toMatch(/key=\{item\.exercise\.clientId\}/);
     expect(editor).not.toMatch(/key=\{index\}/);
     expect(editor).toMatch(/ensureClientIds\(initial\.exercises\)/);
   });

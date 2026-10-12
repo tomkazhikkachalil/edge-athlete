@@ -58,13 +58,15 @@ interface SetRowProps {
   /** The clip's PLACE in the stash record, with the set number (PR 4); the stable id first since 260. */
   exerciseName: string;
   exerciseClientId: string;
+  /** In a superset / circuit the row is a ROUND: "R1" (PR 3). */
+  roundLabel?: boolean;
 }
 
 /** Warm the editor chunk while the camera menu is open — the pencil then
  *  opens without the "Opening editor…" shell. Fire-and-forget. */
 const warmEditorChunk = () => { void import('@/components/media-editor/MediaEditorModal').catch(() => undefined); };
 
-function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exerciseClientId }: SetRowProps) {
+function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exerciseClientId, roundLabel = false }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -271,7 +273,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exe
         only ~300px for the whole row. */}
     <div className="flex items-start gap-1.5">
       <span className="w-5 h-11 flex items-center justify-center text-sm font-semibold text-faint shrink-0">
-        {set.setNumber}
+        {roundLabel ? `R${set.setNumber}` : set.setNumber}
       </span>
 
       <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
@@ -495,9 +497,12 @@ interface ExerciseCardProps {
   onChange: (next: EntryExercise) => void;
   onDelete: () => void;
   uploads: SetMediaUploads;
+  /** A member of a superset / circuit (PR 3): rows are rounds, a deleted row
+   *  is a round across the group, "Add set" is the group's Add round. */
+  grouped?: { onDeleteRound: (roundIndex: number) => void; onRemoveFromGroup: () => void };
 }
 
-export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: ExerciseCardProps) {
+export default function ExerciseCard({ exercise, onChange, onDelete, uploads, grouped }: ExerciseCardProps) {
   const inputMode = inputModeFor(exercise);
   const showNotes = exercise.notes !== null;
   // Rename in place (260): the name is one field of the exercise; the sets,
@@ -519,6 +524,10 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
   };
 
   const deleteSet = (index: number) => {
+    if (grouped) {
+      grouped.onDeleteRound(index);
+      return;
+    }
     const sets = exercise.sets
       .filter((_, i) => i !== index)
       .map((s, i) => ({ ...s, setNumber: i + 1 }));
@@ -573,6 +582,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
           triggerClassName="text-gray-300 dark:text-stone-600"
           items={[
             { key: 'rename', label: 'Rename', icon: 'fa-pen', onSelect: () => setRenaming(exercise.name), testId: 'exercise-menu-rename' },
+            ...(grouped ? [{ key: 'ungroup-one', label: 'Remove from group', icon: 'fa-object-ungroup', onSelect: grouped.onRemoveFromGroup, testId: 'exercise-menu-remove-from-group' }] : []),
             { key: 'delete', label: 'Delete exercise', icon: 'fa-trash', tone: 'danger', onSelect: onDelete, testId: 'exercise-menu-delete' },
           ]}
         />
@@ -599,19 +609,22 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
             uploads={uploads}
             exerciseName={exercise.name}
             exerciseClientId={exercise.clientId}
+            roundLabel={!!grouped}
           />
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={addSet}
-        disabled={exercise.sets.length >= MAX_SETS_PER_EXERCISE}
-        className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-surface-muted hover:bg-surface-sunken text-secondary rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-      >
-        {exercise.sets.length > 0 ? <Copy className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-        {exercise.sets.length > 0 ? 'Add set (copies last)' : 'Add first set'}
-      </button>
+      {!grouped && (
+        <button
+          type="button"
+          onClick={addSet}
+          disabled={exercise.sets.length >= MAX_SETS_PER_EXERCISE}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-surface-muted hover:bg-surface-sunken text-secondary rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+        >
+          {exercise.sets.length > 0 ? <Copy className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+          {exercise.sets.length > 0 ? 'Add set (copies last)' : 'Add first set'}
+        </button>
+      )}
     </div>
   );
 }
