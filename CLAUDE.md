@@ -1765,6 +1765,32 @@ const { canView } = await response.json();
    (deduped on the bell's metadata) saying which will happen. Read DEVLOG
    Oct 12 2026 PR 1–3 first.
 
+42. **A workout has a clock you control, groups done for rounds, a rest timer
+   and a stopwatch, and nothing saved before it changes (Workout screen
+   program, Oct 12 2026, #1159–#1163, mig 260 the ONLY DDL — runs on BOTH
+   databases BEFORE PR 1 deploys: the insert paths name its columns)** — Tom's
+   spec and decisions: routines KEEP groups; "Hide timer" is remembered per
+   person on the device; Vitals weekly minutes stay total time minus pauses
+   (rest inside; an untimed workout counts as a session with no minutes).
+   `docs/WORKOUTS.md` is the reference. The invariants: **every save is a
+   whole-snapshot replace** (256) so the STABLE id is the editor's
+   `client_id` (NOT NULL default, UNIQUE per session; the RPC CARRIES the
+   client's; absent is minted, present must be a uuid and unique — a duplicate
+   is a 500 that wedges the autosave); **groups are HEALED, never refused**
+   (`entries.ts healGroups`, mirrored by `groups.ts` — a 400 is for type
+   errors only, the debounced sync re-sends forever); a member's sets ARE its
+   rounds; **pauses are SERVER facts stamped with the CLIENT's clock**
+   (`timing.ts`; the stale guard reads `last_activity_at`); the finish ends
+   never before an open pause and is NULL when untimed — and `sessionSeconds`
+   checks `timed === false` FIRST; **rest lives on the SET** (`rest_seconds`,
+   never data, no session Σ column — derived); the stopwatch writes the set's
+   `durationSeconds`; the timers persist under their own device key; the
+   screen owns its bottom edge (`/app/workout/` hides the tab bar);
+   `buildWorkoutStatsData` adds its new keys ONLY when present and omits
+   `duration_seconds` when untimed (an old post's shape is pinned
+   byte-identical). Specs read the clock by `[data-live-clock]`. Read DEVLOG
+   Oct 12 2026 PR 1–5 first.
+
 ---
 
 ## 🔧 Common Tasks
@@ -1824,6 +1850,8 @@ addition below as a promise to keep it true.
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
+- `docs/WORKOUTS.md` — the workout screen (convention 42): the model (260), the one chain,
+  the healed groups, the clock's rules, rest and the stopwatch, what counts where.
 - `docs/TEAMS.md` — teams & divisions (convention 28): the switches, the roster
   writer and reader, the pages, the coach view, the rollover carry.
 - `docs/PLAY.md` — the Play program (convention 29): badges, share cards,

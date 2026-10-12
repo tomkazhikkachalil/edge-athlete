@@ -181,3 +181,43 @@ describe('buildWorkoutStatsData', () => {
     expect('prs' in without).toBe(false);
   });
 });
+
+// ── Workout screen PR 5 (Oct 12 2026): volume per exercise, the rests, the rounds — optional in the post ──
+describe('the richer summary (PR 5)', () => {
+  const G = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const grouped = (name: string, sets: EntryExercise['sets']): EntryExercise => ({ ...exercise(name, sets), groupId: G, groupKind: 'circuit', groupRounds: 2 });
+  const workout: EntryExercise[] = [
+    exercise('Bench Press', [set({ reps: 5, weight: 100, weightUnit: 'lbs', restSeconds: 90 }), set({ setNumber: 2, reps: 5, weight: 100, weightUnit: 'lbs', restSeconds: 60 })]),
+    grouped('Squat', [set({ reps: 10, weight: 50, weightUnit: 'kg' }), set({ setNumber: 2 })]),
+    grouped('Push-Ups', [set({ reps: 15, restSeconds: 30 }), set({ setNumber: 2, reps: 12 })]),
+  ];
+  it('computeSummary: volume per exercise (those with any), Σ rest and its average, the groups with rounds completed', () => {
+    const s = computeSummary(workout);
+    expect(s.perExerciseVolume).toEqual([
+      { clientId: 'c-Bench Press', name: 'Bench Press', volumeLbs: 1000 },
+      { clientId: 'c-Squat', name: 'Squat', volumeLbs: 1102 },
+    ]);
+    expect(s.restSeconds).toBe(180);
+    expect(s.restCount).toBe(3);
+    expect(s.avgRestS).toBe(60);
+    expect(s.groups).toEqual([{ groupId: G, kind: 'circuit', rounds: 2, completed: 1, names: ['Squat', 'Push-Ups'] }]);
+    // A rest-only set is not a set.
+    expect(computeSummary([exercise('X', [set({ restSeconds: 100 })])]).totalSets).toBe(0);
+    const bare = computeSummary([exercise('X', [set({ reps: 5 })])]);
+    expect(bare).toMatchObject({ perExerciseVolume: [], restSeconds: 0, restCount: 0, avgRestS: null, groups: [] });
+  });
+  it('buildWorkoutStatsData adds rest_seconds, active_seconds, avg_rest_seconds, groups and per-exercise volume ONLY when present', () => {
+    const s = computeSummary(workout);
+    const data = buildWorkoutStatsData({ sessionId: 'w1', title: 'Legs', durationSeconds: 1800, summary: s });
+    expect(data).toMatchObject({ rest_seconds: 180, active_seconds: 1620, avg_rest_seconds: 60 });
+    expect(data.groups).toEqual([{ kind: 'circuit', rounds: 2, completed: 1, names: ['Squat', 'Push-Ups'] }]);
+    expect(data.per_exercise_volume_lbs).toEqual([{ name: 'Bench Press', volume_lbs: 1000 }, { name: 'Squat', volume_lbs: 1102 }]);
+    // Untimed: rest but no active time.
+    const untimed = buildWorkoutStatsData({ sessionId: 'w1', title: 'Legs', durationSeconds: null, summary: s });
+    expect('active_seconds' in untimed).toBe(false);
+    expect(untimed.rest_seconds).toBe(180);
+    // An older workout — no rest, no groups, one exercise's volume — the OLD shape exactly.
+    const old = buildWorkoutStatsData({ sessionId: 'w2', title: 'Push Day', durationSeconds: 2832, summary: computeSummary([exercise('Bench Press', [set({ reps: 5, weight: 185, weightUnit: 'lbs' })])]) });
+    expect(Object.keys(old).sort()).toEqual(['duration_seconds', 'exercise_count', 'title', 'top_line', 'total_sets', 'total_volume_lbs', 'type', 'workout_session_id']);
+  });
+});

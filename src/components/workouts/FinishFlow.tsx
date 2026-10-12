@@ -11,8 +11,7 @@ import {
   formatVolume,
   MAX_POST_MEDIA,
   type CollectedMedia,
-  type WorkoutSummary,
-} from '@/lib/workouts/summary';
+  type WorkoutSummary, formatElapsed } from '@/lib/workouts/summary';
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
 
 /** State + handlers for the optional "save as routine" card; null hides it. */
@@ -101,10 +100,56 @@ export function FinishSummary({
         </div>
       </div>
 
+      {/* PR 5: active and rest time, the rests' average — when any rest was recorded. */}
+      {(summary.restSeconds ?? 0) > 0 && (
+        <div className="grid grid-cols-3 gap-3" data-summary-rest={summary.restSeconds}>
+          <div className="text-center vt-card p-4">
+            <div className="text-xl font-bold text-primary">{durationSeconds === null ? '—' : formatDuration(Math.max(0, durationSeconds - (summary.restSeconds ?? 0)))}</div>
+            <div className="text-xs font-semibold text-muted uppercase tracking-wide">Active</div>
+          </div>
+          <div className="text-center vt-card p-4">
+            <div className="text-xl font-bold text-primary">{formatDuration(summary.restSeconds ?? 0)}</div>
+            <div className="text-xs font-semibold text-muted uppercase tracking-wide">Rest</div>
+          </div>
+          <div className="text-center vt-card p-4">
+            <div className="text-xl font-bold text-primary">{summary.avgRestS ? formatElapsed(summary.avgRestS) : '—'}</div>
+            <div className="text-xs font-semibold text-muted uppercase tracking-wide">Avg rest</div>
+          </div>
+        </div>
+      )}
+
       {summary.topLine && (
         <p className="text-center text-sm text-tertiary">
           Top set: <span className="font-semibold text-primary">{summary.topLine}</span>
         </p>
+      )}
+
+      {/* PR 5: volume by exercise (when more than one carried volume) and the groups' rounds. */}
+      {(summary.perExerciseVolume?.length ?? 0) > 1 && (
+        <div className="vt-card p-4" data-summary-volume-list="">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Volume by exercise</p>
+          <ul className="space-y-1">
+            {summary.perExerciseVolume!.map(v => (
+              <li key={v.clientId} className="flex items-center justify-between text-sm">
+                <span className="truncate text-primary">{v.name}</span>
+                <span className="tabular-nums font-semibold text-primary">{formatVolume(v.volumeLbs)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(summary.groups?.length ?? 0) > 0 && (
+        <div className="vt-card p-4" data-summary-groups={summary.groups!.length}>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Rounds</p>
+          <ul className="space-y-1">
+            {summary.groups!.map(g => (
+              <li key={g.groupId} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate text-primary">{g.kind === 'superset' ? 'Superset' : 'Circuit'} · {g.names.join(', ')}</span>
+                <span className="shrink-0 tabular-nums font-semibold text-primary" data-summary-group-rounds={`${g.completed}/${g.rounds}`}>{g.completed} of {g.rounds}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* PR suggest + confirm */}
