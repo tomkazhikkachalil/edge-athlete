@@ -3,6 +3,7 @@
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { useState, useCallback } from 'react';
 import { useToast } from '@/components/Toast';
+import { refreshDrafts } from './useDrafts';
 
 /**
  * Creator's "Delete round" action — removes the round COMPLETELY via
@@ -33,6 +34,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void, opts: {
       const body = await response.json().catch(() => ({}));
       if (body && body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
       else showSuccess('Round deleted', 'Nothing from it was recorded.');
+      void refreshDrafts();
       onDone?.();
       return true;
     } catch (err) {

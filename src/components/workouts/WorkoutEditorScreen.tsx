@@ -46,6 +46,8 @@ import {
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { localDayKey } from '@/lib/calendar/grid';
+import { refreshDrafts } from '@/hooks/useDrafts';
+import { publishProgress } from '@/lib/sessions/progress-store';
 
 type Phase = 'editing' | 'summary' | 'share';
 
@@ -232,6 +234,20 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     };
   }, []);
 
+  // An in-app route change abandons a pending debounce (the localStorage
+  // draft catches it; the server copy lagged by up to one edit). The resume
+  // pill program: the server copy is current when you leave — the same
+  // keepalive flush as pagehide, only when an edit is still waiting.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        flushRef.current();
+      }
+    };
+  }, []);
+
   // Draft-restored state: reconcile to the server immediately
   const reconciledRef = useRef(false);
   useEffect(() => {
@@ -348,6 +364,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       const data = await response.json();
       clearDraft(draftId);
       uploads.clearStash();
+      void refreshDrafts();
       setFinishedSessionId(session.id);
       setFinishedDuration(data.session?.duration_seconds ?? elapsedNow());
       await loadPRs(exercises);
@@ -490,6 +507,11 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   };
 
   const summary = useMemo(() => computeSummary(exercises), [exercises]);
+  // The resume pill's number: sets with something in them, published as they
+  // change so the pill is right the moment you leave this screen.
+  useEffect(() => {
+    if (mode === 'live' && session) publishProgress('workout', session.id, { setsCompleted: summary.totalSets });
+  }, [mode, session, summary.totalSets]);
   // A clip still uploading never reaches the share step's list (Finish waits
   // for the queue; this covers a review-mode attach that is mid-flight).
   const mediaOptions = useMemo(() => collectWorkoutMedia(exercises).filter(m => !isPendingMedia(m)), [exercises]);
@@ -639,7 +661,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     if (isServerSession && session) {
       try {
         await fetch(`/api/workouts/${session.id}`, { method: 'DELETE', credentials: 'include' });
-      } catch { /* draft cleared; session finalizes lazily if delete failed */ }
+      } catch { /* draft cleared; the sweep settles the session if the delete failed */ }
+      void refreshDrafts();
     }
     router.push('/athlete');
   };

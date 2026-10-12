@@ -11,7 +11,7 @@ const ROOT = process.cwd();
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 const item = (over: Partial<DraftItem>): DraftItem => ({
-  kind: 'round', id: 'gp1', postId: 'p1', state: 'in_progress', title: 'Pine Hills', startedAt: '2026-10-05', lastActivityAt: null, href: '/live/gp1', isCreator: true, scored: true, ...over,
+  kind: 'round', id: 'gp1', postId: 'p1', state: 'in_progress', title: 'Pine Hills', startedAt: '2026-10-05', clockStartAt: '2026-10-05T14:00:00Z', lastActivityAt: null, href: '/live/gp1', isCreator: true, scored: true, progress: null, ...over,
 });
 
 describe('reopenActions', () => {

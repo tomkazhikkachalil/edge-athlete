@@ -34,7 +34,7 @@ export default function DraftsPage() {
       .findUnfinished(user.id, Date.now())
       .then(meta => {
         if (cancelled || !meta) return;
-        setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt });
+        setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt, startedAt: meta.startedAt });
       })
       .catch(() => {});
     return () => {

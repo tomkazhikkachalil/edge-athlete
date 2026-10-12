@@ -5,18 +5,16 @@
 // reads these; nothing here touches the DOM.
 
 import type { DraftItem } from './list';
+import { isSessionScreen } from '@/lib/sessions/paths';
 
 /** Once per app open: the key that remembers the prompt was shown (sessionStorage — a new tab or a relaunch asks again). */
 export function reopenSeenKey(userId: string): string {
   return `ea:reopen-prompt:v1:${userId}`;
 }
 
-/** Screens that ARE the thing (or its list): no prompt over them. */
-const SKIP_PREFIXES = ['/live/', '/activities/record', '/app/workout/', '/athlete/drafts'] as const;
-
+/** Screens that ARE the thing (or its list): no prompt over them — the one list the resume pill shares (sessions/paths.ts). */
 export function reopenSkipsPath(pathname: string | null | undefined): boolean {
-  if (!pathname) return true;
-  return SKIP_PREFIXES.some(p => (p.endsWith('/') ? pathname.startsWith(p) : pathname === p || pathname.startsWith(`${p}/`)));
+  return isSessionScreen(pathname);
 }
 
 export interface ReopenActions {

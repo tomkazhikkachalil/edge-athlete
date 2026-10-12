@@ -21,9 +21,10 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
       .from('group_post_participants')
       .select(`
         status,
+        scores:golf_participant_scores ( holes_completed ),
         group_post:group_post_id (
-          id, type, status, date, post_id, title, creator_id, sport_event_round_id,
-          golf_data:golf_scorecard_data ( course_name ),
+          id, type, status, date, created_at, post_id, title, creator_id, sport_event_round_id,
+          golf_data:golf_scorecard_data ( course_name, holes_played ),
           all_participants:group_post_participants ( scores:golf_participant_scores ( updated_at ) ),
           post:post_id ( status )
         )
@@ -35,7 +36,7 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
     // the pure rule applies the Drafts-round cutoff).
     admin
       .from('workout_sessions')
-      .select('id, status, title, started_at, last_activity_at, ended_at, post_id, share_decided_at')
+      .select('id, status, title, started_at, last_activity_at, ended_at, post_id, share_decided_at, exercises:workout_exercises ( sets:workout_sets ( reps, weight, duration_seconds, distance ) )')
       .eq('profile_id', profileId)
       .in('status', ['active', 'completed'])
       .is('post_id', null)
@@ -47,11 +48,12 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
   if (workoutsError) throw workoutsError;
 
   const rounds: DraftRoundRow[] = [];
-  for (const r of (rows ?? []) as Array<{ status: string | null; group_post: unknown }>) {
+  for (const r of (rows ?? []) as Array<{ status: string | null; scores: unknown; group_post: unknown }>) {
     if (!isActiveParticipant(r.status)) continue;
     const gp = one(r.group_post as Record<string, unknown> | Record<string, unknown>[] | null);
     if (!gp || gp.type !== 'golf_round') continue;
-    const golfData = one(gp.golf_data as { course_name: string | null } | { course_name: string | null }[] | null);
+    const golfData = one(gp.golf_data as { course_name: string | null; holes_played?: number | null } | { course_name: string | null; holes_played?: number | null }[] | null);
+    const mine = one(r.scores as { holes_completed: number | null } | { holes_completed: number | null }[] | null);
     const post = one(gp.post as { status: string | null } | { status: string | null }[] | null);
     let lastScoreAt: string | null = null;
     for (const ap of (gp.all_participants ?? []) as Array<{ scores: { updated_at?: string | null } | { updated_at?: string | null }[] | null }>) {
@@ -62,6 +64,9 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
       id: gp.id as string,
       status: (gp.status as string | null) ?? null,
       date: (gp.date as string | null) ?? null,
+      created_at: (gp.created_at as string | null) ?? null,
+      holes_completed: mine?.holes_completed ?? 0,
+      holes_played: golfData?.holes_played ?? null,
       post_id: (gp.post_id as string | null) ?? null,
       course_name: golfData?.course_name ?? null,
       title: (gp.title as string | null) ?? null,
@@ -72,5 +77,10 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
     });
   }
 
-  return buildDraftsList({ rounds, workouts: (workouts ?? []) as DraftWorkoutRow[] });
+  // The pill's set count: the SAME rule as the editor's summary, on the rows.
+  const workoutRows: DraftWorkoutRow[] = ((workouts ?? []) as Array<DraftWorkoutRow & { exercises?: Array<{ sets: DraftWorkoutRow['sets'] }> | null }>).map(({ exercises, ...w }) => ({
+    ...w,
+    sets: (exercises ?? []).flatMap(e => e.sets ?? []),
+  }));
+  return buildDraftsList({ rounds, workouts: workoutRows });
 }

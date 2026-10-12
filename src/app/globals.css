@@ -569,6 +569,20 @@ body {
   animation: ea-live-ring 2.4s ease-out infinite;
 }
 
+/* The resume pill (Oct 2026): above the phone tab bar — `--ea-tabbar-h` is
+ * the bar's MEASURED height, safe-area inset included, and is unset when the
+ * bar hides, so the custom property's fallback is the inset itself. Under the
+ * header on a large screen (h-16, below any sticky banner). */
+.ea-resume-pill {
+  bottom: calc(var(--ea-tabbar-h, env(safe-area-inset-bottom, 0px)) + 12px);
+}
+@media (min-width: 1024px) {
+  .ea-resume-pill {
+    bottom: auto;
+    top: calc(var(--ea-banner-h, 0px) + 4rem + 0.75rem);
+  }
+}
+
 /* ── Messaging microinteractions ────────────────────────────────────────────
  * Small CSS-only motions for reactions and message edits. No new dependency
  * required. Disabled automatically by the prefers-reduced-motion block below.

@@ -19,8 +19,15 @@ export interface DraftItem {
   title: string;
   /** ISO — when it started (a round: its date; a workout: started_at). */
   startedAt: string | null;
+  /** ISO INSTANT the resume pill's clock runs from (a round: created_at — its
+   *  `date` is a day; a workout: started_at; a recording: its start). Derived
+   *  from this timestamp, never counted, so a closed app changes nothing. */
+  clockStartAt: string | null;
   /** ISO — the last thing that happened to it (a score, a set, a save). */
   lastActivityAt: string | null;
+  /** The one number the pill shows beside the clock, as the server last saw it
+   *  (the session's own screen publishes the live one — sessions/progress-store.ts). */
+  progress: { holesCompleted?: number; holesPlayed?: number; setsCompleted?: number } | null;
   /** Where to continue or review it. */
   href: string;
   /** Rounds: the viewer created it (Finish / Discard / Post are theirs). */
@@ -34,6 +41,11 @@ export interface DraftRoundRow {
   id: string;
   status: string | null;
   date: string | null;
+  /** ISO — when the round was created (the pill's clock). */
+  created_at?: string | null;
+  /** The viewer's own holes scored (golf_participant_scores.holes_completed) and the round's length. */
+  holes_completed?: number | null;
+  holes_played?: number | null;
   post_id: string | null;
   course_name: string | null;
   title: string | null;
@@ -57,6 +69,17 @@ export interface DraftWorkoutRow {
   post_id?: string | null;
   /** 253: when the owner chose Share or Keep private. NULL on a completed session = a draft. */
   share_decided_at?: string | null;
+  /** The session's sets, for the pill's count (summary.ts's "a set with data" rule). */
+  sets?: ReadonlyArray<{ reps?: number | null; weight?: number | null; duration_seconds?: number | null; distance?: number | null }> | null;
+}
+
+/** Sets with something in them — the SAME rule as workouts/summary.ts setHasData, on the row's columns. */
+export function countWorkoutSets(sets: DraftWorkoutRow['sets']): number {
+  let n = 0;
+  for (const s of sets ?? []) {
+    if ((s.reps ?? 0) > 0 || (s.weight ?? 0) > 0 || (s.duration_seconds ?? 0) > 0 || (s.distance ?? 0) > 0) n += 1;
+  }
+  return n;
 }
 
 /** Sessions finished before the Drafts round never had a share decision
@@ -76,6 +99,8 @@ export interface DraftRecordingLike {
   /** The catalog label, already resolved ("Walk", "Run"). */
   label: string;
   savedAt: number;
+  /** Epoch ms — when the recording started (the pill's clock); null before Start. */
+  startedAt?: number | null;
 }
 
 export interface DraftsList {
@@ -120,7 +145,9 @@ export function buildDraftsList(input: {
       postId: r.post_id,
       title: roundTitle(r),
       startedAt: r.date,
+      clockStartAt: r.created_at ?? null,
       lastActivityAt: r.lastScoreAt,
+      progress: typeof r.holes_completed === 'number' ? { holesCompleted: r.holes_completed, ...(typeof r.holes_played === 'number' ? { holesPlayed: r.holes_played } : {}) } : null,
       isCreator: r.isCreator,
       scored: r.status === 'active' || r.status === 'completed',
     };
@@ -139,7 +166,9 @@ export function buildDraftsList(input: {
       postId: null,
       title: w.title?.trim() || 'Workout',
       startedAt: w.started_at,
+      clockStartAt: w.started_at,
       lastActivityAt: w.ended_at ?? w.last_activity_at,
+      progress: w.sets ? { setsCompleted: countWorkoutSets(w.sets) } : null,
       isCreator: true,
       scored: true,
     };
@@ -160,7 +189,9 @@ export function buildDraftsList(input: {
       state: 'in_progress',
       title: `${input.recording.label} (on this phone)`,
       startedAt: iso,
+      clockStartAt: typeof input.recording.startedAt === 'number' ? new Date(input.recording.startedAt).toISOString() : null,
       lastActivityAt: iso,
+      progress: null,
       href: '/activities/record',
       isCreator: true,
       scored: true,

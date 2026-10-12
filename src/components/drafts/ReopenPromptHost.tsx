@@ -43,7 +43,7 @@ export default function ReopenPromptHost() {
       const store = openRecordingStore();
       const meta = store ? await store.findUnfinished(user.id, Date.now()).catch(() => null) : null;
       if (cancelled) return;
-      if (meta) setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt });
+      if (meta) setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt, startedAt: meta.startedAt });
       setCheckedPhone(true);
     })();
     return () => { cancelled = true; };

@@ -16,6 +16,7 @@ import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ReopenPromptHost from '@/components/drafts/ReopenPromptHost';
+import ResumePill from '@/components/sessions/ResumePill';
 import OfflineBanner from '@/components/net/OfflineBanner';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
@@ -131,6 +132,9 @@ export default async function RootLayout({
               <InstallAppProvider>
               {/* Drafts: once per app open, Resume / Finish / Discard what is in progress. */}
               <ReopenPromptHost />
+              {/* The resume pill: the way back into a workout, a recording or a
+                  round in progress, on every page (sessions/pill.ts). */}
+              <ResumePill />
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />
