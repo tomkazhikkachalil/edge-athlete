@@ -25,6 +25,7 @@ import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { formatDistance, readUnitPreference } from '@/lib/activities/format';
 import ActivitiesTab from './activities/ActivitiesTab';
 import { formatDuration } from '@/lib/workouts/summary';
+import { refreshDrafts } from '@/hooks/useDrafts';
 import VitalsHero from './vitals/VitalsHero';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
@@ -239,6 +240,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       const data = await response.json().catch(() => null);
       if (response.status === 409 && data?.activeSessionId) {
         showError('Workout in progress', 'Resuming your workout in progress.');
+        void refreshDrafts();
         router.push(`/app/workout/${data.activeSessionId}`);
         return;
       }
@@ -251,6 +253,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         return;
       }
       if (!response.ok) throw new Error(data?.error || 'Failed to start workout');
+      // The session exists: the resume pill and the Drafts count learn it now.
+      void refreshDrafts();
       router.push(`/app/workout/${data.session.id}`);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to start workout');

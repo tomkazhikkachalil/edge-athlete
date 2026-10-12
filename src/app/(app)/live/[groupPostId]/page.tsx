@@ -17,6 +17,7 @@ import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '@/lib/golf/
 import { geometryForRound, pickerRows, readLoopPicks, writeLoopPicks, type LoopPicks } from '@/lib/golf/hole-loops';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { COPY } from '@/lib/copy';
+import { publishProgress } from '@/lib/sessions/progress-store';
 import { holeHeaderFacts, liveLine, type TeeSheetSource, chipDistanceLines } from '@/lib/golf/hole-detail';
 import { parseStoredElevation, type HoleElevation } from '@/lib/golf/elevation';
 
@@ -130,6 +131,16 @@ export default function LiveRoundPage() {
   });
 
   const entry = resolveRoundEntry({ scorecard, viewerId: user?.id });
+
+  // The resume pill's number (sessions/progress-store.ts): the viewer's holes
+  // scored, published as the card changes so the pill is right the moment
+  // they leave this screen. Before the early returns below — a hook.
+  const myHolesCompleted = scorecard?.participants.find(p => p.participant.profile_id === user?.id)?.scores?.holes_completed;
+  const roundHolesPlayed = scorecard?.golf_data?.holes_played;
+  useEffect(() => {
+    if (!groupPostId || typeof myHolesCompleted !== 'number') return;
+    publishProgress('round', groupPostId, { holesCompleted: myHolesCompleted, ...(typeof roundHolesPlayed === 'number' ? { holesPlayed: roundHolesPlayed } : {}) });
+  }, [groupPostId, myHolesCompleted, roundHolesPlayed]);
 
   // Phase 4: a recorder / organizer records for ANY group of the round — `?group=` picks it (the deep link the
   // switcher writes); a player's own group is the default, else the round's first.

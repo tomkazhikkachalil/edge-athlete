@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useToast } from '@/components/Toast';
+import { refreshDrafts } from './useDrafts';
 
 /**
  * Creator's "Finish round" action — marks a shared round completed via
@@ -26,6 +27,7 @@ export function useEndRound(groupPostId: string, onDone?: () => void) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to finish the round');
       }
+      void refreshDrafts();
       onDone?.();
       return true;
     } catch (err) {

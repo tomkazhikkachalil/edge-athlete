@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, type ComponentType } from 're
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { afterCreatePath } from '@/lib/golf/round-route';
+import { refreshDrafts } from '@/hooks/useDrafts';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
@@ -797,6 +798,9 @@ export default function CreatePostModal({
         // An already-played round is a DRAFT (253): land on it to review and
         // post — it is not on the feed until then.
         const nextPath = afterCreatePath(groupPost);
+        // A round in progress (or an already-played draft) exists now: the
+        // resume pill and the Drafts count learn it without a reload.
+        void refreshDrafts();
         if (nextPath) router.push(nextPath);
         return;
       }
