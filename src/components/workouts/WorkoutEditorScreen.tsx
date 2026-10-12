@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flag, MoreVertical, Plus, Timer, Trash2 } from 'lucide-react';
+import { Flag, MoreVertical, Plus, Timer } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
 import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
@@ -25,7 +25,8 @@ import AddExerciseSheet from './AddExerciseSheet';
 import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
-import { MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
+import { ensureClientIds, MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
+import ActionMenu from '@/components/ActionMenu';
 import { isPendingMedia, stripPendingMedia } from '@/lib/workouts/set-media-pending';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import {
@@ -88,14 +89,14 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       fromDraft: draft !== null && (draft.exercises.length > 0 || !!draft.title),
     };
   });
-  const [exercises, setExercises] = useState<EntryExercise[]>(initial.exercises);
+  // 260: every exercise carries its stable id — a draft written before it is minted one here.
+  const [exercises, setExercises] = useState<EntryExercise[]>(() => ensureClientIds(initial.exercises));
   const [title, setTitle] = useState<string>(initial.title ?? session?.title ?? '');
   const [phase, setPhase] = useState<Phase>(
     mode === 'review' && initialPhase === 'share' ? 'share' : 'editing'
   );
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
   // Manual-mode fields
@@ -758,31 +759,15 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             placeholder="Workout title (e.g. Push Day)"
             className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(o => !o)}
-              className="w-11 h-11 flex items-center justify-center text-faint hover:text-tertiary rounded-lg transition-colors"
-              aria-label="Workout options"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border rounded-lg shadow-lg z-20 w-44">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setDiscardOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {mode === 'review' ? 'Delete workout' : 'Discard workout'}
-                </button>
-              </div>
-            )}
-          </div>
+          {/* The house menu (ActionMenu): portalled, never clipped by the sticky header. */}
+          <ActionMenu
+            ariaLabel="Workout options"
+            triggerTestAttr="workout-menu"
+            trigger={<MoreVertical className="w-5 h-5" aria-hidden="true" />}
+            items={[
+              { key: 'discard', label: mode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
+            ]}
+          />
         </div>
 
         {/* flex-wrap: at 320px the date + duration inputs and the shrink-0
@@ -862,7 +847,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       <div className="space-y-3">
         {exercises.map((exercise, index) => (
           <ExerciseCard
-            key={index}
+            key={exercise.clientId}
             exercise={exercise}
             onChange={next => mutate(exercises.map((e, i) => (i === index ? next : e)))}
             onDelete={() => mutate(exercises.filter((_, i) => i !== index))}

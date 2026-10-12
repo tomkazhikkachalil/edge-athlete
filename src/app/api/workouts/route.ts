@@ -88,6 +88,10 @@ async function insertSessionEntries(
         category: exercise.category,
         position: index,
         notes: exercise.notes,
+        client_id: exercise.clientId,
+        group_id: exercise.groupId ?? null,
+        group_kind: exercise.groupKind ?? null,
+        group_rounds: exercise.groupRounds ?? null,
       }))
     )
     .select('id, position');
@@ -110,6 +114,7 @@ async function insertSessionEntries(
       distance_unit: set.distanceUnit,
       completed_at: set.completedAt,
       media: set.media,
+      rest_seconds: set.restSeconds ?? null,
     }))
   );
 
@@ -282,7 +287,7 @@ export async function POST(request: NextRequest) {
           .select(
             `id, name, created_at, updated_at, profile_id,
              exercises:workout_routine_exercises (
-               name, exercise_key, category, position, notes, target_sets
+               name, exercise_key, category, position, notes, target_sets, group_id, group_kind, group_rounds
              )`
           )
           .eq('id', body.routineId)

@@ -3,7 +3,19 @@
  * the editor and the API (PUT /api/workouts/[id]/entries and manual POST).
  * Validation mirrors the DB CHECK constraints so Postgres errors are never
  * the first line of defense.
+ *
+ * Workout screen program (Oct 12 2026, migration 260): an exercise carries a
+ * STABLE `clientId` (every save is a whole-snapshot replace, so the row id is
+ * re-minted each time; the editor mints the client id once and it rides
+ * every save — the clip stash, the cards' keys and a rename hang on it), the
+ * optional GROUP fields of a superset or circuit (denormalized on every
+ * member; a member's sets are its rounds), and a set carries the rest taken
+ * before it. Every new field is optional on the way in: a payload without
+ * them (an old client, an old draft, a routine) is the pre-260 workout.
  */
+
+import { isUuid } from '@/lib/uuid';
+import { newId } from '@/lib/ids';
 
 export interface SetMedia {
   url: string;
@@ -21,19 +33,110 @@ export interface EntrySet {
   completedAt: string | null; // ISO timestamp
   /** Photos/videos attached to this set (form checks, lift clips). */
   media: SetMedia[];
+  /** The rest taken BEFORE this set, seconds (260; the rest timer). Never "data". */
+  restSeconds?: number | null;
 }
 
+export type ExerciseGroupKind = 'superset' | 'circuit';
+export const GROUP_KINDS = ['superset', 'circuit'] as const;
+/** Rounds of a group: the routines' target_sets cap (079), ONE number everywhere. */
+export const MAX_GROUP_ROUNDS = 10;
+
 export interface EntryExercise {
+  /** The STABLE id (260): minted once by the editor, carried through every save. */
+  clientId: string;
   name: string;
   exerciseKey: string | null; // catalog key; null = custom
   category: 'strength' | 'cardio' | 'mobility' | 'other';
   notes: string | null;
   sets: EntrySet[];
+  /** A superset or circuit (260): the members share `groupId`, consecutive;
+   *  kind and rounds are repeated on every member. Absent = a single exercise. */
+  groupId?: string | null;
+  groupKind?: ExerciseGroupKind | null;
+  groupRounds?: number | null;
 }
 
 export const MAX_EXERCISES = 40;
 export const MAX_SETS_PER_EXERCISE = 50;
 export const MAX_MEDIA_PER_SET = 4;
+
+/** An empty set — the one builder every seed and the editor share. */
+export function emptyEntrySet(setNumber: number): EntrySet {
+  return { setNumber, reps: null, weight: null, weightUnit: null, durationSeconds: null, distance: null, distanceUnit: null, completedAt: null, media: [], restSeconds: null };
+}
+
+/** Every exercise gets a client id when it has none (an old draft, a routine, an old client's payload). The same array when nothing was missing. */
+export function ensureClientIds<E extends { clientId?: string | null }>(exercises: E[], mint: () => string = newId): Array<E & { clientId: string }> {
+  let changed = false;
+  const out = exercises.map(e => {
+    if (typeof e.clientId === 'string' && e.clientId) return e as E & { clientId: string };
+    changed = true;
+    return { ...e, clientId: mint() };
+  });
+  return changed ? out : (exercises as Array<E & { clientId: string }>);
+}
+
+/**
+ * The group invariants, HEALED rather than refused (a 400 would wedge the
+ * editor's autosave loop, which re-sends the same snapshot): a singleton
+ * group is ungrouped; members are made consecutive at the first member's
+ * place; kind is the first member's; rounds = max(declared, the longest
+ * member's sets), capped at MAX_GROUP_ROUNDS; every member is padded with
+ * empty sets up to the rounds (never truncated — that would be data loss).
+ * Returns the same array when nothing needed healing.
+ */
+export function healGroups<E extends EntryExercise>(exercises: E[]): E[] {
+  const groups = new Map<string, number[]>();
+  exercises.forEach((e, i) => {
+    if (e.groupId) groups.set(e.groupId, [...(groups.get(e.groupId) ?? []), i]);
+  });
+  if (groups.size === 0) {
+    const stripped = exercises.some(e => e.groupKind || e.groupRounds);
+    return stripped ? exercises.map(e => (e.groupKind || e.groupRounds ? { ...e, groupId: null, groupKind: null, groupRounds: null } : e)) : exercises;
+  }
+  let changed = false;
+  const byIndex: Array<E | null> = exercises.map(e => e);
+  const insertAfter = new Map<number, E[]>();
+  for (const [groupId, idxs] of groups) {
+    if (idxs.length < 2) {
+      const i = idxs[0];
+      byIndex[i] = { ...exercises[i], groupId: null, groupKind: null, groupRounds: null };
+      changed = true;
+      continue;
+    }
+    const members = idxs.map(i => exercises[i]);
+    const kind: ExerciseGroupKind = members.find(m => m.groupKind === 'superset' || m.groupKind === 'circuit')?.groupKind ?? 'circuit';
+    const declared = Math.max(0, ...members.map(m => (typeof m.groupRounds === 'number' && Number.isFinite(m.groupRounds) ? Math.floor(m.groupRounds) : 0)));
+    const longest = Math.max(...members.map(m => m.sets.length));
+    const rounds = Math.min(MAX_GROUP_ROUNDS, Math.max(1, declared, longest));
+    const healed = members.map(m => {
+      const sets = m.sets.length >= rounds ? m.sets : [...m.sets, ...Array.from({ length: rounds - m.sets.length }, (_, k) => emptyEntrySet(m.sets.length + k + 1))];
+      const same = m.groupKind === kind && m.groupRounds === rounds && sets === m.sets;
+      if (!same) changed = true;
+      return same ? m : ({ ...m, groupId, groupKind: kind, groupRounds: rounds, sets } as E);
+    });
+    // Consecutive: the members take the first member's place, in their order.
+    const first = idxs[0];
+    const consecutive = idxs.every((i, k) => i === first + k);
+    if (!consecutive) changed = true;
+    byIndex[first] = healed[0];
+    for (let k = 1; k < idxs.length; k++) {
+      if (consecutive) byIndex[idxs[k]] = healed[k];
+      else {
+        byIndex[idxs[k]] = null;
+        insertAfter.set(first, [...(insertAfter.get(first) ?? []), healed[k]]);
+      }
+    }
+  }
+  if (!changed) return exercises;
+  const out: E[] = [];
+  byIndex.forEach((e, i) => {
+    if (e) out.push(e);
+    for (const extra of insertAfter.get(i) ?? []) out.push(extra);
+  });
+  return out;
+}
 
 const MEDIA_TYPES = ['image', 'video'] as const;
 
@@ -136,6 +239,10 @@ function validateSet(raw: unknown, index: number): { ok: true; set: EntrySet } |
   if (!mediaResult.ok) {
     return { ok: false, error: `Set ${index + 1}: ${mediaResult.error}` };
   }
+  // 260: the rest before the set — optional on the way in (absent = none).
+  if (s.restSeconds !== undefined && !nullOr(s.restSeconds, v => isFiniteInRange(v, 0, 86400))) {
+    return { ok: false, error: `Set ${index + 1}: rest out of range` };
+  }
   return {
     ok: true,
     set: {
@@ -148,6 +255,7 @@ function validateSet(raw: unknown, index: number): { ok: true; set: EntrySet } |
       distanceUnit: (s.distanceUnit as EntrySet['distanceUnit']) ?? null,
       completedAt: (s.completedAt as string | null) ?? null,
       media: mediaResult.media,
+      restSeconds: typeof s.restSeconds === 'number' ? Math.round(s.restSeconds) : null,
     },
   };
 }
@@ -163,6 +271,7 @@ export function validateEntriesPayload(
   }
 
   const exercises: EntryExercise[] = [];
+  const seenIds = new Set<string>();
   for (let i = 0; i < raw.length; i++) {
     const e = raw[i];
     if (typeof e !== 'object' || e === null) {
@@ -171,6 +280,25 @@ export function validateEntriesPayload(
     const ex = e as Record<string, unknown>;
     if (typeof ex.name !== 'string' || ex.name.trim().length === 0 || ex.name.trim().length > 80) {
       return { ok: false, error: `Exercise ${i + 1}: name must be 1–80 characters` };
+    }
+    // 260: the stable id — absent is minted (an old client); present must be a
+    // uuid and unique in the snapshot (a duplicate would be a 23505 inside the
+    // replace, a 500 that wedges the autosave).
+    if (ex.clientId !== undefined && ex.clientId !== null && (typeof ex.clientId !== 'string' || !isUuid(ex.clientId))) {
+      return { ok: false, error: `Exercise ${i + 1}: invalid exercise id` };
+    }
+    if (typeof ex.clientId === 'string' && seenIds.has(ex.clientId)) {
+      return { ok: false, error: `Exercise ${i + 1}: duplicate exercise id` };
+    }
+    if (typeof ex.clientId === 'string') seenIds.add(ex.clientId);
+    if (ex.groupId !== undefined && ex.groupId !== null && (typeof ex.groupId !== 'string' || !isUuid(ex.groupId))) {
+      return { ok: false, error: `Exercise ${i + 1}: invalid group id` };
+    }
+    if (ex.groupKind !== undefined && ex.groupKind !== null && !GROUP_KINDS.includes(ex.groupKind as ExerciseGroupKind)) {
+      return { ok: false, error: `Exercise ${i + 1}: invalid group kind` };
+    }
+    if (ex.groupRounds !== undefined && ex.groupRounds !== null && !isFiniteInRange(ex.groupRounds, 1, MAX_GROUP_ROUNDS)) {
+      return { ok: false, error: `Exercise ${i + 1}: rounds must be 1–${MAX_GROUP_ROUNDS}` };
     }
     if (ex.exerciseKey !== null && ex.exerciseKey !== undefined && typeof ex.exerciseKey !== 'string') {
       return { ok: false, error: `Exercise ${i + 1}: invalid exercise key` };
@@ -198,13 +326,17 @@ export function validateEntriesPayload(
     }
 
     exercises.push({
+      clientId: typeof ex.clientId === 'string' ? ex.clientId : newId(),
       name: ex.name.trim(),
       exerciseKey: (ex.exerciseKey as string | null) ?? null,
       category: ex.category as EntryExercise['category'],
       notes: (ex.notes as string | null) ?? null,
       sets,
+      groupId: typeof ex.groupId === 'string' ? ex.groupId : null,
+      groupKind: GROUP_KINDS.includes(ex.groupKind as ExerciseGroupKind) ? (ex.groupKind as ExerciseGroupKind) : null,
+      groupRounds: typeof ex.groupRounds === 'number' ? Math.floor(ex.groupRounds) : null,
     });
   }
 
-  return { ok: true, exercises };
+  return { ok: true, exercises: healGroups(exercises) };
 }

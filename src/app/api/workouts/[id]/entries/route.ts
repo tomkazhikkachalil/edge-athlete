@@ -121,6 +121,10 @@ export async function PUT(
             category: exercise.category,
             position: index,
             notes: exercise.notes,
+            client_id: exercise.clientId,
+            group_id: exercise.groupId ?? null,
+            group_kind: exercise.groupKind ?? null,
+            group_rounds: exercise.groupRounds ?? null,
           }))
         )
         .select('id, position');
@@ -144,6 +148,7 @@ export async function PUT(
           distance_unit: set.distanceUnit,
           completed_at: set.completedAt,
           media: set.media,
+          rest_seconds: set.restSeconds ?? null,
         }))
       );
 

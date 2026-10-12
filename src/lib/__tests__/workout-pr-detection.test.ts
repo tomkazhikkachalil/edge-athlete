@@ -16,6 +16,7 @@ const set = (over: Partial<EntryExercise['sets'][number]> = {}): EntryExercise['
 });
 
 const bench = (weight: number, unit: 'lbs' | 'kg' = 'lbs'): EntryExercise => ({
+  clientId: 'c-bench',
   name: 'Bench Press',
   exerciseKey: 'bench_press',
   category: 'strength',
@@ -48,6 +49,7 @@ describe('detectPRs', () => {
 
   it('pull-ups compare by reps', () => {
     const pullUps: EntryExercise = {
+      clientId: 'c-pullups',
       name: 'Pull-Ups',
       exerciseKey: 'pull_ups',
       category: 'strength',
@@ -60,6 +62,7 @@ describe('detectPRs', () => {
 
   it('ignores unmapped and custom exercises', () => {
     const custom: EntryExercise = {
+      clientId: 'c-sled',
       name: 'Sled Push',
       exerciseKey: null,
       category: 'strength',
@@ -67,6 +70,7 @@ describe('detectPRs', () => {
       sets: [set({ reps: 5, weight: 400, weightUnit: 'lbs' })],
     };
     const unmapped: EntryExercise = {
+      clientId: 'c-curl',
       name: 'Bicep Curl',
       exerciseKey: 'bicep_curl',
       category: 'strength',

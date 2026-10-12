@@ -24,6 +24,7 @@ const set = (over: Partial<EntryExercise['sets'][number]> = {}): EntryExercise['
 });
 
 const exercise = (name: string, sets: EntryExercise['sets']): EntryExercise => ({
+  clientId: `c-${name}`,
   name,
   exerciseKey: null,
   category: 'strength',

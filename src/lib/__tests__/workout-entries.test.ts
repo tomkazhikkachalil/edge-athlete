@@ -164,3 +164,90 @@ describe('set media URLs — a media-proxy path is never the stored value (Oct 4
     }
   });
 });
+
+// ── Workout screen program PR 1 (Oct 12 2026, migration 260) ────────────────
+import { ensureClientIds, healGroups } from '../workouts/entries';
+import { serverToEntries } from '../workouts/serialize';
+
+const UUID_A = '11111111-1111-4111-8111-111111111111';
+const UUID_B = '22222222-2222-4222-8222-222222222222';
+const GROUP = '33333333-3333-4333-8333-333333333333';
+
+describe('the stable exercise id (260)', () => {
+  it('absent is minted (an old client, an old draft); present must be a uuid and unique', () => {
+    const minted = validateEntriesPayload([validExercise()]);
+    expect(minted.ok && /^[0-9a-f-]{36}$/.test(minted.exercises[0].clientId)).toBe(true);
+    const kept = validateEntriesPayload([{ ...validExercise(), clientId: UUID_A }]);
+    expect(kept.ok && kept.exercises[0].clientId).toBe(UUID_A);
+    expect(validateEntriesPayload([{ ...validExercise(), clientId: 'not-a-uuid' }])).toMatchObject({ ok: false, error: expect.stringContaining('invalid exercise id') });
+    expect(validateEntriesPayload([{ ...validExercise(), clientId: UUID_A }, { ...validExercise('Row'), clientId: UUID_A }])).toMatchObject({ ok: false, error: expect.stringContaining('duplicate exercise id') });
+  });
+  it('ensureClientIds mints only what is missing and returns the same array when nothing was', () => {
+    let n = 0;
+    const mint = () => `m-${++n}`;
+    const full = [{ clientId: 'a', name: 'x' }];
+    expect(ensureClientIds(full, mint)).toBe(full);
+    const out = ensureClientIds([{ clientId: 'a', name: 'x' }, { name: 'y' }, { clientId: '', name: 'z' }], mint);
+    expect(out.map(e => e.clientId)).toEqual(['a', 'm-1', 'm-2']);
+  });
+  it('serverToEntries carries client_id, the group fields and rest; a pre-260 row literal is minted an id', () => {
+    const entries = serverToEntries({
+      id: 's', profile_id: 'p', title: null, notes: null, status: 'active', source: 'live', started_at: '2026-10-12T08:00:00Z', ended_at: null, duration_seconds: null, post_id: null, last_activity_at: '2026-10-12T08:00:00Z', updated_at: '2026-10-12T08:00:00Z',
+      exercises: [
+        { name: 'Bench', exercise_key: 'bench_press', category: 'strength', position: 1, notes: null, client_id: UUID_A, group_id: GROUP, group_kind: 'superset', group_rounds: 3,
+          sets: [{ set_number: 1, reps: 5, weight: 100, weight_unit: 'lbs', duration_seconds: null, distance: null, distance_unit: null, completed_at: null, rest_seconds: 90 }] },
+        { name: 'Old row', exercise_key: null, category: 'other', position: 0, notes: null, sets: [] },
+      ],
+    });
+    expect(entries[0].name).toBe('Old row');
+    expect(entries[0].clientId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(entries[1]).toMatchObject({ clientId: UUID_A, groupId: GROUP, groupKind: 'superset', groupRounds: 3 });
+    expect(entries[1].sets[0].restSeconds).toBe(90);
+  });
+  it('a set\'s rest rides the payload (absent = null; out of range refused)', () => {
+    const ok = validateEntriesPayload([{ ...validExercise(), sets: [{ ...validSet(1), restSeconds: 75.4 }, validSet(2)] }]);
+    expect(ok.ok && ok.exercises[0].sets.map(s => s.restSeconds)).toEqual([75, null]);
+    expect(validateEntriesPayload([{ ...validExercise(), sets: [{ ...validSet(1), restSeconds: -1 }] }]).ok).toBe(false);
+  });
+});
+
+describe('groups are HEALED, never refused (a 400 would wedge the autosave loop)', () => {
+  const ex = (name: string, over: Partial<EntryExercise> = {}): EntryExercise => ({ clientId: `c-${name}`, name, exerciseKey: null, category: 'strength', notes: null, sets: [], ...over });
+  it('a singleton group is ungrouped; an ungrouped exercise with stray kind/rounds is cleaned', () => {
+    const out = healGroups([ex('A', { groupId: GROUP, groupKind: 'superset', groupRounds: 3 }), ex('B')]);
+    expect(out[0]).toMatchObject({ groupId: null, groupKind: null, groupRounds: null });
+    expect(healGroups([ex('A', { groupKind: 'circuit' })])[0].groupKind).toBeNull();
+  });
+  it('members become consecutive at the first member\'s place; the kind is the first\'s; rounds = max(declared, longest member) and every member is padded, never truncated', () => {
+    const out = healGroups([
+      ex('A', { groupId: GROUP, groupKind: 'superset', groupRounds: 2, sets: [validSet(1) as never, validSet(2) as never, validSet(3) as never] }),
+      ex('X'),
+      ex('B', { groupId: GROUP, groupKind: 'circuit', groupRounds: 1, sets: [validSet(1) as never] }),
+    ]);
+    expect(out.map(e => e.name)).toEqual(['A', 'B', 'X']);
+    expect(out[0]).toMatchObject({ groupKind: 'superset', groupRounds: 3 });
+    expect(out[1]).toMatchObject({ groupKind: 'superset', groupRounds: 3 });
+    expect(out[0].sets).toHaveLength(3);
+    expect(out[1].sets.map(s => s.setNumber)).toEqual([1, 2, 3]);
+    expect(out[1].sets[2].reps).toBeNull();
+  });
+  it('rounds are capped at 10; a healthy group is the same array', () => {
+    const healthy = [ex('A', { groupId: GROUP, groupKind: 'circuit', groupRounds: 2, sets: [validSet(1) as never, validSet(2) as never] }), ex('B', { groupId: GROUP, groupKind: 'circuit', groupRounds: 2, sets: [validSet(1) as never, validSet(2) as never] })];
+    expect(healGroups(healthy)).toBe(healthy);
+    const big = healGroups([ex('A', { groupId: GROUP, groupKind: 'circuit', groupRounds: 40 }), ex('B', { groupId: GROUP, groupKind: 'circuit', groupRounds: 40 })]);
+    expect(big[0].groupRounds).toBe(10);
+    expect(big[0].sets).toHaveLength(10);
+  });
+  it('the validator applies the healing and refuses only type errors', () => {
+    const healed = validateEntriesPayload([{ ...validExercise('A'), clientId: UUID_A, groupId: GROUP, groupKind: 'superset', groupRounds: 2 }]);
+    expect(healed.ok && healed.exercises[0].groupId).toBeNull();
+    expect(validateEntriesPayload([{ ...validExercise(), groupKind: 'pyramid' }]).ok).toBe(false);
+    expect(validateEntriesPayload([{ ...validExercise(), groupId: 'nope' }]).ok).toBe(false);
+    expect(validateEntriesPayload([{ ...validExercise(), groupRounds: 11 }]).ok).toBe(false);
+    const two = validateEntriesPayload([
+      { ...validExercise('A'), clientId: UUID_A, groupId: GROUP, groupKind: 'circuit', groupRounds: 3, sets: [] },
+      { ...validExercise('B'), clientId: UUID_B, groupId: GROUP, groupKind: 'circuit', groupRounds: 3, sets: [] },
+    ]);
+    expect(two.ok && two.exercises.map(e => e.sets.length)).toEqual([3, 3]);
+  });
+});

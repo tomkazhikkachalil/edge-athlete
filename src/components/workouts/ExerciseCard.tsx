@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, Copy, Pencil, Plus, RotateCw, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
+import { Camera, Check, Copy, Pencil, Plus, RotateCw, StickyNote, Upload, Video, X } from 'lucide-react';
+import ActionMenu from '@/components/ActionMenu';
 import SetMediaThumb from './SetMediaThumb';
 import type { SetMediaUploads } from './useSetMediaUploads';
 import { planPickAttach } from '@/lib/media/capture-attach';
@@ -9,7 +10,7 @@ import { pendingIdOf } from '@/lib/workouts/set-media-pending';
 import { fetchStoredMediaFile } from '@/lib/workouts/set-media-file';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
-import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
+import { emptyEntrySet, MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
 import { useToast } from '../Toast';
 import { MediaEditor } from '@/components/media-editor';
 import CaptureInputs from '@/components/media/CaptureInputs';
@@ -28,18 +29,9 @@ export const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
 };
 const SET_MEDIA_MAX_BYTES = MAX_UPLOAD_BYTES; // the one upload cap (upload-rules.ts)
 
+/** An empty set — entries.ts emptyEntrySet, kept under the card's name for its callers. */
 export function emptySet(setNumber: number): EntrySet {
-  return {
-    setNumber,
-    reps: null,
-    weight: null,
-    weightUnit: null,
-    durationSeconds: null,
-    distance: null,
-    distanceUnit: null,
-    completedAt: null,
-    media: [],
-  };
+  return emptyEntrySet(setNumber);
 }
 
 function inputModeFor(exercise: EntryExercise): ExerciseInputMode {
@@ -63,15 +55,16 @@ interface SetRowProps {
   onDelete: () => void;
   /** The screen's one upload queue (workout capture round, Oct 8 2026). */
   uploads: SetMediaUploads;
-  /** The clip's PLACE in the stash record, with the set number (PR 4). */
+  /** The clip's PLACE in the stash record, with the set number (PR 4); the stable id first since 260. */
   exerciseName: string;
+  exerciseClientId: string;
 }
 
 /** Warm the editor chunk while the camera menu is open — the pencil then
  *  opens without the "Opening editor…" shell. Fire-and-forget. */
 const warmEditorChunk = () => { void import('@/components/media-editor/MediaEditorModal').catch(() => undefined); };
 
-function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName }: SetRowProps) {
+function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exerciseClientId }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +130,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName }: S
     }
     const plan = planPickAttach(accepted, source);
     if (plan.attach.length > 0) {
-      const entries = uploads.register(plan.attach, { exerciseName, setNumber: set.setNumber });
+      const entries = uploads.register(plan.attach, { exerciseClientId, exerciseName, setNumber: set.setNumber });
       onChange({ ...set, media: [...set.media, ...entries].slice(0, MAX_MEDIA_PER_SET) });
     }
     if (plan.editor.length > 0) {
@@ -507,6 +500,18 @@ interface ExerciseCardProps {
 export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: ExerciseCardProps) {
   const inputMode = inputModeFor(exercise);
   const showNotes = exercise.notes !== null;
+  // Rename in place (260): the name is one field of the exercise; the sets,
+  // notes, media and group stay — `onChange({ ...exercise, name })`.
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const renameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renaming !== null) renameRef.current?.select();
+  }, [renaming]);
+  const commitRename = () => {
+    const next = (renaming ?? '').trim().slice(0, 80);
+    setRenaming(null);
+    if (next && next !== exercise.name) onChange({ ...exercise, name: next });
+  };
 
   const updateSet = (index: number, next: EntrySet) => {
     const sets = exercise.sets.map((s, i) => (i === index ? next : s));
@@ -533,8 +538,25 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
 
   return (
     <div className="bg-surface rounded-xl border border-border p-3 sm:p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-base font-bold text-primary flex-1 min-w-0 truncate">{exercise.name}</h3>
+      <div className="flex items-center gap-2 mb-2" data-exercise-card={exercise.clientId}>
+        {renaming !== null ? (
+          <input
+            ref={renameRef}
+            type="text"
+            value={renaming}
+            onChange={e => setRenaming(e.target.value.slice(0, 80))}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+              if (e.key === 'Escape') { e.preventDefault(); setRenaming(null); }
+            }}
+            aria-label="Exercise name"
+            data-exercise-rename-input=""
+            className="flex-1 min-w-0 px-2 py-1 border border-border-strong rounded-lg text-base font-bold text-primary focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+        ) : (
+          <h3 className="text-base font-bold text-primary flex-1 min-w-0 truncate" data-exercise-name="">{exercise.name}</h3>
+        )}
         <button
           type="button"
           onClick={() => onChange({ ...exercise, notes: showNotes ? null : '' })}
@@ -545,14 +567,15 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
         >
           <StickyNote className="w-4 h-4" />
         </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-300 dark:text-stone-600 hover:text-red-500 transition-colors"
-          aria-label={`Delete ${exercise.name}`}
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <ActionMenu
+          ariaLabel={`Options for ${exercise.name}`}
+          triggerTestAttr="exercise-menu"
+          triggerClassName="text-gray-300 dark:text-stone-600"
+          items={[
+            { key: 'rename', label: 'Rename', icon: 'fa-pen', onSelect: () => setRenaming(exercise.name), testId: 'exercise-menu-rename' },
+            { key: 'delete', label: 'Delete exercise', icon: 'fa-trash', tone: 'danger', onSelect: onDelete, testId: 'exercise-menu-delete' },
+          ]}
+        />
       </div>
 
       {showNotes && (
@@ -575,6 +598,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads }: 
             onDelete={() => deleteSet(index)}
             uploads={uploads}
             exerciseName={exercise.name}
+            exerciseClientId={exercise.clientId}
           />
         ))}
       </div>
