@@ -36,6 +36,15 @@ export { SPEED_SLACK } from '../gps-filter';
 export const PACE_WINDOW_S = 30;
 /** A hidden page longer than this is told about on return. */
 export const GAP_NOTICE_S = PAUSE_GAP_S;
+/**
+ * Away longer than this (the app closed, the phone in a drawer) and the
+ * recording's clock STOPS where it was last known: it comes back paused, not
+ * with half a day on the timer (the import refuses more than 48 h anyway).
+ * Shorter — a locked phone, a call, another app — and the clock keeps
+ * running from the start timestamp through a GAP that is drawn honestly
+ * (resume pill program, Oct 12 2026).
+ */
+export const GAP_ENDS_RECORDING_MS = 12 * 60 * 60 * 1000;
 
 export interface RecordingPhoto {
   /** The device's own id for the tile (the pending blob's key in storage.ts). */
@@ -255,6 +264,43 @@ function closeOpenSegment(state: RecordingState, now: number, kind: SegmentKind,
   if (label && label.trim()) seg.label = label.trim().slice(0, 40);
   const segments = to - seg.from_s >= SEGMENT_MIN_S ? [...state.segments, seg] : state.segments;
   return { ...state, segments, openSegmentFromS: null };
+}
+
+/**
+ * A recording loaded from the device's store at boot (resume pill program,
+ * Oct 12 2026): leaving the recorder, the app or the phone never pauses it —
+ * only the user's Pause does. `lastKnown` is the later of the store's last
+ * save and the last fix. A recording still RECORDING whose time away is
+ * within GAP_ENDS_RECORDING_MS stays recording with the time away as a gap
+ * (an open gap — the page was hidden before it was killed — is extended to
+ * now; else one is added); longer than that it comes back PAUSED at
+ * `lastKnown` — the old rule, for the recording you forgot about. Paused and
+ * finished recordings come back as they were. Returns the state and the
+ * seconds the gap covers, for the note on the screen.
+ */
+export function restoreRecording(loaded: RecordingState, savedAt: number, now: number): { state: RecordingState; gapS: number } {
+  if (loaded.status !== 'recording') {
+    // An open gap on a paused / finished state is a leftover: close it where it was saved.
+    const gaps = loaded.gaps.map(g => (g.toMs === null ? { ...g, toMs: Math.max(g.fromMs, savedAt) } : g));
+    return { state: gaps.some((g, i) => g !== loaded.gaps[i]) ? { ...loaded, gaps } : loaded, gapS: 0 };
+  }
+  const lastPoint = loaded.points[loaded.points.length - 1]?.t ?? 0;
+  const lastKnown = Math.max(savedAt, lastPoint, loaded.startedAt ?? 0);
+  const openIdx = loaded.gaps.findIndex(g => g.toMs === null);
+  if (now - lastKnown > GAP_ENDS_RECORDING_MS) {
+    const gaps = loaded.gaps.map(g => (g.toMs === null ? { ...g, toMs: Math.max(g.fromMs, lastKnown) } : g));
+    return { state: { ...loaded, gaps, status: 'paused', pausedAt: lastKnown }, gapS: 0 };
+  }
+  const gaps = loaded.gaps.slice();
+  let from: number;
+  if (openIdx >= 0) {
+    from = Math.min(gaps[openIdx].fromMs, lastKnown);
+    gaps[openIdx] = { fromMs: from, toMs: Math.max(now, from) };
+  } else {
+    from = lastKnown;
+    if (now > lastKnown) gaps.push({ fromMs: lastKnown, toMs: now });
+  }
+  return { state: { ...loaded, gaps }, gapS: Math.max(0, Math.round((now - from) / 1000)) };
 }
 
 /** The last gap the page was hidden for, in seconds — the return toast. */

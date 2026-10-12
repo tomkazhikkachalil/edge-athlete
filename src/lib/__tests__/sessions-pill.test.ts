@@ -57,6 +57,16 @@ describe('what the pill shows', () => {
     expect(pillElapsedS('2026-10-12T08:00:00Z', start - 1000)).toBe(0);
     expect(pillElapsedS(null, start)).toBeNull();
     expect(pillElapsedS('garbage', start)).toBeNull();
+    // A paused recording's clock stands where it was paused.
+    expect(pillElapsedS('2026-10-12T08:00:00Z', start + 999_000, '2026-10-12T08:05:00Z')).toBe(300);
+  });
+  it('a recording\'s clock runs from its start plus its closed pauses, and stands while paused', () => {
+    const started = Date.parse('2026-10-12T09:00:00Z');
+    const live = buildDraftsList({ rounds: [], workouts: [], recording: { id: 'r', label: 'Walk', savedAt: started + 60_000, startedAt: started, pausedTotalMs: 30_000, pausedAt: null } }).inProgress[0];
+    expect(live.clockStartAt).toBe('2026-10-12T09:00:30.000Z');
+    expect(live.clockPausedAt).toBeNull();
+    const paused = buildDraftsList({ rounds: [], workouts: [], recording: { id: 'r', label: 'Walk', savedAt: started + 60_000, startedAt: started, pausedTotalMs: 0, pausedAt: started + 45_000 } }).inProgress[0];
+    expect(pillElapsedS(paused.clockStartAt, started + 999_000, paused.clockPausedAt)).toBe(45);
   });
   it('one metric per kind: "Thru N/holes", "N sets", the live distance — or nothing honest', () => {
     expect(pillMetric({ kind: 'round' }, { holesCompleted: 7, holesPlayed: 18 })).toBe('Thru 7/18');
@@ -141,10 +151,23 @@ describe('the progress store', () => {
 });
 
 describe('the pill component', () => {
-  it('is mounted once in the app root layout, beside the reopen prompt', () => {
+  it('is mounted once in the app root layout, beside the reopen prompt, inside the recording provider', () => {
     const layout = read('src/app/(app)/layout.tsx');
     expect(layout.match(/<ResumePill \/>/g)?.length).toBe(1);
     expect(layout).toMatch(/<ReopenPromptHost \/>/);
+    expect(layout.match(/<RecordingProvider>/g)?.length).toBe(1);
+    expect(layout.indexOf('<RecordingProvider>')).toBeLessThan(layout.indexOf('<ResumePill />'));
+  });
+  it('the root chunk never imports the recording engine: the provider loads it with next/dynamic', () => {
+    const provider = read('src/components/activities/record/RecordingProvider.tsx');
+    expect(provider).toMatch(/dynamic\(\(\) => import\('\.\/RecordingEngineHost'\), \{ ssr: false \}\)/);
+    expect(provider).not.toMatch(/from '@\/lib\/activities\/record\/recording'/);
+    expect(provider).not.toMatch(/from '@\/lib\/activities\/gps-filter'/);
+    const store = read('src/lib/activities/record/engine-store.ts');
+    expect(store.match(/^import (?!type )/gm) ?? []).toEqual([]);
+    expect(store).toMatch(/^import type /m);
+    const pill = read('src/components/sessions/ResumePill.tsx');
+    expect(pill).not.toMatch(/from '@\/lib\/activities\/record\/recording'/);
   });
   it('sits above the tab bar (its measured height already carries the safe-area inset) and under the header on a large screen; z-[35]', () => {
     const css = read('src/app/globals.css');

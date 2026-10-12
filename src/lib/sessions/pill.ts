@@ -29,12 +29,14 @@ export function pillShows(input: { pathname: string | null | undefined; signedIn
   return showsTabBar(input.pathname);
 }
 
-/** Seconds on the clock since `clockStartAt` — derived from the timestamp, never counted (a closed app or a locked phone changes nothing). */
-export function pillElapsedS(clockStartAt: string | null, now: number): number | null {
+/** Seconds on the clock since `clockStartAt` — derived from the timestamp, never counted (a closed app or a locked phone changes nothing). A paused recording's clock stands at `clockPausedAt`. */
+export function pillElapsedS(clockStartAt: string | null, now: number, clockPausedAt?: string | null): number | null {
   if (!clockStartAt) return null;
   const t = Date.parse(clockStartAt);
   if (Number.isNaN(t)) return null;
-  return Math.max(0, Math.floor((now - t) / 1000));
+  const paused = clockPausedAt ? Date.parse(clockPausedAt) : Number.NaN;
+  const end = Number.isNaN(paused) ? now : paused;
+  return Math.max(0, Math.floor((end - t) / 1000));
 }
 
 /** The one metric beside the clock, or null when there is nothing honest to say. */

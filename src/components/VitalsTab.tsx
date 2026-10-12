@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import RecordingResumeBanner from '@/components/activities/record/RecordingResumeBanner';
 import { useRouter } from 'next/navigation';
 import { VITAL_CATEGORIES } from '@/lib/vitals-config';
 import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, FileUp, MapPin } from 'lucide-react';
@@ -461,7 +460,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         </div>
 
         {/* Live Activities: a recording this phone did not finish */}
-        {isOwnProfile && <RecordingResumeBanner />}
 
       </div>
 

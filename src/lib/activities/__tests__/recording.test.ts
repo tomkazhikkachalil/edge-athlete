@@ -9,6 +9,8 @@ import {
   newRecording,
   recordsGps,
   reduce,
+  restoreRecording,
+  GAP_ENDS_RECORDING_MS,
   takesManualDistance,
   toRecordingWire,
   type RecordingState,
@@ -171,8 +173,61 @@ describe('the recorder — a pure state machine', () => {
   });
 });
 
+describe('a recording restored from the device (resume pill program, Oct 12 2026)', () => {
+  it('a short time away keeps it RECORDING: the clock runs on from the start, the time away is a gap', () => {
+    const s = walk(60);
+    const savedAt = T0 + 60_000;
+    const now = savedAt + 20 * 60_000;
+    const { state, gapS } = restoreRecording(s, savedAt, now);
+    expect(state.status).toBe('recording');
+    expect(elapsedS(state, now)).toBe(60 + 20 * 60);
+    expect(state.gaps.at(-1)).toEqual({ fromMs: savedAt, toMs: now });
+    expect(gapS).toBe(20 * 60);
+  });
+  it('the last fix counts as "last known" when it is later than the save', () => {
+    const s = walk(60);
+    const savedAt = T0 + 10_000;
+    const now = T0 + 60_000 + 30_000;
+    const { state, gapS } = restoreRecording(s, savedAt, now);
+    expect(state.gaps.at(-1)).toEqual({ fromMs: T0 + 60_000, toMs: now });
+    expect(gapS).toBe(30);
+  });
+  it('an open gap (hidden, then killed) is extended to now instead of a second one being added', () => {
+    const hidden = reduce(walk(60), { type: 'hidden', now: T0 + 61_000 });
+    const now = T0 + 61_000 + 5 * 60_000;
+    const { state, gapS } = restoreRecording(hidden, T0 + 61_000, now);
+    expect(state.gaps).toHaveLength(1);
+    expect(state.gaps[0]).toEqual({ fromMs: T0 + 61_000, toMs: now });
+    expect(gapS).toBe(300);
+    // And a later hidden opens a NEW gap (an open one no longer blocks it).
+    const again = reduce(state, { type: 'hidden', now: now + 1000 });
+    expect(again.gaps).toHaveLength(2);
+  });
+  it('away longer than GAP_ENDS_RECORDING_MS: it comes back PAUSED where it was last known, no gap on the clock', () => {
+    const s = walk(60);
+    const savedAt = T0 + 60_000;
+    const now = savedAt + GAP_ENDS_RECORDING_MS + 1;
+    const { state, gapS } = restoreRecording(s, savedAt, now);
+    expect(state.status).toBe('paused');
+    expect(state.pausedAt).toBe(savedAt);
+    expect(elapsedS(state, now)).toBe(60);
+    expect(gapS).toBe(0);
+    expect(restoreRecording(s, savedAt, savedAt + GAP_ENDS_RECORDING_MS).state.status).toBe('recording');
+  });
+  it('a paused or finished recording comes back as it was (an open gap closed where it was saved)', () => {
+    const paused = reduce(walk(60), { type: 'pause', now: T0 + 60_000 });
+    const r1 = restoreRecording(paused, T0 + 60_000, T0 + 60_000 + 3 * 3600_000);
+    expect(r1.state).toBe(paused);
+    expect(r1.gapS).toBe(0);
+    const finished = reduce(walk(60), { type: 'finish', now: T0 + 60_000 });
+    expect(restoreRecording(finished, T0 + 60_000, T0 + 90_000).state).toBe(finished);
+    const stale = { ...paused, gaps: [{ fromMs: T0 + 30_000, toMs: null }] };
+    expect(restoreRecording(stale, T0 + 60_000, T0 + 90_000).state.gaps[0]).toEqual({ fromMs: T0 + 30_000, toMs: T0 + 60_000 });
+  });
+});
+
 describe('the recorder\'s store — the pure parts', () => {
-  it('persists the state without its points, flushes on count or time, expires after 48 h', () => {
+  it('persists the state without its points, flushes on count or time, expires after the 7-day retention', () => {
     const s = walk(25);
     const meta = metaOf(s, T0 + 25_000);
     expect(meta.pointCount).toBe(25);

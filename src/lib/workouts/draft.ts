@@ -17,7 +17,8 @@ export interface WorkoutDraft {
   exercises: EntryExercise[];
 }
 
-export const DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
+/** 7 days — the retention every unfinished session has (resume pill program, Oct 12 2026; it was 48 h). */
+export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Fixed pseudo-id for the manual (not-yet-saved) workout editor. */
 export const MANUAL_DRAFT_ID = 'manual';

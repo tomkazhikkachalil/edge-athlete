@@ -10,17 +10,20 @@
 // Three stores: `recordings` (the state WITHOUT points, keyed by id),
 // `points` (batches, keyed [id, seq]), `photos` (pending File blobs, keyed
 // [id, localId]). A recording older than RECORDING_TTL_MS is purged — the
-// workout draft's 48 h.
+// 7-day retention every unfinished session has (the round and workout sweeps'
+// ABANDON_AFTER_MS; resume pill program, Oct 12 2026 — it was 48 h).
 
 import type { ActivityPoint } from '../types';
 import type { RecordingState } from './recording';
 
 export const DB_NAME = 'ea-activity-recorder';
 export const DB_VERSION = 1;
-export const RECORDING_TTL_MS = 48 * 60 * 60 * 1000;
-/** Points are flushed every this many admitted fixes … */
+export const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** A points batch closes at this many fixes. Since Oct 12 2026 the engine
+ *  writes the OPEN batch on every fix (`appendPoints` is a put under the
+ *  batch's key), so nothing waits for a count or a timer any more. */
 export const FLUSH_EVERY_POINTS = 10;
-/** … or this often, whichever comes first. */
+/** The old count-or-time cadence (`flushDue`), kept for callers that read it. */
 export const FLUSH_EVERY_MS = 15_000;
 
 export type RecordingMeta = Omit<RecordingState, 'points'> & { pointCount: number; savedAt: number };

@@ -137,9 +137,9 @@ describe('media-stash — the bytes codec and the expiry rule', () => {
     expect(fileFromStashRecord(rec).name).toBe('clip-l9');
   });
 
-  it('expires with the draft (48 h), not a moment before', () => {
+  it('expires with the draft (7 days since the resume pill program), not a moment before', () => {
     expect(isStashExpired({ savedAt: 0 }, STASH_TTL_MS)).toBe(false);
     expect(isStashExpired({ savedAt: 0 }, STASH_TTL_MS + 1)).toBe(true);
-    expect(STASH_TTL_MS).toBe(48 * 60 * 60 * 1000);
+    expect(STASH_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });

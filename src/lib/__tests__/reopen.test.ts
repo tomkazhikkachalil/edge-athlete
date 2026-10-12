@@ -62,18 +62,22 @@ describe('one door at the top of every page', () => {
     expect(layout).toMatch(/<ReopenPromptHost \/>/);
     expect(layout.match(/<ReopenPromptHost \/>/g)?.length).toBe(1);
   });
-  it("the feed's live-round banner and the Vitals workout banner are gone (the prompt and Drafts are the doors)", () => {
+  it("the feed's live-round banner, the Vitals workout banner and the Vitals recording banner are gone (the prompt, the pill and Drafts are the doors)", () => {
     expect(read('src/app/(app)/feed/page.tsx')).not.toMatch(/live-banner-dismissed|Continue scoring/);
-    expect(read('src/components/VitalsTab.tsx')).not.toMatch(/workout-banner-dismissed|Resume banner — a live session/);
+    expect(read('src/components/VitalsTab.tsx')).not.toMatch(/workout-banner-dismissed|Resume banner — a live session|RecordingResumeBanner/);
+    expect(fs.existsSync(path.join(ROOT, 'src/components/activities/record/RecordingResumeBanner.tsx'))).toBe(false);
   });
-  it('the host decides only after the server list AND the phone answered, and remembers in sessionStorage', () => {
+  it('the host decides only after the server list AND the phone answered (the root engine), and remembers in sessionStorage', () => {
     const host = read('src/components/drafts/ReopenPromptHost.tsx');
     expect(host).toMatch(/!checkedPhone \|\| !drafts\.loaded\) return;/);
+    expect(host).toMatch(/const checkedPhone = rec\.ready;/);
+    expect(host).not.toMatch(/openRecordingStore/);
     expect(host).toMatch(/sessionStorage\.setItem\(reopenSeenKey\(user\.id\), '1'\)/);
   });
-  it("the recorder's offer carries Finish and honours ?finish=1", () => {
+  it('the recorder honours ?finish=1 on the restored recording (the root engine restores it; there is no offer card)', () => {
     const rec = read('src/components/activities/record/RecordActivityScreen.tsx');
-    expect(rec).toMatch(/data-record-resume-finish=""/);
+    expect(rec).not.toMatch(/data-record-resume-offer|data-record-resume-finish/);
     expect(rec).toMatch(/get\('finish'\) === '1'/);
+    expect(rec).toMatch(/engine\.dispatch\(\{ type: 'finish', now: Date\.now\(\) \}\)/);
   });
 });

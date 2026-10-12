@@ -7,7 +7,8 @@ import { useToast } from '@/components/Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDrafts, refreshDrafts } from '@/hooks/useDrafts';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
-import { openRecordingStore } from '@/lib/activities/record/storage';
+import { useRecording } from '@/components/activities/record/RecordingProvider';
+import { recordingDraftLike } from '@/lib/drafts/recording-like';
 import { buildDraftsList, draftReviewHref, pickReopenCandidate, type DraftItem, type DraftRecordingLike } from '@/lib/drafts/list';
 import { reopenActions, reopenDiscardKey, reopenSeenKey, reopenSkipsPath } from '@/lib/drafts/reopen';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -27,27 +28,16 @@ export default function ReopenPromptHost() {
   const { user, initialAuthCheckComplete } = useAuth();
   const { showSuccess, showError } = useToast();
   const drafts = useDrafts(!!user);
-  const [recording, setRecording] = useState<DraftRecordingLike | null>(null);
-  const [checkedPhone, setCheckedPhone] = useState(false);
+  // The phone's own recording: the root engine (RecordingProvider) — ONE
+  // owner id rule, one read; `ready` once the device answered.
+  const rec = useRecording();
+  const recording: DraftRecordingLike | null = recordingDraftLike(rec.engine?.state ?? null, rec.engine?.lastTouchedAt ?? null, ACTIVITY_TYPE_DEFS);
+  const checkedPhone = rec.ready;
   const [item, setItem] = useState<DraftItem | null>(null);
   const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
   // Discard is confirmed (Tom, Oct 7 2026): the second step says what goes.
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const decidedRef = useRef(false);
-
-  // The phone's own recording (IndexedDB) — the server never sees it.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      const store = openRecordingStore();
-      const meta = store ? await store.findUnfinished(user.id, Date.now()).catch(() => null) : null;
-      if (cancelled) return;
-      if (meta) setRecording({ id: meta.id, label: ACTIVITY_TYPE_DEFS[meta.type]?.label ?? 'Activity', savedAt: meta.savedAt, startedAt: meta.startedAt });
-      setCheckedPhone(true);
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
 
   // Decide ONCE per app open, after both sources answered.
   useEffect(() => {
@@ -120,7 +110,7 @@ export default function ReopenPromptHost() {
         const res = await fetch(`/api/workouts/${item.id}`, { method: 'DELETE' });
         if (!res.ok) { showError('Could not discard the workout', 'Please try again.'); return; }
       } else {
-        await openRecordingStore()?.clear(item.id).catch(() => undefined);
+        await rec.engine?.clear();
       }
       showSuccess('Discarded', 'Nothing was posted.');
       void refreshDrafts();
