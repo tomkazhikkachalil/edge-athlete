@@ -120,6 +120,8 @@ export function removePendingMedia<E extends PendingEntryExercise>(exercises: E[
 
 interface NamedEntryExercise extends PendingEntryExercise {
   name: string;
+  /** 260: the stable id; the stash's first key (the name is the fallback for older records). */
+  clientId?: string;
   sets: Array<PendingEntrySet & { setNumber: number }>;
 }
 
@@ -128,18 +130,20 @@ interface NamedEntryExercise extends PendingEntryExercise {
  * (PR 4, Oct 9 2026): the stripped snapshot landed on the server before the
  * page was thrown away, so the server copy — newer than the draft — won the
  * reload and carried no pending entry. The stash record knows the clip's
- * PLACE (exercise name + set number); put the entry back there. Returns the
- * same array when the clip is already present, the place no longer exists,
- * or the set is at its media cap — the caller then drops the bytes and says so.
+ * PLACE (the exercise's stable id since 260, else its name; + the set
+ * number); put the entry back there. Returns the same array when the clip is
+ * already present, the place no longer exists, or the set is at its media
+ * cap — the caller then drops the bytes and says so.
  */
 export function reattachPendingMedia<E extends NamedEntryExercise>(
   exercises: E[],
-  clip: { localId: string; type: 'image' | 'video'; exerciseName: string; setNumber: number },
+  clip: { localId: string; type: 'image' | 'video'; exerciseClientId?: string; exerciseName: string; setNumber: number },
   maxPerSet: number
 ): E[] {
   const url = pendingUrl(clip.localId);
   for (const exercise of exercises) for (const set of exercise.sets) if ((set.media ?? []).some(m => m.url === url)) return exercises;
-  const exerciseIndex = exercises.findIndex(e => e.name === clip.exerciseName);
+  const byId = clip.exerciseClientId ? exercises.findIndex(e => e.clientId === clip.exerciseClientId) : -1;
+  const exerciseIndex = byId >= 0 ? byId : exercises.findIndex(e => e.name === clip.exerciseName);
   if (exerciseIndex < 0) return exercises;
   const setIndex = exercises[exerciseIndex].sets.findIndex(s => s.setNumber === clip.setNumber);
   if (setIndex < 0) return exercises;

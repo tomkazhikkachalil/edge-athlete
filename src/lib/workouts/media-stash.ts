@@ -28,6 +28,8 @@ export const STASH_TTL_MS = DRAFT_TTL_MS;
  *  attached HERE"; the set's `pending:` entry is derived from it on resume
  *  when the server copy won the reload without it (PR 4). */
 export interface StashPlace {
+  /** 260: the exercise's STABLE id — a rename no longer loses the place. Absent on records written before it. */
+  exerciseClientId?: string;
   exerciseName: string;
   setNumber: number;
 }

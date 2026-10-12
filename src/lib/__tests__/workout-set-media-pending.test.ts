@@ -143,3 +143,31 @@ describe('media-stash — the bytes codec and the expiry rule', () => {
     expect(STASH_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });
+
+// ── Workout screen program PR 1 (260): the stash's place is the exercise's STABLE id first ──
+import fs from 'node:fs';
+import path from 'node:path';
+describe('reattachPendingMedia — the stable id first, the name second (260)', () => {
+  it('finds the exercise by clientId even after a rename; an older record without one falls back to the name', () => {
+    const base = workout().map((e, i) => ({ ...e, clientId: `c-${i}` }));
+    const renamed = base.map((e, i) => (i === 1 ? { ...e, name: 'Cable Row (renamed)' } : e));
+    const byId = reattachPendingMedia(renamed, { localId: 'p9', type: 'image', exerciseClientId: 'c-1', exerciseName: 'Row', setNumber: 1 }, 4);
+    expect(byId[1].sets[0].media.map(m => m.url)).toEqual([pendingUrl('p2'), pendingUrl('p9')]);
+    // No id on the record (written before 260) → the name finds it.
+    const byName = reattachPendingMedia(base, { localId: 'p9', type: 'image', exerciseName: 'Row', setNumber: 1 }, 4);
+    expect(byName[1].sets[0].media).toHaveLength(2);
+    // An id that matches nothing falls back to the name too.
+    const fallback = reattachPendingMedia(base, { localId: 'p9', type: 'image', exerciseClientId: 'gone', exerciseName: 'Row', setNumber: 1 }, 4);
+    expect(fallback[1].sets[0].media).toHaveLength(2);
+  });
+  it('the card writes the place with the stable id and keys itself by it; rename is one field', () => {
+    const card = fs.readFileSync(path.join(process.cwd(), 'src/components/workouts/ExerciseCard.tsx'), 'utf8');
+    expect(card).toMatch(/uploads\.register\(plan\.attach, \{ exerciseClientId, exerciseName, setNumber: set\.setNumber \}\)/);
+    expect(card).toMatch(/onChange\(\{ \.\.\.exercise, name: next \}\)/);
+    expect(card).toMatch(/data-exercise-rename-input=""/);
+    const editor = fs.readFileSync(path.join(process.cwd(), 'src/components/workouts/WorkoutEditorScreen.tsx'), 'utf8');
+    expect(editor).toMatch(/key=\{exercise\.clientId\}/);
+    expect(editor).not.toMatch(/key=\{index\}/);
+    expect(editor).toMatch(/ensureClientIds\(initial\.exercises\)/);
+  });
+});

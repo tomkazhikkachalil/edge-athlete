@@ -11,7 +11,7 @@ import {
   validateRoutinePayload,
   type RoutineExercise,
   type ServerRoutineRow,
-} from '@/lib/workouts/routines';
+ routineGroupFields } from '@/lib/workouts/routines';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -37,6 +37,7 @@ export function buildRoutineSnapshot(row: ServerRoutineRow): RoutinePlan {
         category: exercise.category,
         notes: exercise.notes,
         targetSets: exercise.target_sets,
+        ...routineGroupFields(exercise),
       })),
   };
 }
@@ -79,7 +80,7 @@ export async function resolveEventRoutine(
       .select(
         `id, name, created_at, updated_at,
          exercises:workout_routine_exercises (
-           name, exercise_key, category, position, notes, target_sets
+           name, exercise_key, category, position, notes, target_sets, group_id, group_kind, group_rounds
          )`
       )
       .eq('id', event.routine_id)

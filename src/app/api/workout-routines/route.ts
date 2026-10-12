@@ -94,6 +94,9 @@ export async function POST(request: NextRequest) {
         position: index,
         notes: exercise.notes,
         target_sets: exercise.targetSets,
+        group_id: exercise.groupId ?? null,
+        group_kind: exercise.groupKind ?? null,
+        group_rounds: exercise.groupRounds ?? null,
       }))
     );
 

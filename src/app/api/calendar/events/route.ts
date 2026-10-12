@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
         .select(
           `id, name, created_at, updated_at,
            exercises:workout_routine_exercises (
-             name, exercise_key, category, position, notes, target_sets
+             name, exercise_key, category, position, notes, target_sets, group_id, group_kind, group_rounds
            )`
         )
         .eq('id', validated.event.routine_id)

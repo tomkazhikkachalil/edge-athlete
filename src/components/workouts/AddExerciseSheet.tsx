@@ -1,5 +1,6 @@
 'use client';
 
+import { newId } from '@/lib/ids';
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Search, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -45,6 +46,7 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
 
   const pick = (exercise: CatalogExercise) => {
     onAdd({
+      clientId: newId(),
       name: exercise.label,
       exerciseKey: exercise.key,
       category: exercise.category,
@@ -57,7 +59,7 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
   const addCustom = () => {
     const name = query.trim().slice(0, 80);
     if (!name) return;
-    onAdd({ name, exerciseKey: null, category: 'other', notes: null, sets: [] });
+    onAdd({ clientId: newId(), name, exerciseKey: null, category: 'other', notes: null, sets: [] });
     onClose();
   };
 

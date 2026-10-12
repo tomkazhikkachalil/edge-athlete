@@ -3,7 +3,7 @@ import { parseDraft, resolveEntries, DRAFT_TTL_MS, type WorkoutDraft } from '../
 import type { EntryExercise } from '../workouts/entries';
 
 const exercises: EntryExercise[] = [
-  { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [] },
+  { clientId: 'c-bench', name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [] },
 ];
 
 const NOW = 1_800_000_000_000;
@@ -41,7 +41,7 @@ describe('parseDraft', () => {
 
 describe('resolveEntries', () => {
   const serverExercises: EntryExercise[] = [
-    { name: 'Squat', exerciseKey: 'squat', category: 'strength', notes: null, sets: [] },
+    { clientId: 'c-squat', name: 'Squat', exerciseKey: 'squat', category: 'strength', notes: null, sets: [] },
   ];
   const parsed = (savedAt: number): WorkoutDraft => ({
     v: 1,
