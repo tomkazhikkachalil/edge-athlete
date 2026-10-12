@@ -104,7 +104,7 @@ describe('the drafts list carries the pill\'s clock and number', () => {
       rounds: [],
       workouts: [{ id: 'w1', status: 'active', title: null, started_at: '2026-10-12T08:00:00Z', last_activity_at: '2026-10-12T08:30:00Z', sets: [{ reps: 5, weight: 100 }, { reps: null, weight: null, duration_seconds: 30 }, { reps: 0, weight: 0, duration_seconds: null, distance: null }, {}] }],
     });
-    expect(list.inProgress[0]).toMatchObject({ clockStartAt: '2026-10-12T08:00:00Z', progress: { setsCompleted: 2 } });
+    expect(list.inProgress[0]).toMatchObject({ clockStartAt: '2026-10-12T08:00:00.000Z', progress: { setsCompleted: 2 } });
     expect(countWorkoutSets(null)).toBe(0);
     expect(countWorkoutSets([{ distance: 2 }])).toBe(1);
   });

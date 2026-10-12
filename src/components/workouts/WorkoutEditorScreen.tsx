@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flag, MoreVertical, Plus, Timer } from 'lucide-react';
+import { Flag, MoreVertical, Pause, Play, Plus, Timer } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
 import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
@@ -26,6 +26,8 @@ import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import { ensureClientIds, MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
+import { isTimed, workoutElapsedS } from '@/lib/workouts/timing';
+import { readTimerHidden, writeTimerHidden } from '@/lib/workouts/timer-prefs';
 import ActionMenu from '@/components/ActionMenu';
 import { isPendingMedia, stripPendingMedia } from '@/lib/workouts/set-media-pending';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
@@ -107,7 +109,13 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [finishedSessionId, setFinishedSessionId] = useState<string | null>(
     session?.status === 'completed' ? session.id : null
   );
-  const [finishedDuration, setFinishedDuration] = useState<number>(session?.duration_seconds ?? 0);
+  // NULL = an untimed workout (260): the summary says "Not timed", the post carries no duration.
+  const [finishedDuration, setFinishedDuration] = useState<number | null>(session ? (session.timed === false ? null : session.duration_seconds ?? 0) : 0);
+  // ── The clock's facts (260) — SERVER facts seeded from the session, applied from every PATCH ──
+  const [timed, setTimed] = useState<boolean>(session ? isTimed(session) : true);
+  const [clock, setClock] = useState<{ pausedSeconds: number; pausedAt: string | null }>({ pausedSeconds: session?.paused_seconds ?? 0, pausedAt: session?.paused_at ?? null });
+  const [timerHidden, setTimerHidden] = useState<boolean>(() => readTimerHidden());
+  const [clockBusy, setClockBusy] = useState(false);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
   const [checkedPRs, setCheckedPRs] = useState<Set<string>>(new Set());
   const [caption, setCaption] = useState('');
@@ -134,7 +142,37 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   // (`LiveClock`, PR 3 of the capture round): the one-second tick used to be
   // this screen's state and re-rendered every exercise row and an open media
   // editor each second. The finish fallback reads the clock once, here.
-  const elapsedNow = () => (session ? Math.max(0, Math.floor((Date.now() - Date.parse(session.started_at)) / 1000)) : 0);
+  const elapsedNow = () => (session ? workoutElapsedS({ started_at: session.started_at, paused_seconds: clock.pausedSeconds, paused_at: clock.pausedAt }, Date.now()) : 0);
+
+  /** Pause / resume / timed — one PATCH each; the response's session is the truth (a 409 re-reads it). */
+  const patchClock = async (body: Record<string, unknown>, failTitle: string) => {
+    if (!session || clockBusy) return;
+    setClockBusy(true);
+    try {
+      const res = await fetch(`/api/workouts/${session.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+      let next: { timed?: boolean | null; paused_seconds?: number | null; paused_at?: string | null } | null = null;
+      if (res.ok) next = (await res.json()).session ?? null;
+      else if (res.status === 409) next = (await (await fetch(`/api/workouts/${session.id}`, { credentials: 'include' })).json()).session ?? null;
+      else {
+        const data = await res.json().catch(() => null);
+        showError(failTitle, data?.error ?? 'Please try again.');
+      }
+      if (next) {
+        setTimed(isTimed(next));
+        setClock({ pausedSeconds: next.paused_seconds ?? 0, pausedAt: next.paused_at ?? null });
+        void refreshDrafts();
+      }
+    } catch {
+      showError(failTitle, 'Please try again.');
+    } finally {
+      setClockBusy(false);
+    }
+  };
+  const toggleTimerHidden = () => {
+    const next = !timerHidden;
+    writeTimerHidden(next);
+    setTimerHidden(next);
+  };
 
   // Rest indicator: seconds since the most recent completed set (LiveClock shows it)
   const lastCompletedMs = useMemo(() => {
@@ -367,7 +405,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       uploads.clearStash();
       void refreshDrafts();
       setFinishedSessionId(session.id);
-      setFinishedDuration(data.session?.duration_seconds ?? elapsedNow());
+      setFinishedDuration(data.session?.duration_seconds ?? (timed ? elapsedNow() : null));
       await loadPRs(exercises);
       setPhase('summary');
     } catch (err) {
@@ -765,6 +803,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             triggerTestAttr="workout-menu"
             trigger={<MoreVertical className="w-5 h-5" aria-hidden="true" />}
             items={[
+              ...(mode === 'live' && session
+                ? [
+                    { key: 'hide-timer', label: timerHidden ? 'Show timer' : 'Hide timer', icon: timerHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: toggleTimerHidden, testId: 'workout-menu-hide-timer' },
+                    { key: 'timed', label: timed ? "Don't time this workout" : 'Time this workout', icon: 'fa-stopwatch', onSelect: () => void patchClock({ timed: !timed }, 'Could not change the timer'), disabled: clockBusy, testId: 'workout-menu-timed' },
+                  ]
+                : []),
               { key: 'discard', label: mode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
             ]}
           />
@@ -776,11 +820,28 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             producing a horizontally scrolling page). */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {mode === 'live' && session ? (
-            <div className="flex items-center gap-3 min-w-0">
-              <LiveClock startedAt={session.started_at} lastCompletedMs={lastCompletedMs} />
-              {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
-              {syncState === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
-              {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
+            <div className="flex items-center gap-3 min-w-0" data-workout-timer={!timed ? 'off' : timerHidden ? 'hidden' : clock.pausedAt ? 'paused' : 'running'}>
+              {timed && !timerHidden && (
+                <>
+                  <LiveClock startedAt={session.started_at} pausedSeconds={clock.pausedSeconds} pausedAt={clock.pausedAt} lastCompletedMs={lastCompletedMs} />
+                  {/* Start/Pause beside the timer (Tom): a pause stops the clock, never the workout. */}
+                  <button
+                    type="button"
+                    onClick={() => void patchClock(clock.pausedAt ? { resume: { at: new Date().toISOString() } } : { pause: { at: new Date().toISOString() } }, clock.pausedAt ? 'Could not resume the timer' : 'Could not pause the timer')}
+                    disabled={clockBusy}
+                    aria-pressed={!!clock.pausedAt}
+                    aria-label={clock.pausedAt ? 'Resume the timer' : 'Pause the timer'}
+                    data-workout-pause={clock.pausedAt ? 'paused' : 'running'}
+                    className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary disabled:opacity-50"
+                  >
+                    {clock.pausedAt ? <Play className="w-4 h-4" aria-hidden="true" /> : <Pause className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                </>
+              )}
+              {timed && timerHidden && <span className="text-xs text-muted" data-workout-timer-hidden="">Timer hidden</span>}
+              {!timed && <span className="text-xs text-muted" data-workout-untimed="">Not timed</span>}
+              {/* Autosave is silent (Tom): a message only when a save fails. */}
+              {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400" data-workout-save-error="">Offline — kept locally</span>}
             </div>
           ) : mode === 'review' ? (
             <div className="flex items-center gap-3 min-w-0">
@@ -797,8 +858,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
                   })}
                 </span>
               )}
-              {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
-              {syncState === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
               {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
             </div>
           ) : (

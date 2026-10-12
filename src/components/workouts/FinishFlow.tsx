@@ -27,7 +27,8 @@ export interface RoutineSaveProps {
 
 interface FinishSummaryProps {
   title: string;
-  durationSeconds: number;
+  /** NULL for an untimed workout (260). */
+  durationSeconds: number | null;
   summary: WorkoutSummary;
   prCandidates: PRCandidate[];
   checkedPRs: Set<string>;
@@ -80,7 +81,7 @@ export function FinishSummary({
       <div className="grid grid-cols-3 gap-3">
         <div className="text-center vt-card p-4">
           <Timer className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
-          <div className="text-xl font-bold text-primary">{formatDuration(durationSeconds)}</div>
+          <div className="text-xl font-bold text-primary" data-summary-duration={durationSeconds ?? 'untimed'}>{durationSeconds === null ? 'Not timed' : formatDuration(durationSeconds)}</div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wide">Duration</div>
         </div>
         <div className="text-center vt-card p-4">

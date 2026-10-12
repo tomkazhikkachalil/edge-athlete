@@ -72,7 +72,7 @@ export default function ActivityPreviewModal({
             statsData: buildWorkoutStatsData({
               sessionId: session.id,
               title: session.title,
-              durationSeconds: session.duration_seconds ?? 0,
+              durationSeconds: session.timed === false ? null : (session.duration_seconds ?? 0),
               summary: computeSummary(entries),
             }),
           });

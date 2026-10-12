@@ -166,7 +166,8 @@ export function collectWorkoutMedia(exercises: EntryExercise[]): CollectedMedia[
 export function buildWorkoutStatsData(input: {
   sessionId: string;
   title: string | null;
-  durationSeconds: number;
+  /** NULL for an untimed workout (260): the key is OMITTED, never 0 ("1 min"). */
+  durationSeconds: number | null;
   summary: WorkoutSummary;
   /** PRs the athlete confirmed at finish — display data only; the field is
    *  omitted entirely when empty so old posts' shape stays byte-identical. */
@@ -176,7 +177,7 @@ export function buildWorkoutStatsData(input: {
     type: 'workout_session',
     workout_session_id: input.sessionId,
     title: input.title?.trim() || 'Workout',
-    duration_seconds: input.durationSeconds,
+    ...(input.durationSeconds === null ? {} : { duration_seconds: input.durationSeconds }),
     exercise_count: input.summary.exerciseCount,
     total_sets: input.summary.totalSets,
     total_volume_lbs: input.summary.totalVolumeLbs,

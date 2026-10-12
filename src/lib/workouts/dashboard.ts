@@ -22,8 +22,11 @@ import {
 // Training weeks start MONDAY 00:00 local — the rule lives in ./week.
 export { startOfWeek } from './week';
 
-/** Stored duration when present, else ended−started; 0 for open sessions. */
+/** Stored duration when present, else ended−started; 0 for open sessions —
+ *  and 0 for an UNTIMED workout (260: `timed = false` saves no duration; the
+ *  check comes first, or the NULL would fall back to wall-clock). */
 export function sessionSeconds(session: ServerWorkoutSession): number {
+  if (session.timed === false) return 0;
   if (session.duration_seconds !== null && session.duration_seconds > 0) {
     return session.duration_seconds;
   }
