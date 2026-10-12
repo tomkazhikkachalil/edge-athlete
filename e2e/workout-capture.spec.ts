@@ -23,7 +23,7 @@ const exerciseOf = () => [{
 }];
 
 /** The live timer's text — "0:07" style, ticking from started_at. */
-const timerText = (page: Page) => page.locator('span.tabular-nums').first().innerText();
+const timerText = (page: Page) => page.locator('[data-live-clock]').innerText();
 
 /** An in-browser clip (canvas.captureStream + MediaRecorder), the recipe from capture-attach.spec. */
 async function recordClip(page: Page): Promise<{ name: string; mimeType: string; buffer: Buffer } | null> {

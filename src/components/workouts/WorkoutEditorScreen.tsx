@@ -23,6 +23,9 @@ import {
 } from '@/lib/workouts/share-media';
 import AddExerciseSheet from './AddExerciseSheet';
 import ExerciseGroupCard from './ExerciseGroupCard';
+import WorkoutControls from './WorkoutControls';
+import { applyStopwatchToSet, completedSetDiff, REST_IDLE, restForCompletedSet, type RestTimer, type SetTarget, type Stopwatch } from '@/lib/workouts/rest';
+import { clearTimers, readTimers, writeTimers, TIMERS_IDLE, type TimersState } from '@/lib/workouts/timers-store';
 import { addRound, addToGroup, deleteRound, GROUP_HINT, GROUP_LABEL, makeGroup, removeFromGroup, removeGroup, renderItems, setRounds, ungroup } from '@/lib/workouts/groups';
 import { newId } from '@/lib/ids';
 import type { ExerciseGroupKind } from '@/lib/workouts/entries';
@@ -125,6 +128,13 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [timed, setTimed] = useState<boolean>(session ? isTimed(session) : true);
   const [clock, setClock] = useState<{ pausedSeconds: number; pausedAt: string | null }>({ pausedSeconds: session?.paused_seconds ?? 0, pausedAt: session?.paused_at ?? null });
   const [timerHidden, setTimerHidden] = useState<boolean>(() => readTimerHidden());
+  // ── The rest timer and the stopwatch (PR 4): screen state, kept on the device ──
+  const [timers, setTimers] = useState<TimersState>(() => (mode === 'live' ? readTimers(draftId) : TIMERS_IDLE));
+  const [lastEditedClientId, setLastEditedClientId] = useState<string | null>(null);
+  const persistTimers = (next: TimersState) => {
+    setTimers(next);
+    writeTimers(draftId, next);
+  };
   const [clockBusy, setClockBusy] = useState(false);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
   const [checkedPRs, setCheckedPRs] = useState<Set<string>>(new Set());
@@ -320,6 +330,36 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     [draftId, scheduleSync]
   );
 
+  /** Every exercise edit (a single or a group member): a set completed while a
+   *  rest runs — or is held — takes the rest's seconds (rest.ts), then the rest clears. */
+  const handleExerciseChange = useCallback(
+    (clientId: string, next: EntryExercise) => {
+      const prev = exercises.find(e => e.clientId === clientId);
+      let patched = next;
+      if (mode === 'live' && prev) {
+        const idx = completedSetDiff(prev, next);
+        const seconds = idx === null ? null : restForCompletedSet(timers.rest, Date.now());
+        if (idx !== null && seconds !== null) {
+          patched = { ...next, sets: next.sets.map((st, i) => (i === idx ? { ...st, restSeconds: seconds } : st)) };
+          const cleared = { ...timers, rest: REST_IDLE };
+          setTimers(cleared);
+          writeTimers(draftId, cleared);
+        }
+      }
+      setLastEditedClientId(clientId);
+      mutate(exercises.map(e => (e.clientId === clientId ? patched : e)));
+    },
+    [exercises, mode, timers, draftId, mutate]
+  );
+  const saveStopwatch = useCallback(
+    (target: SetTarget, elapsedMs: number) => {
+      const nowIso = new Date().toISOString();
+      setLastEditedClientId(target.clientId);
+      mutate(exercises.map(e => (e.clientId === target.clientId ? { ...e, sets: e.sets.map((st, i) => (i === target.setIndex ? applyStopwatchToSet(st, elapsedMs, nowIso) : st)) } : e)));
+    },
+    [exercises, mutate]
+  );
+
   const updateTitle = (next: string) => {
     setTitle(next);
     writeDraft(draftId, { title: next || null, exercises: stateRef.current.exercises });
@@ -412,6 +452,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       }
       const data = await response.json();
       clearDraft(draftId);
+      clearTimers(draftId);
       uploads.clearStash();
       void refreshDrafts();
       setFinishedSessionId(session.id);
@@ -706,6 +747,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const handleDiscard = async () => {
     setDiscardOpen(false);
     clearDraft(draftId);
+    clearTimers(draftId);
     uploads.clearStash();
     if (isServerSession && session) {
       try {
@@ -796,7 +838,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pb-28">
+    <div className={`max-w-md mx-auto px-4 ${mode === 'live' ? 'pb-48' : 'pb-28'}`}>
       {/* Sticky header: timer / manual fields + finish */}
       <div className="sticky top-0 z-10 bg-canvas pt-4 pb-3 border-b border-border mb-4">
         <div className="flex items-center gap-2 mb-3">
@@ -919,7 +961,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             <ExerciseCard
               key={item.exercise.clientId}
               exercise={item.exercise}
-              onChange={next => mutate(exercises.map(e => (e.clientId === item.exercise.clientId ? next : e)))}
+              onChange={next => handleExerciseChange(item.exercise.clientId, next)}
               onDelete={() => mutate(exercises.filter(e => e.clientId !== item.exercise.clientId))}
               uploads={uploads}
             />
@@ -928,7 +970,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
               key={item.group.groupId}
               group={item.group}
               uploads={uploads}
-              onChangeMember={(clientId, next) => mutate(exercises.map(e => (e.clientId === clientId ? next : e)))}
+              onChangeMember={handleExerciseChange}
               onRemoveMember={clientId => mutate(removeFromGroup(exercises, clientId))}
               onAddExercise={() => openAdd({ kind: 'addTo', groupId: item.group.groupId })}
               onSetRounds={rounds => {
@@ -977,6 +1019,18 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           </button>
         </div>
       </div>
+
+      {mode === 'live' && session && (
+        <WorkoutControls
+          exercises={exercises}
+          rest={timers.rest}
+          onRest={(rest: RestTimer) => persistTimers({ ...timers, rest })}
+          stopwatch={timers.stopwatch}
+          onStopwatch={(stopwatch: Stopwatch) => persistTimers({ ...timers, stopwatch })}
+          lastEditedClientId={lastEditedClientId}
+          onSaveStopwatch={saveStopwatch}
+        />
+      )}
 
       <AddExerciseSheet
         isOpen={addSheetOpen}
