@@ -28,7 +28,7 @@ describe('abandonFinalizeFields', () => {
     const startedAt = new Date(NOW - 2 * 60 * 60 * 1000).toISOString();
     const lastActivityAt = new Date(NOW - 60 * 60 * 1000).toISOString();
     const fields = abandonFinalizeFields({ startedAt, lastActivityAt });
-    expect(fields).toEqual({ status: 'completed', ended_at: lastActivityAt, duration_seconds: 3600 });
+    expect(fields).toEqual({ status: 'completed', ended_at: lastActivityAt, duration_seconds: 3600, paused_at: null });
     expect('share_decided_at' in fields).toBe(false);
   });
   it('never produces a negative duration', () => {

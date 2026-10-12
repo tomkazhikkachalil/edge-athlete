@@ -8,6 +8,8 @@
  * a workout nobody finished on the profile.
  */
 
+import { finishDuration } from './timing';
+
 /** Untouched for this long → the sweep finishes it (Tom, Oct 6 2026). */
 export const ABANDON_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -22,17 +24,25 @@ export function isAbandonedSession(s: { status: WorkoutStatus | string; lastActi
 }
 
 /** Fields to persist when the sweep finishes an abandoned session: it ended
- *  at its last activity, with a truthful duration. `share_decided_at` stays
- *  NULL — the owner never reached the share decision, so it is a DRAFT. */
+ *  at its last activity (never before an open pause — the clock stood there),
+ *  with a truthful duration (pauses excluded; NULL when untimed — timing.ts
+ *  finishDuration, the finish PATCH's rule). `share_decided_at` stays NULL —
+ *  the owner never reached the share decision, so it is a DRAFT. */
 export function abandonFinalizeFields(s: {
   startedAt: string;
   lastActivityAt: string;
-}): { status: 'completed'; ended_at: string; duration_seconds: number } {
-  const started = Date.parse(s.startedAt);
-  const ended = Math.max(started, Date.parse(s.lastActivityAt));
+  pausedSeconds?: number | null;
+  pausedAt?: string | null;
+  timed?: boolean | null;
+}): { status: 'completed'; ended_at: string; duration_seconds: number | null; paused_at: null } {
+  const plan = finishDuration(
+    { started_at: s.startedAt, paused_seconds: s.pausedSeconds ?? 0, paused_at: s.pausedAt ?? null, timed: s.timed },
+    Date.parse(s.lastActivityAt),
+  );
   return {
     status: 'completed',
-    ended_at: new Date(ended).toISOString(),
-    duration_seconds: Math.floor((ended - started) / 1000),
+    ended_at: new Date(plan.endedMs).toISOString(),
+    duration_seconds: plan.durationSeconds,
+    paused_at: null,
   };
 }

@@ -24,7 +24,7 @@ export async function runWorkoutSweep(admin: Admin, now: number = Date.now()): P
   const result: WorkoutSweepResult = { examined: 0, finished: 0, failed: 0 };
   const { data: actives, error } = await admin
     .from('workout_sessions')
-    .select('id, status, started_at, last_activity_at')
+    .select('id, status, started_at, last_activity_at, paused_seconds, paused_at, timed')
     .eq('status', 'active')
     .order('last_activity_at', { ascending: true })
     .limit(WORKOUT_SWEEP_LIMIT);
@@ -32,13 +32,13 @@ export async function runWorkoutSweep(admin: Admin, now: number = Date.now()): P
     console.error('[WORKOUT SWEEP] fetch failed:', error);
     return result;
   }
-  for (const s of (actives ?? []) as Array<{ id: string; status: string; started_at: string; last_activity_at: string | null }>) {
+  for (const s of (actives ?? []) as Array<{ id: string; status: string; started_at: string; last_activity_at: string | null; paused_seconds?: number | null; paused_at?: string | null; timed?: boolean | null }>) {
     if (!isAbandonedSession({ status: s.status, lastActivityAt: s.last_activity_at, now })) continue;
     result.examined += 1;
     try {
       const { error: updateError } = await admin
         .from('workout_sessions')
-        .update(abandonFinalizeFields({ startedAt: s.started_at, lastActivityAt: s.last_activity_at! }))
+        .update(abandonFinalizeFields({ startedAt: s.started_at, lastActivityAt: s.last_activity_at!, pausedSeconds: s.paused_seconds, pausedAt: s.paused_at, timed: s.timed }))
         .eq('id', s.id)
         .eq('status', 'active');
       if (updateError) throw updateError;

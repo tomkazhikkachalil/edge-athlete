@@ -130,7 +130,7 @@ export default function WorkoutCard({
               </div>
               <p className="text-xs text-muted mt-0.5">
                 {dateLabel}
-                {session.duration_seconds ? ` · ${formatDuration(session.duration_seconds)}` : ''}
+                {session.timed === false ? ' · not timed' : session.duration_seconds ? ` · ${formatDuration(session.duration_seconds)}` : ''}
                 {` · ${summary.exerciseCount} exercise${summary.exerciseCount === 1 ? '' : 's'} · ${summary.totalSets} set${summary.totalSets === 1 ? '' : 's'}`}
               </p>
               {summary.totalVolumeLbs > 0 && (

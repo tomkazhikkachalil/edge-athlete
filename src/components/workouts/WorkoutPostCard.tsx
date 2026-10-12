@@ -28,7 +28,8 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
   const [detail, setDetail] = useState<DetailState>({ status: 'collapsed' });
 
   const title = (statsData.title as string) || 'Workout';
-  const durationSeconds = (statsData.duration_seconds as number) || 0;
+  // 260: an untimed workout's post carries no duration key — say so, never "1 min".
+  const durationSeconds = typeof statsData.duration_seconds === 'number' && statsData.duration_seconds > 0 ? statsData.duration_seconds : null;
   const exerciseCount = (statsData.exercise_count as number) || 0;
   const totalSets = (statsData.total_sets as number) || 0;
   const totalVolumeLbs = (statsData.total_volume_lbs as number) || 0;
@@ -102,7 +103,7 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
           <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
             <div className="flex items-center justify-center gap-1 text-sm font-bold text-primary">
               <Timer className="w-3 h-3 text-violet-500" aria-hidden="true" />
-              {formatDuration(durationSeconds)}
+              {durationSeconds === null ? 'Not timed' : formatDuration(durationSeconds)}
             </div>
             <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Duration</div>
           </div>

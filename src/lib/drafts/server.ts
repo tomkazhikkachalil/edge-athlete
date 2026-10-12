@@ -36,7 +36,7 @@ export async function readDrafts(admin: Admin, profileId: string): Promise<Draft
     // the pure rule applies the Drafts-round cutoff).
     admin
       .from('workout_sessions')
-      .select('id, status, title, started_at, last_activity_at, ended_at, post_id, share_decided_at, exercises:workout_exercises ( sets:workout_sets ( reps, weight, duration_seconds, distance ) )')
+      .select('id, status, title, started_at, last_activity_at, ended_at, post_id, share_decided_at, timed, paused_seconds, paused_at, exercises:workout_exercises ( sets:workout_sets ( reps, weight, duration_seconds, distance ) )')
       .eq('profile_id', profileId)
       .in('status', ['active', 'completed'])
       .is('post_id', null)

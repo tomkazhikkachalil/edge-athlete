@@ -71,6 +71,10 @@ export interface DraftWorkoutRow {
   post_id?: string | null;
   /** 253: when the owner chose Share or Keep private. NULL on a completed session = a draft. */
   share_decided_at?: string | null;
+  /** 260: the clock's facts — the pill's clock runs from started_at + the pauses, stands while paused, and is absent when untimed. */
+  timed?: boolean | null;
+  paused_seconds?: number | null;
+  paused_at?: string | null;
   /** The session's sets, for the pill's count (summary.ts's "a set with data" rule). */
   sets?: ReadonlyArray<{ reps?: number | null; weight?: number | null; duration_seconds?: number | null; distance?: number | null }> | null;
 }
@@ -172,7 +176,8 @@ export function buildDraftsList(input: {
       postId: null,
       title: w.title?.trim() || 'Workout',
       startedAt: w.started_at,
-      clockStartAt: w.started_at,
+      clockStartAt: w.timed === false || !w.started_at ? null : new Date(ts(w.started_at) + (w.paused_seconds ?? 0) * 1000).toISOString(),
+      clockPausedAt: w.paused_at ?? null,
       lastActivityAt: w.ended_at ?? w.last_activity_at,
       progress: w.sets ? { setsCompleted: countWorkoutSets(w.sets) } : null,
       isCreator: true,

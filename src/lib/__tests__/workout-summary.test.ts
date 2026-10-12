@@ -147,6 +147,12 @@ describe('buildWorkoutStatsData', () => {
     });
   });
 
+  it('an untimed workout (260) carries NO duration key — never 0, which would read "1 min"', () => {
+    const data = buildWorkoutStatsData({ sessionId: 'w1', title: 'Push Day', durationSeconds: null, summary });
+    expect('duration_seconds' in data).toBe(false);
+    expect(data).toMatchObject({ type: 'workout_session', workout_session_id: 'w1', title: 'Push Day' });
+  });
+
   it('falls back to "Workout" for a null or blank title', () => {
     expect(buildWorkoutStatsData({ sessionId: 'w1', title: null, durationSeconds: 60, summary }).title).toBe('Workout');
     expect(buildWorkoutStatsData({ sessionId: 'w1', title: '   ', durationSeconds: 60, summary }).title).toBe('Workout');

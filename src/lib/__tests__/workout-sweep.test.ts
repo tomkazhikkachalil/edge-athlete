@@ -34,7 +34,7 @@ describe('runWorkoutSweep', () => {
     ]);
     const out = await runWorkoutSweep(admin, NOW);
     expect(out).toEqual({ examined: 1, finished: 1, failed: 0 });
-    expect(updates).toEqual([{ id: 'stale', fields: { status: 'completed', ended_at: old, duration_seconds: 24 * 60 * 60 } }]);
+    expect(updates).toEqual([{ id: 'stale', fields: { status: 'completed', ended_at: old, duration_seconds: 24 * 60 * 60, paused_at: null } }]);
   });
   it('is the ONLY place a workout is finished without its owner: the read routes no longer finalize', () => {
     const route = read('src/app/api/workouts/route.ts');

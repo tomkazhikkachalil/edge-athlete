@@ -5,6 +5,7 @@ import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
+import { clampAt, finishDuration, planPause, planResume } from '@/lib/workouts/timing';
 
 const SESSION_SELECT = `
   *,
@@ -114,11 +115,21 @@ export async function GET(
 
 /**
  * PATCH /api/workouts/[id] — owner only.
- * Body: { title?, notes?, postId?, keepPrivate?: true, finish?: { endedAt } }
+ * Body: { title?, notes?, postId?, keepPrivate?: true, finish?: { endedAt },
+ *         pause?: { at }, resume?: { at }, timed?: boolean }
  * postId and keepPrivate both stamp share_decided_at (Drafts round, 253):
  * a completed session without it is a DRAFT — the owner never reached the
  * share decision.
- * finish completes a live session (endedAt clamped to started_at..now+5min).
+ * finish completes a live session (endedAt clamped to started_at..now+5min;
+ * never before an open pause; the pauses excluded; NULL duration when
+ * untimed — workouts/timing.ts).
+ * pause / resume (workout screen PR 2, 260) are SERVER facts stamped with
+ * the CLIENT's clock (`at`, clamped — the same clock domain the entries
+ * PUT's stale guard reads), each a compare-and-set: pause requires
+ * paused_at NULL, resume requires the paused_at value that was read (the
+ * pause's accrual into paused_seconds is computed here — PostgREST cannot
+ * write a column-relative value). timed toggles the clock while active; an
+ * untimed finish saves no duration.
  */
 export async function PATCH(
   request: NextRequest,
@@ -135,7 +146,7 @@ export async function PATCH(
 
     const { data: session, error: fetchError } = await supabase
       .from('workout_sessions')
-      .select('profile_id, status, started_at')
+      .select('profile_id, status, started_at, timed, paused_seconds, paused_at')
       .eq('id', id)
       .single();
 
@@ -146,7 +157,39 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    // ── The clock (260): pause / resume are their own compare-and-set writes ──
+    if (body.pause !== undefined || body.resume !== undefined) {
+      const nowMs = Date.now();
+      if (body.pause !== undefined) {
+        const plan = planPause(session, body.pause?.at, nowMs);
+        if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
+        const { data: rows, error } = await supabase.from('workout_sessions').update(plan.update).eq('id', id).eq('status', 'active').is('paused_at', null).select('*');
+        if (error) {
+          reportRouteError('Error pausing workout:', error);
+          return NextResponse.json({ error: 'Failed to pause workout' }, { status: 500 });
+        }
+        if (!rows || rows.length === 0) return NextResponse.json({ error: 'Workout is already paused' }, { status: 409 });
+        return NextResponse.json({ session: rows[0] });
+      }
+      const plan = planResume(session, body.resume?.at, nowMs);
+      if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
+      const { data: rows, error } = await supabase.from('workout_sessions').update(plan.update).eq('id', id).eq('paused_at', plan.expectPausedAt).select('*');
+      if (error) {
+        reportRouteError('Error resuming workout:', error);
+        return NextResponse.json({ error: 'Failed to resume workout' }, { status: 500 });
+      }
+      if (!rows || rows.length === 0) return NextResponse.json({ error: 'Workout is not paused' }, { status: 409 });
+      return NextResponse.json({ session: rows[0] });
+    }
+
     const updates: Record<string, unknown> = {};
+    if (body.timed !== undefined) {
+      if (typeof body.timed !== 'boolean') return NextResponse.json({ error: 'timed must be a boolean' }, { status: 400 });
+      if (session.status !== 'active') return NextResponse.json({ error: 'Workout is already finished' }, { status: 409 });
+      updates.timed = body.timed;
+      // Untimed: an open pause means nothing any more — close it.
+      if (!body.timed && session.paused_at) updates.paused_at = null;
+    }
 
     if (body.title !== undefined) {
       updates.title =
@@ -184,15 +227,15 @@ export async function PATCH(
         return NextResponse.json({ error: 'Workout is already finished' }, { status: 409 });
       }
       const startedMs = Date.parse(session.started_at);
-      const requestedMs = Date.parse(body.finish.endedAt ?? '');
       const nowMs = Date.now();
-      const endedMs = Math.min(
-        Math.max(Number.isNaN(requestedMs) ? nowMs : requestedMs, startedMs),
-        nowMs + 5 * 60 * 1000
-      );
+      const requestedMs = clampAt(body.finish.endedAt, startedMs, nowMs);
+      // The one finish rule (timing.ts): never before an open pause, pauses
+      // excluded, NULL when untimed; the finish closes any open pause.
+      const plan = finishDuration({ ...session, timed: updates.timed === undefined ? session.timed : (updates.timed as boolean) }, requestedMs);
       updates.status = 'completed';
-      updates.ended_at = new Date(endedMs).toISOString();
-      updates.duration_seconds = Math.floor((endedMs - startedMs) / 1000);
+      updates.ended_at = new Date(plan.endedMs).toISOString();
+      updates.duration_seconds = plan.durationSeconds;
+      updates.paused_at = null;
     }
 
     if (Object.keys(updates).length === 0) {
