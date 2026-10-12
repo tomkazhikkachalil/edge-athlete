@@ -135,6 +135,7 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'org_staff_revoked',
       'profile_change',
       'roster_invite',
+      'session_reminder',
       // Program 2 D (mig 187): a visitor's org-site form — the owner's bell.
       'site_form_submission',
       // Events program (mig 205): the sport_event_* family.

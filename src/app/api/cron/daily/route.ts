@@ -6,6 +6,7 @@ import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
+import { runSessionReminders } from '@/lib/sessions/abandon-reminder-server';
 import { runWorkoutSweep } from '@/lib/workouts/sweep-server';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
@@ -91,6 +92,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] reminders phase failed:', e);
     summary.reminders = { ok: false };
+  }
+
+  // Resume pill program (mig 259): the day BEFORE the two sweeps below act, a
+  // bell to the round's creator / the workout's owner — once per session,
+  // saying which will happen (finished as played, or discarded when empty).
+  try {
+    summary.sessionReminders = await runSessionReminders(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] session reminders phase failed:', e);
+    summary.sessionReminders = { ok: false };
   }
 
   try {

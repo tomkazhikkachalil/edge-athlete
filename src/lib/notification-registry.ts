@@ -124,6 +124,11 @@ export const NOTIFICATION_TYPE_META = {
   // Phase 2b (mig 210): the day-before reminder — the daily cron bells every
   // accepted participant of a round scheduled tomorrow, once per round.
   sport_event_reminder: { tab: null, icon: 'fa-bell' },
+  // Resume pill program (mig 259): the day-before bell for an unfinished
+  // session — a round or a workout untouched for 6 days, which the 7-day
+  // sweep finishes as played (or discards when empty) tomorrow. Once per
+  // session, to its creator / owner, from the daily cron.
+  session_reminder: { tab: null, icon: 'fa-hourglass-half' },
   // Phase 3 (mig 213): one type, three copies by metadata.kind (set · won · lost).
   sport_event_match: { tab: null, icon: 'fa-flag-checkered' },
   // Support & Reporting, Spec 1 (mig 222): the submitter's bell on a visible
