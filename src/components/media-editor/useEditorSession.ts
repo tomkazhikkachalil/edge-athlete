@@ -12,7 +12,7 @@
  * same map — every view mounted after that points at dead blob: URLs.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
 import { emptyHistory, jumpTo, push, undo, redo, type History } from '@/lib/media/history';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
@@ -36,6 +36,10 @@ export function useEditorSession(
   });
 
   const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(() => new Map());
+  // A video's cover chosen as a PHOTO (video posters PR 4): session state —
+  // the File never enters the recipe (which persists); the recipe only
+  // remembers that the cover was a photo (`poster: { kind: 'photo' }`).
+  const [covers, setCovers] = useState<Record<string, File | null>>({});
 
   // MUST stay effect-owned — do not "optimise" this into a useMemo. Render-
   // owned object URLs were revoked by StrictMode's mount→unmount→remount
@@ -112,12 +116,24 @@ export function useEditorSession(
     });
   };
 
+  const setCover = useCallback((id: string, file: File | null) => {
+    setCovers(prev => ({ ...prev, [id]: file }));
+    setRecipes(prev => {
+      const current = prev[id];
+      if (!current || current.kind !== 'video') return prev;
+      const { poster: _poster, ...rest } = current; // eslint-disable-line @typescript-eslint/no-unused-vars
+      return { ...prev, [id]: file ? { ...current, poster: { kind: 'photo' } } : (rest as typeof current) };
+    });
+  }, []);
+
   return {
     assets,
     recipes,
     patchRecipe,
     addAsset,
     previewUrls,
+    covers,
+    setCover,
     undoRecipe,
     redoRecipe,
     canUndo,

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
+  Image as ImageIcon,
   Pause,
   Play,
   Scissors,
@@ -57,6 +58,9 @@ interface VideoStageProps {
   tool: 'clips' | 'poster';
   canEdit: boolean; // WebCodecs available — clip tools hidden without it
   onPatch: (patch: Partial<VideoRecipe>) => void;
+  /** A photo chosen as the cover (video posters PR 4) — session state the modal holds; null = a frame. */
+  cover?: File | null;
+  onCover?: (file: File | null) => void;
 }
 
 export default function VideoStage({
@@ -66,6 +70,8 @@ export default function VideoStage({
   tool,
   canEdit,
   onPatch,
+  cover = null,
+  onCover,
 }: VideoStageProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -376,9 +382,46 @@ export default function VideoStage({
               });
             }}
           />
-          <p className="px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">
-            Drag on the timeline to pick the cover frame ({formatClipTime(recipe.posterTime)}).
-          </p>
+          {/* The cover: a frame from the timeline, or a photo from the library
+              (PR 4 — Tom: "also allow selecting a photo from their library as
+              the cover"). The photo is the session's; the recipe only
+              remembers that the cover was a photo. */}
+          <div className="flex items-center justify-between gap-3 px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto" data-cover-source={cover ? 'photo' : 'frame'}>
+            {cover ? (
+              <>
+                <span className="min-w-0 truncate">Cover: your photo ({cover.name})</span>
+                <button
+                  type="button"
+                  onClick={() => onCover?.(null)}
+                  className="ea-interactive shrink-0 rounded-full border border-white/30 px-3 py-1.5 text-chip font-semibold text-white"
+                  data-cover-use-frame=""
+                >
+                  Use a frame
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="min-w-0">Drag on the timeline to pick the cover frame ({formatClipTime(recipe.posterTime)}).</span>
+                {onCover && (
+                  <label className="ea-interactive shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-1.5 text-chip font-semibold text-white cursor-pointer" data-cover-use-photo="">
+                    <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                    Use a photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      data-cover-photo-input=""
+                      onChange={e => {
+                        const picked = e.target.files?.[0];
+                        e.target.value = '';
+                        if (picked) onCover(picked);
+                      }}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+          </div>
         </>
       )}
     </div>
