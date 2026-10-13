@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useOptimizedSrc } from './useOptimizedSrc';
 import BlurBox from './BlurBox';
 import { formatDuration } from '@/lib/media/duration';
+import { canPlayCodec } from '@/lib/media/playback';
 
 // ── THE one video renderer (video posters program, Oct 13 2026) ─────────────
 // Tom: videos showed as "a black rectangle with a play button". Every surface
@@ -22,11 +23,16 @@ import { formatDuration } from '@/lib/media/duration';
 //     post (a grid tile, a quoted post) the host passes `playable={false}`.
 //   • upload states: `pending` (a progress bar), `failed` (a full-tile
 //     "Upload failed — tap to retry" that keeps the local file), `processing`
-//     (the poster and a chip until the server's playable file exists).
+//     (the poster and a chip until the server's playable file exists —
+//     unless THIS device can decode the stored codec (`codec` + canPlayType,
+//     PR 8: Safari and a hardware-HEVC Android), which plays it as it is);
+//   • `codec` on a READY clip this device cannot decode (an old HEVC row the
+//     worker gave up on, read where the worker is off): the still and
+//     "Can't play on this device" — never a <video> that paints black.
 // The raw <video> stays only in MediaLightbox (autoplay), InAppCamera and the
 // editor — `video-frame.test.ts` sweeps every other `<video` out of the tree.
 // `data-video-frame` is the one hook: poster | placeholder | preview |
-// processing | pending | failed | playing.
+// processing | unplayable | pending | failed | playing.
 
 export type VideoFrameState = 'ready' | 'pending' | 'failed' | 'processing';
 
@@ -37,6 +43,8 @@ interface VideoFrameProps {
   poster?: string | null;
   /** The stored ThumbHash (PR 6): painted under the still while it loads. */
   blurHash?: string | null;
+  /** The stored codec (261): with `processing`, a device that decodes it plays now; on a ready clip, one that cannot gets the still and a note. */
+  codec?: string | null;
   state?: VideoFrameState;
   /** 0..1 while `pending`. */
   progress?: number;
@@ -65,6 +73,7 @@ export default function VideoFrame({
   src,
   poster,
   blurHash,
+  codec,
   state = 'ready',
   progress,
   durationSeconds,
@@ -86,14 +95,21 @@ export default function VideoFrame({
   const optimized = useOptimizedSrc(poster ?? null);
   const posterSrc = optimized.src ?? null;
   const fitClass = fit === 'contain' ? 'object-contain' : 'object-cover';
-  const canPlayHere = playable && state === 'ready';
+  // The codec rule (PR 8), feature-detected once per render: null = unknown or
+  // no media element here (assume playable). A `processing` clip this device
+  // decodes is simply READY; a ready clip it cannot decode is unplayable.
+  const decodes = codec ? canPlayCodec(codec) : null;
+  const effectiveState: VideoFrameState = state === 'processing' && decodes === true ? 'ready' : state;
+  const unplayable = effectiveState === 'ready' && decodes === false && !isLocalUrl(src);
+  const canPlayHere = playable && effectiveState === 'ready' && !unplayable;
   const localPreview = !posterSrc && isLocalUrl(src);
 
   const shown: string =
     playing ? 'playing'
-    : state === 'pending' ? 'pending'
-    : state === 'failed' ? 'failed'
-    : state === 'processing' ? 'processing'
+    : effectiveState === 'pending' ? 'pending'
+    : effectiveState === 'failed' ? 'failed'
+    : effectiveState === 'processing' ? 'processing'
+    : unplayable ? 'unplayable'
     : posterSrc ? 'poster'
     : localPreview ? 'preview'
     : 'placeholder';
@@ -153,21 +169,27 @@ export default function VideoFrame({
         />
       )}
 
-      {!playing && state !== 'failed' && state !== 'pending' && badge}
+      {!playing && effectiveState !== 'failed' && effectiveState !== 'pending' && !unplayable && badge}
 
-      {!playing && !compact && typeof durationSeconds === 'number' && durationSeconds > 0 && state === 'ready' && (
+      {!playing && !compact && typeof durationSeconds === 'number' && durationSeconds > 0 && effectiveState === 'ready' && (
         <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white">
           {formatDuration(durationSeconds)}
         </span>
       )}
 
-      {state === 'processing' && !playing && (
+      {effectiveState === 'processing' && !playing && (
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white" data-video-processing="">
           Processing…
         </span>
       )}
 
-      {state === 'pending' && (
+      {unplayable && !playing && (
+        <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[11px] font-semibold text-white" data-video-unplayable="" role="status">
+          {compact ? '—' : "This video can't play on this device"}
+        </span>
+      )}
+
+      {effectiveState === 'pending' && (
         <div
           role="progressbar"
           aria-label="Upload progress"
@@ -183,7 +205,7 @@ export default function VideoFrame({
         </div>
       )}
 
-      {state === 'failed' && (
+      {effectiveState === 'failed' && (
         <button
           type="button"
           onClick={onRetry}

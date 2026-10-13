@@ -7,6 +7,8 @@
  * a late upload re-mirrors once). Best-effort, like the golf mirror.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { buildMirrorMedia, type RoundMediaInput } from '@/lib/golf/round-mirror';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
@@ -48,8 +50,9 @@ export async function mirrorEventMedia(admin: Admin, event: Pick<SportEventRow, 
     const inputs: RoundMediaInput[] = media.map(m => ({ media_url: m.media_url, media_type: m.media_type, segment_number: null, created_at: m.created_at, thumbnail_url: m.thumbnail_url }));
     const toInsert = buildMirrorMedia(inputs, ((existing ?? []) as Array<{ media_url: string }>).map(m => m.media_url), startOrder);
     if (toInsert.length > 0) {
-      const { error: insertError } = await admin.from('post_media').insert(toInsert.map(r => ({ ...r, post_id: post.id })));
+      const { data: inserted, error: insertError } = await admin.from('post_media').insert(toInsert.map(r => ({ ...r, post_id: post.id }))).select(MEDIA_JOB_PLAN_COLUMNS);
       if (insertError) { console.error('[sport-events media] mirror insert failed:', insertError); return; }
+      await enqueueForPostMedia(admin, post.id, inserted as MediaRowForPlan[] | null, 'mirror'); // 261 / PR 8
     }
     const { error: stampError } = await admin.from('sport_event_media').update({ mirrored_at: new Date().toISOString() }).in('id', media.map(m => m.id));
     if (stampError) console.error('[sport-events media] mirror stamp failed:', stampError);

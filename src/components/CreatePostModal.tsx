@@ -1143,6 +1143,12 @@ export default function CreatePostModal({
                           alt=""
                           className="w-full h-full"
                         />
+                        {/* PR 8: the server read an iPhone's HEVC — the worker converts it after Post; the tile says so. */}
+                        {uploads.itemFor(file.id)?.codec === 'hevc' && (file.durationSeconds ?? 0) <= MAX_VIDEO_SECONDS && (
+                          <div role="status" data-media-will-process="" className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1">
+                            Will process after posting
+                          </div>
+                        )}
                         {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
                           <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
                             Too long — trim in the editor

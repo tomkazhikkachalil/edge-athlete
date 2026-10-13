@@ -7,6 +7,8 @@
 // once). Best-effort, like every mirror here.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enqueueForPostMedia, enqueueMediaJobs, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { buildMirrorMedia, type RoundMediaInput } from '@/lib/golf/round-mirror';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import type { ActivityMediaRow } from './visibility';
@@ -14,7 +16,7 @@ import type { ActivityMediaRow } from './visibility';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export const ACTIVITY_MEDIA_COLUMNS = 'id, activity_id, media_url, media_type, thumbnail_url, blur_hash, duration_seconds, caption, at_s, display_order, mirrored_at, created_at';
+export const ACTIVITY_MEDIA_COLUMNS = 'id, activity_id, media_url, media_type, thumbnail_url, blur_hash, codec, processing_at, duration_seconds, caption, at_s, display_order, mirrored_at, created_at';
 
 /** The activity's photos with proxied URLs — the projection adds the pins. */
 export async function readActivityMedia(admin: Admin, activityId: string): Promise<ActivityMediaRow[]> {
@@ -44,15 +46,21 @@ export async function mirrorActivityMedia(admin: Admin, activityId: string, post
       .map(m => ({ media_url: m.media_url, media_type: m.media_type, segment_number: null, created_at: m.created_at, thumbnail_url: m.thumbnail_url, blur_hash: m.blur_hash ?? null }));
     const toInsert = buildMirrorMedia(inputs, ((existing ?? []) as Array<{ media_url: string }>).map(m => m.media_url), startOrder);
     if (toInsert.length > 0) {
-      const { error: insertError } = await admin.from('post_media').insert(toInsert.map(r => ({ ...r, post_id: postId })));
+      const { data: inserted, error: insertError } = await admin.from('post_media').insert(toInsert.map(r => ({ ...r, post_id: postId }))).select(MEDIA_JOB_PLAN_COLUMNS);
       if (insertError) {
         console.error('[activities media] mirror insert failed:', insertError.message);
         return;
       }
+      await enqueueForPostMedia(admin, postId, inserted as MediaRowForPlan[] | null, 'mirror'); // 261 / PR 8
     }
     const { error: stampError } = await admin.from('activity_media').update({ mirrored_at: new Date().toISOString() }).in('id', media.map(m => m.id));
     if (stampError) console.error('[activities media] mirror stamp failed:', stampError.message);
   } catch (e) {
     console.error('[activities media] mirror failed:', e);
   }
+}
+
+/** The activity media writer's hook (261 / PR 8): the row just inserted gets its job; never throws. */
+export async function enqueueForActivityMedia(admin: Admin, row: Pick<ActivityMediaRow, 'id' | 'media_url' | 'media_type' | 'thumbnail_url' | 'blur_hash' | 'codec'> & { profile_id?: string | null }, ownerId: string): Promise<number> {
+  return enqueueMediaJobs(admin, 'activity_media', [{ id: row.id, media_url: row.media_url, media_type: row.media_type, codec: row.codec ?? null, thumbnail_url: row.thumbnail_url, blur_hash: row.blur_hash ?? null, owner_id: ownerId }], 'upload');
 }

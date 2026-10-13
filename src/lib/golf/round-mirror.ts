@@ -11,6 +11,8 @@
 // failure must never fail the triggering save.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { isActiveParticipant } from './round-status';
 import { hiddenProfileIdsForRound } from '@/lib/sport-events/opt-out';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
@@ -166,11 +168,15 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
     );
     if (rows.length === 0) return; // already mirrored
 
-    const { error: insertError } = await admin
+    const { data: inserted, error: insertError } = await admin
       .from('post_media')
-      .insert(rows.map(r => ({ ...r, post_id: round.post_id })));
+      .insert(rows.map(r => ({ ...r, post_id: round.post_id })))
+      .select(MEDIA_JOB_PLAN_COLUMNS);
     if (insertError) {
       console.error('mirrorRoundMedia: insert failed:', insertError);
+    } else {
+      // 261 / PR 8: a mirrored copy's jobs (reused by source_path when the original already ran).
+      await enqueueForPostMedia(admin, round.post_id, inserted as MediaRowForPlan[] | null, 'mirror');
     }
   } catch (e) {
     console.error('mirrorRoundMedia: unexpected error:', e);
