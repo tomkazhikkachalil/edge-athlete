@@ -319,6 +319,17 @@ describe('serialization round-trip', () => {
   });
 });
 
+describe('a photo as the cover (video posters PR 4, Oct 13 2026)', () => {
+  it('`poster: { kind: "photo" }` is additive: it round-trips the envelope and a cover-only recipe is still a no-op (the file passes through)', () => {
+    const recipe = { ...defaultVideoRecipe(), posterTime: 2, poster: { kind: 'photo' as const } };
+    expect(parseRecipeEnvelope(recipeEnvelope(recipe))).toEqual(recipe);
+    expect(parseRecipeEnvelope(JSON.parse(JSON.stringify(recipeEnvelope(recipe))))).toEqual(recipe);
+    expect(isNoopRecipe(recipe)).toBe(true);
+    // A stored recipe without it still parses (older posts).
+    expect(parseRecipeEnvelope(recipeEnvelope(defaultVideoRecipe()))).toEqual(defaultVideoRecipe());
+  });
+});
+
 describe('persistence envelope (post_media.edit_recipe, migration 120)', () => {
   it('round-trips an OBJECT envelope — JSONB stores real JSON, not a string', () => {
     const recipe = { ...defaultVideoRecipe(), clips: [{ in: 1, out: 4, volume: 1 }] };

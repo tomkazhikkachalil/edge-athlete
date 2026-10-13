@@ -306,6 +306,8 @@ const videoRecipeSchema = z.object({
   crop: cropRectSchema.nullable(),
   aspect: aspectSchema,
   posterTime: z.number().min(0),
+  // PR 4 (Oct 13 2026): the cover was a photo. Additive — stays v3.
+  poster: z.object({ kind: z.literal('photo') }).optional(),
 });
 
 export const editRecipeSchema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeSchema]);

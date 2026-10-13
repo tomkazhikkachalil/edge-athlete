@@ -110,6 +110,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     canRedo,
     jumpToRecipe,
     historyFor,
+    covers,
+    setCover,
   } = useEditorSession(initialAssets, defaultAspect);
   const isDesktop = useIsDesktop();
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
@@ -363,7 +365,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           await exportAsset(
             asset,
             recipes[asset.id],
-            asset.kind === 'image' ? photoOutput : config.output
+            asset.kind === 'image' ? photoOutput : config.output,
+            { cover: covers[asset.id] ?? null }
           )
         );
       } catch (err) {
@@ -618,6 +621,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             tool={activeTool === 'poster' ? 'poster' : 'clips'}
             canEdit={canTrim}
             onPatch={patch => patchRecipe(active.id, patch)}
+            cover={covers[active.id] ?? null}
+            onCover={file => setCover(active.id, file)}
           />
         )
       ) : !isGif && imageRecipe ? (

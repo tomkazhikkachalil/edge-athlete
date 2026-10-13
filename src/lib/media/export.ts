@@ -12,7 +12,7 @@
  * post_media); a probe failure never blocks the export.
  */
 
-import { isNoopRecipe } from './recipes';
+import { defaultImageRecipe, isNoopRecipe } from './recipes';
 import { renderImage, renderedFileName } from './render';
 import { isServerAllowedType } from './validation';
 import { capturePoster } from './poster';
@@ -42,8 +42,27 @@ async function withMeta(result: EditedMedia): Promise<EditedMedia> {
   return dims ? { ...result, ...dims } : result;
 }
 
-async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<EditedMedia> {
+/** The poster's own output: the capture's size and quality (poster.ts). */
+const POSTER_OUTPUT: OutputConfig = { maxDimension: 1280, mime: 'image/jpeg', quality: 0.82 };
+
+/** A photo chosen as the cover (PR 4) rendered to the poster's shape — JPEG, ≤ 1280, HEIC decoded on the way. */
+async function posterFromPhoto(cover: File): Promise<Blob | undefined> {
+  try {
+    return await renderImage(cover, defaultImageRecipe(), POSTER_OUTPUT);
+  } catch (err) {
+    console.warn('Cover photo render failed (a frame will do):', err);
+    return undefined;
+  }
+}
+
+export interface ExportExtras {
+  /** A photo the person chose as the video's cover — its poster instead of a frame. */
+  cover?: File | null;
+}
+
+async function exportVideo(asset: MediaAsset, recipe: EditRecipe, extras: ExportExtras = {}): Promise<EditedMedia> {
   if (recipe.kind !== 'video') return passThrough(asset, recipe);
+  const coverPoster = extras.cover ? await posterFromPhoto(extras.cover) : undefined;
 
   if (!isNoopRecipe(recipe)) {
     try {
@@ -59,12 +78,15 @@ async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<Edite
         const base = asset.file.name.replace(/\.[^.]+$/, '') || 'video';
         const file = new File([blob], `${base}-edited.mp4`, { type: mime });
         // Poster from the RENDERED output: posterTime is timeline-space, and
-        // the rendered file IS the timeline — no clip mapping needed.
-        let posterBlob: Blob | undefined;
-        try {
-          posterBlob = await capturePoster(file, recipe.posterTime);
-        } catch (err) {
-          console.warn('Poster capture failed:', err);
+        // the rendered file IS the timeline — no clip mapping needed. A chosen
+        // photo (PR 4) wins over the frame.
+        let posterBlob: Blob | undefined = coverPoster;
+        if (!posterBlob) {
+          try {
+            posterBlob = await capturePoster(file, recipe.posterTime);
+          } catch (err) {
+            console.warn('Poster capture failed:', err);
+          }
         }
         return {
           id: asset.id,
@@ -73,6 +95,7 @@ async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<Edite
           previewUrl: URL.createObjectURL(blob),
           kind: 'video',
           posterBlob,
+          posterSource: coverPoster ? 'photo' : 'frame',
           sourceFile: asset.file,
           recipe,
           edited: true,
@@ -87,29 +110,32 @@ async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<Edite
   // Pass-through: poster comes from the ORIGINAL, so map the timeline-space
   // posterTime back into source time through the clips (plain canvas — works
   // without WebCodecs; failure never blocks the video).
-  let posterBlob: Blob | undefined;
-  try {
-    const { timelineToSource } = await import('./timeline-math');
-    const posterSourceTime =
-      recipe.clips.length > 0
-        ? (timelineToSource(recipe.posterTime, recipe.clips)?.sourceTime ?? recipe.clips[0].in)
-        : recipe.posterTime;
-    posterBlob = await capturePoster(asset.file, posterSourceTime);
-  } catch (err) {
-    console.warn('Poster capture failed:', err);
+  let posterBlob: Blob | undefined = coverPoster;
+  if (!posterBlob) {
+    try {
+      const { timelineToSource } = await import('./timeline-math');
+      const posterSourceTime =
+        recipe.clips.length > 0
+          ? (timelineToSource(recipe.posterTime, recipe.clips)?.sourceTime ?? recipe.clips[0].in)
+          : recipe.posterTime;
+      posterBlob = await capturePoster(asset.file, posterSourceTime);
+    } catch (err) {
+      console.warn('Poster capture failed:', err);
+    }
   }
-  return { ...passThrough(asset, recipe), posterBlob };
+  return { ...passThrough(asset, recipe), posterBlob, posterSource: coverPoster ? 'photo' : 'frame' };
 }
 
 export async function exportAsset(
   asset: MediaAsset,
   recipe: EditRecipe,
-  output: OutputConfig
+  output: OutputConfig,
+  extras: ExportExtras = {}
 ): Promise<EditedMedia> {
   const serverAllowed = isServerAllowedType(asset.file.type);
   const isGif = asset.file.type === 'image/gif';
 
-  if (asset.kind === 'video') return withMeta(await exportVideo(asset, recipe));
+  if (asset.kind === 'video') return withMeta(await exportVideo(asset, recipe, extras));
   if (isGif || (recipe.kind === 'image' && isNoopRecipe(recipe) && serverAllowed)) {
     return withMeta(passThrough(asset, recipe));
   }

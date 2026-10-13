@@ -276,6 +276,10 @@ export interface VideoRecipe {
   crop: CropRect | null;
   aspect: AspectRatioId;
   posterTime: number;
+  /** The cover was a PHOTO from the library, not a frame (video posters PR 4,
+   *  Oct 13 2026) — additive, so a stored recipe (post_media.edit_recipe)
+   *  still parses; the photo itself is editor-session state, never persisted. */
+  poster?: { kind: 'photo' };
 }
 
 export type EditRecipe = ImageRecipe | VideoRecipe;
@@ -296,6 +300,8 @@ export interface EditedMedia {
   previewUrl: string; // objectURL of blob — the CALLER owns revocation
   kind: MediaKind;
   posterBlob?: Blob; // video only
+  /** Where the poster came from (PR 4): a frame of the video, or a photo the person chose. */
+  posterSource?: 'frame' | 'photo';
   sourceFile: File; // original, for re-editing
   recipe: EditRecipe;
   edited: boolean; // false = pass-through (GIF, no-op, unsupported video)
