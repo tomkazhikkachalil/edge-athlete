@@ -99,6 +99,8 @@ export type RecordingEvent =
   | { type: 'photoAdded'; localId: string; mediaType: 'image' | 'video'; now: number }
   | { type: 'photoUploaded'; localId: string; url: string; thumbnailUrl?: string | null }
   | { type: 'photoFailed'; localId: string }
+  /** The upload is trying again (video posters PR 3): the tile goes back to uploading. */
+  | { type: 'photoRetried'; localId: string }
   | { type: 'photoRemoved'; localId: string }
   | { type: 'hidden'; now: number }
   | { type: 'visible'; now: number }
@@ -207,6 +209,8 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
     }
     case 'photoUploaded':
       return { ...state, photos: state.photos.map(p => (p.localId === event.localId ? { ...p, url: event.url, thumbnailUrl: event.thumbnailUrl ?? null, failed: false } : p)) };
+    case 'photoRetried':
+      return { ...state, photos: state.photos.map(p => (p.localId === event.localId ? { ...p, failed: false } : p)) };
     case 'photoFailed':
       return { ...state, photos: state.photos.map(p => (p.localId === event.localId ? { ...p, failed: true } : p)) };
     case 'photoRemoved':

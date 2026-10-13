@@ -58,8 +58,10 @@ describe('source pins — the workout clips on the house queue', () => {
     const hook = read('src/components/workouts/useSetMediaUploads.ts');
     expect(hook).toMatch(/useMediaUploadQueue\(\{ sessionId, onStored, notify \}\)/);
     expect(hook).not.toMatch(/uploadPostMedia/);
-    expect(hook).toMatch(/queue\.device\(async \(\) =>/);
-    expect(hook).toMatch(/capturePoster\(file, posterTimeFor\(null\)\)/);
+    expect(hook).toMatch(/grabPosterInto\(queue, localId, file\)/);
+    const grab = read('src/components/media/grab-poster.ts');
+    expect(grab).toMatch(/queue\.device\(async \(\) =>/);
+    expect(grab).toMatch(/capturePoster\(file, posterTimeFor\(null\)\)/);
     expect(hook).toMatch(/patchMediaByUrl\(current, item\.storedUrl, \{ thumbnailUrl: item\.posterUrl \}\)/);
     expect(hook).toMatch(/export type SetMediaStatus = 'pending' \| 'failed' \| 'processing';/);
     expect(read('src/components/workouts/ExerciseCard.tsx')).toMatch(/thumbnailUrl=\{media\.thumbnailUrl\}/);

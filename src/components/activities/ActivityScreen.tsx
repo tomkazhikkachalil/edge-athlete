@@ -14,7 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import CaptureInputs from '@/components/media/CaptureInputs';
 import MediaTile from '@/components/media/MediaTile';
-import { uploadPostMedia } from '@/lib/media/upload';
+import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
+import { grabPosterInto } from '@/components/media/grab-poster';
 import { validateFiles } from '@/lib/media/validation';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import { SEGMENT_KIND_LABELS, SEGMENT_KINDS, SEGMENT_MAX, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '@/lib/activities/segments';
@@ -425,6 +426,9 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
   const [drafts, setDrafts] = useState<SegmentDraft[]>(() => a.segments.map(draftOf));
   const [segmentError, setSegmentError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Photos through the one upload queue (video posters PR 3): a video clip's
+  // poster is grabbed on the device chain after the pick and rides the row.
+  const uploads = useMediaUploadQueue({ sessionId: `activity:${a.id}`, targetProfileId: () => a.profileId });
   const [sharing, setSharing] = useState(false);
   const [caption, setCaption] = useState('');
   // The share-time bridge (Oct 4 2026): a ride, run, swim or row may be posted
@@ -479,19 +483,27 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
     if (accepted.length === 0) return;
     setBusy(true);
     try {
-      for (const file of accepted) {
-        const up = await uploadPostMedia(file, a.profileId);
+      const items = uploads.queue.register(accepted);
+      items.forEach((item, i) => grabPosterInto(uploads.queue, item.localId, accepted[i]));
+      await uploads.queue.settle();
+      for (const item of items) {
+        const landed = uploads.queue.itemFor(item.localId);
+        if (!landed?.storedUrl) {
+          showError('Not added', landed?.failure?.message ?? 'Please try again.');
+          continue;
+        }
         const res = await fetch(`/api/activities/${a.id}/media`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ media_url: up.url, media_type: up.type, targetProfileId: a.profileId }),
+          body: JSON.stringify({ media_url: landed.storedUrl, media_type: landed.kind, thumbnail_url: landed.posterUrl ?? null, targetProfileId: a.profileId }),
         });
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
           showError('Not added', typeof json.error === 'string' ? json.error : 'Please try again.');
         }
       }
+      items.forEach(item => uploads.queue.forget(item.localId));
       await onReload();
     } catch (e) {
       showError('Not added', e instanceof Error ? e.message : 'Please try again.');
@@ -521,14 +533,24 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
     if (!target || results.length === 0) return;
     setBusy(true);
     try {
-      const up = await uploadPostMedia(results[0].file, a.profileId);
+      // The re-rendered clip keeps a poster: the editor's cover, else a fresh grab.
+      const [item] = uploads.queue.register([results[0].file]);
+      if (results[0].posterBlob) uploads.queue.attachPoster(item.localId, results[0].posterBlob);
+      else grabPosterInto(uploads.queue, item.localId, results[0].file);
+      await uploads.queue.settle();
+      const landed = uploads.queue.itemFor(item.localId);
       URL.revokeObjectURL(results[0].previewUrl);
+      if (!landed?.storedUrl) {
+        showError('Not saved', landed?.failure?.message ?? 'Please try again.');
+        return;
+      }
       const res = await fetch(`/api/activities/${a.id}/media/${target.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media_url: up.url, thumbnail_url: null, targetProfileId: a.profileId }),
+        body: JSON.stringify({ media_url: landed.storedUrl, thumbnail_url: landed.posterUrl ?? null, targetProfileId: a.profileId }),
       });
+      uploads.queue.forget(item.localId);
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         showError('Not saved', typeof json.error === 'string' ? json.error : 'Please try again.');
