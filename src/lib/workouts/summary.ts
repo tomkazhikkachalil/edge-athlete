@@ -23,7 +23,8 @@ export interface WorkoutSummary {
   perExerciseBest: Record<string, { maxWeightLbs: number | null; maxReps: number | null }>;
 }
 
-function setHasData(s: EntryExercise['sets'][number]): boolean {
+/** A set with something in it (reps, weight, a time or a distance above 0). Rest is never data. */
+export function setHasData(s: EntryExercise['sets'][number]): boolean {
   return (
     (s.reps !== null && s.reps > 0) ||
     (s.weight !== null && s.weight > 0) ||
