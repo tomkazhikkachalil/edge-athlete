@@ -9,8 +9,25 @@
 // `QA Something ${Date.now()}`), older than the cutoff, AND an owner that is
 // null or itself a stale QA user. A real org never matches all three.
 
-/** 24 hours: a run in flight is never swept by a concurrent one. */
-export const SWEEP_CUTOFF_MS = 24 * 60 * 60 * 1000;
+/** 3 hours: a run in flight is never swept by a concurrent one (the longest
+ *  sanctioned run — the whole `@mobile` set on one project — is ~1.5 h and CI's
+ *  smoke has a 25-minute ceiling), and a teardown that died leaves its users
+ *  for the NEXT run, not for tomorrow. It was 24 h until Oct 13 2026: four
+ *  users a morning probe's failed teardown left on production sat through
+ *  every probe that day, because none was a day old. */
+export const SWEEP_CUTOFF_MS = 3 * 60 * 60 * 1000;
+
+/** A database refusal worth a second try (Oct 13 2026): Postgres cancelled the
+ *  statement at its timeout (57014 — a profile's cascade on production under
+ *  the run's own load took longer than the API role's statement_timeout), or
+ *  the transport dropped. A constraint refusal or a missing table is NOT —
+ *  retrying those only repeats the answer. */
+export function isRetryableDbError(message: string | null | undefined): boolean {
+  return !!message && /statement timeout|canceling statement|57014|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(message);
+}
+/** Teardown's retry ladder: three tries, a breath between (the cascade finishes
+ *  in the background when the statement was cancelled; the next try has less to do). */
+export const DB_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000];
 
 /** The e2e users: `edgeqa-<rand>@example.com` (createQaUser). */
 export const QA_USER_EMAIL_RE = /^edgeqa-[a-z0-9]+@example\.com$/;

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  QA_ORG_NAME_RE, QA_ORG_NAME_SQL, SWEEP_CUTOFF_MS, isQaOrgName, isQaUserEmail, isShadowEmail, isStale,
+  QA_ORG_NAME_RE, QA_ORG_NAME_SQL, SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, isQaOrgName, isQaUserEmail, isRetryableDbError, isShadowEmail, isStale,
   staleQaOrgs, staleShadows, staleQaTombstones, DEPARTED_EMAIL_LIKE,
 } from '../../../e2e/helpers/qa-sweep-rules';
 import { DEPARTED_EMAIL_DOMAIN } from '../account-departure';
@@ -108,3 +108,25 @@ describe('stale QA tombstones', () => {
   });
 });
 
+
+describe('the cutoff and the teardown retry (Oct 13 2026)', () => {
+  it('the cutoff is three hours — longer than any sanctioned run, shorter than a day', () => {
+    expect(SWEEP_CUTOFF_MS).toBe(3 * 60 * 60 * 1000);
+  });
+  it('a statement timeout or a dropped transport is retryable; a constraint refusal, a missing table or nothing is not', () => {
+    expect(isRetryableDbError('canceling statement due to statement timeout')).toBe(true);
+    expect(isRetryableDbError('57014')).toBe(true);
+    expect(isRetryableDbError('fetch failed')).toBe(true);
+    expect(isRetryableDbError('TypeError: fetch failed — socket hang up')).toBe(true);
+    expect(isRetryableDbError('insert or update on table violates foreign key constraint')).toBe(false);
+    expect(isRetryableDbError('relation "nope" does not exist')).toBe(false);
+    expect(isRetryableDbError('')).toBe(false);
+    expect(isRetryableDbError(null)).toBe(false);
+    expect(DB_RETRY_DELAYS_MS).toEqual([2_000, 5_000]);
+  });
+  it('deleteQaUser runs its two deletes through the retry (source pin)', () => {
+    const src = readFileSync(join(process.cwd(), 'e2e/helpers/qa-user.ts'), 'utf8');
+    expect(src).toMatch(/await withDbRetry\(`profiles delete\(\$\{userId\}\)`/);
+    expect(src).toMatch(/await withDbRetry\(`deleteUser\(\$\{userId\}\)`/);
+  });
+});
