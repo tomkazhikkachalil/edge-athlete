@@ -9,7 +9,10 @@ import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import VideoFrame from '@/components/media/VideoFrame';
-import { posterTimeFor } from '@/lib/media/poster-plan';
+import { MAX_DEVICE_POSTER_ATTEMPTS, planPosterRetry, POSTER_GRAB_DEADLINE_MS, POSTER_RETRY_DEADLINE_MS, posterTimeFor, type PosterFailure } from '@/lib/media/poster-plan';
+import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
+import { UploadError } from '@/lib/media/upload';
+import type { QueueItem } from '@/lib/media/upload-queue';
 import MediaTile from '@/components/media/MediaTile';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
@@ -31,12 +34,11 @@ import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
-import { openMediaStash, type MediaStash } from '@/lib/workouts/media-stash';
-import { attachOriginalInBackground, uploadPostMedia } from '@/lib/media/upload';
+import { attachOriginalInBackground } from '@/lib/media/upload';
 import { prepareImageForUpload } from '@/lib/media/post-time-resize';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
 import { planPickAttach, usableDuration } from '@/lib/media/capture-attach';
-import { uploadingLine, weightedProgress } from '@/lib/media/upload-progress';
+import { uploadingLine } from '@/lib/media/upload-progress';
 import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
@@ -77,14 +79,24 @@ interface MediaFile {
   /** True when `file` is a rendered blob distinct from `sourceFile` — drives
    *  the non-destructive original upload (source_url, migration 120). */
   edited?: boolean;
-  /** 0..1 while this file's bytes leave the device (direct upload); undefined
-   *  before the upload starts, 1 when its parts are sent. */
-  uploadProgress?: number;
+  /** Device poster grabs so far and why the last one failed (poster-plan.ts). */
+  posterAttempts?: number;
+  posterFailure?: PosterFailure;
 }
+// Upload state (pending / failed / stored, the progress, the stored URLs) is
+// NOT on MediaFile: the queue (useMediaUploadQueue) is the one truth, read at
+// render and at Post through `uploads.itemFor(file.id)` — `file.id` IS the
+// queue's localId.
 
-/** The composer's session in the device media stash, and its size cap. */
+/** The composer's session in the device media stash (the upload queue owns it). */
 const COMPOSER_STASH = 'composer';
-const COMPOSER_STASH_MAX_BYTES = 250 * 1024 * 1024;
+
+/** A video tile's VideoFrame state from its queue item (none yet = pending). */
+function frameStateOf(item: QueueItem | undefined): 'ready' | 'pending' | 'failed' | 'processing' {
+  if (!item) return 'pending';
+  if (item.status === 'stored') return 'ready';
+  return item.status;
+}
 
 function revokePreviews(files: readonly MediaFile[]): void {
   for (const f of files) {
@@ -256,76 +268,6 @@ export default function CreatePostModal({
     return () => clearTimeout(timer);
   }, [isOpen, postType, caption, hashtags, selectedTags, visibility, golfValue, mediaFiles.length]);
 
-  // Captured media is kept on the device until the post is made (maintenance
-  // pass, Oct 10 2026): each attachment's bytes go to the IndexedDB stash a
-  // moment AFTER its tile appears (Capture v2 — nothing heavy before the
-  // tile), and leave it when removed, posted or discarded. Only what THIS
-  // session stashed is ever removed here — an earlier session's files wait
-  // for the restore offer.
-  const stashRef = useRef<MediaStash | null | undefined>(undefined);
-  const stashedIdsRef = useRef<Set<string>>(new Set());
-  const composerStash = () => {
-    if (stashRef.current === undefined) stashRef.current = openMediaStash();
-    return stashRef.current;
-  };
-  useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => {
-      const store = composerStash();
-      if (!store) return;
-      const current = new Set(mediaFiles.map(m => m.id));
-      for (const id of Array.from(stashedIdsRef.current)) {
-        if (current.has(id)) continue;
-        stashedIdsRef.current.delete(id);
-        void store.remove(COMPOSER_STASH, id).catch(() => {});
-      }
-      let budget = COMPOSER_STASH_MAX_BYTES;
-      for (const m of mediaFiles) {
-        const file = m.file ?? m.sourceFile;
-        if (!file) continue;
-        budget -= file.size;
-        if (budget < 0) break;
-        if (stashedIdsRef.current.has(m.id)) continue;
-        stashedIdsRef.current.add(m.id);
-        void store.save(COMPOSER_STASH, m.id, file).catch(() => stashedIdsRef.current.delete(m.id));
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [isOpen, mediaFiles]);
-  const clearComposerStash = () => {
-    stashedIdsRef.current.clear();
-    const store = composerStash();
-    if (store) void store.clearSession(COMPOSER_STASH).catch(() => {});
-  };
-  const restoreStashedMedia = async () => {
-    const store = composerStash();
-    if (!store) return;
-    const entries = await store.listSession(COMPOSER_STASH).catch(() => []);
-    if (entries.length === 0) return;
-    setMediaFiles(prev => {
-      const have = new Set(prev.map(m => m.id));
-      const room = Math.max(0, MAX_MEDIA_FILES - prev.length);
-      const restored = entries
-        .filter(e => !have.has(e.localId))
-        .slice(0, room)
-        .map((e): MediaFile => {
-          stashedIdsRef.current.add(e.localId);
-          const objectUrl = URL.createObjectURL(e.file);
-          return {
-            id: e.localId,
-            url: objectUrl,
-            type: e.file.type.startsWith('video/') ? 'video' : 'image',
-            size: e.file.size,
-            file: e.file,
-            preview: objectUrl,
-            sourceFile: e.file,
-            edited: false,
-          };
-        });
-      return restored.length ? [...prev, ...restored] : prev;
-    });
-  };
-
   // Tagging people
   const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
   const [taggedProfilesData, setTaggedProfilesData] = useState<{id: string; name: string}[]>([]);
@@ -341,6 +283,53 @@ export default function CreatePostModal({
     allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
     maxAssets: MAX_MEDIA_FILES,
     output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
+  };
+
+  // THE upload queue (video posters PR 2, Oct 13 2026): a tile's bytes leave
+  // the device from the moment it is attached — one at a time, in the
+  // background, with progress on the tile, a Retry on failure that keeps the
+  // file, a retry by itself when the connection returns; Post waits on
+  // `settle()`. The bytes sit in the IndexedDB stash meanwhile (crash
+  // recovery — the Oct 10 draft offer restores them). A photo the person
+  // never edited is resized to the composer's cap in the queue's prepare
+  // step (C4 — on the device chain, AFTER the tile, never on the attach
+  // path); its original follows after the post exists, like an edited
+  // video's. The ids the editor minted are tracked so an edited render is
+  // never resized again.
+  const editedIdsRef = useRef<Set<string>>(new Set());
+  const uploads = useMediaUploadQueue({
+    sessionId: COMPOSER_STASH,
+    // The bytes stay until Post or a discard: a reload before Post rebuilds
+    // the tiles from them (the Oct 10 draft offer) — the stored URL lives
+    // only in memory.
+    keepStashedAfterUpload: true,
+    // Acting-as: media belongs to the athlete's post, so it lands under the
+    // ATHLETE's storage prefix (the server validates via the acting-as gate).
+    targetProfileId: () => activeProfile?.id,
+    prepare: async (file, localId) => {
+      if (editedIdsRef.current.has(localId) || !file.type.startsWith('image/')) return null;
+      const prepared = await prepareImageForUpload(file, COMPOSER_EDITOR_CONFIG.output);
+      return { file: prepared.file, original: prepared.resized ? prepared.original : undefined, width: prepared.width, height: prepared.height };
+    },
+    notify: showError,
+  });
+  const queue = uploads.queue;
+  const clearComposerStash = () => queue.clearStash();
+  const restoreStashedMedia = async () => {
+    const { restored } = await queue.resumeFromStash();
+    if (restored.length === 0) return;
+    setMediaFiles(prev => {
+      const have = new Set(prev.map(m => m.id));
+      const room = Math.max(0, MAX_MEDIA_FILES - prev.length);
+      const fresh = restored
+        .filter(r => !have.has(r.item.localId))
+        .slice(0, room)
+        .map(({ item, file }): MediaFile => {
+          const objectUrl = queue.previewFor(item.localId) ?? URL.createObjectURL(file);
+          return { id: item.localId, url: objectUrl, type: item.kind, size: file.size, file, preview: objectUrl, sourceFile: file, edited: false };
+        });
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
   };
 
   // Reset form (back to the caller's default sport, not hardcoded 'general' —
@@ -377,6 +366,7 @@ export default function CreatePostModal({
     // is crash recovery, not resurrecting decisions.
     clearComposerDraft();
     clearComposerStash();
+    queue.forgetAll();
     setAvailableDraft(null);
     reset();
     onClose();
@@ -430,14 +420,17 @@ export default function CreatePostModal({
     {
       const { attach, editor } = planPickAttach(accepted, source);
       if (attach.length > 0) {
+        // The tile first; the queue starts the upload on a microtask.
+        const items = queue.register(attach);
         setMediaFiles(prev => [
           ...prev,
-          ...attach.map((file): MediaFile => {
-            const objectUrl = URL.createObjectURL(file);
+          ...attach.map((file, i): MediaFile => {
+            const item = items[i];
+            const objectUrl = queue.previewFor(item.localId) ?? URL.createObjectURL(file);
             return {
-              id: `${Date.now()}-${Math.random()}`,
+              id: item.localId,
               url: objectUrl,
-              type: file.type.startsWith('video/') ? 'video' : 'image',
+              type: item.kind,
               size: file.size,
               file,
               preview: objectUrl,
@@ -451,7 +444,7 @@ export default function CreatePostModal({
       setEditingExistingId(null);
       setEditorAssets(editor.map(toAsset));
     }
-  }, [mediaFiles.length, showError]);
+  }, [mediaFiles.length, queue, showError]);
 
   // Capture v2: an attached video's own <video preload="metadata"> reports its
   // size and duration for free — no extra probe load. MediaRecorder files say
@@ -475,36 +468,53 @@ export default function CreatePostModal({
   // Capture v2: a poster for an attached video, AFTER the tile is on screen,
   // one at a time, with a deadline — never on the path to the tile. A miss
   // leaves the tile on its own first frame and the post without a thumbnail.
+  // The poster plan (poster-plan.ts): a timeout grabs once more after the
+  // main upload landed (the device is idle then), a decode failure (Android +
+  // an HEVC clip) leaves the poster to the server job at once.
   const posterInFlightRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (posterInFlightRef.current.size > 0) return;
-    const candidate = mediaFiles.find(
-      f => f.type === 'video' && !f.edited && f.posterBlob === undefined && !!f.sourceFile
-    );
+    const candidate = mediaFiles.find(f => {
+      if (f.type !== 'video' || f.edited || !f.sourceFile) return false;
+      if (f.posterBlob === undefined) return true;
+      if (f.posterBlob !== null || f.posterFailure === 'decode') return false;
+      const attempts = f.posterAttempts ?? 0;
+      return attempts < MAX_DEVICE_POSTER_ATTEMPTS && uploads.itemFor(f.id)?.status === 'stored';
+    });
     if (!candidate || !candidate.sourceFile) return;
     const id = candidate.id;
     const source = candidate.sourceFile;
+    const attempt = (candidate.posterAttempts ?? 0) + 1;
+    const deadline = attempt === 1 ? POSTER_GRAB_DEADLINE_MS : POSTER_RETRY_DEADLINE_MS;
     posterInFlightRef.current.add(id);
     let settled = false;
-    const finish = (blob: Blob | null) => {
+    const finish = (blob: Blob | null, failure?: PosterFailure) => {
       if (settled) return;
       settled = true;
       posterInFlightRef.current.delete(id);
+      if (blob) queue.attachPoster(id, blob);
+      const plan = blob ? null : planPosterRetry(attempt, failure ?? 'timeout');
       setMediaFiles(prev =>
         prev.map(f =>
-          f.id === id && f.posterBlob === undefined
-            ? { ...f, posterBlob: blob ?? null, posterPreviewUrl: blob ? URL.createObjectURL(blob) : undefined }
+          f.id === id && (f.posterBlob === undefined || f.posterBlob === null)
+            ? {
+                ...f,
+                posterBlob: blob ?? null,
+                posterPreviewUrl: blob ? URL.createObjectURL(blob) : undefined,
+                posterAttempts: attempt,
+                posterFailure: blob ? undefined : plan?.action === 'server' ? 'decode' : failure ?? 'timeout',
+              }
             : f
         )
       );
     };
-    const timer = setTimeout(() => finish(null), 6000);
+    const timer = setTimeout(() => finish(null, 'timeout'), deadline);
     void import('@/lib/media/poster')
       .then(({ capturePoster }) => capturePoster(source, posterTimeFor(candidate.durationSeconds)))
       .then(blob => finish(blob))
-      .catch(() => finish(null))
+      .catch(err => finish(null, err && typeof err === 'object' && 'failure' in err ? (err as { failure: PosterFailure }).failure : 'canvas'))
       .finally(() => clearTimeout(timer));
-  }, [mediaFiles]);
+  }, [mediaFiles, uploads, queue]);
 
   // Editor finished: append new assets, or swap the re-edited one in place
   const handleEditorDone = (results: EditedMedia[]) => {
@@ -518,22 +528,44 @@ export default function CreatePostModal({
       sourceFile: r.sourceFile,
       recipe: r.recipe,
       posterBlob: r.posterBlob,
+      // The editor's cover (a chosen frame, PR 4 a photo) is the tile's poster at once.
+      posterPreviewUrl: r.posterBlob ? URL.createObjectURL(r.posterBlob) : undefined,
       width: r.width,
       height: r.height,
       durationSeconds: r.durationSeconds,
       edited: r.edited,
     });
+    // An edited PHOTO's original rides inline (the recipe and the source land
+    // together — media-reedit.spec pins it); an edited VIDEO's follows after
+    // the post exists (deferred — see handleSubmit).
+    const queueExtras = (localId: string, r: EditedMedia) => {
+      if (r.edited) editedIdsRef.current.add(localId);
+      if (r.edited && r.sourceFile && r.kind === 'image') queue.attachOriginal(localId, r.sourceFile);
+    };
     if (editingExistingId) {
       const replaced = results[0];
+      if (replaced) {
+        if (replaced.edited) editedIdsRef.current.add(editingExistingId);
+        queue.replaceWithEdited(editingExistingId, replaced.file, { previewUrl: replaced.previewUrl, posterBlob: replaced.posterBlob });
+        queueExtras(editingExistingId, replaced);
+      }
       setMediaFiles(prev =>
         prev.map(f => {
           if (f.id !== editingExistingId || !replaced) return f;
-          if (f.preview) URL.revokeObjectURL(f.preview); // old blob preview
+          if (f.preview && f.preview !== replaced.previewUrl) URL.revokeObjectURL(f.preview); // old blob preview
+          if (f.posterPreviewUrl) URL.revokeObjectURL(f.posterPreviewUrl);
           return { ...toMediaFile(replaced), id: f.id };
         })
       );
     } else {
-      setMediaFiles(prev => [...prev, ...results.map(toMediaFile)]);
+      const fresh = results.map(r => {
+        const [item] = queue.register([r.file]);
+        if (r.edited) editedIdsRef.current.add(item.localId);
+        if (r.posterBlob) queue.attachPoster(item.localId, r.posterBlob);
+        queueExtras(item.localId, r);
+        return { ...toMediaFile(r), id: item.localId };
+      });
+      setMediaFiles(prev => [...prev, ...fresh]);
     }
     setEditorAssets(null);
     setEditingExistingId(null);
@@ -570,6 +602,7 @@ export default function CreatePostModal({
   // Remove media file
   const removeMediaFile = (fileId: string) => {
     const file = mediaFiles.find(f => f.id === fileId);
+    queue.forget(fileId); // a landing upload of its bytes is ignored; its stash entry goes
     if (file?.preview) {
       URL.revokeObjectURL(file.preview);
     }
@@ -630,88 +663,23 @@ export default function CreatePostModal({
     }
   };
 
-  // Upload one media file (+ its video poster frame, when the editor made
-  // one, + the untouched ORIGINAL when the render differs — non-destructive
-  // media, migration 120; a missing original degrades to re-editing the
-  // render, never fails the post).
-  //
-  // `deferOriginal` (Oct 4 2026): an edited VIDEO's original is big and the
-  // post needs only the render — the caller creates the post, then hands the
-  // returned File to attachOriginalInBackground. Photos and the golf share
-  // path keep the original inline (small, or a flow that owns its own
-  // attach step).
-  const uploadMediaWithPoster = async (
-    mediaFile: MediaFile,
-    options: { deferOriginal?: boolean } = {}
-  ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string; deferredOriginal?: File }> => {
+  // What a tile's upload produced (video posters PR 2): the queue uploaded
+  // the render (resized at Post-time for an unedited photo), its poster and an
+  // edited photo's original from the moment it was attached; here we WAIT
+  // for the item and read the URLs. A failed item throws — Post stops and
+  // the tile's Retry is the way on. The original that waits for the post:
+  // an edited VIDEO's source, or the post-time resize's original.
+  const uploadedFor = async (
+    mediaFile: MediaFile
+  ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string; deferredOriginal?: File; item?: QueueItem }> => {
     if (!mediaFile.file) return { url: mediaFile.url };
-    // `item` is the file as it will upload — a narrowed copy, so the C4
-    // resize below can swap the render in without losing the type.
-    let item: MediaFile & { file: File } = { ...mediaFile, file: mediaFile.file };
-    // C4 (speed round 2): a photo the person never edited is resized to the
-    // composer's cap HERE, at Post — never at attach — and its original
-    // follows in the background like an edited video's. Fails open to the
-    // original file.
-    let resizedHere = false;
-    if (options.deferOriginal && item.type === 'image' && !item.edited) {
-      const prepared = await prepareImageForUpload(item.file, COMPOSER_EDITOR_CONFIG.output);
-      if (prepared.resized && prepared.original) {
-        resizedHere = true;
-        item = {
-          ...item,
-          file: prepared.file,
-          sourceFile: prepared.original,
-          edited: true,
-          width: prepared.width ?? item.width,
-          height: prepared.height ?? item.height,
-        };
-      }
+    const item = await queue.waitFor(mediaFile.id);
+    if (item.status === 'failed' || !item.storedUrl) {
+      throw new UploadError(item.failure?.kind ?? 'refused', 'A file did not upload — tap Retry on it, or remove it');
     }
-    // What waits for nothing: an edited VIDEO's original, and a photo's
-    // original when the only "edit" was this resize. A photo the person
-    // edited in the editor keeps its original inline (small; the recipe and
-    // the source land together — media-reedit.spec pins it).
-    const defer = !!options.deferOriginal && !!item.edited && !!item.sourceFile && (item.type === 'video' || resizedHere);
-    // Acting-as: media belongs to the athlete's post, so it must land under
-    // the ATHLETE's storage prefix (server validates via the acting-as gate).
-    const targetId = activeProfile?.id;
-    // Progress is byte-weighted over the parts this file sends (the render,
-    // then the original when the render differs); the poster is noise.
-    const parts = [
-      { bytes: item.file.size, fraction: 0 },
-      ...(item.edited && item.sourceFile && !defer ? [{ bytes: item.sourceFile.size, fraction: 0 }] : []),
-    ];
-    const report = (index: number, fraction: number) => {
-      parts[index].fraction = fraction;
-      const progress = weightedProgress(parts);
-      setMediaFiles(prev => prev.map(f => (f.id === item.id ? { ...f, uploadProgress: progress } : f)));
-    };
-    report(0, 0);
-    const { url } = await uploadPostMedia(item.file, targetId, { onProgress: f => report(0, f) });
-    let thumbnailUrl: string | undefined;
-    if (item.posterBlob) {
-      try {
-        const poster = new File([item.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
-        thumbnailUrl = (await uploadPostMedia(poster, targetId)).url;
-      } catch (err) {
-        // A poster is a nice-to-have — never fail the post over it
-        console.warn('Poster upload failed:', err);
-      }
-    }
-    let sourceUrl: string | undefined;
-    if (defer) {
-      report(parts.length - 1, 1);
-      return { url, thumbnailUrl, deferredOriginal: item.sourceFile };
-    }
-    if (item.edited && item.sourceFile) {
-      try {
-        sourceUrl = (await uploadPostMedia(item.sourceFile, targetId, { onProgress: f => report(1, f) })).url;
-      } catch (err) {
-        console.warn('Original upload failed (render still posts):', err);
-      }
-    }
-    report(parts.length - 1, 1);
-    return { url, thumbnailUrl, sourceUrl };
+    const deferredOriginal =
+      mediaFile.edited && mediaFile.type === 'video' ? mediaFile.sourceFile : queue.originalFor(mediaFile.id) ?? undefined;
+    return { url: item.storedUrl, thumbnailUrl: item.posterUrl, sourceUrl: item.sourceUrl, deferredOriginal, item };
   };
 
   // Validation
@@ -775,7 +743,7 @@ export default function CreatePostModal({
           caption,
           visibility: POST_VISIBILITY,
           mediaFiles,
-          uploadMediaWithPoster,
+          uploadMediaWithPoster: uploadedFor,
           showSuccess,
           showError,
           // Guardian "Posting as": the composer seeds the ATHLETE's identity
@@ -807,16 +775,30 @@ export default function CreatePostModal({
         return;
       }
 
-      // Upload media files (for individual posts)
-      // One at a time (Capture v2): nothing heavy runs client-side any more,
-      // but one file in flight is the safe default on a phone.
+      // The uploads ran from attach (the queue); Post waits for the queue to
+      // drain and refuses while a tile is failed — nothing already uploaded
+      // is lost on a failed Post: the queue keeps the stored URLs.
+      const settled = await queue.settle();
+      if (settled.failed > 0) {
+        showError('A file did not upload', 'Tap Retry on it, or remove it, then post.');
+        return;
+      }
       const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
-      // An edited video's ORIGINAL follows after the post exists (by index —
-      // the server orders post_media by the sortOrder sent below).
+      // An edited video's ORIGINAL (and a resized photo's) follows after the
+      // post exists (by index — the server orders post_media by the sortOrder
+      // sent below).
       const deferredOriginals: Array<{ index: number; file: File }> = [];
       for (const [index, file] of mediaFiles.entries()) {
-        const { url, thumbnailUrl, sourceUrl, deferredOriginal } = await uploadMediaWithPoster(file, { deferOriginal: true });
-        uploadedMedia.push({ ...file, url, thumbnailUrl, sourceUrl });
+        const { url, thumbnailUrl, sourceUrl, deferredOriginal, item } = await uploadedFor(file);
+        uploadedMedia.push({
+          ...file,
+          url,
+          thumbnailUrl,
+          sourceUrl,
+          width: item?.prepared?.width ?? file.width,
+          height: item?.prepared?.height ?? file.height,
+          edited: file.edited || !!item?.prepared?.resized,
+        });
         if (deferredOriginal) deferredOriginals.push({ index, file: deferredOriginal });
       }
 
@@ -1105,6 +1087,7 @@ export default function CreatePostModal({
                     className={`relative aspect-square bg-surface-sunken rounded-lg overflow-hidden cursor-move ${
                       draggedIndex === index ? 'opacity-50' : ''
                     }`}
+                    data-media-upload={uploads.itemFor(file.id)?.status ?? (file.file ? 'pending' : 'stored')}
                   >
                     {/* Media number badge */}
                     <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
@@ -1134,6 +1117,9 @@ export default function CreatePostModal({
                         <VideoFrame
                           src={file.url}
                           poster={file.posterPreviewUrl}
+                          state={frameStateOf(uploads.itemFor(file.id))}
+                          progress={uploads.itemFor(file.id)?.progress}
+                          onRetry={() => queue.retry(file.id)}
                           onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
                           alt=""
                           className="w-full h-full"
@@ -1146,22 +1132,35 @@ export default function CreatePostModal({
                       </>
                     )}
 
-                    {/* Upload progress (direct upload): a bar + the number while
-                        this file's bytes leave the device. */}
-                    {isSubmitting && file.uploadProgress !== undefined && file.uploadProgress < 1 && (
+                    {/* A photo's upload state (a video's is VideoFrame's own):
+                        the bar + the number while its bytes leave the device,
+                        a Retry that keeps the file when they did not. */}
+                    {file.type === 'image' && uploads.itemFor(file.id)?.status === 'pending' && (
                       <div
                         role="progressbar"
                         aria-label="Upload progress"
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={Math.round(file.uploadProgress * 100)}
+                        aria-valuenow={Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}
                         className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1"
                       >
                         <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-1">
-                          <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round(file.uploadProgress * 100)}%` }} />
+                          <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%` }} />
                         </div>
-                        {Math.round(file.uploadProgress * 100)}%
+                        {Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%
                       </div>
+                    )}
+                    {file.type === 'image' && uploads.itemFor(file.id)?.status === 'failed' && (
+                      <button
+                        type="button"
+                        onClick={() => queue.retry(file.id)}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-900/60 px-2 text-center text-xs font-semibold text-white"
+                        aria-label="Retry upload"
+                        data-media-retry=""
+                      >
+                        <i className="fas fa-rotate-right" aria-hidden="true"></i>
+                        <span>Upload failed — tap to retry</span>
+                      </button>
                     )}
 
                     {/* Remove button. Padding grows the 24px circle to a 40px
@@ -1508,7 +1507,7 @@ export default function CreatePostModal({
               {isSubmitting ? (
                 <>
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  {uploadingLine(mediaFiles.map(f => f.uploadProgress)) ?? (isLiveSetup ? 'Starting…' : 'Creating...')}
+                  {uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? (isLiveSetup ? 'Starting…' : 'Creating...')}
                 </>
               ) : isLiveSetup ? (
                 <>

@@ -8,6 +8,16 @@ import { fitWithin, MAX_CANVAS_DIM } from './limits';
 
 const POSTER_MAX_DIM = 1280;
 
+/** Why a grab failed — the poster plan (poster-plan.ts) decides from it whether to retry here or leave it to the server. */
+export class PosterError extends Error {
+  readonly failure: 'decode' | 'canvas';
+  constructor(failure: 'decode' | 'canvas', message: string) {
+    super(message);
+    this.name = 'PosterError';
+    this.failure = failure;
+  }
+}
+
 /**
  * MediaRecorder-produced files (screen recordings, in-browser captures)
  * report duration = Infinity until forced to the end once. Returns the real
@@ -35,7 +45,7 @@ function loadVideo(url: string): Promise<HTMLVideoElement> {
     video.muted = true;
     video.playsInline = true;
     video.onloadedmetadata = () => resolve(video);
-    video.onerror = () => reject(new Error('Video could not be loaded'));
+    video.onerror = () => reject(new PosterError('decode', 'Video could not be loaded'));
     video.src = url;
   });
 }
@@ -43,7 +53,7 @@ function loadVideo(url: string): Promise<HTMLVideoElement> {
 function seek(video: HTMLVideoElement, time: number): Promise<void> {
   return new Promise((resolve, reject) => {
     video.onseeked = () => resolve();
-    video.onerror = () => reject(new Error('Video seek failed'));
+    video.onerror = () => reject(new PosterError('decode', 'Video seek failed'));
     video.currentTime = Math.min(Math.max(time, 0), Math.max(0, video.duration - 0.05));
   });
 }
@@ -64,10 +74,10 @@ export async function capturePoster(file: File, timeSec: number): Promise<Blob> 
     canvas.width = size.width;
     canvas.height = size.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D context unavailable');
+    if (!ctx) throw new PosterError('canvas', 'Canvas 2D context unavailable');
     ctx.drawImage(video, 0, 0, size.width, size.height);
     const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Poster export failed'))), 'image/jpeg', 0.82)
+      canvas.toBlob(b => (b ? resolve(b) : reject(new PosterError('canvas', 'Poster export failed'))), 'image/jpeg', 0.82)
     );
     canvas.width = 0;
     canvas.height = 0;

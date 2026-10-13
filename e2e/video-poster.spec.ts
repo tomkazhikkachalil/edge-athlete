@@ -58,8 +58,11 @@ test('a recorded clip posts with its poster; the feed card shows the poster and 
   await page.getByRole('button', { name: /create a post/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page.locator('input[type="file"][accept="video/*"]').setInputFiles(clip!);
-  // The tile: the local file previews itself, then wears its poster.
-  const tile = page.locator('[data-video-frame]').first();
+  // The tile: the local file previews itself, then wears its poster. Scoped
+  // to the composer's tile — the feed behind the composer has video cards of
+  // its own (production's older posts, poster-less), and an unscoped first()
+  // matched one of them (the Oct 13 prod probe).
+  const tile = page.locator('[data-media-upload] [data-video-frame]').first();
   await expect(tile).toBeVisible({ timeout: 5_000 });
   await expect(tile).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
 
@@ -103,7 +106,7 @@ test('a cover chosen in the editor rides the post @mobile', { tag: '@mobile' }, 
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height / 2);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 60_000 });
-  await expect(page.locator('[data-video-frame]').first()).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
+  await expect(page.locator('[data-media-upload] [data-video-frame]').first()).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
 
   const marker = `Cover clip ${Date.now()}`;
   await page.getByPlaceholder('Share your thoughts...').fill(marker);

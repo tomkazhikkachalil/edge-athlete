@@ -24,6 +24,29 @@ export interface UploadedMedia {
   type: 'image' | 'video';
   /** True when the server re-muxed the video to drop its metadata. */
   scrubbed?: boolean;
+  /** True when the server will still convert the file (an iPhone HEVC clip — the media jobs, PR 8). */
+  processing?: boolean;
+  /** The video track's codec the server read at completion (PR 7). */
+  codec?: string;
+}
+
+/** Why an upload failed — the queue decides from it what a reconnect retries. */
+export type UploadFailureKind = 'network' | 'offline' | 'refused' | 'too-large';
+
+export class UploadError extends Error {
+  readonly kind: UploadFailureKind;
+  constructor(kind: UploadFailureKind, message: string) {
+    super(message);
+    this.name = 'UploadError';
+    this.kind = kind;
+  }
+}
+
+/** The kind of any thrown value: an UploadError's own; a fetch that never reached the server (TypeError) is `network`; anything else `refused`. */
+export function failureKindOf(err: unknown): UploadFailureKind {
+  if (err instanceof UploadError) return err.kind;
+  if (err instanceof TypeError) return 'network';
+  return 'refused';
 }
 
 async function withoutJpegMetadata(file: File): Promise<File> {
@@ -71,13 +94,13 @@ function putToStorage(signedUrl: string, file: File, onProgress?: (fraction: num
         onProgress?.(1);
         resolve();
       } else if (xhr.status === 413) {
-        reject(new Error('That file is too large to upload'));
+        reject(new UploadError('too-large', 'That file is too large to upload'));
       } else {
-        reject(new Error('The upload did not finish — please try again'));
+        reject(new UploadError('refused', 'The upload did not finish — please try again'));
       }
     };
-    xhr.onerror = () => reject(new Error('The upload was interrupted — check your connection and try again'));
-    xhr.onabort = () => reject(new Error('The upload was cancelled'));
+    xhr.onerror = () => reject(new UploadError('network', 'The upload was interrupted — check your connection and try again'));
+    xhr.onabort = () => reject(new UploadError('network', 'The upload was cancelled'));
     xhr.send(file);
   });
 }
@@ -104,8 +127,8 @@ export async function uploadPostMedia(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: body.type, size: body.size, ...target }),
-  });
-  if (!intent.ok) throw new Error(await readError(intent, 'Failed to upload media'));
+  }).catch(err => { throw new UploadError('network', err instanceof Error && err.message ? 'The upload could not start — check your connection' : 'The upload could not start'); });
+  if (!intent.ok) throw new UploadError(intent.status === 413 ? 'too-large' : 'refused', await readError(intent, 'Failed to upload media'));
   const { path, signedUrl } = (await intent.json()) as { path: string; signedUrl: string };
 
   await putToStorage(signedUrl, body, options.onProgress);
@@ -114,12 +137,18 @@ export async function uploadPostMedia(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, ...target }),
-  });
+  }).catch(() => { throw new UploadError('network', 'The upload was interrupted — check your connection and try again'); });
   const payload = complete.ok ? await complete.json().catch(() => ({})) : null;
   if (!complete.ok || !payload?.url) {
-    throw new Error(complete.ok ? 'Failed to upload media' : await readError(complete, 'Failed to upload media'));
+    throw new UploadError(complete.status === 413 ? 'too-large' : 'refused', complete.ok ? 'Failed to upload media' : await readError(complete, 'Failed to upload media'));
   }
-  return { url: payload.url, type: payload.type === 'video' ? 'video' : 'image', scrubbed: payload.scrubbed === true };
+  return {
+    url: payload.url,
+    type: payload.type === 'video' ? 'video' : 'image',
+    scrubbed: payload.scrubbed === true,
+    ...(payload.processing === true ? { processing: true } : {}),
+    ...(typeof payload.codec === 'string' ? { codec: payload.codec } : {}),
+  };
 }
 
 /**

@@ -150,6 +150,11 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   'src/app/api/upload/post-media/route.ts': { marker: 'posts/', keep: { kind: 'url', table: 'post_media' } },
   // The direct upload's finalize (Oct 2026): a scrubbed video written to posts/ — the post's URL keeps it.
   'src/lib/media/upload-server.ts': { marker: 'postsKey', keep: { kind: 'url', table: 'post_media' } },
+  // The one upload queue (video posters PR 2a, Oct 13 2026) calls its INJECTED uploader (`opts.upload(` —
+  // uploadPostMedia → intent / complete → posts/); it writes nothing to storage itself. Its files are kept
+  // by the row the host writes the URL into: post_media (the composer, Edit post), workout_sets.media
+  // (the collector) or activity_media.
+  'src/lib/media/upload-queue.ts': { marker: 'opts.upload(', keep: { kind: 'url', table: 'post_media' } },
   // No in-app caller today; a client that uses it stores the returned public URL (post media).
   'src/app/api/upload/route.ts': { marker: '${userId}/', keep: { kind: 'url', table: 'post_media' } },
   'src/app/api/upload/equipment/route.ts': { marker: 'equipment/', keep: { kind: 'url', table: 'athlete_equipment' } },
