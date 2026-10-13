@@ -65,10 +65,26 @@ all of them or it is silently dropped.
 timer · Don't time this workout · Discard; `LiveClock` with Start/Pause beside it;
 only a FAILED save shows a label), `ExerciseCard` (rename in place through its menu;
 grouped mode: rows R1 · R2 …, a deleted row is the round across the group), `ExerciseGroupCard`
-("Round N of R", the rounds stepper, Add round), `AddExerciseSheet` (one pick, or
-several for a superset / circuit), `WorkoutControls` (the bottom bar: Rest, the target
-chip, Stopwatch with Save to set; the screen owns its bottom edge — `/app/workout/`
-hides the tab bar), `FinishFlow` (the summary tiles, then Share / Keep private).
+("Round N of R", the rounds stepper, Add round; **rounds as a swipe, Oct 13 2026** —
+in SWIPE view, the default, the members sit on ONE slide per round through
+`RoundsTrack`, each an `ExerciseCard` rendering only that round's row
+(`grouped.onlyRound`); the header names the slide in view; completing the round in
+view advances to the next; "Copy previous round" fills an empty round from the one
+before; the menu's List view is the Oct 12 rendering — a device preference,
+`timer-prefs.ts readGroupView`, like the one-time "Swipe to move between rounds"
+hint), `RoundsTrack` (the ONE carousel: `snap-x snap-mandatory`, the index controlled
+by its host, programmatic moves set `scrollLeft` — never `scrollIntoView` — smooth
+unless the device prefers reduced motion, no `touch-action` so the page still scrolls
+vertically from a touch on a round, slides out of view `inert`), `GroupDetailCard`
+(a finished workout's group in the post AND the history card: "Circuit · 4 rounds ·
+1,200 lbs" over the rounds' track, a tap expands every round), `AddExerciseSheet`
+(one pick, or several for a superset / circuit), `WorkoutControls` (the bottom bar:
+Rest, the target chip, Stopwatch with Save to set; the screen owns its bottom edge —
+`/app/workout/` hides the tab bar; **the bar publishes its height as
+`--ea-workout-bar-h`** and the editor's `.ea-bar-clearance` follows it, so the open
+stopwatch panel — always mounted, animating `max-height` — takes its own space
+instead of covering the Add buttons), `FinishFlow` (the summary tiles, then Share /
+Keep private).
 
 ## What counts where
 

@@ -5,7 +5,8 @@ import { Bookmark, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Trash2 } fro
 import { computeSummary, formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
-import { groupLine } from '@/lib/workouts/groups';
+import { renderItems } from '@/lib/workouts/groups';
+import GroupDetailCard from './GroupDetailCard';
 import SetMediaStrip from './SetMediaStrip';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
@@ -153,20 +154,19 @@ export default function WorkoutCard({
           {entries.length === 0 && (
             <p className="text-xs text-muted">No exercises logged.</p>
           )}
-          {entries.map((exercise, index) => (
-            <div key={index}>
-              {exercise.groupId && exercise.groupKind && (index === 0 || entries[index - 1].groupId !== exercise.groupId) && (
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-fg-strong" data-detail-group={exercise.groupKind}>{groupLine(exercise.groupKind, exercise.groupRounds ?? exercise.sets.length)}</p>
-              )}
-              <p className="text-xs font-bold text-secondary">{exercise.name}</p>
-              {exercise.notes && (
-                <p className="text-xs text-muted italic">{exercise.notes}</p>
+          {renderItems(entries).map(item => item.type === 'group' ? (
+            <GroupDetailCard key={item.group.groupId} kind={item.group.kind} rounds={item.group.rounds} members={item.group.members} tone="history" />
+          ) : (
+            <div key={item.index}>
+              <p className="text-xs font-bold text-secondary">{item.exercise.name}</p>
+              {item.exercise.notes && (
+                <p className="text-xs text-muted italic">{item.exercise.notes}</p>
               )}
               <div className="mt-1 space-y-1">
-                {exercise.sets.map((set, setIndex) => (
+                {item.exercise.sets.map((set, setIndex) => (
                   <div key={setIndex}>
                     <p className="text-xs text-tertiary">
-                      <span className="text-faint">{exercise.groupId ? 'Round' : 'Set'} {set.setNumber}</span> · {formatSetLine(set)}
+                      <span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}
                     </p>
                     {set.media.length > 0 && <SetMediaStrip media={set.media} />}
                   </div>

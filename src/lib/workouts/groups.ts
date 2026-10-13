@@ -13,7 +13,7 @@
 // touches the DOM.
 
 import { emptyEntrySet, MAX_GROUP_ROUNDS, type EntryExercise, type EntrySet, type ExerciseGroupKind } from './entries';
-import { setHasData } from './summary';
+import { setHasData, toLbs } from './summary';
 
 export const GROUP_DEFAULT_ROUNDS = 3;
 export const GROUP_LABEL: Readonly<Record<ExerciseGroupKind, string>> = { superset: 'Superset', circuit: 'Circuit' };
@@ -215,4 +215,45 @@ export function currentRound(g: Pick<ExerciseGroup, 'rounds' | 'members'>): numb
 /** "Superset · 3 rounds" — the one spelling the cards and the summary share. */
 export function groupLine(kind: ExerciseGroupKind, rounds: number): string {
   return `${GROUP_LABEL[kind]} · ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
+}
+
+// ── Rounds as a swipe (workout fixes, Oct 13 2026) ──────────────────────────
+
+/** Any member's round k (0-based) holds data — "Copy previous round" is offered only onto an empty round. */
+export function roundHasData(members: ReadonlyArray<EntryExercise>, k: number): boolean {
+  return members.some(m => m.sets[k] && setHasData(m.sets[k]));
+}
+
+/**
+ * Round k (0-based, ≥ 1) takes round k−1's VALUES on every member — reps,
+ * weight and unit, duration, distance and unit — never media, completion or
+ * rest: those belong to the round that did them. The same array comes back
+ * for round 0, an unknown group or a member without the previous round.
+ */
+export function copyRound(exercises: ReadonlyArray<EntryExercise>, groupId: string, k: number): EntryExercise[] {
+  const g = groupsOf(exercises).find(x => x.groupId === groupId);
+  if (!g || k < 1 || k >= g.rounds) return [...exercises];
+  return exercises.map(e => {
+    if (e.groupId !== groupId) return e;
+    const previous = e.sets[k - 1];
+    const target = e.sets[k];
+    if (!previous || !target) return e;
+    const sets = e.sets.map((s, i) =>
+      i === k
+        ? { ...s, reps: previous.reps, weight: previous.weight, weightUnit: previous.weightUnit, durationSeconds: previous.durationSeconds, distance: previous.distance, distanceUnit: previous.distanceUnit }
+        : s,
+    );
+    return { ...e, sets };
+  });
+}
+
+/** Σ reps × weight (lbs) over a group's members — the post card's "· 1,200 lbs" line. */
+export function groupVolumeLbs(members: ReadonlyArray<EntryExercise>): number {
+  let volume = 0;
+  for (const m of members) {
+    for (const s of m.sets) {
+      if (s.weight !== null && s.weight > 0 && s.reps !== null && s.reps > 0) volume += s.reps * toLbs(s.weight, s.weightUnit);
+    }
+  }
+  return Math.round(volume);
 }

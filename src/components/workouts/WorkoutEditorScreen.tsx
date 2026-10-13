@@ -26,7 +26,8 @@ import ExerciseGroupCard from './ExerciseGroupCard';
 import WorkoutControls from './WorkoutControls';
 import { applyStopwatchToSet, completedSetDiff, REST_IDLE, restForCompletedSet, type RestTimer, type SetTarget, type Stopwatch } from '@/lib/workouts/rest';
 import { clearTimers, readTimers, writeTimers, TIMERS_IDLE, type TimersState } from '@/lib/workouts/timers-store';
-import { addRound, addToGroup, deleteRound, GROUP_HINT, GROUP_LABEL, makeGroup, removeFromGroup, removeGroup, renderItems, setRounds, ungroup } from '@/lib/workouts/groups';
+import { addRound, addToGroup, copyRound, deleteRound, GROUP_HINT, GROUP_LABEL, makeGroup, removeFromGroup, removeGroup, renderItems, setRounds, ungroup } from '@/lib/workouts/groups';
+import type { GroupView } from '@/lib/workouts/rounds-view';
 import { newId } from '@/lib/ids';
 import type { ExerciseGroupKind } from '@/lib/workouts/entries';
 import { FinishSummary, ShareStep } from './FinishFlow';
@@ -34,7 +35,7 @@ import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import { ensureClientIds, MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
 import { isTimed, workoutElapsedS } from '@/lib/workouts/timing';
-import { readTimerHidden, writeTimerHidden } from '@/lib/workouts/timer-prefs';
+import { readGroupView, readTimerHidden, writeGroupView, writeTimerHidden } from '@/lib/workouts/timer-prefs';
 import ActionMenu from '@/components/ActionMenu';
 import { isPendingMedia, stripPendingMedia } from '@/lib/workouts/set-media-pending';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
@@ -128,6 +129,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [timed, setTimed] = useState<boolean>(session ? isTimed(session) : true);
   const [clock, setClock] = useState<{ pausedSeconds: number; pausedAt: string | null }>({ pausedSeconds: session?.paused_seconds ?? 0, pausedAt: session?.paused_at ?? null });
   const [timerHidden, setTimerHidden] = useState<boolean>(() => readTimerHidden());
+  // Rounds as a swipe (Oct 13 2026): how every group on this device shows its rounds.
+  const [groupView, setGroupView] = useState<GroupView>(() => readGroupView());
+  const changeGroupView = (next: GroupView) => {
+    setGroupView(next);
+    writeGroupView(next);
+  };
   // ── The rest timer and the stopwatch (PR 4): screen state, kept on the device ──
   const [timers, setTimers] = useState<TimersState>(() => (mode === 'live' ? readTimers(draftId) : TIMERS_IDLE));
   const [lastEditedClientId, setLastEditedClientId] = useState<string | null>(null);
@@ -970,6 +977,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
               key={item.group.groupId}
               group={item.group}
               uploads={uploads}
+              view={groupView}
+              onSetView={changeGroupView}
               onChangeMember={handleExerciseChange}
               onRemoveMember={clientId => mutate(removeFromGroup(exercises, clientId))}
               onAddExercise={() => openAdd({ kind: 'addTo', groupId: item.group.groupId })}
@@ -980,6 +989,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
               }}
               onAddRound={() => mutate(addRound(exercises, item.group.groupId))}
               onDeleteRound={roundIndex => mutate(deleteRound(exercises, item.group.groupId, roundIndex))}
+              onCopyRound={roundIndex => mutate(copyRound(exercises, item.group.groupId, roundIndex))}
               onUngroup={() => mutate(ungroup(exercises, item.group.groupId))}
               onRemoveGroup={() => mutate(removeGroup(exercises, item.group.groupId))}
             />
