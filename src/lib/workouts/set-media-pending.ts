@@ -155,3 +155,28 @@ export function reattachPendingMedia<E extends NamedEntryExercise>(
       : { ...e, sets: e.sets.map((s, si) => (si !== setIndex ? s : { ...s, media: [...(s.media ?? []), { url, type: clip.type }] })) }
   );
 }
+
+/**
+ * A patch on the ONE entry with this URL (the poster landing after the clip
+ * — video posters PR 2b, Oct 13 2026). Found by URL, never by index; the same
+ * array comes back when nothing changed.
+ */
+export function patchMediaByUrl<E extends PendingEntryExercise>(exercises: E[], url: string, patch: Partial<Omit<E['sets'][number]['media'][number], 'url'>>): E[] {
+  let changed = false;
+  const next = exercises.map(exercise => {
+    let touched = false;
+    const sets = exercise.sets.map(set => {
+      const media = set.media ?? [];
+      const i = media.findIndex(m => m.url === url);
+      if (i < 0) return set;
+      const current = media[i] as unknown as Record<string, unknown>;
+      if (Object.entries(patch).every(([k, v]) => current[k] === v)) return set;
+      touched = true;
+      return { ...set, media: media.map((m, j) => (j === i ? { ...m, ...patch } : m)) };
+    });
+    if (!touched) return exercise;
+    changed = true;
+    return { ...exercise, sets };
+  });
+  return changed ? next : exercises;
+}

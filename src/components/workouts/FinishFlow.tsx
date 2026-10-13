@@ -300,7 +300,7 @@ function ShareClipRow({
         aria-label={`${selected ? 'Exclude' : 'Include'} ${label} media`}
         aria-pressed={selected}
       >
-        <SetMediaThumb url={clip.url} type={clip.type} size={64} />
+        <SetMediaThumb url={clip.url} type={clip.type} thumbnailUrl={clip.thumbnailUrl} size={64} />
         {selected && (
           <span className="absolute top-1 left-1 min-w-5 h-5 px-1 bg-brand text-white rounded-full text-xs font-bold flex items-center justify-center">
             {position}

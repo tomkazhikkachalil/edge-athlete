@@ -114,6 +114,9 @@ export function collectSetMediaPaths(mediaValues: unknown[]): string[] {
     for (const item of media) {
       const path = uploadsPathFromUrl((item as { url?: unknown } | null)?.url);
       if (path) paths.push(path);
+      // A clip's poster (video posters PR 2b) lives only in this jsonb — without this line the sweep deletes every workout poster.
+      const poster = uploadsPathFromUrl((item as { thumbnailUrl?: unknown } | null)?.thumbnailUrl);
+      if (poster) paths.push(poster);
     }
   }
   return paths;

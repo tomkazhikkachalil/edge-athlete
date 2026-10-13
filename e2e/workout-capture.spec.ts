@@ -138,6 +138,14 @@ test('a set clip is a tile at once, survives a reload mid-upload, a failed uploa
       await expect(tiles).toHaveCount(3, { timeout: 5_000 });
       await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
       await expect(page.locator('[data-set-media-tile][data-set-media-state="stored"]')).toHaveCount(3, { timeout: 60_000 });
+      // Video posters PR 2b: the clip's poster was grabbed after the tile, uploaded after
+      // the clip and written onto the entry — the read proxies it like the clip.
+      await expect.poll(async () => {
+        const session = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session;
+        const media = (session.exercises?.[0]?.sets?.[0]?.media ?? []) as Array<{ type: string; thumbnailUrl?: string }>;
+        const video = media.find(m => m.type === 'video');
+        return video?.thumbnailUrl?.startsWith('/api/media/') ? 'poster' : (video?.thumbnailUrl ?? 'none');
+      }, { timeout: 30_000 }).toBe('poster');
     }
     const expected = clip ? 3 : 2;
 
@@ -150,12 +158,15 @@ test('a set clip is a tile at once, survives a reload mid-upload, a failed uploa
     // What landed in storage, for the teardown.
     const { data: rows } = await admin.from('workout_sets').select('media, workout_exercises!inner(session_id)').eq('workout_exercises.session_id', workoutId);
     for (const row of rows ?? []) {
-      for (const m of (Array.isArray(row.media) ? row.media : []) as Array<{ url: string }>) {
+      for (const m of (Array.isArray(row.media) ? row.media : []) as Array<{ url: string; thumbnailUrl?: string }>) {
         const p = m.url.split('/public/uploads/')[1];
         if (p) storagePaths.push(p);
+        const poster = m.thumbnailUrl?.split('/public/uploads/')[1];
+        if (poster) storagePaths.push(poster);
       }
     }
-    expect(storagePaths).toHaveLength(expected);
+    // The clips, plus the video's poster.
+    expect(storagePaths.length).toBeGreaterThanOrEqual(expected);
   } finally {
     if (workoutId) await api.delete(`/api/workouts/${workoutId}`).catch(() => undefined);
     if (storagePaths.length > 0) await admin.storage.from('uploads').remove(storagePaths).catch(() => undefined);
