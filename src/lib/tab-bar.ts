@@ -31,7 +31,8 @@ const PLACES = ['/feed', '/sports', '/events', '/calendar', '/athlete', '/u', '/
 
 /** Screens that own their bottom edge (or render BrandBar): no bar. */
 // Live Activities (Oct 4 2026): the recorder owns its bottom edge (Start / Pause / Mark / Finish).
-const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/activities/record', '/app/diag', '/app/transfer', '/app/guardian/consent', '/app/guardian/add-athlete', '/app/guardian/credentials'] as const;
+// Workout screen PR 4 (Oct 12 2026): the workout screen owns its bottom edge too (Rest · Stopwatch).
+const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/activities/record', '/app/workout/', '/app/diag', '/app/transfer', '/app/guardian/consent', '/app/guardian/add-athlete', '/app/guardian/credentials'] as const;
 
 /** Phase 4: the live stat screen owns its bottom edge too (the entry strip) — a pattern, since the id sits in the middle. */
 const HIDDEN_PATTERNS: ReadonlyArray<RegExp> = [/^\/events\/[^/]+\/live$/];

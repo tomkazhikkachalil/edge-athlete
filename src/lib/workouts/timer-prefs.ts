@@ -4,6 +4,27 @@
 // blocked storage shows the clock).
 
 export const TIMER_HIDDEN_KEY = 'ea:workout:timer-hidden:v1';
+/** The rest timer's target (PR 4), seconds; absent = no target. */
+export const REST_TARGET_KEY = 'ea:workout:rest-target:v1';
+
+export function readRestTarget(): number | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(REST_TARGET_KEY) : null;
+    const n = raw === null ? Number.NaN : Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeRestTarget(seconds: number | null): void {
+  try {
+    if (seconds === null) localStorage.removeItem(REST_TARGET_KEY);
+    else localStorage.setItem(REST_TARGET_KEY, String(seconds));
+  } catch {
+    /* best-effort */
+  }
+}
 
 export function readTimerHidden(): boolean {
   try {

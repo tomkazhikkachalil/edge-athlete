@@ -1,0 +1,223 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer } from 'lucide-react';
+import { useToast } from '../Toast';
+import { haptic } from '@/lib/haptics';
+import { formatElapsed } from '@/lib/workouts/summary';
+import type { EntryExercise } from '@/lib/workouts/entries';
+import {
+  describeTarget,
+  REST_TARGET_PRESETS_S,
+  restElapsedS,
+  restTargetReached,
+  startRest,
+  stopRest,
+  stopwatchElapsedMs,
+  stopwatchReset,
+  stopwatchStart,
+  stopwatchStop,
+  stopwatchTarget,
+  type RestTimer,
+  type SetTarget,
+  type Stopwatch,
+} from '@/lib/workouts/rest';
+import { readRestTarget, writeRestTarget } from '@/lib/workouts/timer-prefs';
+
+// ── The bottom control bar (workout screen PR 4, Oct 12 2026) ───────────────
+// Tom: "a small control bar at the bottom of the workout screen with Rest …
+// and Stopwatch … Rest and stopwatch times do not pause the main workout
+// timer." The recorder's bottom-bar recipe (RecorderControls): fixed, above
+// the safe area; the screen owns its bottom edge (tab-bar.ts). The rules are
+// rest.ts (pure); this renders them and ticks once a second in a leaf.
+//
+// Rest: tap starts; marking ANY set complete ends it and writes the seconds
+// to that set (the editor does the write); tap again stops it and HOLDS the
+// value for the next completed set. The target (a device preference) turns
+// the number brand, vibrates where the phone can (Android; iOS has no web
+// vibration) and shows one toast. Stopwatch: Start / Stop / Reset; "Save to
+// set" writes whole seconds into the target set's duration.
+
+interface Props {
+  exercises: EntryExercise[];
+  rest: RestTimer;
+  onRest: (next: RestTimer) => void;
+  stopwatch: Stopwatch;
+  onStopwatch: (next: Stopwatch) => void;
+  lastEditedClientId: string | null;
+  onSaveStopwatch: (target: SetTarget, elapsedMs: number) => void;
+}
+
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = setInterval(tick, 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [active]);
+  return now;
+}
+
+export default function WorkoutControls({ exercises, rest, onRest, stopwatch, onStopwatch, lastEditedClientId, onSaveStopwatch }: Props) {
+  const { showInfo } = useToast();
+  const [targetS, setTargetS] = useState<number | null>(() => readRestTarget());
+  const [targetSheet, setTargetSheet] = useState(false);
+  const [stopwatchOpen, setStopwatchOpen] = useState(false);
+  const [pickTarget, setPickTarget] = useState(false);
+  const [chosenTarget, setChosenTarget] = useState<SetTarget | null>(null);
+  const running = rest.startedAt !== null || stopwatch.runningSince !== null;
+  const now = useNow(running);
+  const restS = restElapsedS(rest, now);
+  const reached = restTargetReached(rest, targetS, now);
+  // The alert, once per rest.
+  const alertedForRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!reached || rest.startedAt === null || alertedForRef.current === rest.startedAt) return;
+    alertedForRef.current = rest.startedAt;
+    haptic();
+    showInfo('Rest is up', targetS ? `${formatElapsed(targetS)} — next set.` : undefined);
+  }, [reached, rest.startedAt, targetS, showInfo]);
+
+  const swMs = stopwatchElapsedMs(stopwatch, now);
+  const autoTarget = stopwatchTarget(exercises, lastEditedClientId);
+  const target = chosenTarget && exercises.some(e => e.clientId === chosenTarget.clientId && e.sets[chosenTarget.setIndex]) ? chosenTarget : autoTarget;
+  const targetLabel = describeTarget(exercises, target);
+
+  const setTarget = (s: number | null) => {
+    writeRestTarget(s);
+    setTargetS(s);
+    setTargetSheet(false);
+  };
+
+  return (
+    <>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]" data-workout-controls={rest.startedAt !== null ? 'resting' : rest.heldS !== null ? 'rest-held' : 'idle'}>
+        <div className="mx-auto max-w-md">
+          {stopwatchOpen && (
+            <div className="mb-2 rounded-xl border border-border bg-surface p-3" data-workout-stopwatch-panel="">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-2xl font-bold tabular-nums text-primary" data-workout-stopwatch-time="">{formatElapsed(Math.floor(swMs / 1000))}</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => onStopwatch(stopwatch.runningSince !== null ? stopwatchStop(stopwatch, Date.now()) : stopwatchStart(stopwatch, Date.now()))} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary" aria-label={stopwatch.runningSince !== null ? 'Stop the stopwatch' : 'Start the stopwatch'} data-workout-stopwatch-toggle={stopwatch.runningSince !== null ? 'running' : 'stopped'}>
+                    {stopwatch.runningSince !== null ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                  <button type="button" onClick={() => onStopwatch(stopwatchReset())} disabled={swMs === 0} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary disabled:opacity-40" aria-label="Reset the stopwatch" data-workout-stopwatch-reset="">
+                    <RotateCcw className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <button type="button" onClick={() => setPickTarget(true)} disabled={!target} className="ea-interactive flex min-h-[40px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-border px-3 text-sm text-primary disabled:opacity-50" aria-label="Choose the set to save to" data-workout-stopwatch-target={target ? `${target.clientId}:${target.setIndex}` : ''}>
+                  <span className="truncate">{targetLabel ?? 'Every set is filled'}</span>
+                  <ChevronDown className="w-4 h-4 shrink-0" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!target || swMs < 1000) return;
+                    onSaveStopwatch(target, swMs);
+                    onStopwatch(stopwatchReset());
+                  }}
+                  disabled={!target || swMs < 1000}
+                  className="ea-cta inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
+                  data-workout-stopwatch-save=""
+                >
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  Save to set
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            {/* Rest: a toggle; the number shows while resting or held; a long-press (or the chip) sets the target. */}
+            <button
+              type="button"
+              onClick={() => onRest(rest.startedAt !== null ? stopRest(rest, Date.now()) : startRest(Date.now()))}
+              onContextMenu={e => {
+                e.preventDefault();
+                setTargetSheet(true);
+              }}
+              aria-pressed={rest.startedAt !== null}
+              className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${rest.startedAt !== null ? (reached ? 'bg-brand text-white' : 'bg-red-600 text-white') : 'ea-interactive border border-border-strong text-primary'}`}
+              data-workout-rest={rest.startedAt !== null ? 'running' : rest.heldS !== null ? 'held' : 'idle'}
+            >
+              <Hourglass className="w-4 h-4" aria-hidden="true" />
+              {rest.startedAt !== null ? (
+                <span className="tabular-nums" data-workout-rest-time="">{formatElapsed(restS)}</span>
+              ) : rest.heldS !== null ? (
+                <span className="tabular-nums" data-workout-rest-time="">Rest {formatElapsed(rest.heldS)} · next set</span>
+              ) : (
+                'Rest'
+              )}
+            </button>
+            <button type="button" onClick={() => setTargetSheet(true)} className="ea-interactive inline-flex min-h-[52px] items-center justify-center rounded-xl border border-border-strong px-3 text-xs font-semibold text-secondary" aria-label="Rest target" data-workout-rest-target={targetS ?? 'off'}>
+              {targetS ? formatElapsed(targetS) : 'Target'}
+            </button>
+            <button type="button" onClick={() => setStopwatchOpen(o => !o)} aria-pressed={stopwatchOpen} className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${stopwatch.runningSince !== null ? 'bg-brand text-white' : 'ea-interactive border border-border-strong text-primary'}`} data-workout-stopwatch={stopwatch.runningSince !== null ? 'running' : swMs > 0 ? 'stopped' : 'idle'}>
+              <Timer className="w-4 h-4" aria-hidden="true" />
+              {stopwatch.runningSince !== null || swMs > 0 ? <span className="tabular-nums">{formatElapsed(Math.floor(swMs / 1000))}</span> : 'Stopwatch'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {targetSheet && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40" role="dialog" aria-modal="true" aria-label="Rest target">
+          <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={() => setTargetSheet(false)} />
+          <div className="relative w-full rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-rest-target-sheet="">
+            <p className="text-base font-bold text-primary">Rest target</p>
+            <p className="mt-1 text-xs text-secondary">The number turns purple when the rest is up, with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice.</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {REST_TARGET_PRESETS_S.map(s => (
+                <button key={s} type="button" onClick={() => setTarget(s)} aria-pressed={targetS === s} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === s ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset={s}>
+                  {formatElapsed(s)}
+                </button>
+              ))}
+              <button type="button" onClick={() => setTarget(null)} aria-pressed={targetS === null} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === null ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset="off">
+                Off
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pickTarget && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40" role="dialog" aria-modal="true" aria-label="Save the stopwatch to">
+          <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={() => setPickTarget(false)} />
+          <div className="relative max-h-[70vh] w-full overflow-y-auto rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-stopwatch-picker="">
+            <p className="text-base font-bold text-primary">Save the time to</p>
+            <ul className="mt-2 space-y-1">
+              {exercises.flatMap(e =>
+                e.sets.map((s, i) => (
+                  <li key={`${e.clientId}:${i}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChosenTarget({ clientId: e.clientId, setIndex: i });
+                        setPickTarget(false);
+                      }}
+                      className="ea-interactive flex min-h-[44px] w-full items-center justify-between rounded-lg px-3 text-left text-sm text-primary"
+                      data-workout-stopwatch-pick={`${e.clientId}:${i}`}
+                    >
+                      <span className="truncate">{e.name} · {e.groupId ? 'round' : 'set'} {i + 1}</span>
+                      {s.durationSeconds ? <span className="text-xs text-muted tabular-nums">{formatElapsed(s.durationSeconds)}</span> : null}
+                    </button>
+                  </li>
+                )),
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
