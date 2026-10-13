@@ -22,7 +22,7 @@
 
 import Image from 'next/image';
 import { useOptimizedSrc } from './useOptimizedSrc';
-import { formatDuration } from '@/lib/media/duration';
+import VideoFrame from './VideoFrame';
 
 interface MediaTileProps {
   src: string;
@@ -55,14 +55,29 @@ export default function MediaTile({
   className = '',
 }: MediaTileProps) {
   const isVideo = kind === 'video';
-  // A video with no poster predates poster capture; show a neutral tile rather
-  // than a broken/black one. Images always render their own src.
   // Optimized (resized, webp) when the URL is the proxy's public form; a
   // failed optimized load retries the bare path (speed round 2).
-  const optimized = useOptimizedSrc(isVideo ? thumbnailUrl : src);
+  const optimized = useOptimizedSrc(isVideo ? null : src);
   const imageSrc = optimized.src;
 
-  const body = (
+  // A video is VideoFrame (Oct 13 2026): its poster as the image, the branded
+  // placeholder when it has none — never a black tile, never a <video> here.
+  // `playable={false}`: a tile's tap belongs to its host (a grid opens the
+  // post; the lightbox plays).
+  const body = isVideo ? (
+    <>
+      <VideoFrame
+        src={src}
+        poster={thumbnailUrl}
+        durationSeconds={durationSeconds}
+        alt={alt}
+        className="absolute inset-0 h-full w-full"
+        sizes={sizes}
+        priority={priority}
+      />
+      {overlay}
+    </>
+  ) : (
     <>
       {imageSrc ? (
         <Image
@@ -79,26 +94,8 @@ export default function MediaTile({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-stone-800">
-          <i className="fas fa-video text-faint text-lg" aria-hidden="true"></i>
+          <i className="fas fa-image text-faint text-lg" aria-hidden="true"></i>
         </div>
-      )}
-
-      {isVideo && (
-        <>
-          <span
-            className="absolute inset-0 flex items-center justify-center"
-            aria-hidden="true"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55">
-              <i className="fas fa-play text-white text-xs pl-0.5"></i>
-            </span>
-          </span>
-          {typeof durationSeconds === 'number' && durationSeconds > 0 && (
-            <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white">
-              {formatDuration(durationSeconds)}
-            </span>
-          )}
-        </>
       )}
 
       {overlay}

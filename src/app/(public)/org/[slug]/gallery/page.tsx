@@ -87,11 +87,14 @@ export default async function OrgSiteGalleryPage({ params }: PageParams) {
                     />
                   </a>
                 ) : (
+                  // The (public) tree is server-only, so no VideoFrame here: a
+                  // native <video> with the surface tint behind it (contest media
+                  // carries no poster yet) — never a black tile.
                   <video
                     src={item.url}
                     controls
                     preload="metadata"
-                    className="aspect-square w-full object-cover rounded-lg border border-border"
+                    className="aspect-square w-full object-cover rounded-lg border border-border bg-surface-sunken"
                   />
                 )}
                 <p className="mt-1 text-xs text-muted truncate">{caption(item)}</p>

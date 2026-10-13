@@ -1,5 +1,7 @@
 'use client';
 
+import MediaTile from './media/MediaTile';
+
 import { useState, useEffect } from 'react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
@@ -15,6 +17,7 @@ interface FeaturedPost {
     id: string;
     media_url: string;
     media_type: 'image' | 'video';
+    thumbnail_url?: string | null;
     display_order: number;
   }>;
   golf_round?: GolfRound | null;
@@ -151,18 +154,13 @@ function FeaturedTile({
       >
         {firstMedia ? (
           isVideo ? (
-            <div className="relative w-full h-full">
-              <video
-                src={firstMedia.media_url}
-                className="w-full h-full object-cover"
-                preload="metadata"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
-                  <i className="fas fa-play text-white text-sm ml-0.5"></i>
-                </div>
-              </div>
-            </div>
+            <MediaTile
+              src={firstMedia.media_url}
+              thumbnailUrl={firstMedia.thumbnail_url}
+              kind="video"
+              alt={post.caption || 'Featured video'}
+              className="w-full h-full"
+            />
           ) : (
             <OptimizedImage
               src={firstMedia.media_url}

@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Play } from 'lucide-react';
 import { useOptimizedSrc } from '@/components/media/useOptimizedSrc';
+import VideoFrame from '@/components/media/VideoFrame';
 
 /**
  * One set-media thumbnail (Oct 4 2026). The URL a set carries is either a
@@ -18,26 +18,24 @@ export default function SetMediaThumb({
   url,
   type,
   preview,
+  thumbnailUrl,
   size = 48,
   className = 'w-full h-full object-cover',
 }: {
   url: string;
   type: 'image' | 'video';
   preview?: string;
+  /** The clip's poster (Oct 13 2026) — the stored one; a local preview previews itself while it uploads. */
+  thumbnailUrl?: string | null;
   size?: number;
   className?: string;
 }) {
   const shown = preview ?? url;
   const optimized = useOptimizedSrc(shown);
   if (type === 'video') {
-    return (
-      <>
-        <video src={shown} muted playsInline preload="metadata" className={className} />
-        <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-          <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
-        </span>
-      </>
-    );
+    // VideoFrame: the poster, else a local preview's own first frame, else
+    // the branded placeholder — never a stored <video> in a 48 px thumb.
+    return <VideoFrame src={shown} poster={preview ? null : thumbnailUrl} compact alt="Set video" className="absolute inset-0 h-full w-full" />;
   }
   return (
     <Image

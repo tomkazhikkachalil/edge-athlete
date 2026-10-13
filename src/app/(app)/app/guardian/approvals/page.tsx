@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import VideoFrame from '@/components/media/VideoFrame';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -430,12 +431,14 @@ export default function GuardianApprovalsPage() {
                           // Review means WATCHING it — a guardian must never
                           // approve a video they cannot see. Full playback,
                           // not a 96px icon tile.
-                          <video
+                          <VideoFrame
                             src={m.media_url}
-                            poster={m.thumbnail_url ?? undefined}
+                            poster={m.thumbnail_url}
+                            playable
                             controls
-                            preload="metadata"
-                            className="w-full max-h-64 bg-black"
+                            fit="contain"
+                            alt="Post video"
+                            className="w-full aspect-video max-h-64"
                           />
                         ) : (
                           <Image

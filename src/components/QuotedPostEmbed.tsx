@@ -1,5 +1,6 @@
 'use client';
 
+import VideoFrame from './media/VideoFrame';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 
@@ -17,7 +18,7 @@ export interface QuotedPost {
     avatar_url: string | null;
     handle?: string | null;
   } | null;
-  media: { media_url: string; media_type: string }[];
+  media: { media_url: string; media_type: string; thumbnail_url?: string | null }[];
 }
 
 interface QuotedPostEmbedProps {
@@ -64,15 +65,14 @@ export default function QuotedPostEmbed({ post, compact = false, onClick }: Quot
               height={320}
             />
           ) : (
-            // A quoted video renders as an inert first-frame thumb — a
+            // A quoted video is its poster (VideoFrame, not playable) — a
             // playable nested video inside a feed card fights the card's
             // own tap targets. Tapping the embed opens the original.
-            <video
+            <VideoFrame
               src={thumbnail.media_url}
-              className="w-full max-h-80 pointer-events-none"
-              muted
-              playsInline
-              preload="metadata"
+              poster={thumbnail.thumbnail_url}
+              alt="Post video"
+              className="w-full aspect-video max-h-80 pointer-events-none"
             />
           )}
         </div>

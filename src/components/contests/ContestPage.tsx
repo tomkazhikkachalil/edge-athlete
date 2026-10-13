@@ -288,7 +288,8 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
                     className="aspect-square w-full object-cover rounded-lg border border-border"
                   />
                 ) : (
-                  <video src={m.url} controls preload="metadata" className="aspect-square w-full object-cover rounded-lg border border-border" />
+                  // Server-safe on purpose (no hooks): a native <video> over the surface tint, never black.
+                  <video src={m.url} controls preload="metadata" className="aspect-square w-full object-cover rounded-lg border border-border bg-surface-sunken" />
                 )}
                 {m.caption && <p className="mt-1 text-xs text-muted truncate">{m.caption}</p>}
               </li>

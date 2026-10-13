@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import VideoFrame from '@/components/media/VideoFrame';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 
@@ -81,9 +82,10 @@ export default function ContestMediaStrip({ profileId }: { profileId: string }) 
                   className="aspect-square w-full object-cover rounded-lg border border-border"
                 />
               ) : (
-                <video
+                <VideoFrame
                   src={item.url}
-                  className="aspect-square w-full object-cover rounded-lg border border-border"
+                  alt={item.caption ?? item.competitionName ?? 'Team video'}
+                  className="aspect-square w-full rounded-lg border border-border"
                 />
               )
             ) : (

@@ -1,5 +1,7 @@
 'use client';
 
+import VideoFrame from '@/components/media/VideoFrame';
+
 /**
  * One picked file in the guardian batch upload (Wave 5): thumbnail, which
  * athletes it goes to (44px toggle pills — thumb-sized, wrapping at 375px),
@@ -54,7 +56,7 @@ export default function BatchUploadItemCard({
       {/* Thumbnail — objectURL of the edited render, owned by the page. */}
       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-surface-sunken">
         {kind === 'video' ? (
-          <video src={previewUrl} muted playsInline className="h-full w-full object-cover" />
+          <VideoFrame src={previewUrl} compact alt="" className="h-full w-full" />
         ) : (
           // objectURL blob — next/image can't optimize it; plain img is the
           // established pattern for editor previews (image_optimization_policy).

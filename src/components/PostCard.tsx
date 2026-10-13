@@ -16,6 +16,7 @@ import type { PostSportEvent } from '@/lib/sport-events/feed';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
 import MediaTile from './media/MediaTile';
+import VideoFrame from './media/VideoFrame';
 import MediaStatStrip from './media/MediaStatStrip';
 import { buildPostHeadline } from '@/lib/sports/post-headline';
 import ConfirmModal from './ConfirmModal';
@@ -858,12 +859,20 @@ function PostCard({
                 sizes="(max-width: 640px) 100vw, 600px"
               />
             ) : (
-              <video
+              // VideoFrame (Oct 13 2026): the poster first — nothing is fetched
+              // from the video until the tap mounts it (the feed is an
+              // unbounded list; a decoder-backed element per card is what
+              // phone memory cannot hold). No poster = the branded
+              // placeholder, never a black box.
+              <VideoFrame
                 src={post.media[currentMediaIndex].media_url}
-                poster={post.media[currentMediaIndex].thumbnail_url ?? undefined}
-                className="absolute inset-0 h-full w-full object-contain"
+                poster={post.media[currentMediaIndex].thumbnail_url}
+                playable
                 controls
-                playsInline
+                fit="contain"
+                alt="Post video"
+                className="absolute inset-0 h-full w-full"
+                sizes="(max-width: 640px) 100vw, 600px"
                 // Impact (252): 3 s of playback is one play (per person per day).
                 onTimeUpdate={e => {
                   if (!playedRef.current && e.currentTarget.currentTime >= 3 && !actingAs && currentUserId !== post.profile.id) {
@@ -871,11 +880,6 @@ function PostCard({
                     recordView(post.id, 'play');
                   }
                 }}
-                // The feed is an unbounded list; without this every video
-                // that ever scrolled in keeps a fetched, decoder-backed
-                // element alive (MediaTile's own rule). The poster is the
-                // preview; playback starts on tap. (Sep 2026, phone memory.)
-                preload="none"
               />
             )}
 

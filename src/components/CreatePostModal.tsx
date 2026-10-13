@@ -8,6 +8,8 @@ import { refreshDrafts } from '@/hooks/useDrafts';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
+import VideoFrame from '@/components/media/VideoFrame';
+import { posterTimeFor } from '@/lib/media/poster-plan';
 import MediaTile from '@/components/media/MediaTile';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
@@ -498,7 +500,7 @@ export default function CreatePostModal({
     };
     const timer = setTimeout(() => finish(null), 6000);
     void import('@/lib/media/poster')
-      .then(({ capturePoster }) => capturePoster(source, 0.1))
+      .then(({ capturePoster }) => capturePoster(source, posterTimeFor(candidate.durationSeconds)))
       .then(blob => finish(blob))
       .catch(() => finish(null))
       .finally(() => clearTimeout(timer));
@@ -1125,17 +1127,16 @@ export default function CreatePostModal({
                       />
                     ) : (
                       <>
-                        {/* Capture v2: metadata only, muted, inline; the poster
-                            arrives after the tile; the element's own metadata
-                            fills width/height/duration (no probe load). */}
-                        <video
+                        {/* Capture v2: the local file previews itself (metadata
+                            only, muted, inline) until its poster arrives; the
+                            element's own metadata fills width/height/duration
+                            (no probe load). VideoFrame since Oct 13 2026. */}
+                        <VideoFrame
                           src={file.url}
                           poster={file.posterPreviewUrl}
-                          preload="metadata"
-                          muted
-                          playsInline
                           onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
-                          className="w-full h-full object-cover"
+                          alt=""
+                          className="w-full h-full"
                         />
                         {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
                           <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
@@ -1789,7 +1790,7 @@ function PostPreview({
                           sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 300px"
                         />
                       ) : (
-                        <video src={file.url} className="w-full h-full object-cover" />
+                        <VideoFrame src={file.url} poster={file.posterPreviewUrl} alt="" className="w-full h-full" />
                       )}
                       {index === 3 && mediaFiles.length > 4 && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">

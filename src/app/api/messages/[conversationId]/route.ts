@@ -180,7 +180,7 @@ export async function GET(
                 id, first_name, last_name, full_name, avatar_url, handle
               ),
               media:post_media (
-                media_url, media_type
+                media_url, media_type, thumbnail_url
               )
             `)
             .eq('id', msg.shared_post_id)
@@ -191,9 +191,10 @@ export async function GET(
           const shared_post = viewable
             ? {
                 ...viewable,
-                media: (viewable.media || []).map((m: { media_url: string; media_type: string }) => ({
+                media: (viewable.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null }) => ({
                   ...m,
                   media_url: toProxyUrl(m.media_url, { type: 'post', id: viewable.id }),
+                  thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: viewable.id }),
                 })),
               }
             : null;
@@ -340,7 +341,7 @@ export async function GET(
                   id, first_name, last_name, full_name, avatar_url, handle
                 ),
                 media:post_media (
-                  media_url, media_type
+                  media_url, media_type, thumbnail_url
                 )
               `)
               .in('id', postParents.map(pm => pm.shared_post_id))

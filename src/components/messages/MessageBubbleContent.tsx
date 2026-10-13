@@ -1,5 +1,6 @@
 'use client';
 
+import VideoFrame from '../media/VideoFrame';
 import LazyImage from '@/components/LazyImage';
 import SharedPostPreview from './SharedPostPreview';
 import SharedProfilePreview from './SharedProfilePreview';
@@ -89,11 +90,13 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost, parti
 
       {message.type === 'video' && message.media_url && (
         <div className="rounded-2xl overflow-hidden max-w-xs">
-          <video
+          <VideoFrame
             src={message.media_url}
+            playable
             controls
-            className="w-full max-h-64"
-            style={{ maxWidth: 300 }}
+            fit="contain"
+            alt="Video message"
+            className="w-full aspect-video max-h-64"
           />
           {message.content && (
             <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>

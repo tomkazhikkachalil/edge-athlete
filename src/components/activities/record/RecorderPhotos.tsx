@@ -1,5 +1,7 @@
 'use client';
 
+import VideoFrame from '@/components/media/VideoFrame';
+
 import CaptureInputs from '@/components/media/CaptureInputs';
 import type { RecordingPhoto } from '@/lib/activities/record/recording';
 
@@ -44,7 +46,7 @@ export default function RecorderPhotos({
           <div key={p.localId} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-surface-sunken" data-record-photo-tile={p.failed ? 'failed' : p.url ? 'done' : 'uploading'}>
             {previews[p.localId] ? (
               p.type === 'video' ? (
-                <video src={previews[p.localId]} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                <VideoFrame src={previews[p.localId]} poster={p.thumbnailUrl} compact alt="" className="h-full w-full" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- a local object URL from the camera, not a stored image
                 <img src={previews[p.localId]} alt="" className="h-full w-full object-cover" />
