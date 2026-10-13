@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-12T21:26:01.915294+00:00 from server 17.6 by
+-- Generated 2026-10-13T00:08:39.727909+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 259.
+-- public.schema_dump() (migration 227). Ledger head at generation: 260.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -2777,7 +2777,12 @@ BEGIN
     SELECT value AS ex, (ordinality - 1)::int AS position
       FROM jsonb_array_elements(COALESCE(p_exercises, '[]'::jsonb)) WITH ORDINALITY
   LOOP
-    INSERT INTO public.workout_exercises (session_id, profile_id, name, exercise_key, category, position, notes)
+    -- 260: client_id is CARRIED (the editor's stable id); a payload without
+    -- one (an old client) gets a distinct id from the default.
+    INSERT INTO public.workout_exercises (
+      session_id, profile_id, name, exercise_key, category, position, notes,
+      client_id, group_id, group_kind, group_rounds
+    )
     VALUES (
       p_session_id,
       p_profile_id,
@@ -2785,7 +2790,11 @@ BEGIN
       v_exercise.ex->>'exerciseKey',
       COALESCE(v_exercise.ex->>'category', 'strength'),
       v_exercise.position,
-      v_exercise.ex->>'notes'
+      v_exercise.ex->>'notes',
+      COALESCE((v_exercise.ex->>'clientId')::uuid, gen_random_uuid()),
+      (v_exercise.ex->>'groupId')::uuid,
+      v_exercise.ex->>'groupKind',
+      (v_exercise.ex->>'groupRounds')::int
     )
     RETURNING id INTO v_exercise_id;
 
@@ -2793,7 +2802,7 @@ BEGIN
     LOOP
       INSERT INTO public.workout_sets (
         exercise_id, profile_id, set_number, reps, weight, weight_unit,
-        duration_seconds, distance, distance_unit, completed_at, media
+        duration_seconds, distance, distance_unit, completed_at, media, rest_seconds
       )
       VALUES (
         v_exercise_id,
@@ -2806,7 +2815,8 @@ BEGIN
         (v_set->>'distance')::numeric,
         v_set->>'distanceUnit',
         (v_set->>'completedAt')::timestamptz,
-        COALESCE(v_set->'media', '[]'::jsonb)
+        COALESCE(v_set->'media', '[]'::jsonb),
+        (v_set->>'restSeconds')::int
       );
     END LOOP;
   END LOOP;
@@ -6093,7 +6103,11 @@ CREATE TABLE IF NOT EXISTS public.workout_exercises (
   category text DEFAULT 'strength'::text NOT NULL,
   position integer DEFAULT 0 NOT NULL,
   notes text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  client_id uuid DEFAULT gen_random_uuid() NOT NULL,
+  group_id uuid,
+  group_kind text,
+  group_rounds integer
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_routine_exercises (
@@ -6106,7 +6120,10 @@ CREATE TABLE IF NOT EXISTS public.workout_routine_exercises (
   position integer DEFAULT 0 NOT NULL,
   notes text,
   target_sets integer DEFAULT 3 NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  group_id uuid,
+  group_kind text,
+  group_rounds integer
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_routines (
@@ -6131,7 +6148,10 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
   last_activity_at timestamp with time zone DEFAULT now() NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL,
-  share_decided_at timestamp with time zone
+  share_decided_at timestamp with time zone,
+  timed boolean DEFAULT true NOT NULL,
+  paused_seconds integer DEFAULT 0 NOT NULL,
+  paused_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_sets (
@@ -6147,7 +6167,8 @@ CREATE TABLE IF NOT EXISTS public.workout_sets (
   distance_unit text,
   completed_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
-  media jsonb DEFAULT '[]'::jsonb NOT NULL
+  media jsonb DEFAULT '[]'::jsonb NOT NULL,
+  rest_seconds integer
 );
 
 -- ── Sequence owners ───────────────────────────────────────────────────────────
@@ -8867,6 +8888,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_group_all_or_none_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
+    ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_group_all_or_none_check CHECK ((((group_id IS NULL) = (group_kind IS NULL)) AND ((group_id IS NULL) = (group_rounds IS NULL))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_group_kind_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
+    ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_group_kind_check CHECK (((group_kind IS NULL) OR (group_kind = ANY (ARRAY['superset'::text, 'circuit'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_group_rounds_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
+    ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_group_rounds_check CHECK (((group_rounds IS NULL) OR ((group_rounds >= 1) AND (group_rounds <= 10))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_name_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
     ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 80)));
   END IF;
@@ -8879,6 +8915,21 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_routine_exercises_category_check' AND conrelid = 'public.workout_routine_exercises'::regclass) THEN
     ALTER TABLE public.workout_routine_exercises ADD CONSTRAINT workout_routine_exercises_category_check CHECK ((category = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text, 'other'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_routine_exercises_group_all_or_none_check' AND conrelid = 'public.workout_routine_exercises'::regclass) THEN
+    ALTER TABLE public.workout_routine_exercises ADD CONSTRAINT workout_routine_exercises_group_all_or_none_check CHECK ((((group_id IS NULL) = (group_kind IS NULL)) AND ((group_id IS NULL) = (group_rounds IS NULL))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_routine_exercises_group_kind_check' AND conrelid = 'public.workout_routine_exercises'::regclass) THEN
+    ALTER TABLE public.workout_routine_exercises ADD CONSTRAINT workout_routine_exercises_group_kind_check CHECK (((group_kind IS NULL) OR (group_kind = ANY (ARRAY['superset'::text, 'circuit'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_routine_exercises_group_rounds_check' AND conrelid = 'public.workout_routine_exercises'::regclass) THEN
+    ALTER TABLE public.workout_routine_exercises ADD CONSTRAINT workout_routine_exercises_group_rounds_check CHECK (((group_rounds IS NULL) OR ((group_rounds >= 1) AND (group_rounds <= 10))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8909,6 +8960,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sessions_notes_check' AND conrelid = 'public.workout_sessions'::regclass) THEN
     ALTER TABLE public.workout_sessions ADD CONSTRAINT workout_sessions_notes_check CHECK ((char_length(notes) <= 1000));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sessions_paused_at_check' AND conrelid = 'public.workout_sessions'::regclass) THEN
+    ALTER TABLE public.workout_sessions ADD CONSTRAINT workout_sessions_paused_at_check CHECK (((paused_at IS NULL) OR (status = 'active'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sessions_paused_seconds_check' AND conrelid = 'public.workout_sessions'::regclass) THEN
+    ALTER TABLE public.workout_sessions ADD CONSTRAINT workout_sessions_paused_seconds_check CHECK ((paused_seconds >= 0));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8944,6 +9005,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sets_reps_check' AND conrelid = 'public.workout_sets'::regclass) THEN
     ALTER TABLE public.workout_sets ADD CONSTRAINT workout_sets_reps_check CHECK (((reps >= 0) AND (reps <= 1000)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sets_rest_seconds_check' AND conrelid = 'public.workout_sets'::regclass) THEN
+    ALTER TABLE public.workout_sets ADD CONSTRAINT workout_sets_rest_seconds_check CHECK (((rest_seconds IS NULL) OR ((rest_seconds >= 0) AND (rest_seconds <= 86400))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10871,6 +10937,7 @@ CREATE INDEX IF NOT EXISTS idx_venues_place_id ON public.venues USING btree (pla
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON public.waitlist USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile ON public.workout_exercises USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_session ON public.workout_exercises USING btree (session_id, "position");
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_exercises_session_client ON public.workout_exercises USING btree (session_id, client_id);
 CREATE INDEX IF NOT EXISTS idx_workout_routine_exercises_profile ON public.workout_routine_exercises USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_workout_routine_exercises_routine ON public.workout_routine_exercises USING btree (routine_id, "position");
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_routines_profile_name ON public.workout_routines USING btree (profile_id, lower(name));
@@ -13519,7 +13586,12 @@ BEGIN
     SELECT value AS ex, (ordinality - 1)::int AS position
       FROM jsonb_array_elements(COALESCE(p_exercises, '[]'::jsonb)) WITH ORDINALITY
   LOOP
-    INSERT INTO public.workout_exercises (session_id, profile_id, name, exercise_key, category, position, notes)
+    -- 260: client_id is CARRIED (the editor's stable id); a payload without
+    -- one (an old client) gets a distinct id from the default.
+    INSERT INTO public.workout_exercises (
+      session_id, profile_id, name, exercise_key, category, position, notes,
+      client_id, group_id, group_kind, group_rounds
+    )
     VALUES (
       p_session_id,
       p_profile_id,
@@ -13527,7 +13599,11 @@ BEGIN
       v_exercise.ex->>'exerciseKey',
       COALESCE(v_exercise.ex->>'category', 'strength'),
       v_exercise.position,
-      v_exercise.ex->>'notes'
+      v_exercise.ex->>'notes',
+      COALESCE((v_exercise.ex->>'clientId')::uuid, gen_random_uuid()),
+      (v_exercise.ex->>'groupId')::uuid,
+      v_exercise.ex->>'groupKind',
+      (v_exercise.ex->>'groupRounds')::int
     )
     RETURNING id INTO v_exercise_id;
 
@@ -13535,7 +13611,7 @@ BEGIN
     LOOP
       INSERT INTO public.workout_sets (
         exercise_id, profile_id, set_number, reps, weight, weight_unit,
-        duration_seconds, distance, distance_unit, completed_at, media
+        duration_seconds, distance, distance_unit, completed_at, media, rest_seconds
       )
       VALUES (
         v_exercise_id,
@@ -13548,7 +13624,8 @@ BEGIN
         (v_set->>'distance')::numeric,
         v_set->>'distanceUnit',
         (v_set->>'completedAt')::timestamptz,
-        COALESCE(v_set->'media', '[]'::jsonb)
+        COALESCE(v_set->'media', '[]'::jsonb),
+        (v_set->>'restSeconds')::int
       );
     END LOOP;
   END LOOP;
@@ -17205,8 +17282,16 @@ COMMENT ON COLUMN public.tickets.report_count IS 'Reports merged into this ticke
 COMMENT ON COLUMN public.tickets.appeal_used_at IS 'The one appeal (222): a user reply on a resolved ticket reopens it once; stamped when used.';
 COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years after close the daily cron nulls the personal columns and stamps this.';
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
+COMMENT ON COLUMN public.workout_exercises.client_id IS 'The STABLE exercise id (260): minted once by the editor and carried through every snapshot replace (id is re-minted per save). Unique per session.';
+COMMENT ON COLUMN public.workout_exercises.group_id IS 'A superset or circuit (260): the members share it, consecutive by position; kind and rounds are denormalized on every member.';
+COMMENT ON COLUMN public.workout_exercises.group_kind IS 'superset | circuit (260).';
+COMMENT ON COLUMN public.workout_exercises.group_rounds IS 'Rounds of the group (260), 1..10 — the routines target_sets cap. A member''s sets are its rounds.';
 COMMENT ON COLUMN public.workout_sessions.share_decided_at IS 'Drafts (253): when the owner chose Share or Keep private for a finished workout. NULL on a completed session = a draft (never reached the decision).';
+COMMENT ON COLUMN public.workout_sessions.timed IS 'The clock runs (260). false: duration_seconds is NULL at finish; Vitals counts the session with no minutes.';
+COMMENT ON COLUMN public.workout_sessions.paused_seconds IS 'Closed pauses so far, seconds (260). The clock = now − started_at − paused_seconds − an open pause.';
+COMMENT ON COLUMN public.workout_sessions.paused_at IS 'A live pause (260); NULL otherwise. Only an active session may be paused — every finish writes NULL.';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
+COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak; the route applies the privacy filter. Service-role only.';
 COMMENT ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) IS 'Generates personalized connection suggestions based on sport, school, location, and common connections.
@@ -17218,7 +17303,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
-COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Service role only; the route validates and heals the payload first.';
+COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
 COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
@@ -17628,7 +17713,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (255, '255_golf_map_sweep.sql', 'rebuild-000'),
   (256, '256_workout_entries_atomic_replace.sql', 'rebuild-000'),
   (257, '257_security_advisor_cleanup.sql', 'rebuild-000'),
-  (258, '258_schema_dump_private_schema.sql', 'rebuild-000')
+  (258, '258_schema_dump_private_schema.sql', 'rebuild-000'),
+  (259, '259_session_reminder.sql', 'rebuild-000'),
+  (260, '260_workout_screen.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17637,12 +17724,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 131 | 114 | 173 | 259
+-- Expected: 000 REBUILT | 131 | 114 | 173 | 260
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_131,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_114,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_259;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_260;
 
