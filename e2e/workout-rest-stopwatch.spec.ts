@@ -59,16 +59,70 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
     expect(plank.duration_seconds).toBeGreaterThanOrEqual(3);
     expect(plank.duration_seconds).toBeLessThan(6);
 
-    // The bar clears the content: the last card's bottom is above the bar's top when scrolled to the end.
-    await page.mouse.wheel(0, 5000);
-    await page.waitForTimeout(300);
-    const [addBox, barBox] = await Promise.all([page.locator('[data-workout-add-group="circuit"]').boundingBox(), bar.boundingBox()]);
-    expect(addBox && barBox && addBox.y + addBox.height <= barBox.y + 1, 'the content clears the bar').toBe(true);
+    // The bar clears the content — with the stopwatch OPEN and a rest running
+    // (Tom, Oct 13: the open stopwatch covered the Add buttons): the bar's
+    // measured height is `--ea-workout-bar-h` and the editor's clearance follows it.
+    const barH = async () => parseFloat(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ea-workout-bar-h')));
+    const clears = async (label: string) => {
+      // Let the clearance transition (200 ms) finish, then scroll to the very end and measure.
+      await page.waitForTimeout(450);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(250);
+      const [addBox, barBox] = await Promise.all([page.locator('[data-workout-add-group="circuit"]').boundingBox(), bar.boundingBox()]);
+      expect(addBox && barBox && addBox.y + addBox.height <= barBox.y + 1, `the content clears the bar (${label})`).toBe(true);
+    };
+    // The panel is still open from the save above: close it first, so the closed height is the baseline.
+    if ((await page.locator('[data-workout-stopwatch-open]').getAttribute('data-workout-stopwatch-open')) === 'true') {
+      await page.locator('[data-workout-stopwatch]').click();
+      await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'false');
+      await page.waitForTimeout(400);
+    }
+    const closedH = await barH();
+    await page.locator('[data-workout-stopwatch]').click(); // open the panel
+    await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'true');
+    await expect.poll(barH, { timeout: 5_000 }).toBeGreaterThan(closedH + 40);
+    await clears('stopwatch open');
+    await page.locator('[data-workout-rest]').click(); // and a rest running
+    await clears('stopwatch open + rest running');
+    await page.locator('[data-workout-rest]').click(); // held
+    await page.locator('[data-workout-stopwatch]').click(); // close the panel
+    await expect.poll(barH, { timeout: 5_000 }).toBeLessThan(closedH + 8);
+    await clears('stopwatch closed');
+    const padding = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.ea-bar-clearance') as Element).paddingBottom));
+    expect(padding).toBeGreaterThanOrEqual((await barH()) + 15);
 
     // Reload: a running rest survives on the device.
     await page.locator('[data-workout-rest]').click();
     await page.reload();
     await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'running', { timeout: 20_000 });
+  } finally {
+    if (workoutId) await api.delete(`/api/workouts/${workoutId}`);
+    await api.dispose();
+  }
+});
+
+// Desktop twin (Oct 13 2026): the bar's clearance holds at 1280 too — the stopwatch open, a rest running.
+test('the open stopwatch never covers the Add buttons on a large screen', async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await apiAs('state.json');
+  let workoutId = '';
+  try {
+    const started = await api.post('/api/workouts', { data: { mode: 'live' } });
+    expect(started.ok(), await readErrorBody(started)).toBe(true);
+    workoutId = (await started.json()).session.id as string;
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 100), set(2, 5, 100), set(3, 5, 100), set(4, 5, 100)] }] } });
+    expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
+    await page.goto(`/app/workout/${workoutId}`);
+    const bar = page.locator('[data-workout-controls]');
+    await expect(bar).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-workout-stopwatch]').click();
+    await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'true');
+    await page.locator('[data-workout-rest]').click();
+    await page.mouse.wheel(0, 5000);
+    await page.waitForTimeout(400);
+    const [addBox, barBox] = await Promise.all([page.locator('[data-workout-add-group="circuit"]').boundingBox(), bar.boundingBox()]);
+    expect(addBox && barBox && addBox.y + addBox.height <= barBox.y + 1, 'the content clears the bar on desktop').toBe(true);
+    await expect(page.locator('[data-workout-add-group="circuit"]')).toBeVisible();
   } finally {
     if (workoutId) await api.delete(`/api/workouts/${workoutId}`);
     await api.dispose();

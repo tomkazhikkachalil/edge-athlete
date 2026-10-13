@@ -838,7 +838,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   }
 
   return (
-    <div className={`max-w-md mx-auto px-4 ${mode === 'live' ? 'pb-48' : 'pb-28'}`}>
+    <div className={`max-w-md mx-auto px-4 ${mode === 'live' ? 'ea-bar-clearance' : 'pb-28'}`}>
       {/* Sticky header: timer / manual fields + finish */}
       <div className="sticky top-0 z-10 bg-canvas pt-4 pb-3 border-b border-border mb-4">
         <div className="flex items-center gap-2 mb-3">
