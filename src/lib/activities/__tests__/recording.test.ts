@@ -91,6 +91,10 @@ describe('the recorder — a pure state machine', () => {
     expect(s.photos[0]).toMatchObject({ localId: 'ph-1', atS: 20, url: null, failed: false });
     s = reduce(s, { type: 'photoFailed', localId: 'ph-1' });
     expect(s.photos[0].failed).toBe(true);
+    s = reduce(s, { type: 'photoRetried', localId: 'ph-1' }); // the tile goes back to uploading
+    expect(s.photos[0]).toMatchObject({ failed: false, url: null });
+    s = reduce(s, { type: 'photoFailed', localId: 'ph-1' });
+    expect(s.photos[0].failed).toBe(true);
     s = reduce(s, { type: 'photoUploaded', localId: 'ph-1', url: 'https://x/a.jpg' });
     expect(s.photos[0]).toMatchObject({ url: 'https://x/a.jpg', failed: false });
     s = reduce(s, { type: 'hidden', now: T0 + 30_000 });

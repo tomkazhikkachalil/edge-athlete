@@ -6,6 +6,10 @@ import { useToast } from '@/components/Toast';
 import type { ActivityType } from '@/lib/activities/catalog';
 import { planCaptureAttach } from '@/lib/media/capture-attach';
 import { uploadPostMedia } from '@/lib/media/upload';
+import { createUploadQueue, type QueueState, type UploadQueue } from '@/lib/media/upload-queue';
+import { openMediaStash } from '@/lib/workouts/media-stash';
+import { getOnline, subscribeOnline } from '@/lib/net/online';
+import { grabPosterInto } from '@/components/media/grab-poster';
 import { validateFiles } from '@/lib/media/validation';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import {
@@ -50,12 +54,9 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
   const [lastAccuracy, setLastAccuracy] = useState<number | null>(null);
   const [gapNotice, setGapNotice] = useState<{ seconds: number } | null>(null);
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const previewsRef = useRef(previews);
-  useEffect(() => {
-    previewsRef.current = previews;
-  }, [previews]);
   const [lastTouchedAt, setLastTouchedAt] = useState<number | null>(null);
-  const filesRef = useRef<Map<string, File>>(new Map());
+  const targetProfileIdRef = useRef(targetProfileId);
+  useEffect(() => { targetProfileIdRef.current = targetProfileId; }, [targetProfileId]);
   const flushedRef = useRef(0);
   const seqRef = useRef(0);
   const restoredRef = useRef<string | null>(null);
@@ -98,6 +99,50 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
     [persistMeta, flushPoints]
   );
 
+  // Photos: a tile at once; the upload in the background through THE upload
+  // queue (video posters PR 3, Oct 13 2026) — one per recording, its stash
+  // keyed by the recording's id (an ArrayBuffer store: the recording's own
+  // photo store held Blobs, the shape WebKit refused on Sep 3 2026). The
+  // queue tells the reducer what landed (the URL, then the clip's poster),
+  // what failed, and keeps the previews; a reconnect retries by itself.
+  const queueRef = useRef<{ id: string; queue: UploadQueue } | null>(null);
+  const ensureQueue = useCallback((recordingId: string): UploadQueue => {
+    if (queueRef.current?.id === recordingId) return queueRef.current.queue;
+    queueRef.current?.queue.destroy();
+    let stash = null;
+    try { stash = openMediaStash(); } catch { stash = null; }
+    const postersTold = new Set<string>();
+    const failedTold = new Set<string>();
+    const queue = createUploadQueue({
+      sessionId: `recording:${recordingId}`,
+      stash,
+      upload: uploadPostMedia,
+      targetProfileId: () => targetProfileIdRef.current ?? undefined,
+      isOnline: getOnline,
+      subscribeOnline,
+      onStored: item => {
+        if (item.storedUrl) dispatch({ type: 'photoUploaded', localId: item.localId, url: item.storedUrl, thumbnailUrl: item.posterUrl ?? null });
+      },
+      onChange: (items: QueueState) => {
+        const next: Record<string, string> = {};
+        for (const item of Object.values(items)) {
+          const preview = queue.previewFor(item.localId);
+          if (preview) next[item.localId] = preview;
+          if (item.status === 'failed' && !failedTold.has(`${item.localId}:${item.generation}`)) {
+            failedTold.add(`${item.localId}:${item.generation}`);
+            dispatch({ type: 'photoFailed', localId: item.localId });
+          }
+          if (item.storedUrl && item.posterUrl && !postersTold.has(item.localId)) {
+            postersTold.add(item.localId);
+            dispatch({ type: 'photoUploaded', localId: item.localId, url: item.storedUrl, thumbnailUrl: item.posterUrl });
+          }
+        }
+        setPreviews(next);
+      },
+    });
+    queueRef.current = { id: recordingId, queue };
+    return queue;
+  }, [dispatch]);
   // A recording this device did not finish: restore it as it stands — still
   // recording when the time away is short (a gap, shown on the screen), paused
   // where it was last known when it is long (recording.ts restoreRecording).
@@ -111,16 +156,21 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
       const { state: s, gapS } = restoreRecording(loaded, restore.savedAt, Date.now());
       flushedRef.current = s.points.length;
       seqRef.current = Math.max(1, Math.ceil(s.points.length / 10) + 1);
+      // The photos still uploading: their bytes are in the queue's stash (PR 3)
+      // — or, for a recording from before it, in the recording's own photo
+      // store — and upload again by themselves. Bytes gone = a failed tile.
+      const q = ensureQueue(s.id);
+      const { restored } = await q.resumeFromStash();
+      if (cancelled) return;
+      const adopted = new Set(restored.map(r => r.item.localId));
       for (const p of s.photos) {
-        if (p.url) continue;
+        if (p.url || adopted.has(p.localId)) continue;
         const blob = await store.loadPhoto(s.id, p.localId).catch(() => null);
         if (cancelled) return;
-        if (blob) {
-          const file = new File([blob], `photo-${p.localId}`, { type: blob.type });
-          filesRef.current.set(p.localId, file);
-          setPreviews(prev => ({ ...prev, [p.localId]: URL.createObjectURL(file) }));
-        }
+        if (blob) q.adopt(p.localId, new File([blob], `photo-${p.localId}`, { type: blob.type }));
+        else s.photos = s.photos.map(x => (x.localId === p.localId ? { ...x, failed: true } : x));
       }
+      for (const { item, file } of restored) grabPosterInto(q, item.localId, file);
       if (cancelled) return;
       setState(prev => prev ?? s);
       setLastTouchedAt(restore.savedAt);
@@ -130,7 +180,7 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
     return () => {
       cancelled = true;
     };
-  }, [restore, store, profileId, persistMeta]);
+  }, [restore, store, profileId, persistMeta, ensureQueue]);
 
   // A start the recorder asked for before this chunk was loaded.
   useEffect(() => {
@@ -197,21 +247,6 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
     };
   }, [running, dispatch, persistMeta, flushPoints]);
 
-  // Photos: a tile at once; upload in the background (one at a time).
-  const uploadQueue = useRef<Promise<void>>(Promise.resolve());
-  const uploadPhoto = useCallback(
-    (localId: string, file: File) => {
-      uploadQueue.current = uploadQueue.current.then(async () => {
-        try {
-          const up = await uploadPostMedia(file, targetProfileId ?? undefined);
-          dispatch({ type: 'photoUploaded', localId, url: up.url });
-        } catch {
-          dispatch({ type: 'photoFailed', localId });
-        }
-      });
-    },
-    [dispatch, targetProfileId]
-  );
   const addFiles = useCallback(
     (files: FileList | File[]) => {
       const s = stateRef.current;
@@ -220,42 +255,33 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
       if (rejected.length > 0) showError('Not added', rejected[0].message);
       const plan = planCaptureAttach(accepted);
       for (const file of plan.editor) showError('Add this one after', `${file.name} needs the editor — attach it on the activity page once you finish.`);
-      for (const file of plan.attach) {
-        const localId = newId();
-        filesRef.current.set(localId, file);
-        setPreviews(prev => ({ ...prev, [localId]: URL.createObjectURL(file) }));
-        dispatch({ type: 'photoAdded', localId, mediaType: file.type.startsWith('video/') ? 'video' : 'image', now: Date.now() });
-        void store?.savePhoto(s.id, localId, file).catch(() => undefined);
-        uploadPhoto(localId, file);
-      }
+      if (plan.attach.length === 0) return;
+      const q = ensureQueue(s.id);
+      const items = q.register(plan.attach);
+      items.forEach((item, i) => {
+        dispatch({ type: 'photoAdded', localId: item.localId, mediaType: item.kind, now: Date.now() });
+        grabPosterInto(q, item.localId, plan.attach[i]);
+      });
     },
-    [dispatch, showError, store, uploadPhoto]
+    [dispatch, showError, ensureQueue]
   );
   const retryPhoto = useCallback(
     (localId: string) => {
-      const file = filesRef.current.get(localId);
-      if (!file) return;
-      dispatch({ type: 'photoUploaded', localId, url: '' }); // clears failed; the upload sets the real url
-      dispatch({ type: 'photoFailed', localId });
-      uploadPhoto(localId, file);
+      const q = queueRef.current?.queue;
+      if (!q) return;
+      dispatch({ type: 'photoRetried', localId });
+      q.retry(localId);
     },
-    [dispatch, uploadPhoto]
+    [dispatch]
   );
   const dropPreviews = useCallback(() => {
-    Object.values(previewsRef.current).forEach(u => URL.revokeObjectURL(u));
+    queueRef.current?.queue.destroy();
+    queueRef.current = null;
     setPreviews({});
-    filesRef.current.clear();
   }, []);
   const removePhoto = useCallback(
     (localId: string) => {
-      const url = previewsRef.current[localId];
-      if (url) URL.revokeObjectURL(url);
-      setPreviews(prev => {
-        const next = { ...prev };
-        delete next[localId];
-        return next;
-      });
-      filesRef.current.delete(localId);
+      queueRef.current?.queue.forget(localId);
       dispatch({ type: 'photoRemoved', localId });
     },
     [dispatch]
@@ -276,13 +302,14 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
   const clear = useCallback(async () => {
     const s = stateRef.current;
     if (s) await store?.clear(s.id).catch(() => undefined);
+    queueRef.current?.queue.clearStash();
     dropPreviews();
     setState(null);
     setGapNotice(null);
     setLastAccuracy(null);
   }, [store, dropPreviews]);
   const dismissGapNotice = useCallback(() => setGapNotice(null), []);
-  const uploadsSettled = useCallback(() => uploadQueue.current, []);
+  const uploadsSettled = useCallback(async () => { await queueRef.current?.queue.settle(); }, []);
   const getState = useCallback(() => stateRef.current, []);
 
   // The FILTERED route (gps-filter.ts) — the one the server stores and the map draws.
@@ -318,7 +345,8 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
   useEffect(() => {
     return () => {
       publishEngine(null);
-      Object.values(previewsRef.current).forEach(u => URL.revokeObjectURL(u));
+      queueRef.current?.queue.destroy();
+      queueRef.current = null;
     };
   }, []);
 

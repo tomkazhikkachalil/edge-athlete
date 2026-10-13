@@ -32,8 +32,8 @@ import {
   replacePendingMedia,
 } from '@/lib/workouts/set-media-pending';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
+import { grabPosterInto } from '@/components/media/grab-poster';
 import type { QueueItem } from '@/lib/media/upload-queue';
-import { POSTER_GRAB_DEADLINE_MS, posterTimeFor } from '@/lib/media/poster-plan';
 
 export type SetMediaStatus = 'pending' | 'failed' | 'processing';
 
@@ -113,26 +113,10 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
     if (changed) write(current);
   }, [items, queue]);
 
-  // A video clip's poster: grabbed on the device chain after the tile, one at
-  // a time, with a deadline — a miss leaves the clip without one (the server
-  // job fills it later).
-  const grabPoster = useCallback((localId: string, file: File) => {
-    if (!file.type.startsWith('video/')) return;
-    void queue.device(async () => {
-      let timer: number | null = null;
-      try {
-        const blob = await Promise.race([
-          import('@/lib/media/poster').then(({ capturePoster }) => capturePoster(file, posterTimeFor(null))),
-          new Promise<null>(resolve => { timer = window.setTimeout(() => resolve(null), POSTER_GRAB_DEADLINE_MS); }),
-        ]);
-        if (blob) queue.attachPoster(localId, blob);
-      } catch {
-        /* no poster — the clip is still the clip */
-      } finally {
-        if (timer !== null) window.clearTimeout(timer);
-      }
-    });
-  }, [queue]);
+  // A video clip's poster: grabbed on the device chain after the tile (the
+  // one grab every host shares — grab-poster.ts); a miss leaves the clip
+  // without one (the server job fills it later).
+  const grabPoster = useCallback((localId: string, file: File) => grabPosterInto(queue, localId, file), [queue]);
 
   const register = useCallback((files: File[], place: StashPlace): SetMedia[] => {
     const registered = queue.register(files, place);
