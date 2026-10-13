@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-13T00:08:39.727909+00:00 from server 17.6 by
+-- Generated 2026-10-13T22:40:31.886097+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 260.
+-- public.schema_dump() (migration 227). Ledger head at generation: 262.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (114; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (115; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2241,6 +2241,39 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
+ RETURNS SETOF media_jobs
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH running AS (
+    SELECT count(*) AS n FROM public.media_jobs
+     WHERE status = 'running'
+       AND claimed_at IS NOT NULL
+       AND claimed_at > timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))
+  ), picked AS (
+    -- The running count enters as scalar subqueries: LIMIT may not name a row variable (42P10).
+    SELECT j.id FROM public.media_jobs j
+     WHERE (SELECT n FROM running) < GREATEST(p_max_running, 1)
+       AND (
+         (j.status IN ('queued', 'parked') AND j.run_after <= timezone('utc'::text, now()))
+         OR (j.status = 'running' AND (j.claimed_at IS NULL OR j.claimed_at < timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))))
+       )
+     ORDER BY CASE j.kind WHEN 'video' THEN 0 WHEN 'probe' THEN 1 WHEN 'poster' THEN 2 ELSE 3 END, j.created_at
+     LIMIT GREATEST(LEAST(p_n, GREATEST(p_max_running, 1) - (SELECT n FROM running)), 0)
+     FOR UPDATE OF j SKIP LOCKED
+  )
+  UPDATE public.media_jobs j
+     SET status = 'running',
+         claimed_at = timezone('utc'::text, now()),
+         attempts = j.attempts + 1
+    FROM picked
+   WHERE j.id = picked.id
+  RETURNING j.*;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.notifications_skip_departed()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4199,7 +4232,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (131) ──────────────────────────────────────────────────────────────
+-- ── Tables (132) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4262,7 +4295,11 @@ CREATE TABLE IF NOT EXISTS public.activity_media (
   at_s integer,
   display_order smallint DEFAULT 0 NOT NULL,
   mirrored_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  codec text,
+  processing_at timestamp with time zone,
+  blur_hash text,
+  transcode_source_url text
 );
 
 CREATE TABLE IF NOT EXISTS public.affiliations (
@@ -5026,6 +5063,26 @@ CREATE TABLE IF NOT EXISTS public.live_cheers (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.media_jobs (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  kind text NOT NULL,
+  target_table text NOT NULL,
+  target_id uuid NOT NULL,
+  owner_id uuid NOT NULL,
+  source_path text NOT NULL,
+  status text DEFAULT 'queued'::text NOT NULL,
+  attempts integer DEFAULT 0 NOT NULL,
+  run_after timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  claimed_at timestamp with time zone,
+  finished_at timestamp with time zone,
+  error text,
+  output_url text,
+  poster_url text,
+  blur_hash text,
+  origin text DEFAULT 'upload'::text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.memberships (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -5458,7 +5515,11 @@ CREATE TABLE IF NOT EXISTS public.post_media (
   duration integer,
   created_at timestamp with time zone DEFAULT now(),
   source_url text,
-  edit_recipe jsonb
+  edit_recipe jsonb,
+  codec text,
+  processing_at timestamp with time zone,
+  blur_hash text,
+  transcode_source_url text
 );
 
 CREATE TABLE IF NOT EXISTS public.post_tags (
@@ -6454,6 +6515,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_pkey' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_pkey' AND conrelid = 'public.memberships'::regclass) THEN
     ALTER TABLE public.memberships ADD CONSTRAINT memberships_pkey PRIMARY KEY (id);
   END IF;
@@ -7368,8 +7434,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_blur_hash_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_blur_hash_check CHECK (((blur_hash IS NULL) OR ((length(blur_hash) >= 8) AND (length(blur_hash) <= 64))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_caption_check' AND conrelid = 'public.activity_media'::regclass) THEN
     ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_caption_check CHECK (((caption IS NULL) OR (length(caption) <= 500)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_codec_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_codec_check CHECK (((codec IS NULL) OR (codec = ANY (ARRAY['avc'::text, 'hevc'::text, 'vp8'::text, 'vp9'::text, 'av1'::text, 'unknown'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7380,6 +7456,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_thumb_check' AND conrelid = 'public.activity_media'::regclass) THEN
     ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_thumb_check CHECK (((thumbnail_url IS NULL) OR ((length(thumbnail_url) >= 1) AND (length(thumbnail_url) <= 2000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activity_media_transcode_source_check' AND conrelid = 'public.activity_media'::regclass) THEN
+    ALTER TABLE public.activity_media ADD CONSTRAINT activity_media_transcode_source_check CHECK (((transcode_source_url IS NULL) OR ((length(transcode_source_url) >= 1) AND (length(transcode_source_url) <= 2000))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8038,6 +8119,56 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_attempts_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_attempts_check CHECK ((attempts >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_blur_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_blur_check CHECK (((blur_hash IS NULL) OR ((length(blur_hash) >= 8) AND (length(blur_hash) <= 64))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_error_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_error_check CHECK (((error IS NULL) OR (length(error) <= 2000)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_kind_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_kind_check CHECK ((kind = ANY (ARRAY['video'::text, 'poster'::text, 'blur'::text, 'probe'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_origin_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_origin_check CHECK ((origin = ANY (ARRAY['upload'::text, 'mirror'::text, 'backfill'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_output_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_output_check CHECK (((output_url IS NULL) OR ((length(output_url) >= 1) AND (length(output_url) <= 2000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_poster_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_poster_check CHECK (((poster_url IS NULL) OR ((length(poster_url) >= 1) AND (length(poster_url) <= 2000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_source_path_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_source_path_check CHECK (((length(source_path) >= 1) AND (length(source_path) <= 2000)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_status_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'parked'::text, 'failed'::text, 'skipped'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'media_jobs_target_table_check' AND conrelid = 'public.media_jobs'::regclass) THEN
+    ALTER TABLE public.media_jobs ADD CONSTRAINT media_jobs_target_table_check CHECK ((target_table = ANY (ARRAY['post_media'::text, 'activity_media'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_kind_check' AND conrelid = 'public.memberships'::regclass) THEN
     ALTER TABLE public.memberships ADD CONSTRAINT memberships_kind_check CHECK ((kind = ANY (ARRAY['follow'::text, 'roster'::text, 'staff'::text])));
   END IF;
@@ -8293,8 +8424,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_media_blur_hash_check' AND conrelid = 'public.post_media'::regclass) THEN
+    ALTER TABLE public.post_media ADD CONSTRAINT post_media_blur_hash_check CHECK (((blur_hash IS NULL) OR ((length(blur_hash) >= 8) AND (length(blur_hash) <= 64))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_media_codec_check' AND conrelid = 'public.post_media'::regclass) THEN
+    ALTER TABLE public.post_media ADD CONSTRAINT post_media_codec_check CHECK (((codec IS NULL) OR (codec = ANY (ARRAY['avc'::text, 'hevc'::text, 'vp8'::text, 'vp9'::text, 'av1'::text, 'unknown'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_media_media_type_check' AND conrelid = 'public.post_media'::regclass) THEN
     ALTER TABLE public.post_media ADD CONSTRAINT post_media_media_type_check CHECK ((media_type = ANY (ARRAY['image'::text, 'video'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_media_transcode_source_check' AND conrelid = 'public.post_media'::regclass) THEN
+    ALTER TABLE public.post_media ADD CONSTRAINT post_media_transcode_source_check CHECK (((transcode_source_url IS NULL) OR ((length(transcode_source_url) >= 1) AND (length(transcode_source_url) <= 2000))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10512,6 +10658,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_provider_user ON publ
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_connections_token_hash ON public.activity_connections USING btree (token_hash) WHERE (token_hash IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_activity_media_activity ON public.activity_media USING btree (activity_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_media_created_by ON public.activity_media USING btree (created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_media_processing ON public.activity_media USING btree (processing_at) WHERE (processing_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_activity_media_profile ON public.activity_media USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_decided_by_profile_id ON public.affiliations USING btree (decided_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_affiliations_parent ON public.affiliations USING btree (parent_org_id);
@@ -10692,6 +10839,9 @@ CREATE INDEX IF NOT EXISTS idx_live_cheers_context ON public.live_cheers USING b
 CREATE INDEX IF NOT EXISTS idx_live_cheers_created ON public.live_cheers USING btree (created_at);
 CREATE INDEX IF NOT EXISTS idx_live_cheers_profile ON public.live_cheers USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_live_cheers_target ON public.live_cheers USING btree (target_profile_id) WHERE (target_profile_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_due ON public.media_jobs USING btree (status, run_after, created_at);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_source_done ON public.media_jobs USING btree (source_path) WHERE (status = 'done'::text);
+CREATE UNIQUE INDEX IF NOT EXISTS media_jobs_one_open ON public.media_jobs USING btree (target_table, target_id) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text, 'parked'::text]));
 CREATE INDEX IF NOT EXISTS idx_memberships_granted_by ON public.memberships USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_memberships_org ON public.memberships USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_photo_consent_by ON public.memberships USING btree (photo_consent_by);
@@ -10798,6 +10948,7 @@ CREATE INDEX IF NOT EXISTS idx_post_likes_profile_id ON public.post_likes USING 
 CREATE INDEX IF NOT EXISTS idx_post_media_post_display ON public.post_media USING btree (post_id, display_order);
 CREATE INDEX IF NOT EXISTS idx_post_media_post_id ON public.post_media USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_media_post_order ON public.post_media USING btree (post_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_post_media_processing ON public.post_media USING btree (processing_at) WHERE (processing_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_post_tags_created_by ON public.post_tags USING btree (created_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_tags_media_id ON public.post_tags USING btree (media_id) WHERE (media_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_post_tags_post_id ON public.post_tags USING btree (post_id);
@@ -11006,7 +11157,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (114) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (115) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -13084,6 +13235,37 @@ BEGIN
 
   RETURN TRUE;
 END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
+ RETURNS SETOF media_jobs
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH running AS (
+    SELECT count(*) AS n FROM public.media_jobs
+     WHERE status = 'running'
+       AND claimed_at IS NOT NULL
+       AND claimed_at > timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))
+  ), picked AS (
+    -- The running count enters as scalar subqueries: LIMIT may not name a row variable (42P10).
+    SELECT j.id FROM public.media_jobs j
+     WHERE (SELECT n FROM running) < GREATEST(p_max_running, 1)
+       AND (
+         (j.status IN ('queued', 'parked') AND j.run_after <= timezone('utc'::text, now()))
+         OR (j.status = 'running' AND (j.claimed_at IS NULL OR j.claimed_at < timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))))
+       )
+     ORDER BY CASE j.kind WHEN 'video' THEN 0 WHEN 'probe' THEN 1 WHEN 'poster' THEN 2 ELSE 3 END, j.created_at
+     LIMIT GREATEST(LEAST(p_n, GREATEST(p_max_running, 1) - (SELECT n FROM running)), 0)
+     FOR UPDATE OF j SKIP LOCKED
+  )
+  UPDATE public.media_jobs j
+     SET status = 'running',
+         claimed_at = timezone('utc'::text, now()),
+         attempts = j.attempts + 1
+    FROM picked
+   WHERE j.id = picked.id
+  RETURNING j.*;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.notifications_skip_departed()
@@ -15210,6 +15392,7 @@ ALTER TABLE public.guardian_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.handle_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.help_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_cheers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.media_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.message_reports ENABLE ROW LEVEL SECURITY;
@@ -16619,6 +16802,8 @@ REVOKE ALL ON TABLE public.help_articles FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.help_articles TO service_role;
 REVOKE ALL ON TABLE public.live_cheers FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.live_cheers TO service_role;
+REVOKE ALL ON TABLE public.media_jobs FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.media_jobs TO service_role;
 REVOKE ALL ON TABLE public.memberships FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.memberships TO service_role;
 REVOKE ALL ON TABLE public.message_reactions FROM anon, authenticated, service_role;
@@ -16967,6 +17152,8 @@ REVOKE EXECUTE ON FUNCTION public.increment_post_save_count() FROM PUBLIC, anon,
 GRANT EXECUTE ON FUNCTION public.increment_post_save_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.notifications_skip_departed() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_comment_like() FROM PUBLIC, anon, authenticated, service_role;
@@ -17086,6 +17273,10 @@ COMMENT ON COLUMN public.activities.notes IS 'The athlete''s notes (251), ≤ 20
 COMMENT ON TABLE public.activity_connections IS 'Connected watches and apps (247): one row per athlete per source. ONE writer: src/lib/activities/connections-server.ts. secret_ciphertext is app-encrypted OAuth tokens; token_hash is the personal upload link (sha256). Posture A: service role only — no response ever carries either column.';
 COMMENT ON TABLE public.activity_media IS 'A photo / clip on an activity (251): taken during a recording or added after; posture A behind the activity gate (src/lib/activities/read-server.ts); at_s pins it to the route at READ time from the viewer''s trimmed stream; mirrored into the shared post (mirrored_at).';
 COMMENT ON COLUMN public.activity_media.created_by_user_id IS 'The human author when a guardian acts for a supervised athlete (the 090 attribution); NULL for a self-upload.';
+COMMENT ON COLUMN public.activity_media.codec IS 'As post_media.codec (261).';
+COMMENT ON COLUMN public.activity_media.processing_at IS 'As post_media.processing_at (261).';
+COMMENT ON COLUMN public.activity_media.blur_hash IS 'As post_media.blur_hash (261).';
+COMMENT ON COLUMN public.activity_media.transcode_source_url IS 'As post_media.transcode_source_url (261).';
 COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) — Round 5 D-ii (236). A club in a league: org_id = the club, parent_org_id = the league. A league under a parent league: org_id = the child league. initiated_by is which END asked (child | parent). Replaces league_clubs + league_affiliations (dropped in 237).';
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
@@ -17162,6 +17353,8 @@ COMMENT ON TABLE public.help_articles IS 'Help Center (224): short articles by t
 COMMENT ON COLUMN public.help_articles.body IS 'Plain text (224): blank-line paragraphs, "- " bullets; the renderer never trusts HTML.';
 COMMENT ON COLUMN public.help_articles.video_url IS 'A YouTube link (224), validated through the site builder''s embed parser — never an arbitrary iframe source.';
 COMMENT ON TABLE public.live_cheers IS 'Spectator cheers on a live round (244); a key from a fixed set of six. ONE writer: src/lib/play/cheers-server.ts. Purged after 30 days by the daily cron. Posture A.';
+COMMENT ON TABLE public.media_jobs IS 'The media worker''s queue (261): one row per unit of work on a post_media / activity_media row — a transcode, a poster, a blur hash, a probe. Posture A; claimed by media_jobs_claim; outputs recorded so a mirrored copy of the same file reuses them.';
+COMMENT ON COLUMN public.media_jobs.target_id IS 'The media row''s id — polymorphic over target_table, so no FK: a row deleted under a running job makes it skipped.';
 COMMENT ON COLUMN public.notification_preferences.urgent_email_enabled IS 'Urgent safety emails (safety_alert/consent_result within ~10 min). ON by default; the settings toggle is the opt-out (135).';
 COMMENT ON TABLE public.notifications IS 'Central notifications table for all user notifications';
 COMMENT ON COLUMN public.notifications.comment_id IS 'References post_comments.id - no FK for flexibility';
@@ -17186,6 +17379,10 @@ COMMENT ON COLUMN public.post_comments.review_note IS 'Guardian send-back note (
 COMMENT ON COLUMN public.post_comments.approval_nudged_at IS '48h approval-nudge dedupe stamp (129). Non-null = guardians were re-belled once for this pending item.';
 COMMENT ON COLUMN public.post_comments.hidden_at IS 'Hidden by moderation (223): status = ''hidden'' is what hides it; this records when.';
 COMMENT ON COLUMN public.post_comments.hidden_ticket_id IS 'The ticket that hid it (223).';
+COMMENT ON COLUMN public.post_media.codec IS 'The video track''s codec the server read at upload completion (261): avc · hevc · vp8 · vp9 · av1 · unknown; NULL on images and on rows from before.';
+COMMENT ON COLUMN public.post_media.processing_at IS 'Set at insert only when the codec needs the server transcode (261); NULL = playable as stored. The reader emits a boolean, never this.';
+COMMENT ON COLUMN public.post_media.blur_hash IS 'A ThumbHash (base64) — the blurred placeholder painted while the picture loads (261). Computed on the device at attach; the media job fills older rows.';
+COMMENT ON COLUMN public.post_media.transcode_source_url IS 'The pre-transcode original, kept forever (261). Never source_url: that is the edit original the re-edit path reads.';
 COMMENT ON TABLE public.post_tags IS 'Tags linking posts to profiles (users/organizations)';
 COMMENT ON COLUMN public.post_tags.media_id IS 'Optional: specific media item within the post';
 COMMENT ON COLUMN public.post_tags.position_x IS 'Horizontal position percentage (0-100) for photo/video tags';
@@ -17301,6 +17498,7 @@ COMMENT ON FUNCTION public.get_golf_scorecard(p_group_post_id uuid) IS 'Returns 
 COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Returns complete group post data including participants and media';
 COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
+COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
@@ -17715,7 +17913,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (257, '257_security_advisor_cleanup.sql', 'rebuild-000'),
   (258, '258_schema_dump_private_schema.sql', 'rebuild-000'),
   (259, '259_session_reminder.sql', 'rebuild-000'),
-  (260, '260_workout_screen.sql', 'rebuild-000')
+  (260, '260_workout_screen.sql', 'rebuild-000'),
+  (261, '261_media_jobs.sql', 'rebuild-000'),
+  (262, '262_media_jobs_schedule.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17724,12 +17924,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 131 | 114 | 173 | 260
+-- Expected: 000 REBUILT | 132 | 115 | 173 | 262
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_131,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_132,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_114,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_115,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_260;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_262;
 
