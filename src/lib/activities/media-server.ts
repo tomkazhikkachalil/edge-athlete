@@ -14,7 +14,7 @@ import type { ActivityMediaRow } from './visibility';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export const ACTIVITY_MEDIA_COLUMNS = 'id, activity_id, media_url, media_type, thumbnail_url, duration_seconds, caption, at_s, display_order, mirrored_at, created_at';
+export const ACTIVITY_MEDIA_COLUMNS = 'id, activity_id, media_url, media_type, thumbnail_url, blur_hash, duration_seconds, caption, at_s, display_order, mirrored_at, created_at';
 
 /** The activity's photos with proxied URLs — the projection adds the pins. */
 export async function readActivityMedia(admin: Admin, activityId: string): Promise<ActivityMediaRow[]> {
@@ -41,7 +41,7 @@ export async function mirrorActivityMedia(admin: Admin, activityId: string, post
     const inputs: RoundMediaInput[] = media
       .slice()
       .sort((a, b) => a.display_order - b.display_order || (a.at_s ?? Infinity) - (b.at_s ?? Infinity))
-      .map(m => ({ media_url: m.media_url, media_type: m.media_type, segment_number: null, created_at: m.created_at, thumbnail_url: m.thumbnail_url }));
+      .map(m => ({ media_url: m.media_url, media_type: m.media_type, segment_number: null, created_at: m.created_at, thumbnail_url: m.thumbnail_url, blur_hash: m.blur_hash ?? null }));
     const toInsert = buildMirrorMedia(inputs, ((existing ?? []) as Array<{ media_url: string }>).map(m => m.media_url), startOrder);
     if (toInsert.length > 0) {
       const { error: insertError } = await admin.from('post_media').insert(toInsert.map(r => ({ ...r, post_id: postId })));

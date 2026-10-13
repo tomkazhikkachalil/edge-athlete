@@ -11,6 +11,7 @@ import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import VideoFrame from '@/components/media/VideoFrame';
 import { MAX_DEVICE_POSTER_ATTEMPTS, planPosterRetry, POSTER_GRAB_DEADLINE_MS, POSTER_RETRY_DEADLINE_MS, posterTimeFor, type PosterFailure } from '@/lib/media/poster-plan';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
+import { grabBlurInto } from '@/components/media/grab-poster';
 import { UploadError } from '@/lib/media/upload';
 import type { QueueItem } from '@/lib/media/upload-queue';
 import MediaTile from '@/components/media/MediaTile';
@@ -311,6 +312,15 @@ export default function CreatePostModal({
       const prepared = await prepareImageForUpload(file, COMPOSER_EDITOR_CONFIG.output);
       return { file: prepared.file, original: prepared.resized ? prepared.original : undefined, width: prepared.width, height: prepared.height };
     },
+    // A photo's blur (PR 6): from its STORED render (the prepare step made it
+    // small), enqueued INSIDE the upload task so Post's `settle()` waits for
+    // it — a React effect ran a render too late and a Post sent the instant
+    // the upload landed went out without it. A clip's blur is its poster's.
+    onStored: (item, q) => {
+      if (item.kind !== 'image') return;
+      const picture = q.fileFor(item.localId);
+      if (picture) grabBlurInto(q, item.localId, picture);
+    },
     notify: showError,
   });
   const queue = uploads.queue;
@@ -492,7 +502,10 @@ export default function CreatePostModal({
       if (settled) return;
       settled = true;
       posterInFlightRef.current.delete(id);
-      if (blob) queue.attachPoster(id, blob);
+      if (blob) {
+        queue.attachPoster(id, blob);
+        grabBlurInto(queue, id, blob); // the clip's blur is its poster's (PR 6)
+      }
       const plan = blob ? null : planPosterRetry(attempt, failure ?? 'timeout');
       setMediaFiles(prev =>
         prev.map(f =>
@@ -783,7 +796,7 @@ export default function CreatePostModal({
         showError('A file did not upload', 'Tap Retry on it, or remove it, then post.');
         return;
       }
-      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
+      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string; blurHash?: string }> = [];
       // An edited video's ORIGINAL (and a resized photo's) follows after the
       // post exists (by index — the server orders post_media by the sortOrder
       // sent below).
@@ -795,6 +808,7 @@ export default function CreatePostModal({
           url,
           thumbnailUrl,
           sourceUrl,
+          blurHash: item?.blurHash,
           width: item?.prepared?.width ?? file.width,
           height: item?.prepared?.height ?? file.height,
           edited: file.edited || !!item?.prepared?.resized,
@@ -816,6 +830,8 @@ export default function CreatePostModal({
           sortOrder: index,
           // server persists as post_media.thumbnail_url (posts/route.ts)
           thumbnailUrl: file.thumbnailUrl,
+          // the blurred placeholder (261) the device computed, when it did
+          blurHash: file.blurHash,
           // editor-probed output metadata → post_media.width/height/duration
           width: file.width,
           height: file.height,

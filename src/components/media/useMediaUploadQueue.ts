@@ -23,7 +23,8 @@ interface Options {
   keepStashedAfterUpload?: boolean;
   targetProfileId?: () => string | undefined;
   prepare?: (file: File, localId: string) => Promise<PrepareResult | null>;
-  onStored?: (item: QueueItem) => void;
+  /** An upload landed — called INSIDE the upload task, so work it enqueues on the queue (a photo's blur) is waited for by `settle()`. */
+  onStored?: (item: QueueItem, queue: UploadQueue) => void;
   notify?: (title: string, message: string) => void;
 }
 
@@ -56,7 +57,7 @@ export function useMediaUploadQueue({ sessionId, keepStashedAfterUpload = false,
         targetProfileId: () => latestRef.current.targetProfileId?.(),
         prepare: (file, localId) => (latestRef.current.prepare ? latestRef.current.prepare(file, localId) : Promise.resolve(null)),
         onChange: setItems,
-        onStored: item => latestRef.current.onStored?.(item),
+        onStored: item => { if (queueRef.current) latestRef.current.onStored?.(item, queueRef.current); },
         notify: (title, message) => latestRef.current.notify?.(title, message),
         isOnline: getOnline,
         subscribeOnline,

@@ -19,6 +19,7 @@ export default function SetMediaThumb({
   type,
   preview,
   thumbnailUrl,
+  blurHash,
   size = 48,
   className = 'w-full h-full object-cover',
 }: {
@@ -27,6 +28,8 @@ export default function SetMediaThumb({
   preview?: string;
   /** The clip's poster (Oct 13 2026) — the stored one; a local preview previews itself while it uploads. */
   thumbnailUrl?: string | null;
+  /** The stored ThumbHash (PR 6) under the thumb. */
+  blurHash?: string | null;
   size?: number;
   className?: string;
 }) {
@@ -35,7 +38,7 @@ export default function SetMediaThumb({
   if (type === 'video') {
     // VideoFrame: the poster, else a local preview's own first frame, else
     // the branded placeholder — never a stored <video> in a 48 px thumb.
-    return <VideoFrame src={shown} poster={preview ? null : thumbnailUrl} compact alt="Set video" className="absolute inset-0 h-full w-full" />;
+    return <VideoFrame src={shown} poster={preview ? null : thumbnailUrl} blurHash={preview ? null : blurHash} compact alt="Set video" className="absolute inset-0 h-full w-full" />;
   }
   return (
     <Image

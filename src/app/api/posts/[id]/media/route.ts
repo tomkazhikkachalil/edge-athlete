@@ -35,7 +35,7 @@ export async function GET(
 
     const { data: media, error } = await admin
       .from('post_media')
-      .select('id, media_url, media_type, thumbnail_url, display_order, source_url, edit_recipe')
+      .select('id, media_url, media_type, thumbnail_url, blur_hash, display_order, source_url, edit_recipe')
       .eq('post_id', id)
       .order('display_order', { ascending: true });
     if (error) throw error;

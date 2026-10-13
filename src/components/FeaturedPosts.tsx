@@ -18,6 +18,7 @@ interface FeaturedPost {
     media_url: string;
     media_type: 'image' | 'video';
     thumbnail_url?: string | null;
+    blur_hash?: string | null;
     display_order: number;
   }>;
   golf_round?: GolfRound | null;
@@ -157,6 +158,7 @@ function FeaturedTile({
             <MediaTile
               src={firstMedia.media_url}
               thumbnailUrl={firstMedia.thumbnail_url}
+              blurHash={firstMedia.blur_hash}
               kind="video"
               alt={post.caption || 'Featured video'}
               className="w-full h-full"

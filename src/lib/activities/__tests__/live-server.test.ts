@@ -38,7 +38,7 @@ describe('activity photos — the body a POST accepts (251)', () => {
     expect(isOwnUploadUrl(`${BASE}/activities/${PROFILE}/x.json.gz`, PROFILE)).toBe(false);
     expect(isOwnUploadUrl('https://evil.example/a.jpg', PROFILE)).toBe(false);
     const good = parseActivityMediaBody({ media_url: `${BASE}/posts/${PROFILE}/a.jpg`, media_type: 'image', at_s: 120, caption: '  Hill  ' }, PROFILE);
-    expect(good).toEqual({ ok: true, value: { media_url: `${BASE}/posts/${PROFILE}/a.jpg`, media_type: 'image', thumbnail_url: null, duration_seconds: null, caption: 'Hill', at_s: 120 } });
+    expect(good).toEqual({ ok: true, value: { media_url: `${BASE}/posts/${PROFILE}/a.jpg`, media_type: 'image', thumbnail_url: null, blur_hash: null, duration_seconds: null, caption: 'Hill', at_s: 120 } });
     expect(parseActivityMediaBody({ media_url: `${BASE}/posts/other/a.jpg`, media_type: 'image' }, PROFILE)).toMatchObject({ ok: false });
     expect(parseActivityMediaBody({ media_url: `${BASE}/posts/${PROFILE}/a.jpg`, media_type: 'gif' }, PROFILE)).toMatchObject({ ok: false });
     expect(parseActivityMediaBody({ media_url: `${BASE}/posts/${PROFILE}/a.jpg`, media_type: 'image', at_s: 1.5 }, PROFILE)).toMatchObject({ ok: false });

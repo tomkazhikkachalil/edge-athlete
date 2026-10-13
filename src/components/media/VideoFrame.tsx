@@ -3,6 +3,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import Image from 'next/image';
 import { useOptimizedSrc } from './useOptimizedSrc';
+import BlurBox from './BlurBox';
 import { formatDuration } from '@/lib/media/duration';
 
 // ── THE one video renderer (video posters program, Oct 13 2026) ─────────────
@@ -34,6 +35,8 @@ interface VideoFrameProps {
   src: string;
   /** The stored poster (`thumbnail_url`) or a local poster object URL. */
   poster?: string | null;
+  /** The stored ThumbHash (PR 6): painted under the still while it loads. */
+  blurHash?: string | null;
   state?: VideoFrameState;
   /** 0..1 while `pending`. */
   progress?: number;
@@ -61,6 +64,7 @@ const isLocalUrl = (url: string) => url.startsWith('blob:') || url.startsWith('d
 export default function VideoFrame({
   src,
   poster,
+  blurHash,
   state = 'ready',
   progress,
   durationSeconds,
@@ -104,6 +108,7 @@ export default function VideoFrame({
 
   return (
     <div className={`relative overflow-hidden bg-surface-sunken ${className}`} data-video-frame={shown}>
+      {blurHash && <BlurBox hash={blurHash} />}
       {/* The still: the poster, the local preview, or the branded placeholder. */}
       {posterSrc ? (
         <Image

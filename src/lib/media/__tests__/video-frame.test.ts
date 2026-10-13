@@ -105,7 +105,7 @@ describe('source pins — the frame and its hosts', () => {
     expect(read('src/components/messages/SharedPostPreview.tsx')).toMatch(/poster=\{thumbnail\.thumbnail_url\}/);
     expect(read('src/components/workouts/SetMediaThumb.tsx')).toMatch(/<VideoFrame src=\{shown\} poster=\{preview \? null : thumbnailUrl\}/);
     // The two quoted-post selects carry the poster.
-    expect(read('src/app/api/posts/route.ts')).toMatch(/media:post_media \( media_url, media_type, thumbnail_url \)/);
+    expect(read('src/app/api/posts/route.ts')).toMatch(/media:post_media \( media_url, media_type, thumbnail_url, blur_hash \)/);
     expect(read('src/app/api/messages/[conversationId]/route.ts')).toMatch(/media_url, media_type, thumbnail_url/);
     expect(read('src/types/messages.ts')).toMatch(/media: \{ media_url: string; media_type: string; thumbnail_url\?: string \| null \}\[\];/);
   });

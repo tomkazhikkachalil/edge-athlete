@@ -83,6 +83,9 @@ test('a recorded clip posts with its poster; the feed card shows the poster and 
   await expect(frame).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
   await expect(frame.locator('img')).toHaveAttribute('src', /.+/);
   await expect(frame.locator('video')).toHaveCount(0);
+  // PR 6: the blurred placeholder (a ThumbHash of the poster, computed on the device) sits under it.
+  await expect(frame.locator('[data-blur-box]')).toHaveCount(1);
+  expect(body.media?.[0] && 'blurHash' in body.media[0] ? (body.media[0] as { blurHash?: string }).blurHash : undefined, 'the post carried a blur hash').toMatch(/^[A-Za-z0-9+/]{8,64}={0,2}$/);
   await frame.getByRole('button', { name: 'Play video' }).click();
   await expect(frame).toHaveAttribute('data-video-frame', 'playing');
   await expect(frame.locator('video')).toHaveCount(1);

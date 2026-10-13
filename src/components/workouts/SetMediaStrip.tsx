@@ -20,7 +20,7 @@ export default function SetMediaStrip({ media }: { media: SetMedia[] }) {
           className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken block hover:ring-2 hover:ring-violet-400 transition-shadow"
           aria-label={item.type === 'video' ? 'Watch set video' : 'View set photo'}
         >
-          <SetMediaThumb url={item.url} type={item.type} thumbnailUrl={item.thumbnailUrl} />
+          <SetMediaThumb url={item.url} type={item.type} thumbnailUrl={item.thumbnailUrl} blurHash={item.blurHash} />
         </a>
       ))}
     </div>

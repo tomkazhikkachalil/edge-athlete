@@ -58,7 +58,7 @@ describe('source pins — the workout clips on the house queue', () => {
     const hook = read('src/components/workouts/useSetMediaUploads.ts');
     expect(hook).toMatch(/useMediaUploadQueue\(\{ sessionId, onStored, notify \}\)/);
     expect(hook).not.toMatch(/uploadPostMedia/);
-    expect(hook).toMatch(/grabPosterInto\(queue, localId, file\)/);
+    expect(hook).toMatch(/grabPreviewsInto\(queue, localId, file\)/);
     const grab = read('src/components/media/grab-poster.ts');
     expect(grab).toMatch(/queue\.device\(async \(\) =>/);
     expect(grab).toMatch(/capturePoster\(file, posterTimeFor\(null\)\)/);
