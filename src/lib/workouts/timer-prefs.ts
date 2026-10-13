@@ -42,3 +42,42 @@ export function writeTimerHidden(hidden: boolean): void {
     /* best-effort */
   }
 }
+
+// ── Rounds as a swipe (workout fixes, Oct 13 2026) ──────────────────────────
+/** How a superset / circuit shows its rounds: `swipe` (the default) or `list` (every round vertically). Remembered on the device. */
+export const GROUP_VIEW_KEY = 'ea:workout:group-view:v1';
+/** The one-time "Swipe to move between rounds" hint — seen once, on this device. */
+export const SWIPE_HINT_KEY = 'ea:workout:swipe-hint:v1';
+
+export function readGroupView(): 'swipe' | 'list' {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(GROUP_VIEW_KEY) === 'list' ? 'list' : 'swipe';
+  } catch {
+    return 'swipe';
+  }
+}
+
+export function writeGroupView(view: 'swipe' | 'list'): void {
+  try {
+    if (view === 'list') localStorage.setItem(GROUP_VIEW_KEY, 'list');
+    else localStorage.removeItem(GROUP_VIEW_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function readSwipeHintSeen(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(SWIPE_HINT_KEY) === '1';
+  } catch {
+    return true; // no storage → never nag
+  }
+}
+
+export function writeSwipeHintSeen(): void {
+  try {
+    localStorage.setItem(SWIPE_HINT_KEY, '1');
+  } catch {
+    /* best-effort */
+  }
+}

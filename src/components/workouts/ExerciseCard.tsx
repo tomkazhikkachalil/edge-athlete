@@ -499,7 +499,12 @@ interface ExerciseCardProps {
   uploads: SetMediaUploads;
   /** A member of a superset / circuit (PR 3): rows are rounds, a deleted row
    *  is a round across the group, "Add set" is the group's Add round. */
-  grouped?: { onDeleteRound: (roundIndex: number) => void; onRemoveFromGroup: () => void };
+  grouped?: {
+    onDeleteRound: (roundIndex: number) => void;
+    onRemoveFromGroup: () => void;
+    /** Rounds as a swipe (Oct 13 2026): render ONLY this round's row (0-based) — one slide of the group's track. */
+    onlyRound?: number;
+  };
 }
 
 export default function ExerciseCard({ exercise, onChange, onDelete, uploads, grouped }: ExerciseCardProps) {
@@ -599,7 +604,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads, gr
       )}
 
       <div className="divide-y divide-gray-50 dark:divide-stone-800">
-        {exercise.sets.map((set, index) => (
+        {exercise.sets.map((set, index) => (grouped?.onlyRound === undefined || grouped.onlyRound === index) && (
           <SetRow
             key={index}
             set={set}

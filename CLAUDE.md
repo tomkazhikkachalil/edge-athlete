@@ -1789,7 +1789,24 @@ const { canView } = await response.json();
    `buildWorkoutStatsData` adds its new keys ONLY when present and omits
    `duration_seconds` when untimed (an old post's shape is pinned
    byte-identical). Specs read the clock by `[data-live-clock]`. Read DEVLOG
-   Oct 12 2026 PR 1–5 first.
+   Oct 12 2026 PR 1–5 first. **Two fixes from Tom's phone (Oct 13 2026, zero
+   DDL):** the bottom bar PUBLISHES its measured height (`--ea-workout-bar-h`,
+   the `TabBar` recipe) and the editor's `.ea-bar-clearance` follows it with a
+   transition — the stopwatch panel is always mounted and animates
+   `max-height`, so it takes its own space and never covers the Add buttons;
+   and **a group's rounds are a horizontal stack**: `RoundsTrack` is the ONE
+   carousel (the live card AND the post's `GroupDetailCard`; `snap-x`, the
+   index controlled by the host, programmatic moves set `scrollLeft` — never
+   `scrollIntoView` — smooth unless reduced motion, behind a `programmatic`
+   ref; NO `touch-action` on the track — the effective value is the
+   intersection down the chain, `pan-x` would stop the page scrolling from a
+   touch on a round; out-of-view slides `inert`), the rules pure in
+   `rounds-view.ts` (a round is complete when every member MARKED it; the
+   auto-advance fires on the false → true edge of the round IN VIEW only),
+   `groups.ts copyRound` copies values never media / completion / rest, the
+   view (`swipe` default | `list`) and the one-time hint are device
+   preferences in `timer-prefs.ts`. A spec that logs rounds by row index asks
+   for LIST view in `addInitScript` (`workout-groups.spec`).
 
 ---
 

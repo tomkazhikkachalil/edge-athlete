@@ -35,6 +35,10 @@ test('a superset and a three-round circuit: every round saves with its group; un
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
     workoutId = (await started.json()).session.id as string;
+    // Oct 13 2026: rounds are a swipe by default (workout-rounds-swipe.spec.ts
+    // covers it); this spec logs rounds by their row index, so it asks for
+    // LIST view — the Oct 12 rendering, every round vertically — on this device.
+    await page.addInitScript(() => { try { localStorage.setItem('ea:workout:group-view:v1', 'list'); } catch { /* fail-open */ } });
     await page.goto(`/app/workout/${workoutId}`);
     await expect(page.locator('[data-workout-add-group="superset"]')).toBeVisible({ timeout: 20_000 });
 
