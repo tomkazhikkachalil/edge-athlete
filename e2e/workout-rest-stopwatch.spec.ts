@@ -110,7 +110,7 @@ test('the open stopwatch never covers the Add buttons on a large screen', async 
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
     workoutId = (await started.json()).session.id as string;
-    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 100), set(2, 5, 100), set(3, 5, 100), set(4, 5, 100)] }] } });
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5), set(4, 5)] }] } });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
     await page.goto(`/app/workout/${workoutId}`);
     const bar = page.locator('[data-workout-controls]');
