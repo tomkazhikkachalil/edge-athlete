@@ -21,6 +21,17 @@ export interface WorkoutSummary {
   /** Keyed by exercise_key when present, else normalized name — free-text
    *  "Bench Press" and catalog bench_press must not fork one lift. */
   perExerciseBest: Record<string, { maxWeightLbs: number | null; maxReps: number | null }>;
+  // ── Workout screen PR 5 (Oct 12 2026) — optional: callers before it built literals without them. ──
+  /** Volume per exercise, in order (the exercises with any volume). */
+  perExerciseVolume?: Array<{ clientId: string; name: string; volumeLbs: number }>;
+  /** Σ of the sets' recorded rests (260 `restSeconds`) — derived, never stored on the session. */
+  restSeconds?: number;
+  /** How many rests were recorded. */
+  restCount?: number;
+  /** restSeconds / restCount, rounded; null when no rest was recorded. */
+  avgRestS?: number | null;
+  /** The supersets and circuits, in order, with the rounds every member completed. */
+  groups?: Array<{ groupId: string; kind: 'superset' | 'circuit'; rounds: number; completed: number; names: string[] }>;
 }
 
 /** A set with something in it (reps, weight, a time or a distance above 0). Rest is never data. */
@@ -90,12 +101,49 @@ export function computeSummary(exercises: EntryExercise[]): WorkoutSummary {
     }
   }
 
+  // PR 5: volume per exercise, the rests, the groups' rounds completed.
+  const perExerciseVolume: NonNullable<WorkoutSummary['perExerciseVolume']> = [];
+  let restSeconds = 0;
+  let restCount = 0;
+  for (const exercise of exercises) {
+    let volume = 0;
+    for (const set of exercise.sets) {
+      if (set.weight !== null && set.weight > 0 && set.reps !== null && set.reps > 0) volume += set.reps * toLbs(set.weight, set.weightUnit);
+      if (typeof set.restSeconds === 'number' && set.restSeconds > 0) {
+        restSeconds += set.restSeconds;
+        restCount += 1;
+      }
+    }
+    if (volume > 0) perExerciseVolume.push({ clientId: exercise.clientId, name: exercise.name, volumeLbs: Math.round(volume) });
+  }
+  const groups: NonNullable<WorkoutSummary['groups']> = [];
+  let i = 0;
+  while (i < exercises.length) {
+    const e = exercises[i];
+    if (!e.groupId) { i += 1; continue; }
+    let j = i;
+    while (j < exercises.length && exercises[j].groupId === e.groupId) j += 1;
+    if (j - i >= 2) {
+      const members = exercises.slice(i, j);
+      const rounds = e.groupRounds ?? Math.max(1, ...members.map(m => m.sets.length));
+      let completed = 0;
+      for (let k = 0; k < rounds; k++) if (members.every(m => m.sets[k] && setHasData(m.sets[k]))) completed += 1;
+      groups.push({ groupId: e.groupId, kind: e.groupKind ?? 'circuit', rounds, completed, names: members.map(m => m.name) });
+    }
+    i = j;
+  }
+
   return {
     exerciseCount: exercises.length,
     totalSets,
     totalVolumeLbs: Math.round(totalVolumeLbs),
     topLine,
     perExerciseBest,
+    perExerciseVolume,
+    restSeconds,
+    restCount,
+    avgRestS: restCount > 0 ? Math.round(restSeconds / restCount) : null,
+    groups,
   };
 }
 
@@ -185,6 +233,21 @@ export function buildWorkoutStatsData(input: {
     top_line: input.summary.topLine,
     ...(input.prs && input.prs.length > 0
       ? { prs: input.prs.map(pr => ({ label: pr.label, display: pr.display })) }
+      : {}),
+    // PR 5: the rests, the active time and the groups — ONLY when present, so
+    // an older workout's post keeps its shape byte-identical.
+    ...(input.summary.restSeconds && input.summary.restSeconds > 0
+      ? {
+          rest_seconds: input.summary.restSeconds,
+          ...(input.summary.avgRestS ? { avg_rest_seconds: input.summary.avgRestS } : {}),
+          ...(input.durationSeconds !== null && input.durationSeconds > input.summary.restSeconds ? { active_seconds: input.durationSeconds - input.summary.restSeconds } : {}),
+        }
+      : {}),
+    ...(input.summary.groups && input.summary.groups.length > 0
+      ? { groups: input.summary.groups.map(g => ({ kind: g.kind, rounds: g.rounds, completed: g.completed, names: g.names })) }
+      : {}),
+    ...(input.summary.perExerciseVolume && input.summary.perExerciseVolume.length > 1
+      ? { per_exercise_volume_lbs: input.summary.perExerciseVolume.map(v => ({ name: v.name, volume_lbs: v.volumeLbs })) }
       : {}),
   };
 }

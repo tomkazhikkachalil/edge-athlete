@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Award, ChevronDown, ChevronUp, Dumbbell, Timer, TrendingUp } from 'lucide-react';
-import { formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
+import { formatDuration, formatVolume, formatSetLine, formatElapsed } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { groupLine } from '@/lib/workouts/groups';
 import type { EntryExercise } from '@/lib/workouts/entries';
@@ -36,6 +36,13 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
   const totalVolumeLbs = (statsData.total_volume_lbs as number) || 0;
   const topLine = (statsData.top_line as string) || null;
   const sessionId = statsData.workout_session_id as string | undefined;
+  // PR 5 — present only on posts shared since: the rests, the active time, the groups.
+  const restSeconds = typeof statsData.rest_seconds === 'number' && statsData.rest_seconds > 0 ? statsData.rest_seconds : null;
+  const activeSeconds = typeof statsData.active_seconds === 'number' && statsData.active_seconds > 0 ? statsData.active_seconds : null;
+  const avgRest = typeof statsData.avg_rest_seconds === 'number' && statsData.avg_rest_seconds > 0 ? statsData.avg_rest_seconds : null;
+  const groups = Array.isArray(statsData.groups)
+    ? (statsData.groups as Array<{ kind?: unknown; rounds?: unknown; completed?: unknown }>).filter(g => (g.kind === 'superset' || g.kind === 'circuit') && typeof g.rounds === 'number')
+    : [];
   // Confirmed-at-finish PRs (present only on posts shared since the field
   // existed) — tolerant parse: stats_data is untyped JSON.
   const prs = Array.isArray(statsData.prs)
@@ -123,6 +130,19 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
           </div>
         </div>
       </div>
+
+      {(restSeconds !== null || groups.length > 0) && (
+        <p className="px-3.5 pb-2 text-xs text-tertiary" data-post-workout-extras="">
+          {[
+            activeSeconds !== null ? `Active ${formatDuration(activeSeconds)}` : null,
+            restSeconds !== null ? `Rest ${formatDuration(restSeconds)}` : null,
+            avgRest !== null ? `avg ${formatElapsed(avgRest)}` : null,
+            groups.length > 0 ? groups.map(g => `${g.kind === 'superset' ? 'Superset' : 'Circuit'} ${typeof g.completed === 'number' ? `${g.completed}/${g.rounds}` : g.rounds} rounds`).join(' · ') : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      )}
 
       {/* Expanded details — lazy-fetched once */}
       {detail.status === 'loading' && (

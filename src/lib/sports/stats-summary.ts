@@ -133,12 +133,14 @@ function genericStatsSummary(statsData: Record<string, unknown> | null): StatsSu
     const sets = num(statsData.total_sets);
     const seconds = num(statsData.duration_seconds);
     const volume = num(statsData.total_volume_lbs);
+    const rest = num(statsData.rest_seconds);
 
     const detail = [
       exercises ? `${exercises} exercise${exercises === 1 ? '' : 's'}` : null,
       sets ? `${sets} set${sets === 1 ? '' : 's'}` : null,
       seconds ? formatDuration(seconds) : null,
       volume ? formatVolume(volume) : null,
+      rest ? `${formatDuration(rest)} rest` : null,
     ].filter(Boolean);
 
     const primaryLine = topLine || title || (detail.length ? (detail.shift() as string) : '');
