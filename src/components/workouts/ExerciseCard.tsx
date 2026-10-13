@@ -429,7 +429,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exe
             data-set-media-state={state}
             className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group"
           >
-            <SetMediaThumb url={media.url} type={media.type} preview={previews[media.url] ?? uploads.previewFor(media.url)} />
+            <SetMediaThumb url={media.url} type={media.type} thumbnailUrl={media.thumbnailUrl} preview={previews[media.url] ?? uploads.previewFor(media.url)} />
             {state === 'pending' && (
               <span
                 className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none"

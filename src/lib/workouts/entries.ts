@@ -20,6 +20,8 @@ import { newId } from '@/lib/ids';
 export interface SetMedia {
   url: string;
   type: 'image' | 'video';
+  /** A video clip's poster (video posters PR 2b, Oct 13 2026) — uploaded beside it; the sweep keeps it (collectSetMediaPaths). */
+  thumbnailUrl?: string;
 }
 
 export interface EntrySet {
@@ -189,7 +191,9 @@ function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok:
     if (!MEDIA_TYPES.includes(m.type as typeof MEDIA_TYPES[number])) {
       return { ok: false, error: 'invalid media type' };
     }
-    media.push({ url: m.url, type: m.type as SetMedia['type'] });
+    // The poster is kept when it is a media URL of ours; anything else on the item is dropped (the shape stays ours).
+    const thumbnailUrl = typeof m.thumbnailUrl === 'string' && isAllowedMediaUrl(m.thumbnailUrl) ? m.thumbnailUrl : undefined;
+    media.push({ url: m.url, type: m.type as SetMedia['type'], ...(thumbnailUrl ? { thumbnailUrl } : {}) });
   }
   return { ok: true, media };
 }

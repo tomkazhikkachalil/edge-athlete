@@ -698,7 +698,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           // The carousel is the chosen order (shareOrder), not the reading order.
           media: shareClips.selected
             .slice(0, MAX_POST_MEDIA)
-            .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order })),
+            // A clip's poster rides the post (video posters PR 2b) — post_media.thumbnail_url.
+            .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order, thumbnailUrl: media.thumbnailUrl })),
           taggedProfiles: [],
           stats_data: buildWorkoutStatsData({
             sessionId: finishedSessionId,

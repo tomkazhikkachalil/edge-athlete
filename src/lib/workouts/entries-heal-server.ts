@@ -25,9 +25,11 @@ export function healEntriesMedia(exercises: unknown): unknown {
           ...s,
           media: s.media.map(item => {
             if (typeof item !== 'object' || item === null) return item;
-            const m = item as { url?: unknown };
+            const m = item as { url?: unknown; thumbnailUrl?: unknown };
             if (typeof m.url !== 'string') return item;
-            return { ...m, url: healStoredMediaUrl(m.url) ?? m.url };
+            // The clip's poster (video posters PR 2b) is proxied on read like the clip — healed on write like it.
+            const thumbnailUrl = typeof m.thumbnailUrl === 'string' ? (healStoredMediaUrl(m.thumbnailUrl) ?? m.thumbnailUrl) : undefined;
+            return { ...m, url: healStoredMediaUrl(m.url) ?? m.url, ...(thumbnailUrl ? { thumbnailUrl } : {}) };
           }),
         };
       }),
@@ -41,8 +43,9 @@ export function healSetMediaValue(media: unknown): unknown {
   if (!Array.isArray(media)) return media;
   return media.map(item => {
     if (typeof item !== 'object' || item === null) return item;
-    const m = item as { url?: unknown };
+    const m = item as { url?: unknown; thumbnailUrl?: unknown };
     if (typeof m.url !== 'string') return item;
-    return { ...m, url: healStoredMediaUrl(m.url) ?? m.url };
+    const thumbnailUrl = typeof m.thumbnailUrl === 'string' ? (healStoredMediaUrl(m.thumbnailUrl) ?? m.thumbnailUrl) : undefined;
+    return { ...m, url: healStoredMediaUrl(m.url) ?? m.url, ...(thumbnailUrl ? { thumbnailUrl } : {}) };
   });
 }

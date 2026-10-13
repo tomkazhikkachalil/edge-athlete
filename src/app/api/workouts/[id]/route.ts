@@ -94,13 +94,19 @@ export async function GET(
 
     sortNested(session as NestedSession);
     // Proxy workout-set media (governed by the owner profile + workouts aspect).
-    const s = session as { profile_id: string; exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string }> }> }> };
+    const s = session as { profile_id: string; exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string; thumbnailUrl?: string }> }> }> };
     for (const exercise of s.exercises ?? []) {
       for (const set of exercise.sets ?? []) {
         if (Array.isArray(set.media)) {
-          set.media = set.media.map(m => {
+          set.media = set.media.map((m: { url?: string; thumbnailUrl?: string }) => {
             const stored = m?.url ? (healStoredMediaUrl(m.url) ?? m.url) : m?.url;
-            return { ...m, url: (stored ? toProxyUrl(stored, { type: 'workout', id: s.profile_id }) : stored) ?? stored };
+            // A clip's poster (video posters PR 2b) rides the same proxy as the clip.
+            const poster = m?.thumbnailUrl ? (healStoredMediaUrl(m.thumbnailUrl) ?? m.thumbnailUrl) : undefined;
+            return {
+              ...m,
+              url: (stored ? toProxyUrl(stored, { type: 'workout', id: s.profile_id }) : stored) ?? stored,
+              ...(poster ? { thumbnailUrl: toProxyUrl(poster, { type: 'workout', id: s.profile_id }) ?? poster } : {}),
+            };
           });
         }
       }

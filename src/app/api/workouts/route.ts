@@ -215,15 +215,21 @@ export async function GET(request: NextRequest) {
     sortNested((sessions ?? []) as unknown as SessionRow[]);
     // Proxy workout-set media bytes (workout_sets.media JSONB: [{ url, ... }]),
     // governed by the owner profile's visibility + the vitals `workouts` aspect.
-    for (const session of (sessions ?? []) as Array<{ exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string }> }> }> }>) {
+    for (const session of (sessions ?? []) as Array<{ exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string; thumbnailUrl?: string }> }> }> }>) {
       for (const exercise of session.exercises ?? []) {
         for (const set of exercise.sets ?? []) {
           if (Array.isArray(set.media)) {
             // A row written before the Oct 4 heal may hold a proxied path:
             // heal it on read, so it renders and the next save stores it right.
-            set.media = set.media.map(m => {
+            set.media = set.media.map((m: { url?: string; thumbnailUrl?: string }) => {
               const stored = m?.url ? (healStoredMediaUrl(m.url) ?? m.url) : m?.url;
-              return { ...m, url: (stored ? toProxyUrl(stored, { type: 'workout', id: profileId }) : stored) ?? stored };
+              // A clip's poster (video posters PR 2b) rides the same proxy as the clip.
+              const poster = m?.thumbnailUrl ? (healStoredMediaUrl(m.thumbnailUrl) ?? m.thumbnailUrl) : undefined;
+              return {
+                ...m,
+                url: (stored ? toProxyUrl(stored, { type: 'workout', id: profileId }) : stored) ?? stored,
+                ...(poster ? { thumbnailUrl: toProxyUrl(poster, { type: 'workout', id: profileId }) ?? poster } : {}),
+              };
             });
           }
         }

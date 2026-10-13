@@ -10,7 +10,7 @@ import MediaTile from '@/components/media/MediaTile';
 import { MediaEditor } from '@/components/media-editor';
 import { assetFromRemote, type EditablePostMediaRow } from '@/lib/media/rehydrate';
 import { recipeEnvelope } from '@/lib/media/recipes';
-import { uploadPostMedia } from '@/lib/media/upload';
+import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { COPY } from '@/lib/copy';
 import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
@@ -48,6 +48,7 @@ export default function EditPostModal({
   onPostUpdated
 }: EditPostModalProps) {
   const { showSuccess, showError } = useToast();
+  const uploads = useMediaUploadQueue({ sessionId: `edit-post:${post.id}` });
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const [caption, setCaption] = useState(post.caption || '');
@@ -109,16 +110,19 @@ export default function EditPostModal({
     if (!result || !targetId) return;
     setMediaBusy(targetId);
     try {
-      const { url } = await uploadPostMedia(result.file);
-      let thumbnailUrl: string | undefined;
-      if (result.posterBlob) {
-        try {
-          const poster = new File([result.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
-          thumbnailUrl = (await uploadPostMedia(poster)).url;
-        } catch (e) {
-          console.warn('Poster upload failed:', e);
-        }
+      // Through the one upload queue (video posters PR 2b): the render, then
+      // its poster, one at a time; a typed failure names why.
+      const [item] = uploads.queue.register([result.file]);
+      if (result.posterBlob) uploads.queue.attachPoster(item.localId, result.posterBlob);
+      await uploads.queue.settle();
+      const landed = uploads.queue.itemFor(item.localId);
+      if (!landed?.storedUrl) {
+        showError('Could not update media', landed?.failure?.message ?? 'Please try again.');
+        return;
       }
+      const url = landed.storedUrl;
+      const thumbnailUrl = landed.posterUrl;
+      uploads.queue.forget(item.localId);
       const res = await fetch(`/api/posts/${post.id}/media/${targetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

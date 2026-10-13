@@ -2,31 +2,28 @@
 
 /**
  * The one upload queue of a workout screen (workout capture round, Oct 8
- * 2026). A captured clip becomes a tile at once; its bytes go to IndexedDB;
- * the upload runs here, one at a time, in the background; the set's
- * `pending:<localId>` entry becomes the stored URL when it lands. The
- * recorder's photo path (RecordActivityScreen) is the model.
+ * 2026) — since Oct 13 2026 an ADAPTER over the house's queue
+ * (src/lib/media/upload-queue.ts, video posters PR 2b) with its public API
+ * kept verbatim: a captured clip becomes a tile at once; its bytes go to
+ * IndexedDB; the upload runs one at a time in the background; the set's
+ * `pending:<localId>` entry becomes the stored URL when it lands; a video
+ * clip's POSTER is grabbed after the tile (the poster plan's one second in)
+ * and written onto the entry — found by URL, never by index — when it lands.
  *
- * What the hook owns: the Files (a ref), the previews (object URLs), each
- * clip's status, the promise chain. What it does NOT own: the exercises —
- * it reads the LATEST through `getExercises` and writes through `commit`
- * (the screen's `mutate`: state → draft → debounced sync), so a clip that
- * lands after the user re-ordered or deleted sets finds its entry by URL,
- * never by index.
- *
- * On mount it resumes: every pending id still in the exercises is looked
- * up in the stash; bytes found → preview + upload, no prompt; none found
- * (the stash failed, or the clip was from another device) → the entry is
- * removed and ONE toast says so. Never `Promise.all` over uploads — the
- * Sep 3 2026 lesson (N concurrent phone encodes = a reloaded tab).
+ * What the adapter owns: the mapping between a set's URLs and the queue's
+ * ids, the previews by STORED url (the tile keeps showing the local bytes
+ * until the row is re-read), the resume (the stash's clips whose entry is
+ * gone are put back by their PLACE; a pending id with no bytes is removed
+ * and ONE toast says so). What it does NOT own: the exercises — it reads the
+ * LATEST through `getExercises` and writes through `commit`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { uploadPostMedia } from '@/lib/media/upload';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { EntryExercise, SetMedia } from '@/lib/workouts/entries';
 import { MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
-import { openMediaStash, type MediaStash, type StashPlace } from '@/lib/workouts/media-stash';
+import type { StashPlace } from '@/lib/workouts/media-stash';
 import {
+  patchMediaByUrl,
   pendingIdOf,
   pendingLocalIds,
   pendingUrl,
@@ -34,8 +31,11 @@ import {
   removePendingMedia,
   replacePendingMedia,
 } from '@/lib/workouts/set-media-pending';
+import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
+import type { QueueItem } from '@/lib/media/upload-queue';
+import { POSTER_GRAB_DEADLINE_MS, posterTimeFor } from '@/lib/media/poster-plan';
 
-export type SetMediaStatus = 'pending' | 'failed';
+export type SetMediaStatus = 'pending' | 'failed' | 'processing';
 
 export interface SetMediaUploads {
   /** Pending entries to append to a set — the caller patches the set; the
@@ -73,226 +73,173 @@ interface Options {
   notify: (title: string, message: string) => void;
 }
 
-/** Keyed by localId while the clip is pending or failed; by the STORED url
- *  once it landed (status 'stored' — only the preview is kept, so the tile
- *  keeps showing the local bytes until the row is re-read). */
-interface Tracked {
-  status: SetMediaStatus | 'stored';
-  preview?: string;
-}
-
-// Per-session uniqueness is all a localId needs. Not `crypto.randomUUID`:
-// Safari 15.4+, below the iOS 15 floor (the gate flagged it).
-const newLocalId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
 export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: Options): SetMediaUploads {
-  const stashRef = useRef<MediaStash | null | undefined>(undefined);
-  const stash = () => {
-    if (stashRef.current === undefined) {
-      try { stashRef.current = openMediaStash(); } catch { stashRef.current = null; }
-    }
-    return stashRef.current;
-  };
-  const filesRef = useRef(new Map<string, File>());
-  /** Upload generation per localId — an edit or a forget bumps it so a
-   *  landing upload of the OLD bytes is ignored. */
-  const generationRef = useRef(new Map<string, number>());
-  const queueRef = useRef<Promise<void>>(Promise.resolve());
-  const [tracked, setTracked] = useState<Record<string, Tracked>>({});
-  const trackedRef = useRef(tracked);
-  useEffect(() => { trackedRef.current = tracked; }, [tracked]);
-  /** The statuses, written SYNCHRONOUSLY beside the state — `settle()` reads
-   *  it the moment the queue drains, before React has re-rendered. */
-  const statusMapRef = useRef(new Map<string, SetMediaStatus>());
-
   const latest = useRef({ getExercises, commit, notify });
   useEffect(() => { latest.current = { getExercises, commit, notify }; }, [getExercises, commit, notify]);
+  /** The preview of a clip that LANDED, by its stored URL. */
+  const previewByUrl = useRef(new Map<string, string>());
+  /** Stored URLs whose poster has been written onto the entry. */
+  const postersWritten = useRef(new Set<string>());
 
-  const setStatus = useCallback((localId: string, status: SetMediaStatus | 'stored' | null, preview?: string) => {
-    if (status === 'pending' || status === 'failed') statusMapRef.current.set(localId, status);
-    else statusMapRef.current.delete(localId);
-    setTracked(prev => {
-      const next = { ...prev };
-      if (status === null) delete next[localId];
-      else next[localId] = { status, preview: preview ?? prev[localId]?.preview };
-      return next;
-    });
+  const onStored = useCallback((item: QueueItem) => {
+    const { getExercises: read, commit: write } = latest.current;
+    if (!item.storedUrl) return;
+    const next = replacePendingMedia(read(), item.localId, item.storedUrl);
+    if (next !== read()) write(next);
   }, []);
 
-  const enqueue = useCallback((localId: string, file: File) => {
-    const generation = (generationRef.current.get(localId) ?? 0) + 1;
-    generationRef.current.set(localId, generation);
-    queueRef.current = queueRef.current.then(async () => {
-      if (generationRef.current.get(localId) !== generation) return; // superseded
+  const uploads = useMediaUploadQueue({ sessionId, onStored, notify });
+  const { queue, items } = uploads;
+
+  // A landed clip keeps its local preview under the STORED url; a poster that
+  // landed after its clip is written onto the entry, by URL.
+  useEffect(() => {
+    const { getExercises: read, commit: write } = latest.current;
+    let current = read();
+    let changed = false;
+    for (const item of Object.values(items)) {
+      if (!item.storedUrl) continue;
+      const preview = queue.previewFor(item.localId);
+      if (preview) previewByUrl.current.set(item.storedUrl, preview);
+      if (item.posterUrl && !postersWritten.current.has(item.storedUrl)) {
+        const next = patchMediaByUrl(current, item.storedUrl, { thumbnailUrl: item.posterUrl });
+        if (next !== current) {
+          current = next;
+          changed = true;
+        }
+        postersWritten.current.add(item.storedUrl);
+      }
+    }
+    if (changed) write(current);
+  }, [items, queue]);
+
+  // A video clip's poster: grabbed on the device chain after the tile, one at
+  // a time, with a deadline — a miss leaves the clip without one (the server
+  // job fills it later).
+  const grabPoster = useCallback((localId: string, file: File) => {
+    if (!file.type.startsWith('video/')) return;
+    void queue.device(async () => {
+      let timer: number | null = null;
       try {
-        const uploaded = await uploadPostMedia(file);
-        if (generationRef.current.get(localId) !== generation) return;
-        const { getExercises: read, commit: write } = latest.current;
-        const next = replacePendingMedia(read(), localId, uploaded.url);
-        if (next !== read()) write(next);
-        // The preview moves under the STORED url and keeps showing until the
-        // row is re-read (a thumbnail cannot show a private-bucket URL on its own).
-        statusMapRef.current.delete(localId);
-        setTracked(prev => {
-          const { [localId]: done, ...rest } = prev;
-          return done?.preview ? { ...rest, [uploaded.url]: { status: 'stored', preview: done.preview } } : rest;
-        });
-        filesRef.current.delete(localId);
-        generationRef.current.delete(localId);
-        void stash()?.remove(sessionId, localId).catch(() => undefined);
-      } catch (err) {
-        if (generationRef.current.get(localId) !== generation) return;
-        setStatus(localId, 'failed');
-        latest.current.notify('Upload failed', err instanceof Error ? err.message : 'The clip is still here — tap Retry.');
+        const blob = await Promise.race([
+          import('@/lib/media/poster').then(({ capturePoster }) => capturePoster(file, posterTimeFor(null))),
+          new Promise<null>(resolve => { timer = window.setTimeout(() => resolve(null), POSTER_GRAB_DEADLINE_MS); }),
+        ]);
+        if (blob) queue.attachPoster(localId, blob);
+      } catch {
+        /* no poster — the clip is still the clip */
+      } finally {
+        if (timer !== null) window.clearTimeout(timer);
       }
     });
-  }, [sessionId, setStatus]);
+  }, [queue]);
 
   const register = useCallback((files: File[], place: StashPlace): SetMedia[] => {
-    const entries: SetMedia[] = [];
-    for (const file of files) {
-      const localId = newLocalId();
-      filesRef.current.set(localId, file);
-      const preview = URL.createObjectURL(file);
-      setStatus(localId, 'pending', preview);
-      entries.push({ url: pendingUrl(localId), type: file.type.startsWith('video/') ? 'video' : 'image' });
-      void stash()?.save(sessionId, localId, file, Date.now(), place).catch(() => undefined);
-      enqueue(localId, file);
-    }
-    return entries;
-  }, [enqueue, sessionId, setStatus]);
+    const registered = queue.register(files, place);
+    registered.forEach((item, i) => grabPoster(item.localId, files[i]));
+    return registered.map(item => ({ url: pendingUrl(item.localId), type: item.kind }));
+  }, [queue, grabPoster]);
 
-  const retry = useCallback((localId: string) => {
-    const file = filesRef.current.get(localId);
-    if (!file) return;
-    setStatus(localId, 'pending');
-    enqueue(localId, file);
-  }, [enqueue, setStatus]);
+  const retry = useCallback((localId: string) => queue.retry(localId), [queue]);
 
   const forget = useCallback((url: string) => {
     const localId = pendingIdOf(url);
-    const key = localId ?? url;
-    const preview = trackedRef.current[key]?.preview;
-    if (preview) URL.revokeObjectURL(preview);
-    setStatus(key, null);
-    if (localId) {
-      generationRef.current.set(localId, (generationRef.current.get(localId) ?? 0) + 1); // a landing upload is ignored
-      filesRef.current.delete(localId);
-      void stash()?.remove(sessionId, localId).catch(() => undefined);
-    }
-  }, [sessionId, setStatus]);
+    if (localId) queue.forget(localId);
+    else previewByUrl.current.delete(url);
+  }, [queue]);
 
   const replaceWithEdited = useCallback((localId: string, file: File, previewUrl: string) => {
-    const old = trackedRef.current[localId]?.preview;
-    if (old && old !== previewUrl) URL.revokeObjectURL(old);
-    filesRef.current.set(localId, file);
-    setStatus(localId, 'pending', previewUrl);
-    void stash()?.save(sessionId, localId, file).catch(() => undefined);
-    enqueue(localId, file);
-  }, [enqueue, sessionId, setStatus]);
+    queue.replaceWithEdited(localId, file, { previewUrl });
+    grabPoster(localId, file);
+  }, [queue, grabPoster]);
 
-  // Resume after a reload: the pending ids still in the sets look for their
-  // bytes — and the stash's clips whose ENTRY is gone (the server copy won the
-  // reload after the stripped snapshot landed) are put back in their place.
+  // Resume after a reload: the stash's clips whose ENTRY is gone (the server
+  // copy won the reload after the stripped snapshot landed) are put back in
+  // their place; every pending id still in the sets then looks for its bytes.
   const resumedRef = useRef(false);
   useEffect(() => {
     if (resumedRef.current) return;
     resumedRef.current = true;
-    const store = stash();
     let cancelled = false;
-    // Clips older than the stash's 48 h (abandoned workouts) are dropped
-    // across every session — the stash never grows without bound.
-    void store?.sweepExpired().catch(() => {});
     (async () => {
-      const { getExercises: read, commit: write } = latest.current;
+      const { getExercises: read, commit: write, notify: say } = latest.current;
+      const { restored } = await queue.resumeFromStash();
+      if (cancelled) return;
       let lost = 0;
       // The working snapshot is carried in a LOCAL — `read()` goes through a
-      // ref that React refreshes only after the next render, so a write made
-      // here is not visible to a read made in the same tick.
+      // ref that React refreshes only after the next render.
       let current = read();
-      // 1. Orphaned bytes → their entry, by place (exercise name + set number).
-      const stashed = store ? await store.listSession(sessionId).catch(() => []) : [];
-      if (cancelled) return;
       const present = new Set(pendingLocalIds(current));
-      for (const entry of stashed) {
-        if (present.has(entry.localId)) continue;
-        const type = entry.file.type.startsWith('video/') ? 'video' : 'image';
-        const next = entry.place
-          ? reattachPendingMedia(current, { localId: entry.localId, type, ...entry.place }, MAX_MEDIA_PER_SET)
-          : current;
+      const adopted = new Set<string>();
+      for (const { item, file, place } of restored) {
+        adopted.add(item.localId);
+        if (present.has(item.localId)) continue;
+        const type = file.type.startsWith('video/') ? 'video' : 'image';
+        const next = place ? reattachPendingMedia(current, { localId: item.localId, type, ...place }, MAX_MEDIA_PER_SET) : current;
         if (next !== current) {
           current = next;
           write(next);
         } else {
           lost += 1; // no place, the place is gone, or the set is full — the bytes go
-          void store?.remove(sessionId, entry.localId).catch(() => undefined);
+          queue.forget(item.localId);
         }
       }
-      // 2. Every pending id now in the sets looks for its bytes.
-      const ids = pendingLocalIds(current);
-      for (const localId of ids) {
-        const file = store ? await store.load(sessionId, localId).catch(() => null) : null;
-        if (cancelled) return;
-        if (file) {
-          filesRef.current.set(localId, file);
-          setStatus(localId, 'pending', URL.createObjectURL(file));
-          enqueue(localId, file);
-        } else {
-          lost += 1;
-          const next = removePendingMedia(current, localId);
-          if (next !== current) {
-            current = next;
-            write(next);
-          }
+      // A pending id with no bytes on this device leaves the set.
+      for (const localId of pendingLocalIds(current)) {
+        if (adopted.has(localId)) continue;
+        lost += 1;
+        const next = removePendingMedia(current, localId);
+        if (next !== current) {
+          current = next;
+          write(next);
         }
       }
+      // The restored video clips get their posters.
+      for (const { item, file } of restored) if (!cancelled) grabPoster(item.localId, file);
       if (lost > 0) {
-        latest.current.notify(
+        say(
           lost === 1 ? 'A clip could not be recovered' : `${lost} clips could not be recovered`,
           'It was taken before the page reloaded and its file is no longer on this device.'
         );
       }
     })();
     return () => { cancelled = true; };
-  }, [enqueue, sessionId, setStatus]);
-
-  // Revoke every preview when the screen unmounts.
-  useEffect(() => {
-    return () => {
-      Object.values(trackedRef.current).forEach(t => { if (t.preview) URL.revokeObjectURL(t.preview); });
-    };
-  }, []);
+  }, [queue, grabPoster]);
 
   const counts = useMemo(() => {
     let pending = 0;
     let failed = 0;
-    for (const t of Object.values(tracked)) {
-      if (t.status === 'pending') pending += 1;
-      else if (t.status === 'failed') failed += 1;
+    for (const item of Object.values(items)) {
+      if (item.status === 'pending') pending += 1;
+      else if (item.status === 'failed') failed += 1;
     }
     return { pending, failed };
-  }, [tracked]);
+  }, [items]);
 
-  const settle = useCallback(
-    () => queueRef.current.then(() => ({ failed: [...statusMapRef.current.values()].filter(s => s === 'failed').length })),
-    []
-  );
-  const clearStash = useCallback(() => { void stash()?.clearSession(sessionId).catch(() => undefined); }, [sessionId]);
+  const settle = useCallback(async () => {
+    const summary = await queue.settle();
+    return { failed: summary.failed };
+  }, [queue]);
+  const clearStash = useCallback(() => queue.clearStash(), [queue]);
 
   const fileFor = useCallback((url: string) => {
     const localId = pendingIdOf(url);
-    return localId ? filesRef.current.get(localId) ?? null : null;
-  }, []);
-  const previewFor = useCallback((url: string) => tracked[pendingIdOf(url) ?? url]?.preview, [tracked]);
+    return localId ? queue.fileFor(localId) : null;
+  }, [queue]);
+  const previewFor = useCallback((url: string) => {
+    const localId = pendingIdOf(url);
+    return localId ? queue.previewFor(localId) : previewByUrl.current.get(url);
+  }, [queue]);
   const statusFor = useCallback((url: string): SetMediaStatus | undefined => {
     const localId = pendingIdOf(url);
     if (!localId) return undefined;
-    const status = tracked[localId]?.status;
-    // A pending entry the hook does not know yet (the resume effect has not
-    // run, or the bytes were never on this device) reads as pending — the
-    // tile shows "Uploading" rather than a broken thumbnail.
-    return status === 'failed' ? 'failed' : 'pending';
-  }, [tracked]);
+    const status = items[localId]?.status;
+    // A pending entry the queue does not know yet (the resume has not run, or
+    // the bytes were never on this device) reads as pending — the tile shows
+    // "Uploading" rather than a broken thumbnail.
+    if (status === 'failed' || status === 'processing') return status;
+    return 'pending';
+  }, [items]);
 
   return useMemo(
     () => ({
