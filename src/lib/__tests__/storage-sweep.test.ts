@@ -155,6 +155,9 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   // by the row the host writes the URL into: post_media (the composer, Edit post), workout_sets.media
   // (the collector) or activity_media.
   'src/lib/media/upload-queue.ts': { marker: 'opts.upload(', keep: { kind: 'url', table: 'post_media' } },
+  // The media worker (video posters PR 7): the converted clip and its poster are written beside the
+  // source under posts/<owner>/ and the row's media_url / thumbnail_url point at them in the SAME update.
+  'src/lib/media/process-server.ts': { marker: 'outputKey(', keep: { kind: 'url', table: 'post_media' } },
   // No in-app caller today; a client that uses it stores the returned public URL (post media).
   'src/app/api/upload/route.ts': { marker: '${userId}/', keep: { kind: 'url', table: 'post_media' } },
   'src/app/api/upload/equipment/route.ts': { marker: 'equipment/', keep: { kind: 'url', table: 'athlete_equipment' } },

@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // The media worker (video posters PR 7, Oct 13 2026): ffmpeg-static is a
+  // platform BINARY — kept out of the bundler and traced into the two routes
+  // that run it (and nowhere else: the function that carries it is ~80 MB).
+  serverExternalPackages: ['ffmpeg-static'],
+  outputFileTracingIncludes: {
+    '/api/cron/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg'],
+    '/api/admin/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg'],
+  },
   // The build id the service worker's URL carries (src/lib/sw/static-cache.ts):
   // the deploy's commit on Vercel, 'local' elsewhere.
   env: {

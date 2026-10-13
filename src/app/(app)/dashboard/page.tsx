@@ -11,6 +11,7 @@ import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
 import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
 import GolfMapSweepPanel from '@/components/admin/GolfMapSweepPanel';
+import MediaJobsPanel from '@/components/admin/MediaJobsPanel';
 import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
 import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -366,6 +367,9 @@ export default function AdminDashboardPage() {
 
         {/* Map sweep (Oct 8 2026, mig 255): the course-map sweep's door — progress and the batches. */}
         <GolfMapSweepPanel />
+
+        {/* Media jobs (Oct 13 2026, mig 261): the video worker's door — the queue, a tick, the backfill. */}
+        <MediaJobsPanel />
 
         {/* Departed accounts (Sep 24 2026): purge a parked account now — the door. */}
         <AccountPurgePanel />

@@ -50,6 +50,8 @@ export interface QueueItem {
   /** What the prepare step did to the bytes (the composer's post-time resize). */
   prepared?: { width?: number; height?: number; resized: boolean };
   processing?: boolean;
+  /** The video track's codec the server read at completion (PR 7) — the post stores it. */
+  codec?: string;
   failure?: { kind: FailureKind; message: string };
 }
 
@@ -60,7 +62,7 @@ export type QueueEvent =
   | { type: 'start'; localId: string; generation: number }
   | { type: 'progress'; localId: string; generation: number; fraction: number }
   | { type: 'prepared'; localId: string; generation: number; width?: number; height?: number; resized: boolean }
-  | { type: 'stored'; localId: string; generation: number; url: string; processing?: boolean }
+  | { type: 'stored'; localId: string; generation: number; url: string; processing?: boolean; codec?: string }
   | { type: 'poster'; localId: string; generation: number; url: string }
   | { type: 'poster-attempt'; localId: string }
   | { type: 'source'; localId: string; generation: number; url: string }
@@ -115,7 +117,7 @@ export function reduceQueue(state: QueueState, event: QueueEvent): QueueState {
     case 'prepared':
       return { ...state, [event.localId]: { ...item, prepared: { width: event.width, height: event.height, resized: event.resized } } };
     case 'stored':
-      return { ...state, [event.localId]: { ...item, status: event.processing ? 'processing' : 'stored', progress: 1, storedUrl: event.url, processing: event.processing === true, failure: undefined } };
+      return { ...state, [event.localId]: { ...item, status: event.processing ? 'processing' : 'stored', progress: 1, storedUrl: event.url, processing: event.processing === true, ...(event.codec ? { codec: event.codec } : {}), failure: undefined } };
     case 'poster':
       return { ...state, [event.localId]: { ...item, posterUrl: event.url } };
     case 'source':
@@ -291,7 +293,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
           onProgress: fraction => { if (current(localId, generation)) dispatch({ type: 'progress', localId, generation, fraction }); },
         });
         if (!current(localId, generation)) return;
-        dispatch({ type: 'stored', localId, generation, url: uploaded.url, processing: uploaded.processing === true });
+        dispatch({ type: 'stored', localId, generation, url: uploaded.url, processing: uploaded.processing === true, codec: uploaded.codec });
         const item = state[localId];
         if (item) opts.onStored?.(item);
         if (!opts.keepStashedAfterUpload) void stash()?.remove(opts.sessionId, localId).catch(() => undefined);
