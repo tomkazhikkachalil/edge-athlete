@@ -98,14 +98,14 @@ describe('source pins — the frame and its hosts', () => {
   });
   it('MediaTile hands a video to VideoFrame; the feed card, the grid, Featured and the embeds carry the poster', () => {
     expect(read('src/components/media/MediaTile.tsx')).toMatch(/<VideoFrame[\s\S]*poster=\{thumbnailUrl\}/);
-    expect(read('src/components/PostCard.tsx')).toMatch(/<VideoFrame[\s\S]*poster=\{post\.media\[currentMediaIndex\]\.thumbnail_url\}[\s\S]*playable/);
+    expect(read('src/components/PostCard.tsx')).toMatch(/<VideoFrame[\s\S]*poster=\{shownMedia\[currentMediaIndex\]\.thumbnail_url\}[\s\S]*playable/);
     expect(read('src/components/media/MediaGridItem.tsx')).toMatch(/thumbnailUrl=\{firstMedia\.thumbnail_url\}/);
     expect(read('src/components/FeaturedPosts.tsx')).toMatch(/thumbnailUrl=\{firstMedia\.thumbnail_url\}/);
     expect(read('src/components/QuotedPostEmbed.tsx')).toMatch(/poster=\{thumbnail\.thumbnail_url\}/);
     expect(read('src/components/messages/SharedPostPreview.tsx')).toMatch(/poster=\{thumbnail\.thumbnail_url\}/);
     expect(read('src/components/workouts/SetMediaThumb.tsx')).toMatch(/<VideoFrame src=\{shown\} poster=\{preview \? null : thumbnailUrl\}/);
     // The two quoted-post selects carry the poster.
-    expect(read('src/app/api/posts/route.ts')).toMatch(/media:post_media \( media_url, media_type, thumbnail_url, blur_hash \)/);
+    expect(read('src/app/api/posts/route.ts')).toMatch(/media:post_media \( media_url, media_type, thumbnail_url, blur_hash, codec, processing_at \)/);
     expect(read('src/app/api/messages/[conversationId]/route.ts')).toMatch(/media_url, media_type, thumbnail_url/);
     expect(read('src/types/messages.ts')).toMatch(/media: \{ media_url: string; media_type: string; thumbnail_url\?: string \| null \}\[\];/);
   });

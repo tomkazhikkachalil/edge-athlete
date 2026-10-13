@@ -69,6 +69,9 @@ export interface ActivityMediaRow {
   thumbnail_url: string | null;
   /** The stored ThumbHash (261); absent on rows from before. */
   blur_hash?: string | null;
+  /** 261: the codec the server read; the worker's claim on the playable file. */
+  codec?: string | null;
+  processing_at?: string | null;
   duration_seconds: number | string | null;
   caption: string | null;
   at_s: number | null;
@@ -82,6 +85,9 @@ export interface ActivityMediaView {
   mediaType: 'image' | 'video';
   thumbnailUrl: string | null;
   blurHash: string | null;
+  /** The codec the server read (261), and whether the worker still owes the playable file — never the timestamp. */
+  codec: string | null;
+  processing: boolean;
   durationSeconds: number | null;
   caption: string | null;
   /** Seconds into the recording the photo was taken; null when added after. */
@@ -165,6 +171,8 @@ export function projectActivityMedia(rows: readonly ActivityMediaRow[], viewerSt
       mediaType: r.media_type,
       thumbnailUrl: r.thumbnail_url,
       blurHash: r.blur_hash ?? null,
+      codec: r.codec ?? null,
+      processing: !!r.processing_at,
       durationSeconds: n(r.duration_seconds),
       caption: r.caption,
       atS: r.at_s,

@@ -5,7 +5,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
 import { reportRouteError } from '@/lib/observability/report';
 import { ACTIVITY_MEDIA_MAX, parseActivityMediaBody } from '@/lib/activities/media';
-import { ACTIVITY_MEDIA_COLUMNS, readActivityMedia } from '@/lib/activities/media-server';
+import { ACTIVITY_MEDIA_COLUMNS, enqueueForActivityMedia, readActivityMedia } from '@/lib/activities/media-server';
 import { readActivityForViewer, readStream } from '@/lib/activities/read-server';
 import { projectActivityMedia, projectStream } from '@/lib/activities/visibility';
 
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       console.error('[activities media] insert failed:', error?.message);
       return NextResponse.json({ error: 'Could not add the photo.' }, { status: 500 });
     }
+    await enqueueForActivityMedia(admin, inserted as Parameters<typeof enqueueForActivityMedia>[1], gate.actorId); // 261 / PR 8: the worker's job for a clip without its poster
     return NextResponse.json({ media: inserted, created: true }, { status: 201, headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;

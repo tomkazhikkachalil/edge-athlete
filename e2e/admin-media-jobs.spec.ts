@@ -75,20 +75,21 @@ test('admin: a clip\'s codec is read at completion; the media worker plans, runs
     expect((await qa.post('/api/admin/media-jobs', { data: { action: 'plan' } })).status()).toBe(403);
     expect((await adminApi.post('/api/admin/media-jobs', { data: { action: 'everything' } })).status()).toBe(400);
 
-    // The plan: dry lists our row as a poster job and writes nothing; live (the newest row only) enqueues it.
+    // The WRITER enqueued the clip's job at post (PR 8) — no owner action. The plan still LISTS the row
+    // (a dry plan counts what needs a job), and a live plan enqueues nothing: one open job per target.
+    const job = await admin.from('media_jobs').select('id, kind, status, source_path, origin').eq('target_id', mediaId).single();
+    expect(job.data).toMatchObject({ kind: 'poster', status: 'queued', origin: 'upload' });
+    expect(job.data!.source_path).toBe(storagePaths[0]);
     const planDry = await adminApi.post('/api/admin/media-jobs', { data: { action: 'plan', tables: ['post_media'], limit: 1 } });
     expect(planDry.ok(), await readErrorBody(planDry)).toBe(true);
     const planDryBody = await planDry.json();
     expect(planDryBody).toMatchObject({ ok: true, dryRun: true, enqueued: 0 });
     expect(planDryBody.counts['post_media:poster']).toBe(1);
     expect(planDryBody.sample).toEqual([{ table: 'post_media', id: mediaId, kind: 'poster' }]);
-    expect((await admin.from('media_jobs').select('id').eq('target_id', mediaId)).data).toEqual([]);
     const planLive = await adminApi.post('/api/admin/media-jobs', { data: { action: 'plan', tables: ['post_media'], limit: 1, dryRun: false } });
     expect(planLive.ok(), await readErrorBody(planLive)).toBe(true);
-    expect((await planLive.json()).enqueued).toBe(1);
-    const job = await admin.from('media_jobs').select('id, kind, status, source_path, origin').eq('target_id', mediaId).single();
-    expect(job.data).toMatchObject({ kind: 'poster', status: 'queued', origin: 'backfill' });
-    expect(job.data!.source_path).toBe(storagePaths[0]);
+    expect((await planLive.json()).enqueued, 'the open job is never doubled').toBe(0);
+    expect((await admin.from('media_jobs').select('id').eq('target_id', mediaId)).data).toHaveLength(1);
 
     // A dry tick runs nothing.
     const dry = await adminApi.post('/api/admin/media-jobs', { data: { action: 'run' } });

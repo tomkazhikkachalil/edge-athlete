@@ -64,6 +64,10 @@ interface MediaAttachment {
   display_order: number;
   thumbnail_url?: string | null;
   blur_hash?: string | null;
+  codec?: string | null;
+  processing_at?: string | null;
+  /** What the API emits in place of the timestamp. */
+  processing?: boolean;
 }
 
 interface TaggedProfile {
@@ -277,7 +281,7 @@ export async function GET(
       // grid renders videos as posters, never raw <video> elements)
       const { data: media } = await supabase
         .from('post_media')
-        .select('id, post_id, media_url, media_type, display_order, thumbnail_url, blur_hash')
+        .select('id, post_id, media_url, media_type, display_order, thumbnail_url, blur_hash, codec, processing_at')
         .in('post_id', postIds)
         .order('display_order', { ascending: true });
 
@@ -299,10 +303,13 @@ export async function GET(
           if (!mediaMap.has(m.post_id)) {
             mediaMap.set(m.post_id, []);
           }
+          const { processing_at, ...rest } = m;
           mediaMap.get(m.post_id)!.push({
-            ...m,
+            ...rest,
             media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)) ?? m.media_url,
             thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)),
+            // 261 / PR 8: whether the worker still owes the playable file — never the timestamp.
+            processing: !!processing_at,
           });
         });
       }

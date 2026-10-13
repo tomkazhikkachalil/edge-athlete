@@ -30,7 +30,8 @@ import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { isMediaCodec, mediaJobsEnabled, needsTranscode } from '@/lib/media/media-jobs';
+import { isMediaCodec, mediaJobsEnabled, needsTranscode, type MediaRowForPlan } from '@/lib/media/media-jobs';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
 import { isPublicPostMedia } from '@/lib/media/visibility';
 
 /** The URL life a post's media gets: a public post's is stable, a private post's expires. */
@@ -64,7 +65,7 @@ const SHARED_POST_SELECT = `
   profile:profile_id (
     id, first_name, last_name, full_name, avatar_url, handle, visibility
   ),
-  media:post_media ( media_url, media_type, thumbnail_url, blur_hash )
+  media:post_media ( media_url, media_type, thumbnail_url, blur_hash, codec, processing_at )
 `;
 
 /** Gate + shape a fetched original for a given viewer. Returns the wire
@@ -104,12 +105,14 @@ function gateSharedPost(orig: any, currentUserId: string | null, followingIds: S
       avatar_url: owner.avatar_url,
       handle: owner.handle,
     },
-    media: (orig.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null; blur_hash?: string | null }) => ({
+    media: (orig.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null; blur_hash?: string | null; codec?: string | null; processing_at?: string | null }) => ({
       media_url: toProxyUrl(m.media_url, { type: 'post', id: orig.id }),
       media_type: m.media_type,
       // The quoted video's poster (Oct 13 2026) — the embed is its poster, never a <video>.
       thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: orig.id }),
       blur_hash: m.blur_hash ?? null,
+      codec: m.codec ?? null,
+      processing: !!m.processing_at,
     })),
   };
 }
@@ -528,13 +531,19 @@ export async function POST(request: NextRequest) {
         };
       });
 
-      const { error: mediaError } = await supabase
+      const { data: insertedMedia, error: mediaError } = await supabase
         .from('post_media')
-        .insert(mediaRecords);
+        .insert(mediaRecords)
+        .select(MEDIA_JOB_PLAN_COLUMNS);
 
       if (mediaError) {
         reportRouteError('Media creation error:', mediaError);
         // Don't fail the entire request, but log the error
+      } else {
+        // 261 / PR 8: the worker's jobs for these rows (an HEVC clip's
+        // conversion, a missing poster, a missing blur) — best-effort,
+        // never the user's problem.
+        await enqueueForPostMedia(getSupabaseAdmin(), post.id, insertedMedia as MediaRowForPlan[] | null, 'upload');
       }
     }
 
@@ -568,6 +577,8 @@ export async function POST(request: NextRequest) {
           media_type,
           thumbnail_url,
           blur_hash,
+          codec,
+          processing_at,
           display_order
         ),
         profiles:profile_id (
@@ -669,7 +680,7 @@ export async function POST(request: NextRequest) {
       created_by: completePost.created_by ?? null,
       media: (completePost.post_media || [])
         .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-        .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
+        .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null; codec?: string | null; processing_at?: string | null }) => ({
           id: media.id,
           media_url: toProxyUrl(media.media_url, { type: 'post', id: completePost.id }, { visibility: mediaVisibilityOf(completePost) }),
           media_type: media.media_type,
@@ -679,6 +690,9 @@ export async function POST(request: NextRequest) {
           // in the app rendered a black first frame.
           thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id }, { visibility: mediaVisibilityOf(completePost) }),
           blur_hash: media.blur_hash ?? null,
+          // 261 / PR 8: the codec the server read, and whether the worker still owes the playable file — never the timestamp.
+          codec: media.codec ?? null,
+          processing: !!media.processing_at,
         })),
       // A just-created post cannot have likes — no embed, no query.
       likes: [],
@@ -830,6 +844,8 @@ export async function GET(request: NextRequest) {
             media_type,
             thumbnail_url,
             blur_hash,
+            codec,
+            processing_at,
             display_order
           ),
           profiles:profile_id (
@@ -1094,7 +1110,7 @@ export async function GET(request: NextRequest) {
         created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null; codec?: string | null; processing_at?: string | null }) => ({
             id: media.id,
             // Proxy protected-bucket bytes; the viewer is re-authorized at load.
             // A private post's URL EXPIRES (speed round 2); a public one is stable.
@@ -1106,6 +1122,8 @@ export async function GET(request: NextRequest) {
             // in the app rendered a black first frame.
             thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id }, { visibility: mediaVisibilityOf(post) }),
             blur_hash: media.blur_hash ?? null,
+            codec: media.codec ?? null,
+            processing: !!media.processing_at,
           })),
         likes: viewerLikedPost && currentUserId ? [{ profile_id: currentUserId }] : [],
         golf_round: golfRound,
@@ -1224,6 +1242,8 @@ export async function GET(request: NextRequest) {
           media_type,
           thumbnail_url,
           blur_hash,
+          codec,
+          processing_at,
           display_order
         ),
         profiles:profile_id (
@@ -1625,7 +1645,7 @@ export async function GET(request: NextRequest) {
         created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null; codec?: string | null; processing_at?: string | null }) => ({
             id: media.id,
             // Proxy protected-bucket bytes; the viewer is re-authorized at load.
             media_url: toProxyUrl(media.media_url, { type: 'post', id: post.id }),
@@ -1636,6 +1656,8 @@ export async function GET(request: NextRequest) {
             // in the app rendered a black first frame.
             thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id }),
             blur_hash: media.blur_hash ?? null,
+            codec: media.codec ?? null,
+            processing: !!media.processing_at,
           })),
           // Same shape PostCard expects (an array holding the viewer's like
           // iff present) — never other users' likes. Count is likes_count.

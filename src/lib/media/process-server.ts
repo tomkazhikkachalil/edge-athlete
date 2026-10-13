@@ -157,6 +157,28 @@ export async function enqueueMediaJobs(
   }
 }
 
+/** The post_media writers' hook: the rows just inserted (selected back with their columns) get their jobs; the owner is the post's profile. Never throws. */
+export async function enqueueForPostMedia(
+  admin: Admin,
+  postId: string,
+  rows: ReadonlyArray<MediaRowForPlan> | null | undefined,
+  origin: 'upload' | 'mirror' = 'upload'
+): Promise<number> {
+  if (!rows || rows.length === 0 || !mediaJobsEnabled()) return 0;
+  try {
+    const { data: post } = await admin.from('posts').select('profile_id').eq('id', postId).maybeSingle();
+    const owner = (post as { profile_id?: string } | null)?.profile_id;
+    if (!owner) return 0;
+    return await enqueueMediaJobs(admin, 'post_media', rows.map(r => ({ ...r, owner_id: owner })), origin);
+  } catch (err) {
+    console.warn('[media-jobs] enqueue for post threw:', err);
+    return 0;
+  }
+}
+
+/** The columns a writer selects back from its insert so the planner can read the row. */
+export const MEDIA_JOB_PLAN_COLUMNS = 'id, media_url, media_type, codec, thumbnail_url, blur_hash';
+
 /** The tick. */
 export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryRun?: boolean; maxVideos?: number; maxLight?: number } = {}): Promise<TickSummary> {
   const t0 = deps.now();

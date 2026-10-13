@@ -17,6 +17,7 @@ import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
 import MediaTile from './media/MediaTile';
 import VideoFrame from './media/VideoFrame';
+import { useProcessingRefresh } from './media/useProcessingRefresh';
 import MediaStatStrip from './media/MediaStatStrip';
 import { buildPostHeadline } from '@/lib/sports/post-headline';
 import ConfirmModal from './ConfirmModal';
@@ -61,6 +62,9 @@ interface PostMedia {
   thumbnail_url?: string | null;
   /** The stored ThumbHash (261) — painted under the picture while it loads. */
   blur_hash?: string | null;
+  /** 261 / PR 8: the video's codec, and whether the worker still owes the playable file. */
+  codec?: string | null;
+  processing?: boolean;
   display_order: number;
 }
 
@@ -197,6 +201,11 @@ function PostCard({
   inReview = false,
 }: PostCardProps) {
   const router = useRouter();
+  // PR 8: while the worker still owes a fresh post's playable file, the card
+  // asks for itself and swaps in the server's media when it is ready.
+  const [refreshedMedia, setRefreshedMedia] = useState<PostMedia[] | null>(null);
+  useProcessingRefresh(post.id, post.media, post.created_at, setRefreshedMedia);
+  const shownMedia = refreshedMedia ?? post.media;
   // Round H acting-as honesty: likes/saves stay FIRST-PERSON on purpose
   // (Round C scope fence) — while a guardian is "posting as" a child these
   // controls are disabled instead of silently acting as the guardian.
@@ -852,10 +861,10 @@ function PostCard({
 
               The frame also gives the stat strip something stable to sit on. */}
           <div className="relative w-full aspect-[4/5] sm:aspect-square bg-gray-900">
-            {post.media[currentMediaIndex].media_type === 'image' ? (
+            {shownMedia[currentMediaIndex].media_type === 'image' ? (
               <MediaTile
-                src={post.media[currentMediaIndex].media_url}
-                blurHash={post.media[currentMediaIndex].blur_hash}
+                src={shownMedia[currentMediaIndex].media_url}
+                blurHash={shownMedia[currentMediaIndex].blur_hash}
                 kind="image"
                 alt="Post media"
                 className="absolute inset-0 h-full w-full"
@@ -868,9 +877,11 @@ function PostCard({
               // phone memory cannot hold). No poster = the branded
               // placeholder, never a black box.
               <VideoFrame
-                src={post.media[currentMediaIndex].media_url}
-                poster={post.media[currentMediaIndex].thumbnail_url}
-                blurHash={post.media[currentMediaIndex].blur_hash}
+                src={shownMedia[currentMediaIndex].media_url}
+                poster={shownMedia[currentMediaIndex].thumbnail_url}
+                blurHash={shownMedia[currentMediaIndex].blur_hash}
+                codec={shownMedia[currentMediaIndex].codec}
+                state={shownMedia[currentMediaIndex].processing ? 'processing' : 'ready'}
                 playable
                 controls
                 fit="contain"
