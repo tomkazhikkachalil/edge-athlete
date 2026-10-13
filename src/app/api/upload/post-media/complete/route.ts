@@ -33,8 +33,13 @@ export async function POST(request: NextRequest) {
       const status = result.status === 400 && result.error === 'Unknown upload' ? 403 : result.status;
       return NextResponse.json({ error: result.error }, { status });
     }
+    // PR 7: the codec the device cannot know (an iPhone's HEVC) rides the answer, with
+    // the dims and duration the probe read; the post stores them.
+    const facts = result.video
+      ? { codec: result.video.codec, width: result.video.width, height: result.video.height, duration: result.video.durationSeconds }
+      : {};
     return NextResponse.json(
-      { url: result.url, type: result.type, scrubbed: result.scrubbed },
+      { url: result.url, type: result.type, scrubbed: result.scrubbed, ...facts },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {

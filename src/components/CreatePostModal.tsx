@@ -796,7 +796,7 @@ export default function CreatePostModal({
         showError('A file did not upload', 'Tap Retry on it, or remove it, then post.');
         return;
       }
-      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string; blurHash?: string }> = [];
+      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string; blurHash?: string; codec?: string }> = [];
       // An edited video's ORIGINAL (and a resized photo's) follows after the
       // post exists (by index — the server orders post_media by the sortOrder
       // sent below).
@@ -809,6 +809,7 @@ export default function CreatePostModal({
           thumbnailUrl,
           sourceUrl,
           blurHash: item?.blurHash,
+          codec: item?.codec,
           width: item?.prepared?.width ?? file.width,
           height: item?.prepared?.height ?? file.height,
           edited: file.edited || !!item?.prepared?.resized,
@@ -832,6 +833,8 @@ export default function CreatePostModal({
           thumbnailUrl: file.thumbnailUrl,
           // the blurred placeholder (261) the device computed, when it did
           blurHash: file.blurHash,
+          // the codec the server read at completion (PR 7) — an iPhone HEVC clip is marked processing until the worker converts it
+          codec: file.codec,
           // editor-probed output metadata → post_media.width/height/duration
           width: file.width,
           height: file.height,

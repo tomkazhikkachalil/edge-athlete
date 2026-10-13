@@ -20,6 +20,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from './video-scrub-server';
+import { probeVideo } from './video-probe-server';
+import type { ProbedVideo } from './media-jobs';
 import { prepareImage } from './image-meta';
 import {
   incomingKey,
@@ -43,8 +45,11 @@ export async function signIncomingUpload(
   return { path, signedUrl: data.signedUrl, token: data.token };
 }
 
+/** What the probe read of a stored video (PR 7): the codec the post stores, the dims and duration the row may fill. */
+export type FinalizedVideoFacts = Pick<ProbedVideo, 'codec' | 'width' | 'height' | 'durationSeconds'>;
+
 export type FinalizeResult =
-  | { ok: true; url: string; type: 'image' | 'video'; scrubbed: boolean }
+  | { ok: true; url: string; type: 'image' | 'video'; scrubbed: boolean; video?: FinalizedVideoFacts }
   | { ok: false; status: 400 | 404 | 413 | 500; error: string };
 
 async function storedObjectInfo(
@@ -94,10 +99,16 @@ export async function finalizeIncomingUpload(
   let finalExt = parsed.ext;
   let scrubbed = false;
 
+  let video: FinalizedVideoFacts | undefined;
   if (kind === 'video' && SCRUBBABLE_VIDEO.has(parsed.type)) {
     const { data: blob, error } = await admin.storage.from(BUCKET).download(path);
     if (!error && blob) {
-      const result = await scrubVideoMetadata(new Uint8Array(await blob.arrayBuffer()), parsed.type);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      // The probe (PR 7): the codec decides whether the worker converts this
+      // clip; a stream copy never changes it, so the ORIGINAL bytes are read.
+      const probed = await probeVideo(bytes);
+      if (probed) video = { codec: probed.codec, width: probed.width, height: probed.height, durationSeconds: probed.durationSeconds };
+      const result = await scrubVideoMetadata(bytes, parsed.type);
       if (result.scrubbed) {
         finalExt = 'mp4'; // a scrubbed MOV becomes an MP4 — the key follows the OUTPUT
         const target = postsKey(ownerId, parsed.id, finalExt);
@@ -111,7 +122,7 @@ export async function finalizeIncomingUpload(
         if (!writeError) {
           scrubbed = true;
           await discard(admin, path);
-          return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed };
+          return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed, video };
         }
         console.warn('[upload] scrubbed write failed; keeping the original:', writeError);
         finalExt = parsed.ext;
@@ -153,7 +164,7 @@ export async function finalizeIncomingUpload(
   const target = postsKey(ownerId, parsed.id, finalExt);
   const { error: moveError } = await admin.storage.from(BUCKET).move(path, target);
   if (moveError) return { ok: false, status: 500, error: 'Failed to upload file' };
-  return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed };
+  return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed, ...(video ? { video } : {}) };
 }
 
 function publicUrl(admin: SupabaseClient, path: string): string {

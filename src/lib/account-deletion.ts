@@ -204,11 +204,12 @@ export async function hardDeleteAccount(
   if (doomedPostIds.length > 0) {
     const { data: postMedia } = await admin
       .from('post_media')
-      .select('media_url, thumbnail_url')
+      .select('media_url, thumbnail_url, transcode_source_url')
       .in('post_id', doomedPostIds);
     for (const m of postMedia || []) {
       addRef(m.media_url);
       addRef(m.thumbnail_url);
+      addRef(m.transcode_source_url); // 261: the pre-transcode original
     }
   }
 

@@ -25,6 +25,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { reportRouteError } from '@/lib/observability/report';
 import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
 import { runPushSweep } from '@/lib/push/sweep-server';
+import { runMediaJobsHygiene } from '@/lib/media/process-server';
 
 export const maxDuration = 60;
 
@@ -228,6 +229,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] polar sync phase failed:', e);
     summary.polarSync = { ok: false };
+  }
+
+  // Media jobs (261, video posters PR 7): a row still "processing" after a day
+  // with no open job stops saying so; done jobs older than 30 days go. Pre-261 a no-op.
+  try {
+    summary.mediaJobs = await runMediaJobsHygiene(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] media jobs hygiene phase failed:', e);
+    summary.mediaJobs = { ok: false };
   }
 
   // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the

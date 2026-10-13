@@ -30,6 +30,7 @@ import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { isMediaCodec, mediaJobsEnabled, needsTranscode } from '@/lib/media/media-jobs';
 import { isPublicPostMedia } from '@/lib/media/visibility';
 
 /** The URL life a post's media gets: a public post's is stable, a private post's expires. */
@@ -503,8 +504,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'A media URL could not be verified' }, { status: 400 });
         }
       }
-      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; blurHash?: unknown; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
+      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; blurHash?: unknown; codec?: unknown; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
         const recipe = parseRecipeEnvelope(file.editRecipe);
+        // The codec the server read at upload completion (261 / PR 7). An HEVC clip is
+        // "processing" until the worker converts it — ONLY when the worker is on; an
+        // H.264 render or an in-app camera clip is never processing.
+        const codec = file.type === 'video' && isMediaCodec(file.codec) ? file.codec : null;
         return {
           post_id: post.id,
           media_url: healStoredMediaUrl(file.url) ?? file.url,
@@ -513,6 +518,8 @@ export async function POST(request: NextRequest) {
           thumbnail_url: healOrNull(file.thumbnailUrl) || null,
           // The blurred placeholder (261): a ThumbHash the device computed at attach, or nothing.
           blur_hash: isBlurHash(file.blurHash) ? file.blurHash : null,
+          codec,
+          processing_at: codec && needsTranscode(codec) && mediaJobsEnabled() ? new Date().toISOString() : null,
           width: dim(file.width),
           height: dim(file.height),
           duration: dim(file.duration),

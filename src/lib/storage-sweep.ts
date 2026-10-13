@@ -51,7 +51,9 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   // source_url (migration 120): the untouched original behind an edited
   // render — non-destructive media. Registered in the same PR that first
   // writes it, per the warning above.
-  { table: 'post_media', columns: ['media_url', 'thumbnail_url', 'source_url'] },
+  // transcode_source_url (migration 261): the pre-transcode original an HEVC
+  // clip keeps after the worker swaps media_url — never deleted (convention 27).
+  { table: 'post_media', columns: ['media_url', 'thumbnail_url', 'source_url', 'transcode_source_url'] },
   { table: 'group_post_media', columns: ['media_url', 'thumbnail_url'] },
   { table: 'messages', columns: ['media_url'] },
   { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
@@ -66,7 +68,7 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   // Live Activities (251): photos taken during a recording or added after —
   // uploads-bucket URLs under posts/<owner>/, registered in the PR that
   // creates the table (a sweep would otherwise delete them after grace).
-  { table: 'activity_media', columns: ['media_url', 'thumbnail_url'] },
+  { table: 'activity_media', columns: ['media_url', 'thumbnail_url', 'transcode_source_url'] },
   // athlete_badges (icon_url) is gone: never held a row, dropped by
   // migration 199 (Sep 2026). A scan of a missing table would 42P01 and
   // the sweep rethrows on purpose — so the entry left BEFORE the drop.
