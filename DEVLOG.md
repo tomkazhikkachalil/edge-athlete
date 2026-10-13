@@ -1,5 +1,15 @@
 # Development Log
 
+## October 13, 2026 — Video posters PR 9: the reference — `docs/MEDIA.md`, convention 43, and the program's close (zero DDL)
+
+The ninth and last PR of the program is words: what the eight before it built, as rules a reader can hold. Nothing here changes behaviour.
+
+- **`docs/MEDIA.md`** (new): the five principles (a video is a poster first; the local file shows at once; the device computes what it can, the server the rest; readers say what they know, never when; nothing is lost), then each piece with its invariant — `VideoFrame` and the codec rule, the upload queue's two chains and the online rule, the blur, the worker (jobs, planner, ffmpeg rungs, the tick, the doors, the enqueue, the hygiene, the env), `processing` end to end, the formats and what stays out (3GP, HDR tone mapping, the per-table tiles outside the `post_media` mirror), the cost on Hobby.
+- **CLAUDE.md convention 43** names the rules the next change must keep, and the docs index gains `docs/MEDIA.md`.
+- **The backfill** needs no new code: the dashboard's Media jobs panel (PR 7) plans and enqueues the older rows — Tom runs it once PR 7 is on production and 262 ticks the worker; old posts stay playable where they are and the posters arrive silently.
+
+**Proof:** `npm run verify` exit 0 — typecheck clean, lint 0 at `--max-warnings 0`, **5,005 tests in 536 files**, build, 265 client chunks within the floor (words only — no e2e of its own).
+
 ## October 13, 2026 — Video posters PR 8: `processing` end to end — the writers ask for the jobs, the readers say so, the card waits honestly, and migration 262 schedules the worker
 
 The worker (PR 7) ran only when the owner pressed a button. Now every media writer asks for its rows' jobs, every reader says whether the worker still owes the playable file, the card shows that state and refreshes itself, and pg_cron ticks the worker every minute on production.
