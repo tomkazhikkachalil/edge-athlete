@@ -1,5 +1,16 @@
 # Development Log
 
+## October 13, 2026 — Maintenance pass after the video posters program (zero DDL)
+
+Tom: *"run the full project maintenance checklist: lint, build, devlog, and commit and sync to github and vercel. Make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues."* The pass on main `b7014a5e` (after #1167–#1177 — the nine program PRs and the baseline at 262).
+
+- **The gate:** `npm run verify` exit 0 — typecheck clean, lint 0 at `--max-warnings 0`, **5,005 tests in 536 files**, build, 265 client chunks within the iOS 15 floor. `npm audit --omit=dev` 0 vulnerabilities. Hardening guardrails pass (108 bare-select / 15 raw-error advisories, as before). `check:schema` staging + prod OK, ledger head 262 on both.
+- **Production, signed out:** health `ok` on `b7014a5e`; the launch gate 307 → `/auth/coming-soon`; the manifest (`id /feed`) + the three icons 200; `/sw.js` and `/sw.js?static=1` 200; `/offline.html`, `/robots.txt` 200. **The downloaded app:** 18 deployed door-page chunks (`/`, `/auth/coming-soon`, `/help`, `/contact` as iOS 15 Safari) pass the browser-floor gate.
+- **Production probes (one project at a time, under `caffeinate -i`):** desktop **33/33** (4.2 min); the phone project **54/54** (10.3 min); WebKit **47 passed + 6 skipped** (the recorder's GPS specs, by design) **+ 1 failed** (composer-upload's "a failed Post loses nothing" / workout-capture under the 54-spec load — the two alone on WebKit against production: **4/4 in 48 s**, a flake); Android **52 passed + 2 flaky** (retries passed) (14.9 min). One Android teardown hit a statement timeout deleting a QA profile (production's health latency 84–139 ms at the time — a long cascade under the run's own load, not a slow database); the suite's stale-QA sweep takes the leftover at the next run. Production re-read after: health `ok` on the deployed commit.
+- **The worker on production:** the cron's first tick (262) finished the one queued poster job in 6 s; three older videos without a poster are the backfill's (Tom: "ignore the video" — not run).
+
+**Nothing changed in code; this entry is the record.**
+
 ## October 13, 2026 — Video posters PR 9: the reference — `docs/MEDIA.md`, convention 43, and the program's close (zero DDL)
 
 The ninth and last PR of the program is words: what the eight before it built, as rules a reader can hold. Nothing here changes behaviour.
