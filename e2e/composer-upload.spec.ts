@@ -48,7 +48,10 @@ test('a slow connection: the tile shows the local file with its progress before 
   await expect(tile).toHaveAttribute('data-media-upload', 'pending');
   release();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
-  await expect(page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first()).toBeVisible({ timeout: 30_000 });
+  const card = page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  // PR 6: the photo's blurred placeholder (its ThumbHash, computed on the device after the upload) is under the picture.
+  await expect(card.locator('[data-media-tile="image"] [data-blur-box]')).toHaveCount(1, { timeout: 20_000 });
 });
 
 test('offline mid-upload: the tile says Upload failed with a Retry that keeps the file; back online it uploads by itself @mobile', { tag: '@mobile' }, async ({ page, context }) => {

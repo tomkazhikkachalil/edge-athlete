@@ -8,6 +8,7 @@
 // bytes, and the sweep keeps the file alive through URL_SOURCE_COLUMNS.
 
 import { parsePublicUrl } from '@/lib/media/proxy-url';
+import { isBlurHash } from '@/lib/media/blur';
 
 export const ACTIVITY_MEDIA_MAX = 20;
 export const ACTIVITY_MEDIA_CAPTION_MAX = 500;
@@ -19,6 +20,7 @@ export interface ActivityMediaInput {
   media_url: string;
   media_type: 'image' | 'video';
   thumbnail_url: string | null;
+  blur_hash: string | null;
   duration_seconds: number | null;
   caption: string | null;
   at_s: number | null;
@@ -45,7 +47,7 @@ export function parseActivityMediaBody(body: unknown, profileId: string): Parsed
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'A JSON body is required' };
   const b = body as Record<string, unknown>;
   for (const key of Object.keys(b)) {
-    if (!['media_url', 'media_type', 'thumbnail_url', 'duration_seconds', 'caption', 'at_s', 'targetProfileId'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+    if (!['media_url', 'media_type', 'thumbnail_url', 'blur_hash', 'duration_seconds', 'caption', 'at_s', 'targetProfileId'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
   }
   const url = parseUrl(b.media_url, 'media_url', profileId);
   if (!url.ok) return url;
@@ -65,7 +67,7 @@ export function parseActivityMediaBody(body: unknown, profileId: string): Parsed
   if (!caption.ok) return caption;
   const at = parseAt(b.at_s);
   if (!at.ok) return at;
-  return { ok: true, value: { media_url: url.value, media_type: b.media_type, thumbnail_url: thumbnail, duration_seconds: duration, caption: caption.value, at_s: at.value } };
+  return { ok: true, value: { media_url: url.value, media_type: b.media_type, thumbnail_url: thumbnail, blur_hash: isBlurHash(b.blur_hash) ? b.blur_hash : null, duration_seconds: duration, caption: caption.value, at_s: at.value } };
 }
 
 export function parseCaption(raw: unknown): ParsedMedia<string | null> {
@@ -83,13 +85,14 @@ export function parseAt(raw: unknown): ParsedMedia<number | null> {
 }
 
 /** The PATCH body: a caption, a moment, or a re-rendered file (the pencil). */
-export function parseActivityMediaPatch(body: unknown, profileId: string): ParsedMedia<Partial<Pick<ActivityMediaInput, 'caption' | 'at_s' | 'media_url' | 'thumbnail_url'>>> {
+export function parseActivityMediaPatch(body: unknown, profileId: string): ParsedMedia<Partial<Pick<ActivityMediaInput, 'caption' | 'at_s' | 'media_url' | 'thumbnail_url' | 'blur_hash'>>> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'A JSON body is required' };
   const b = body as Record<string, unknown>;
-  const out: Partial<Pick<ActivityMediaInput, 'caption' | 'at_s' | 'media_url' | 'thumbnail_url'>> = {};
+  const out: Partial<Pick<ActivityMediaInput, 'caption' | 'at_s' | 'media_url' | 'thumbnail_url' | 'blur_hash'>> = {};
   for (const key of Object.keys(b)) {
-    if (!['caption', 'at_s', 'media_url', 'thumbnail_url', 'targetProfileId'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+    if (!['caption', 'at_s', 'media_url', 'thumbnail_url', 'blur_hash', 'targetProfileId'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
   }
+  if ('blur_hash' in b) out.blur_hash = isBlurHash(b.blur_hash) ? b.blur_hash : null;
   if ('caption' in b) {
     const c = parseCaption(b.caption);
     if (!c.ok) return c;

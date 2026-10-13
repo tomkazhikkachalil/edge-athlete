@@ -47,6 +47,7 @@ export async function GET(
           media_url,
           media_type,
           thumbnail_url,
+          blur_hash,
           display_order
         ),
         likes:post_likes (

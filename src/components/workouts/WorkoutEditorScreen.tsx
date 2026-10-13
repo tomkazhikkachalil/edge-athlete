@@ -699,7 +699,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           media: shareClips.selected
             .slice(0, MAX_POST_MEDIA)
             // A clip's poster rides the post (video posters PR 2b) — post_media.thumbnail_url.
-            .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order, thumbnailUrl: media.thumbnailUrl })),
+            .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order, thumbnailUrl: media.thumbnailUrl, blurHash: media.blurHash })),
           taggedProfiles: [],
           stats_data: buildWorkoutStatsData({
             sessionId: finishedSessionId,

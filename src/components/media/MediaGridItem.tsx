@@ -50,6 +50,7 @@ export interface MediaItem {
     media_type: 'image' | 'video';
     /** The video's poster (the profile media API proxies it). */
     thumbnail_url?: string | null;
+    blur_hash?: string | null;
     display_order: number;
   }>;
   golf_round?: {
@@ -295,6 +296,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
             <MediaTile
               src={firstMedia.media_url}
               thumbnailUrl={firstMedia.thumbnail_url}
+              blurHash={firstMedia.blur_hash}
               kind="video"
               alt={item.caption || 'Video'}
               className="w-full h-full"

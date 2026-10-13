@@ -32,7 +32,7 @@ import {
   replacePendingMedia,
 } from '@/lib/workouts/set-media-pending';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
-import { grabPosterInto } from '@/components/media/grab-poster';
+import { grabPreviewsInto } from '@/components/media/grab-poster';
 import type { QueueItem } from '@/lib/media/upload-queue';
 
 export type SetMediaStatus = 'pending' | 'failed' | 'processing';
@@ -78,8 +78,9 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
   useEffect(() => { latest.current = { getExercises, commit, notify }; }, [getExercises, commit, notify]);
   /** The preview of a clip that LANDED, by its stored URL. */
   const previewByUrl = useRef(new Map<string, string>());
-  /** Stored URLs whose poster has been written onto the entry. */
+  /** Stored URLs whose poster / blur has been written onto the entry. */
   const postersWritten = useRef(new Set<string>());
+  const blursWritten = useRef(new Set<string>());
 
   const onStored = useCallback((item: QueueItem) => {
     const { getExercises: read, commit: write } = latest.current;
@@ -109,14 +110,22 @@ export function useSetMediaUploads({ sessionId, getExercises, commit, notify }: 
         }
         postersWritten.current.add(item.storedUrl);
       }
+      if (item.blurHash && !blursWritten.current.has(item.storedUrl)) {
+        const next = patchMediaByUrl(current, item.storedUrl, { blurHash: item.blurHash });
+        if (next !== current) {
+          current = next;
+          changed = true;
+        }
+        blursWritten.current.add(item.storedUrl);
+      }
     }
     if (changed) write(current);
   }, [items, queue]);
 
-  // A video clip's poster: grabbed on the device chain after the tile (the
-  // one grab every host shares — grab-poster.ts); a miss leaves the clip
-  // without one (the server job fills it later).
-  const grabPoster = useCallback((localId: string, file: File) => grabPosterInto(queue, localId, file), [queue]);
+  // A clip's poster (and its blur) or a photo's blur: grabbed on the device
+  // chain after the tile (the one grab every host shares — grab-poster.ts); a
+  // miss leaves the entry without one (the server job fills it later).
+  const grabPoster = useCallback((localId: string, file: File) => grabPreviewsInto(queue, localId, file), [queue]);
 
   const register = useCallback((files: File[], place: StashPlace): SetMedia[] => {
     const registered = queue.register(files, place);

@@ -11,8 +11,8 @@ describe('source pins — activities on the queue', () => {
   it('the activity page attaches and re-edits through the queue and sends the clip\'s poster on the row', () => {
     const screen = read('src/components/activities/ActivityScreen.tsx');
     expect(screen).toMatch(/useMediaUploadQueue\(\{ sessionId: `activity:\$\{a\.id\}`, targetProfileId: \(\) => a\.profileId \}\)/);
-    expect(screen).toMatch(/grabPosterInto\(uploads\.queue, item\.localId, accepted\[i\]\)/);
-    expect(screen).toMatch(/thumbnail_url: landed\.posterUrl \?\? null, targetProfileId: a\.profileId \}\)/);
+    expect(screen).toMatch(/grabPreviewsInto\(uploads\.queue, item\.localId, accepted\[i\]\)/);
+    expect(screen).toMatch(/thumbnail_url: landed\.posterUrl \?\? null, blur_hash: landed\.blurHash \?\? null, targetProfileId: a\.profileId \}\)/);
     expect(screen).not.toMatch(/thumbnail_url: null/); // the re-edit used to throw the poster away
     expect(screen).not.toMatch(/uploadPostMedia/);
   });
@@ -35,8 +35,11 @@ describe('source pins — activities on the queue', () => {
     expect(grab).toMatch(/capturePoster\(file, posterTimeFor\(null\)\)/);
     expect(grab).toMatch(/POSTER_GRAB_DEADLINE_MS/);
     for (const f of ['src/components/workouts/useSetMediaUploads.ts', 'src/components/activities/ActivityScreen.tsx', 'src/components/activities/record/RecordingEngineHost.tsx']) {
-      expect(read(f), f).toMatch(/grabPosterInto\(/);
+      expect(read(f), f).toMatch(/grab(Poster|Previews)Into\(/);
       expect(read(f), f).not.toMatch(/capturePoster\(/);
     }
+    // PR 6: a poster's blur rides the poster grab; a photo's blur is its own.
+    expect(grab).toMatch(/grabBlurInto\(queue, localId, blob\)/);
+    expect(grab).toMatch(/export function grabPreviewsInto/);
   });
 });

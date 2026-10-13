@@ -15,6 +15,7 @@
  */
 
 import { isUuid } from '@/lib/uuid';
+import { isBlurHash } from '@/lib/media/blur';
 import { newId } from '@/lib/ids';
 
 export interface SetMedia {
@@ -22,6 +23,8 @@ export interface SetMedia {
   type: 'image' | 'video';
   /** A video clip's poster (video posters PR 2b, Oct 13 2026) — uploaded beside it; the sweep keeps it (collectSetMediaPaths). */
   thumbnailUrl?: string;
+  /** The stored ThumbHash (PR 6): the blurred placeholder under the thumb. */
+  blurHash?: string;
 }
 
 export interface EntrySet {
@@ -193,7 +196,8 @@ function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok:
     }
     // The poster is kept when it is a media URL of ours; anything else on the item is dropped (the shape stays ours).
     const thumbnailUrl = typeof m.thumbnailUrl === 'string' && isAllowedMediaUrl(m.thumbnailUrl) ? m.thumbnailUrl : undefined;
-    media.push({ url: m.url, type: m.type as SetMedia['type'], ...(thumbnailUrl ? { thumbnailUrl } : {}) });
+    const blurHash = isBlurHash(m.blurHash) ? m.blurHash : undefined;
+    media.push({ url: m.url, type: m.type as SetMedia['type'], ...(thumbnailUrl ? { thumbnailUrl } : {}), ...(blurHash ? { blurHash } : {}) });
   }
   return { ok: true, media };
 }

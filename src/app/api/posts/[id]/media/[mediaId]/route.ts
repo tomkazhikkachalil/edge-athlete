@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isBlurHash } from '@/lib/media/blur';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
@@ -70,6 +71,8 @@ export async function PATCH(
         media_url: mediaUrl,
         thumbnail_url:
           typeof body.thumbnailUrl === 'string' && body.thumbnailUrl ? body.thumbnailUrl : null,
+        // A re-rendered file gets its own blur (261) — or none until the job fills it.
+        blur_hash: isBlurHash(body.blurHash) ? body.blurHash : null,
         edit_recipe: recipe ? recipeEnvelope(recipe) : null,
         width: dim(body.width),
         height: dim(body.height),
@@ -82,7 +85,7 @@ export async function PATCH(
           : {}),
       })
       .eq('id', mediaId)
-      .select('id, media_url, media_type, thumbnail_url, display_order, source_url, edit_recipe')
+      .select('id, media_url, media_type, thumbnail_url, blur_hash, display_order, source_url, edit_recipe')
       .single();
     if (error || !updated) {
       reportRouteError('[POST MEDIA] update failed:', error);

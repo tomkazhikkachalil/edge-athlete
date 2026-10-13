@@ -23,11 +23,14 @@
 import Image from 'next/image';
 import { useOptimizedSrc } from './useOptimizedSrc';
 import VideoFrame from './VideoFrame';
+import BlurBox from './BlurBox';
 
 interface MediaTileProps {
   src: string;
   /** Poster frame for videos. Ignored for images. */
   thumbnailUrl?: string | null;
+  /** The stored ThumbHash (PR 6): painted under the picture while it loads. */
+  blurHash?: string | null;
   kind: 'image' | 'video';
   alt: string;
   /** Seconds. Renders a duration badge when present and > 0. */
@@ -45,6 +48,7 @@ interface MediaTileProps {
 export default function MediaTile({
   src,
   thumbnailUrl,
+  blurHash,
   kind,
   alt,
   durationSeconds,
@@ -69,6 +73,7 @@ export default function MediaTile({
       <VideoFrame
         src={src}
         poster={thumbnailUrl}
+        blurHash={blurHash}
         durationSeconds={durationSeconds}
         alt={alt}
         className="absolute inset-0 h-full w-full"
@@ -79,6 +84,7 @@ export default function MediaTile({
     </>
   ) : (
     <>
+      {blurHash && <BlurBox hash={blurHash} />}
       {imageSrc ? (
         <Image
           src={imageSrc}

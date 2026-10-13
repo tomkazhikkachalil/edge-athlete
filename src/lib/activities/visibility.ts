@@ -67,6 +67,8 @@ export interface ActivityMediaRow {
   media_url: string;
   media_type: 'image' | 'video';
   thumbnail_url: string | null;
+  /** The stored ThumbHash (261); absent on rows from before. */
+  blur_hash?: string | null;
   duration_seconds: number | string | null;
   caption: string | null;
   at_s: number | null;
@@ -79,6 +81,7 @@ export interface ActivityMediaView {
   mediaUrl: string;
   mediaType: 'image' | 'video';
   thumbnailUrl: string | null;
+  blurHash: string | null;
   durationSeconds: number | null;
   caption: string | null;
   /** Seconds into the recording the photo was taken; null when added after. */
@@ -161,6 +164,7 @@ export function projectActivityMedia(rows: readonly ActivityMediaRow[], viewerSt
       mediaUrl: r.media_url,
       mediaType: r.media_type,
       thumbnailUrl: r.thumbnail_url,
+      blurHash: r.blur_hash ?? null,
       durationSeconds: n(r.duration_seconds),
       caption: r.caption,
       atS: r.at_s,

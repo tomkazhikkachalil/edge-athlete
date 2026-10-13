@@ -63,6 +63,7 @@ interface MediaAttachment {
   media_type: string;
   display_order: number;
   thumbnail_url?: string | null;
+  blur_hash?: string | null;
 }
 
 interface TaggedProfile {
@@ -276,7 +277,7 @@ export async function GET(
       // grid renders videos as posters, never raw <video> elements)
       const { data: media } = await supabase
         .from('post_media')
-        .select('id, post_id, media_url, media_type, display_order, thumbnail_url')
+        .select('id, post_id, media_url, media_type, display_order, thumbnail_url, blur_hash')
         .in('post_id', postIds)
         .order('display_order', { ascending: true });
 

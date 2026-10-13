@@ -1,4 +1,5 @@
 import { HIDDEN_NOTICE, isResultPost, type PostResultFacts } from '@/lib/results/kinds';
+import { isBlurHash } from '@/lib/media/blur';
 import { setResultHidden } from '@/lib/results/hide-server';
 import { deleteResultPost, deleteRoundResult } from '@/lib/results/delete-server';
 import { resolveResultOrigin } from '@/lib/results/origin-server';
@@ -62,7 +63,7 @@ const SHARED_POST_SELECT = `
   profile:profile_id (
     id, first_name, last_name, full_name, avatar_url, handle, visibility
   ),
-  media:post_media ( media_url, media_type, thumbnail_url )
+  media:post_media ( media_url, media_type, thumbnail_url, blur_hash )
 `;
 
 /** Gate + shape a fetched original for a given viewer. Returns the wire
@@ -102,11 +103,12 @@ function gateSharedPost(orig: any, currentUserId: string | null, followingIds: S
       avatar_url: owner.avatar_url,
       handle: owner.handle,
     },
-    media: (orig.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null }) => ({
+    media: (orig.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null; blur_hash?: string | null }) => ({
       media_url: toProxyUrl(m.media_url, { type: 'post', id: orig.id }),
       media_type: m.media_type,
       // The quoted video's poster (Oct 13 2026) — the embed is its poster, never a <video>.
       thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: orig.id }),
+      blur_hash: m.blur_hash ?? null,
     })),
   };
 }
@@ -501,7 +503,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'A media URL could not be verified' }, { status: 400 });
         }
       }
-      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
+      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; blurHash?: unknown; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
         const recipe = parseRecipeEnvelope(file.editRecipe);
         return {
           post_id: post.id,
@@ -509,6 +511,8 @@ export async function POST(request: NextRequest) {
           media_type: file.type,
           display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
           thumbnail_url: healOrNull(file.thumbnailUrl) || null,
+          // The blurred placeholder (261): a ThumbHash the device computed at attach, or nothing.
+          blur_hash: isBlurHash(file.blurHash) ? file.blurHash : null,
           width: dim(file.width),
           height: dim(file.height),
           duration: dim(file.duration),
@@ -556,6 +560,7 @@ export async function POST(request: NextRequest) {
           media_url,
           media_type,
           thumbnail_url,
+          blur_hash,
           display_order
         ),
         profiles:profile_id (
@@ -657,7 +662,7 @@ export async function POST(request: NextRequest) {
       created_by: completePost.created_by ?? null,
       media: (completePost.post_media || [])
         .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-        .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
+        .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
           id: media.id,
           media_url: toProxyUrl(media.media_url, { type: 'post', id: completePost.id }, { visibility: mediaVisibilityOf(completePost) }),
           media_type: media.media_type,
@@ -665,7 +670,8 @@ export async function POST(request: NextRequest) {
           // Selected above and then dropped here, so PostCard's
           // poster={media.thumbnail_url} was ALWAYS undefined and every video
           // in the app rendered a black first frame.
-          thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id }, { visibility: mediaVisibilityOf(completePost) })
+          thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id }, { visibility: mediaVisibilityOf(completePost) }),
+          blur_hash: media.blur_hash ?? null,
         })),
       // A just-created post cannot have likes — no embed, no query.
       likes: [],
@@ -816,6 +822,7 @@ export async function GET(request: NextRequest) {
             media_url,
             media_type,
             thumbnail_url,
+            blur_hash,
             display_order
           ),
           profiles:profile_id (
@@ -1080,7 +1087,7 @@ export async function GET(request: NextRequest) {
         created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
             id: media.id,
             // Proxy protected-bucket bytes; the viewer is re-authorized at load.
             // A private post's URL EXPIRES (speed round 2); a public one is stable.
@@ -1090,7 +1097,8 @@ export async function GET(request: NextRequest) {
             // Selected above and then dropped here, so PostCard's
             // poster={media.thumbnail_url} was ALWAYS undefined and every video
             // in the app rendered a black first frame.
-            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id }, { visibility: mediaVisibilityOf(post) })
+            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id }, { visibility: mediaVisibilityOf(post) }),
+            blur_hash: media.blur_hash ?? null,
           })),
         likes: viewerLikedPost && currentUserId ? [{ profile_id: currentUserId }] : [],
         golf_round: golfRound,
@@ -1208,6 +1216,7 @@ export async function GET(request: NextRequest) {
           media_url,
           media_type,
           thumbnail_url,
+          blur_hash,
           display_order
         ),
         profiles:profile_id (
@@ -1609,7 +1618,7 @@ export async function GET(request: NextRequest) {
         created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null; blur_hash?: string | null }) => ({
             id: media.id,
             // Proxy protected-bucket bytes; the viewer is re-authorized at load.
             media_url: toProxyUrl(media.media_url, { type: 'post', id: post.id }),
@@ -1618,7 +1627,8 @@ export async function GET(request: NextRequest) {
             // Selected above and then dropped here, so PostCard's
             // poster={media.thumbnail_url} was ALWAYS undefined and every video
             // in the app rendered a black first frame.
-            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id })
+            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id }),
+            blur_hash: media.blur_hash ?? null,
           })),
           // Same shape PostCard expects (an array holding the viewer's like
           // iff present) — never other users' likes. Count is likes_count.

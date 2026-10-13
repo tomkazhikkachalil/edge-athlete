@@ -59,6 +59,8 @@ interface PostMedia {
   media_url: string;
   media_type: 'image' | 'video';
   thumbnail_url?: string | null;
+  /** The stored ThumbHash (261) — painted under the picture while it loads. */
+  blur_hash?: string | null;
   display_order: number;
 }
 
@@ -853,6 +855,7 @@ function PostCard({
             {post.media[currentMediaIndex].media_type === 'image' ? (
               <MediaTile
                 src={post.media[currentMediaIndex].media_url}
+                blurHash={post.media[currentMediaIndex].blur_hash}
                 kind="image"
                 alt="Post media"
                 className="absolute inset-0 h-full w-full"
@@ -867,6 +870,7 @@ function PostCard({
               <VideoFrame
                 src={post.media[currentMediaIndex].media_url}
                 poster={post.media[currentMediaIndex].thumbnail_url}
+                blurHash={post.media[currentMediaIndex].blur_hash}
                 playable
                 controls
                 fit="contain"

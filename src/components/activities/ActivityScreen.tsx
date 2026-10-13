@@ -15,7 +15,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import CaptureInputs from '@/components/media/CaptureInputs';
 import MediaTile from '@/components/media/MediaTile';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
-import { grabPosterInto } from '@/components/media/grab-poster';
+import { grabPreviewsInto } from '@/components/media/grab-poster';
 import { validateFiles } from '@/lib/media/validation';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import { SEGMENT_KIND_LABELS, SEGMENT_KINDS, SEGMENT_MAX, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '@/lib/activities/segments';
@@ -281,7 +281,7 @@ function ActivityBody({
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {a.media.map(m => (
               <figure key={m.id} className="relative" data-activity-photo={m.id}>
-                <MediaTile src={m.mediaUrl} thumbnailUrl={m.thumbnailUrl} kind={m.mediaType} alt={m.caption ?? 'Activity photo'} durationSeconds={m.durationSeconds} className="aspect-square rounded-lg" />
+                <MediaTile src={m.mediaUrl} thumbnailUrl={m.thumbnailUrl} blurHash={m.blurHash} kind={m.mediaType} alt={m.caption ?? 'Activity photo'} durationSeconds={m.durationSeconds} className="aspect-square rounded-lg" />
                 {(m.caption || m.atS !== null) && (
                   <figcaption className="mt-1 text-xs text-secondary truncate">
                     {m.caption ?? ''}
@@ -484,7 +484,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
     setBusy(true);
     try {
       const items = uploads.queue.register(accepted);
-      items.forEach((item, i) => grabPosterInto(uploads.queue, item.localId, accepted[i]));
+      items.forEach((item, i) => grabPreviewsInto(uploads.queue, item.localId, accepted[i]));
       await uploads.queue.settle();
       for (const item of items) {
         const landed = uploads.queue.itemFor(item.localId);
@@ -496,7 +496,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ media_url: landed.storedUrl, media_type: landed.kind, thumbnail_url: landed.posterUrl ?? null, targetProfileId: a.profileId }),
+          body: JSON.stringify({ media_url: landed.storedUrl, media_type: landed.kind, thumbnail_url: landed.posterUrl ?? null, blur_hash: landed.blurHash ?? null, targetProfileId: a.profileId }),
         });
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
@@ -536,7 +536,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
       // The re-rendered clip keeps a poster: the editor's cover, else a fresh grab.
       const [item] = uploads.queue.register([results[0].file]);
       if (results[0].posterBlob) uploads.queue.attachPoster(item.localId, results[0].posterBlob);
-      else grabPosterInto(uploads.queue, item.localId, results[0].file);
+      grabPreviewsInto(uploads.queue, item.localId, results[0].posterBlob ? new File([results[0].posterBlob], 'poster.jpg', { type: 'image/jpeg' }) : results[0].file);
       await uploads.queue.settle();
       const landed = uploads.queue.itemFor(item.localId);
       URL.revokeObjectURL(results[0].previewUrl);
@@ -548,7 +548,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media_url: landed.storedUrl, thumbnail_url: landed.posterUrl ?? null, targetProfileId: a.profileId }),
+        body: JSON.stringify({ media_url: landed.storedUrl, thumbnail_url: landed.posterUrl ?? null, blur_hash: landed.blurHash ?? null, targetProfileId: a.profileId }),
       });
       uploads.queue.forget(item.localId);
       if (!res.ok) {
