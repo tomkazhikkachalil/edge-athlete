@@ -1,5 +1,14 @@
 # Development Log
 
+## October 13, 2026 — Video posters PR 5: migration 261 — the data shape and the job table (DDL alone)
+
+The program's first of two DDL files (262 is the cron schedule, later). Every new column is nullable and no reader names one until PR 6 (blur) and PR 7 (the worker) deploy — both read a missing column as "none" — so the deploy order is flexible and the file is data-safe to reverse.
+
+- **`post_media` + `activity_media`** gain `codec` (CHECK avc · hevc · vp8 · vp9 · av1 · unknown — what the server reads at upload completion), `processing_at` (set at insert ONLY when the codec needs the transcode and the worker is on; NULL = playable as stored; a partial index for the worker's read), `blur_hash` (a ThumbHash, CHECK 8..64) and **`transcode_source_url`** — the pre-transcode original kept forever. NOT `source_url`: the deferred-original PATCH sets that once (409 after) and `rehydrate.ts` re-edits FROM it, so an HEVC file there would open undecodable on Android.
+- **`media_jobs`** (posture A: RLS on, zero policies, service_role only): one row per unit of work — kind video | poster | blur | probe, a polymorphic target (`target_table` + a bare `target_id`, no FK: a row deleted under a running job makes it `skipped`), the source path, status queued → running → done | parked | failed | skipped, attempts, `run_after`, the lease (`claimed_at`), the outputs (a mirrored copy of the same file reuses them by `source_path`), origin upload | mirror | backfill; a partial UNIQUE keeps ONE open job per target (`ON CONFLICT DO NOTHING` at enqueue), a due index, a done-by-source index.
+- **`media_jobs_claim(n, lease, max_running)`**: `FOR UPDATE SKIP LOCKED` + a lease (255's shape), videos first, within a running cap (Hobby's one vCPU = one transcode at a time), an expired lease reclaimable; service role only — `private` cannot hold an RPC supabase-js calls (257). The first draft put the CTE's row in `LIMIT` (42P10 — a LIMIT may not name a variable); scalar subqueries carry the running count instead. The management API ran the file as one batch, so the first attempt rolled back whole — nothing half-applied.
+- **Staging:** `node scripts/staging-sql.mjs` → `261 APPLIED | 4 | 4 | 1 | 1 | 261`; the twin `verify-261-media-jobs.sql` 13/13; `npm run check:schema` OK — every live policy, function, trigger and grant owned, ledger head 261 on both sides; the ledger test green. **Production is Tom's** (the SQL editor), then `check:schema:prod` and the baseline regenerated.
+
 ## October 13, 2026 — Video posters PR 4: a photo from the library as the cover (zero DDL)
 
 Tom's spec: *"Let the user pick the poster during video editing. Add a 'Choose cover' step with a scrubber across the video … Also allow selecting a photo from their library as the cover."* The scrubber existed (the editor's Cover tool, `recipe.posterTime`); the photo did not.
