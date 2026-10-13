@@ -569,6 +569,16 @@ body {
   animation: ea-live-ring 2.4s ease-out infinite;
 }
 
+/* The workout screen's bottom bar publishes its MEASURED height as
+ * `--ea-workout-bar-h` (WorkoutControls, the TabBar recipe); the editor's
+ * clearance follows it — with a transition, so the content slides up when
+ * the stopwatch opens and settles back when it closes (the reduced-motion
+ * block below turns the slide off). The fallback is the bar's closed height. */
+.ea-bar-clearance {
+  padding-bottom: calc(var(--ea-workout-bar-h, 11rem) + 1rem);
+  transition: padding-bottom 200ms ease;
+}
+
 /* The resume pill (Oct 2026): above the phone tab bar — `--ea-tabbar-h` is
  * the bar's MEASURED height, safe-area inset included, and is unset when the
  * bar hides, so the custom property's fallback is the inset itself. Under the

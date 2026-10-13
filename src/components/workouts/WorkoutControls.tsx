@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer } from 'lucide-react';
 import { useToast } from '../Toast';
 import { haptic } from '@/lib/haptics';
@@ -37,6 +37,13 @@ import { readRestTarget, writeRestTarget } from '@/lib/workouts/timer-prefs';
 // the number brand, vibrates where the phone can (Android; iOS has no web
 // vibration) and shows one toast. Stopwatch: Start / Stop / Reset; "Save to
 // set" writes whole seconds into the target set's duration.
+//
+// The bar takes its own space (Tom, Oct 13 2026 — the open stopwatch covered
+// the Add buttons at the foot of the list): its MEASURED height is published
+// as `--ea-workout-bar-h` on <html> (the TabBar recipe), the editor's bottom
+// clearance reads it with a transition, and the stopwatch panel animates its
+// height in place instead of mounting — so the content slides up and settles
+// back, and nothing is ever under the bar or the home indicator.
 
 interface Props {
   exercises: EntryExercise[];
@@ -87,6 +94,22 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
     showInfo('Rest is up', targetS ? `${formatElapsed(targetS)} — next set.` : undefined);
   }, [reached, rest.startedAt, targetS, showInfo]);
 
+  // The measured height → `--ea-workout-bar-h` (the TabBar recipe): the editor's clearance follows the bar as it grows and shrinks.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => root.style.setProperty('--ea-workout-bar-h', `${el.offsetHeight}px`);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--ea-workout-bar-h');
+    };
+  }, []);
+
   const swMs = stopwatchElapsedMs(stopwatch, now);
   const autoTarget = stopwatchTarget(exercises, lastEditedClientId);
   const target = chosenTarget && exercises.some(e => e.clientId === chosenTarget.clientId && e.sets[chosenTarget.setIndex]) ? chosenTarget : autoTarget;
@@ -100,10 +123,15 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]" data-workout-controls={rest.startedAt !== null ? 'resting' : rest.heldS !== null ? 'rest-held' : 'idle'}>
+      <div ref={rootRef} className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]" data-workout-controls={rest.startedAt !== null ? 'resting' : rest.heldS !== null ? 'rest-held' : 'idle'}>
         <div className="mx-auto max-w-md">
-          {stopwatchOpen && (
-            <div className="mb-2 rounded-xl border border-border bg-surface p-3" data-workout-stopwatch-panel="">
+          {/* Always mounted; its height animates (max-height works on the iOS 15 floor) so the bar's measured height — and the clearance above it — slide rather than jump. */}
+          <div
+            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${stopwatchOpen ? 'max-h-48 opacity-100 mb-2' : 'max-h-0 opacity-0'}`}
+            aria-hidden={!stopwatchOpen}
+            data-workout-stopwatch-open={stopwatchOpen ? 'true' : 'false'}
+          >
+            <div className="rounded-xl border border-border bg-surface p-3" data-workout-stopwatch-panel="" {...(stopwatchOpen ? {} : { inert: true })}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-2xl font-bold tabular-nums text-primary" data-workout-stopwatch-time="">{formatElapsed(Math.floor(swMs / 1000))}</span>
                 <div className="flex items-center gap-1">
@@ -136,7 +164,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                 </button>
               </div>
             </div>
-          )}
+          </div>
           <div className="flex gap-2">
             {/* Rest: a toggle; the number shows while resting or held; a long-press (or the chip) sets the target. */}
             <button

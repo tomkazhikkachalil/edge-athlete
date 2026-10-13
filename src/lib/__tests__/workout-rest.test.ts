@@ -110,4 +110,17 @@ describe('the screen', () => {
     expect(editor).not.toMatch(/span\.tabular-nums/);
     expect(read('e2e/workout-capture.spec.ts')).toMatch(/\[data-live-clock\]/);
   });
+  it('the bar takes its own space (Oct 13 2026): it publishes its measured height, the editor\'s clearance follows it, the panel animates in place', () => {
+    const bar = read('src/components/workouts/WorkoutControls.tsx');
+    expect(bar).toMatch(/root\.style\.setProperty\('--ea-workout-bar-h', `\$\{el\.offsetHeight\}px`\)/);
+    expect(bar).toMatch(/new ResizeObserver\(update\)/);
+    expect(bar).toMatch(/data-workout-stopwatch-open=\{stopwatchOpen \? 'true' : 'false'\}/);
+    expect(bar).toMatch(/transition-\[max-height,opacity\]/);
+    expect(bar).not.toMatch(/\{stopwatchOpen && \(/);
+    const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
+    expect(editor).not.toMatch(/pb-48/);
+    expect(editor).toMatch(/'ea-bar-clearance'/);
+    const css = read('src/app/globals.css');
+    expect(css).toMatch(/\.ea-bar-clearance \{\s*padding-bottom: calc\(var\(--ea-workout-bar-h, 11rem\) \+ 1rem\);\s*transition: padding-bottom 200ms ease;/);
+  });
 });
