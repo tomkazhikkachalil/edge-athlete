@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import VideoFrame from '@/components/media/VideoFrame';
 import { useToast } from '@/components/Toast';
 
 // ── Contest media entry for ONE contest (phase 4 R3) ────────────────────────
@@ -147,7 +148,7 @@ export default function ContestMediaPanel({
                     className="w-24 h-24 object-cover rounded-lg border border-border"
                   />
                 ) : (
-                  <video src={item.url} className="w-24 h-24 object-cover rounded-lg border border-border" />
+                  <VideoFrame src={item.url} alt={item.caption ?? 'Game video'} compact className="w-24 h-24 rounded-lg border border-border" />
                 )
               ) : (
                 <div className="w-24 h-24 rounded-lg border border-border bg-surface-sunken" />

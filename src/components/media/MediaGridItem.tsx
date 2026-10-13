@@ -1,5 +1,7 @@
 'use client';
 
+import MediaTile from './MediaTile';
+
 /**
  * One square tile in a profile media grid — extracted verbatim from
  * ProfileMediaTabs (Aug 2026) so the Media tab and the Stats hub render
@@ -46,6 +48,8 @@ export interface MediaItem {
     id: string;
     media_url: string;
     media_type: 'image' | 'video';
+    /** The video's poster (the profile media API proxies it). */
+    thumbnail_url?: string | null;
     display_order: number;
   }>;
   golf_round?: {
@@ -288,18 +292,13 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
       {hasMedia && firstMedia ? (
         <div className="w-full h-full">
           {isVideo ? (
-            <div className="relative w-full h-full">
-              <video
-                src={firstMedia.media_url}
-                className="w-full h-full object-cover"
-                preload="metadata"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center">
-                  <i className="fas fa-play text-white text-lg ml-1"></i>
-                </div>
-              </div>
-            </div>
+            <MediaTile
+              src={firstMedia.media_url}
+              thumbnailUrl={firstMedia.thumbnail_url}
+              kind="video"
+              alt={item.caption || 'Video'}
+              className="w-full h-full"
+            />
           ) : (
             <OptimizedImage
               src={firstMedia.media_url}

@@ -1,5 +1,6 @@
 'use client';
 
+import VideoFrame from '../media/VideoFrame';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { SharedPostPreviewData } from '@/types/messages';
@@ -39,12 +40,17 @@ export default function SharedPostPreview({ post, onClick }: Props) {
               height={320}
             />
           ) : (
-            <video
-              src={thumbnail.media_url}
-              className="w-full max-h-80"
-              controls
-              onClick={(e) => e.stopPropagation()}
-            />
+            <div onClick={e => e.stopPropagation()}>
+              <VideoFrame
+                src={thumbnail.media_url}
+                poster={thumbnail.thumbnail_url}
+                playable
+                controls
+                fit="contain"
+                alt="Post video"
+                className="w-full aspect-video max-h-80"
+              />
+            </div>
           )}
         </div>
       )}

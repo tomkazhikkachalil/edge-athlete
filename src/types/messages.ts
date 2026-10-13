@@ -32,7 +32,7 @@ export interface SharedPostPreviewData {
   caption: string | null;
   created_at: string;
   profile: ParticipantProfile;
-  media: { media_url: string; media_type: string }[];
+  media: { media_url: string; media_type: string; thumbnail_url?: string | null }[];
 }
 
 export interface SharedProfilePreviewData {

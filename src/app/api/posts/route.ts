@@ -62,7 +62,7 @@ const SHARED_POST_SELECT = `
   profile:profile_id (
     id, first_name, last_name, full_name, avatar_url, handle, visibility
   ),
-  media:post_media ( media_url, media_type )
+  media:post_media ( media_url, media_type, thumbnail_url )
 `;
 
 /** Gate + shape a fetched original for a given viewer. Returns the wire
@@ -102,9 +102,11 @@ function gateSharedPost(orig: any, currentUserId: string | null, followingIds: S
       avatar_url: owner.avatar_url,
       handle: owner.handle,
     },
-    media: (orig.media || []).map((m: { media_url: string; media_type: string }) => ({
+    media: (orig.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null }) => ({
       media_url: toProxyUrl(m.media_url, { type: 'post', id: orig.id }),
       media_type: m.media_type,
+      // The quoted video's poster (Oct 13 2026) — the embed is its poster, never a <video>.
+      thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: orig.id }),
     })),
   };
 }

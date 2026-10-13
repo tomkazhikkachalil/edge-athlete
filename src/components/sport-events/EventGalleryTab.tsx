@@ -1,5 +1,7 @@
 'use client';
 
+import { posterTimeFor } from '@/lib/media/poster-plan';
+
 import { useCallback, useEffect, useState } from 'react';
 import LazyImage from '@/components/LazyImage';
 import CaptureInputs from '@/components/media/CaptureInputs';
@@ -78,7 +80,7 @@ export default function EventGalleryTab({ view, api, version }: Props) {
           let thumbnail: string | null = null;
           if (up.type === 'video') {
             try {
-              const poster = await capturePoster(file, 0.5);
+              const poster = await capturePoster(file, posterTimeFor(null));
               thumbnail = (await uploadPostMedia(new File([poster], 'poster.jpg', { type: 'image/jpeg' }))).url;
             } catch { /* a clip without a poster is still the clip */ }
           }
