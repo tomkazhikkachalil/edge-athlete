@@ -18,6 +18,9 @@ test('sports: every sport shows, pins lead, /u/ agrees without controls, no spor
   test.setTimeout(180_000);
   const admin = adminClient();
   const a = await createQaUser({ displayName: 'Pin Pat', firstName: 'Pin', lastName: 'Pat' });
+  // The viewer is a SIGNED-IN second person: production's launch gate sends a
+  // signed-out visitor to coming-soon, and the API is public either way.
+  const b = await createQaUser({ displayName: 'Viewer Vin', firstName: 'Viewer', lastName: 'Vin' });
   const handle = `pinpat${Math.floor(Math.random() * 1e6)}`;
   await admin.from('profiles').update({ visibility: 'public', handle }).eq('id', a.id);
   const ctx = await browser.newContext({ storageState: await mintStorageState(a), extraHTTPHeaders: bypassHeaders() });
@@ -58,7 +61,7 @@ test('sports: every sport shows, pins lead, /u/ agrees without controls, no spor
 
     // (d) /u/ (CDN-cached 60 s): the same order, no pin controls
     await settleBody(anon, `/api/public/profile?handle=${handle}`, '"pinned":true');
-    const pageB = await (await browser.newContext({ storageState: { cookies: [], origins: [] }, extraHTTPHeaders: bypassHeaders() })).newPage();
+    const pageB = await (await browser.newContext({ storageState: await mintStorageState(b), extraHTTPHeaders: bypassHeaders() })).newPage();
     await pageB.goto(`/u/${handle}`);
     const sportsB = pageB.locator('#sports');
     await expect(sportsB.locator('[data-sport-card]').first()).toHaveAttribute('data-sport-card', 'basketball', { timeout: 30_000 });
@@ -76,5 +79,6 @@ test('sports: every sport shows, pins lead, /u/ agrees without controls, no spor
     await anon.dispose();
     await ctx.close();
     await deleteQaUser(a.id);
+    await deleteQaUser(b.id);
   }
 });

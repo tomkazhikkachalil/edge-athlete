@@ -5,7 +5,9 @@ import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { coverProxyUrl } from '@/lib/media/cover-url';
-import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
+import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader'
+import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
+import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';;
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -63,6 +65,8 @@ export default function AthleteProfilePage() {
   // props, so opening the hub from the strip remounts the tabs (epoch key)
   // with these overriding the URL-read values.
   const [hubTab, setHubTab] = useState<string | null>(null);
+  // Tap the picture or the cover to see it larger (Oct 14 2026).
+  const [viewingPhoto, setViewingPhoto] = useState<ProfilePhotoSlot | null>(null);
   const [hubSport, setHubSport] = useState<string | null>(null);
   const [tabsEpoch, setTabsEpoch] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -335,6 +339,8 @@ export default function AthleteProfilePage() {
             coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
             size="lg"
             rowClassName="px-4 sm:px-6 flex justify-center sm:justify-start"
+            onCoverTap={profile.cover_url ? () => setViewingPhoto('cover') : undefined}
+            onAvatarTap={profile.avatar_url ? () => setViewingPhoto('avatar') : undefined}
           >
             {profile.avatar_url ? (
               <LazyImage
@@ -350,6 +356,18 @@ export default function AthleteProfilePage() {
               </div>
             )}
           </ProfileCoverHeader>
+          {viewingPhoto && (
+            <ProfilePhotoViewer
+              slot={viewingPhoto}
+              src={viewingPhoto === 'avatar' ? (profile.avatar_url as string) : (coverProxyUrl(profile.id, profile.cover_url) as string)}
+              alt={viewingPhoto === 'avatar' ? 'Profile picture' : 'Cover photo'}
+              canEdit={isOwnProfile}
+              // The owner's usual door is /athlete (refreshProfile); on their
+              // own /athlete/[id] a change simply reloads the page.
+              onChanged={() => window.location.reload()}
+              onClose={() => setViewingPhoto(null)}
+            />
+          )}
           <div className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
           <div className="flex-1 min-w-0 w-full">

@@ -4,7 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
-import AvatarUploader from './AvatarUploader';
+import ProfilePhotoDoor from './profile/ProfilePhotoDoor';
+import { PHOTO_SLOTS } from './profile/ProfilePhotoUploader';
+import { coverProxyUrl } from '@/lib/media/cover-url';
+import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import type { Profile } from '@/lib/supabase';
 import RecruitingFields from '@/components/recruiting/RecruitingFields';
 import {
@@ -230,7 +233,7 @@ export default function EditProfileTabs({
   // tabs must survive a save and still count as unsaved on close.
   const snapRef = useRef<Record<string, string>>({});
   const serializeGroup = {
-    basic: () => JSON.stringify({ ...basicForm, avatar_file: basicForm.avatar_file?.name ?? null }),
+    basic: () => JSON.stringify({ ...basicForm, avatar_file: basicForm.avatar_file?.name ?? null, cover_file: basicForm.cover_file?.name ?? null }),
     sports: () => JSON.stringify(selectedSports),
     bodyMetrics: () => JSON.stringify(bodyMetricsForm),
     socials: () => JSON.stringify(socialsForm),
@@ -340,7 +343,7 @@ export default function EditProfileTabs({
   // top bumps `seedVersion`), so it snapshots exactly the values that were
   // just applied.
   useEffect(() => {
-    snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
+    snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null, cover_file: null });
     snapRef.current.bodyMetrics = JSON.stringify(bodyMetricsForm);
     snapRef.current.socials = JSON.stringify(socialsForm);
     snapRef.current.recruiting = JSON.stringify(recruitingForm);
@@ -419,10 +422,15 @@ export default function EditProfileTabs({
         case 'basic':
           // Handle avatar upload if present
           if (basicForm.avatar_file) {
-            await uploadAvatar(basicForm.avatar_file);
+            await uploadProfilePhoto('avatar', basicForm.avatar_file);
             wrote = true;
             // Uploaded: a later save must not send the same file again.
             setBasicForm(prev => ({ ...prev, avatar_file: null }));
+          }
+          if (basicForm.cover_file) {
+            await uploadProfilePhoto('cover', basicForm.cover_file);
+            wrote = true;
+            setBasicForm(prev => ({ ...prev, cover_file: null }));
           }
 
           // Validate required fields
@@ -691,7 +699,7 @@ export default function EditProfileTabs({
         // three snapshots, so saving Training marked unsaved Basic edits as
         // saved and the modal closed on them without asking.
         if (tabId === 'basic') {
-          snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
+          snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null, cover_file: null });
           snapRef.current.sports = serializeGroup.sports();
         } else if (tabId === 'body_metrics') {
           snapRef.current.bodyMetrics = serializeGroup.bodyMetrics();
@@ -721,32 +729,30 @@ export default function EditProfileTabs({
     }
   };
 
-  const uploadAvatar = async (file: File) => {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    
-    if (file.size > maxSize) {
-      throw new Error('Avatar file size must be less than 5MB');
-    }
-    
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
-    }
-
+  // The picture and the cover upload the same way (Oct 14 2026): the slot's
+  // route and field, the guardian's targetProfileId when acting.
+  const uploadProfilePhoto = async (slot: ProfilePhotoSlot, file: File) => {
+    const def = PHOTO_SLOTS[slot];
+    if (file.size > def.maxBytes) throw new Error(`${def.noun} must be less than ${Math.round(def.maxBytes / (1024 * 1024))}MB`);
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append(def.field, file);
     if (targetProfileId) formData.append('targetProfileId', targetProfileId);
-
-    const response = await fetch('/api/upload/avatar', {
-      method: 'POST',
-      body: formData,
-    });
-
+    const response = await fetch(def.endpoint, { method: 'POST', body: formData });
     if (!response.ok) {
-      const result = await response.json();
-      throw new Error(result.error || 'Failed to upload avatar');
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `Failed to upload the ${def.noun.toLowerCase()}`);
     }
   };
+  const [photoDoor, setPhotoDoor] = useState<ProfilePhotoSlot | null>(null);
+  // A pending pick previews as itself (an object URL, revoked on change).
+  const [pendingPreview, setPendingPreview] = useState<{ avatar: string | null; cover: string | null }>({ avatar: null, cover: null });
+  useEffect(() => {
+    const a = basicForm.avatar_file ? URL.createObjectURL(basicForm.avatar_file) : null;
+    const c = basicForm.cover_file ? URL.createObjectURL(basicForm.cover_file) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the object URLs are the effect's own, revoked below
+    setPendingPreview({ avatar: a, cover: c });
+    return () => { if (a) URL.revokeObjectURL(a); if (c) URL.revokeObjectURL(c); };
+  }, [basicForm.avatar_file, basicForm.cover_file]);
 
   // The name as the form holds it (avatar alt + initials) — the loaded
   // full_name only when both parts are empty.
@@ -754,59 +760,72 @@ export default function EditProfileTabs({
 
   const renderBasicTab = () => (
     <div className="space-y-6">
-      {/* Avatar Upload */}
-      <div className="flex items-center space-x-4">
-        <div className="relative">
-          <LazyImage
-            src={profile?.avatar_url}
-            alt={`${formFullName || 'User'} avatar`}
-            className="w-20 h-20 rounded-full object-cover border-3 border-border-strong"
-            width={80}
-            height={80}
-            priority
-            fallback={
-              <div 
-                className="w-20 h-20 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-3 border-border-strong"
-                role="img"
-                aria-label={`${formFullName || 'User'} avatar`}
-              >
-                <span className="text-tertiary font-semibold text-xl" aria-hidden="true">
-                  {getInitials(formFullName)}
-                </span>
-              </div>
-            }
-          />
+      {/* The two photos (Oct 14 2026): the picture and the cover, each with
+          the one door (deferred — uploads on Save) and a preview of the
+          pending pick. */}
+      <div className="flex items-center gap-4" data-edit-photo="avatar">
+        <div className="relative shrink-0">
+          {pendingPreview.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a local object URL, never remote
+            <img src={pendingPreview.avatar} alt="New profile picture" className="w-20 h-20 rounded-full object-cover border-3 border-border-strong" />
+          ) : (
+            <LazyImage
+              src={profile?.avatar_url}
+              alt={`${formFullName || 'User'} avatar`}
+              className="w-20 h-20 rounded-full object-cover border-3 border-border-strong"
+              width={80}
+              height={80}
+              priority
+              fallback={
+                <div
+                  className="w-20 h-20 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-3 border-border-strong"
+                  role="img"
+                  aria-label={`${formFullName || 'User'} avatar`}
+                >
+                  <span className="text-tertiary font-semibold text-xl" aria-hidden="true">
+                    {getInitials(formFullName)}
+                  </span>
+                </div>
+              }
+            />
+          )}
         </div>
-        <div className="flex-1">
-          <AvatarUploader
-            mode="deferred"
-            onFileReady={file => setBasicForm(prev => ({ ...prev, avatar_file: file }))}
-            render={({ open, openCamera }) => (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={open}
-                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
-                >
-                  <i className="fas fa-upload mr-2" aria-hidden="true"></i>
-                  {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={openCamera}
-                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted"
-                >
-                  <i className="fas fa-camera mr-2" aria-hidden="true"></i>
-                  Take photo
-                </button>
-              </div>
-            )}
-          />
-          <p className="mt-1 text-xs text-muted">
-            JPG, PNG, GIF or WebP. Max 5MB.
-          </p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-secondary">Profile picture</p>
+          <button type="button" onClick={() => setPhotoDoor('avatar')} className="ea-btn-secondary inline-flex items-center text-sm font-medium mt-1" aria-label="Change profile picture">
+            <i className="fas fa-camera mr-2" aria-hidden="true"></i>
+            Change profile picture
+          </button>
+          <p className="mt-1 text-xs text-muted">{basicForm.avatar_file ? 'Saves with profile.' : 'JPG, PNG, GIF, WebP or HEIC. Max 5MB.'}</p>
         </div>
       </div>
+      <div data-edit-photo="cover">
+        <p className="text-sm font-semibold text-secondary mb-2">Cover photo</p>
+        <div className="w-full max-w-xs aspect-[3/1] rounded-md overflow-hidden border border-border-strong bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500">
+          {pendingPreview.cover ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a local object URL, never remote
+            <img src={pendingPreview.cover} alt="New cover photo" className="w-full h-full object-cover" />
+          ) : profile?.cover_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the cover proxy's ?v= defeats the optimizer (the header does the same)
+            <img src={coverProxyUrl(profile.id, profile.cover_url) ?? undefined} alt="Cover photo" className="w-full h-full object-cover" />
+          ) : null}
+        </div>
+        <button type="button" onClick={() => setPhotoDoor('cover')} className="ea-btn-secondary inline-flex items-center text-sm font-medium mt-2" aria-label="Change cover photo">
+          <i className="fas fa-image mr-2" aria-hidden="true"></i>
+          Change cover photo
+        </button>
+        <p className="mt-1 text-xs text-muted">{basicForm.cover_file ? 'Saves with profile.' : 'A 3:1 banner. Max 10MB.'}</p>
+      </div>
+      {photoDoor && (
+        <ProfilePhotoDoor
+          slot={photoDoor}
+          hasPhoto={photoDoor === 'avatar' ? !!profile?.avatar_url : !!profile?.cover_url}
+          mode="deferred"
+          targetProfileId={targetProfileId ?? undefined}
+          onFileReady={file => setBasicForm(prev => (photoDoor === 'avatar' ? { ...prev, avatar_file: file } : { ...prev, cover_file: file }))}
+          onClose={() => setPhotoDoor(null)}
+        />
+      )}
 
       {/* Name Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

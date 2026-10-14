@@ -27,6 +27,8 @@ interface MediaLightboxProps {
   onClose: () => void;
   /** Caption strip, e.g. the segment label ("Hole 3"). */
   footerFor?: (item: CollageItem) => React.ReactNode;
+  /** An action in the top bar beside Close (the profile photo's Edit). */
+  topAction?: React.ReactNode;
 }
 
 export default function MediaLightbox({
@@ -35,6 +37,7 @@ export default function MediaLightbox({
   onIndexChange,
   onClose,
   footerFor,
+  topAction,
 }: MediaLightboxProps) {
   useBodyScrollLock(true);
 
@@ -83,10 +86,13 @@ export default function MediaLightbox({
       aria-modal="true"
       aria-label="Media viewer"
     >
-      <div className="flex shrink-0 items-center justify-between p-3 text-white safe-top">
+      <div className="flex shrink-0 items-center justify-between gap-2 p-3 text-white safe-top">
+        {/* One photo (a profile picture) needs no "1 / 1". */}
         <span className="text-sm font-semibold tabular-nums">
-          {index + 1} / {items.length}
+          {items.length > 1 ? `${index + 1} / ${items.length}` : ''}
         </span>
+        <span className="ml-auto flex items-center gap-2">
+        {topAction}
         <button
           type="button"
           onClick={onClose}
@@ -96,6 +102,7 @@ export default function MediaLightbox({
         >
           <i className="fas fa-times text-lg" aria-hidden="true"></i>
         </button>
+        </span>
       </div>
 
       <div

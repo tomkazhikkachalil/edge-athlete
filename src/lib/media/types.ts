@@ -318,6 +318,9 @@ export interface OutputConfig {
   quality: number; // 0–1 (ignored by PNG encoders)
 }
 
+/** The image tools a session may offer (the modal's tab row); `tools` limits them. */
+export type ImageToolId = 'crop' | 'adjust' | 'filter' | 'masks' | 'retouch' | 'text' | 'perspective';
+
 export interface EditorConfig {
   aspectRatios: AspectRatioId[]; // offered ratios; first = default
   enforcedRatio?: Exclude<AspectRatioId, 'free'>; // locks the ratio UI (avatar 1:1)
@@ -325,4 +328,6 @@ export interface EditorConfig {
   allowVideo: boolean;
   maxAssets: number; // 1 = single-asset mode, no filmstrip
   output: OutputConfig;
+  /** Limit the image tools (profile photos: ['crop'] — the one tool, no tab row). */
+  tools?: ImageToolId[];
 }

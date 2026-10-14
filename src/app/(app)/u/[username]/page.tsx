@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
+import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import AppHeader from '@/components/AppHeader';
 import ActionMenu from '@/components/ActionMenu';
 import ReportSheet from '@/components/tickets/ReportSheet';
@@ -130,6 +132,8 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const { user } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
+  // Tap the picture or the cover to see it larger (Oct 14 2026).
+  const [viewingPhoto, setViewingPhoto] = useState<ProfilePhotoSlot | null>(null);
   // getProfileUrl links as /u/@handle, and useParams delivers the segment
   // PERCENT-ENCODED ('%40handle'). Passing that straight to the API
   // double-encoded it (handle=%2540…) and every @-prefixed profile link
@@ -318,7 +322,13 @@ export default function PublicProfilePage() {
         <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
           {/* Cover photo with the profile picture half over its bottom edge
               (gradient until the athlete sets one). */}
-          <ProfileCoverHeader coverSrc={profile.cover ?? null} size="md" rowClassName="px-4 sm:px-6">
+          <ProfileCoverHeader
+            coverSrc={profile.cover ?? null}
+            size="md"
+            rowClassName="px-4 sm:px-6"
+            onCoverTap={profile.cover ? () => setViewingPhoto('cover') : undefined}
+            onAvatarTap={profile.avatar_url ? () => setViewingPhoto('avatar') : undefined}
+          >
             <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-surface bg-surface overflow-hidden">
               {profile.avatar_url ? (
                 <LazyImage
@@ -335,6 +345,16 @@ export default function PublicProfilePage() {
               )}
             </div>
           </ProfileCoverHeader>
+          {viewingPhoto && (
+            <ProfilePhotoViewer
+              slot={viewingPhoto}
+              src={viewingPhoto === 'avatar' ? (profile.avatar_url as string) : (profile.cover as string)}
+              alt={viewingPhoto === 'avatar' ? 'Profile picture' : 'Cover photo'}
+              canEdit={!!user && user.id === profile.id}
+              onChanged={() => window.location.reload()}
+              onClose={() => setViewingPhoto(null)}
+            />
+          )}
 
           {/* Profile info */}
           <div className="p-4 sm:p-6">

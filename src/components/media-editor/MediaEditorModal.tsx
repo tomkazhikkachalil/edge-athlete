@@ -11,7 +11,7 @@
  * (TagPeopleModal etc.), below Toast (z-[70]).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { X, Undo2, Redo2, Eye, History, Settings2 } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -43,7 +43,7 @@ import {
   type ExportPrefs,
 } from '@/lib/media/export-prefs';
 import ExportSettingsSheet from './ExportSettingsSheet';
-import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
+import type { ImageToolId, EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import FreeCropStage from './FreeCropStage';
 import AdjustPanel from './AdjustPanel';
@@ -135,6 +135,9 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // Phase 4 (E-W1): the session's copied look (color/texture only — never
   // geometry, masks, retouch, or text).
   const [copiedLook, setCopiedLook] = useState<Look | null>(null);
+  // Profile photos (Oct 14 2026) open the editor with `tools: ['crop']`: the
+  // tab row, the keyboard cycle and the active tool all read this list.
+  const imageTools = useMemo(() => (config.tools ? IMAGE_TOOLS.filter(t => config.tools!.includes(t.id as ImageToolId)) : IMAGE_TOOLS), [config.tools]);
   // Phase 4 (E-W2): export preferences. Lazy-init from localStorage is
   // safe HERE (unlike the RegistrationSteps hydration trap): the editor
   // mounts only after user interaction, never in server-rendered HTML.
@@ -256,7 +259,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         return;
       }
       if ((e.key === '[' || e.key === ']') && editable && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const toolList = activeAsset.kind === 'video' ? VIDEO_TOOLS : IMAGE_TOOLS;
+        const toolList = activeAsset.kind === 'video' ? VIDEO_TOOLS : imageTools;
         const currentTool = toolList.some(t => t.id === tool) ? tool : toolList[0].id;
         const index = toolList.findIndex(t => t.id === currentTool);
         const step = e.key === ']' ? 1 : -1;
@@ -286,7 +289,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const liveFilter = imageRecipe
     ? cssFilterString(composeAdjustments(imageRecipe.adjustments, imageRecipe.filterId))
     : '';
-  const tools = isVideo ? VIDEO_TOOLS : IMAGE_TOOLS;
+  const tools = isVideo ? VIDEO_TOOLS : imageTools;
   const activeTool: Tool = tools.some(t => t.id === tool) ? tool : tools[0].id;
 
   // Histogram-targeted auto: exposure/whites/blacks + mild contrast, applied
@@ -467,8 +470,9 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // swallowed their clicks (caught by e2e when the 7th tool landed). Auto
   // margins center when content fits and degrade to a normal scroll row
   // when it doesn't.
+  // One tool (a profile photo's crop): no tab row — the stage IS the editor.
   const toolTabs =
-    activeUrl && !isGif ? (
+    activeUrl && !isGif && tools.length > 1 ? (
       <div className="flex gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto">
         {tools.map(t => (
           <button

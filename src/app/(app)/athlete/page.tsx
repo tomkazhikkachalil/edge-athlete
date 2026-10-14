@@ -2,7 +2,7 @@
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
-import { useEffect, useRef, useState, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import { coverProxyUrl } from '@/lib/media/cover-url';
 import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
@@ -16,9 +16,9 @@ import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import ProfileSports from '@/components/profile/ProfileSports';
 import type { SportSkillCard } from '@/lib/sports/server/types';
-import AvatarUploader from '@/components/AvatarUploader';
-import CoverPhotoUploader from '@/components/CoverPhotoUploader';
-import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
+import ProfilePhotoDoor from '@/components/profile/ProfilePhotoDoor';
+import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
+import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import PostDetailModal from '@/components/PostDetailModal';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
@@ -446,21 +446,13 @@ export default function AthleteProfilePage() {
 
   // Capture popovers off the two camera FABs (capture-everywhere round):
   // Take photo / Choose photo.
-  const [coverMenuOpen, setCoverMenuOpen] = useState(false);
-  const coverMenuRef = useRef<HTMLDivElement>(null);
-  usePopoverDismiss(coverMenuRef, coverMenuOpen, () => setCoverMenuOpen(false));
-  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
-  const avatarMenuRef = useRef<HTMLDivElement>(null);
-  usePopoverDismiss(avatarMenuRef, avatarMenuOpen, () => setAvatarMenuOpen(false));
+  // Profile photos (Oct 14 2026): the upload button shows only while a slot
+  // is EMPTY; a set photo is tapped to view larger, and edited from there.
+  const [photoDoor, setPhotoDoor] = useState<ProfilePhotoSlot | null>(null);
+  const [viewing, setViewing] = useState<ProfilePhotoSlot | null>(null);
 
   // Avatar picking/cropping/uploading lives in the shared AvatarUploader
   // (circle crop via the media editor); this just refreshes on success.
-  const handleAvatarUploaded = async () => {
-    await Promise.all([
-      refreshProfile(),
-      user?.id ? loadAthleteData(user.id) : Promise.resolve(),
-    ]);
-  };
 
   // Inline editing functions. Only the socials use InlineEdit since the
   // header Training strip was removed (Aug 2026) — height/weight/location/
@@ -619,52 +611,20 @@ export default function AthleteProfilePage() {
             size="lg"
             rowClassName="px-4 sm:px-6 lg:px-8 flex justify-center sm:justify-start"
             overlay={
-              <CoverPhotoUploader
-                onUploaded={() => refreshProfile()}
-                render={({ open, openCamera, uploading }) => (
-                  <div ref={coverMenuRef}>
-                    <button
-                      type="button"
-                      onClick={() => setCoverMenuOpen(v => !v)}
-                      disabled={uploading}
-                      aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
-                      aria-expanded={coverMenuOpen}
-                      className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
-                    >
-                      {uploading ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-                      ) : (
-                        <i className="fas fa-camera" aria-hidden="true"></i>
-                      )}
-                    </button>
-                    {coverMenuOpen && (
-                      <div className="absolute bottom-14 right-2 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCoverMenuOpen(false);
-                            openCamera();
-                          }}
-                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                        >
-                          <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCoverMenuOpen(false);
-                            open();
-                          }}
-                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                        >
-                          <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
+              !profile?.cover_url ? (
+                <button
+                  type="button"
+                  onClick={() => setPhotoDoor('cover')}
+                  aria-label="Add cover photo"
+                  className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg"
+                  data-add-cover=""
+                >
+                  <i className="fas fa-camera" aria-hidden="true"></i>
+                </button>
+              ) : undefined
             }
+            onCoverTap={profile?.cover_url ? () => setViewing('cover') : undefined}
+            onAvatarTap={profile?.avatar_url ? () => setViewing('avatar') : undefined}
           >
             <LazyImage
               src={profile?.avatar_url}
@@ -686,60 +646,18 @@ export default function AthleteProfilePage() {
               }
             />
 
-            {/* Avatar Upload Button */}
-            <div className="absolute -bottom-2 -right-2" ref={avatarMenuRef}>
-              <AvatarUploader
-                mode="immediate"
-                onUploaded={handleAvatarUploaded}
-                render={({ open, openCamera, uploading }) => (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setAvatarMenuOpen(v => !v)}
-                      disabled={uploading}
-                      className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
-                        uploading ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                      aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
-                      aria-expanded={avatarMenuOpen}
-                    >
-                      {uploading ? (
-                        <div
-                          className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
-                          aria-hidden="true"
-                        ></div>
-                      ) : (
-                        <i className="fas fa-camera text-white" aria-hidden="true"></i>
-                      )}
-                    </button>
-                    {avatarMenuOpen && (
-                      <div className="absolute bottom-16 right-0 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAvatarMenuOpen(false);
-                            openCamera();
-                          }}
-                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                        >
-                          <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAvatarMenuOpen(false);
-                            open();
-                          }}
-                          className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
-                        >
-                          <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
-            </div>
+            {/* The upload button shows only while the picture is empty. */}
+            {!profile?.avatar_url && (
+              <button
+                type="button"
+                onClick={() => setPhotoDoor('avatar')}
+                aria-label="Add profile picture"
+                className="absolute -bottom-2 -right-2 w-14 h-14 bg-brand rounded-full flex items-center justify-center shadow-lg hover:bg-brand-hover transition-colors"
+                data-add-avatar=""
+              >
+                <i className="fas fa-camera text-white" aria-hidden="true"></i>
+              </button>
+            )}
           </ProfileCoverHeader>
           <div className="p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
@@ -1060,6 +978,26 @@ export default function AthleteProfilePage() {
         existingData={editingPerformance}
         onSave={handleSavePerformance}
       />
+
+      {photoDoor && (
+        <ProfilePhotoDoor
+          slot={photoDoor}
+          hasPhoto={photoDoor === 'avatar' ? !!profile?.avatar_url : !!profile?.cover_url}
+          mode="immediate"
+          onChanged={() => refreshProfile()}
+          onClose={() => setPhotoDoor(null)}
+        />
+      )}
+      {viewing && profile && (
+        <ProfilePhotoViewer
+          slot={viewing}
+          src={viewing === 'avatar' ? (profile.avatar_url as string) : (coverProxyUrl(profile.id, profile.cover_url) as string)}
+          alt={viewing === 'avatar' ? 'Profile picture' : 'Cover photo'}
+          canEdit
+          onChanged={() => refreshProfile()}
+          onClose={() => setViewing(null)}
+        />
+      )}
 
       {/* Create Post Modal */}
       <CreatePostModal
