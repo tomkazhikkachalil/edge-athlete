@@ -318,7 +318,7 @@ export default function StatsHub({
           >
             All Sports
           </button>
-          {(skillCards ?? []).map(card => (
+          {(skillCards ?? []).filter(card => card.enabled !== false).map(card => (
             <button
               key={card.sportKey}
               role="tab"

@@ -36,14 +36,14 @@ describe('computeActiveSports', () => {
     expect(result).toEqual(['golf']);
   });
 
-  it('excludes disabled sports even when declared or in settings', () => {
+  it('a disabled sport counts when declared or in settings (the person chose it); a posted disabled key still does not', () => {
     const result = computeActiveSports({
       ...base,
       declaredSport: 'Tennis',
       settingsSportKeys: ['tennis'],
-      postSportKeys: ['basketball'],
+      postSportKeys: ['basketball', 'football'],
     });
-    expect(result).toEqual(['basketball']);
+    expect(result).toEqual(['tennis', 'basketball']);
   });
 
   it('ignores unknown sport strings safely', () => {

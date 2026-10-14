@@ -20,7 +20,7 @@ import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
-import SportSkillStrip from '@/components/SportSkillStrip';
+import ProfileSports from '@/components/profile/ProfileSports';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
@@ -381,7 +381,7 @@ export default function AthleteProfilePage() {
                 load (no post-mount layout shift above the media tabs'
                 deep-link scroll). */}
             <div className="mb-4">
-              <SportSkillStrip
+              <ProfileSports
                 cards={skillCards}
                 isOwner={false}
                 onOpenSport={(sportKey) => {

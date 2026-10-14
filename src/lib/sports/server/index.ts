@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSportDefinition, type SportKey } from '../SportRegistry';
+import { getSportDefinition, type SportKey, SPORT_REGISTRY } from '../SportRegistry';
 import { computeActiveSports } from '../active-sports';
+import { orderProfileSports } from '../profile-sports-order';
+import { resolveSportKey } from '../resolve-sport-key';
 import {
   COMPETITIVE_LEVEL_KEY,
   getSportSettingsDisplay,
@@ -67,15 +69,18 @@ export async function buildSportStatsCard(
  * When the sport has no computed headline, the self-reported competitive
  * level is promoted from the chips to the headline (provenance stays
  * 'entered' — a claimed level must never read as a measured one). A card
- * with nothing at all to show is omitted entirely: onboarding writes an
- * empty `{}` settings row per declared sport, so "row exists" must never
- * mean "card renders".
+ * with nothing at all to show is an EMPTY card (`state: 'empty'`, "No stats
+ * yet") — never null (sports on the profile, Oct 14 2026: every sport the
+ * person has shows, golf gets no special treatment). The caller decides
+ * whether an empty card LISTS: declared sports always do; a sport known only
+ * from posts does not (buildSportSkillCards).
  */
 export function assembleSkillCard(
   sportKey: SportKey,
   contribution: SkillCardContribution | null,
-  displayItems: SettingsDisplayItem[]
-): SportSkillCard | null {
+  displayItems: SettingsDisplayItem[],
+  pin: { pinned: boolean; pinOrder: number | null } = { pinned: false, pinOrder: null }
+): SportSkillCard {
   let headline = contribution?.headline ?? null;
   const consumed = new Set(contribution?.consumedEnteredKeys ?? []);
   let entered = displayItems.filter(i => !consumed.has(i.key));
@@ -90,23 +95,33 @@ export function assembleSkillCard(
 
   const tiles = contribution?.tiles ?? [];
   const progress = contribution?.progress ?? null;
-  if (!headline && !progress && tiles.length === 0 && entered.length === 0) return null;
+  const empty = !headline && !progress && tiles.length === 0 && entered.length === 0;
+  const def = getSportDefinition(sportKey);
 
   return {
     sportKey,
-    sportLabel: getSportDefinition(sportKey).display_name,
+    sportLabel: def.display_name,
     headline,
     progress,
     tiles,
     entered,
     detailHref: contribution?.detailHref ?? null,
+    enabled: def.enabled,
+    state: empty ? 'empty' : 'data',
+    pinned: pin.pinned,
+    pinOrder: pin.pinOrder,
   };
 }
 
 /**
- * One card per sport the athlete plays, in active-sports order (declared
- * sport first). Caller owns the privacy gate — this reads whatever the given
- * client can see. Sports with nothing to show contribute no card. `view`
+ * One card per sport the athlete plays — PINNED sports first (the athlete's
+ * pin order), then the declared primary, then registry order (the ONE rule,
+ * profile-sports-order.ts; the strip, the Stats chips and /u/ share it).
+ * Caller owns the privacy gate — this reads whatever the given client can
+ * see. A DECLARED sport (profiles.sport, a sport_settings row, official
+ * lines, logged rounds) always gets a card, empty or not; a sport known ONLY
+ * from posted sport_keys gets one only when it has something to show — a
+ * draft or hidden post never surfaces a sport to a stranger. `view`
  * defaults to the STRANGER's (public lines only); only a viewer-dependent
  * route with a private cache passes the owner's.
  */
@@ -126,7 +141,7 @@ export async function buildSportSkillCards(
   ] = await Promise.all([
     supabase.from('profiles').select('sport').eq('id', profileId).single(),
     supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
-    supabase.from('sport_settings').select('sport_key, settings').eq('profile_id', profileId),
+    readSettingsRows(supabase, profileId),
     // Phase 4: org-entered stat lines from PUBLIC competitions (degrades
     // to [] pre-157 or on an RLS-limited client — never throws).
     fetchOfficialStatLines(supabase, profileId),
@@ -171,6 +186,17 @@ export async function buildSportSkillCards(
   const settingsBySport = new Map<string, Record<string, unknown> | null>(
     (settingsRows || []).map(s => [s.sport_key as string, s.settings as Record<string, unknown> | null])
   );
+  const pinBySport = new Map<string, { pinned: boolean; pinOrder: number | null }>(
+    (settingsRows || []).map(s => [s.sport_key as string, { pinned: s.pinned === true, pinOrder: s.pinned === true && typeof s.pin_order === 'number' ? s.pin_order : null }])
+  );
+  // Declared = everything but "posted only": the label, a settings row,
+  // official lines, a module's own activity (golf rounds).
+  const declared = new Set<string>();
+  const declaredKey = resolveSportKey(profile?.sport ?? null);
+  if (declaredKey) declared.add(declaredKey);
+  for (const s of settingsRows || []) declared.add(s.sport_key as string);
+  for (const key of officialBySport.keys()) declared.add(key);
+  for (const key of activityChecks) if (key) declared.add(key);
 
   const cards = await Promise.all(
     ordered.map(async sportKey => {
@@ -186,9 +212,28 @@ export async function buildSportSkillCards(
         officialBySport.get(sportKey) ?? [],
         getStatSchema(sportKey)
       );
-      return assembleSkillCard(sportKey, merged, getSportSettingsDisplay(sportKey, settings));
+      return assembleSkillCard(sportKey, merged, getSportSettingsDisplay(sportKey, settings), pinBySport.get(sportKey));
     })
   );
 
-  return cards.filter((c): c is SportSkillCard => c !== null);
+  const listed = cards.filter(c => c.state === 'data' || declared.has(c.sportKey));
+  const byKey = new Map(listed.map(c => [c.sportKey as string, c]));
+  const { pinned, rest } = orderProfileSports({
+    active: listed.map(c => c.sportKey),
+    pins: listed.filter(c => c.pinned).map(c => ({ key: c.sportKey, order: c.pinOrder ?? Number.MAX_SAFE_INTEGER })),
+    primary: declaredKey,
+    registryOrder: Object.keys(SPORT_REGISTRY),
+  });
+  return [...pinned, ...rest].map(k => byKey.get(k)!).filter(Boolean);
+}
+
+/** The profile's sport_settings rows WITH the pin columns (263); before 263
+ *  (42703 / PGRST204) the same rows without them — a missing column is
+ *  "no pins", never a 500. */
+async function readSettingsRows(supabase: SupabaseClient, profileId: string) {
+  const withPins = await supabase.from('sport_settings').select('sport_key, settings, pinned, pin_order').eq('profile_id', profileId);
+  if (!withPins.error) return withPins;
+  if (withPins.error.code !== '42703' && withPins.error.code !== 'PGRST204') return withPins;
+  const plain = await supabase.from('sport_settings').select('sport_key, settings').eq('profile_id', profileId);
+  return { data: (plain.data ?? []).map(r => ({ ...r, pinned: false, pin_order: null })), error: plain.error };
 }

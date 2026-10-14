@@ -8,7 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import ActionMenu from '@/components/ActionMenu';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import LazyImage from '@/components/LazyImage';
-import SportSkillStrip from '@/components/SportSkillStrip';
+import ProfileSports from '@/components/profile/ProfileSports';
 import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
@@ -606,7 +606,7 @@ export default function PublicProfilePage() {
             stays viewer-independent for the CDN. */}
         {profileData.skillCards !== undefined && (
           <div className="mt-4">
-            <SportSkillStrip
+            <ProfileSports
               cards={profileData.skillCards}
               isOwner={false}
               onOpenSport={(sportKey) => switchSection('stats', sportKey)}

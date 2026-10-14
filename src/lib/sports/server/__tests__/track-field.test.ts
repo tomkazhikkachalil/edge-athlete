@@ -55,10 +55,10 @@ describe('buildTrackSkillContribution', () => {
     expect(c.consumedEnteredKeys).toEqual(['pb_800m']);
   });
 
-  it('nothing at all yields a null headline (card omitted downstream)', () => {
+  it('nothing at all yields a null headline — and an EMPTY card downstream, never null (sports on the profile, Oct 14 2026)', () => {
     const c = buildTrackSkillContribution(new Map(), new Map(), 0);
     expect(c.headline).toBeNull();
-    expect(assembleSkillCard('track_field', c, [])).toBeNull();
+    expect(assembleSkillCard('track_field', c, [])).toMatchObject({ sportKey: 'track_field', state: 'empty', headline: null });
   });
 });
 

@@ -66,6 +66,15 @@ export interface SportSkillCard {
   entered: SettingsDisplayItem[];
   /** Tap target for the card owner (e.g. golf → trends), or null. */
   detailHref: string | null;
+  /** Sports on the profile (Oct 14 2026, 263): the registry's `enabled` flag —
+   *  a disabled sport (tennis) lists but has no stats door. */
+  enabled: boolean;
+  /** 'empty' = nothing to show yet ("No stats yet"); a card still renders. */
+  state: 'data' | 'empty';
+  /** The athlete pinned this sport (263); pinned cards lead, larger. */
+  pinned: boolean;
+  /** 1..n among the pinned sports; null when not pinned. */
+  pinOrder: number | null;
 }
 
 /** That sport's `sport_settings.settings`, fetched once by the dispatcher. */

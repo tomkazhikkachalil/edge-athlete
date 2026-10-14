@@ -109,6 +109,10 @@ function CardBody({ card }: { card: SportSkillCard }) {
         {card.sportLabel}
       </h2>
 
+      {card.state === 'empty' && (
+        <p className="mt-3 text-sm text-muted">No stats yet</p>
+      )}
+
       {card.headline && (
         <div className="mt-3 flex items-baseline gap-2 flex-wrap">
           <span className="text-3xl font-bold text-primary">{card.headline.value}</span>
