@@ -42,8 +42,8 @@ export class StatLinePostAdapter extends BaseSportAdapter {
   getNavLinks(): { href: string; label: string }[] {
     const noun = getStatSchema(this.sportKey)?.activityNoun.toLowerCase() ?? 'game';
     return [
-      { href: `/app/sport/${this.sportKey}/log`, label: `View all ${pluralNoun(noun)} →` },
-      { href: `/app/sport/${this.sportKey}/trends`, label: 'Trends →' },
+      { href: `/app/sport/${this.sportKey}/log`, label: `View all ${pluralNoun(noun)}` },
+      { href: `/app/sport/${this.sportKey}/trends`, label: 'Trends' },
     ];
   }
 

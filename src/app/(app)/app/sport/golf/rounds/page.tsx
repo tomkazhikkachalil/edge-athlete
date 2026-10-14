@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { backOr } from '@/lib/nav-back';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -162,19 +163,14 @@ export default function GolfRoundsListPage() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/app/sport/golf/trends"
-              className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
-            >
-              <i className="fas fa-chart-line mr-1"></i>
+            <Link href="/app/sport/golf/trends" className="ea-btn-secondary inline-flex items-center text-sm font-medium">
               Trends
             </Link>
-            <Link
-              href="/athlete"
-              className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
-            >
-              ← Profile
-            </Link>
+            {/* A Back control is backOr (never a bare arrow link): the page's
+                natural parent is the profile. */}
+            <button type="button" onClick={() => backOr(router, '/athlete')} className="ea-btn-secondary inline-flex items-center text-sm font-medium">
+              Back
+            </button>
           </div>
         </div>
 

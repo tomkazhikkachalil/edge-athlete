@@ -8,11 +8,11 @@ import { getStatSchema } from './stat-schemas';
 export function firstActivityCopy(sport: string | null | undefined): { label: string; hint: string; cta: string } {
   const schema = sport ? getStatSchema(sport) : null;
   if (!schema) {
-    return { label: 'Log your first round', hint: 'Pick the course from search and your handicap starts immediately.', cta: 'Log a round →' };
+    return { label: 'Log your first round', hint: 'Pick the course from search and your handicap starts immediately.', cta: 'Log a round' };
   }
   const noun = schema.activityNoun.toLowerCase();
   const hint = sport === 'track_field'
     ? 'Your times become personal bests, season by season.'
     : `Your ${schema.heroStat.label.toLowerCase()} start adding up, season by season.`;
-  return { label: `Log your first ${noun}`, hint, cta: `Log a ${noun} →` };
+  return { label: `Log your first ${noun}`, hint, cta: `Log a ${noun}` };
 }

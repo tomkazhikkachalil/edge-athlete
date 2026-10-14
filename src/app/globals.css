@@ -558,6 +558,30 @@ body {
   transform: scale(0.97);
 }
 
+/* The plain secondary button (profile quick fixes, Oct 14 2026): "View all
+ * rounds", "Trends", the Get Started actions — one look everywhere, no arrow
+ * glyphs. Border, padding, colour and the 44px floor only: callers own
+ * display and width (the .ea-icon-btn trap). */
+.ea-btn-secondary {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  color: var(--color-brand-fg);
+  transition:
+    background-color var(--ea-hover-ms) var(--ea-ease),
+    color var(--ea-hover-ms) var(--ea-ease),
+    transform var(--ea-press-ms) var(--ea-ease);
+}
+.ea-btn-secondary:hover {
+  background-color: var(--color-surface-muted);
+  color: var(--color-brand-fg-strong);
+}
+.ea-btn-secondary:active {
+  transform: scale(0.97);
+}
+
 /* Slow pulse ring for a genuinely-live status dot. Slower and softer than
  * Tailwind's animate-pulse, which reads as urgency rather than presence. */
 @keyframes ea-live-ring {

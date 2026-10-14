@@ -88,7 +88,7 @@ export default function SportTrendsPage() {
               </p>
             )}
           </div>
-          <Link href={`/app/sport/${sportKey}/log`} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center">View {pluralNoun(noun)} list →</Link>
+          <Link href={`/app/sport/${sportKey}/log`} className="ea-btn-secondary inline-flex items-center text-sm font-medium">View {pluralNoun(noun)} list</Link>
         </div>
 
         {loading ? (
@@ -96,7 +96,7 @@ export default function SportTrendsPage() {
         ) : !rollups || rollups.events === 0 ? (
           <div className="bg-surface rounded-lg border border-border p-8 text-center">
             <p className="text-secondary mb-3">No {pluralNoun(noun)} logged yet — trends need a few.</p>
-            <Link href="/feed" className="text-sm text-brand-fg font-medium">Log a {noun} from the feed →</Link>
+            <Link href="/feed" className="ea-btn-secondary inline-flex items-center text-sm font-medium">Log a {noun} from the feed</Link>
           </div>
         ) : (
           <div className="space-y-6" data-sport-trends="">
