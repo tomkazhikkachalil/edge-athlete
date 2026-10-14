@@ -52,6 +52,9 @@ interface CreatePostModalProps {
   userId: string;
   onPostCreated?: (post: unknown) => void;
   defaultSportKey?: SportKey | 'general'; // Optional: pre-select a sport
+  /** Create → Sport (Oct 13 2026): open with the Select Sport picker already
+   *  showing. Closing the picker without a pick leaves a General post. */
+  openSportPicker?: boolean;
   /** Cross-cutting category stamped on the created post (077) — the vitals
    *  tab passes 'training'. Not user-editable in the composer. */
   defaultPostCategory?: 'training';
@@ -177,6 +180,7 @@ export default function CreatePostModal({
   userId,
   onPostCreated,
   defaultSportKey = 'general',
+  openSportPicker = false,
   defaultPostCategory
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
@@ -203,10 +207,11 @@ export default function CreatePostModal({
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       setPostType(defaultSportKey);
+      setShowSportSelector(Boolean(openSportPicker));
       setAvailableDraft(loadComposerDraft());
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, defaultSportKey]);
+  }, [isOpen, defaultSportKey, openSportPicker]);
 
   // Stat-line sports (ice hockey, volleyball, …) — schema-driven stat entry
   const [statLineData, setStatLineData] = useState<StatLineData | null>(null);

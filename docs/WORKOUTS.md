@@ -61,6 +61,8 @@ all of them or it is silently dropped.
 
 ## The screen (`src/components/workouts/`)
 
+**Starting one (Oct 13 2026):** `src/hooks/useStartWorkout.ts` is the ONE start path — Vitals' Start Workout and the header's Create → Record Activity → Start a workout both call it (`POST /api/workouts { mode: 'live', routineId? }`, 409 → resume, `refreshDrafts()`, `/app/workout/<id>`; the routine picker when the person has routines). A new door calls the hook; it never POSTs on its own.
+
 `WorkoutEditorScreen` (the sticky header: the title, the house `ActionMenu` with Hide
 timer · Don't time this workout · Discard; `LiveClock` with Start/Pause beside it;
 only a FAILED save shows a label), `ExerciseCard` (rename in place through its menu;

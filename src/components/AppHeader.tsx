@@ -17,6 +17,8 @@ import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
 import { useDrafts } from '@/hooks/useDrafts';
+import { useStartWorkout } from '@/hooks/useStartWorkout';
+import StartWorkoutSheet from '@/components/workouts/StartWorkoutSheet';
 import { useTheme } from '@/lib/use-theme';
 import { useEditProfile } from '@/components/EditProfileHost';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
@@ -80,10 +82,13 @@ interface AppHeaderProps {
    */
   showSearch?: boolean;
   onCreatePost?: () => void;
+  /** Create → Sport: the page's composer with the sport picker open (the feed
+   *  and the profile pass one); else the feed's ?create=1&pick=sport handoff. */
+  onCreateSport?: () => void;
   onEditProfile?: () => void;
 }
 
-export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProps) {
+export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
@@ -93,6 +98,9 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   // Events program: the header's Create button opens a two-door sheet (Post | Event).
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Create → Record Activity → Start a workout: the SAME start path as
+  // Vitals' Start Workout (useStartWorkout) — the routine picker renders here.
+  const startWorkout = useStartWorkout(!!user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   // Orgs the user manages (phase 1) — LAZY on first menu open so the
   // header adds no request to ordinary page loads. null = not yet loaded;
@@ -199,6 +207,15 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
       // the same battle-tested path the rounds page and onboarding CTA use.
       // The old /athlete fallback silently navigated instead of composing.
       router.push('/feed?create=1');
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleCreateSport = () => {
+    if (onCreateSport) {
+      onCreateSport();
+    } else {
+      router.push('/feed?create=1&pick=sport');
     }
     setIsMobileMenuOpen(false);
   };
@@ -839,8 +856,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
         <CreateSheet
           onClose={() => setIsCreateOpen(false)}
           onPost={() => { setIsCreateOpen(false); handleCreatePost(); }}
+          onSport={() => { setIsCreateOpen(false); handleCreateSport(); }}
           onEvent={() => { setIsCreateOpen(false); router.push('/sports/events/new'); }}
-          onRecordActivity={() => { setIsCreateOpen(false); router.push('/activities/record'); }}
+          onWorkout={() => { setIsCreateOpen(false); startWorkout.open(); }}
+          onRecording={() => { setIsCreateOpen(false); router.push('/activities/record'); }}
+        />
+      )}
+
+      {startWorkout.showStartSheet && (
+        <StartWorkoutSheet
+          routines={startWorkout.routines}
+          starting={startWorkout.starting}
+          onStart={routineId => startWorkout.start(routineId)}
+          onClose={() => startWorkout.setShowStartSheet(false)}
         />
       )}
 
@@ -1063,35 +1091,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               </div>
             )}
 
+            {/* ONE Create menu at every width (Oct 13 2026): the drawer opens
+                the same sheet the header button does — Post · Sport · Event ·
+                Record Activity — instead of its own copy of the rows. */}
             <button
-              onClick={handleCreatePost}
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setIsCreateOpen(true);
+              }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+              data-drawer-create=""
             >
               <i className="fas fa-plus w-5 text-center"></i>
-              <span className="font-medium">Create Post</span>
-            </button>
-
-            <button
-              onClick={() => {
-                router.push('/sports/events/new');
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
-            >
-              <i className="fas fa-flag-checkered w-5 text-center"></i>
-              <span className="font-medium">Create Event</span>
-            </button>
-
-            <button
-              onClick={() => {
-                router.push('/activities/record');
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
-              data-drawer-record-activity=""
-            >
-              <i className="fas fa-location-dot w-5 text-center"></i>
-              <span className="font-medium">Record Activity</span>
+              <span className="font-medium">Create</span>
             </button>
 
             <button

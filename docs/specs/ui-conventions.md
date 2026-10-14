@@ -151,3 +151,16 @@ the `prefers-reduced-motion` block neutralises transitions globally.
   ~550 usages app-wide. Use `rounded-lg` consistently instead.
 
 ---
+
+## The Create menu (Create menu redesign, Oct 13 2026, zero DDL)
+
+Tom's spec: ONE Create menu — the header button, the phone drawer's "Create" row, and therefore the feed and the profile (the header is on both) all open `src/components/CreateSheet.tsx`, the house `LargerWindow`. Four doors in this order, each with a one-line description and its own Font Awesome icon:
+
+1. **Post** (`fa-pen`, `data-create-post`) — a General post with no sport fields: the page's own composer (`onCreatePost`), else the feed's `?create=1` handoff. The feed's "Create a post" pill and the profile's My Media "Create Post" button are direct Post doors and stay.
+2. **Sport** (`fa-medal`, `data-create-sport`) — the composer with the **Select Sport** picker already open (`CreatePostModal` prop `openSportPicker`; `AppHeader onCreateSport`, else `/feed?create=1&pick=sport`). Picking golf lands in the golf section with "Playing now" → Go Live creates the round; a stat-line sport gets its stats form; closing the picker leaves a General post — the Oct 10 "posts start General" rule keeps this as its ONE explicit door. There is no standalone sport screen (Tom's choice, Oct 13).
+3. **Event** (`fa-flag-checkered`, `data-create-event`) — the wizard at `/sports/events/new`, as before.
+4. **Record Activity** (`fa-stopwatch`, `data-create-record-activity`) — a SECOND STEP in the same window (`data-create-step="record"`, Back = `data-create-back`): **Start a workout** (`fa-dumbbell`, `data-create-workout`) and **Record activity** (`fa-person-walking`, `data-create-recording`). The icons are the resume pill's (`PILL_KIND_ICON`).
+
+**One start path.** `src/hooks/useStartWorkout.ts` is the ONE way a live workout starts — lifted verbatim from Vitals: `POST /api/workouts { mode: 'live', routineId? }`, 409 → resume the session in progress, `refreshDrafts()` so the pill and the Drafts count learn it, `/app/workout/<id>`; with saved routines `open()` shows `StartWorkoutSheet` (the caller renders it — Vitals and the header both do). Vitals' Start Workout and Create → Start a workout call the same hook, so the screen, the timer, the autosave, the resume pill and the summary are identical by construction (`e2e/activities-doors.spec.ts` proves it). Record activity is `router.push('/activities/record')` in both places. `sessions-pill.test.ts` holds the hook to `refreshDrafts()`.
+
+**Import Activity is gone** (PR 1 of the redesign): no door, no page, no `.FIT` route, no copy — see `activities.md` (Oct 13 2026).
