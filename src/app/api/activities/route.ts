@@ -8,24 +8,23 @@ import { parseWireActivity } from '@/lib/activities/wire-schema';
 import { importActivity } from '@/lib/activities/write-server';
 
 /**
- * POST /api/activities — import one .GPX / .TCX activity (Activities, 245).
- * `onlyMe: true` (the recorder's review) saves it Only me in the same call.
+ * POST /api/activities — save the phone recorder's finished recording
+ * (Live Activities, 251). `onlyMe: true` (the recorder's review) saves it
+ * Only me in the same call.
  *
- * The browser parsed the file (a long ride's XML can exceed the 4.5 MB
- * request cap) and sends the compact columnar payload (wire.ts, ≤ 10,000
- * samples). This route re-validates it (wire-schema.ts) and the writer
- * recomputes every total — nothing the client computed is trusted. A .FIT
- * goes to /api/activities/fit instead (decoded on the server).
+ * The phone sends the compact columnar payload (wire.ts, ≤ 10,000 samples,
+ * `format: 'live'` — the only format since Oct 13 2026, when the .GPX /
+ * .TCX file import left with the Import Activity door; a .FIT route left
+ * with it). This route re-validates it (wire-schema.ts) and the writer
+ * recomputes every total — nothing the client computed is trusted: source
+ * 'live', external_id the recording's own id (a retry is a 200 duplicate,
+ * never a second row), the segments it marked, and a step estimate from the
+ * acting profile's height.
  *
- * Body: { activity: WireActivity, targetProfileId?: string } — a guardian
- * imports for their athlete through the shared acting gate.
- * 201 { id, duplicate: false } · 200 { id, duplicate: true } (a re-import
- * refreshed the existing activity) · 400 / 413 / 422 with the reason.
- *
- * `format: 'live'` (Live Activities, 251) is the phone recorder's finished
- * recording through the SAME door: source 'live', external_id the
- * recording's own id (a retry is a 200 duplicate, never a second row), the
- * segments it marked, and a step estimate from the acting profile's height.
+ * Body: { activity: WireActivity, targetProfileId?: string, onlyMe?: true }
+ * — a guardian saves for their athlete through the shared acting gate.
+ * 201 { id, duplicate: false } · 200 { id, duplicate: true } · 400 / 413 /
+ * 422 with the reason.
  */
 const MAX_BODY_BYTES = 3_000_000;
 
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     const declared = Number(request.headers.get('content-length') ?? '0');
     if (declared > MAX_BODY_BYTES) {
-      return NextResponse.json({ error: 'This activity is too large to import.' }, { status: 413 });
+      return NextResponse.json({ error: 'This activity is too large to save.' }, { status: 413 });
     }
     let body: unknown;
     try {
@@ -50,7 +49,7 @@ export async function POST(request: NextRequest) {
     const gate = await resolveActingProfile(
       user.id,
       typeof targetProfileId === 'string' && targetProfileId ? targetProfileId : null,
-      'Only a guardian may import activities for this profile.'
+      'Only a guardian may save activities for this profile.'
     );
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
@@ -60,13 +59,12 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data: prof } = await admin.from('profiles').select('height_cm').eq('id', gate.actorId).maybeSingle();
     const heightCm = typeof prof?.height_cm === 'number' ? prof.height_cm : null;
-    const live = parsed.value.format === 'live';
     const outcome = await importActivity(admin, gate.actorId, fromWire(parsed.value), {
       timeZone: parsed.value.tz,
       heightCm,
-      ...(live
-        ? { source: 'live' as const, externalId: `live:${parsed.value.recordingId}`, live: { segments: parsed.value.segments ?? [] } }
-        : {}),
+      source: 'live',
+      externalId: `live:${parsed.value.recordingId}`,
+      live: { segments: parsed.value.segments ?? [] },
     });
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     // The recorder's review chose Only me (Oct 9 2026): private from the
@@ -82,14 +80,14 @@ export async function POST(request: NextRequest) {
         .eq('profile_id', gate.actorId)
         .is('post_id', null);
       if (omErr) {
-        reportRouteError('[activities] only-me on import failed:', omErr);
+        reportRouteError('[activities] only-me on save failed:', omErr);
         return NextResponse.json({ error: 'Could not save the activity as Only me. Try again.' }, { status: 500 });
       }
     }
     return NextResponse.json({ id: outcome.id, duplicate: outcome.duplicate }, { status: outcome.duplicate ? 200 : 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    reportRouteError('[activities] import error:', error);
+    reportRouteError('[activities] save error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ago } from '@/components/tickets/ticket-ui';
@@ -257,19 +256,6 @@ export default function ConnectedApps() {
           </ul>
         </>
       )}
-
-      <div className="bg-brand-soft border border-border rounded-lg p-4">
-        <div className="flex gap-3">
-          <i className="fas fa-file-arrow-up text-brand-fg mt-0.5 shrink-0" aria-hidden="true"></i>
-          <p className="text-sm text-secondary">
-            Every watch and app can export a workout as a file.{' '}
-            <Link href="/activities/import" className="font-medium text-brand-fg underline">
-              Import a file
-            </Link>{' '}
-            and it joins your Vitals the same way.
-          </p>
-        </div>
-      </div>
 
       <ConfirmModal
         isOpen={!!confirming}

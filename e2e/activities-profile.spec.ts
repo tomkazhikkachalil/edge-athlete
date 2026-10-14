@@ -1,8 +1,6 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
-import { parseGpx } from '../src/lib/activities/parse-gpx';
-import { toWire } from '../src/lib/activities/wire';
-import { gpxOf, line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire } from './helpers/activities';
 
 // Where people FIND activities. Since Oct 1 2026 that is INSIDE VITALS, on
 // BOTH profile routes (/u/ is where phone links land; route parity is mobile
@@ -10,14 +8,15 @@ import { gpxOf, line } from '../src/lib/activities/__tests__/fixtures';
 // section, an activity counts in the week / the active days / Recent
 // sessions like a workout, a shared one is a training post, and the Vitals
 // "Workouts" privacy aspect hides the listing from a viewer. Plus the feed
-// card and the header's Create sheet. Tagged @mobile: 390 px Chromium AND
-// WebKit.
+// card. Since Oct 13 2026 there is NO import door anywhere (the file import
+// left with the Create menu's Import Activity). Tagged @mobile: 390 px
+// Chromium AND WebKit.
 
 // Twenty minutes ago (the fixture runs 15), less whole days: `0` is TODAY,
 // so it lands in this week.
 const wire = (daysAgo: number, name: string) => {
   const t0 = Date.now() - 20 * 60_000 - daysAgo * 86_400_000 - Math.floor(Math.random() * 120) * 1000;
-  return toWire({ ...parseGpx(gpxOf(line(900, { t0, stepM: 3, hr: 140 }), { name })), format: 'gpx' }, 'America/Toronto');
+  return liveWire({ t0, n: 900, stepM: 3, hr: 140, name });
 };
 
 test.beforeAll(async () => {
@@ -25,7 +24,7 @@ test.beforeAll(async () => {
   test.skip(!!probe.error && (probe.error.code === '42P01' || probe.error.code === 'PGRST205'), 'migration 245 not applied on this target');
 });
 
-test('activities live inside Vitals on /u/ and /athlete; the feed card; the Create sheet @mobile', async ({ browser }) => {
+test('activities live inside Vitals on /u/ and /athlete; the feed card; no import door @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = adminClient();
   const a = await createQaUser({ displayName: 'Trail Tess', firstName: 'Trail', lastName: 'Tess' });
@@ -105,18 +104,19 @@ test('activities live inside Vitals on /u/ and /athlete; the feed card; the Crea
     await expect(pageB.locator('[data-vitals-recent-sessions]')).toHaveCount(0);
     await admin.from('profiles').update({ vitals_privacy: null }).eq('id', a.id);
 
-    // The owner: Import in their own Vitals (the header and the section),
-    // and the Create sheet's Activity door.
+    // The owner: Record in their own Vitals, and NO import door — not in
+    // Vitals, not in the section, not in the Create sheet (Oct 13 2026).
     const pageA = await ctxA.newPage();
     await pageA.goto(`/athlete/${a.id}?tab=activities`);
-    // One Import door per screen: the Vitals header's (Oct 9 2026).
-    await expect(pageA.locator('[data-vitals-import-activity]')).toBeVisible({ timeout: 20_000 });
+    await expect(pageA.locator('[data-vitals-record-activity]')).toBeVisible({ timeout: 20_000 });
+    await expect(pageA.locator('[data-vitals-import-activity]')).toHaveCount(0);
     await expect(pageA.locator('[data-activities-import-link]')).toHaveCount(0);
+    await expect(pageA.getByText(/import/i)).toHaveCount(0);
     await pageA.goto('/sports/explore');
     await pageA.getByRole('button', { name: 'Create', exact: true }).first().click();
-    await pageA.locator('[data-create-activity]').click();
-    await expect(pageA).toHaveURL(/\/activities\/import/, { timeout: 15_000 });
-    await expect(pageA.locator('[data-activity-import]')).toBeVisible();
+    await expect(pageA.locator('[data-create-sheet]')).toBeVisible();
+    await expect(pageA.locator('[data-create-activity]')).toHaveCount(0);
+    await expect(pageA.locator('[data-create-sheet]').getByText(/import/i)).toHaveCount(0);
   } finally {
     await Promise.all([api.dispose(), ctxA.close(), ctxB.close()]);
     for (const u of [a, b]) await deleteQaUser(u.id);

@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
-import { toWire } from '../src/lib/activities/wire';
-import { line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire as seedWire } from './helpers/activities';
 import { containsPoint, FRAME } from '../src/lib/activities/route-frame';
 
 // The route map is a FRAMED picture (Oct 9 2026, route-frame.ts): no zoom
@@ -14,8 +13,7 @@ const T0 = Date.UTC(2026, 9, 3, 9, 0, 0);
 const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f51';
 
 function liveWire() {
-  const w = toWire({ format: 'live', type: 'walk', name: 'Frame loop', points: line(600, { t0: T0, stepM: 1.4, stepS: 1, climbPerStep: 0.02 }), device: {}, tzOffsetMin: null }, 'America/Toronto');
-  return { ...w, recordingId: REC };
+  return seedWire({ t0: T0, name: 'Frame loop', climbPerStep: 0.02, recordingId: REC });
 }
 
 interface Camera {

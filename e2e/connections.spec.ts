@@ -1,9 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
-import { parseGpx } from '../src/lib/activities/parse-gpx';
-import { toWire } from '../src/lib/activities/wire';
-import { gpxOf, line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire } from './helpers/activities';
 import { CONNECTION_PROVIDERS } from '../src/lib/activities/connections';
 
 // Fix round part 3, PR 2 (Oct 1 2026, mig 247): connected apps — the table
@@ -31,9 +29,10 @@ async function seedUploadLink(profileId: string): Promise<{ hash: string }> {
   return { hash };
 }
 
-function gpxWire(t0: number, opts: { hr?: number; n?: number } = {}) {
-  const parsed = parseGpx(gpxOf(line(opts.n ?? 600, { t0, stepM: 3, hr: opts.hr })));
-  return toWire({ ...parsed, format: 'gpx' }, 'America/Toronto');
+// A recording of the run (the file import left Oct 13 2026; the wire is the
+// recorder's). Each call is its own recording — the twin rule decides.
+function seedWire(t0: number, opts: { hr?: number; n?: number } = {}) {
+  return liveWire({ t0, n: opts.n ?? 600, stepM: 3, hr: opts.hr });
 }
 
 let tableThere = true;
@@ -110,23 +109,26 @@ test('connections API: own rows only, never a secret, disconnect; one activity f
 
     // ── One activity, however many times it arrives ───────────────────────
     const T0 = Date.now() - 3 * 3_600_000;
-    const first = await apiA.post('/api/activities', { data: { activity: gpxWire(T0) } });
+    const first = await apiA.post('/api/activities', { data: { activity: seedWire(T0) } });
     expect(first.status(), await readErrorBody(first)).toBe(201);
     const id = (await first.json()).id as string;
+    // A recording's start is the GPS filter's settled start (the third fix),
+    // so the stored value — not the first raw fix — is what must stand.
+    const { data: stored } = await admin.from('activities').select('started_at').eq('id', id).single();
 
-    // The same run, its clock four seconds off (another export of it): the
-    // SAME activity. It is no richer, so what is stored stands.
-    const again = await apiA.post('/api/activities', { data: { activity: gpxWire(T0 + 4000) } });
+    // The same run, its clock four seconds off (a second phone's recording):
+    // the SAME activity. It is no richer, so what is stored stands.
+    const again = await apiA.post('/api/activities', { data: { activity: seedWire(T0 + 4000) } });
     expect(again.status(), await readErrorBody(again)).toBe(200);
     expect(await again.json()).toMatchObject({ id, duplicate: true });
     const { data: kept } = await admin.from('activities').select('started_at, avg_hr, source, external_id').eq('id', id).single();
-    expect(Date.parse(kept!.started_at)).toBe(T0); // the first delivery's start, not the second's
+    expect(kept!.started_at).toBe(stored!.started_at); // the first delivery's start, not the second's
     expect(kept!.avg_hr).toBeNull();
-    expect(kept!.source).toBe('file');
+    expect(kept!.source).toBe('live');
 
     // The same run again WITH heart rate: richer — the row is refreshed, and
     // keeps the identity of the first delivery.
-    const richer = await apiA.post('/api/activities', { data: { activity: gpxWire(T0 + 4000, { hr: 150 }) } });
+    const richer = await apiA.post('/api/activities', { data: { activity: seedWire(T0 + 4000, { hr: 150 }) } });
     expect(richer.status(), await readErrorBody(richer)).toBe(200);
     expect(await richer.json()).toMatchObject({ id, duplicate: true });
     const { data: refreshed } = await admin.from('activities').select('avg_hr, external_id').eq('id', id).single();
@@ -135,9 +137,9 @@ test('connections API: own rows only, never a secret, disconnect; one activity f
 
     // A warm-up beside it (same minute, a tenth of the length) and a second
     // run ten minutes later are their own activities.
-    const warmUp = await apiA.post('/api/activities', { data: { activity: gpxWire(T0 + 20_000, { n: 60 }) } });
+    const warmUp = await apiA.post('/api/activities', { data: { activity: seedWire(T0 + 20_000, { n: 60 }) } });
     expect(warmUp.status(), await readErrorBody(warmUp)).toBe(201);
-    const later = await apiA.post('/api/activities', { data: { activity: gpxWire(T0 + 20 * 60_000) } });
+    const later = await apiA.post('/api/activities', { data: { activity: seedWire(T0 + 20 * 60_000) } });
     expect(later.status(), await readErrorBody(later)).toBe(201);
     const { count: total } = await admin.from('activities').select('id', { count: 'exact', head: true }).eq('profile_id', a.id);
     expect(total).toBe(3);
@@ -174,8 +176,6 @@ test('Settings → Connected apps: every source, an honest state, Disconnect @mo
     const garmin = panel.locator('[data-connection="garmin"]');
     await expect(garmin).toContainText('not taking new apps');
     await expect(garmin.getByRole('button')).toHaveCount(0);
-    // The file import is always the way in.
-    await expect(panel.getByRole('link', { name: 'Import a file' })).toHaveAttribute('href', '/activities/import');
     // No sideways scroll at phone width.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
@@ -201,11 +201,9 @@ test('Settings → Connected apps: every source, an honest state, Disconnect @mo
     const { count } = await admin.from('activity_connections').select('id', { count: 'exact', head: true }).eq('profile_id', alpha.id);
     expect(count).toBe(0);
 
-    // The way in from Vitals and from the import screen.
+    // The way in from Vitals.
     await page.goto('/athlete?tab=activities');
     await expect(page.locator('[data-activities-connect-link]')).toHaveAttribute('href', '/settings?tab=connections', { timeout: 20_000 });
-    await page.goto('/activities/import');
-    await expect(page.locator('[data-import-connect-hint]').getByRole('link')).toHaveAttribute('href', '/settings?tab=connections', { timeout: 20_000 });
   } finally {
     await admin.from('activity_connections').delete().eq('profile_id', alpha.id);
   }

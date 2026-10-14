@@ -91,8 +91,10 @@ answer is our own app (item 2). So:
   No tab, no entry points, no owner's setup panel.
 - **Kept and tested:** the code, migration 247 and its table stay; the flag is
   on in CI's smoke build, in Preview and locally, so it keeps passing its tests.
-- **Still live for everyone:** activities inside Vitals and the file import
-  (`.fit` / `.gpx` / `.tcx`) — those are not part of the pause.
+- **Still live for everyone:** activities inside Vitals, recorded live on the
+  phone. The file import (`.fit` / `.gpx` / `.tcx`) was live too until
+  **Oct 13 2026**, when Tom removed it with the Create menu redesign — nothing
+  in the product promises an import until the native app delivers the watch.
 - **Dropped for now:** the Polar client, the Wahoo / COROS / Suunto
   applications, the real-device Apple Watch test. `docs/CONNECTIONS_APPLICATIONS.md`
   keeps the text for the day they are wanted.

@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState } from './helpers/qa-user';
-import { gpxOf, line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire } from './helpers/activities';
 
 // Video posters PR 3 (Oct 13 2026): a clip added to an activity carries its
 // poster — grabbed on the device after the pick, uploaded beside the clip,
@@ -58,13 +58,12 @@ test('a clip added to an activity carries its poster; a photo attaches beside it
   const page = await ctx.newPage();
   const runStart = Date.UTC(2026, 7, 2, 9, 0, 0) + Math.floor(Math.random() * 1e6) * 1000;
   try {
-    await page.goto('/activities/import');
-    await page.setInputFiles('[data-activity-file-input]', [
-      { name: 'morning.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpxOf(line(600, { t0: runStart, stepM: 3, hr: 140 }), { name: 'Poster run' })) },
-    ]);
-    await expect(page.locator('[data-import-row="imported"]')).toHaveCount(1, { timeout: 45_000 });
-    await page.locator('[data-import-row="imported"]').getByRole('link', { name: 'View' }).click();
-    await expect(page.locator('[data-activity-name]')).toHaveText('Poster run');
+    // A recording saved through the recorder's door (the file import left Oct 13 2026).
+    const saved = await page.request.post('/api/activities', { data: { activity: liveWire({ t0: runStart, n: 600, stepM: 3, hr: 140, name: 'Poster run', type: 'run' }) } });
+    expect(saved.status(), await saved.text()).toBe(201);
+    const { id } = await saved.json();
+    await page.goto(`/activities/${id}`);
+    await expect(page.locator('[data-activity-name]')).toHaveText('Poster run', { timeout: 20_000 });
 
     const clip = await recordClip(page);
     test.skip(!clip, 'MediaRecorder unavailable in this browser');

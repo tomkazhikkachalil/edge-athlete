@@ -46,7 +46,7 @@ published-only reader hides it; a DM thread → `conversations.frozen_at`),
 **and the account is limited only on repeat incidents** (2+ other reports
 in 90 days — ANY severity) or by an admin. `profiles.moderation_state`
 (`active · limited · suspended · banned`) is enforced by `requireActiveWriter`
-on THE list of 24 content + contact routes (pinned by
+on THE list of 23 content + contact routes (24 until the `.FIT` import route left, Oct 13 2026; pinned by
 `src/lib/__tests__/write-gate.test.ts` — never a blanket; the ticket
 routes stay open) and, for suspended / banned, by Supabase Auth's
 `ban_duration` (a suspended session answers 401 at `getUser`). The

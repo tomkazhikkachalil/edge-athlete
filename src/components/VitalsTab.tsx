@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { VITAL_CATEGORIES } from '@/lib/vitals-config';
-import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, FileUp, MapPin } from 'lucide-react';
+import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, MapPin } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
@@ -125,7 +125,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
   const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
-  // Activities (runs, rides, swims from a watch or app) are part of Vitals
+  // Activities (runs, rides, swims recorded on the phone) are part of Vitals
   // since Oct 1 2026: they count in the week, the streak and the active
   // days. Their own gated read — "Only me" and the Vitals privacy aspect
   // are applied on the server.
@@ -439,14 +439,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 Record Activity
               </button>
               <button
-                onClick={() => router.push('/activities/import')}
-                className="vt-pill flex items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted hover:text-primary transition-colors"
-                data-vitals-import-activity
-              >
-                <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
-                Import Activity
-              </button>
-              <button
                 type="button"
                 onClick={() => setShowVitalsSettings(true)}
                 aria-label="Vitals settings"
@@ -589,7 +581,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       {/* ── Progress — one big chart, pick what to track ─────────────── */}
       <ProgressSection vitals={vitals} sessions={completedWorkouts} />
 
-      {/* ── Activities — runs, rides, swims from a watch or app. Its own
+      {/* ── Activities — runs, rides, swims recorded on the phone. Its own
              gated fetch (routes are trimmed for a viewer, "Only me" is the
              owner's); hidden with the Workouts privacy aspect. ─────────── */}
       {!activitiesHidden && <ActivitiesTab profileId={profileId} />}

@@ -1,41 +1,20 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
-import { Encoder, Profile, type Mesg } from '@garmin/fitsdk';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
-import { parseGpx } from '../src/lib/activities/parse-gpx';
-import { toWire } from '../src/lib/activities/wire';
-import { gpxOf, line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire } from './helpers/activities';
 
-// Activities program PR 3 (Sep 29 2026): the import doors, the ONE gate and
-// the projections, end to end against a real database and storage.
-// Tom's rules: the route's first and last ~200 m are the owner's; a
-// supervised athlete's other viewers never receive a position; "Share to
-// feed" is the athlete's choice and the card is rebuilt from the row.
+// Activities program PR 3 (Sep 29 2026), re-seeded Oct 13 2026 when the file
+// import left: the recorder's door, the ONE gate and the projections, end to
+// end against a real database and storage. Tom's rules: the route's first
+// and last ~200 m are the owner's; a supervised athlete's other viewers never
+// receive a position; "Share to feed" is the athlete's choice and the card is
+// rebuilt from the row.
 
 const T0 = Date.UTC(2026, 8, 20, 11, 0, 0);
+const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f60';
 
-function gpxWire(opts: { t0?: number; stepM?: number; n?: number } = {}) {
-  const parsed = parseGpx(gpxOf(line(opts.n ?? 1000, { t0: opts.t0 ?? T0, stepM: opts.stepM ?? 3, hr: 150, climbPerStep: 0.02 })));
-  return toWire({ ...parsed, format: 'gpx' }, 'America/Toronto');
-}
-
-/** The same run as a .FIT (same start second → the same activity). */
-function fitBytes(): Buffer {
-  const encoder = new Encoder();
-  const on = (num: number, m: Record<string, unknown>) => encoder.onMesg(num, m as Mesg);
-  on(Profile.MesgNum.FILE_ID, { manufacturer: 'development', product: 1, timeCreated: new Date(T0), type: 'activity' });
-  const pts = line(1000, { t0: T0, stepM: 3, hr: 150, climbPerStep: 0.02 });
-  pts.forEach((p, i) =>
-    on(Profile.MesgNum.RECORD, {
-      timestamp: new Date(p.t),
-      positionLat: Math.round(p.lat / (180 / 2 ** 31)),
-      positionLong: Math.round(p.lng / (180 / 2 ** 31)),
-      altitude: p.ele,
-      heartRate: p.hr,
-      distance: i * 3,
-    })
-  );
-  on(Profile.MesgNum.SESSION, { timestamp: new Date(pts[pts.length - 1].t), startTime: new Date(T0), sport: 'running', totalElapsedTime: 999, totalTimerTime: 999, totalDistance: 2997 });
-  return Buffer.from(encoder.close());
+/** A 3 km run at 3 m/s with heart rate and a steady climb. */
+function runWire(opts: { t0?: number; stepM?: number; n?: number; recordingId?: string; type?: 'run' | 'walk' } = {}) {
+  return liveWire({ t0: opts.t0 ?? T0, n: opts.n ?? 1000, stepM: opts.stepM ?? 3, hr: 150, climbPerStep: 0.02, name: 'Morning Run', type: opts.type ?? 'run', recordingId: opts.recordingId ?? REC });
 }
 
 async function ctxFor(u: QaUser | null): Promise<APIRequestContext> {
@@ -51,7 +30,7 @@ test.beforeAll(async () => {
   test.skip(!!probe.error && (probe.error.code === '42P01' || probe.error.code === 'PGRST205'), 'migration 245 not applied on this target');
 });
 
-test('import (GPX, re-import, the same run as FIT), the three audiences, share to feed, delete', async () => {
+test('a recording (saved, retried, a second phone\'s twin), the three audiences, share to feed, delete', async () => {
   test.setTimeout(150_000);
   const admin = adminClient();
   const a = await createQaUser({ displayName: 'Runner Ada', firstName: 'Runner', lastName: 'Ada' });
@@ -59,23 +38,23 @@ test('import (GPX, re-import, the same run as FIT), the three audiences, share t
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', a.id);
   const [apiA, apiB, anon] = await Promise.all([ctxFor(a), ctxFor(b), ctxFor(null)]);
   try {
-    const first = await apiA.post('/api/activities', { data: { activity: gpxWire() } });
+    const first = await apiA.post('/api/activities', { data: { activity: runWire() } });
     expect(first.status(), await readErrorBody(first)).toBe(201);
     const { id } = await first.json();
 
-    const again = await apiA.post('/api/activities', { data: { activity: gpxWire() } });
+    // The recorder retried the SAME recording: one row.
+    const again = await apiA.post('/api/activities', { data: { activity: runWire() } });
     expect(again.status()).toBe(200);
     expect(await again.json()).toEqual({ id, duplicate: true });
 
-    const fit = await apiA.post('/api/activities/fit', {
-      multipart: { file: { name: 'run.fit', mimeType: 'application/octet-stream', buffer: fitBytes() }, tz: 'America/Toronto' },
-    });
-    expect(fit.status(), await readErrorBody(fit)).toBe(200);
-    expect(await fit.json()).toEqual({ id, duplicate: true });
+    // A second phone recorded the same run (its own recording, 2 s later): the same activity.
+    const twin = await apiA.post('/api/activities', { data: { activity: runWire({ t0: T0 + 2000, recordingId: '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f61' }) } });
+    expect(twin.status(), await readErrorBody(twin)).toBe(200);
+    expect(await twin.json()).toEqual({ id, duplicate: true });
 
     const { data: row } = await admin.from('activities').select('*').eq('id', id).single();
-    expect(row).toMatchObject({ profile_id: a.id, activity_type: 'run', source: 'file', source_format: 'fit', occurred_on: '2026-09-20', has_route: true, name: 'Morning Run' });
-    expect(Number(row!.distance_m)).toBeGreaterThan(2900);
+    expect(row).toMatchObject({ profile_id: a.id, activity_type: 'run', source: 'live', source_format: null, external_id: `live:${REC}`, occurred_on: '2026-09-20', has_route: true, name: 'Morning Run' });
+    expect(Number(row!.distance_m)).toBeGreaterThan(2500);
 
     // Owner: the whole route and the controls.
     const own = (await (await apiA.get(`/api/activities/${id}`)).json()).activity;
@@ -142,7 +121,7 @@ test('a supervised athlete’s route never leaves; Only me, a private profile an
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', kid.id);
   const [apiK, apiB] = await Promise.all([ctxFor(kid), ctxFor(b)]);
   try {
-    const res = await apiK.post('/api/activities', { data: { activity: gpxWire({ t0: T0 + 86_400_000 }) } });
+    const res = await apiK.post('/api/activities', { data: { activity: runWire({ t0: T0 + 86_400_000, recordingId: '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f62' }) } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     const { id } = await res.json();
     await admin.from('profiles').update({ supervision_state: 'supervised' }).eq('id', kid.id);
@@ -153,7 +132,10 @@ test('a supervised athlete’s route never leaves; Only me, a private profile an
     expect(text).not.toMatch(/"lat"|"lng"/);
     const v = JSON.parse(text).activity;
     expect(v).toMatchObject({ hasRoute: false, routePreview: null });
-    expect(v.stream.hr.length).toBeGreaterThan(100);
+    // A recording's stream is the GPS filter's emitted points (only while
+    // moving — far fewer than the raw fixes), so "the stats still travel" is
+    // a presence check, not a count.
+    expect(v.stream.hr.length).toBeGreaterThan(10);
     const listed = await (await apiB.get(`/api/profile/${kid.id}/activities`)).json();
     expect(listed.items[0].routePreview).toBeNull();
 
@@ -186,17 +168,22 @@ test('the refusals say why', async () => {
   const u = await createQaUser({ displayName: 'Refusal Rae', firstName: 'Refusal', lastName: 'Rae' });
   const api = await ctxFor(u);
   try {
-    const car = await api.post('/api/activities', { data: { activity: gpxWire({ stepM: 25, n: 200 }) } });
+    // A "walk" at 4.5 m/s: faster than a walk can go (inside the GPS jump
+    // gate's slack, so the fixes are kept and the SPEED is what is refused).
+    const car = await api.post('/api/activities', { data: { activity: runWire({ stepM: 4.5, n: 200, type: 'walk' }) } });
     expect(car.status()).toBe(422);
-    expect((await car.json()).error).toMatch(/faster than a run/);
+    expect((await car.json()).error).toMatch(/faster than a walk/);
 
-    const bent = gpxWire();
+    const bent = runWire();
     const misaligned = await api.post('/api/activities', { data: { activity: { ...bent, hr: [1, 2, 3] } } });
     expect(misaligned.status()).toBe(400);
 
-    const notFit = await api.post('/api/activities/fit', { multipart: { file: { name: 'x.fit', mimeType: 'application/octet-stream', buffer: Buffer.from('<gpx></gpx>') } } });
-    expect(notFit.status()).toBe(422);
-    expect((await notFit.json()).error).toMatch(/not a FIT/);
+    // A file's wire is refused by name since Oct 13 2026 — the import left.
+    const file = await api.post('/api/activities', { data: { activity: { ...bent, format: 'gpx' } } });
+    expect(file.status()).toBe(400);
+    expect((await file.json()).error).toMatch(/format/);
+    const noId = await api.post('/api/activities', { data: { activity: { ...bent, recordingId: undefined } } });
+    expect(noId.status()).toBe(400);
 
     expect((await api.get('/api/activities/not-a-uuid')).status()).toBe(404);
     expect((await api.get(`/api/profile/${u.id}/activities?cursor=%%%`)).status()).toBe(400);

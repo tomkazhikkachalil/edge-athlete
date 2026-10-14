@@ -1,29 +1,30 @@
-// ── The browser → server import payload — pure, no zod ─────────────────────
-// A .GPX / .TCX is parsed in the browser (a long ride's XML can exceed
-// Vercel's 4.5 MB request cap), downsampled to UPLOAD_POINTS and sent as
-// this compact columnar JSON — well under 1.5 MB. The server re-validates it
-// (wire-schema.ts) and recomputes every total from the points; nothing the
-// client computed is trusted. A .FIT never takes this path: it is decoded on
-// the server (parse-fit-server.ts — the SDK's license keeps it off clients).
+// ── The phone → server payload of a recording — pure, no zod ────────────────
+// The recorder's finished recording (Live Activities, 251), downsampled to
+// UPLOAD_POINTS and sent as this compact columnar JSON — well under 1.5 MB.
+// The server re-validates it (wire-schema.ts) and recomputes every total from
+// the points; nothing the client computed is trusted. The payload carries
+// the recording's own id (the server's `external_id`, so a retry never
+// duplicates) and the segments marked on the way. It was never a file: the
+// row's source_format is NULL.
 //
-// `format: 'live'` (Live Activities, 251) is the phone recorder's finished
-// recording — the same columns, plus the recording's own id (the server's
-// `external_id`, so a retry never duplicates) and the segments marked on the
-// way. It was never a file: the row's source_format is NULL.
+// Until Oct 13 2026 the same wire also carried a .GPX / .TCX parsed in the
+// browser (`format: 'gpx' | 'tcx'`). The file import left with the Import
+// Activity door; the parsers stay for the upload link and the providers
+// (Connected apps), which call the writer directly — never this wire.
 
 import type { ActivityType } from './catalog';
 import { downsample, UPLOAD_POINTS } from './normalize';
 import type { ActivitySegment } from './segments';
 import type { ActivityPoint, DeviceTotals, NormalizedActivity } from './types';
 
-export type WireFormat = 'gpx' | 'tcx' | 'live';
+export type WireFormat = 'live';
 
 export interface WireActivity {
   v: 1;
   format: WireFormat;
   type: ActivityType;
   name: string | null;
-  /** The uploader's IANA zone — decides the local date when the file has none. */
+  /** The phone's IANA zone — decides the local date. */
   tz: string | null;
   device: DeviceTotals;
   /** Epoch ms of the first sample; `dt` is ms after it, per sample. */
@@ -36,11 +37,11 @@ export interface WireActivity {
   cad?: (number | null)[];
   pwr?: (number | null)[];
   dist?: (number | null)[];
-  /** `live` only: each fix's reported accuracy (m) — the GPS filter's input. */
+  /** Each fix's reported accuracy (m) — the GPS filter's input. */
   acc?: (number | null)[];
-  /** `live` only: the device's id for this recording (→ external_id `live:<id>`). */
+  /** The device's id for this recording (→ external_id `live:<id>`). Required by the schema. */
   recordingId?: string;
-  /** `live` only: the segments marked during the recording. */
+  /** The segments marked during the recording. */
   segments?: ActivitySegment[];
 }
 
@@ -82,5 +83,5 @@ export function fromWire(w: WireActivity): NormalizedActivity {
     return p;
   });
   // A recording was never a file — the row's source_format stays NULL.
-  return { format: w.format === 'live' ? null : w.format, type: w.type, name: w.name, points, device: w.device, tzOffsetMin: null };
+  return { format: null, type: w.type, name: w.name, points, device: w.device, tzOffsetMin: null };
 }

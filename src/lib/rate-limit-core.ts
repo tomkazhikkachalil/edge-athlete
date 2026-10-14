@@ -91,7 +91,7 @@ export const RATE_LIMITS = {
   cheer: { max: 60, windowSeconds: 60, keyBy: 'user' },
   // Play (244): sending a friend challenge — a contact act, so a daily budget.
   challenge: { max: 20, windowSeconds: 86_400, keyBy: 'user' },
-  // Activities (245): a file import — a batch of ten is one sitting; a whole season is several.
+  // Activities (245): saving an activity — the recorder's door (the file import left Oct 13 2026; the key stays).
   'activity-import': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Live Activities (251): photos attached to an activity (≤ 20 per activity; a recording's burst).
   'activity-media': { max: 120, windowSeconds: 3600, keyBy: 'user' },

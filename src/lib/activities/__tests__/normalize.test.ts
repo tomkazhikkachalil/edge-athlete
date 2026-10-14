@@ -211,19 +211,26 @@ describe('polyline', () => {
 });
 
 describe('the wire payload', () => {
-  it('round-trips a parsed GPX and passes the server schema', () => {
-    const parsed = parseGpx(gpxOf(line(50, { hr: 140 })));
-    const w = toWire({ ...parsed, format: 'gpx' }, 'America/Toronto');
+  const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f40';
+  // The parsers still produce a NormalizedActivity (the upload link and the
+  // providers); the WIRE carries only a recording since Oct 13 2026.
+  const recording = (n: number, hr?: number) => ({ ...parseGpx(gpxOf(line(n, { hr }))), format: 'live' as const });
+  it('round-trips a recording and passes the server schema', () => {
+    const parsed = recording(50, 140);
+    const w = { ...toWire(parsed, 'America/Toronto'), recordingId: REC };
     const r = parseWireActivity(JSON.parse(JSON.stringify(w)));
-    expect(r.ok).toBe(true);
+    expect(r.ok, r.ok ? '' : r.error).toBe(true);
     const back = fromWire(w);
+    expect(back.format).toBeNull();
     expect(back.points).toHaveLength(50);
     expect(back.points[10].hr).toBe(parsed.points[10].hr);
     expect(back.points[10].lat).toBeCloseTo(parsed.points[10].lat!, 6);
   });
 
-  it('refuses misaligned columns, a lone lat, too many samples and extra keys', () => {
-    const w = toWire({ ...parseGpx(gpxOf(line(5))), format: 'gpx' }, null);
+  it('refuses misaligned columns, a lone lat, too many samples, extra keys and a file format', () => {
+    const w = { ...toWire(recording(5), null), recordingId: REC };
+    expect(parseWireActivity({ ...w, format: 'gpx' }).ok).toBe(false);
+    expect(parseWireActivity({ ...w, format: 'tcx' }).ok).toBe(false);
     expect(parseWireActivity({ ...w, hr: [1, 2] }).ok).toBe(false);
     const { lng: _drop, ...lone } = w;
     void _drop;

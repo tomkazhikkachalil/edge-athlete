@@ -203,14 +203,14 @@ export function summarize(n: NormalizedActivity, cleaned?: ActivityPoint[]): Act
 const EARLIEST = Date.UTC(2000, 0, 1);
 
 /**
- * Why this activity cannot be imported, or null when it can. The message is
+ * Why this activity cannot be saved, or null when it can. The message is
  * shown to the athlete, so it says what to do.
  */
 export function implausibility(n: NormalizedActivity, s: ActivitySummary, now = Date.now()): string | null {
   const def = ACTIVITY_TYPE_DEFS[n.type];
-  if (s.elapsedS <= 0) return 'This file has only one moment in it — there is no activity to import.';
-  if (s.elapsedS > MAX_ELAPSED_S) return 'This activity is longer than 48 hours. Split it in your app and import the parts.';
-  if (s.startedAt < EARLIEST || s.startedAt > now + 86_400_000) return 'This file’s date is not a real one — check the device clock.';
+  if (s.elapsedS <= 0) return 'This recording has only one moment in it — there is no activity to save.';
+  if (s.elapsedS > MAX_ELAPSED_S) return 'This activity is longer than 48 hours — it cannot be saved as one.';
+  if (s.startedAt < EARLIEST || s.startedAt > now + 86_400_000) return 'This recording’s date is not a real one — check the device clock.';
   const time = s.movingS && s.movingS > 0 ? s.movingS : s.elapsedS;
   if (s.distanceM !== null && time > 0 && s.distanceM / time > def.maxSpeed) {
     return `This is faster than a ${def.label.toLowerCase()} can go. If it was a different activity, pick that type and try again.`;
