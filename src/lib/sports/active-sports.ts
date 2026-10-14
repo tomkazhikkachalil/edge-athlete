@@ -16,22 +16,27 @@ export interface ActiveSportsInput {
 }
 
 /**
- * Declared sport leads, then registry order. Enabled sports only; the
- * cross-cutting post categories ('general', 'training') never count.
+ * Declared sport leads, then registry order. A DECLARED sport (the label or
+ * a settings row) counts whatever its `enabled` flag — sports on the profile
+ * (Oct 14 2026): a person who chose tennis at onboarding sees tennis. A
+ * POSTED key keeps the registry check (the posts route only accepts enabled
+ * sports anyway); the cross-cutting post categories ('general', 'training')
+ * never count.
  */
 export function computeActiveSports(input: ActiveSportsInput): SportKey[] {
   const active = new Set<SportKey>();
 
   const declared = resolveSportKey(input.declaredSport);
-  if (declared && SPORT_REGISTRY[declared]?.enabled) active.add(declared);
+  if (declared && SPORT_REGISTRY[declared]) active.add(declared);
 
-  const addRaw = (raw: string | null) => {
+  const addRaw = (raw: string | null, requireEnabled: boolean) => {
     if (!raw || raw === 'general' || raw === 'training') return;
     const key = raw as SportKey;
-    if (SPORT_REGISTRY[key]?.enabled) active.add(key);
+    const def = SPORT_REGISTRY[key];
+    if (def && (!requireEnabled || def.enabled)) active.add(key);
   };
-  for (const raw of input.postSportKeys) addRaw(raw);
-  for (const raw of input.settingsSportKeys) addRaw(raw);
+  for (const raw of input.postSportKeys) addRaw(raw, true);
+  for (const raw of input.settingsSportKeys) addRaw(raw, false);
 
   const ordered: SportKey[] = [];
   if (declared && active.has(declared)) ordered.push(declared);

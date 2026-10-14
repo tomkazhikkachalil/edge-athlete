@@ -1,6 +1,6 @@
 'use client';
 
-import { getPrimarySports, getDisabledSports, type SportKey } from '@/lib/sports/SportRegistry';
+import { getAllSports, type SportKey } from '@/lib/sports/SportRegistry';
 import { toggleSportSelection, MAX_SELECTED_SPORTS } from '@/lib/sports/sport-selection';
 
 interface SportMultiSelectProps {
@@ -10,19 +10,19 @@ interface SportMultiSelectProps {
 }
 
 /**
- * Multi-select sport grid for intake + profile editing. Selectable sports
- * come from getPrimarySports() (enabled sports; 'training' is a post
- * category — it has no adapter and must never be offered as a sport).
+ * Multi-select sport grid for intake + profile editing. EVERY registry sport
+ * is selectable (sports on the profile, Oct 14 2026: a person who plays
+ * tennis picks tennis and sees it on their profile; a disabled sport is
+ * badged "Coming soon" — its stats door arrives with its adapter).
+ * 'training' is a post category — it has no adapter and is never offered.
  * Selection ORDER matters: the first pick is the athlete's primary sport.
- * Disabled registry sports render locked as roadmap honesty.
  */
 export default function SportMultiSelect({
   selected,
   onChange,
   max = MAX_SELECTED_SPORTS,
 }: SportMultiSelectProps) {
-  const selectable = getPrimarySports();
-  const comingSoon = getDisabledSports();
+  const selectable = getAllSports();
   const atCap = selected.length >= max;
 
   return (
@@ -57,6 +57,11 @@ export default function SportMultiSelect({
                   <i className="fas fa-check text-[10px]"></i>
                 </span>
               )}
+              {!def.enabled && !isSelected && (
+                <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-surface-sunken text-muted text-[10px] font-semibold rounded-full">
+                  Coming soon
+                </span>
+              )}
               <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-brand-fg' : 'text-muted'}`}></i>
               <span className={`text-sm font-semibold ${isSelected ? 'text-violet-900 dark:text-violet-200' : 'text-primary'}`}>
                 {def.display_name}
@@ -65,23 +70,6 @@ export default function SportMultiSelect({
           );
         })}
       </div>
-
-      {comingSoon.length > 0 && (
-        <div className="mt-4">
-          <p className="text-xs font-semibold text-muted mb-2">Coming soon</p>
-          <div className="flex flex-wrap gap-2">
-            {comingSoon.map(def => (
-              <span
-                key={def.sport_key}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-sunken text-muted text-xs font-medium rounded-full"
-              >
-                <i className="fas fa-lock text-[10px]"></i>
-                {def.display_name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       <p className="mt-3 text-xs text-muted">
         Pick up to {max}. Your first pick is your primary sport — you can change this anytime in your profile.

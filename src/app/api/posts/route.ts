@@ -39,6 +39,8 @@ const mediaVisibilityOf = (post: { visibility?: string | null; profiles?: { visi
   isPublicPostMedia({ postVisibility: post.visibility, ownerVisibility: post.profiles?.visibility }) ? ('public' as const) : ('private' as const);
 import { hiddenAuthorsFor } from '@/lib/mutes';
 import { reportRouteError } from '@/lib/observability/report';
+import { declareSport } from '@/lib/sports/declare-server';
+import type { SportKey } from '@/lib/sports/SportRegistry';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -456,6 +458,13 @@ export async function POST(request: NextRequest) {
       await mirrorActivityMedia(supabase, shareActivityId, post.id);
     }
 
+    // Sports on the profile (Oct 14 2026): playing a sport adds it to the
+    // person's list — a PUBLISHED post of a sport declares the sport (an
+    // empty sport_settings row; the ONE writer, idempotent, never fails the
+    // post). A pending / draft post declares nothing until it is seen.
+    if (post?.id && postType !== 'general' && (post.status ?? 'published') === 'published') {
+      await declareSport(supabase, userId, postType as SportKey);
+    }
     if (post?.id && statsData && postType !== 'golf') {
       const perf = fromStatLinePost({
         id: post.id,

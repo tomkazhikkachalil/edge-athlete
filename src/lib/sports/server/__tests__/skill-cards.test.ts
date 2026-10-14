@@ -103,9 +103,15 @@ describe('assembleSkillCard', () => {
     expect(card?.entered).toEqual([levelItem]);
   });
 
-  it('returns null when there is nothing at all to show (empty onboarding row)', () => {
-    expect(assembleSkillCard('basketball', null, [])).toBeNull();
-    expect(assembleSkillCard('basketball', { tiles: [] }, [])).toBeNull();
+  it('an empty onboarding row yields an EMPTY card, never null (sports on the profile, Oct 14 2026)', () => {
+    const card = assembleSkillCard('basketball', null, []);
+    expect(card).toMatchObject({ sportKey: 'basketball', sportLabel: 'Basketball', state: 'empty', headline: null, progress: null, tiles: [], entered: [], enabled: true, pinned: false, pinOrder: null });
+    expect(assembleSkillCard('basketball', { tiles: [] }, []).state).toBe('empty');
+  });
+
+  it('a disabled sport carries enabled: false; the pin fields ride through', () => {
+    const card = assembleSkillCard('tennis', null, [], { pinned: true, pinOrder: 2 });
+    expect(card).toMatchObject({ enabled: false, pinned: true, pinOrder: 2, state: 'empty' });
   });
 
   it('a progress state alone is enough to render a card', () => {

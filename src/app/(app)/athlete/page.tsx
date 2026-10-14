@@ -14,7 +14,7 @@ import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
-import SportSkillStrip from '@/components/SportSkillStrip';
+import ProfileSports from '@/components/profile/ProfileSports';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
@@ -301,7 +301,8 @@ export default function AthleteProfilePage() {
         fetch(`/api/achievements?profileId=${profileId}`, { credentials: 'include' })
           .then(res => (res.ok ? res.json() : { achievements: [] }))
           .then(data => (data.achievements || []) as Achievement[]),
-        fetch(`/api/profile/${profileId}/skill-cards`)
+        // The owner always sees their own fresh order (a pin answers at once).
+        fetch(`/api/profile/${profileId}/skill-cards`, { cache: 'no-store' })
           .then(res => (res.ok ? res.json() : { skillCards: [] }))
           .then(data => (data.skillCards || []) as SportSkillCard[]),
       ]);
@@ -823,9 +824,10 @@ export default function AthleteProfilePage() {
                       ProfileMediaTabs layout-settle gate is unchanged. */}
                   {profile?.id && skillCards !== null && (
                     <div className="mb-4">
-                      <SportSkillStrip
+                      <ProfileSports
                         cards={skillCards}
                         isOwner
+                        onCardsChange={setSkillCards}
                         onOpenSport={(sportKey) => {
                           setDeepLinkTab('stats');
                           setDeepLinkSport(sportKey);
@@ -834,7 +836,7 @@ export default function AthleteProfilePage() {
                           // #334 pin scroll, landing the viewer on the hub.
                           setMediaRefreshKey(k => k + 1);
                         }}
-                        onAddDetails={() => setIsEditModalOpen(true)}
+                        onAddSports={() => setIsEditModalOpen(true)}
                       />
                     </div>
                   )}
