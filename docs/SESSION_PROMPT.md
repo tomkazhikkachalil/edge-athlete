@@ -20,9 +20,9 @@
 > through #819 and every merged PR prod-probed (the probe waits for the deploy by itself; "NNN ran"
 > means `npm run check:schema` is OK — it asks the schema question BOTH
 > ways). The plan is `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`;
-> CLAUDE.md conventions 20–22 and `docs/EVENTS.md` are the references.
+> `docs/specs/events.md` conventions 20–22 and `docs/EVENTS.md` are the references.
 > If the "Where the project actually is" section drifts stale, ask Claude to
-> re-align it against DEVLOG.md and session memory.
+> re-align it against docs/devlog.md and session memory.
 
 ## Context & Vision
 
@@ -113,7 +113,7 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   capacity and a waitlist; draft → open → live → completed; the group
   score card with an offline outbox; gross and net leaderboards computed on
   read; results mirrored to the profile with an opt-out; the Sports section
-  replaces Explore; the Create sheet. CLAUDE.md convention 17,
+  replaces Explore; the Create sheet. `docs/specs/events.md` convention 17,
   `docs/EVENTS.md`. Phase 2 (tournaments, conv 18), 2b (the integrations)
   and 3 (match play + brackets, conv 19: a match is a group with two
   sides, status computed, the outcome written once, sudden death, the
@@ -181,7 +181,7 @@ members table and leaders, description under the hero) with zero admin.
 Parked from the spec: competition formats (Stableford, match play,
 allowance, order of merit), brackets, ad hoc teams, external athlete
 entries, hole-level contest media. The docs close (#595: masterplan
-§4/§6/§8/§11, CLAUDE.md convention 10, this doc) and the evening sweep
+§4/§6/§8/§11, `docs/specs/orgs.md` convention 10, this doc) and the evening sweep
 (#596: gate green on `main` — 2,792 tests, floor gate, lint at zero —
 guardrails + `npm audit` clean, branches pruned, memory index trimmed;
 the webhook fired for every merge since the #587 miss) closed the program.
@@ -309,7 +309,7 @@ a venue has coordinates), never creating a module instance the layout lacks,
 thumbnails computed from the same seed the server applies, offered on a
 fresh site's first visit; the builder's numbers (the one-hour question) on
 the admin dashboard from the revisions' stats, plus the storage sweep's
-dry-run button. CLAUDE.md convention 12 names every invariant.
+dry-run button. `docs/specs/site-builder.md` convention 12 names every invariant.
 
 **Sep 9 evening — the hardening round (H1–H8).** Before planning the next
 program Tom asked for a full test-and-review pass; three independent code
@@ -356,7 +356,7 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
 `~/.claude/plans/let-s-do-2-4-nested-brook.md`):**
 1. **Contest Place** (E1–E4, migration 181) — BUILT Sep 10, one PR each
    chained behind the residue PR: `/event/[contestId]` in-app +
-   `/schedule/[contestId]` on the org site (CLAUDE.md convention 13).
+   `/schedule/[contestId]` on the org site (`docs/specs/contests-recruiting.md` convention 13).
    **Tom runs 181 before E2 merges**; the post-181 path of
    `golf-league-sync.spec.ts` is the prod probe. Parked: bracket/meet,
    ad-hoc teams, adapter hooks, a composer attach-to-event picker.
@@ -364,7 +364,7 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
    PR each chained behind Contest Place: the opt-in + recruiting profile,
    the scout account, the shortlist, "Find athletes" (zero DDL — a bounded
    profiles query, not a `search_all` widening), verification visible
-   (Unconfirmed + `/help/verified-stats`). CLAUDE.md convention 14;
+   (Unconfirmed + `/help/verified-stats`). `docs/specs/contests-recruiting.md` convention 14;
    `docs/RECRUITING.md`. **Tom runs 182 before R1 merges and 183 before R3
    merges**; the scout specs self-skip until then and are the prod probes.
 
@@ -459,7 +459,7 @@ natural key, the league result an overlay — and every writer hooked.
 dashboard panel (Tom: "I don't understand where I input this
 information" — an owner action gets a UI door). **F6** (#715): the scout
 search reads the table (Active since, Verified only, a headline floor).
-`docs/PERFORMANCE_DATA.md` is the reference; CLAUDE.md convention 16.
+`docs/PERFORMANCE_DATA.md` is the reference; `docs/specs/data-foundation.md` convention 16.
 
 **Part 1 CLOSED (P1b #719, P2–P6 #720):** the dump became ONE statement
 (the editor shows only the last statement's result), Tom exported the

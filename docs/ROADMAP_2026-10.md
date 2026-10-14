@@ -20,7 +20,7 @@ line on the sign-in page. Android and desktop Chromium install in one tap;
 an iPhone is shown the three taps (Share → Add to Home Screen → Add), because
 Apple gives a website no install API; another app's browser is told to open
 Safari / Chrome first. Every invitation leaves once the app is installed.
-CLAUDE.md convention 31 has the rules; DEVLOG Oct 2 2026 the record.
+`docs/specs/install-and-push.md` convention 31 has the rules; DEVLOG Oct 2 2026 the record.
 
 **Still open here, each its own later round:** an offline shell and push
 notifications (both need a service worker, and `worker-src 'self'` in

@@ -7,7 +7,7 @@ is the source of truth for the current range. They are the canonical schema
 history and are applied **in order** via the Supabase SQL editor (this project
 does not use the Supabase CLI migration runner).
 
-There is **no automated migration tracking**, and **`DEVLOG.md` is the authoritative
+There is **no automated migration tracking**, and **`docs/devlog.md` is the authoritative
 record of what has actually been run** — each migration's DEVLOG entry states when it
 was applied and how it was verified live. The table below stops at `030` and has not
 been maintained since; treat it as history, not as a checklist. It is left capped
@@ -89,7 +89,7 @@ version, missing prerequisite). It is wrong for a post-change check.
    bodies referencing the dropped object — Postgres does **not** block
    `DROP COLUMN` on function bodies, they break at runtime; see migration 022's
    lesson).
-4. Record it in `DEVLOG.md`.
+4. Record it in `docs/devlog.md`.
 
 SQL conventions (ported from the retired `docs/MIGRATION_GUIDE.md`, which
 otherwise contradicted this file): write idempotent SQL (`IF NOT EXISTS`,
@@ -305,7 +305,7 @@ answer:
 - **From 227 on every migration ends with the one-line footer above** —
   the file records itself; the SQL editor stays the runner; nobody types a
   number. 226 seeded 001–225 as `backfill-226` (the true dates are in
-  `DEVLOG.md`, never recorded in the database). The chain has **no 217**
+  `docs/devlog.md`, never recorded in the database). The chain has **no 217**
   (skipped, unrecorded — 226's header); `migration-ledger.test.ts` pins
   the numbering as contiguous with that one gap.
 - **`npm run check:schema` compares the ledger to the chain** — `NOT RUN
