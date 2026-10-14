@@ -208,6 +208,8 @@ export default function AthleteProfilePage() {
   
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  // Create → Sport (Oct 13 2026): open with the sport picker showing.
+  const [composerPickSport, setComposerPickSport] = useState(false);
 
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
@@ -642,6 +644,7 @@ export default function AthleteProfilePage() {
       <AppHeader
         showSearch={false}
         onCreatePost={() => setIsCreatePostModalOpen(true)}
+        onCreateSport={() => { setComposerPickSport(true); setIsCreatePostModalOpen(true); }}
         onEditProfile={() => setIsEditModalOpen(true)}
       />
 
@@ -1110,11 +1113,13 @@ export default function AthleteProfilePage() {
       {/* Create Post Modal */}
       <CreatePostModal
         isOpen={isCreatePostModalOpen}
-        onClose={() => setIsCreatePostModalOpen(false)}
+        onClose={() => { setIsCreatePostModalOpen(false); setComposerPickSport(false); }}
         userId={user?.id || ''}
         // A new post starts as a plain General post (Tom, Oct 10 2026) —
-        // never the athlete's own sport; the sport picker is one tap away.
+        // never the athlete's own sport; the sport picker is one tap away
+        // (or already open, from Create → Sport).
         defaultSportKey="general"
+        openSportPicker={composerPickSport}
         onPostCreated={(newPost) => {
           // Refresh athlete data
           if (user?.id) {

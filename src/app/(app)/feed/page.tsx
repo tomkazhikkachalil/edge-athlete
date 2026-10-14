@@ -114,8 +114,12 @@ export default function FeedPage() {
   // prerendered and must not need a Suspense wrap. The sport must be
   // captured BEFORE replaceState scrubs the URL.
   const [composerSport, setComposerSport] = useState<SportKey | null>(null);
-  const openComposer = (sport: SportKey | null = null) => {
+  // Create → Sport (Oct 13 2026): the composer opens with the sport picker
+  // already showing — the one explicit door that is not General-first.
+  const [composerPickSport, setComposerPickSport] = useState(false);
+  const openComposer = (sport: SportKey | null = null, opts: { pickSport?: boolean } = {}) => {
     setComposerSport(sport);
+    setComposerPickSport(Boolean(opts.pickSport));
     setIsCreatePostModalOpen(true);
   };
   // Effect-owned deliberately: reads window.location and scrubs it with
@@ -127,6 +131,7 @@ export default function FeedPage() {
       const sportKey = resolveSportKey(params.get('sport'));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isComposerSport(sportKey)) setComposerSport(sportKey);
+      if (params.get('pick') === 'sport') setComposerPickSport(true);
       setIsCreatePostModalOpen(true);
       window.history.replaceState(null, '', '/feed');
     }
@@ -481,6 +486,7 @@ export default function FeedPage() {
       <AppHeader
         showSearch={true}
         onCreatePost={() => openComposer()}
+        onCreateSport={() => openComposer(null, { pickSport: true })}
       />
 
       {/* Main Layout */}
@@ -772,10 +778,12 @@ export default function FeedPage() {
         onClose={() => {
           setIsCreatePostModalOpen(false);
           setComposerSport(null);
+          setComposerPickSport(false);
         }}
         userId={user?.id || ''}
         onPostCreated={handlePostCreated}
         defaultSportKey={composerSport ?? 'general'}
+        openSportPicker={composerPickSport}
       />
 
       {/* Edit Post Modal */}

@@ -144,7 +144,7 @@ describe('the progress store', () => {
   it('the workout editor and the live page publish; every door that starts or ends a session refreshes the list', () => {
     expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toMatch(/publishProgress\('workout', session\.id, \{ setsCompleted: summary\.totalSets \}\)/);
     expect(read('src/app/(app)/live/[groupPostId]/page.tsx')).toMatch(/publishProgress\('round', groupPostId/);
-    for (const f of ['src/components/VitalsTab.tsx', 'src/components/CreatePostModal.tsx', 'src/hooks/useEndRound.ts', 'src/hooks/useDeleteRound.ts', 'src/components/workouts/WorkoutEditorScreen.tsx']) {
+    for (const f of ['src/hooks/useStartWorkout.ts', 'src/components/CreatePostModal.tsx', 'src/hooks/useEndRound.ts', 'src/hooks/useDeleteRound.ts', 'src/components/workouts/WorkoutEditorScreen.tsx']) {
       expect(read(f), f).toMatch(/refreshDrafts\(\)/);
     }
   });

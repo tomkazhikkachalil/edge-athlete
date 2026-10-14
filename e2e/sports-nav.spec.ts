@@ -20,10 +20,11 @@ test('sports nav: redirect, subnav, drawer, events list, leaderboards @mobile', 
     await expect(page).toHaveURL(/\/sports\/explore\?course=00000000-0000-4000-8000-000000000000/, { timeout: 15_000 });
     await expect(page.locator('[data-sports-section="explore"]')).toHaveAttribute('aria-current', 'page');
 
-    // The drawer (phone): Sports and Create Event are there.
+    // The drawer (phone): Sports and the one Create row (which opens the
+    // sheet with Event in it — Oct 13 2026) are there.
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
     await expect(page.getByRole('button', { name: 'Sports' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create Event' })).toBeVisible();
+    await expect(page.locator('[data-drawer-create]')).toBeVisible();
     await page.getByRole('button', { name: 'Close menu' }).click();
 
     // A created event shows under Upcoming, and Live once live; the card is its place.

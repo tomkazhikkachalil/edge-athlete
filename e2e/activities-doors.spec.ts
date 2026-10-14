@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { loadQaUser } from './helpers/qa-user';
+import { apiAs, loadQaUser } from './helpers/qa-user';
 
 // The doors to the recorder (Live Activities PR 6): Vitals' header pill, the
 // Activities section's link, the header's Create sheet. Reachability at
 // phone width is part of parity — a surface behind a desktop-only entry
-// has not shipped on mobile.
+// has not shipped on mobile. Create menu redesign (Oct 13 2026): Create →
+// Record Activity is a second step (Start a workout | Record activity), and a
+// workout started there must be the one Vitals starts — proven below.
 
 test('the recorder is reachable from Vitals and from Create @mobile', async ({ page }) => {
   test.setTimeout(90_000);
@@ -26,6 +28,93 @@ test('the recorder is reachable from Vitals and from Create @mobile', async ({ p
   await page.goto('/feed');
   await page.getByRole('button', { name: 'Create' }).first().click();
   await page.locator('[data-create-record-activity]').click();
+  await page.locator('[data-create-recording]').click();
   await expect(page).toHaveURL(/\/activities\/record$/);
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
+});
+
+// Tom's rule: starting a workout from Create behaves exactly as starting it
+// from Vitals — the same screen, timer, autosave, resume pill and summary.
+// Both doors call useStartWorkout; this holds the OUTCOME equal: the same
+// session shape, the live clock, the pill, and a second start resuming the
+// open session (the 409 rule) from either door.
+test('a workout started from Create is the one Vitals starts: same session, same screen, same pill, same resume @mobile', async ({ page }) => {
+  test.setTimeout(150_000);
+  const user = loadQaUser('user.json');
+  const api = await apiAs('state.json');
+  const started: string[] = [];
+  const sessionOf = async (id: string) => {
+    const res = await api.get(`/api/workouts/${id}`);
+    expect(res.ok(), await res.text()).toBe(true);
+    const body = await res.json();
+    return (body.session ?? body) as Record<string, unknown>;
+  };
+  // `mode` is the POST's parameter, not a column: a live session is an ACTIVE row.
+  const shape = (s: Record<string, unknown>) => ({ status: s.status, routine_id: s.routine_id ?? null, keys: Object.keys(s).sort() });
+  const idFromUrl = () => page.url().match(/\/app\/workout\/([0-9a-f-]{36})/)![1];
+  // The shared QA user may have a routine: the picker then opens — take "Empty workout".
+  const throughPicker = async () => {
+    const empty = page.getByRole('button', { name: /empty workout/i });
+    if (await empty.isVisible({ timeout: 2_000 }).catch(() => false)) await empty.click();
+  };
+  // Once a session is in progress the next page load asks "Pick up where you
+  // left off?" over the page (the reopen prompt, once per app open — it waits
+  // for the drafts list, so it can land seconds after the page). This test is
+  // about the DOORS, so the prompt is marked "already asked this app open"
+  // exactly as the host marks it (src/lib/drafts/reopen.ts reopenSeenKey).
+  await page.addInitScript((key: string) => {
+    try { sessionStorage.setItem(key, '1'); } catch { /* storage unavailable */ }
+  }, `ea:reopen-prompt:v1:${user.id}`);
+  try {
+    // From Create.
+    await page.goto('/feed');
+    await page.getByRole('button', { name: 'Create' }).first().click();
+    await page.locator('[data-create-record-activity]').click();
+    await page.locator('[data-create-workout]').click();
+    await throughPicker();
+    await page.waitForURL(/\/app\/workout\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const fromCreate = idFromUrl();
+    started.push(fromCreate);
+    await expect(page.locator('[data-live-clock]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-live-clock-state="running"]')).toBeVisible();
+    const a = await sessionOf(fromCreate);
+
+    // The pill on the feed names it; a second start from Create RESUMES it.
+    await page.goto('/feed');
+    await expect(page.locator(`[data-resume-pill="workout:${fromCreate}"]`)).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Create' }).first().click();
+    await page.locator('[data-create-record-activity]').click();
+    await page.locator('[data-create-workout]').click();
+    await throughPicker();
+    await page.waitForURL(new RegExp(`/app/workout/${fromCreate}$`), { timeout: 30_000 });
+
+    // Vitals resumes the same one too (the 409 rule is shared), then — once
+    // it is gone — starts a fresh session of the same shape.
+    await page.goto(`/athlete/${user.id}?tab=vitals`);
+    await page.getByRole('button', { name: 'Start Workout', exact: true }).click();
+    await throughPicker();
+    await page.waitForURL(new RegExp(`/app/workout/${fromCreate}$`), { timeout: 30_000 });
+    expect((await api.delete(`/api/workouts/${fromCreate}`)).ok()).toBe(true);
+    started.pop();
+
+    await page.goto(`/athlete/${user.id}?tab=vitals`);
+    await page.getByRole('button', { name: 'Start Workout', exact: true }).click();
+    await throughPicker();
+    await page.waitForURL(/\/app\/workout\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const fromVitals = idFromUrl();
+    started.push(fromVitals);
+    expect(fromVitals).not.toBe(fromCreate);
+    await expect(page.locator('[data-live-clock]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-live-clock-state="running"]')).toBeVisible();
+    const b = await sessionOf(fromVitals);
+    expect(shape(a)).toEqual(shape(b));
+    expect(a.status).toBe('active');
+    await page.goto('/feed');
+    await expect(page.locator(`[data-resume-pill="workout:${fromVitals}"]`)).toBeVisible({ timeout: 20_000 });
+  } finally {
+    // Never leave the shared QA user with a live session (every workout spec
+    // would meet the 409).
+    for (const id of started) await api.delete(`/api/workouts/${id}`).catch(() => undefined);
+    await api.dispose();
+  }
 });

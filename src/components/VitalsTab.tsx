@@ -8,7 +8,6 @@ import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
 import PostDetailModal from './PostDetailModal';
-import { useToast } from './Toast';
 import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
 import { latestPB } from '@/lib/workouts/dashboard';
@@ -24,7 +23,7 @@ import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { formatDistance, readUnitPreference } from '@/lib/activities/format';
 import ActivitiesTab from './activities/ActivitiesTab';
 import { formatDuration } from '@/lib/workouts/summary';
-import { refreshDrafts } from '@/hooks/useDrafts';
+import { useStartWorkout } from '@/hooks/useStartWorkout';
 import VitalsHero from './vitals/VitalsHero';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
@@ -44,7 +43,6 @@ import { useTheme } from '@/lib/use-theme';
 import type { VitalEntry } from './vitals/metric-stats';
 import type { VitalsPrivacy } from '@/lib/vitals-privacy';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
-import type { WorkoutRoutine } from '@/lib/workouts/routines';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // VitalEntry moved to vitals/metric-stats.ts with the metric math.
@@ -112,7 +110,6 @@ const VITALS_GEAR_CLASSES =
 export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false, focusSection }: VitalsTabProps) {
   const router = useRouter();
   const { theme } = useTheme();
-  const { showError } = useToast();
   // A body measurement also writes profiles.height_cm / weight_display — the
   // shared profile (Edit Profile, Settings → Account) must follow it.
   const { refreshProfile, profile: ownProfile } = useAuth();
@@ -146,9 +143,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [showWorkoutsOverlay, setShowWorkoutsOverlay] = useState(false);
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
-  const [startingWorkout, setStartingWorkout] = useState(false);
-  const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
-  const [showStartSheet, setShowStartSheet] = useState(false);
   const [showRoutinesModal, setShowRoutinesModal] = useState(false);
 
 
@@ -202,70 +196,18 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     run();
   }, [profileId, ownBodyKey]);
 
-  // Saved routines feed the Start Workout picker — owner only, and a failure
-  // just degrades to the plain one-tap start. Inlined cancellable IIFE (not a
-  // callback call) so it stays out of the set-state-in-effect warning list;
-  // event handlers refresh by bumping routinesReload.
-  const [routinesReload, setRoutinesReload] = useState(0);
-  useEffect(() => {
-    if (!isOwnProfile) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/workout-routines', { credentials: 'include' });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (!cancelled) setRoutines(data.routines ?? []);
-      } catch {
-        /* keep whatever we had */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isOwnProfile, routinesReload]);
-  const refreshRoutines = () => setRoutinesReload(k => k + 1);
-
-  const handleStartWorkout = async (routineId: string | null = null) => {
-    if (startingWorkout) return;
-    setStartingWorkout(true);
-    try {
-      const response = await fetch('/api/workouts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ mode: 'live', ...(routineId ? { routineId } : {}) }),
-      });
-      const data = await response.json().catch(() => null);
-      if (response.status === 409 && data?.activeSessionId) {
-        showError('Workout in progress', 'Resuming your workout in progress.');
-        void refreshDrafts();
-        router.push(`/app/workout/${data.activeSessionId}`);
-        return;
-      }
-      if (routineId && response.status === 404) {
-        // Deleted between opening the sheet and tapping it
-        showError('Routine not found', 'That routine no longer exists.');
-        setShowStartSheet(false);
-        refreshRoutines();
-        setStartingWorkout(false);
-        return;
-      }
-      if (!response.ok) throw new Error(data?.error || 'Failed to start workout');
-      // The session exists: the resume pill and the Drafts count learn it now.
-      void refreshDrafts();
-      router.push(`/app/workout/${data.session.id}`);
-    } catch (err) {
-      showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
-      setStartingWorkout(false);
-    }
-  };
-
-  // With saved routines the button opens the picker; without, one-tap start.
-  const openStartWorkout = () => {
-    if (routines.length > 0) setShowStartSheet(true);
-    else handleStartWorkout();
-  };
+  // ONE start path, shared with the header's Create → Record Activity →
+  // Start a workout (useStartWorkout, Oct 13 2026): the same POST, the same
+  // 409 → resume, the same refreshDrafts(), the same screen.
+  const {
+    routines,
+    refreshRoutines,
+    starting: startingWorkout,
+    showStartSheet,
+    setShowStartSheet,
+    start: handleStartWorkout,
+    open: openStartWorkout,
+  } = useStartWorkout(isOwnProfile);
 
   // Dashboard headline stats — all-time on purpose: the year filter now
   // lives inside the workouts overlay, and "this week" / PBs must never lie.

@@ -46,3 +46,16 @@ for (const tag of ['', ' @mobile']) {
     }
   });
 }
+
+// Create → Sport (Oct 13 2026) is the ONE door that opens the picker itself;
+// closing it without a pick still leaves a General post.
+test('Create → Sport opens the sport picker; closing it leaves a General post', async ({ page }) => {
+  await page.goto('/feed');
+  await page.getByRole('button', { name: 'Create', exact: true }).first().click();
+  await page.locator('[data-create-sport]').click();
+  const selector = page.locator('div[class*="z-[60]"]');
+  await expect(selector.getByRole('heading', { name: 'Select Sport' })).toBeVisible({ timeout: 15_000 });
+  await selector.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByText('General Post', { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+});

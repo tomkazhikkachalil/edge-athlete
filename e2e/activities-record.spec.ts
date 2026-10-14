@@ -170,7 +170,11 @@ test('leaving the recorder keeps recording: the pill on the feed shows the dista
     // navigation back to the feed (a cold page has only about:blank behind it).
     await page.goto('/feed');
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
-    await page.getByRole('button', { name: 'Record Activity' }).click();
+    // The drawer's one Create row opens the same sheet as the header button
+    // (Oct 13 2026); the recorder is its second step.
+    await page.locator('[data-drawer-create]').click();
+    await page.locator('[data-create-record-activity]').click();
+    await page.locator('[data-create-recording]').click();
     await page.waitForURL(/\/activities\/record/, { timeout: 20_000 });
     await page.locator('[data-record-type="run"]').click({ timeout: 20_000 });
     await page.locator('[data-record-start]').click();
