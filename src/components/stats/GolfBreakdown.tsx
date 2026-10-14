@@ -149,9 +149,9 @@ export default function GolfBreakdown({ profileId }: { profileId: string }) {
       {isOwner && (
         <Link
           href="/app/sport/golf/trends"
-          className="mt-4 inline-flex min-h-[44px] items-center text-sm font-medium text-brand-fg hover:text-brand-fg-strong"
+          className="mt-4 ea-btn-secondary inline-flex items-center text-sm font-medium"
         >
-          Open full trends →
+          Open full trends
         </Link>
       )}
     </div>

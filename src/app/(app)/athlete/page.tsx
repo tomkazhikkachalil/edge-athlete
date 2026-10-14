@@ -8,7 +8,6 @@ import { coverProxyUrl } from '@/lib/media/cover-url';
 import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { AthleteService } from '@/lib/athleteService';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
@@ -30,7 +29,7 @@ const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { 
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), { ssr: false });
 const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
-import type { SeasonHighlight, Performance, Profile } from '@/lib/supabase';
+import type { Performance, Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import { topPills } from '@/lib/achievements/display';
@@ -240,9 +239,6 @@ export default function AthleteProfilePage() {
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
 
-  // Athletic score calculation
-  const [athleticScore, setAthleticScore] = useState<number>(0);
-
   // Inline editing states
   const [editingField, setEditingField] = useState<string | null>(null);
   const [tempValues, setTempValues] = useState<Record<string, string>>({});
@@ -301,11 +297,10 @@ export default function AthleteProfilePage() {
       }
 
       // Use Promise.allSettled for better error handling and faster responses
-      const [achievementsResult, highlightsResult, skillCardsResult] = await Promise.allSettled([
+      const [achievementsResult, skillCardsResult] = await Promise.allSettled([
         fetch(`/api/achievements?profileId=${profileId}`, { credentials: 'include' })
           .then(res => (res.ok ? res.json() : { achievements: [] }))
           .then(data => (data.achievements || []) as Achievement[]),
-        AthleteService.getSeasonHighlights(profileId),
         fetch(`/api/profile/${profileId}/skill-cards`)
           .then(res => (res.ok ? res.json() : { skillCards: [] }))
           .then(data => (data.skillCards || []) as SportSkillCard[]),
@@ -314,10 +309,6 @@ export default function AthleteProfilePage() {
       // Update each piece of data as it becomes available
       if (achievementsResult.status === 'fulfilled') {
         setAchievements(achievementsResult.value);
-      }
-      if (highlightsResult.status === 'fulfilled') {
-        // Calculate athletic score based on highlights
-        calculateAthleticScore(highlightsResult.value);
       }
       // Empty on failure, never stuck at null: the media tabs wait for this.
       setSkillCards(skillCardsResult.status === 'fulfilled' ? skillCardsResult.value : []);
@@ -346,37 +337,6 @@ export default function AthleteProfilePage() {
       setFollowersCount(0);
       setFollowingCount(0);
     }
-  };
-
-  const calculateAthleticScore = (highlights: SeasonHighlight[]) => {
-    // Calculate score based on available data
-    // This is a simple algorithm that can be refined based on sport-specific metrics
-    let score = 50; // Base score
-
-    if (highlights && highlights.length > 0) {
-      // Add points for having highlights
-      score += Math.min(highlights.length * 5, 20);
-
-      // Add points based on ratings in highlights
-      const avgRating = highlights.reduce((sum, h) => sum + (h.rating || 0), 0) / highlights.length;
-      if (avgRating > 0) {
-        score = Math.min(Math.round(avgRating), 100);
-      }
-    }
-
-    // Add points for profile completeness
-    if (profile?.bio) score += 5;
-    if (profile?.avatar_url) score += 5;
-    if (profile?.location) score += 3;
-    if (profile?.height_cm) score += 2;
-    if (profile?.weight_display) score += 2;
-
-    // Add points for social engagement
-    if (followersCount > 0) score += Math.min(Math.floor(followersCount / 10), 10);
-    if (postsCount > 0) score += Math.min(Math.floor(postsCount / 5), 8);
-
-    // Cap at 100
-    setAthleticScore(Math.min(score, 100));
   };
 
   // Prevent double submissions
@@ -724,17 +684,6 @@ export default function AthleteProfilePage() {
                 </div>
               }
             />
-
-            {/* Rating Bubble */}
-            {athleticScore > 0 && (
-              <div
-                className="absolute -top-2 -right-2 bg-brand text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
-                role="img"
-                aria-label="Athlete rating"
-              >
-                {athleticScore}
-              </div>
-            )}
 
             {/* Avatar Upload Button */}
             <div className="absolute -bottom-2 -right-2" ref={avatarMenuRef}>

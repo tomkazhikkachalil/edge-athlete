@@ -43,7 +43,7 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
 
   // Every CTA holds the 44px touch floor (the polish pass's fix — they were
   // ~20px bare text links).
-  for (const name of ['Log a round →', 'Add photo →', 'Find athletes →', 'Set level →']) {
+  for (const name of ['Log a round', 'Add photo', 'Find athletes', 'Set level']) {
     const box = await card.getByText(name, { exact: true }).boundingBox();
     expect(box, `${name} has a bounding box`).not.toBeNull();
     expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
@@ -56,15 +56,15 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
   expect(dBox!.width).toBeGreaterThanOrEqual(40);
   expect(dBox!.height).toBeGreaterThanOrEqual(40);
 
-  // "Set level →" deep-links into the Edit Profile modal — the step used to
+  // "Set level" deep-links into the Edit Profile modal — the step used to
   // drop users at the top of /athlete with navigation instructions as a hint.
-  await card.getByText('Set level →', { exact: true }).click();
+  await card.getByText('Set level', { exact: true }).click();
   await page.waitForURL('**/athlete?edit=sport', { timeout: 15_000 });
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 20_000 });
 
   // Back on the feed the card is still offered (not yet dismissed)… — in a
   // FRESH page of the same context (the dismiss key is localStorage, shared
-  // per context). Never page.goto from here: the "Set level →" soft
+  // per context). Never page.goto from here: the "Set level" soft
   // navigation can leave an RSC request still streaming, WebKit aborts it
   // when the page unloads, and Next's router answers the aborted fetch with
   // a HARD navigation back to /athlete?edit=sport — which interrupts the

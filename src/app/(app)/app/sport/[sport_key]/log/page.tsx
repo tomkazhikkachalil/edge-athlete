@@ -87,7 +87,7 @@ export default function SportLogPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-primary">{sport.display_name} {pluralNoun(noun)}</h1>
             {data && !loading && <p className="text-sm text-muted mt-1">{data.entryCount} {data.entryCount === 1 ? noun.toLowerCase() : pluralNoun(noun.toLowerCase())} logged{year !== null ? ` in ${year}` : ''}</p>}
           </div>
-          <Link href={`/app/sport/${sportKey}/trends`} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center">Trends →</Link>
+          <Link href={`/app/sport/${sportKey}/trends`} className="ea-btn-secondary inline-flex items-center text-sm font-medium">Trends</Link>
         </div>
 
         {data && data.years.length > 1 && (
@@ -104,7 +104,7 @@ export default function SportLogPage() {
         ) : rows.length === 0 && official.length === 0 ? (
           <div className="bg-surface rounded-lg border border-border p-8 text-center">
             <p className="text-secondary mb-3">No {pluralNoun(noun.toLowerCase())} logged yet{year !== null ? ` in ${year}` : ''}.</p>
-            <Link href="/feed" className="text-sm text-brand-fg font-medium">Log a {noun.toLowerCase()} from the feed →</Link>
+            <Link href="/feed" className="ea-btn-secondary inline-flex items-center text-sm font-medium">Log a {noun.toLowerCase()} from the feed</Link>
           </div>
         ) : (
           <>

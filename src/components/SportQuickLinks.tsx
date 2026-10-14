@@ -40,7 +40,7 @@ export default function SportQuickLinks({ sport, variant = 'chips' }: SportQuick
         <Link
           key={link.href}
           href={link.href}
-          className="ea-interactive inline-flex min-h-[40px] items-center rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-brand-fg"
+          className="ea-btn-secondary inline-flex items-center text-sm font-medium"
         >
           {link.label}
         </Link>

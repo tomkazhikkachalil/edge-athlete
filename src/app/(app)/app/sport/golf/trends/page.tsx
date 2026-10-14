@@ -153,9 +153,9 @@ export default function GolfTrendsPage() {
           </div>
           <Link
             href="/app/sport/golf/rounds"
-            className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
+            className="ea-btn-secondary inline-flex items-center text-sm font-medium"
           >
-            View rounds list →
+            View rounds list
           </Link>
         </div>
 

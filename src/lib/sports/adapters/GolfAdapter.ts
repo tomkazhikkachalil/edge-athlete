@@ -200,8 +200,8 @@ export class GolfAdapter extends BaseSportAdapter {
   // so shared components never hardcode a sport's routes.
   getNavLinks(): { href: string; label: string }[] {
     return [
-      { href: '/app/sport/golf/rounds', label: 'View all rounds →' },
-      { href: '/app/sport/golf/trends', label: 'Trends →' },
+      { href: '/app/sport/golf/rounds', label: 'View all rounds' },
+      { href: '/app/sport/golf/trends', label: 'Trends' },
     ];
   }
 

@@ -49,10 +49,9 @@ function rememberDismissed(userId: string): void {
   }
 }
 
-/** Bare-text-link touch recipe from globals.css — 44px effective target, and
- * active: paired with hover: because hover is invisible on touch. */
-const ACTION_CLASS =
-  'inline-flex min-h-[44px] items-center -my-2 text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong font-semibold';
+/** The house secondary button (globals.css .ea-btn-secondary): a 44px target,
+ * one look with "View all rounds" / "Trends" on the profile, no arrow glyph. */
+const ACTION_CLASS = 'ea-btn-secondary inline-flex items-center text-sm font-semibold';
 
 export default function GetStartedCard({ onLogRound }: { onLogRound: () => void }) {
   const { user, profile } = useAuth();
@@ -109,21 +108,21 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
       done: state.hasAvatar,
       label: 'Add a profile photo',
       hint: 'Profiles with faces get followed.',
-      action: <Link href="/athlete" className={ACTION_CLASS}>Add photo →</Link>,
+      action: <Link href="/athlete" className={ACTION_CLASS}>Add photo</Link>,
     },
     {
       key: 'follow',
       done: state.followingCount >= FOLLOW_TARGET,
       label: `Follow ${FOLLOW_TARGET} athletes${state.followingCount > 0 && state.followingCount < FOLLOW_TARGET ? ` (${state.followingCount}/${FOLLOW_TARGET})` : ''}`,
       hint: 'Your Following feed comes alive.',
-      action: <Link href="/sports/explore" className={ACTION_CLASS}>Find athletes →</Link>,
+      action: <Link href="/sports/explore" className={ACTION_CLASS}>Find athletes</Link>,
     },
     {
       key: 'competitive',
       done: state.hasCompetitive,
       label: 'Add your competitive level',
       hint: 'Tell coaches where you compete.',
-      action: <Link href="/athlete?edit=sport" className={ACTION_CLASS}>Set level →</Link>,
+      action: <Link href="/athlete?edit=sport" className={ACTION_CLASS}>Set level</Link>,
     },
   ];
 
