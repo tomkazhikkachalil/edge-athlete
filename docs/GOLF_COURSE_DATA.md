@@ -3,7 +3,7 @@
 The reference for the golf catalog (`golf_courses`), its providers, the
 hole geometry and green outlines, the elevation profile, and the probes
 that watch them. Written with the **Golf course flow fixes** program
-(Oct 7 2026, CLAUDE.md convention 35); the near-me / hole-header program
+(Oct 7 2026, `docs/specs/golf-course-data.md` convention 35); the near-me / hole-header program
 (convention 34) is the layer underneath; the **map sweep** (Oct 8 2026,
 convention 36, migration 255) is the layer on top — "The sweep" below.
 

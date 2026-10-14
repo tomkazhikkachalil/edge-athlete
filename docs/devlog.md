@@ -1,5 +1,57 @@
 # Development Log
 
+## October 13, 2026 — CLAUDE.md slimmed to the essentials; the record moves to docs/ (zero DDL)
+
+Tom: *"CLAUDE.md is over 150k characters. Slim it to the essentials … under 10k characters. Move devlog and changelog entries to docs/devlog.md and any feature specs to docs/specs/."* CLAUDE.md had grown to 157,601 characters because every program since July appended its record as a numbered Key Convention; the file Claude loads on every turn was 95 % history.
+
+- **CLAUDE.md** is now ~7 k characters: setup (the two databases), the commands and the gate, the structure, the enduring conventions (the former 1–7 plus one line per area), and a written **maintenance checklist** whose devlog step names `docs/devlog.md` — nothing is appended to CLAUDE.md any more.
+- **`DEVLOG.md` → `docs/devlog.md`** (`git mv`, history kept; Tom's choice over a second devlog file). `docs/devlog/` stays the 2025 archive. The table below is the program changelog that used to live in CLAUDE.md's conventions.
+- **`docs/specs/`** holds the former conventions 8–43 **verbatim**, grouped by area (media, orgs, site builder, contests + recruiting, data foundation, events, support, play, activities, install + push, feed + posts, golf course data, workouts + sessions) plus `architecture.md` and `ui-conventions.md` for the long form of the setup, route-tree, navigation, parity, browser-floor and design-system sections. **Convention numbers are kept** in every heading because 13 code comments, a migration and several docs cite "convention N"; `docs/specs/README.md` maps number → file.
+- `docs/README.md` is the docs index (moved from CLAUDE.md). README, AGENTS.md, `database/MIGRATIONS.md`, `.env.example` and the docs that said "CLAUDE.md convention N" now point at the new paths.
+
+### Program changelog (moved from CLAUDE.md's Key Conventions, Oct 13 2026)
+
+Each row is a program whose rules live in `docs/specs/<file>` under the convention number shown; the narrative entries are below in this log by date.
+
+| Date | Program | PRs | Migrations | Spec |
+| --- | --- | --- | --- | --- |
+| Sep 3 2026 (+ Oct 4) | Capture v2 — media attaches first; uploads direct to storage | — | — | `media.md` §8 |
+| Sep 4 2026 | Org Staff Program — capabilities, not roles | — | 178 | `orgs.md` §9 |
+| Sep 8 2026 | Onboarding v2 — live by link, listing by approval | — | 179 | `orgs.md` §10 |
+| Sep 8–9 2026 | Org Pages Program — the bubble language | #607–#611 | — | `orgs.md` §11 |
+| Sep 9–28 2026 | Site Builder programs 1–3, pages / forms / analytics, the sports-team website program | #616–#706, #962–#988 | 180, 185–189, 243 | `site-builder.md` §12 |
+| Sep 10 2026 | Contest Place | E1–E4 | 181 | `contests-recruiting.md` §13 |
+| Sep 10 2026 | Recruiting skeleton (profile surface removed Oct 4) | R1–R5 | 182–183 | `contests-recruiting.md` §14 |
+| Sep 11 2026 | Profile org strip | #672 | — | `orgs.md` §15 |
+| Sep 13–16 2026 | Data foundation, provenance round, hygiene sweep | #709–#729 | 190–199 | `data-foundation.md` §16 |
+| Sep 16 2026 | Events program, phase 1 | #732–#748 | 201–206 | `events.md` §17 |
+| Sep 16 2026 | Events phase 2 (tournaments) + 2b (integrations) | #750–#773 | 207, 209–211 | `events.md` §18 |
+| Sep 16 2026 | Events phase 3 (match play, brackets) | #775–#790 | 212–213 | `events.md` §19 |
+| Sep 16 2026 | Events phase 4 (every sport live) | #792–#803 | 214–216 | `events.md` §20 |
+| Sep 16 2026 | Competition formats, track 2 | #806–#816 | 218–220 | `events.md` §21 |
+| Sep 17 2026 | Events + formats leftovers | #820–#831 | 221 | `events.md` §22 |
+| Sep 20 2026 | Support & Reporting, specs 1–4 | #836–#854 | 222–224 | `support.md` §23 |
+| Sep 22–24 2026 | Round 5 — the organizations unification | #891–#912 | 231–237 | `orgs.md` §24 |
+| Sep 24 2026 | Departed accounts | — | 238 | `data-foundation.md` §25 |
+| Sep 25 2026 | Authority + recovery round | #923–#927 | 240 | `orgs.md` §26 |
+| Sep 26 2026 (amended Oct 2) | Results-kept round — the untag rule, hide vs delete | #928–#932, #1039–#1043 | 241 | `data-foundation.md` §27 |
+| Sep 26–27 2026 | Teams & divisions | #940–#954 | 242 | `orgs.md` §28 |
+| Sep 28–29 2026 | Play program | #991–#1000 | 244 | `play.md` §29 |
+| Sep 29 – Oct 9 2026 | Activities; Connected apps (Oct 1, paused in prod Oct 2); Live Activities (Oct 4); GPS quality + the route frame (Oct 9) | #1003–#1008, #1027–#1033, #1068–#1076, #1127–#1128 | 245, 247, 250–251 | `activities.md` §30 |
+| Oct 2–4 2026 | Download the app; phone notifications + the icon badge | #1038, #1047–#1049, #1067 | 248 | `install-and-push.md` §31 |
+| Oct 4 2026 | Likes you can trust + post impact | #1081 | 252 | `feed-and-posts.md` §32 |
+| Oct 6 2026 | Drafts round — Finish ≠ Post | #1087–#1091 | 253 | `feed-and-posts.md` §33 |
+| Oct 7 2026 | Golf near-me, elevation, hole detail | #1095–#1102 | 254 | `golf-course-data.md` §34 |
+| Oct 7 2026 | Golf course flow fixes | #1103–#1110 | — | `golf-course-data.md` §35 |
+| Oct 8 2026 | Golf map sweep | #1111–#1117 | 255 | `golf-course-data.md` §36 |
+| Oct 8–9 2026 | Workout capture round | #1120–#1123 | 256 | `workouts-and-sessions.md` §37 |
+| Oct 9 2026 | Profile cover card | #1134–#1135 | — | `feed-and-posts.md` §38 |
+| Oct 9 2026 | Posting round — the account decides the audience | #1137–#1139 | — | `feed-and-posts.md` §39 |
+| Oct 9 2026 | Security Advisor round — RLS helpers in `private` | #1140–#1141 | 257–258 | `data-foundation.md` §40 |
+| Oct 12 2026 | Resume pill program | #1155–#1157 | 259 | `workouts-and-sessions.md` §41 |
+| Oct 12–13 2026 | Workout screen program (+ two phone fixes) | #1159–#1166 | 260 | `workouts-and-sessions.md` §42 |
+| Oct 13 2026 | Video posters + never-broken media | #1167–#1176 | 261–262 | `media.md` §43 |
+
 ## October 13, 2026 — e2e teardown: the stale-QA sweep looks back three hours, not a day, and a delete retries a statement timeout (zero DDL)
 
 Tom, after the maintenance pass left five `edgeqa-…@example.com` users on production: *"find out why the hourly sweep missed them and fix it, and make teardown retry on statement timeouts so this doesn't leave partial accounts again."*

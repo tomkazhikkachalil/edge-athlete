@@ -6,14 +6,14 @@
 ## → The conventions live in `CLAUDE.md`
 
 Read **`CLAUDE.md`** first. It is the canonical guide for this repo: environment setup,
-development commands and the `npm run verify` gate, architecture, navigation invariants,
-the design system, privacy rules and common tasks.
+development commands and the `npm run verify` gate, structure, conventions and the
+maintenance checklist. The feature specs live in `docs/specs/` (indexed by `docs/specs/README.md`).
 
 Two things it will send you to, worth knowing up front:
 
 - **`src/app/api/CLAUDE.md`** — the **required** API route patterns. Every route uses
   cookie-header auth (*not* `await cookies()`). Read it before writing a route.
-- **`DEVLOG.md`** — why things are the way they are. Check it before assuming a decision
+- **`docs/devlog.md`** — why things are the way they are. Check it before assuming a decision
   was arbitrary; a lot of what looks odd here is load-bearing and the reason is recorded.
 
 ## Why this file is a pointer

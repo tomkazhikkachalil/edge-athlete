@@ -38,7 +38,8 @@ Migrations live in [`database/migrations/`](database/migrations/), numbered `001
 ## Documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — architecture, conventions, and patterns
-- [`DEVLOG.md`](DEVLOG.md) — running development log
+- [`docs/devlog.md`](docs/devlog.md) — running development log
+- [`docs/specs/`](docs/specs/) — feature specs by area (`docs/specs/README.md` is the index)
 - [`docs/`](docs/) — feature guides, security audit, roadmap
 
 ## Deployment
