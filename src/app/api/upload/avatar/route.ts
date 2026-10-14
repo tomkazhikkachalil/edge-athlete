@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { revalidatePublicHead } from '@/lib/profiles/public-head';
 import { prepareImage } from '@/lib/media/image-meta';
+import { managedProfilePhotoPath } from '@/lib/profiles/photo-paths';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -165,6 +166,46 @@ export async function POST(request: NextRequest) {
     if (error instanceof Response) return error;
     reportRouteError('Avatar API: Unexpected error:', error);
     reportRouteError('Avatar API: Error details:', error instanceof Error ? error.stack : error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/upload/avatar — remove the profile picture (profile quick fixes
+ * PR 4, Oct 14 2026): the column goes NULL, the managed file (ours, under
+ * avatars/) is removed, the /u/ head revalidates; the upload button returns.
+ * Body: { targetProfileId? } — the same acting gate as the POST. Shares the
+ * POST's write gate (this file is on THE list).
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireActiveWriter(request);
+    const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
+    if (limited) return limited;
+    let body: { targetProfileId?: unknown } = {};
+    try { body = await request.json(); } catch { /* an empty body is fine */ }
+    const { resolveActingProfile } = await import('@/lib/guardian-gate');
+    const gate = await resolveActingProfile(user.id, typeof body.targetProfileId === 'string' ? body.targetProfileId : null, 'You do not have permission to change this profile');
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    const userId = gate.actorId;
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: current } = await supabaseAdmin.from('profiles').select('avatar_url, handle').eq('id', userId).maybeSingle();
+    const { error: updateError } = await supabaseAdmin.from('profiles').update({ avatar_url: null }).eq('id', userId);
+    if (updateError) {
+      reportRouteError('Avatar API: remove failed:', updateError);
+      return NextResponse.json({ error: 'Failed to remove the profile picture' }, { status: 500 });
+    }
+    revalidatePublicHead(current?.handle as string | null | undefined);
+    const managed = managedProfilePhotoPath(current?.avatar_url, 'avatar');
+    if (managed) {
+      const { error: removeError } = await supabaseAdmin.storage.from(managed.bucket).remove([managed.path]);
+      if (removeError) console.warn('Avatar API: file removal failed:', removeError);
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError('Avatar API: remove error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

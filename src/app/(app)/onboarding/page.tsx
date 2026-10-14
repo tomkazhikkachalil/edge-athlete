@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import LazyImage from '@/components/LazyImage';
-import AvatarUploader from '@/components/AvatarUploader';
+import ProfilePhotoUploader from '@/components/profile/ProfilePhotoUploader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import SportMultiSelect from '@/components/SportMultiSelect';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
@@ -253,7 +253,8 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <AvatarUploader
+              <ProfilePhotoUploader
+                slot="avatar"
                 mode="immediate"
                 onError={message => setAvatarError(message)}
                 onUploaded={async () => {

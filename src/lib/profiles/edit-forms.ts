@@ -36,6 +36,8 @@ export interface BasicForm {
   handle: string;
   bio: string;
   avatar_file: File | null;
+  /** A pending cover pick (Oct 14 2026) — uploads on Save, like the picture. */
+  cover_file: File | null;
   visibility: 'public' | 'private';
   // The private sign-up details (src/lib/profiles/private-details.ts) —
   // owner-only, never offered for a supervised profile or in acting-as.
@@ -102,6 +104,7 @@ export function formsFromProfile(profile: Profile | null | undefined): ProfileFo
       handle: (profile?.handle || '').toString(),
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
+      cover_file: null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
       nickname: (profile?.nickname || '').toString(),
       phone: (profile?.phone || '').toString(),

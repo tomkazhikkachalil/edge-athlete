@@ -20,6 +20,11 @@ interface ProfileCoverHeaderProps {
   overlay?: ReactNode;
   /** The avatar row's padding + alignment — match the card body below. */
   rowClassName?: string;
+  /** Tap the cover to see it larger (only passed when a photo is set). Drawn
+   *  UNDER the overlay, so the owner's control stays tappable. */
+  onCoverTap?: () => void;
+  /** Tap the picture to see it larger (only passed when a photo is set). */
+  onAvatarTap?: () => void;
 }
 
 /**
@@ -32,7 +37,7 @@ interface ProfileCoverHeaderProps {
  * the photo; the avatar row sits above the photo (z-10) so the picture and
  * anything pinned to it stay on top.
  */
-export default function ProfileCoverHeader({ coverSrc, size, children, overlay, rowClassName = '' }: ProfileCoverHeaderProps) {
+export default function ProfileCoverHeader({ coverSrc, size, children, overlay, rowClassName = '', onCoverTap, onAvatarTap }: ProfileCoverHeaderProps) {
   return (
     <>
       <div className="relative w-full aspect-[3/1] max-h-64" data-profile-cover={coverSrc ? 'photo' : 'gradient'}>
@@ -55,11 +60,25 @@ export default function ProfileCoverHeader({ coverSrc, size, children, overlay, 
             aria-hidden="true"
           />
         )}
+        {coverSrc && onCoverTap && (
+          <button type="button" onClick={onCoverTap} aria-label="View cover photo" className="absolute inset-0 w-full h-full cursor-zoom-in" data-profile-cover-tap="" />
+        )}
         {overlay}
       </div>
-      <div className={`relative z-10 ${HALF_OVERLAP[size]} ${rowClassName}`}>
-        <div className="relative w-fit rounded-full shadow-xl" data-profile-avatar="">
-          {children}
+      {/* The row is pulled up OVER the cover's lower band: it must not catch
+          taps meant for the cover (the view button, the owner's Add cover
+          photo control — Playwright reported the row "intercepts pointer
+          events" on every phone project, Oct 14 2026). Only the avatar itself
+          takes the pointer. */}
+      <div className={`relative z-10 pointer-events-none ${HALF_OVERLAP[size]} ${rowClassName}`}>
+        <div className="relative w-fit rounded-full shadow-xl pointer-events-auto" data-profile-avatar="">
+          {onAvatarTap ? (
+            <button type="button" onClick={onAvatarTap} aria-label="View profile picture" className="block rounded-full cursor-zoom-in" data-profile-avatar-tap="">
+              {children}
+            </button>
+          ) : (
+            children
+          )}
         </div>
       </div>
     </>

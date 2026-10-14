@@ -162,6 +162,8 @@ export async function PUT(request: NextRequest) {
     delete profileData.handle_change_count;
     // Avatar changes go through /api/upload/avatar
     delete profileData.avatar_url;
+    // The cover has its own routes too (POST / DELETE /api/upload/cover) — never the PUT.
+    delete profileData.cover_url;
     // Recruiting (182): the status, the academics and a scout's affiliation
     // have their own gated writers — never the batched profile PUT.
     delete profileData.recruiting_status;
