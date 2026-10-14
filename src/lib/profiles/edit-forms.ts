@@ -14,6 +14,7 @@
 // becomes a different profile. Never on a same-profile refresh while open.
 
 import type { Profile } from '@/lib/supabase';
+import type { ProfilePhotoPayload } from './photo-recipe';
 import type { PlaceValue } from '@/components/PlacePicker';
 import { profileToPlace } from '@/lib/geo/profile-place';
 import { formatHeight, formatSocialHandle } from '@/lib/formatters';
@@ -35,9 +36,10 @@ export interface BasicForm {
   full_name: string;
   handle: string;
   bio: string;
-  avatar_file: File | null;
+  /** A pending picture pick: the render, the kept original and the crop (photo-recipe.ts) — uploads on Save. */
+  avatar_photo: ProfilePhotoPayload | null;
   /** A pending cover pick (Oct 14 2026) — uploads on Save, like the picture. */
-  cover_file: File | null;
+  cover_photo: ProfilePhotoPayload | null;
   visibility: 'public' | 'private';
   // The private sign-up details (src/lib/profiles/private-details.ts) —
   // owner-only, never offered for a supervised profile or in acting-as.
@@ -103,8 +105,8 @@ export function formsFromProfile(profile: Profile | null | undefined): ProfileFo
       full_name: (profile?.full_name || '').toString(),
       handle: (profile?.handle || '').toString(),
       bio: (profile?.bio || '').toString(),
-      avatar_file: null,
-      cover_file: null,
+      avatar_photo: null,
+      cover_photo: null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
       nickname: (profile?.nickname || '').toString(),
       phone: (profile?.phone || '').toString(),

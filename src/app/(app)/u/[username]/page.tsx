@@ -351,6 +351,7 @@ export default function PublicProfilePage() {
               src={viewingPhoto === 'avatar' ? (profile.avatar_url as string) : (profile.cover as string)}
               alt={viewingPhoto === 'avatar' ? 'Profile picture' : 'Cover photo'}
               canEdit={!!user && user.id === profile.id}
+              profileId={profile.id}
               onChanged={() => window.location.reload()}
               onClose={() => setViewingPhoto(null)}
             />

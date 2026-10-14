@@ -164,6 +164,11 @@ export async function PUT(request: NextRequest) {
     delete profileData.avatar_url;
     // The cover has its own routes too (POST / DELETE /api/upload/cover) — never the PUT.
     delete profileData.cover_url;
+    // The kept originals and their crops (264) have ONE writer each — the slot's photo route.
+    delete profileData.avatar_source_url;
+    delete profileData.avatar_recipe;
+    delete profileData.cover_source_url;
+    delete profileData.cover_recipe;
     // Recruiting (182): the status, the academics and a scout's affiliation
     // have their own gated writers — never the batched profile PUT.
     delete profileData.recruiting_status;

@@ -69,7 +69,7 @@ const signupRow = {
 describe('formsFromProfile', () => {
   it('a signup-shaped row fills what signup collected', () => {
     const f = formsFromProfile(signupRow);
-    expect(f.basic).toMatchObject({ first_name: 'Tom', last_name: 'Kay', full_name: 'Tom Kay', handle: 'tomkay', visibility: 'private', avatar_file: null });
+    expect(f.basic).toMatchObject({ first_name: 'Tom', last_name: 'Kay', full_name: 'Tom Kay', handle: 'tomkay', visibility: 'private', avatar_photo: null });
     expect(f.bodyMetrics).toMatchObject({ dob: '1990-04-02', location: 'Toronto, ON', weight_unit: 'lbs', place: null });
     // …including the four no screen used to show after sign-up.
     expect(f.basic).toMatchObject({ nickname: 'TK', phone: '416-555-0100', gender: 'male', postal_code: 'M5V 2T6' });

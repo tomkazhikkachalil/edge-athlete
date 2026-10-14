@@ -4,7 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { revalidatePublicHead } from '@/lib/profiles/public-head';
 import { prepareImage } from '@/lib/media/image-meta';
-import { managedProfilePhotoPath } from '@/lib/profiles/photo-paths';
+import { readPhotoPostFields, removeProfilePhoto, storeProfilePhoto } from '@/lib/profiles/photo-source-server';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -16,6 +16,13 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/gif': 'gif',
 };
 
+/**
+ * POST /api/upload/avatar — field `avatar` (the DERIVED 512 px round render).
+ * Beside it, since PR 5 (Oct 14 2026, migration 264): `source` (the kept
+ * original), `recipe` (the crop that made the render) and `sameSource=1`
+ * (Adjust — keep the stored original); the row and the cleanup are
+ * photo-source-server.ts's.
+ */
 export async function POST(request: NextRequest) {
   try {
     // Auth required — the avatar is always written to the session user's
@@ -62,17 +69,18 @@ export async function POST(request: NextRequest) {
       reportRouteError('Avatar API: File too large:', file.size, 'bytes');
       return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
     }
+    const fields = readPhotoPostFields(formData);
+    if (!fields.ok) return NextResponse.json({ error: fields.error }, { status: 400 });
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Remember the previous avatar so we can clean it up after a successful
-    // swap (every upload used to orphan the prior file forever).
+    // Remember what the row names today so the swap can clean it up (every
+    // upload used to orphan the prior file forever).
     const { data: currentProfile } = await supabaseAdmin
       .from('profiles')
-      .select('avatar_url, handle')
+      .select('avatar_url, avatar_source_url, handle')
       .eq('id', userId)
       .maybeSingle();
-    const previousAvatarUrl: string | null = currentProfile?.avatar_url || null;
 
     const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
@@ -117,48 +125,33 @@ export async function POST(request: NextRequest) {
 
     if (!publicUrl?.publicUrl) {
       reportRouteError('Avatar API: Failed to get public URL');
+      await supabaseAdmin.storage.from(successBucket).remove([filePath]);
       return NextResponse.json({ error: 'Failed to get public URL' }, { status: 500 });
     }
 
-    // Update profile with new avatar URL. A DB failure here is a REAL
+    // The row + the kept original + the cleanup. A DB failure here is a REAL
     // failure — returning success anyway left the UI showing the old avatar
-    // with no error (and an orphaned upload).
-    const { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({ avatar_url: publicUrl.publicUrl })
-      .eq('id', userId);
-
-    if (updateError) {
-      reportRouteError('Avatar API: Profile update error:', updateError);
-      // Best effort: remove the just-uploaded file so it doesn't orphan
-      await supabaseAdmin.storage.from(successBucket).remove([filePath]);
-      return NextResponse.json({ error: 'Failed to update profile with new avatar' }, { status: 500 });
+    // with no error (and an orphaned upload); the writer rolls the uploads back.
+    const stored = await storeProfilePhoto(supabaseAdmin, {
+      profileId: userId,
+      slot: 'avatar',
+      derived: { bucket: successBucket, path: filePath, url: publicUrl.publicUrl },
+      fields: fields.fields,
+      previous: { url: currentProfile?.avatar_url ?? null, sourceUrl: currentProfile?.avatar_source_url ?? null },
+    });
+    if (!stored.ok) {
+      if (stored.status === 500) reportRouteError('Avatar API: Profile update error:', stored.detail ?? stored.error);
+      return NextResponse.json({ error: stored.error }, { status: stored.status });
     }
 
     // The avatar is the /u/ page's social image (cached per handle).
     revalidatePublicHead(currentProfile?.handle as string | null | undefined);
 
-    // Best-effort cleanup of the previous avatar file (only files we manage:
-    // same bucket, avatars/ prefix — never touch external URLs).
-    if (previousAvatarUrl && previousAvatarUrl !== publicUrl.publicUrl) {
-      try {
-        const marker = `/storage/v1/object/public/${successBucket}/`;
-        const idx = previousAvatarUrl.indexOf(marker);
-        if (idx !== -1) {
-          const oldPath = decodeURIComponent(previousAvatarUrl.slice(idx + marker.length));
-          if (oldPath.startsWith('avatars/')) {
-            await supabaseAdmin.storage.from(successBucket).remove([oldPath]);
-          }
-        }
-      } catch (cleanupError) {
-        // Non-fatal — worst case the old file is orphaned, as before
-        console.warn('Avatar API: old avatar cleanup failed:', cleanupError);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       avatar_url: publicUrl.publicUrl,
+      avatar_source_url: stored.sourceUrl,
+      avatar_recipe: stored.recipe,
       message: 'Avatar uploaded successfully'
     });
 
@@ -173,7 +166,8 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/upload/avatar — remove the profile picture (profile quick fixes
  * PR 4, Oct 14 2026): the column goes NULL, the managed file (ours, under
- * avatars/) is removed, the /u/ head revalidates; the upload button returns.
+ * avatars/) is removed — and, since PR 5, the kept original and its recipe
+ * with it — the /u/ head revalidates; the upload button returns.
  * Body: { targetProfileId? } — the same acting gate as the POST. Shares the
  * POST's write gate (this file is on THE list).
  */
@@ -187,21 +181,13 @@ export async function DELETE(request: NextRequest) {
     const { resolveActingProfile } = await import('@/lib/guardian-gate');
     const gate = await resolveActingProfile(user.id, typeof body.targetProfileId === 'string' ? body.targetProfileId : null, 'You do not have permission to change this profile');
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    const userId = gate.actorId;
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: current } = await supabaseAdmin.from('profiles').select('avatar_url, handle').eq('id', userId).maybeSingle();
-    const { error: updateError } = await supabaseAdmin.from('profiles').update({ avatar_url: null }).eq('id', userId);
-    if (updateError) {
-      reportRouteError('Avatar API: remove failed:', updateError);
+    const removed = await removeProfilePhoto(getSupabaseAdmin(), gate.actorId, 'avatar');
+    if (!removed.ok) {
+      reportRouteError('Avatar API: remove failed:', removed.error);
       return NextResponse.json({ error: 'Failed to remove the profile picture' }, { status: 500 });
     }
-    revalidatePublicHead(current?.handle as string | null | undefined);
-    const managed = managedProfilePhotoPath(current?.avatar_url, 'avatar');
-    if (managed) {
-      const { error: removeError } = await supabaseAdmin.storage.from(managed.bucket).remove([managed.path]);
-      if (removeError) console.warn('Avatar API: file removal failed:', removeError);
-    }
+    revalidatePublicHead(removed.previous.handle);
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;

@@ -9,6 +9,9 @@ export type ProfilePhotoSlot = 'avatar' | 'cover';
 /** The avatar route tried these buckets in turn for years; a stored URL may name any of them. */
 export const AVATAR_BUCKETS = ['avatars', 'uploads', 'images', 'files'] as const;
 export const COVER_BUCKET = 'uploads';
+/** The kept originals (PR 5, migration 264): the private uploads bucket, one prefix. */
+export const PROFILE_SOURCE_BUCKET = 'uploads';
+export const PROFILE_SOURCE_PREFIX = 'profile-sources/';
 
 export interface ManagedPhotoPath {
   bucket: string;
@@ -37,4 +40,22 @@ export function managedProfilePhotoPath(url: string | null | undefined, slot: Pr
   }
   if (bucket !== COVER_BUCKET) return null;
   return path.startsWith('covers/') ? { bucket, path } : null;
+}
+
+/**
+ * The bucket + object path behind a stored ORIGINAL (avatar_source_url /
+ * cover_source_url), or null when it is not ours: always `uploads` under
+ * `profile-sources/`.
+ */
+export function managedProfileSourcePath(url: string | null | undefined): ManagedPhotoPath | null {
+  if (!url) return null;
+  const m = /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/.exec(url);
+  if (!m || m[1] !== PROFILE_SOURCE_BUCKET) return null;
+  let path: string;
+  try {
+    path = decodeURIComponent(m[2].split('?')[0]);
+  } catch {
+    return null;
+  }
+  return path.startsWith(PROFILE_SOURCE_PREFIX) ? { bucket: PROFILE_SOURCE_BUCKET, path } : null;
 }

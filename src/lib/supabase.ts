@@ -115,6 +115,11 @@ export interface Profile {
   instagram_handle?: string;
   avatar_url?: string;
   cover_url?: string;
+  /** The kept originals + crops behind the two photos (264) — owner-only reads, the photo routes write. */
+  avatar_source_url?: string | null;
+  avatar_recipe?: unknown;
+  cover_source_url?: string | null;
+  cover_recipe?: unknown;
   // Privacy settings
   visibility?: 'public' | 'private';
   // Guardian-profiles: 'supervised' while a guardian manages the account,

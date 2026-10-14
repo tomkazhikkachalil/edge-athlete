@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { managedProfilePhotoPath } from '../photo-paths';
+import { managedProfileSourcePath, managedProfilePhotoPath } from '../photo-paths';
 
 const B = 'https://proj.supabase.co/storage/v1/object/public';
 
@@ -22,5 +22,17 @@ describe('managedProfilePhotoPath — only our buckets under our prefixes', () =
   });
   it('a query string and percent-encoding are handled', () => {
     expect(managedProfilePhotoPath(`${B}/uploads/covers/u1/a%20b.jpg?v=1`, 'cover')).toEqual({ bucket: 'uploads', path: 'covers/u1/a b.jpg' });
+  });
+});
+
+describe('managedProfileSourcePath (the kept original, 264)', () => {
+  const base = 'https://x.supabase.co/storage/v1/object/public';
+  it('is ours only in uploads under profile-sources/', () => {
+    expect(managedProfileSourcePath(`${base}/uploads/profile-sources/p1/avatar-5.jpg`)).toEqual({ bucket: 'uploads', path: 'profile-sources/p1/avatar-5.jpg' });
+    expect(managedProfileSourcePath(`${base}/uploads/profile-sources/p1/cover-5.jpg?v=1`)).toEqual({ bucket: 'uploads', path: 'profile-sources/p1/cover-5.jpg' });
+    expect(managedProfileSourcePath(`${base}/avatars/profile-sources/p1/avatar-5.jpg`)).toBeNull();
+    expect(managedProfileSourcePath(`${base}/uploads/covers/p1/5.jpg`)).toBeNull();
+    expect(managedProfileSourcePath('https://lh3.googleusercontent.com/a/x')).toBeNull();
+    expect(managedProfileSourcePath(null)).toBeNull();
   });
 });
