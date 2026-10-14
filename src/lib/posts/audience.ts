@@ -27,7 +27,7 @@ export function whoSeesPost(accountVisibility: string | null | undefined): strin
   return isPrivateAccount(accountVisibility) ? COPY.AUDIENCE.WHO_PRIVATE : COPY.AUDIENCE.WHO_PUBLIC;
 }
 
-/** The line under "Only me", with the place it is kept (e.g. "in your Vitals"). */
+/** The line under "Only me", with the place it is kept (e.g. "in your Training"). */
 export function onlyMeLine(place?: string): string {
   return place ? `${COPY.AUDIENCE.ONLY_ME_LINE}, ${place}` : COPY.AUDIENCE.ONLY_ME_LINE;
 }

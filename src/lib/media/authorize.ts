@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProfileRole } from '@/lib/auth-server';
 import { resolveProfileAction } from '@/lib/profile-roles';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
-import { aspectHidden } from '@/lib/vitals-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
+import { aspectHidden } from '@/lib/training-privacy';
 import type { MediaTokenPayload } from './token';
 import { isPublicPostMedia } from './visibility';
 import { resolveSportEventAccess } from '@/lib/sport-events/access';
@@ -185,7 +185,7 @@ async function profileScoped(
 
 /**
  * Workout-set media: profile-scoped, additionally hidden when the owner set
- * the vitals `workouts` (or master) privacy aspect (migration 122) — matching
+ * the training `workouts` (or master) privacy aspect (migration 122) — matching
  * GET /api/workouts, which returns an empty list in that case.
  */
 async function authorizeWorkout(
@@ -199,7 +199,7 @@ async function authorizeWorkout(
   // still needs the viewer here, so this one awaits after the public check.
   const viewerId = await who(viewer);
   if (viewerId !== ownerId) {
-    const privacy = await fetchVitalsPrivacy(admin, ownerId);
+    const privacy = await fetchTrainingPrivacy(admin, ownerId);
     if (aspectHidden(privacy, 'workouts', false)) return DENY;
   }
   return base;
@@ -387,7 +387,7 @@ export async function authorizeMedia(
       return { allow: true, isPublic: true };
     case 'post':
     case 'vitals':
-      // Vitals-linked media is post media (linked_post_id → post_media); the
+      // Body-metrics-linked media is post media (linked_post_id → post_media); the
       // token id is that post's id, governed by the post rule.
       return authorizePost(admin, payload.id, viewerId);
     case 'message':

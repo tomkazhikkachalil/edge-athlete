@@ -11,7 +11,7 @@ import { reportRouteError } from '@/lib/observability/report';
  * standard profile-visibility gate: a PRIVATE athlete's affiliation graph
  * must not be anonymously enumerable, even though org membership is public
  * for public profiles. Owner || public || accepted-follower — the same block
- * vitals/workouts/stat-lines use (supports anonymous viewers of public
+ * training/workouts/stat-lines use (supports anonymous viewers of public
  * profiles, which canViewProfile does not).
  */
 export async function GET(

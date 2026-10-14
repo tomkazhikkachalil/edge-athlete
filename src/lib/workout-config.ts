@@ -1,7 +1,7 @@
 /**
- * Edge Vitals exercise catalog — the curated exercise list for the workout
+ * Training exercise catalog — the curated exercise list for the workout
  * editor. Each exercise declares which inputs its sets use and (for the
- * mapped lifts) which vitals metric it can feed as a PR.
+ * mapped lifts) which body metric it can feed as a PR.
  */
 
 export type ExerciseInputMode = 'reps_weight' | 'reps_only' | 'duration' | 'distance_duration';
@@ -12,20 +12,20 @@ export interface CatalogExercise {
   label: string;
   category: ExerciseCategory;
   inputMode: ExerciseInputMode;
-  /** Maps to a vitals-config metric for PR detection (5 mapped lifts). */
-  vitalMetricKey?: 'bench_press' | 'squat' | 'deadlift' | 'overhead_press' | 'pull_ups';
+  /** Maps to a body-metrics-config metric for PR detection (5 mapped lifts). */
+  bodyMetricKey?: 'bench_press' | 'squat' | 'deadlift' | 'overhead_press' | 'pull_ups';
 }
 
 export const EXERCISE_CATALOG: CatalogExercise[] = [
   // ── Strength ──────────────────────────────────────────────────────────────
-  { key: 'bench_press', label: 'Bench Press', category: 'strength', inputMode: 'reps_weight', vitalMetricKey: 'bench_press' },
+  { key: 'bench_press', label: 'Bench Press', category: 'strength', inputMode: 'reps_weight', bodyMetricKey: 'bench_press' },
   { key: 'incline_bench_press', label: 'Incline Bench Press', category: 'strength', inputMode: 'reps_weight' },
-  { key: 'squat', label: 'Squat', category: 'strength', inputMode: 'reps_weight', vitalMetricKey: 'squat' },
+  { key: 'squat', label: 'Squat', category: 'strength', inputMode: 'reps_weight', bodyMetricKey: 'squat' },
   { key: 'front_squat', label: 'Front Squat', category: 'strength', inputMode: 'reps_weight' },
-  { key: 'deadlift', label: 'Deadlift', category: 'strength', inputMode: 'reps_weight', vitalMetricKey: 'deadlift' },
+  { key: 'deadlift', label: 'Deadlift', category: 'strength', inputMode: 'reps_weight', bodyMetricKey: 'deadlift' },
   { key: 'romanian_deadlift', label: 'Romanian Deadlift', category: 'strength', inputMode: 'reps_weight' },
-  { key: 'overhead_press', label: 'Overhead Press', category: 'strength', inputMode: 'reps_weight', vitalMetricKey: 'overhead_press' },
-  { key: 'pull_ups', label: 'Pull-Ups', category: 'strength', inputMode: 'reps_only', vitalMetricKey: 'pull_ups' },
+  { key: 'overhead_press', label: 'Overhead Press', category: 'strength', inputMode: 'reps_weight', bodyMetricKey: 'overhead_press' },
+  { key: 'pull_ups', label: 'Pull-Ups', category: 'strength', inputMode: 'reps_only', bodyMetricKey: 'pull_ups' },
   { key: 'chin_ups', label: 'Chin-Ups', category: 'strength', inputMode: 'reps_only' },
   { key: 'push_ups', label: 'Push-Ups', category: 'strength', inputMode: 'reps_only' },
   { key: 'dips', label: 'Dips', category: 'strength', inputMode: 'reps_only' },

@@ -84,7 +84,7 @@ export function parseExportDate(v: unknown): { t: number; offsetMin: number } | 
 /**
  * Apple's workout names → our types. An explicit list, never a substring
  * guess over free text ("Stair Climbing" is not a climb, "Skating" is not
- * skiing): anything not named here is `other`, which Vitals still counts as
+ * skiing): anything not named here is `other`, which Training still counts as
  * a session.
  */
 const NAME_RULES: readonly [RegExp, ActivityType][] = [

@@ -225,7 +225,7 @@ export default function EventDetailModal({
   };
 
   // Start THIS VIEWER'S own session from the event's routine (copy-on-start;
-  // the shared routine is never mutated). VitalsTab's 409-resume pattern.
+  // the shared routine is never mutated). TrainingTab's 409-resume pattern.
   const startWorkout = async () => {
     if (!event || startingWorkout) return;
     setStartingWorkout(true);

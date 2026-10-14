@@ -7,7 +7,7 @@ import { isPrivateAccount, onlyMeLine, whoSeesPost, type PostChoice } from '@/li
 interface PostChoicePickerProps {
   value: PostChoice;
   onChange: (next: PostChoice) => void;
-  /** Where an Only me item is kept, e.g. "in your Vitals". */
+  /** Where an Only me item is kept, e.g. "in your Training". */
   onlyMePlace?: string;
   /** The POSTING account's visibility — pass it when acting for someone else
    *  (a guardian); defaults to the signed-in profile's. */

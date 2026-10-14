@@ -411,7 +411,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   // B1 recovery (Sep 2026): PRs are recorded only by Share / Keep private,
   // so re-entering a finished-but-unshared session (review mode) must
   // recompute the candidates — without this the share step records
-  // nothing. Vitals are unchanged until a PR is recorded, so the recompute
+  // nothing. Training are unchanged until a PR is recorded, so the recompute
   // matches the one at finish time; once recorded, detectPRs finds no
   // improvement and the list is empty (self-limiting, no double-record).
   useEffect(() => {

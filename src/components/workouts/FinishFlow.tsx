@@ -57,7 +57,7 @@ export function FinishSummary({
   }, [prCandidates]);
 
   return (
-    <div className="vt-scope max-w-md mx-auto px-4 py-8 space-y-6">
+    <div className="tr-scope max-w-md mx-auto px-4 py-8 space-y-6">
       <div className="text-center">
         {prCandidates.length > 0 ? (
           <div className="ea-reaction-chip w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center">
@@ -78,12 +78,12 @@ export function FinishSummary({
 
       {/* Stat tiles */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="text-center vt-card p-4">
+        <div className="text-center tr-card p-4">
           <Timer className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
           <div className="text-xl font-bold text-primary" data-summary-duration={durationSeconds ?? 'untimed'}>{durationSeconds === null ? 'Not timed' : formatDuration(durationSeconds)}</div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wide">Duration</div>
         </div>
-        <div className="text-center vt-card p-4">
+        <div className="text-center tr-card p-4">
           <Dumbbell className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
           <div className="text-xl font-bold text-primary">
             {summary.exerciseCount}
@@ -91,7 +91,7 @@ export function FinishSummary({
           </div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wide">Exercises / Sets</div>
         </div>
-        <div className="text-center vt-card p-4">
+        <div className="text-center tr-card p-4">
           <TrendingUp className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
           <div className="text-xl font-bold text-primary">
             {summary.totalVolumeLbs > 0 ? formatVolume(summary.totalVolumeLbs) : '—'}
@@ -103,15 +103,15 @@ export function FinishSummary({
       {/* PR 5: active and rest time, the rests' average — when any rest was recorded. */}
       {(summary.restSeconds ?? 0) > 0 && (
         <div className="grid grid-cols-3 gap-3" data-summary-rest={summary.restSeconds}>
-          <div className="text-center vt-card p-4">
+          <div className="text-center tr-card p-4">
             <div className="text-xl font-bold text-primary">{durationSeconds === null ? '—' : formatDuration(Math.max(0, durationSeconds - (summary.restSeconds ?? 0)))}</div>
             <div className="text-xs font-semibold text-muted uppercase tracking-wide">Active</div>
           </div>
-          <div className="text-center vt-card p-4">
+          <div className="text-center tr-card p-4">
             <div className="text-xl font-bold text-primary">{formatDuration(summary.restSeconds ?? 0)}</div>
             <div className="text-xs font-semibold text-muted uppercase tracking-wide">Rest</div>
           </div>
-          <div className="text-center vt-card p-4">
+          <div className="text-center tr-card p-4">
             <div className="text-xl font-bold text-primary">{summary.avgRestS ? formatElapsed(summary.avgRestS) : '—'}</div>
             <div className="text-xs font-semibold text-muted uppercase tracking-wide">Avg rest</div>
           </div>
@@ -126,7 +126,7 @@ export function FinishSummary({
 
       {/* PR 5: volume by exercise (when more than one carried volume) and the groups' rounds. */}
       {(summary.perExerciseVolume?.length ?? 0) > 1 && (
-        <div className="vt-card p-4" data-summary-volume-list="">
+        <div className="tr-card p-4" data-summary-volume-list="">
           <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Volume by exercise</p>
           <ul className="space-y-1">
             {summary.perExerciseVolume!.map(v => (
@@ -139,7 +139,7 @@ export function FinishSummary({
         </div>
       )}
       {(summary.groups?.length ?? 0) > 0 && (
-        <div className="vt-card p-4" data-summary-groups={summary.groups!.length}>
+        <div className="tr-card p-4" data-summary-groups={summary.groups!.length}>
           <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Rounds</p>
           <ul className="space-y-1">
             {summary.groups!.map(g => (
@@ -232,7 +232,7 @@ export function FinishSummary({
       <button
         type="button"
         onClick={onContinue}
-        className="vt-pill w-full py-3 bg-brand text-white rounded-full font-bold text-base hover:bg-brand-hover transition-colors"
+        className="tr-pill w-full py-3 bg-brand text-white rounded-full font-bold text-base hover:bg-brand-hover transition-colors"
       >
         Continue
       </button>

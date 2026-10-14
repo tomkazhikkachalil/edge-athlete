@@ -12,7 +12,7 @@ reference; `DEVLOG.md` (Oct 12 2026, PR 1–5) is the record. Tom's ground rule:
 
 | Column | Meaning |
 | --- | --- |
-| `workout_sessions.timed` (default true) | The clock runs. `false` → `duration_seconds` is NULL at finish; Vitals counts the session with no minutes; the post carries no duration. |
+| `workout_sessions.timed` (default true) | The clock runs. `false` → `duration_seconds` is NULL at finish; Training counts the session with no minutes; the post carries no duration. |
 | `workout_sessions.paused_seconds` / `paused_at` | The clock's pauses — SERVER facts (a reload, another device, the resume pill and the 7-day sweep read one clock). Only an active session is paused; every finish writes `paused_at` NULL. |
 | `workout_exercises.client_id` (NOT NULL, default `gen_random_uuid()`, UNIQUE per session) | The STABLE exercise id. Every save is a whole-snapshot replace (256: delete + reinsert), so the row id is re-minted each save; the editor mints `client_id` once and the replace CARRIES it. The clip stash, the cards' keys and a rename hang on it. |
 | `workout_exercises.group_id` / `group_kind` (`superset` \| `circuit`) / `group_rounds` (1..10) | A group is the exercises sharing `group_id`, consecutive by position; kind and rounds are repeated on every member; a member's SETS are its rounds. All three set or all three NULL. The rounds cap is the routines' `target_sets` cap. |
@@ -61,7 +61,7 @@ all of them or it is silently dropped.
 
 ## The screen (`src/components/workouts/`)
 
-**Starting one (Oct 13 2026):** `src/hooks/useStartWorkout.ts` is the ONE start path — Vitals' Start Workout and the header's Create → Record Activity → Start a workout both call it (`POST /api/workouts { mode: 'live', routineId? }`, 409 → resume, `refreshDrafts()`, `/app/workout/<id>`; the routine picker when the person has routines). A new door calls the hook; it never POSTs on its own.
+**Starting one (Oct 13 2026):** `src/hooks/useStartWorkout.ts` is the ONE start path — Training's Start Workout and the header's Create → Record Activity → Start a workout both call it (`POST /api/workouts { mode: 'live', routineId? }`, 409 → resume, `refreshDrafts()`, `/app/workout/<id>`; the routine picker when the person has routines). A new door calls the hook; it never POSTs on its own.
 
 `WorkoutEditorScreen` (the sticky header: the title, the house `ActionMenu` with Hide
 timer · Don't time this workout · Discard; `LiveClock` with Start/Pause beside it;
@@ -90,7 +90,7 @@ Keep private).
 
 ## What counts where
 
-- **Vitals weekly minutes** = `sessionSeconds`: the stored duration (total time minus
+- **Training weekly minutes** = `sessionSeconds`: the stored duration (total time minus
   pauses; rest is inside it), `0` for an untimed workout — checked FIRST, so a NULL
   duration never falls back to wall-clock (Tom's call: comparable with every older
   workout).

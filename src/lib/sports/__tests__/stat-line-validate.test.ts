@@ -28,7 +28,7 @@ describe('validateStatLine', () => {
     expect(v.ok).toBe(true);
     if (v.ok) expect(v.value).toEqual(line());
   });
-  it('anything that is not a stat line passes untouched (a vitals entry, a plain blob, null)', () => {
+  it('anything that is not a stat line passes untouched (a body-metrics entry, a plain blob, null)', () => {
     expect(validateStatLine({ type: 'vitals_entry', weight: 80 }, 'general', TODAY).ok).toBe(true);
     expect(validateStatLine({ score: 42 }, 'golf', TODAY).ok).toBe(true);
     expect(validateStatLine(null, 'golf', TODAY).ok).toBe(true);

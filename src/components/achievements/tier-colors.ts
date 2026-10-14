@@ -1,6 +1,6 @@
 /**
  * Medal-tier accents as LITERAL Tailwind classes (interpolated tokens get
- * purged by JIT — same rule as vitals/category-colors). Values wear ink;
+ * purged by JIT — same rule as training/category-colors). Values wear ink;
  * these classes go on glyphs and chips only.
  */
 

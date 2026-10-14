@@ -6,7 +6,7 @@
 
 **A workout clip is a tile the instant the camera hands it back; the
 set carries it until it is stored (Workout capture round, Oct 8 2026,
-zero DDL)** — Tom: a capture during a Vitals workout "kicked me out of the
+zero DDL)** — Tom: a capture during a Training workout "kicked me out of the
 workout and the capture did not complete" (iOS throws the page away while
 the native camera is up — the Sep 3 2026 rounds; nothing in the app
 navigates). Capture v2's rule now holds on the set row: `planPickAttach`
@@ -97,7 +97,7 @@ and a stopwatch, and nothing saved before it changes (Workout screen
 program, Oct 12 2026, #1159–#1163, mig 260 the ONLY DDL — runs on BOTH
 databases BEFORE PR 1 deploys: the insert paths name its columns)** — Tom's
 spec and decisions: routines KEEP groups; "Hide timer" is remembered per
-person on the device; Vitals weekly minutes stay total time minus pauses
+person on the device; Training weekly minutes stay total time minus pauses
 (rest inside; an untimed workout counts as a session with no minutes).
 `docs/WORKOUTS.md` is the reference. The invariants: **every save is a
 whole-snapshot replace** (256) so the STABLE id is the editor's

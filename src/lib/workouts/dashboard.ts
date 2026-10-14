@@ -1,5 +1,5 @@
 /**
- * Derived stats for the Vitals dashboard — the numbers a professional
+ * Derived stats for the Training dashboard — the numbers a professional
  * tracker leads with: this-week training load, streak, the latest personal
  * best, and per-exercise progression across sessions. Pure and node-tested;
  * everything computes client-side from the payloads the tab already fetches
@@ -7,15 +7,15 @@
  */
 
 import { EXERCISE_MAP } from '@/lib/workout-config';
-import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
+import { BODY_METRIC_MAP } from '@/lib/body-metrics-config';
 import { serverToEntries, type ServerWorkoutSession } from './serialize';
 import { toLbs } from './summary';
 import {
   sessionsStreakWeeks,
   sessionsWeeklySummary,
-  type VitalsSession,
+  type TrainingSession,
   type WeeklySummary,
-} from '@/lib/vitals/session-math';
+} from '@/lib/training/session-math';
 
 // ── Weeks ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ export function sessionVolumeLbs(session: ServerWorkoutSession): number {
   return volume;
 }
 
-export type { WeekTotals, WeeklySummary } from '@/lib/vitals/session-math';
+export type { WeekTotals, WeeklySummary } from '@/lib/training/session-math';
 
 const METRES_PER: Readonly<Record<'mi' | 'km' | 'm' | 'yd', number>> = { mi: 1609.344, km: 1000, m: 1, yd: 0.9144 };
 
@@ -76,9 +76,9 @@ export function sessionDistanceM(session: ServerWorkoutSession): number | null {
   return any ? Math.round(total) : null;
 }
 
-/** A COMPLETED workout as a Vitals session (the shape the week maths takes).
+/** A COMPLETED workout as a Training session (the shape the week maths takes).
  *  Live Activities (Oct 4 2026): a cardio set's distance now travels with it. */
-export function workoutToSession(session: ServerWorkoutSession): VitalsSession {
+export function workoutToSession(session: ServerWorkoutSession): TrainingSession {
   const distanceM = sessionDistanceM(session);
   return {
     id: session.id,
@@ -92,12 +92,12 @@ export function workoutToSession(session: ServerWorkoutSession): VitalsSession {
 }
 
 /** The completed workouts of a list, as sessions. */
-export function workoutSessions(sessions: readonly ServerWorkoutSession[]): VitalsSession[] {
+export function workoutSessions(sessions: readonly ServerWorkoutSession[]): TrainingSession[] {
   return sessions.filter(s => s.status === 'completed').map(workoutToSession);
 }
 
 /** This week vs last week — COMPLETED workouts only (the workout-only view;
- *  Vitals merges activities in first, see src/lib/vitals/sessions.ts). */
+ *  Training merges activities in first, see src/lib/training/sessions.ts). */
 export function weeklySummary(
   sessions: ServerWorkoutSession[],
   now: Date = new Date()
@@ -118,7 +118,7 @@ export function streakWeeks(
 
 // ── Personal bests ───────────────────────────────────────────────────────────
 
-export interface VitalEntryLike {
+export interface BodyMetricEntryLike {
   metric_key: string;
   metric_label?: string | null;
   value: number | null;
@@ -138,11 +138,11 @@ export interface LatestPB {
  * Direction comes from the catalog's `lower_is_better`; metrics where it is
  * null (the body category — height isn't a PR) are excluded.
  */
-export function latestPB(vitals: VitalEntryLike[]): LatestPB | null {
+export function latestPB(bodyMetrics: BodyMetricEntryLike[]): LatestPB | null {
   const bestByMetric = new Map<string, number>();
-  for (const entry of vitals) {
+  for (const entry of bodyMetrics) {
     if (entry.value === null) continue;
-    const metric = VITAL_METRICS_MAP[entry.metric_key];
+    const metric = BODY_METRIC_MAP[entry.metric_key];
     if (!metric || metric.lower_is_better === null) continue;
     const current = bestByMetric.get(entry.metric_key);
     const better = metric.lower_is_better
@@ -153,14 +153,14 @@ export function latestPB(vitals: VitalEntryLike[]): LatestPB | null {
 
   let latest: LatestPB | null = null;
   let latestTime = -Infinity;
-  for (const entry of vitals) {
+  for (const entry of bodyMetrics) {
     if (entry.value === null) continue;
     const best = bestByMetric.get(entry.metric_key);
     if (best === undefined || entry.value !== best) continue;
     const t = new Date(entry.recorded_at).getTime();
     if (t > latestTime) {
       latestTime = t;
-      const metric = VITAL_METRICS_MAP[entry.metric_key];
+      const metric = BODY_METRIC_MAP[entry.metric_key];
       latest = {
         metricKey: entry.metric_key,
         label: entry.metric_label || metric?.label || entry.metric_key,
@@ -281,12 +281,12 @@ export function exerciseProgression(
 
 // ── Metric series ────────────────────────────────────────────────────────────
 
-/** Ascending {date, value} series for one vitals metric — chart input. */
+/** Ascending {date, value} series for one bodyMetrics metric — chart input. */
 export function metricSeries(
-  vitals: VitalEntryLike[],
+  bodyMetrics: BodyMetricEntryLike[],
   metricKey: string
 ): Array<{ date: string; value: number }> {
-  return vitals
+  return bodyMetrics
     .filter(v => v.metric_key === metricKey && v.value !== null)
     .map(v => ({ date: v.recorded_at, value: v.value as number }))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());

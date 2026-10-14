@@ -6,13 +6,13 @@ import type { ReactNode } from 'react';
 
 /**
  * One bubble in a glance grid — the house bubble card, lifted from
- * vitals/StatBubbleCard in Org Pages R2 (Sep 8 2026) so the league/club
- * pages speak the same language as Vitals. Tappable when `onOpen` is given
+ * training/StatBubbleCard in Org Pages R2 (Sep 8 2026) so the league/club
+ * pages speak the same language as Training. Tappable when `onOpen` is given
  * (the whole card is the button — kid-sized target), static otherwise. Span
  * maps to LITERAL col-span classes (JIT purge — never interpolate) on the
  * host's `grid-cols-2 lg:grid-cols-4` grid. Surface, radius, shadow and
  * entrance come from `.ea-bubble` + `.ea-pop-in`; hover/press from
- * `.ea-interactive` — the dialect's scope (.vt-scope / .org-app-scope)
+ * `.ea-interactive` — the dialect's scope (.tr-scope / .org-app-scope)
  * decides how soft the shadows are.
  */
 

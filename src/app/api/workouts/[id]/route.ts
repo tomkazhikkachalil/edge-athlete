@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { aspectHidden } from '@/lib/vitals-privacy';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { aspectHidden } from '@/lib/training-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 import { clampAt, finishDuration, planPause, planResume } from '@/lib/workouts/timing';
@@ -70,9 +70,9 @@ export async function GET(
         .select('visibility')
         .eq('id', session.profile_id)
         .single();
-      // Vitals privacy (migration 122): closes the lazy-details path used by
+      // Training privacy (migration 122): closes the lazy-details path used by
       // WorkoutPostCard — the card already degrades to "unavailable".
-      if (aspectHidden(await fetchVitalsPrivacy(supabase, session.profile_id), 'workouts', false)) {
+      if (aspectHidden(await fetchTrainingPrivacy(supabase, session.profile_id), 'workouts', false)) {
         return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
       if (profile?.visibility !== 'public') {

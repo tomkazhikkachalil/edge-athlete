@@ -12,7 +12,7 @@ import { getStatSchema, isStatLineData, type SportStatSchema, type StatLineData 
  * already validates, so the 400 only ever meets a stale or hostile client.
  *
  * Pure; the posts route and the org stat-lines path share it. Anything that
- * is not a stat line (a vitals entry, a plain `{score: 42}` blob) passes
+ * is not a stat line (a body-metrics entry, a plain `{score: 42}` blob) passes
  * untouched — this validator has an opinion only about `type: 'stat_line'`.
  */
 

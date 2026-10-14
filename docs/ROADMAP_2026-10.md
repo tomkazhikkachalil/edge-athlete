@@ -56,7 +56,7 @@ Not started; a program of its own, after the fix round.
   notifications. This is what makes a watch workout arrive by itself, free, for
   the athlete.
 - **Stage 2 — record from the wrist:** a watch app that starts Edge Athlete
-  things (a Vitals workout, a golf round, an event) — sport-specific recording
+  things (a Training workout, a golf round, an event) — sport-specific recording
   the stock fitness apps do not do. **Superseded in part on Oct 4 2026 (Live
   Activities):** the web app now IS a run / ride / walk recorder
   (`/activities/record` — foreground, screen on, a map, segments, photos; see
@@ -91,7 +91,7 @@ answer is our own app (item 2). So:
   No tab, no entry points, no owner's setup panel.
 - **Kept and tested:** the code, migration 247 and its table stay; the flag is
   on in CI's smoke build, in Preview and locally, so it keeps passing its tests.
-- **Still live for everyone:** activities inside Vitals, recorded live on the
+- **Still live for everyone:** activities inside Training, recorded live on the
   phone. The file import (`.fit` / `.gpx` / `.tcx`) was live too until
   **Oct 13 2026**, when Tom removed it with the Create menu redesign — nothing
   in the product promises an import until the native app delivers the watch.

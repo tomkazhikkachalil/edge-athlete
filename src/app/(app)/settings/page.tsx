@@ -127,7 +127,7 @@ export default function SettingsPage() {
     ...(athleteAccount ? [{ id: 'recruiting' as const, label: 'Recruiting', icon: 'fa-graduation-cap' }] : []),
     { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'routines', label: 'Routines', icon: 'fa-dumbbell' },
-    // Beside Routines on purpose: both feed Vitals.
+    // Beside Routines on purpose: both feed Training.
     ...(CONNECTED_APPS ? [{ id: 'connections' as const, label: 'Connected apps', icon: 'fa-link' }] : []),
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },

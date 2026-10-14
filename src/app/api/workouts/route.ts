@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
-import { aspectHidden } from '@/lib/vitals-privacy';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { aspectHidden } from '@/lib/training-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
@@ -15,7 +15,7 @@ import {
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
- * Edge Vitals workout sessions.
+ * Training workout sessions.
  *
  * GET  /api/workouts?profileId=xxx[&status=active][&limit=20]
  *   Sessions with nested exercises/sets, newest first. Access model mirrors
@@ -185,9 +185,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Vitals privacy (migration 122): workouts hidden (or the whole section)
+    // Training privacy (migration 122): workouts hidden (or the whole section)
     // → 200 with an empty list, indistinguishable from no data on purpose.
-    if (!isOwner && aspectHidden(await fetchVitalsPrivacy(supabase, profileId), 'workouts', isOwner)) {
+    if (!isOwner && aspectHidden(await fetchTrainingPrivacy(supabase, profileId), 'workouts', isOwner)) {
       return NextResponse.json({ sessions: [], hidden: true });
     }
 
@@ -214,7 +214,7 @@ export async function GET(request: NextRequest) {
 
     sortNested((sessions ?? []) as unknown as SessionRow[]);
     // Proxy workout-set media bytes (workout_sets.media JSONB: [{ url, ... }]),
-    // governed by the owner profile's visibility + the vitals `workouts` aspect.
+    // governed by the owner profile's visibility + the training `workouts` aspect.
     for (const session of (sessions ?? []) as Array<{ exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string; thumbnailUrl?: string }> }> }> }>) {
       for (const exercise of session.exercises ?? []) {
         for (const set of exercise.sets ?? []) {

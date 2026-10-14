@@ -211,7 +211,7 @@ describe('metricSeries', () => {
   });
 });
 
-describe('a cardio set\'s distance travels into the Vitals session (Live Activities, Oct 4 2026)', () => {
+describe('a cardio set\'s distance travels into the Training session (Live Activities, Oct 4 2026)', () => {
   it('sums every set\'s distance in metres; none → no distanceM key', () => {
     expect(toMetres(1, 'mi')).toBeCloseTo(1609.344, 3);
     expect(toMetres(2, 'km')).toBe(2000);

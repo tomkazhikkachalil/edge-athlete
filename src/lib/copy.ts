@@ -290,7 +290,6 @@ export const COPY = {
   // Tabs & Sections
   TABS: {
     BASIC: 'Basic',
-    VITALS: 'Vitals',
     SOCIALS: 'Socials',
     EQUIPMENT: 'Equipment',
     SPORT_TAB: (sportName: string) => sportName,

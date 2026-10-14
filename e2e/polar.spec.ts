@@ -257,7 +257,7 @@ test('Polar: connect (signed state), first sync, the signed webhook, revoked at 
   }
 });
 
-test('Settings → Polar: the consent line, Connect, back with the workouts in Vitals @mobile', async ({ page }) => {
+test('Settings → Polar: the consent line, Connect, back with the workouts in Training @mobile', async ({ page }) => {
   test.skip(!ready || !mock, 'needs migration 247 and the local stand-in Polar');
   test.setTimeout(120_000);
   const polar = mock!;
@@ -294,13 +294,13 @@ test('Settings → Polar: the consent line, Connect, back with the workouts in V
     await expect(card).toContainText('Last workout received');
     await expect(card.locator('[data-connection-disconnect]')).toBeVisible();
 
-    // The workout is already in Vitals, credited to Polar.
-    await page.goto('/athlete?tab=vitals');
-    const session = page.locator('[data-vitals-recent-sessions] [data-session-kind="activity"]').first();
+    // The workout is already in Training, credited to Polar.
+    await page.goto('/athlete?tab=training');
+    const session = page.locator('[data-training-recent-sessions] [data-session-kind="activity"]').first();
     await expect(session).toBeVisible({ timeout: 20_000 });
     await expect(session).toContainText('Polar');
     const { data: row } = await admin.from('activities').select('id, post_id').eq('profile_id', alpha.id).eq('source', 'polar').eq('external_id', id).single();
-    expect(row!.post_id).toBeNull(); // in Vitals; the athlete shares
+    expect(row!.post_id).toBeNull(); // in Training; the athlete shares
     await page.goto(`/activities/${row!.id}`);
     await expect(page.locator('[data-activity-credit]')).toHaveText(/Recorded with Polar/, { timeout: 20_000 });
 

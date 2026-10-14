@@ -39,7 +39,7 @@ interface SportSkillCardsProps {
   initialCards?: SportSkillCard[];
   /** Owner-only: opens the competitive-details editor. With no cards to
    *  show, the owner gets an add-affordance card instead of nothing (the
-   *  vitals-hero empty-slot pattern) — visitors still get nothing. */
+   *  training-hero empty-slot pattern) — visitors still get nothing. */
   onAddDetails?: () => void;
   /** Section anchor id. Override when embedding a second instance on a page
    *  that already carries the profile-body `#sports` section. */

@@ -54,7 +54,7 @@ round's lifecycle keeps its own, event rounds never draft); the door is
 status is the one rule for every list. A draft card has no like / comment /
 share / save row and sends no view beacon. The supervised carve-out STAYS
 (Tom, Oct 6): a supervised athlete's Post publishes directly. After Finish
-the RECORD is live (the mirror, the handicap, round history, Vitals, the
+the RECORD is live (the mirror, the handicap, round history, Training, the
 dataset); only the social post waits. e2e: `e2e/helpers/drafts.ts
 finishAndPost` / `postDraft` — a spec that wants a round on the feed or a
 grid finishes AND posts it; `round-lifecycle.spec.ts` is the pin.
@@ -108,7 +108,7 @@ pure rule: a scored round's creator gets all three (Finish → the review
 screen), a scoreless one Resume + Discard, a playing partner Resume only,
 a workout Finish → `/app/workout/[id]?share=1`, a recording Finish →
 `/activities/record?finish=1` (the recorder's offer has Finish too). It
-REPLACES the feed's "Live round at …" banner and the Vitals workout
+REPLACES the feed's "Live round at …" banner and the Training workout
 banner — one door at the top of every page, Drafts the second (the
 device-local `RecordingResumeBanner` stays).
 **Workouts (PR 5) follow the same rule:** the 6 h lazy auto-complete is
@@ -143,7 +143,7 @@ and a photo ending below the avatar (#1133) — don't bring either back.
 **Who sees a post is the ACCOUNT's call; per item only Post it or Only me
 (Posting round, Oct 9 2026, zero DDL)** — Tom: a public account means anyone
 sees what you post, a private one your approved fans; the only per-item
-choice is Post it or Only me (not on the feed; an activity stays in Vitals,
+choice is Post it or Only me (not on the feed; an activity stays in Training,
 a workout in your training history). **Never a per-post "followers only"
 control.** `src/lib/posts/audience.ts` + `COPY.AUDIENCE` are the words;
 `PostChoicePicker` (the two cards — the recorder's review, the workout

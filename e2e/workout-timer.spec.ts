@@ -4,7 +4,7 @@ import { apiAs, readErrorBody } from './helpers/qa-user';
 // Workout screen PR 2 (Oct 12 2026, 260): Start/Pause beside the clock — a
 // pause stops the clock, never the workout, and survives a reload; the menu's
 // Hide timer (remembered on the device) and Don't time this workout (no
-// duration saved; Vitals counts no minutes); the "Saved" label is gone.
+// duration saved; Training counts no minutes); the "Saved" label is gone.
 
 const clockText = (page: Page) => page.locator('[data-live-clock]').innerText();
 const toSeconds = (t: string) => t.split(':').reduce((acc, part) => acc * 60 + Number(part), 0);

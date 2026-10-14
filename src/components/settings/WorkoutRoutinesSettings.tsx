@@ -4,7 +4,7 @@ import RoutineManager from '../workouts/RoutineManager';
 
 /**
  * Settings → Routines. A thin section shell around the shared RoutineManager
- * (also reachable from the Vitals quick-settings modal).
+ * (also reachable from the Training quick-settings modal).
  */
 export default function WorkoutRoutinesSettings() {
   return (

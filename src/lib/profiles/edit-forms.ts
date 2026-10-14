@@ -6,7 +6,7 @@
 // `useState({ profile })` then `if (synced.profile !== profile)`. Every host
 // mounts the modal after auth has resolved, so the first comparison was
 // always equal and the forms kept their empty defaults: Edit Profile opened
-// blank, and saving a blank Vitals or Socials tab wrote the blanks. The same
+// blank, and saving a blank Training or Socials tab wrote the blanks. The same
 // check also refilled every form whenever the profile OBJECT changed (a
 // save's refresh, the 15-minute token refresh), wiping unsaved typing.
 //
@@ -45,7 +45,7 @@ export interface BasicForm {
   postal_code: string;
 }
 
-export interface VitalsForm {
+export interface BodyMetricsForm {
   /** The height input's TEXT (5'10"), not centimetres — the name is historical. */
   height_cm: string;
   /** The weight input's text in `weight_unit` — the name is historical. */
@@ -75,7 +75,7 @@ export interface RecruitingForm {
 
 export interface ProfileForms {
   basic: BasicForm;
-  vitals: VitalsForm;
+  bodyMetrics: BodyMetricsForm;
   socials: SocialsForm;
   recruiting: RecruitingForm;
 }
@@ -108,7 +108,7 @@ export function formsFromProfile(profile: Profile | null | undefined): ProfileFo
       gender: (GENDERS as readonly string[]).includes(profile?.gender ?? '') ? (profile!.gender as Gender) : '',
       postal_code: (profile?.postal_code || '').toString(),
     },
-    vitals: {
+    bodyMetrics: {
       height_cm: profile?.height_cm ? formatHeight(profile.height_cm) : '',
       // The saved display value exactly as entered — no conversion.
       weight_kg: profile?.weight_display ? String(profile.weight_display) : '',

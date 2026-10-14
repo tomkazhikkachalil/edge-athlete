@@ -137,7 +137,7 @@ export default function StatsHub({
 
         const currentOffset = resetItems ? 0 : offsetRef.current;
         // tab=stats (Tom, Oct 4 2026): the Stats tab lists posts WITH DATA
-        // only — a round, a shared round, a stat line, a vitals entry, a
+        // only — a round, a shared round, a stat line, a body-metrics entry, a
         // shared workout or activity (migration 070's predicate; the Stats
         // badge counts the same set). A plain photo post belongs to Media
         // alone, whatever sport the composer stamped on it. This hub used to

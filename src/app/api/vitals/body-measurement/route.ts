@@ -16,8 +16,8 @@ import {
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
- * POST /api/vitals/body-measurement — the Vitals-tab quick update for height
- * and weight. ONE request does both writes so the timeline and Current Vitals
+ * POST /api/vitals/body-measurement — the Training tab's quick update for height
+ * and weight. ONE request does both writes so the timeline and Current Body Metrics
  * can never disagree:
  *
  *   1. Append immutable athlete_vitals row(s) in canonical units (height in
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id);
 
       if (updateError) {
-        // Compensate: without this, the timeline and Current Vitals disagree
+        // Compensate: without this, the timeline and Current Body Metrics disagree
         // with no in-app way to correct it (athlete_vitals is append-only).
         reportRouteError('Body measurement profile sync error:', updateError);
         await admin

@@ -1,6 +1,6 @@
 // ── An activity becomes a sport result — the share-time bridge (Oct 4 2026) ─
 // Tom: "a bike ride could also be considered a sport, same as swimming" — a
-// recorded ride, swim, run or row is a Vitals session AND, when the athlete
+// recorded ride, swim, run or row is a Training session AND, when the athlete
 // chooses so at share time, a result in the sport's own tab and the
 // performance dataset. The bridge is a CHOICE on share, never automatic: an
 // activity stays "not a sport" until it is posted as one. Pure: which sport an

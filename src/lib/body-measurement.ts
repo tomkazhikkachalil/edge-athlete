@@ -1,16 +1,16 @@
 /**
- * Body-measurement conversions and rules for the Vitals quick-update flow
- * (VitalsSettingsModal → POST /api/vitals/body-measurement).
+ * Body-measurement conversions and rules for the Training quick-update flow
+ * (TrainingSettingsModal → POST /api/vitals/body-measurement).
  *
  * Two stores must stay coherent: profiles (height_cm / weight_display /
- * weight_unit / weight_kg — the "Current Vitals" snapshot) and athlete_vitals
+ * weight_unit / weight_kg — the "Current Body Metrics" snapshot) and athlete_vitals
  * (the append-only dated timeline). The timeline is chart-fed by raw `value`
  * (metricSeries), so each metric's value must stay in ONE canonical unit
  * regardless of what the athlete typed: height in inches, weight in lbs —
- * the units vitals-config.ts declares for the body metrics.
+ * the units body-metrics-config.ts declares for the body metrics.
  */
 
-import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
+import { BODY_METRIC_MAP } from '@/lib/body-metrics-config';
 
 export type WeightUnit = 'lbs' | 'kg' | 'stone';
 
@@ -65,7 +65,7 @@ export function convertWeight(
 }
 
 /**
- * Current Vitals mirrors the newest-DATED measurement we know of. `>=` so a
+ * Current Body Metrics mirrors the newest-DATED measurement we know of. `>=` so a
  * same-day re-entry (a correction) wins the profile; the timeline keeps both
  * rows — it is append-only by design.
  */
@@ -98,9 +98,9 @@ export function isValidRecordedDate(s: string, now: Date = new Date()): boolean 
 
 // ── The timeline rows, and the Edit Profile path onto them ──────────────────
 // Two writers append body measurements: POST /api/vitals/body-measurement
-// (the Vitals gear) and PUT /api/profile (Edit Profile's Vitals tab — until
+// (the Training gear) and PUT /api/profile (Edit Profile's Body Metrics tab — until
 // Sep 30 2026 that path updated the profile snapshot only, so a height or
-// weight changed there never appeared on the Vitals chart). Both build their
+// weight changed there never appeared on the Training chart). Both build their
 // rows HERE so the two can never disagree on units or labels.
 
 /** One athlete_vitals row for a height, in canonical inches. */
@@ -110,7 +110,7 @@ export function heightRow(profileId: string, recordedAt: string, heightCm: numbe
     profile_id: profileId,
     metric_key: 'height',
     metric_category: 'body',
-    metric_label: VITAL_METRICS_MAP['height'].label,
+    metric_label: BODY_METRIC_MAP['height'].label,
     value: conv.valueIn,
     value_display: conv.display,
     unit: 'in',
@@ -126,7 +126,7 @@ export function weightRow(profileId: string, recordedAt: string, display: number
     profile_id: profileId,
     metric_key: 'weight',
     metric_category: 'body',
-    metric_label: VITAL_METRICS_MAP['weight'].label,
+    metric_label: BODY_METRIC_MAP['weight'].label,
     value: conv.valueLbs,
     value_display: conv.displayText,
     unit: 'lbs',
@@ -153,7 +153,7 @@ const num = (v: unknown): number | null => {
  * caller does, so their behaviour is unchanged), and only for a value that
  * is PRESENT, non-empty and DIFFERENT from the stored one: an untouched
  * field adds nothing, and clearing a value adds nothing. A value outside
- * the chart's bounds is refused by name (the Vitals gear's own bounds).
+ * the chart's bounds is refused by name (the Training gear's own bounds).
  */
 export function measurementFromProfileEdit(
   payload: Record<string, unknown>,

@@ -2,7 +2,7 @@
 // Tom (Sep 26 2026): "any data metrics recorded will go towards understanding
 // what the athlete's athletic score is." A result is never deleted by its
 // player — it is HIDDEN from their profile and keeps counting. An ordinary
-// post (a photo, a notion, a vitals entry) still deletes. Pinned in
+// post (a photo, a notion, a body-metrics entry) still deletes. Pinned in
 // __tests__/results-hide.test.ts.
 
 /** The post fields that say whether deleting it would lose recorded data. */

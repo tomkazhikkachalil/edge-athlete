@@ -23,7 +23,7 @@ export interface FinishDetails {
  * After Finish — the ONE review (Oct 9 2026, Tom: "it's not the easiest to
  * identify if you want to post or not"): what you did (the route and the
  * numbers), its name, then ONE decision — Post it (who sees it follows the
- * account) or Only me (kept in Vitals, not on the feed) — and Done. The
+ * account) or Only me (kept in Training, not on the feed) — and Done. The
  * photos' upload state and Discard as before.
  */
 export default function FinishSheet({
@@ -130,7 +130,7 @@ export default function FinishSheet({
 
         {/* The one decision. */}
         <div className="mt-4">
-          <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your Vitals" accountVisibility={accountVisibility} disabled={saving} />
+          <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your Training" accountVisibility={accountVisibility} disabled={saving} />
         </div>
 
         {posting && (

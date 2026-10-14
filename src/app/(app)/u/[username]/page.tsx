@@ -14,7 +14,7 @@ import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import EarnedBadges from '@/components/play/EarnedBadges';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
-import VitalsTab from '@/components/VitalsTab';
+import TrainingTab from '@/components/TrainingTab';
 import EquipmentSection from '@/components/EquipmentSection';
 import TaggedTab from '@/components/TaggedTab';
 import { topPills } from '@/lib/achievements/display';
@@ -123,7 +123,7 @@ interface ProfileData {
   skillCards?: SportSkillCard[];
 }
 
-type ProfileSection = 'overview' | 'stats' | 'vitals' | 'equipment' | 'tagged';
+type ProfileSection = 'overview' | 'stats' | 'training' | 'equipment' | 'tagged';
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -141,19 +141,20 @@ export default function PublicProfilePage() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [privateProfileId, setPrivateProfileId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  // 'overview' = the classic single-scroll public profile; 'vitals' mounts the
-  // redesigned VitalsTab (same component the /athlete pages use) lazily, so
+  // 'overview' = the classic single-scroll public profile; 'training' mounts the
+  // redesigned TrainingTab (same component the /athlete pages use) lazily, so
   // anonymous visitors don't pay its fetches unless they open it.
-  // ?tab=vitals deep link read in the initializer (window-guarded): SSR
+  // ?tab=training deep link read in the initializer (window-guarded): SSR
   // renders the loading spinner regardless of this state, so the
   // server/client initial DOM cannot diverge on it.
   const [activeSection, setActiveSection] = useState<ProfileSection>(() => {
     if (typeof window === 'undefined') return 'overview';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    // Activities are a section of Vitals since Oct 1 2026; the old deep link
-    // (`?tab=activities`) opens Vitals at that section.
-    if (tab === 'activities') return 'vitals';
-    return tab === 'vitals' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
+    // Activities are a section of Training since Oct 1 2026; the old deep link
+    // (`?tab=activities`) opens Training at that section.
+    // Training was called Vitals until Oct 14 2026: `?tab=vitals` keeps working.
+    if (tab === 'activities' || tab === 'vitals') return 'training';
+    return tab === 'training' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
   });
   const [focusActivities] = useState(
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'activities'
@@ -504,14 +505,14 @@ export default function PublicProfilePage() {
         </div>
 
         {/* Section switcher — Overview keeps the classic single-scroll page;
-            Vitals mounts the redesigned dashboard (same component as the
+            Training mounts the redesigned dashboard (same component as the
             /athlete pages, privacy enforced server-side by /api/vitals).
             Styled to match ProfileMediaTabs' segmented control. */}
         {/* Six sections scroll sideways on a phone — a tab off-screen behind
-            overflow-hidden is the Vitals lesson (CLAUDE.md). */}
+            overflow-hidden is the Training lesson (CLAUDE.md). */}
         <div className="mt-4 -mx-4 px-4 overflow-x-auto">
           <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl whitespace-nowrap" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['stats', 'Stats'], ['vitals', 'Vitals'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
+            {([['overview', 'Overview'], ['stats', 'Stats'], ['training', 'Training'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}
@@ -543,9 +544,9 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {activeSection === 'vitals' && (
+        {activeSection === 'training' && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
-            <VitalsTab
+            <TrainingTab
               profileId={profile.id}
               currentUserId={user?.id}
               isOwnProfile={false}

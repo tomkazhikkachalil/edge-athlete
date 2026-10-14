@@ -9,7 +9,7 @@ import { MAX_ROUTINES, type WorkoutRoutine } from '@/lib/workouts/routines';
 
 /**
  * The one routine-management surface, shared by main Settings (Routines tab)
- * and the Vitals quick-settings modal. Owns fetching and CRUD; permanent
+ * and the Training quick-settings modal. Owns fetching and CRUD; permanent
  * preset edits happen ONLY here — in-session changes never touch a routine
  * (copy-on-start).
  */

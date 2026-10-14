@@ -190,7 +190,7 @@ test('Settings → Connected apps: every source, an honest state, Disconnect @mo
     await watch.locator('[data-connection-disconnect]').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Disconnect Apple Watch?');
-    await expect(dialog).toContainText('The activities already in your Vitals stay.');
+    await expect(dialog).toContainText('The activities already in your Training stay.');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(watch).toHaveAttribute('data-connection-state', 'connected');
 
@@ -201,7 +201,7 @@ test('Settings → Connected apps: every source, an honest state, Disconnect @mo
     const { count } = await admin.from('activity_connections').select('id', { count: 'exact', head: true }).eq('profile_id', alpha.id);
     expect(count).toBe(0);
 
-    // The way in from Vitals.
+    // The way in from Training.
     await page.goto('/athlete?tab=activities');
     await expect(page.locator('[data-activities-connect-link]')).toHaveAttribute('href', '/settings?tab=connections', { timeout: 20_000 });
   } finally {

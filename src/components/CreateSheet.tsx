@@ -10,8 +10,8 @@ import LargerWindow from '@/components/bubbles/LargerWindow';
  * own composer, else the feed's ?create=1 handoff), Sport (the composer with
  * the sport picker already open; picking golf is the live-round setup),
  * Event (the wizard) and Record Activity, which is a SECOND STEP in the same
- * window: Start a workout (the ONE start path Vitals uses — useStartWorkout)
- * or Record activity (the GPS recorder, the same door as Vitals'). The icons
+ * window: Start a workout (the ONE start path Training uses — useStartWorkout)
+ * or Record activity (the GPS recorder, the same door as Training'). The icons
  * of the second step are the resume pill's (PILL_KIND_ICON), so the menu and
  * the pill agree. The drawer opens this same sheet; it is the one Create
  * menu at every width.

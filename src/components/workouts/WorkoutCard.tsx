@@ -25,7 +25,7 @@ interface WorkoutCardProps {
   onDeleted?: () => void;
 }
 
-/** Expandable workout history card for the Edge Vitals tab. */
+/** Expandable workout history card for the Training tab. */
 export default function WorkoutCard({
   session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted,
 }: WorkoutCardProps) {

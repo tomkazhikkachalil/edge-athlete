@@ -1,7 +1,7 @@
 // ── The training week (pure, zero imports) ──────────────────────────────────
 // Weeks start MONDAY 00:00 local (ISO-8601 and the near-universal
 // training-app convention). Its own module so the session maths
-// (src/lib/vitals/session-math.ts) and the workout dashboard can both use it
+// (src/lib/training/session-math.ts) and the workout dashboard can both use it
 // without importing each other.
 
 export function startOfWeek(d: Date): Date {

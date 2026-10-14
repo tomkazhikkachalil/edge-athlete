@@ -3,7 +3,7 @@ import { apiAs, loadQaUser } from './helpers/qa-user';
 
 // Oct 10 2026 (Tom): a new post always starts as a plain General post — never
 // the athlete's own sport (a golfer's composer used to open on Golf); the feed
-// box says "Create a post"; Vitals sits beside Stats on the profile tab bar.
+// box says "Create a post"; Training sits beside Stats on the profile tab bar.
 
 test('a golfer\'s new post starts General: "Create a post", no golf fields', async ({ page }) => {
   const api = await apiAs('state.json');
@@ -29,7 +29,7 @@ test('a golfer\'s new post starts General: "Create a post", no golf fields', asy
 });
 
 for (const tag of ['', ' @mobile']) {
-  test(`profile tabs: Vitals sits right after Stats on both profile routes${tag}`, async ({ page }) => {
+  test(`profile tabs: Training sits right after Stats on both profile routes${tag}`, async ({ page }) => {
     const me = loadQaUser('user.json');
     for (const url of ['/athlete', `/athlete/${me.id}`]) {
       await page.goto(url);
@@ -37,12 +37,12 @@ for (const tag of ['', ' @mobile']) {
       await expect(page.locator('[data-tab="stats"]').first()).toBeVisible({ timeout: 30_000 });
       const tabs = page.locator('[data-tab="stats"]').first().locator('xpath=..').locator('[data-tab]');
       const order = await tabs.evaluateAll(els => els.map(e => e.getAttribute('data-tab')));
-      expect(order.indexOf('vitals'), `${url}: ${order.join(',')}`).toBe(order.indexOf('stats') + 1);
+      expect(order.indexOf('training'), `${url}: ${order.join(',')}`).toBe(order.indexOf('stats') + 1);
       // Reachable without scrolling the bar at phone width.
-      const vitals = page.locator('[data-tab="vitals"]').first();
-      const box = await vitals.boundingBox();
+      const training = page.locator('[data-tab="training"]').first();
+      const box = await training.boundingBox();
       const vw = page.viewportSize()!.width;
-      expect(box && box.x + box.width <= vw, `${url}: Vitals inside the viewport`).toBe(true);
+      expect(box && box.x + box.width <= vw, `${url}: Training inside the viewport`).toBe(true);
     }
   });
 }

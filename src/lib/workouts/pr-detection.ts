@@ -1,12 +1,12 @@
 /**
- * PR detection — compares a finished workout against the athlete's vitals
+ * PR detection — compares a finished workout against the athlete's bodyMetrics
  * history for the mapped lifts (bench/squat/deadlift/OHP → max weight lbs;
  * pull-ups → max reps). Suggest-and-confirm: the finish screen offers the
  * candidates as checkboxes; nothing writes automatically.
  */
 
 import { EXERCISE_MAP } from '@/lib/workout-config';
-import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
+import { BODY_METRIC_MAP } from '@/lib/body-metrics-config';
 import { toLbs } from './summary';
 import type { EntryExercise } from './entries';
 
@@ -23,14 +23,14 @@ export interface PRCandidate {
 
 export function detectPRs(
   exercises: EntryExercise[],
-  vitals: Array<{ metric_key: string; value: number | null }>
+  bodyMetrics: Array<{ metric_key: string; value: number | null }>
 ): PRCandidate[] {
   // Best per metric from this workout
   const workoutBest = new Map<string, number>();
   for (const exercise of exercises) {
     if (!exercise.exerciseKey) continue;
     const catalog = EXERCISE_MAP[exercise.exerciseKey];
-    const metricKey = catalog?.vitalMetricKey;
+    const metricKey = catalog?.bodyMetricKey;
     if (!metricKey) continue;
 
     for (const set of exercise.sets) {
@@ -51,7 +51,7 @@ export function detectPRs(
 
   // History best per metric
   const historyBest = new Map<string, number>();
-  for (const v of vitals) {
+  for (const v of bodyMetrics) {
     if (v.value === null || !workoutBest.has(v.metric_key)) continue;
     const prev = historyBest.get(v.metric_key);
     if (prev === undefined || v.value > prev) historyBest.set(v.metric_key, v.value);
@@ -59,7 +59,7 @@ export function detectPRs(
 
   const candidates: PRCandidate[] = [];
   for (const [metricKey, value] of workoutBest) {
-    const metric = VITAL_METRICS_MAP[metricKey];
+    const metric = BODY_METRIC_MAP[metricKey];
     if (!metric) continue;
     const previousBest = historyBest.get(metricKey) ?? null;
     if (previousBest !== null && value <= previousBest) continue;

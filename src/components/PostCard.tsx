@@ -1112,7 +1112,7 @@ function PostCard({
           />
         )}
 
-        {/* Vitals badge — shown on training posts created from a vitals entry */}
+        {/* Body-metrics badge — shown on training posts created from a body-metrics entry */}
         {post.stats_data?.type === 'vitals_entry' && (
           <div className="flex items-center gap-2 px-3 py-2 bg-brand-soft rounded-lg text-sm mb-2">
             <i className="fas fa-dumbbell text-violet-500 text-xs"></i>
@@ -1125,7 +1125,7 @@ function PostCard({
           </div>
         )}
 
-        {/* Workout card — shared Edge Vitals sessions (compact summary from
+        {/* Workout card — shared Training sessions (compact summary from
             denormalized stats_data; Details lazy-fetches the breakdown) */}
         {post.stats_data?.type === 'workout_session' && (
           <WorkoutPostCard statsData={post.stats_data} />

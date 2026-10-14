@@ -21,7 +21,7 @@ describe('what is a result', () => {
     expect(isResultPost({ stats_data: { sport_event_stat_line_id: 'l' } })).toBe(true);
     expect(isResultPost({}, true)).toBe(true);
   });
-  it('an ordinary post (a photo, a vitals entry, a post that only references a round) still deletes', () => {
+  it('an ordinary post (a photo, a body-metrics entry, a post that only references a round) still deletes', () => {
     expect(isResultPost({})).toBe(false);
     expect(isResultPost({ stats_data: { type: 'vitals_entry' } })).toBe(false);
     expect(isResultPost({ stats_data: null })).toBe(false);

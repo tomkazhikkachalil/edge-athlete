@@ -19,7 +19,7 @@ import { syncPolarConnection } from '@/lib/activities/providers/polar-sync-serve
  * with AccessLink (needed before any read); the token sealed into the
  * connection row (connections-server.ts); then the FIRST SYNC — the recent
  * exercises Polar still holds (30 days), a bounded handful now and the rest
- * through the daily run — so the athlete comes back to a Vitals that already
+ * through the daily run — so the athlete comes back to a Training that already
  * has their week in it.
  */
 export const maxDuration = 60;

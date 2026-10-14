@@ -34,7 +34,7 @@ addition below as a promise to keep it true.
   the refetch-once rule, the elevation providers' order, the probes, the unstamp runbook.
 - `docs/ACTIVITIES.md` — imported AND live-recorded GPS activities (convention 30): the normalized
   shape, the FIT-SDK server-only rule, the gate and the three projections,
-  Vitals, and Connected apps (mig 247: the connections table, the sealed
+  Training, and Connected apps (mig 247: the connections table, the sealed
   tokens, the duplicate rule, the Apple Watch upload link, what each provider
   allows).
 - `docs/CONNECTIONS_APPLICATIONS.md` — the provider applications Tom sends (Wahoo,

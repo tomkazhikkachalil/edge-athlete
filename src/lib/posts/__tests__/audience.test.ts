@@ -20,6 +20,6 @@ describe('audience', () => {
 
   it('names where an Only me item is kept', () => {
     expect(onlyMeLine()).toBe('Not on the feed — only you can see it');
-    expect(onlyMeLine('in your Vitals')).toBe('Not on the feed — only you can see it, in your Vitals');
+    expect(onlyMeLine('in your Training')).toBe('Not on the feed — only you can see it, in your Training');
   });
 });

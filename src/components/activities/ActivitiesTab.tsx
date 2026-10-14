@@ -1,9 +1,9 @@
 'use client';
 
-// The profile's activities — a SECTION OF VITALS since Oct 1 2026 (it was its
-// own profile tab; `?tab=activities` still lands here, see VitalsTab).
+// The profile's activities — a SECTION OF TRAINING since Oct 1 2026 (it was its
+// own profile tab; `?tab=activities` still lands here, see TrainingTab).
 // It fetches its OWN gated endpoint (the /u/ payload is CDN-cached as a
-// stranger's view; the Vitals tab's pattern) and renders what came back:
+// stranger's view; the Training tab's pattern) and renders what came back:
 // this week, twelve weeks of distance, the list (newest first, "Load more"
 // pages by cursor). The owner gets Import; a viewer's list never holds an
 // "Only me" activity (the server's rule) and every route thumbnail is the
@@ -25,7 +25,7 @@ interface Page {
   totals: WeekTotal[] | null;
   count: number | null;
   isOwner: boolean;
-  /** The athlete hides Vitals (or its Workouts aspect) from this viewer. */
+  /** The athlete hides Training (or its Workouts aspect) from this viewer. */
   hidden?: boolean;
 }
 
@@ -37,9 +37,9 @@ const shortDate = (iso: string) => {
 };
 
 export default function ActivitiesTab({ profileId }: { profileId: string }) {
-  // Inside Vitals the section explains itself to its owner and stays out of
+  // Inside Training the section explains itself to its owner and stays out of
   // a viewer's way: nothing to show renders nothing (no "not available" line
-  // under somebody else's Vitals).
+  // under somebody else's Training).
   const [state, setState] = useState<State>({ kind: 'loading' });
   const { user } = useAuth();
   const isSelf = user?.id === profileId;
@@ -100,7 +100,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
   const span = state.totals.reduce((t, w) => ({ distanceM: t.distanceM + w.distanceM, count: t.count + w.count }), { distanceM: 0, count: 0 });
 
   return (
-    <div className="space-y-4 scroll-mt-24" id="vitals-activities" data-activities-tab>
+    <div className="space-y-4 scroll-mt-24" id="training-activities" data-activities-tab>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold text-primary">Activities</h3>
@@ -108,12 +108,12 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
         </div>
         {state.isOwner && (
           <div className="flex flex-wrap items-center gap-3">
-            {/* Record lives in the Vitals header above (one door per screen —
+            {/* Record lives in the Training header above (one door per screen —
                 Oct 9 2026 appearance round; the file import left Oct 13). Connections
                 are the account's own (Settings): offered to the athlete,
-                never to a guardian looking at their athlete's Vitals. */}
+                never to a guardian looking at their athlete's Training. */}
             {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
-              <Link href="/settings?tab=connections" className="vt-pill inline-flex shrink-0 items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted hover:text-primary transition-colors" data-activities-connect-link>
+              <Link href="/settings?tab=connections" className="tr-pill inline-flex shrink-0 items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted hover:text-primary transition-colors" data-activities-connect-link>
                 <i className="fas fa-link text-xs" aria-hidden="true" />
                 Connect a watch
               </Link>

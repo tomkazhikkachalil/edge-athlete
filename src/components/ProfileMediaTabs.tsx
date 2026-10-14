@@ -15,7 +15,7 @@ import MediaGridItem, { type MediaItem } from './media/MediaGridItem';
 import StatsHub from './stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { useToast } from './Toast';
-import VitalsTab from './VitalsTab';
+import TrainingTab from './TrainingTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
 import { nearestScrollLeft } from '@/lib/scroll-inline';
 
@@ -36,13 +36,13 @@ const ALL_YEARS: number[] = (() => {
   return years;
 })();
 
-type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
+type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'training' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
 // Tabs backed by the media endpoint (/api/profile/[id]/media) FROM THIS
 // component. The others (stats — the StatsHub, with its own fetch state —
-// plus equipment, vitals, achievements, and tagged) render their own
+// plus equipment, training, achievements, and tagged) render their own
 // components.
 const MEDIA_TABS: TabType[] = ['all'];
 const isMediaTab = (t: TabType): boolean => MEDIA_TABS.includes(t);
@@ -54,6 +54,7 @@ interface TabCounts {
   /** Text-only posts (074) — no tab here; feeds the StatementsRail above. */
   statements: number;
   equipment: number;
+  /** The Training tab's count — the media endpoint still names it vitals (a payload field never renames). */
   vitals: number;
   achievements: number;
   /** Activities (245): absent from an old server → treated as 0. */
@@ -62,16 +63,19 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
-const TAB_IDS: TabType[] = ['all', 'stats', 'vitals', 'tagged', 'equipment', 'achievements'];
+const TAB_IDS: TabType[] = ['all', 'stats', 'training', 'tagged', 'equipment', 'achievements'];
 
 /** Activities were their own tab until Oct 1 2026; they are a section of
- *  Vitals now. The old deep link (`?tab=activities` — the import page, the
- *  activity screen and shared links use it) opens Vitals at that section. */
+ *  Training now. The old deep link (`?tab=activities` — the activity screen
+ *  and shared links use it) opens Training at that section. */
 export const ACTIVITIES_TAB_ALIAS = 'activities';
+/** Training was called Vitals until Oct 14 2026; every old `?tab=vitals`
+ *  link (shares, bookmarks, the installed app's history) keeps working. */
+export const VITALS_TAB_ALIAS = 'vitals';
 
 /** `?tab=` values arrive from the URL, so anything unrecognised degrades to 'all'. */
 export function parseProfileTab(value: string | null | undefined): TabType {
-  if (value === ACTIVITIES_TAB_ALIAS) return 'vitals';
+  if (value === ACTIVITIES_TAB_ALIAS || value === VITALS_TAB_ALIAS) return 'training';
   return TAB_IDS.includes(value as TabType) ? (value as TabType) : 'all';
 }
 
@@ -80,7 +84,7 @@ interface ProfileMediaTabsProps {
   currentUserId?: string;
   isOwnProfile?: boolean;
   onCountsChange?: (counts: TabCounts) => void;
-  /** Deep-linked tab (`?tab=vitals`); validated, bad values fall back to 'all'. */
+  /** Deep-linked tab (`?tab=training`); validated, bad values fall back to 'all'. */
   initialTab?: string;
   /** Fires after a user-initiated tab switch — callers mirror it into the URL. */
   onTabChange?: (tab: TabType) => void;
@@ -162,7 +166,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;
-  // equipment/vitals/achievements render their own components.
+  // equipment/training/achievements render their own components.
   // Paginated loader: defined inside the effect (clears the lint rule) and
   // published on a ref for the IntersectionObserver's load-more and the
   // post-mutation refresh. It keeps its own requestSeqRef/offsetRef guards,
@@ -386,7 +390,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   }, [measureTabOverflow]);
 
   // Keep the active tab visible inside the phone-width scroller — without this
-  // a deep-linked `?tab=vitals` (5th of 6) selects a button that sits
+  // a deep-linked `?tab=training` (5th of 6) selects a button that sits
   // off-screen and the page looks like the old design never loaded.
   useEffect(() => {
     const scroller = tabScrollerRef.current;
@@ -440,8 +444,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
-    // Vitals sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
-    { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
+    // Training sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
+    { id: 'training' as TabType, label: 'Training', icon: Activity, count: counts.vitals },
     { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
     { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
@@ -524,9 +528,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         <EquipmentSection profileId={profileId} isOwnProfile={isOwnProfile} />
       )}
 
-      {/* Vitals tab */}
-      {activeTab === 'vitals' && (
-        <VitalsTab
+      {/* Training tab */}
+      {activeTab === 'training' && (
+        <TrainingTab
           profileId={profileId}
           currentUserId={currentUserId}
           isOwnProfile={isOwnProfile}

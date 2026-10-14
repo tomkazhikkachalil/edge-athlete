@@ -68,7 +68,7 @@ export default function RecruitingFields({ value, onChange, disabled = false }: 
           className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="Your school"
         />
-        <p className="mt-1 text-xs text-muted">Grad year is your class year on the Vitals tab.</p>
+        <p className="mt-1 text-xs text-muted">Grad year is your class year in Body Metrics.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
