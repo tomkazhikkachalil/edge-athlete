@@ -523,7 +523,7 @@ export default function AthleteProfilePage() {
             );
           }}
           onTabChange={(tab) => {
-            // Shareable / refresh-stable tab state: /athlete/<id>?tab=vitals
+            // Shareable / refresh-stable tab state: /athlete/<id>?tab=training
             window.history.replaceState(null, '', tab === 'all' ? `/athlete/${athleteId}` : `/athlete/${athleteId}?tab=${tab}`);
           }}
           onCountsChange={(counts) => {

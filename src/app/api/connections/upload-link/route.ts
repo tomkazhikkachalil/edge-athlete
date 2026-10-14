@@ -11,7 +11,7 @@ import { isSupervisedProfile, mintUploadLink } from '@/lib/activities/connection
  * personal upload link (fix round part 3, PR 3 — the Apple Watch path).
  *
  * The link is a CAPABILITY: whoever holds it can add workouts to this
- * athlete's Vitals. So the raw token is returned ONCE, only its sha256 is
+ * athlete's Training. So the raw token is returned ONCE, only its sha256 is
  * stored, and calling this again replaces it — the old link stops at once
  * (`rotated: true`). Behind the moderation write gate (the link is a way to
  * create content) and refused for a supervised account (a standing delivery

@@ -215,7 +215,7 @@ those PRs collided on the DEVLOG's top entry — the second needed a rebase.
 
 **Sep 8–9 night — the Org Pages Program (#607–#612), COMPLETE and
 prod-proven.** Tom: "take the principles from how we polished up the
-Vitals section and apply them to the league and club pages … not enough
+Training section and apply them to the league and club pages … not enough
 media integration … connected back to the styling of the app." Five
 rounds, one PR each, every one merged by Tom and probed on production
 before the next opened; zero DDL; two routes added (baseline 257).
@@ -223,7 +223,7 @@ before the next opened; zero DDL; two routes added (baseline 257).
 (`side` prop) with a byte-identical DOM proof against production.
 **R2** #608 gave it the `.org-app-scope` dialect (the two shadow levels
 re-pointed, never `--brand`; `.ea-bubble` / `ea-pop-in` / `--ea-spring`
-lifted from Vitals) and a media hero — the site's logo, hero photo and
+lifted from Training) and a media hero — the site's logo, hero photo and
 accent ride the org GET as `brand`; a DRAFT site's brand shows for
 everyone (Tom's call; the bytes were already anonymous) with a "Site
 draft" pill for managers; a theme-readable text tint is derived per
@@ -243,7 +243,7 @@ topmost dialog). **R5** #611 added the members' posts wall on a new
 `withMedia=1`, members-only for a private org; supervised authors not
 additionally excluded, by decision). The close (#612) added CLAUDE.md
 convention 11 naming the house pieces. Left for later, on purpose: retire
-the `.vt-card` / `.vt-pop-in` aliases and the two vitals re-export shims;
+the `.tr-card` / `.tr-pop-in` aliases and the two vitals re-export shims;
 the all-day event date semantics on the Events face; logos in the public
 directories. Standing traps from the night (in session memory): the e2e
 global setup mints fresh QA users per run; a gate that stops at typecheck

@@ -43,7 +43,7 @@ import type { OrgPageController } from './useOrgPage';
 import type { MemberRow } from './types';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 
-// The glance grid — Org Pages R3 (Sep 8 2026), the Vitals principle applied
+// The glance grid — Org Pages R3 (Sep 8 2026), the Training principle applied
 // to the org page: every dense section lives behind a tappable bubble that
 // shows ONE big number and a sub-line; the bubble's "larger window" hosts
 // the existing section component UNCHANGED (with `bare`, so it brings no

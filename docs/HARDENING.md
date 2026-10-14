@@ -441,7 +441,7 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 3. **Compute.** The Supabase compute add-on (noted Oct 4, not pulled) is the one-click step when step 1 shows CPU or connections as the limit.
 4. **The limiter's own cost.** If writes dominate, move the shadow bucket to a sampled check (1 in N) or to an in-memory pre-filter before the RPC.
 
-Front end (Core Web Vitals on production, signed in, a Pixel 7 profile and an iPhone; DevTools-protocol throttling):
+Front end (Core Web Training on production, signed in, a Pixel 7 profile and an iPhone; DevTools-protocol throttling):
 
 | Page | Mid-range Android (4× CPU, 1.6 Mbps / 150 ms), cold | iPhone (WebKit, unthrottled) |
 | --- | --- | --- |

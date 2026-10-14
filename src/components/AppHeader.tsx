@@ -99,7 +99,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
   // Events program: the header's Create button opens a two-door sheet (Post | Event).
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   // Create → Record Activity → Start a workout: the SAME start path as
-  // Vitals' Start Workout (useStartWorkout) — the routine picker renders here.
+  // Training's Start Workout (useStartWorkout) — the routine picker renders here.
   const startWorkout = useStartWorkout(!!user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   // Orgs the user manages (phase 1) — LAZY on first menu open so the

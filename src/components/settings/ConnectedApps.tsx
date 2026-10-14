@@ -24,8 +24,8 @@ import {
  * whose programme has not admitted Edge Athlete yet says so and points at
  * the file import, which works for every watch.
  *
- * Nothing here posts to the feed: a delivered workout appears in Vitals and
- * the athlete shares it (the Vitals rule).
+ * Nothing here posts to the feed: a delivered workout appears in Training and
+ * the athlete shares it (the Training rule).
  */
 
 interface ConnectionsResponse {
@@ -128,7 +128,7 @@ export default function ConnectedApps() {
       <div>
         <h3 className="text-lg font-semibold text-primary mb-2">Connected apps</h3>
         <p className="text-tertiary text-sm">
-          Connect a watch or an app once and every workout it records shows up in your Vitals by
+          Connect a watch or an app once and every workout it records shows up in your Training by
           itself. Nothing is posted to your feed unless you share it.
         </p>
       </div>
@@ -260,7 +260,7 @@ export default function ConnectedApps() {
       <ConfirmModal
         isOpen={!!confirming}
         title={confirming ? `Disconnect ${confirming.label}?` : ''}
-        message="New workouts will stop arriving. The activities already in your Vitals stay."
+        message="New workouts will stop arriving. The activities already in your Training stay."
         confirmText="Disconnect"
         onConfirm={() => { if (confirming) void disconnect(confirming); }}
         onCancel={() => setConfirming(null)}
@@ -285,7 +285,7 @@ function ConnectResult() {
   if (connected && isConnectionProvider(connected)) {
     return (
       <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300" data-connect-result="connected">
-        {PROVIDER_DEFS[connected].label} is connected. Your recent workouts are on their way into your Vitals, and new ones
+        {PROVIDER_DEFS[connected].label} is connected. Your recent workouts are on their way into your Training, and new ones
         will arrive by themselves.
       </p>
     );
@@ -375,7 +375,7 @@ function UploadLink({
           </div>
           <p className="mt-2 text-xs text-tertiary">
             This is the only time the link is shown. Keep it to yourself: anyone who has it can add workouts to your
-            Vitals. If you lose it, make a new one.
+            Training. If you lose it, make a new one.
           </p>
         </div>
       )}

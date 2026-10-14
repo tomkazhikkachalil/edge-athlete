@@ -88,7 +88,7 @@ test('upload link: mint, deliveries (bridge JSON, GPX, FIT), one activity each, 
     expect(Date.parse(runA!.started_at)).toBe(RUN_A);
     expect(runA!.avg_hr).toBeGreaterThan(148);
     expect(Number(runA!.distance_m)).toBeGreaterThan(5300);
-    expect(runA!.post_id).toBeNull(); // it appears in Vitals; the athlete shares
+    expect(runA!.post_id).toBeNull(); // it appears in Training; the athlete shares
 
     // The app re-sends the same workout on its next sync: still one.
     const resent = await phone.post(link, { data: exportBody });
@@ -187,7 +187,7 @@ test('upload link: mint, deliveries (bridge JSON, GPX, FIT), one activity each, 
   }
 });
 
-test('Settings → Apple Watch: create the link, it is shown once, a delivery lands in Vitals @mobile', async ({ page }) => {
+test('Settings → Apple Watch: create the link, it is shown once, a delivery lands in Training @mobile', async ({ page }) => {
   test.skip(!tableThere, 'migration 247 not applied on this target');
   test.setTimeout(120_000);
   const alpha = loadQaUser('user.json');
@@ -253,9 +253,9 @@ test('Settings → Apple Watch: create the link, it is shown once, a delivery la
     await expect(watch.locator('#upload-link-url')).toBeVisible({ timeout: 20_000 });
     expect(await watch.locator('#upload-link-url').inputValue()).not.toBe(url);
 
-    // The workout is in Vitals — a session this week, not a feed post.
-    await page.goto('/athlete?tab=vitals');
-    await expect(page.locator('[data-vitals-recent-sessions] [data-session-kind="activity"]').first()).toBeVisible({ timeout: 20_000 });
+    // The workout is in Training — a session this week, not a feed post.
+    await page.goto('/athlete?tab=training');
+    await expect(page.locator('[data-training-recent-sessions] [data-session-kind="activity"]').first()).toBeVisible({ timeout: 20_000 });
     const { data: stored } = await admin.from('activities').select('post_id').eq('id', activityId).single();
     expect(stored!.post_id).toBeNull();
   } finally {

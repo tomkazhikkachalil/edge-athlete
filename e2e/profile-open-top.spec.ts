@@ -8,7 +8,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // owner's /athlete opened ~90 px down on a phone and ~200 px on a desktop.
 // The strip now moves itself only (`nearestScrollLeft`). Held on the owner's
 // page and the viewer route at desktop and phone width; the deep-link half
-// (?tab=vitals lands the tab in the strip) stays with vitals-mobile.spec.
+// (?tab=training lands the tab in the strip) stays with training-mobile.spec.
 
 /** The page must not move on its own for this long after load. */
 const SETTLE_MS = 3_000;

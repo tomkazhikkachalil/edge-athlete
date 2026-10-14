@@ -19,7 +19,7 @@ import { COPY } from '@/lib/copy';
 // in progress — a round being scored, a workout, a recording on this phone —
 // ask: Resume, Finish or Discard. Closing the app never ends anything; this
 // is the way back. Skipped on the screens that ARE the thing. It replaces the
-// feed's "Live round at …" banner and the Vitals workout banner (one door, at
+// feed's "Live round at …" banner and the Training workout banner (one door, at
 // the top of every page; the Drafts area is the second).
 
 export default function ReopenPromptHost() {

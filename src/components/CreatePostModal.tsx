@@ -55,7 +55,7 @@ interface CreatePostModalProps {
   /** Create → Sport (Oct 13 2026): open with the Select Sport picker already
    *  showing. Closing the picker without a pick leaves a General post. */
   openSportPicker?: boolean;
-  /** Cross-cutting category stamped on the created post (077) — the vitals
+  /** Cross-cutting category stamped on the created post (077) — the Training
    *  tab passes 'training'. Not user-editable in the composer. */
   defaultPostCategory?: 'training';
 }
@@ -854,7 +854,7 @@ export default function CreatePostModal({
             ? statLineData
             : undefined,
         taggedProfiles: taggedProfiles, // Add tagged people
-        // Cross-cutting category (077) — e.g. the vitals tab's training posts.
+        // Cross-cutting category (077) — e.g. the Training tab's training posts.
         ...(defaultPostCategory ? { postCategory: defaultPostCategory } : {}),
         // Guardian-profiles: post to the acting-as athlete's profile.
         // Server re-authorizes (guardian row + approved consent).

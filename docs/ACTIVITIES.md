@@ -20,8 +20,8 @@ and the pages `/activities/record` and `/activities/[id]`.
 - ~~**Apple Watch uses file export for now**~~ — withdrawn with the file import. A companion iOS app is the plan.
 - **Route privacy.** Everyone except the owner sees the route with its **first and last ~200 m trimmed**. On a **supervised** athlete, only the athlete and their guardians see the map; everyone else gets the stats and charts with no position at all.
 - **The map is a framed picture (Oct 9 2026, `src/lib/activities/route-frame.ts`).** The activity page's Leaflet map lives inside a box around the route — padded 25 % each side, at least 400 m across — and stops at its edge (`maxBounds`, viscosity 1); zooming out stops where that box fills the container, zooming in at street level (17); there is no zoom control (a "Fit route" button instead), no scroll-wheel zoom, and Leaflet has no rotation. **The box is computed on the client from the stream the viewer was given**, never stored: a box stored from the owner's full route would hand every viewer the extent of the trimmed ends. Under Save-Data / reduced-data the page shows the route's line drawing (the feed's picture) until the viewer asks for the map. The feed card itself never mounts a map.
-- **The feed is the athlete's choice.** A recording lands in the athlete's Vitals, and the athlete taps **Share to feed** (or Post it on the recorder's review).
-- **Activities are part of Vitals (Oct 1 2026).** They were their own profile tab; see "Inside Vitals" below.
+- **The feed is the athlete's choice.** A recording lands in the athlete's Training, and the athlete taps **Share to feed** (or Post it on the recorder's review).
+- **Activities are part of Training (Oct 1 2026).** They were their own profile tab; see "Inside Training" below.
 - **FIT decoding uses Garmin's official `@garmin/fitsdk`**, server-side only (see the license note below).
 
 ## The entity
@@ -81,31 +81,31 @@ parties. A browser bundle would ship its source to every visitor, so:
 
 Every response is `private, no-store`, since it is viewer-dependent (the edge-cache trap).
 
-## Inside Vitals (Oct 1 2026)
+## Inside Training (Oct 1 2026)
 
-Tom: the watch integration "was supposed to be a part of the Vitals app". Until
-then Vitals counted one thing — a completed gym workout — and an imported run
+Tom: the watch integration "was supposed to be a part of the Training app". Until
+then Training counted one thing — a completed gym workout — and an imported run
 moved no weekly bar, no streak, no active day.
 
-- **One session shape.** `src/lib/vitals/session-math.ts` `VitalsSession` is a
+- **One session shape.** `src/lib/training/session-math.ts` `TrainingSession` is a
   completed workout or an activity; `sessionsWeeklySummary`, `sessionsStreakWeeks`,
   `sessionsActiveDays` and `sessionsWeeklyBars` are the ONE week rule. The
   workout-only helpers (`weeklySummary`, `streakWeeks`, `activeDaysThisWeek`,
-  `weeklyBars`) delegate to them. `src/lib/vitals/sessions.ts mergeSessions` is
-  what `VitalsTab` renders from.
+  `weeklyBars`) delegate to them. `src/lib/training/sessions.ts mergeSessions` is
+  what `TrainingTab` renders from.
 - **The read.** `GET /api/profile/[profileId]/activities?sessions=1` answers the
   last year as `{ id, type, name, startedAt, elapsedS, movingS, distanceM }` —
   no route, no heart rate. The page form (the Activities section's list) is
   unchanged.
-- **Vitals privacy applies to the LISTING.** An athlete who hides Vitals, or its
+- **Training privacy applies to the LISTING.** An athlete who hides Training, or its
   Workouts aspect, hides both forms of that read from everyone but themselves and
   their guardians (`hidden: true`). A single activity's page keeps the activity
   gate alone, so a post the athlete shared still opens.
 - **The tab is gone; the link is not.** `?tab=activities` (the import page, the
-  activity screen and shared links use it) opens Vitals at its Activities section
+  activity screen and shared links use it) opens Training at its Activities section
   on both profile routes (`ProfileMediaTabs.tsx parseProfileTab`, `u/[username]`).
 - **A shared activity is a training post** (`post_category: 'training'`, set by
-  the posts route), so it lists under Vitals → Training Activity like a shared
+  the posts route), so it lists under Training → Training Activity like a shared
   workout.
 
 ## Share to feed
@@ -123,7 +123,7 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 | `POST /api/activities` | write gate · `activity-import` bucket (60/h; the key kept its name) · acting gate | the recorder's live payload only (Oct 13 2026); 201 new / 200 `duplicate: true` |
 | `GET /api/activities/[id]` | the one gate | the detail projection + the athlete's name / handle |
 | `PATCH` / `DELETE /api/activities/[id]` | owner audience | name, type, Only me (refused while on the feed); delete takes the stream and the post |
-| `GET /api/profile/[profileId]/activities` | the one gate, then the Vitals privacy aspect for a viewer | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals; `?sessions=1` = the Vitals week maths' read |
+| `GET /api/profile/[profileId]/activities` | the one gate, then the Training privacy aspect for a viewer | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals; `?sessions=1` = the Training week maths' read |
 
 | `GET /api/connections` | session (own rows) | one entry per provider; `supported`, `ready`, `supervised` |
 | `DELETE /api/connections/[provider]` | session · `connection-write` bucket | the row goes, the activities stay; not write-gated on purpose |
@@ -145,9 +145,9 @@ The recorder's route, the link's mint, the inbound route and Polar's two connect
 
 ## Connected apps (Oct 1 2026, mig 247)
 
-> **PAUSED Oct 2 2026 (Tom) — built, tested, HIDDEN IN PRODUCTION.** The surface flag is off there; it stays on in CI, Preview and locally. Watch connections return with the native apps — `docs/ROADMAP_2026-10.md`. Activities inside Vitals and the file import are not part of the pause.
+> **PAUSED Oct 2 2026 (Tom) — built, tested, HIDDEN IN PRODUCTION.** The surface flag is off there; it stays on in CI, Preview and locally. Watch connections return with the native apps — `docs/ROADMAP_2026-10.md`. Activities inside Training and the file import are not part of the pause.
 
-Tom: *"You're supposed to connect permanently so anything you do with your smart watch will then populate on the app … you connect to the applications in settings."* A **connection** is a watch or an app the athlete links ONCE in Settings → Connected apps (`/settings?tab=connections`); every workout it records then arrives by itself, lands in Vitals, and is shared only when the athlete taps Share.
+Tom: *"You're supposed to connect permanently so anything you do with your smart watch will then populate on the app … you connect to the applications in settings."* A **connection** is a watch or an app the athlete links ONCE in Settings → Connected apps (`/settings?tab=connections`); every workout it records then arrives by itself, lands in Training, and is shared only when the athlete taps Share.
 
 **The table.** `activity_connections` (247, posture A): one row per athlete per source — `provider`, `status` (`active | revoked | error`), `provider_user_id` (how a webhook finds the row), `secret_ciphertext` (the OAuth tokens, sealed by the app), `token_hash` (the personal upload link, sha256 — the calendar feed token's shape), `connected_at`, `last_sync_at`, `last_error`. Classified `goes`; the deletion engine removes it by name. Disconnecting **deletes the row**; the activities it delivered stay — they are the athlete's.
 
@@ -159,7 +159,7 @@ Tom: *"You're supposed to connect permanently so anything you do with your smart
 | `polar` | Polar AccessLink: self-serve OAuth, webhooks, FIT download. | **live** once the deployment holds Polar's client id + secret and the sealing key; until then the card reads "Coming soon" |
 | `wahoo` · `coros` · `suunto` | Open after the provider's own review. | applying |
 | `garmin` · `google_health` | Closed to new developers for now (Garmin's programme is paused; the Fitbit Web API switches off Oct 30 2026 and Google is not onboarding new projects to its replacement). | closed |
-| Strava | **Left out (Tom).** Its API agreement (effective Jun 1 2026) lets an athlete's data be shown only to that athlete, kept at most seven days, and never combined into our dataset — a permanent Vitals history and a shareable post are not possible under it. | — |
+| Strava | **Left out (Tom).** Its API agreement (effective Jun 1 2026) lets an athlete's data be shown only to that athlete, kept at most seven days, and never combined into our dataset — a permanent Training history and a shareable post are not possible under it. | — |
 
 **The rules, each with its owner:**
 - **No response ever carries a secret.** `connections-server.ts` is the ONE reader and writer; its reader names the five display columns; `connections.ts projectConnections` builds the screen's entry key by key (a test serialises a too-wide row).
@@ -167,7 +167,7 @@ Tom: *"You're supposed to connect permanently so anything you do with your smart
 - **One activity, however many times it arrives** (`dedupe.ts`, applied by `importActivity`): the same source delivering the same id refreshes the row (the 245 rule); ANY delivery whose start is within 60 s of an activity the athlete already has, with a duration within 10%, IS that activity — the row keeps the identity of whoever delivered it first and its data is replaced only when the newcomer is richer (it has the route, or the heart rate, the first lacked).
 - **A supervised athlete cannot hold a connection** (the calendar feed link's rule: a standing delivery nobody in the guardian console can see). A guardian still imports files. A guardian connecting on an athlete's behalf is a later decision.
 - **Disconnect is not behind the moderation write gate** — withdrawing a standing delivery is always allowed.
-- **`NEXT_PUBLIC_FEATURE_CONNECTED_APPS`** is a SURFACE switch (the tab and its two entry points: the Vitals Activities section and the import screen). The routes answer for themselves: `GET /api/connections` says `supported` (247 has run), `ready` (the key is set) and `supervised`.
+- **`NEXT_PUBLIC_FEATURE_CONNECTED_APPS`** is a SURFACE switch (the tab and its two entry points: the Training Activities section and the import screen). The routes answer for themselves: `GET /api/connections` says `supported` (247 has run), `ready` (the key is set) and `supervised`.
 
 ### The personal upload link (the Apple Watch path)
 
@@ -176,7 +176,7 @@ Apple has no web or server API for Health data, so something must run on the iPh
 - **Mint / replace**: `POST /api/connections/upload-link` (write-gated; refused for a supervised account). The raw token (256 random bits) is returned ONCE as `…/api/activities/inbound/<token>?tz=<their zone>`; only its sha256 is stored. Calling it again REPLACES the hash (`rotated: true`) — the old link stops at once; the connection's history stays.
 - **Deliver**: `POST /api/activities/inbound/[token]` — **no session by design** (a phone's automation has none; the route is in `PUBLIC_ROUTES` with its reason). The token is the authorization; an unknown, replaced, malformed or supervised link is ONE 404; a limited / suspended / banned account is refused by the write gate applied to the account the token names; an IP bucket (before the lookup) and a per-link bucket (after it) bound the cost.
 - **What it takes** (`inbound-server.ts readInbound` — the body is SNIFFED, never trusted to its Content-Type): the bridge app's workout JSON (`adapters/health-export.ts` — v2, and v1's `lat` / `lon` / `qty` shapes), or a raw `.fit` / `.gpx` / `.tcx` (also as the first file of a multipart form — a Shortcut or a script can send the file a watch exports).
-- **The adapter is pure and never guesses**: a timestamp without an offset is refused (a guessed zone moves the workout by hours); Apple's workout NAMES map through an explicit list (a "Stair Climbing" is not a climb) and anything unknown is `other`, which Vitals still counts as a session; unknown units are dropped; the route is the timeline and each fix takes the nearest heart-rate sample; with no route the heart rate is the timeline; a bare workout is its start and end. `NormalizedActivity.format` is null (it never was a file).
+- **The adapter is pure and never guesses**: a timestamp without an offset is refused (a guessed zone moves the workout by hours); Apple's workout NAMES map through an explicit list (a "Stair Climbing" is not a climb) and anything unknown is `other`, which Training still counts as a session; unknown units are dropped; the route is the timeline and each fix takes the nearest heart-rate sample; with no route the heart rate is the timeline; a bare workout is its start and end. `NormalizedActivity.format` is null (it never was a file).
 - **Every delivery goes through the ONE writer** as `source: 'upload_link'` with the workout's own id — the server recomputes the totals, refuses the implausible, trims a viewer's route, and the duplicate rule keeps one activity however often the app re-sends it (or the athlete imports the same file by hand).
 - **The answer**: `200 { received, imported, duplicates, refused, skipped }` whenever the body was READ (a bridge app retries a non-2xx, and an implausible workout will not improve on a retry); `413 / 415 / 422` when the body itself is not something the link takes — that marks the connection `error` with the reason, and the next good delivery heals it. A read delivery stamps `last_sync_at`, even an empty one.
 - **Honest limits, said on the card**: the bridge app is another company's and may charge for automations; iOS lets it read Health data only while the iPhone is unlocked, so a workout arrives the next time the phone is used. No QR code: it would need a new dependency (none without approval) — the athlete opens Settings on the iPhone and taps Copy.
@@ -273,7 +273,7 @@ superseded for the web app.
   closed", `data-record-gap-note`) and a **dashed bridge on the map**
   (`route-gaps.ts gapBetween` / `splitAtGaps`: the solid line is one run per
   tracked stretch). The reopen prompt, the Drafts page and the pill read the
-  one engine (`drafts/recording-like.ts`); the Vitals recording banner is
+  one engine (`drafts/recording-like.ts`); the Training recording banner is
   gone. Only the athlete's own Pause pauses.
 - **The screen** (`src/components/activities/record/`): the grouped picker,
   the live numbers (distance, the last-30 s pace, average pace, elevation,
@@ -332,7 +332,7 @@ superseded for the web app.
   the span lights up on the route and shades the charts; the owner's form
   edits name, type, notes and the segments (m:ss; refused by name in the form
   before the PATCH), adds / re-edits / removes photos. The feed card gains "1
-  segment · 1 photo · ~N steps (est.)". The doors: Vitals' **Record Activity**
+  segment · 1 photo · ~N steps (est.)". The doors: Training's **Record Activity**
   pill (+ `RecordingResumeBanner`), the Activities section's link, the header's
   Create sheet ("Record an activity" / "Import an activity") and the drawer.
 

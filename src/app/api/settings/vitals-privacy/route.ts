@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
+import { parseTrainingPrivacy } from '@/lib/training-privacy';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
- * PATCH /api/settings/vitals-privacy — save the caller's OWN vitals
+ * PATCH /api/settings/vitals-privacy — save the caller's OWN training privacy
  * privacy (profiles.vitals_privacy, migration 122). The whole body passes
- * through parseVitalsPrivacy: unknown keys and invalid values are silently
+ * through parseTrainingPrivacy: unknown keys and invalid values are silently
  * dropped, so the stored JSON is always in-contract (the theme_prefs
  * route's pattern).
  *
@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid privacy body' }, { status: 400 });
     }
 
-    const privacy = parseVitalsPrivacy(body);
+    const privacy = parseTrainingPrivacy(body);
     const admin = getSupabaseAdmin();
     const { error } = await admin
       .from('profiles')
@@ -33,13 +33,13 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id);
 
     if (error) {
-      reportRouteError('Vitals privacy update error:', error);
+      reportRouteError('Training privacy update error:', error);
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
 
-    return NextResponse.json({ vitalsPrivacy: privacy });
+    return NextResponse.json({ trainingPrivacy: privacy });
   } catch (error) {
-    reportRouteError('Vitals privacy PATCH error:', error);
+    reportRouteError('Training privacy PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
   }
 }

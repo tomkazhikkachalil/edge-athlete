@@ -18,7 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProfileRole } from '@/lib/auth-server';
 import { hiddenAuthorsFor } from '@/lib/mutes';
 import { canViewProfile } from '@/lib/privacy';
-import type { ActivitySession } from '@/lib/vitals/sessions';
+import type { ActivitySession } from '@/lib/training/sessions';
 import { isActivityType } from './catalog';
 import { mondayOf, weeklyTotals, type WeekTotal } from './totals';
 import type { ActivityStream } from './types';
@@ -105,13 +105,13 @@ export function decodeCursor(c: string | null): { startedAt: string; id: string 
   }
 }
 
-/** How far back Vitals reads activity sessions (its weekly overlay shows 12
+/** How far back Training reads activity sessions (its weekly overlay shows 12
  *  weeks; the streak walks back until a gap). */
 export const SESSIONS_WEEKS = 52;
 const SESSIONS_MAX = 500;
 
 /**
- * The profile's recent activities as VITALS SESSIONS — id, type, name, start
+ * The profile's recent activities as TRAINING SESSIONS — id, type, name, start
  * and the three numbers the week maths needs, nothing else (no route, no
  * heart rate). Newest first. "Only me" is the owner's, as everywhere.
  */

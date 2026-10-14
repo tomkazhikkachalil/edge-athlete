@@ -185,7 +185,7 @@ export default function RecordActivityScreen() {
         else if (posted.pendingApproval) showSuccess('Sent for approval');
         else showSuccess(sport ? `Posted as a ${getSportDefinition(sport).display_name} result` : 'Posted', whoSeesPost(accountVisibility));
       } else {
-        showSuccess('Saved — only you can see it', 'It is in your Vitals, not on the feed.');
+        showSuccess('Saved — only you can see it', 'It is in your Training, not on the feed.');
       }
       router.push(`/activities/${json.id}`);
     } catch (e) {

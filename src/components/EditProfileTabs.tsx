@@ -64,7 +64,7 @@ interface EditProfileTabsProps {
  * fine and rendered a blank tab. Widening the type is what makes the
  * fallthrough visible to TypeScript instead of silent.
  */
-type TabId = 'basic' | 'vitals' | 'socials' | 'recruiting' | SportKey;
+type TabId = 'basic' | 'body_metrics' | 'socials' | 'recruiting' | SportKey;
 
 interface TabConfig {
   id: TabId;
@@ -78,7 +78,9 @@ interface TabConfig {
 const generateTabs = (): TabConfig[] => {
   const baseTabs: TabConfig[] = [
     { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
-    { id: 'vitals', label: 'Vitals', icon: 'fas fa-chart-line', enabled: true },
+    // Height, weight, grad year… — "Body Metrics" since Oct 14 2026 (it was
+    // "Training"; Training is the workouts + activities section).
+    { id: 'body_metrics', label: 'Body Metrics', icon: 'fas fa-chart-line', enabled: true },
     { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt', enabled: true },
     // Recruiting: the one gate + school / GPA / notes. Shown only to a
     // guardian acting as a supervised athlete (Oct 4 2026) — the athlete's
@@ -160,7 +162,7 @@ export default function EditProfileTabs({
   // (caught on WebKit by e2e/edit-profile.spec.ts, Sep 30 2026).
   const [sportsLoaded, setSportsLoaded] = useState(false);
 
-  const [vitalsForm, setVitalsForm] = useState(() => formsFromProfile(null).vitals);
+  const [bodyMetricsForm, setBodyMetricsForm] = useState(() => formsFromProfile(null).bodyMetrics);
 
   const [socialsForm, setSocialsForm] = useState(() => formsFromProfile(null).socials);
 
@@ -195,7 +197,7 @@ export default function EditProfileTabs({
     if (shouldSeed(syncedSeed, seedKey)) {
       const loaded = formsFromProfile(profile);
       setBasicForm(loaded.basic);
-      setVitalsForm(loaded.vitals);
+      setBodyMetricsForm(loaded.bodyMetrics);
       setSocialsForm(loaded.socials);
       setRecruitingForm(loaded.recruiting);
       setAcademicsReady(!actingAs);
@@ -230,7 +232,7 @@ export default function EditProfileTabs({
   const serializeGroup = {
     basic: () => JSON.stringify({ ...basicForm, avatar_file: basicForm.avatar_file?.name ?? null }),
     sports: () => JSON.stringify(selectedSports),
-    vitals: () => JSON.stringify(vitalsForm),
+    bodyMetrics: () => JSON.stringify(bodyMetricsForm),
     socials: () => JSON.stringify(socialsForm),
     recruiting: () => JSON.stringify(recruitingForm),
   } as const;
@@ -339,7 +341,7 @@ export default function EditProfileTabs({
   // just applied.
   useEffect(() => {
     snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
-    snapRef.current.vitals = JSON.stringify(vitalsForm);
+    snapRef.current.bodyMetrics = JSON.stringify(bodyMetricsForm);
     snapRef.current.socials = JSON.stringify(socialsForm);
     snapRef.current.recruiting = JSON.stringify(recruitingForm);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the seed, not on every keystroke
@@ -398,7 +400,7 @@ export default function EditProfileTabs({
     setIsSubmitting(true);
     setErrors({});
 
-    // Vitals only: the viewer's local day, sent beside the payload when a
+    // Body Metrics only: the viewer's local day, sent beside the payload when a
     // height or weight changed (the server appends the timeline entry).
     let measuredOn: string | undefined;
 
@@ -506,18 +508,18 @@ export default function EditProfileTabs({
           hasChanges = true;
           break;
 
-        case 'vitals':
-          // Save vitals data
+        case 'body_metrics':
+          // Save body metrics
           // Validate height
-          const heightValidation = validateHeight(vitalsForm.height_cm);
-          if (vitalsForm.height_cm.trim() && heightValidation.error) {
+          const heightValidation = validateHeight(bodyMetricsForm.height_cm);
+          if (bodyMetricsForm.height_cm.trim() && heightValidation.error) {
             throw new Error(`Height: ${heightValidation.error}`);
           }
           
           // Save weight display value exactly as entered
           let weightDisplay: number | undefined;
-          if (vitalsForm.weight_kg && vitalsForm.weight_kg.trim()) {
-            weightDisplay = parseFloat(vitalsForm.weight_kg);
+          if (bodyMetricsForm.weight_kg && bodyMetricsForm.weight_kg.trim()) {
+            weightDisplay = parseFloat(bodyMetricsForm.weight_kg);
             // Save weight with unit
             if (isNaN(weightDisplay) || weightDisplay <= 0) {
               throw new Error(`Please enter a valid weight`);
@@ -530,33 +532,33 @@ export default function EditProfileTabs({
           // Height and weight are sent only when their INPUT changed from
           // the loaded / last-saved value: an untouched 5'10" would otherwise
           // round-trip through centimetres on every save, and the server
-          // adds a Vitals-timeline entry for each value it is sent that
+          // adds a body-metrics timeline entry for each value it is sent that
           // differs from the stored one.
-          const loadedVitals = snapRef.current.vitals
-            ? (JSON.parse(snapRef.current.vitals) as typeof vitalsForm)
+          const loadedBodyMetrics = snapRef.current.bodyMetrics
+            ? (JSON.parse(snapRef.current.bodyMetrics) as typeof bodyMetricsForm)
             : null;
-          const heightChanged = !loadedVitals || loadedVitals.height_cm !== vitalsForm.height_cm;
+          const heightChanged = !loadedBodyMetrics || loadedBodyMetrics.height_cm !== bodyMetricsForm.height_cm;
           const weightChanged =
-            !loadedVitals ||
-            loadedVitals.weight_kg !== vitalsForm.weight_kg ||
-            loadedVitals.weight_unit !== vitalsForm.weight_unit;
+            !loadedBodyMetrics ||
+            loadedBodyMetrics.weight_kg !== bodyMetricsForm.weight_kg ||
+            loadedBodyMetrics.weight_unit !== bodyMetricsForm.weight_unit;
           if (heightChanged || weightChanged) measuredOn = localDayKey(new Date());
 
           // Empty strings intentional — server converts '' to null (clears)
           updateData = {
             ...(heightChanged ? { height_cm: heightValidation.value ?? '' } : {}),
             ...(weightChanged
-              ? { weight_display: weightDisplay ?? '', weight_unit: vitalsForm.weight_unit || 'lbs' }
+              ? { weight_display: weightDisplay ?? '', weight_unit: bodyMetricsForm.weight_unit || 'lbs' }
               : {}),
-            dob: vitalsForm.dob || '',
-            location: vitalsForm.location.trim(),
+            dob: bodyMetricsForm.dob || '',
+            location: bodyMetricsForm.location.trim(),
             // A picked place writes the structured columns (names + ISO
             // codes + coords); free text clears them so search never keeps
             // a stale city behind an edited string.
-            ...placeToProfileFields(vitalsForm.place),
-            class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : '',
+            ...placeToProfileFields(bodyMetricsForm.place),
+            class_year: bodyMetricsForm.class_year ? parseInt(String(bodyMetricsForm.class_year)) : '',
           };
-          // Update vitals in database
+          // Update body metrics in database
           hasChanges = true;
           break;
 
@@ -686,13 +688,13 @@ export default function EditProfileTabs({
         saved = true;
 
         // Only the SAVED tab's group becomes clean. This used to refresh all
-        // three snapshots, so saving Vitals marked unsaved Basic edits as
+        // three snapshots, so saving Training marked unsaved Basic edits as
         // saved and the modal closed on them without asking.
         if (tabId === 'basic') {
           snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
           snapRef.current.sports = serializeGroup.sports();
-        } else if (tabId === 'vitals') {
-          snapRef.current.vitals = serializeGroup.vitals();
+        } else if (tabId === 'body_metrics') {
+          snapRef.current.bodyMetrics = serializeGroup.bodyMetrics();
         } else if (tabId === 'socials') {
           snapRef.current.socials = serializeGroup.socials();
         }
@@ -1086,7 +1088,7 @@ export default function EditProfileTabs({
     </div>
   );
 
-  const renderVitalsTab = () => (
+  const renderBodyMetricsTab = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -1096,8 +1098,8 @@ export default function EditProfileTabs({
           <input
             id="height"
             type="text"
-            value={vitalsForm.height_cm || ''}
-            onChange={(e) => setVitalsForm(prev => ({ ...prev, height_cm: e.target.value }))}
+            value={bodyMetricsForm.height_cm || ''}
+            onChange={(e) => setBodyMetricsForm(prev => ({ ...prev, height_cm: e.target.value }))}
             className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="5'10&quot;, 5 10, 510, or 5.10"
           />
@@ -1115,17 +1117,17 @@ export default function EditProfileTabs({
               id="weight"
               type="number"
               step="0.1"
-              value={vitalsForm.weight_kg || ''}
-              onChange={(e) => setVitalsForm(prev => ({ ...prev, weight_kg: e.target.value }))}
+              value={bodyMetricsForm.weight_kg || ''}
+              onChange={(e) => setBodyMetricsForm(prev => ({ ...prev, weight_kg: e.target.value }))}
               className="flex-1 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              placeholder={vitalsForm.weight_unit === 'kg' ? '68' : vitalsForm.weight_unit === 'stone' ? '11.7' : '150'}
+              placeholder={bodyMetricsForm.weight_unit === 'kg' ? '68' : bodyMetricsForm.weight_unit === 'stone' ? '11.7' : '150'}
             />
             <select
-              value={vitalsForm.weight_unit}
+              value={bodyMetricsForm.weight_unit}
               onChange={(e) => {
                 const newUnit = e.target.value as 'lbs' | 'kg' | 'stone';
                 // Just change the unit, don't convert the value
-                setVitalsForm(prev => ({ 
+                setBodyMetricsForm(prev => ({ 
                   ...prev, 
                   weight_unit: newUnit
                 }));
@@ -1138,8 +1140,8 @@ export default function EditProfileTabs({
             </select>
           </div>
           <p className="mt-1 text-xs text-muted">
-            {vitalsForm.weight_unit === 'stone' ? 'Enter as stone.pounds (e.g., 11.7 = 11 stone 7 lbs)' : 
-             vitalsForm.weight_unit === 'kg' ? 'Enter weight in kilograms' : 
+            {bodyMetricsForm.weight_unit === 'stone' ? 'Enter as stone.pounds (e.g., 11.7 = 11 stone 7 lbs)' : 
+             bodyMetricsForm.weight_unit === 'kg' ? 'Enter weight in kilograms' : 
              'Enter weight in pounds'}
           </p>
         </div>
@@ -1152,8 +1154,8 @@ export default function EditProfileTabs({
         <input
           id="dob"
           type="date"
-          value={vitalsForm.dob || ''}
-          onChange={(e) => setVitalsForm(prev => ({ ...prev, dob: e.target.value }))}
+          value={bodyMetricsForm.dob || ''}
+          onChange={(e) => setBodyMetricsForm(prev => ({ ...prev, dob: e.target.value }))}
           className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
         />
       </div>
@@ -1164,9 +1166,9 @@ export default function EditProfileTabs({
         </label>
         <PlacePicker
           id="location"
-          value={vitalsForm.place}
-          text={vitalsForm.location || ''}
-          onChange={(place, text) => setVitalsForm(prev => ({ ...prev, place, location: text }))}
+          value={bodyMetricsForm.place}
+          text={bodyMetricsForm.location || ''}
+          onChange={(place, text) => setBodyMetricsForm(prev => ({ ...prev, place, location: text }))}
           placeholder="City, State"
         />
       </div>
@@ -1180,8 +1182,8 @@ export default function EditProfileTabs({
           type="number"
           min="2020"
           max="2040"
-          value={vitalsForm.class_year || ''}
-          onChange={(e) => setVitalsForm(prev => ({ ...prev, class_year: e.target.value }))}
+          value={bodyMetricsForm.class_year || ''}
+          onChange={(e) => setBodyMetricsForm(prev => ({ ...prev, class_year: e.target.value }))}
           className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="2025"
         />
@@ -1310,8 +1312,8 @@ export default function EditProfileTabs({
     switch (activeTab) {
       case 'basic':
         return renderBasicTab();
-      case 'vitals':
-        return renderVitalsTab();
+      case 'body_metrics':
+        return renderBodyMetricsTab();
       case 'socials':
         return renderSocialsTab();
       case 'recruiting':

@@ -23,9 +23,9 @@
 **A feature or fix is not complete until it works at phone width as well as desktop.**
 There is no separate mobile app: "mobile" means small-viewport rendering of the same
 pages, so parity is a verification duty, not a porting task. Standing rule (Tom,
-Aug 2026), prompted by the Vitals redesign shipping "invisible" on phones — the
-components were identical at every width, but the Vitals tab sat off-screen in the
-profile tab scroller and `/u/` (where most profile links land) had no Vitals at all.
+Aug 2026), prompted by the Training redesign shipping "invisible" on phones — the
+components were identical at every width, but the Training tab sat off-screen in the
+profile tab scroller and `/u/` (where most profile links land) had no Training at all.
 The lessons generalize:
 
 - **Every round's verification includes a phone-width (~375px) pass of the touched
@@ -161,6 +161,10 @@ Tom's spec: ONE Create menu — the header button, the phone drawer's "Create" r
 3. **Event** (`fa-flag-checkered`, `data-create-event`) — the wizard at `/sports/events/new`, as before.
 4. **Record Activity** (`fa-stopwatch`, `data-create-record-activity`) — a SECOND STEP in the same window (`data-create-step="record"`, Back = `data-create-back`): **Start a workout** (`fa-dumbbell`, `data-create-workout`) and **Record activity** (`fa-person-walking`, `data-create-recording`). The icons are the resume pill's (`PILL_KIND_ICON`).
 
-**One start path.** `src/hooks/useStartWorkout.ts` is the ONE way a live workout starts — lifted verbatim from Vitals: `POST /api/workouts { mode: 'live', routineId? }`, 409 → resume the session in progress, `refreshDrafts()` so the pill and the Drafts count learn it, `/app/workout/<id>`; with saved routines `open()` shows `StartWorkoutSheet` (the caller renders it — Vitals and the header both do). Vitals' Start Workout and Create → Start a workout call the same hook, so the screen, the timer, the autosave, the resume pill and the summary are identical by construction (`e2e/activities-doors.spec.ts` proves it). Record activity is `router.push('/activities/record')` in both places. `sessions-pill.test.ts` holds the hook to `refreshDrafts()`.
+**One start path.** `src/hooks/useStartWorkout.ts` is the ONE way a live workout starts — lifted verbatim from Training: `POST /api/workouts { mode: 'live', routineId? }`, 409 → resume the session in progress, `refreshDrafts()` so the pill and the Drafts count learn it, `/app/workout/<id>`; with saved routines `open()` shows `StartWorkoutSheet` (the caller renders it — Training and the header both do). Training's Start Workout and Create → Start a workout call the same hook, so the screen, the timer, the autosave, the resume pill and the summary are identical by construction (`e2e/activities-doors.spec.ts` proves it). Record activity is `router.push('/activities/record')` in both places. `sessions-pill.test.ts` holds the hook to `refreshDrafts()`.
 
 **Import Activity is gone** (PR 1 of the redesign): no door, no page, no `.FIT` route, no copy — see `activities.md` (Oct 13 2026).
+
+## Vitals is Training; Edit Profile's Vitals is Body Metrics (Oct 14 2026, zero DDL)
+
+Tom: the name no longer fit — the section is where workouts and activities are logged. The profile tab is **Training** (key `training`; `?tab=vitals` and `?tab=activities` are aliases, so every old link keeps working — `VITALS_TAB_ALIAS` / `ACTIVITIES_TAB_ALIAS` in `ProfileMediaTabs`, the same two in the `/u/` parser), its code is `TrainingTab.tsx` + `src/components/training/*` + `src/lib/training/*` + `training-privacy*.ts`, its dialect scope is `.tr-scope` (the `.tr-*` motion classes; the two shadow levels unchanged), its hooks `data-training-*`. The measurements (height, weight, grad year) are **Body Metrics**: `body-metrics-config.ts`, `AddBodyMetricModal`, `BodyMetricTrendChart`, Edit Profile tab `body_metrics` ("Save Body Metrics"). **What never renames:** the database (`athlete_vitals`, `profiles.vitals_privacy`), the API (`/api/vitals*`, `/api/settings/vitals-privacy`), the payload fields (`counts.vitals`, `data.vitals`, `vitalsPrivacy`, `currentVitals`, the stored type `vitals_entry`, the media token) — `src/lib/__tests__/training-rename.test.ts` allows exactly those forms and nothing else.

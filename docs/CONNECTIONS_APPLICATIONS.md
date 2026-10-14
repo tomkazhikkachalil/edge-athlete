@@ -10,10 +10,10 @@ What every application will ask, with our answers:
 
 | They ask | Our answer |
 |---|---|
-| Product | **Edge Athlete** — a multi-sport athlete network: profiles, performance stats and training history ("Vitals"), teams, clubs and leagues. Web app at `https://edgeathlete.ca` (mobile-first; no native app yet). |
-| What we do with the data | Read-only. A workout the athlete records appears in THEIR Vitals (training history, weekly totals, streak). It is shown to the people who can already see their profile, and reaches the feed only when the athlete taps Share. |
+| Product | **Edge Athlete** — a multi-sport athlete network: profiles, performance stats and training history ("Training"), teams, clubs and leagues. Web app at `https://edgeathlete.ca` (mobile-first; no native app yet). |
+| What we do with the data | Read-only. A workout the athlete records appears in THEIR Training (training history, weekly totals, streak). It is shown to the people who can already see their profile, and reaches the feed only when the athlete taps Share. |
 | Data we request | Completed workouts / activities only: the summary and the FIT file (time, distance, heart rate, GPS route). No sleep, no daily health metrics, no write access. |
-| Consent | The athlete connects from Settings and is told, before leaving for the provider, that workouts will appear in their Vitals where people who can see their profile can see them. Disconnect is one tap; it revokes at the provider and deletes the token. |
+| Consent | The athlete connects from Settings and is told, before leaving for the provider, that workouts will appear in their Training where people who can see their profile can see them. Disconnect is one tap; it revokes at the provider and deletes the token. |
 | Privacy | The route's first and last 200 m are hidden from everyone but the athlete; a supervised (under-age) athlete cannot connect at all; "Only me" per activity; account deletion removes activities and GPS streams. |
 | Security | Provider tokens are encrypted at rest (AES-256-GCM, key outside the database); webhooks are verified by signature; no token ever reaches a browser. |
 | Attribution | Every activity is credited to its source in plain words ("Recorded with …"), no logo unless the provider grants one. |
@@ -33,7 +33,7 @@ URLs to register (the routes follow Polar's shape and are built when access is g
 - **Scopes to request:** `user_read`, `workouts_read`, `offline_data` (the last one is what makes the `workout_summary` webhook fire).
 - **Paste as the description:**
 
-  > Edge Athlete is a multi-sport athlete network (edgeathlete.ca). Athletes keep their training history in a section called Vitals. We would like athletes who ride or run with Wahoo devices to connect their Wahoo account once, so each completed workout appears in their own Vitals automatically. We read completed workout summaries and their FIT files only (via the workout_summary webhook and the workouts endpoints); we do not write to Wahoo. Workouts are shown to people who can already see the athlete's profile and are shared to the feed only when the athlete chooses. Athletes can disconnect at any time, which deauthorizes the app and deletes the token. Tokens are encrypted at rest; start and end of every GPS route are hidden from other users.
+  > Edge Athlete is a multi-sport athlete network (edgeathlete.ca). Athletes keep their training history in a section called Training. We would like athletes who ride or run with Wahoo devices to connect their Wahoo account once, so each completed workout appears in their own Training automatically. We read completed workout summaries and their FIT files only (via the workout_summary webhook and the workouts endpoints); we do not write to Wahoo. Workouts are shown to people who can already see the athlete's profile and are shared to the feed only when the athlete chooses. Athletes can disconnect at any time, which deauthorizes the app and deletes the token. Tokens are encrypted at rest; start and end of every GPS route are hidden from other users.
 
 ## COROS — Partner API
 
@@ -54,7 +54,7 @@ URLs to register (the routes follow Polar's shape and are built when access is g
 - **Fitbit / Pixel Watch:** the Fitbit Web API is being switched off (Oct 30 2026) and Google is not onboarding new projects to its replacement yet.
 - **Strava:** left out by decision — its API agreement allows an athlete's data to be shown only to that athlete.
 
-Until one of these opens, those athletes use the file import (every watch exports a `.fit`), which lands in Vitals the same way.
+Until one of these opens, those athletes use the file import (every watch exports a `.fit`), which lands in Training the same way.
 
 ## Polar — already self-serve (for the record)
 

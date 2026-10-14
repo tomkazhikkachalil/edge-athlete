@@ -147,8 +147,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: identity.error }, { status: 400 });
     }
     const { postType } = identity;
-    // An activity shared from Vitals is a TRAINING post (Oct 1 2026) — it
-    // lists under Vitals → Training Activity like a shared workout. The
+    // An activity shared from Training is a TRAINING post (Oct 1 2026) — it
+    // lists under Training → Training Activity like a shared workout. The
     // client need not say so.
     const postCategory =
       identity.postCategory ?? (isActivityShareRequest(incomingStatsData) ? ('training' as const) : null);
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
     // A stat line is validated SERVER-SIDE against the sport's schema (data
     // foundation F2, Sep 13 2026): an unknown stat, a value out of range,
     // a non-number, a bad or future date, a sport mismatch → 400 naming the
-    // field — never clamped, never stripped. A vitals entry or any other
+    // field — never clamped, never stripped. A body-metrics entry or any other
     // non-stat-line payload passes untouched.
     // Activities (245): "Share to feed" sends `{ type: 'activity', activity_id }`
     // — a REQUEST. The card's payload is rebuilt from the athlete's own row

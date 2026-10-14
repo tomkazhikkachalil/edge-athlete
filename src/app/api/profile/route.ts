@@ -185,7 +185,7 @@ export async function PUT(request: NextRequest) {
     // ONE pre-update read: the supervised/dob_locked gate facts plus the
     // identity fields (Round H needs the old values to diff for the
     // guardian "profile changed" bell) plus what the derived names read
-    // (nickname, handle) and what the Vitals timeline diffs against (the
+    // (nickname, handle) and what the body-metrics timeline diffs against (the
     // stored height / weight) — all baseline columns.
     let oldRow: Record<string, unknown> | null = null;
     {
@@ -278,11 +278,11 @@ export async function PUT(request: NextRequest) {
     }
     Object.assign(cleanedProfileData, privateDetails.update);
 
-    // Height / weight changed in Edit Profile land on the Vitals timeline
+    // Height / weight changed in Edit Profile land on the body-metrics timeline
     // too (the modal sends its local day as `measured_on`; no other caller
     // does). Appended BEFORE the profile update and removed again if that
     // fails — the body-measurement route's own rule: the chart and Current
-    // Vitals never disagree. For the TARGET profile, so a guardian's edit
+    // Training never disagree. For the TARGET profile, so a guardian's edit
     // lands on the athlete's timeline.
     const measuredOn =
       typeof body.measured_on === 'string' && isValidRecordedDate(body.measured_on) ? (body.measured_on as string) : null;
@@ -297,7 +297,7 @@ export async function PUT(request: NextRequest) {
         .insert(measurement.rows)
         .select('id');
       if (timelineError || !inserted) {
-        reportRouteError('Profile API: vitals timeline insert error:', timelineError);
+        reportRouteError('Profile API: body-metrics timeline insert error:', timelineError);
         return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
       }
       timelineIds = inserted.map(row => row.id as string);

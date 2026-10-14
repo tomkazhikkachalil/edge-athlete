@@ -64,7 +64,7 @@ export default defineConfig([
   //    src/components/workouts/RoutineManager.tsx or
   //    src/components/calendar/ActivityPreviewModal.tsx. Add a `reloadKey`
   //    when handlers also refetch, or publish the effect-local loader on a
-  //    `useRef` when a handler must `await` it (VitalsTab, EventDetailModal).
+  //    `useRef` when a handler must `await` it (TrainingTab, EventDetailModal).
   //    This is not busywork: it closed real stale-response races and two
   //    duplicate-fetch bugs.
   //  • A handful of sites are legitimately effect-owned and carry a targeted

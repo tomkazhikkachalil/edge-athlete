@@ -41,7 +41,7 @@ literal col-spans) and `LargerWindow` (bottom sheet <sm, centered card
 sm:+, z-50 BELOW PostDetailModal/MediaLightbox/ConfirmModal at z-[60];
 Escape closes the TOPMOST `[role="dialog"]` only; `hostsOwnHeading` when
 the hosted section renders its own `<h2>`). CSS: `.ea-bubble` /
-`ea-pop-in` / `--ea-spring` are the neutral names; `.vt-scope` (Vitals)
+`ea-pop-in` / `--ea-spring` are the neutral names; `.tr-scope` (Training)
 and `.org-app-scope` (the in-app league/club page) are the two dialect
 scopes that re-point the TWO shadow levels — never a third, never
 `--brand` (the PUBLIC site's `.org-scope` does re-point brand; the two

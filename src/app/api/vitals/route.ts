@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
-import { filterVitalsRows, aspectHidden } from '@/lib/vitals-privacy';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { filterTrainingRows, aspectHidden } from '@/lib/training-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/vitals?profileId=xxx
- * Returns all vitals entries + training posts + athlete birthday for a profile.
+ * Returns all body-metrics entries + training posts + athlete birthday for a profile.
  * Public profiles are visible without auth; private profiles require owner auth.
  */
 export async function GET(request: NextRequest) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       currentUserId = null;
     }
 
-    // Check profile visibility (+ current-state vitals for the summary strip)
+    // Check profile visibility (+ current body metrics for the summary strip)
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, visibility, birthday, dob, height_cm, weight_kg, weight_display, weight_unit, first_name, avatar_url')
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const isPublic = profile.visibility === 'public';
 
     if (!isOwner && !isPublic) {
-      // Allow approved followers to view private profile vitals
+      // Allow approved followers to view a private profile's body metrics
       if (!currentUserId) {
         return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
@@ -69,19 +69,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Vitals privacy (migration 122): the profile itself is viewable, so a
+    // Training privacy (migration 122): the profile itself is viewable, so a
     // master-hidden section answers 200 with a hidden flag and empty
     // payloads — the client renders a friendly lock card, not an error.
     // Own query, not part of the select above: pre-122 it degrades to
     // all-visible instead of failing the route.
-    const privacy = await fetchVitalsPrivacy(supabase, profileId);
+    const privacy = await fetchTrainingPrivacy(supabase, profileId);
     if (!isOwner && privacy.hidden) {
       return NextResponse.json({
         hidden: true,
         vitals: [],
         trainingPosts: [],
         athleteBirthday: null,
-        currentVitals: null,
+        currentBodyMetrics: null,
         profile: {
           firstName: profile.first_name ?? null,
           avatarUrl: profile.avatar_url ?? null,
@@ -90,22 +90,22 @@ export async function GET(request: NextRequest) {
     }
     const bodyHidden = aspectHidden(privacy, 'body', isOwner);
 
-    // Vitals entries (immutable time-series, newest first). Bounded: without a
+    // body-metrics entries (immutable time-series, newest first). Bounded: without a
     // limit PostgREST silently caps at 1000 and would drop the OLDEST entries
     // once an athlete crossed it (a daily logger, inside a year), corrupting
     // every chart's baseline. 2000 newest covers years of real logging; the
     // dashboard derivations already operate on a bounded set. Full history
     // pagination is tracked in the hardening backlog.
-    const { data: vitals, error: vitalsError } = await supabase
+    const { data: bodyMetrics, error: bodyMetricsError } = await supabase
       .from('athlete_vitals')
       .select('*')
       .eq('profile_id', profileId)
       .order('recorded_at', { ascending: false })
       .limit(2000);
 
-    if (vitalsError) {
-      reportRouteError('Error fetching vitals:', vitalsError);
-      return NextResponse.json({ error: 'Failed to fetch vitals' }, { status: 500 });
+    if (bodyMetricsError) {
+      reportRouteError('Error fetching body metrics:', bodyMetricsError);
+      return NextResponse.json({ error: 'Failed to load body metrics' }, { status: 500 });
     }
 
     // Fetch training posts for this profile (post_category = 'training',
@@ -163,13 +163,13 @@ export async function GET(request: NextRequest) {
 
     if (postsError) {
       reportRouteError('Error fetching training posts:', postsError);
-      // Non-fatal: return vitals even if posts fail
+      // Non-fatal: return the body metrics even if posts fail
     }
 
     return NextResponse.json({
       // Aspect filter: body rows drop when body is private, the rest when
       // records is private. Owners always get everything.
-      vitals: filterVitalsRows(vitals || [], privacy, isOwner),
+      vitals: filterTrainingRows(bodyMetrics || [], privacy, isOwner),
       // Training posts are ordinary posts — their media is post media, proxied
       // under each post's id (governed by the post rule).
       trainingPosts: (trainingPostsRaw || []).map((p) => {
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
       // fallback (previously this read birthday alone — usually null, which
       // hid every age-at-date annotation).
       athleteBirthday: profile.dob || profile.birthday || null,
-      currentVitals: {
+      currentBodyMetrics: {
         // Height/weight follow the body aspect; age/DOB exposure is
         // unchanged by design (dob was already owner-gated client-side).
         heightCm: bodyHidden ? null : profile.height_cm ?? null,
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
         avatarUrl: profile.avatar_url ?? null,
       },
       // Owner-only: seeds the settings modal's privacy toggles.
-      ...(isOwner ? { vitalsPrivacy: privacy } : {}),
+      ...(isOwner ? { trainingPrivacy: privacy } : {}),
     });
   } catch (error) {
     reportRouteError('GET /api/vitals error:', error);
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/vitals
- * Add a new vital entry. Entries are immutable — this always creates, never updates.
+ * Add a new body-metric entry. Entries are immutable — this always creates, never updates.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
         unit,
         notes: notes || null,
         recorded_at: recorded_at || new Date().toISOString().split('T')[0],
-        // 'edge_vitals' = PRs recorded from a workout session (VitalsTab
+        // 'edge_vitals' = PRs recorded from a workout session (TrainingTab
         // renders non-manual sources as a provenance label)
         source: ['manual', 'edge_vitals'].includes(body.source) ? body.source : 'manual',
         linked_post_id: linked_post_id || null,
@@ -269,8 +269,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      reportRouteError('Error inserting vital:', error);
-      return NextResponse.json({ error: 'Failed to save vital entry' }, { status: 500 });
+      reportRouteError('Error inserting body metric:', error);
+      return NextResponse.json({ error: 'Failed to save the body metric' }, { status: 500 });
     }
 
     return NextResponse.json({ vital: data }, { status: 201 });

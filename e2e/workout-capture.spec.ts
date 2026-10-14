@@ -3,7 +3,7 @@ import path from 'path';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout capture round (Oct 8 2026). Tom: taking a photo or video during a
-// Vitals workout "kicked me out of the workout and the capture did not
+// Training workout "kicked me out of the workout and the capture did not
 // complete". The fix is Capture v2's rule on the set row: a capture ATTACHES
 // AT ONCE as a tile (no editor, no decode), its bytes go to IndexedDB, the
 // upload runs in the background one at a time, and a page iOS threw away

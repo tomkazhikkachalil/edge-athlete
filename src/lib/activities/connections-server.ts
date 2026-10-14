@@ -78,7 +78,7 @@ export async function isSupervisedProfile(admin: Admin, profileId: string): Prom
 
 // ── The personal upload link (PR 3) ─────────────────────────────────────────
 // A capability URL: whoever holds it can add workouts to the athlete's
-// Vitals, so the raw token is shown ONCE and only its sha256 is stored (the
+// Training, so the raw token is shown ONCE and only its sha256 is stored (the
 // calendar feed token's shape). Losing it is fixed by making a new one, which
 // replaces the hash — the old link stops at once.
 

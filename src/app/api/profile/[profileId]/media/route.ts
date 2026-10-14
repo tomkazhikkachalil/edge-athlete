@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
-import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
+import { parseTrainingPrivacy } from '@/lib/training-privacy';
 import { countActivities } from '@/lib/activities/read-server';
 import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
@@ -626,7 +626,7 @@ export async function POST(
       statements_count: 0
     };
 
-    // Equipment, vitals & achievements counts for their tab badges. The media
+    // Equipment, training & achievements counts for their tab badges. The media
     // RPC doesn't cover these tables, so they were always 0. (Visibility
     // already gated above.)
     // Activities (245): "Only me" activities count for the athlete alone; a
@@ -638,16 +638,16 @@ export async function POST(
       countActivities(supabaseAdmin, profileId, viewerId === profileId ? 'owner' : 'viewer'),
     ]);
     const equipment = eqCount ?? 0;
-    // Vitals privacy (migration 122): a master-hidden section must not leak
+    // Training privacy (migration 122): a master-hidden section must not leak
     // its size through the tab badge — non-owners see 0.
-    let vitals = vitCount ?? 0;
-    if (viewerId !== profileId && vitals > 0) {
+    let bodyMetrics = vitCount ?? 0;
+    if (viewerId !== profileId && bodyMetrics > 0) {
       const { data: privRow } = await supabaseAdmin
         .from('profiles')
         .select('vitals_privacy')
         .eq('id', profileId)
         .single();
-      if (parseVitalsPrivacy(privRow?.vitals_privacy).hidden) vitals = 0;
+      if (parseTrainingPrivacy(privRow?.vitals_privacy).hidden) bodyMetrics = 0;
     }
     const achievements = achCount ?? 0;
 
@@ -658,7 +658,7 @@ export async function POST(
       // Absent until migration 074 runs — || '0' degrades it to zero.
       statements: parseInt(result.statements_count || '0', 10),
       equipment,
-      vitals,
+      vitals: bodyMetrics, // the payload key never renames (the Training tab count)
       achievements,
       activities
     });

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // filter below is NOT sufficient: posts default to public even on a
     // PRIVATE profile, so without this a private athlete's stat lines leaked
     // to anyone. Mirror the owner-||-public-||-accepted-follower block that
-    // vitals/workouts/golf-stats use (canViewProfile can't be used directly —
+    // training/workouts/golf-stats use (canViewProfile can't be used directly —
     // it rejects anonymous viewers of public profiles).
     const isOwner = viewerId === profileId;
     if (!isOwner) {

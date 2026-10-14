@@ -31,7 +31,7 @@ const SEED = {
   phone: '416-555-0100',
   gender: 'male',
   postal_code: 'M5V 2T6',
-  // 5'11" / 175 lbs — the Vitals timeline test edits these.
+  // 5'11" / 175 lbs — the body-metrics timeline test edits these.
   height_cm: 180,
   weight_display: 175,
   weight_unit: 'lbs',
@@ -63,7 +63,7 @@ test.afterAll(async () => {
 });
 
 // Scoped to the dialog: /athlete has its own "Profile sections" tab row
-// (with its own Vitals tab) behind the modal.
+// (with its own Training tab) behind the modal.
 const tab = (page: Page, name: string) =>
   page
     .getByRole('dialog', { name: 'Edit Profile', exact: true })
@@ -74,7 +74,7 @@ async function expectFilled(page: Page) {
   await expect(page.locator('#first_name')).toHaveValue(String(prior!.first_name), { timeout: 20_000 });
   await expect(page.locator('#last_name')).toHaveValue(String(prior!.last_name));
   await expect(page.locator('#bio')).toHaveValue(SEED.bio);
-  await tab(page, 'Vitals').click();
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#dob')).toHaveValue(SEED.dob);
   await expect(page.locator('#location')).toHaveValue(SEED.location);
   await expect(page.locator('#class_year')).toHaveValue(String(SEED.class_year));
@@ -146,8 +146,8 @@ test('the deep link opens the sport tab; unsaved typing in another tab survives 
   await page.goto('/athlete?edit=sport');
   await expect(tab(page, 'Golf')).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
 
-  // Type in Vitals, then save Basic.
-  await tab(page, 'Vitals').click();
+  // Type in Training, then save Basic.
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#class_year')).toHaveValue(String(SEED.class_year));
   await page.locator('#class_year').fill('2033');
   await tab(page, 'Basic').click();
@@ -159,8 +159,8 @@ test('the deep link opens the sport tab; unsaved typing in another tab survives 
     .toBe(newBio);
   await expect(page.getByRole('button', { name: 'Save Basic' })).toBeEnabled({ timeout: 15_000 });
 
-  // The save re-read the shared profile; the Vitals typing is still there.
-  await tab(page, 'Vitals').click();
+  // The save re-read the shared profile; the Training typing is still there.
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#class_year')).toHaveValue('2033');
 
   // …and still counts as unsaved: closing asks, Discard discards, a reopen
@@ -170,7 +170,7 @@ test('the deep link opens the sport tab; unsaved typing in another tab survives 
   await expect(page.locator('#class_year')).toBeHidden();
   await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
   await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
-  // A plain reopen keeps the tab it was closed on (Vitals).
+  // A plain reopen keeps the tab it was closed on (Training).
   await expect(page.locator('#class_year')).toHaveValue(String(SEED.class_year), { timeout: 15_000 });
   await tab(page, 'Basic').click();
   await expect(page.locator('#bio')).toHaveValue(newBio);
@@ -225,7 +225,7 @@ test('the sign-up details are in Edit Profile, pre-filled, and a nickname leads 
   expect(error).toBeNull();
 });
 
-test('a height changed in Edit Profile lands on the Vitals timeline; an untouched one adds nothing @mobile', async ({ page }) => {
+test('a height changed in Edit Profile lands on the body-metrics timeline; an untouched one adds nothing @mobile', async ({ page }) => {
   const alpha = loadQaUser('user.json');
   const admin = adminClient();
   const t0 = new Date().toISOString();
@@ -240,14 +240,14 @@ test('a height changed in Edit Profile lands on the Vitals timeline; an untouche
     ).data ?? [];
   const classYear = async () => (await admin.from('profiles').select('class_year').eq('id', alpha.id).single()).data?.class_year;
 
-  // 1. Save the Vitals tab WITHOUT touching height or weight: no entry, and
+  // 1. Save the Training tab WITHOUT touching height or weight: no entry, and
   //    the stored height is not rewritten through a ft-in → cm round trip.
   await page.goto('/settings');
   await page.getByRole('button', { name: 'Edit Profile Details' }).click();
-  await tab(page, 'Vitals').click();
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#height')).toHaveValue(`5'11"`, { timeout: 20_000 });
   await page.locator('#class_year').fill('2032');
-  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await page.getByRole('button', { name: 'Save Body Metrics' }).click();
   await expect.poll(classYear, { timeout: 20_000 }).toBe(2032);
   await expect(page.locator('#height')).toBeHidden({ timeout: 15_000 });
   expect(await entries()).toEqual([]);
@@ -255,10 +255,10 @@ test('a height changed in Edit Profile lands on the Vitals timeline; an untouche
 
   // 2. Change the height: one timeline entry, and the profile follows.
   await page.getByRole('button', { name: 'Edit Profile Details' }).click();
-  await tab(page, 'Vitals').click();
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#height')).toHaveValue(`5'11"`);
   await page.locator('#height').fill(`6'1"`);
-  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await page.getByRole('button', { name: 'Save Body Metrics' }).click();
   await expect.poll(async () => (await entries()).length, { timeout: 20_000 }).toBe(1);
   expect(await entries()).toEqual([{ metric_key: 'height', value_display: `6'1"` }]);
   await expect(page.locator('#height')).toBeHidden({ timeout: 15_000 });
@@ -266,10 +266,10 @@ test('a height changed in Edit Profile lands on the Vitals timeline; an untouche
 
   // 3. Reopen and save again untouched: still one entry.
   await page.getByRole('button', { name: 'Edit Profile Details' }).click();
-  await tab(page, 'Vitals').click();
+  await tab(page, 'Body Metrics').click();
   await expect(page.locator('#height')).toHaveValue(`6'1"`);
   await page.locator('#class_year').fill('2033');
-  await page.getByRole('button', { name: 'Save Vitals' }).click();
+  await page.getByRole('button', { name: 'Save Body Metrics' }).click();
   await expect.poll(classYear, { timeout: 20_000 }).toBe(2033);
   expect(await entries()).toHaveLength(1);
 

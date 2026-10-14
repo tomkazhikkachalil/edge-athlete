@@ -70,7 +70,7 @@ describe('formsFromProfile', () => {
   it('a signup-shaped row fills what signup collected', () => {
     const f = formsFromProfile(signupRow);
     expect(f.basic).toMatchObject({ first_name: 'Tom', last_name: 'Kay', full_name: 'Tom Kay', handle: 'tomkay', visibility: 'private', avatar_file: null });
-    expect(f.vitals).toMatchObject({ dob: '1990-04-02', location: 'Toronto, ON', weight_unit: 'lbs', place: null });
+    expect(f.bodyMetrics).toMatchObject({ dob: '1990-04-02', location: 'Toronto, ON', weight_unit: 'lbs', place: null });
     // …including the four no screen used to show after sign-up.
     expect(f.basic).toMatchObject({ nickname: 'TK', phone: '416-555-0100', gender: 'male', postal_code: 'M5V 2T6' });
   });
@@ -93,18 +93,18 @@ describe('formsFromProfile', () => {
       recruiting_profile: { gpa: 3.8, academic_notes: 'Honours', target_level: 'collegiate' },
     } as Profile);
     expect(f.basic).toMatchObject({ middle_name: 'J', bio: 'Golfer.' });
-    expect(f.vitals).toMatchObject({ height_cm: `5'11"`, weight_kg: '82', weight_unit: 'kg', class_year: '2027' });
+    expect(f.bodyMetrics).toMatchObject({ height_cm: `5'11"`, weight_kg: '82', weight_unit: 'kg', class_year: '2027' });
     expect(f.socials).toMatchObject({ social_twitter: 'tom', social_instagram: 'tom.kay', social_facebook: '', social_tiktok: '' });
     expect(f.recruiting).toEqual({ status: 'open', school: 'Northview HS', gpa: '3.8', academic_notes: 'Honours', target_level: 'collegiate' });
   });
   it('date of birth falls back to `birthday` (org registration writes only that column)', () => {
-    expect(formsFromProfile({ ...signupRow, dob: undefined } as Profile).vitals.dob).toBe('1990-04-02');
-    expect(formsFromProfile({ ...signupRow, dob: '1991-01-01' } as Profile).vitals.dob).toBe('1991-01-01');
+    expect(formsFromProfile({ ...signupRow, dob: undefined } as Profile).bodyMetrics.dob).toBe('1990-04-02');
+    expect(formsFromProfile({ ...signupRow, dob: '1991-01-01' } as Profile).bodyMetrics.dob).toBe('1991-01-01');
   });
   it('no profile: the empty forms, with the defaults the controls need', () => {
     const f = formsFromProfile(null);
     expect(f.basic).toMatchObject({ first_name: '', last_name: '', handle: '', bio: '', visibility: 'public', nickname: '', phone: '', gender: '', postal_code: '' });
-    expect(f.vitals).toMatchObject({ height_cm: '', weight_kg: '', weight_unit: 'lbs', dob: '', class_year: '' });
+    expect(f.bodyMetrics).toMatchObject({ height_cm: '', weight_kg: '', weight_unit: 'lbs', dob: '', class_year: '' });
     expect(f.recruiting).toEqual({ status: 'closed', school: '', gpa: '', academic_notes: '', target_level: '' });
   });
 });

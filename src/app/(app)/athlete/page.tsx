@@ -194,7 +194,7 @@ export default function AthleteProfilePage() {
   // tabs, so it must be in the layout before ProfileMediaTabs mounts — its
   // ?tab= deep-link scroll runs at mount, and content appearing above it
   // afterwards pushed the strip out of the phone viewport (caught by
-  // vitals-mobile.spec).
+  // training-mobile.spec).
   const [skillCards, setSkillCards] = useState<SportSkillCard[] | null>(null);
   
   // Modal states
@@ -219,7 +219,7 @@ export default function AthleteProfilePage() {
   const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
   // ?post= deep link target (own-profile share links).
   const [openPostId, setOpenPostId] = useState<string | null>(null);
-  // ?tab= deep link (e.g. ?tab=vitals) — read before ProfileMediaTabs mounts
+  // ?tab= deep link (e.g. ?tab=training) — read before ProfileMediaTabs mounts
   // (the loading gates above guarantee that), validated inside the component.
   const [deepLinkTab, setDeepLinkTab] = useState<string | null>(null);
   // ?sport= companion for ?tab=stats — the hub's sport layer. Kept in state
@@ -462,8 +462,8 @@ export default function AthleteProfilePage() {
   };
 
   // Inline editing functions. Only the socials use InlineEdit since the
-  // header Vitals strip was removed (Aug 2026) — height/weight/location/
-  // class-year edit through Edit Profile → Vitals now.
+  // header Training strip was removed (Aug 2026) — height/weight/location/
+  // class-year edit through Edit Profile → Body Metrics now.
   const startEditing = (field: string, currentValue: string) => {
     setEditingField(field);
     const editValue =
@@ -955,7 +955,7 @@ export default function AthleteProfilePage() {
             {/* Mounted only after the skill-cards section above has resolved:
                 the ?tab= deep-link scroll runs at THIS component's mount, and
                 any content inserted above it later shifts the strip out of
-                the phone viewport (vitals-mobile.spec pins this). */}
+                the phone viewport (training-mobile.spec pins this). */}
             {skillCards !== null && <ProfileMediaTabs
               key={mediaRefreshKey}
               profileId={user?.id || ''}
@@ -976,7 +976,7 @@ export default function AthleteProfilePage() {
               }}
               onTabChange={(tab) => {
                 // Mirror the tab into the URL (no navigation) so the state is
-                // shareable / refresh-stable: /athlete?tab=vitals. Also keep it
+                // shareable / refresh-stable: /athlete?tab=training. Also keep it
                 // in deepLinkTab: key={mediaRefreshKey} remounts this component
                 // after a post-create, and initialTab is what survives that.
                 // Leaving stats drops the sport param with the tab.

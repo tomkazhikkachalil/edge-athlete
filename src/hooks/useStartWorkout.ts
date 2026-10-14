@@ -8,15 +8,15 @@ import type { WorkoutRoutine } from '@/lib/workouts/routines';
 
 /**
  * ONE way to start a live workout (Create menu redesign, Oct 13 2026) —
- * lifted verbatim from VitalsTab so the header's Create → Record Activity →
- * Start a workout and Vitals' Start Workout are the SAME code: the same
+ * lifted verbatim from TrainingTab so the header's Create → Record Activity →
+ * Start a workout and Training's Start Workout are the SAME code: the same
  * `POST /api/workouts { mode: 'live', routineId? }`, the same 409 → resume
  * the workout in progress, the same `refreshDrafts()` (the resume pill and
  * the Drafts count learn the session now), the same `/app/workout/<id>`.
  * With saved routines `open()` shows the picker (`StartWorkoutSheet`,
  * rendered by the caller from `showStartSheet`); without, one-tap start.
  *
- * `enabled` gates the routines read (Vitals: the owner's own profile; the
+ * `enabled` gates the routines read (Training: the owner's own profile; the
  * header: a signed-in person) — a failure just degrades to the one-tap start.
  */
 export function useStartWorkout(enabled: boolean) {

@@ -62,9 +62,9 @@ describe('one door at the top of every page', () => {
     expect(layout).toMatch(/<ReopenPromptHost \/>/);
     expect(layout.match(/<ReopenPromptHost \/>/g)?.length).toBe(1);
   });
-  it("the feed's live-round banner, the Vitals workout banner and the Vitals recording banner are gone (the prompt, the pill and Drafts are the doors)", () => {
+  it("the feed's live-round banner, the Training workout banner and the Training recording banner are gone (the prompt, the pill and Drafts are the doors)", () => {
     expect(read('src/app/(app)/feed/page.tsx')).not.toMatch(/live-banner-dismissed|Continue scoring/);
-    expect(read('src/components/VitalsTab.tsx')).not.toMatch(/workout-banner-dismissed|Resume banner — a live session|RecordingResumeBanner/);
+    expect(read('src/components/TrainingTab.tsx')).not.toMatch(/workout-banner-dismissed|Resume banner — a live session|RecordingResumeBanner/);
     expect(fs.existsSync(path.join(ROOT, 'src/components/activities/record/RecordingResumeBanner.tsx'))).toBe(false);
   });
   it('the host decides only after the server list AND the phone answered (the root engine), and remembers in sessionStorage', () => {

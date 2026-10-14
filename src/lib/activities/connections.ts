@@ -172,7 +172,7 @@ export const SUPERVISED_CONNECTIONS_MESSAGE =
  *  provider — the provider's terms ask for the member's explicit permission
  *  before their data is shown to anyone else (Polar's 3.1.1). */
 export const PROVIDER_CONSENT =
-  'Workouts it records will appear in your Vitals, where the people who can see your profile can see them. You choose what goes on your feed.';
+  'Workouts it records will appear in your Training, where the people who can see your profile can see them. You choose what goes on your feed.';
 
 /** Why a connect attempt came back without a connection (`?connect_error=`). */
 export const CONNECT_ERRORS: Readonly<Record<string, string>> = {

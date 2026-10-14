@@ -3,19 +3,19 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isUuid } from '@/lib/uuid';
 import { reportRouteError } from '@/lib/observability/report';
 import { countActivities, decodeCursor, listActivities, listActivitySessions, readWeeklyTotals, resolveActivityAccess } from '@/lib/activities/read-server';
-import { aspectHidden } from '@/lib/vitals-privacy';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { aspectHidden } from '@/lib/training-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 
 /**
  * GET /api/profile/[profileId]/activities — the profile's activities, which
- * live inside VITALS since Oct 1 2026 (they were their own tab).
+ * live inside TRAINING since Oct 1 2026 (they were their own tab).
  *
- * ?sessions=1 answers the Vitals week maths instead of a page: every
+ * ?sessions=1 answers the Training week maths instead of a page: every
  * activity of the last year as { id, type, name, startedAt, elapsedS,
  * movingS, distanceM } — what the bars, the streak and the active-days ring
  * count alongside workouts.
  *
- * VITALS PRIVACY applies to both forms: an athlete who hides Vitals, or its
+ * TRAINING PRIVACY applies to both forms: an athlete who hides Training, or its
  * Workouts aspect, hides this listing from everyone but themselves and their
  * guardians (`hidden: true`, the workouts route's own answer). A single
  * activity's page keeps the activity gate alone — a post the athlete shared
@@ -27,7 +27,7 @@ import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
  * route calls canViewProfile through it); "Only me" activities are the
  * owner's. `isOwner` tells the tab to offer Import. Viewer-dependent, so
  * never a shared cache: `private, no-store` (the /u/ payload is CDN-cached
- * STRANGER_VIEW; this tab fetches its own, like Vitals).
+ * STRANGER_VIEW; this tab fetches its own, like Training).
  */
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const url = new URL(request.url);
     const isOwner = access.audience === 'owner';
     const wantsSessions = url.searchParams.get('sessions') === '1';
-    if (!isOwner && aspectHidden(await fetchVitalsPrivacy(admin, profileId), 'workouts', isOwner)) {
+    if (!isOwner && aspectHidden(await fetchTrainingPrivacy(admin, profileId), 'workouts', isOwner)) {
       return NextResponse.json(
         wantsSessions ? { sessions: [], hidden: true } : { items: [], next: null, totals: [], count: 0, isOwner: false, hidden: true },
         { headers: NO_STORE }

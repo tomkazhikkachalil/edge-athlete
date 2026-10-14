@@ -6,7 +6,7 @@ import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/household ──────────────────────────────────────────────────
 // The guardian's household safety defaults (Wave 4, mig 132) — the
-// vitals-privacy pattern: the whole body passes through parseHouseholdPolicy
+// training-privacy pattern: the whole body passes through parseHouseholdPolicy
 // (unknown keys and bad values silently dropped, defaults back-filled), so
 // the stored JSON is always in-contract. Always the caller's OWN profiles
 // row — per-guardian by design (co-guardians may differ; the audit feed and

@@ -7,8 +7,8 @@ import { toProxyUrl } from '@/lib/media/proxy-url';
 import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { coverProxyUrl } from '@/lib/media/cover-url';
-import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
-import { aspectHidden } from '@/lib/vitals-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
+import { aspectHidden } from '@/lib/training-privacy';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
@@ -236,14 +236,14 @@ export async function GET(request: NextRequest) {
     // rides this payload; owners are redirected off /u/ anyway).
     const organizations = await getProfileOrganizations(supabase, profile.id, STRANGER_VIEW);
 
-    // Elective vitals privacy (migration 122): the body aspect hides
+    // Elective Training privacy (migration 122): the body aspect hides
     // height/weight here exactly as it does on /api/vitals — this route used
     // to leak them regardless of the setting. Viewer-independence holds
     // (isOwner=false for everyone; owners see their own data on /athlete),
     // so the CDN cacheability below is unaffected. Fields stay in the shape
     // as nulls — clients already treat them as optional.
-    const vitalsPrivacy = await fetchVitalsPrivacy(supabase, profile.id);
-    const bodyHidden = aspectHidden(vitalsPrivacy, 'body', false);
+    const trainingPrivacy = await fetchTrainingPrivacy(supabase, profile.id);
+    const bodyHidden = aspectHidden(trainingPrivacy, 'body', false);
 
     return NextResponse.json({
       profile: {

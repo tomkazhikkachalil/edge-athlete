@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the athlete-profile filter system (vitals, equipment,
+ * Pure helpers for the athlete-profile filter system (training, equipment,
  * achievements). All year math works on the string parts of ISO dates —
  * never `new Date('YYYY-MM-DD').getFullYear()`, which parses as UTC midnight
  * and shifts a day (and potentially a year) in western timezones.

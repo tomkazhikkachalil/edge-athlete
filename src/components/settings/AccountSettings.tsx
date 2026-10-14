@@ -75,13 +75,13 @@ export default function AccountSettings() {
             </div>
           </div>
 
-          {/* Vitals */}
+          {/* Training */}
           <div className="pt-8 border-t border-border">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-950/60 rounded-lg flex items-center justify-center">
                 <i className="fas fa-chart-line text-purple-600 dark:text-purple-400 text-lg"></i>
               </div>
-              <h4 className="text-lg font-bold text-primary tracking-tight">Vitals & Details</h4>
+              <h4 className="text-lg font-bold text-primary tracking-tight">Body Metrics & Details</h4>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>

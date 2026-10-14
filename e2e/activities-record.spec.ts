@@ -343,9 +343,9 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
 // Finish is ONE review (Oct 9 2026, Tom: "it's not the easiest to identify if
 // you want to post or not"): the walk's route and numbers, then ONE decision
 // — Post it (who sees it follows the ACCOUNT: anyone on a public one, approved
-// fans on a private one) or Only me (in Vitals, not on the feed). Post it is
+// fans on a private one) or Only me (in Training, not on the feed). Post it is
 // the default; Done does it all.
-test('Finish is a review: Post it by default posts the run; Only me keeps it in Vitals @mobile', async ({ browser, browserName }) => {
+test('Finish is a review: Post it by default posts the run; Only me keeps it in Training @mobile', async ({ browser, browserName }) => {
   test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
   test.setTimeout(180_000);
   const user = loadQaUser('user.json');

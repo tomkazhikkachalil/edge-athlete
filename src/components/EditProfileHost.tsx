@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/auth';
 // chat dock's pattern), and anything may open it over the page the user is on:
 //
 //   const editProfile = useEditProfile();
-//   editProfile.open();          // or .open('vitals') for a starting tab
+//   editProfile.open();          // or .open('body_metrics') for a starting tab
 //
 // It is the editor for the ACCOUNT'S OWN profile. Two doors stay their own on
 // purpose: the profile page (/athlete — it reloads its own data after a save

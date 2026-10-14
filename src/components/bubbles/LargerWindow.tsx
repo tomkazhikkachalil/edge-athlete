@@ -6,7 +6,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
  * The "larger window" a bubble opens into — the house overlay, lifted from
- * vitals/VitalsOverlay in Org Pages R2 (Sep 8 2026). Bottom sheet on
+ * training/TrainingOverlay in Org Pages R2 (Sep 8 2026). Bottom sheet on
  * phones, centered card from sm: up. Read-only or one-tap-reversible
  * content lives here, so closing needs no confirmation — Escape, backdrop,
  * and the X all close directly (never useDirtyClose). Stays at z-50, BELOW

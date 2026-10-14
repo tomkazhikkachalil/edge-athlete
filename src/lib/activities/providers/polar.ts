@@ -48,7 +48,7 @@ export function parsePolarWebhook(body: unknown): PolarWebhook | null {
 }
 
 /** Polar's `sport` / `detailed_sport_info` words → our types. An explicit
- *  list; anything else is `other`, which Vitals still counts as a session. */
+ *  list; anything else is `other`, which Training still counts as a session. */
 const SPORT_RULES: readonly [RegExp, ActivityType][] = [
   [/TRAIL_RUNNING/, 'trail_run'],
   [/(^|_)RUNNING|JOGGING|TREADMILL/, 'run'],

@@ -5,7 +5,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import RoutineManager from './RoutineManager';
 
 /**
- * Thin house-modal host for RoutineManager, opened from the Vitals
+ * Thin house-modal host for RoutineManager, opened from the Training
  * quick-settings modal. No dirty state of its own — the manager's editor
  * modal handles its own discard confirms.
  */
