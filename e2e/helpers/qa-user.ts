@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RateLimitAction } from '@/lib/rate-limit-core';
-import { SWEEP_CUTOFF_MS, DEPARTED_EMAIL_LIKE, isQaUserEmail, isShadowEmail, staleQaOrgs, staleQaTombstones, staleShadows, type AccessRow, type OrgRow, type ShadowRow, type TombstoneRow } from './qa-sweep-rules';
+import { SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, DEPARTED_EMAIL_LIKE, isQaUserEmail, isRetryableDbError, isShadowEmail, staleQaOrgs, staleQaTombstones, staleShadows, type AccessRow, type OrgRow, type ShadowRow, type TombstoneRow } from './qa-sweep-rules';
 import { deleteQaOrgs } from './org';
 import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
@@ -622,15 +622,35 @@ export async function deleteQaUser(userId: string): Promise<void> {
   // that, exactly like hardDeleteAccount.
   // Error-CHECKED: a silent failure here (the zero-access trigger above) is
   // exactly how parked children and stranded guardians leaked for a day.
-  const { error: profileError } = await admin.from('profiles').delete().eq('id', userId);
-  if (profileError) {
-    throw new Error(`profiles delete(${userId}) failed: ${profileError.message}`);
-  }
+  // Retried on a statement timeout / a dropped transport (Oct 13 2026): an
+  // Android probe's teardown on production was cancelled mid-cascade and left
+  // an auth user with no profile; the retry finishes what the cancelled
+  // statement started. A missing profile (that very shape) deletes 0 rows
+  // without an error — the auth delete below then takes the rest.
+  await withDbRetry(`profiles delete(${userId})`, async () => {
+    const { error: profileError } = await admin.from('profiles').delete().eq('id', userId);
+    return profileError?.message ?? null;
+  });
 
-  const { error } = await admin.auth.admin.deleteUser(userId);
-  // Already gone (a stale e2e/.auth file from a run whose setup aborted) is
-  // the state we want, not a failure.
-  if (error && !/not found/i.test(error.message)) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
+  await withDbRetry(`deleteUser(${userId})`, async () => {
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    // Already gone (a stale e2e/.auth file from a run whose setup aborted) is
+    // the state we want, not a failure.
+    if (error && /not found/i.test(error.message)) return null;
+    return error?.message ?? null;
+  });
+}
+
+/** Run a teardown statement; on a retryable refusal wait and try again (DB_RETRY_DELAYS_MS); anything else, or the last failure, throws with the step's name. */
+export async function withDbRetry(step: string, run: () => Promise<string | null>): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const message = await run();
+    if (!message) return;
+    const delay = DB_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined || !isRetryableDbError(message)) throw new Error(`${step} failed: ${message}`);
+    console.warn(`[e2e] ${step}: ${message} — retrying in ${delay / 1000}s (${attempt + 1}/${DB_RETRY_DELAYS_MS.length})`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
 }
 
 /**

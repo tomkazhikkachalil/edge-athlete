@@ -1,5 +1,16 @@
 # Development Log
 
+## October 13, 2026 — e2e teardown: the stale-QA sweep looks back three hours, not a day, and a delete retries a statement timeout (zero DDL)
+
+Tom, after the maintenance pass left five `edgeqa-…@example.com` users on production: *"find out why the hourly sweep missed them and fix it, and make teardown retry on statement timeouts so this doesn't leave partial accounts again."*
+
+- **Why the sweep missed them:** `SWEEP_CUTOFF_MS` was **24 hours**, not an hour — a run in flight must never be swept by a concurrent one, and a day was the lazy margin. Four users a morning probe's failed teardown left at 11:42 UTC sat through every probe that day because none was a day old. It is **three hours** now (`qa-sweep-rules.ts`): longer than the longest sanctioned run (the whole `@mobile` set on one project, ~1.5 h) and CI's 25-minute ceiling, short enough that a dead teardown's users go at the NEXT run. The first run with the new cutoff swept the four on its own (`[e2e sweep] deleted 4 / 4`).
+- **The partial account:** an Android probe's teardown on production was cancelled mid-cascade (`canceling statement due to statement timeout` on the `profiles` delete — a long cascade under the run's own load; the database itself answered health in 84–139 ms) and left an auth user with no profile. `deleteQaUser` now runs its two deletes through `withDbRetry` (three tries, 2 s then 5 s between) on a retryable refusal — `isRetryableDbError`: a statement timeout / 57014 / a dropped transport; a constraint refusal or a missing table is thrown at once, retrying only repeats the answer. A missing profile deletes zero rows without an error, so the auth delete still takes the rest — the exact shape the leak had.
+- **The five removed** through `deleteQaUser` after confirming each had no posts, activities, follows, rounds or workouts (a one-off spec, run once against production and not committed); production holds no QA users after.
+- **Tests:** `qa-sweep-rules.test.ts` pins the three-hour cutoff, the retryable set and that both deletes go through the retry.
+
+**Proof:** `npm run verify` exit 0 — **5,008 tests in 536 files**, lint 0, build, 265 chunks within the floor. The one-off run against production: `[e2e sweep] stale QA shapes: users 4 · deleted 4 / 4` from the global setup with the new cutoff, then the auth-only user deleted through `deleteQaUser` (0 rows on the profile, the auth delete clean); production re-read: 0 QA profiles, 0 QA auth users, 2 profiles, 16 posts.
+
 ## October 13, 2026 — Maintenance pass after the video posters program (zero DDL)
 
 Tom: *"run the full project maintenance checklist: lint, build, devlog, and commit and sync to github and vercel. Make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues."* The pass on main `b7014a5e` (after #1167–#1177 — the nine program PRs and the baseline at 262).
