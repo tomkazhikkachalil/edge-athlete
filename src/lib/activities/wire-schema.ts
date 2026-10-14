@@ -1,4 +1,4 @@
-// ── The import payload's server-side schema (zod) ──────────────────────────
+// ── The recording payload's server-side schema (zod) ───────────────────────
 // Refuses what toWire() could not have produced: too many samples, columns
 // of the wrong length, values outside physics. Totals are NOT in the
 // payload — the server computes them (normalize.summarize).
@@ -15,7 +15,9 @@ const nonNeg = (hi: number) => z.number().min(0).max(hi).optional();
 export const WireActivitySchema = z
   .object({
     v: z.literal(1),
-    format: z.enum(['gpx', 'tcx', 'live']),
+    // Live only since Oct 13 2026 (the file import left); a 'gpx' / 'tcx'
+    // payload is refused here by name.
+    format: z.literal('live'),
     type: z.enum(ACTIVITY_TYPES),
     name: z.string().trim().max(120).nullable(),
     tz: z.string().min(1).max(64).nullable(),
@@ -39,8 +41,9 @@ export const WireActivitySchema = z
     pwr: col(0, 3000),
     dist: col(0, 2_000_000),
     acc: col(0, 10_000),
-    // Live Activities (251): the recorder's own id and the segments it marked.
-    recordingId: z.string().uuid().optional(),
+    // Live Activities (251): the recorder's own id (a recording names itself)
+    // and the segments it marked.
+    recordingId: z.string().uuid(),
     segments: SegmentsSchema.optional(),
   })
   .strict()
@@ -52,16 +55,6 @@ export const WireActivitySchema = z
     }
     if ((w.lat === undefined) !== (w.lng === undefined)) {
       ctx.addIssue({ code: 'custom', path: ['lat'], message: 'lat and lng travel together' });
-    }
-    // A recording names itself; a file never carries the recorder's fields.
-    if (w.format === 'live' && !w.recordingId) {
-      ctx.addIssue({ code: 'custom', path: ['recordingId'], message: 'a live recording names its recordingId' });
-    }
-    if (w.format !== 'live' && w.acc !== undefined) {
-      ctx.addIssue({ code: 'custom', path: ['acc'], message: 'accuracy belongs to a live recording' });
-    }
-    if (w.format !== 'live' && (w.recordingId !== undefined || w.segments !== undefined)) {
-      ctx.addIssue({ code: 'custom', path: ['format'], message: 'recordingId and segments belong to a live recording' });
     }
     // Every segment ends inside the recording (a second of slack for rounding).
     if (w.segments) {

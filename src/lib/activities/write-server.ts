@@ -59,7 +59,7 @@ export async function importActivity(
   // server-only, for re-processing. A watch or file was smoothed by its device.
   const isLive = source0 === 'live';
   const cleaned = isLive ? liveRoute(raw, n.type) : raw;
-  if (cleaned.length < 2) return { ok: false, status: 422, error: 'This file has too few samples to be an activity.' };
+  if (cleaned.length < 2) return { ok: false, status: 422, error: 'This recording has too few samples to be an activity.' };
   const summary = summarize(n, cleaned);
   const why = implausibility(n, summary, opts.now);
   if (why) return { ok: false, status: 422, error: why };
@@ -212,7 +212,7 @@ export async function importActivity(
         .eq('external_id', externalId)
         .maybeSingle();
       if (winner?.id) return { ok: true, id: winner.id as string, duplicate: true };
-      return { ok: false, status: 409, error: 'This activity was just imported — reload to see it.' };
+      return { ok: false, status: 409, error: 'This activity was just saved — reload to see it.' };
     }
     console.error('[activities] insert failed:', insErr.message);
     return { ok: false, status: 500, error: 'Could not save the activity.' };

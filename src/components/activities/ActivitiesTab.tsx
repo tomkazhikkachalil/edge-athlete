@@ -104,12 +104,12 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold text-primary">Activities</h3>
-          <p className="text-xs text-muted mt-0.5">Runs, rides, swims and hikes from your watch or app.</p>
+          <p className="text-xs text-muted mt-0.5">Walks, runs, rides and swims recorded on your phone.</p>
         </div>
         {state.isOwner && (
           <div className="flex flex-wrap items-center gap-3">
-            {/* Record and Import live in the Vitals header above (one door
-                each per screen — Oct 9 2026 appearance round). Connections
+            {/* Record lives in the Vitals header above (one door per screen —
+                Oct 9 2026 appearance round; the file import left Oct 13). Connections
                 are the account's own (Settings): offered to the athlete,
                 never to a guardian looking at their athlete's Vitals. */}
             {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
@@ -126,7 +126,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
         <div className="ea-surface rounded-lg p-8 text-center">
           <i className="fas fa-person-running text-3xl text-brand-fg mb-3" aria-hidden="true" />
           <p className="font-semibold text-primary">{state.isOwner ? 'Your walks, runs, rides and more' : 'No activities yet'}</p>
-          {state.isOwner && <p className="text-sm text-secondary mt-1">Record one live from your phone, or import a .fit, .gpx or .tcx file from your watch or app.</p>}
+          {state.isOwner && <p className="text-sm text-secondary mt-1">Record one live from your phone — a walk, run, ride or swim, with a map.</p>}
         </div>
       ) : (
         <>

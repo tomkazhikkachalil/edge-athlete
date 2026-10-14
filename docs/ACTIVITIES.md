@@ -1,23 +1,26 @@
-# Activities — imported GPS activities (Activities program, Sep 29 2026)
+# Activities — GPS activities (Activities program, Sep 29 2026)
 
-Runs, rides, hikes and other activities an athlete's watch or app recorded.
-Phase 1 imports **files** (.FIT / .GPX / .TCX). Every device can export one,
-and no provider approvals are needed. Later providers (Strava, Google Health,
-Garmin) plug in as **adapters** that produce the same normalized shape.
-Nothing downstream of that shape ever learns a provider's format.
+Walks, runs, rides, swims and other activities, **recorded live on the
+phone** (`/activities/record`, "Recording live" below). Phase 1 (Sep 29 2026)
+imported **files** (.FIT / .GPX / .TCX); **the file import left on Oct 13
+2026** (Tom: no watch or app integration is promised until the native app —
+the Create menu's Import Activity, the `/activities/import` page and the
+`.FIT` route are gone). The parsers stay for the paused Connected apps (the
+upload link and the providers), which produce the same normalized shape;
+nothing downstream of that shape ever learns a source's format.
 
 Migration **245** is the only DDL. The code lives in `src/lib/activities/`
 (pure unless named `-server`), `src/components/activities/`, the routes under
 `src/app/api/activities/` and `src/app/api/profile/[profileId]/activities/`,
-and the pages `/activities/import` and `/activities/[id]`.
+and the pages `/activities/record` and `/activities/[id]`.
 
 ## Tom's decisions (Sep 29 2026)
 
-- **Phase 1 is file import only.** Strava, Google Health (Fitbit / Pixel) and Garmin come in later rounds.
-- **Apple Watch uses file export for now** (HealthFit and similar). A companion iOS app is deferred.
+- **Phase 1 was file import only** (Strava, Google Health and Garmin were to follow as adapters). **Superseded Oct 13 2026:** the file import is gone; the watch arrives with the native app (`docs/ROADMAP_2026-10.md`).
+- ~~**Apple Watch uses file export for now**~~ — withdrawn with the file import. A companion iOS app is the plan.
 - **Route privacy.** Everyone except the owner sees the route with its **first and last ~200 m trimmed**. On a **supervised** athlete, only the athlete and their guardians see the map; everyone else gets the stats and charts with no position at all.
 - **The map is a framed picture (Oct 9 2026, `src/lib/activities/route-frame.ts`).** The activity page's Leaflet map lives inside a box around the route — padded 25 % each side, at least 400 m across — and stops at its edge (`maxBounds`, viscosity 1); zooming out stops where that box fills the container, zooming in at street level (17); there is no zoom control (a "Fit route" button instead), no scroll-wheel zoom, and Leaflet has no rotation. **The box is computed on the client from the stream the viewer was given**, never stored: a box stored from the owner's full route would hand every viewer the extent of the trimmed ends. Under Save-Data / reduced-data the page shows the route's line drawing (the feed's picture) until the viewer asks for the map. The feed card itself never mounts a map.
-- **The feed is the athlete's choice.** Imports land in the athlete's Vitals, and the athlete taps **Share to feed**.
+- **The feed is the athlete's choice.** A recording lands in the athlete's Vitals, and the athlete taps **Share to feed** (or Post it on the recorder's review).
 - **Activities are part of Vitals (Oct 1 2026).** They were their own profile tab; see "Inside Vitals" below.
 - **FIT decoding uses Garmin's official `@garmin/fitsdk`**, server-side only (see the license note below).
 
@@ -26,7 +29,7 @@ and the pages `/activities/import` and `/activities/[id]`.
 `activities` (245, posture A: RLS on, no policies, service role only) holds one row per activity per athlete.
 
 - **An activity is NOT a sport.** `activity_type` is its own list (`catalog.ts` ≡ 245's CHECK, pinned by a test): run, trail_run, walk, hike, ride, mountain_bike, swim, row, ski, climb, other. It follows the training → post-category precedent, and nothing writes `athlete_performances` in phase 1. Bridging activities into the dataset (e.g. a run's times for recruiting) is a separate decision: it would need a `source_table` value, a `natural_key` prefix and a vocabulary.
-- **The dedupe key** is `UNIQUE (profile_id, source, external_id)`. For a file, `external_id = start:<unix seconds>`, because an athlete cannot start two activities in the same second. The same run exported as .FIT and as .GPX is therefore **one** activity, and a re-import refreshes it.
+- **The dedupe key** is `UNIQUE (profile_id, source, external_id)`. A recording's is `live:<recordingId>` (a retry is the same row). A file's was `start:<unix seconds>` (`fileExternalId`, still the upload link's rule), because an athlete cannot start two activities in the same second. Across sources the twin rule (`dedupe.ts`) keeps ONE activity.
 - **Totals** (`elapsed_s`, `moving_s`, `distance_m`, `elev_gain_m`, …) are computed by the **server** from the points. A device's own total is kept only when it agrees with the points (distance ±15%, ascent 0.5–2× + 50 m).
 - **`route_preview`** is an encoded polyline (≤ 200 points) stored **already trimmed**, so every reader of it is safe by default.
 - **`stream_path`** points at the full stream: gzipped columnar JSON in the private `uploads` bucket at `activities/<profile>/<id>.json.gz` (≤ 2,000 samples). It lives in storage, not rows, so the table stays small at tens of millions of activities.
@@ -36,16 +39,15 @@ and the pages `/activities/import` and `/activities/[id]`.
 ## The pipeline
 
 ```
-.GPX/.TCX ──browser──▶ parse-gpx / parse-tcx ──▶ NormalizedActivity ──toWire──▶ POST /api/activities ──┐
-.FIT ──raw upload──▶ POST /api/activities/fit ──▶ parse-fit-server ──▶ NormalizedActivity ─────────────┤
-(later) Strava / Google Health / Garmin webhook ──▶ provider adapter ──▶ NormalizedActivity ───────────┤
+the recorder ──toWire({format:'live'})──▶ POST /api/activities ──────────────────────────────────────┐
+the upload link (Connected apps, paused) ──▶ inbound-server: parse-gpx / parse-tcx / parse-fit-server ┤
+Polar (Connected apps, paused) ──▶ polar-sync-server: parse-fit-server ───────────────────────────────┤
                                                                                                       ▼
-                        write-server.importActivity: cleanPoints → summarize → implausibility
-                        → buildStream (storage FIRST) → upsert the row (the dedupe key)
+                        write-server.importActivity: cleanPoints (liveRoute for a recording) → summarize
+                        → implausibility → buildStream (storage FIRST) → upsert the row (the dedupe key)
 ```
 
-- **GPX/TCX are parsed in the browser.** A long ride's XML can exceed Vercel's 4.5 MB request cap, and the compact payload (`wire.ts`, ≤ 10,000 samples) is well under 1.5 MB. The parsers are regex scanners (`xml-scan.ts`, with no DOMParser and no entity or DTD resolution), so they run in node too.
-- **A FIT is uploaded raw** (≤ 4 MB; a long ride is a few hundred KB) and decoded on the server.
+- **The wire is the recorder's** (`wire.ts`, ≤ 10,000 samples, `format: 'live'` — the only format since Oct 13 2026; `wire-schema.ts` refuses `gpx` / `tcx` by name). Until then a .GPX / .TCX was parsed in the browser onto the same wire (a long ride's XML can exceed Vercel's 4.5 MB cap) and a .FIT was uploaded raw to `POST /api/activities/fit`. The parsers are regex scanners (`xml-scan.ts`, no DOMParser, no entity or DTD resolution) and now serve the upload link and the providers only — they call the writer directly, never the wire.
 - **The server never trusts client totals.** `wire-schema.ts` refuses misaligned columns, a lone latitude and extra keys.
 - **Refusals name the fix:** "faster than a run can go — pick that type and try again", "longer than 48 hours", "not a real date", "a planned route, not a recorded activity".
 - **`cleanPoints`** drops the FIX (never the sample) of a GPS jump faster than 3× the type's top speed.
@@ -56,7 +58,7 @@ and the pages `/activities/import` and `/activities/[id]`.
 Garmin's confidential information and forbids making it available to third
 parties. A browser bundle would ship its source to every visitor, so:
 - it is imported **only** from `-server.ts` modules, which a test in `visibility.test.ts` enforces;
-- `.FIT` goes to `POST /api/activities/fit`;
+- a `.FIT` is decoded on the server for the upload link and Polar (the `POST /api/activities/fit` door left Oct 13 2026);
 - the PR 4 check confirmed zero client chunks contain it.
 
 ## Who sees what: the ONE gate, then the projection
@@ -118,8 +120,7 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 
 | Route | Gate | Notes |
 |---|---|---|
-| `POST /api/activities` | write gate · `activity-import` bucket (60/h) · acting gate | GPX/TCX payload; 201 new / 200 `duplicate: true` |
-| `POST /api/activities/fit` | same | multipart: `file`, `tz`, `type?`, `targetProfileId?` |
+| `POST /api/activities` | write gate · `activity-import` bucket (60/h; the key kept its name) · acting gate | the recorder's live payload only (Oct 13 2026); 201 new / 200 `duplicate: true` |
 | `GET /api/activities/[id]` | the one gate | the detail projection + the athlete's name / handle |
 | `PATCH` / `DELETE /api/activities/[id]` | owner audience | name, type, Only me (refused while on the feed); delete takes the stream and the post |
 | `GET /api/profile/[profileId]/activities` | the one gate, then the Vitals privacy aspect for a viewer | keyset list (a strict ISO timestamp + uuid cursor), count, 12 weeks of totals; `?sessions=1` = the Vitals week maths' read |
@@ -133,7 +134,7 @@ The page posts `POST /api/posts` with `stats_data {type:'activity', activity_id}
 | `POST /api/webhooks/polar` | Polar's signature | no session; 404 while Polar is not configured |
 | `GET` / `POST /api/admin/connections/polar-webhook` | admin | setup status; create the webhook (the key is shown once) |
 
-The import routes, the link's mint, the inbound route and Polar's two connect routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
+The recorder's route, the link's mint, the inbound route and Polar's two connect routes are on THE write-gate list (`write-gate.test.ts`, `docs/SUPPORT.md`).
 
 ## Lifecycle and retention
 
@@ -243,7 +244,7 @@ superseded for the web app.
   out of order — nothing is admitted while paused, so a pause IS a gap the
   server's 30 s rule keeps out of moving time; `liveTotals` for the screen —
   elapsed from clock deltas, never an interval counter; `toRecordingWire` →
-  the ONE import payload with `format: 'live'`, `recordingId`, `segments`).
+  the ONE recording payload with `format: 'live'`, `recordingId`, `segments`).
   `record/storage.ts` keeps the recording in IndexedDB as it goes (points in
   batches of 10 fixes / 15 s, the pending photo blobs; **7 days** — the
   retention every unfinished session has, since the resume pill program).

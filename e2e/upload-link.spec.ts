@@ -1,9 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
-import { parseGpx } from '../src/lib/activities/parse-gpx';
-import { toWire } from '../src/lib/activities/wire';
 import { gpxOf, healthWorkout, line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire } from './helpers/activities';
 import { fitRun as fitBytes } from './helpers/fit';
 
 // Fix round part 3, PR 3 (Oct 1 2026): the Apple Watch path. Apple has no web
@@ -96,9 +95,8 @@ test('upload link: mint, deliveries (bridge JSON, GPX, FIT), one activity each, 
     expect(await resent.json()).toMatchObject({ received: 1, imported: 0, duplicates: 1 });
     expect(await count()).toBe(1);
 
-    // The athlete also imports the FILE of that run by hand: the same activity.
-    const parsed = parseGpx(gpxOf(line(1800, { t0: RUN_A + 2000, stepM: 3, hr: 150 })));
-    const byHand = await apiA.post('/api/activities', { data: { activity: toWire({ ...parsed, format: 'gpx' }, 'America/Toronto') } });
+    // The athlete also recorded that run on the phone: the same activity.
+    const byHand = await apiA.post('/api/activities', { data: { activity: liveWire({ t0: RUN_A + 2000, n: 1800, stepM: 3, hr: 150 }) } });
     expect(byHand.status(), await readErrorBody(byHand)).toBe(200);
     expect(await byHand.json()).toMatchObject({ id: runA!.id, duplicate: true });
     expect(await count()).toBe(1);

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
-import { toWire } from '../src/lib/activities/wire';
-import { line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire as seedWire } from './helpers/activities';
 
 // After the recording (Live Activities PR 5): the activity page shows the
 // segments (tap one → it lights up on the route and the chart), the step
@@ -13,8 +12,7 @@ const T0 = Date.UTC(2026, 9, 2, 9, 0, 0);
 const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f50';
 
 function liveWire() {
-  const w = toWire({ format: 'live', type: 'walk', name: 'Park loop', points: line(600, { t0: T0, stepM: 1.4, stepS: 1, climbPerStep: 0.02 }), device: {}, tzOffsetMin: null }, 'America/Toronto');
-  return { ...w, recordingId: REC, segments: [{ id: 'climb-1', kind: 'climb', from_s: 120, to_s: 240, label: 'The hill' }] };
+  return seedWire({ t0: T0, name: 'Park loop', climbPerStep: 0.02, recordingId: REC, segments: [{ id: 'climb-1', kind: 'climb', from_s: 120, to_s: 240, label: 'The hill' }] });
 }
 
 async function uploadPhoto(api: import('@playwright/test').APIRequestContext): Promise<string> {

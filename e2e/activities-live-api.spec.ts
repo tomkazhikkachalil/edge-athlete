@@ -1,13 +1,12 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
-import { toWire } from '../src/lib/activities/wire';
-import { line } from '../src/lib/activities/__tests__/fixtures';
+import { liveWire as seedWire } from './helpers/activities';
 
 // Live Activities PR 3 (Oct 4 2026): the recorder's finished recording
 // through the import door, end to end. A live wire → one row (source
 // 'live', the segments kept, a step estimate); the SAME recordingId again →
-// 200 duplicate, never a second row; a watch's file of the same walk 20 s
-// later → still one row, the segments kept; a photo attached twice is one
+// 200 duplicate, never a second row; a second phone's recording of the same
+// walk 20 s later → still one row, the segments kept; a photo attached twice is one
 // row; a viewer's pin inside the trimmed 200 m is null; share mirrors the
 // photos into the post; delete cascades the photos.
 
@@ -16,13 +15,12 @@ const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f40';
 
 function liveWire(over: Record<string, unknown> = {}) {
   // 600 fixes, 1.4 m a second: an 840 m walk in 10 minutes.
-  const w = toWire({ format: 'live', type: 'walk', name: 'Lunch walk', points: line(600, { t0: T0, stepM: 1.4, stepS: 1, climbPerStep: 0.01 }), device: {}, tzOffsetMin: null }, 'America/Toronto');
-  return { ...w, recordingId: REC, segments: [{ id: 'sprint-1', kind: 'sprint', from_s: 100, to_s: 160, label: 'Hill' }], ...over };
+  return { ...seedWire({ t0: T0, name: 'Lunch walk', climbPerStep: 0.01, recordingId: REC, segments: [{ id: 'sprint-1', kind: 'sprint', from_s: 100, to_s: 160, label: 'Hill' }] }), ...over };
 }
 
-/** The same walk as a watch's GPX, 20 s later start, with heart rate (richer). */
-function watchWire() {
-  return toWire({ format: 'gpx', type: 'walk', name: null, points: line(590, { t0: T0 + 20_000, stepM: 1.4, stepS: 1, hr: 110 }), device: {}, tzOffsetMin: null }, 'America/Toronto');
+/** The same walk from a second phone: its own recording, 20 s later start, with heart rate (richer). */
+function twinWire() {
+  return seedWire({ t0: T0 + 20_000, n: 590, hr: 110 });
 }
 
 async function ctxFor(u: QaUser | null): Promise<APIRequestContext> {
@@ -71,13 +69,13 @@ test('a live recording lands once, keeps its segments through a watch twin, carr
     expect(again.status()).toBe(200);
     expect(await again.json()).toEqual({ id, duplicate: true });
 
-    // A watch recorded the same walk (20 s skew, heart rate): still ONE row,
-    // the richer stream wins, the recorder's segments stay.
-    const watch = await apiA.post('/api/activities', { data: { activity: watchWire() } });
+    // A second phone recorded the same walk (20 s skew, heart rate): still ONE
+    // row, the richer stream wins, the first recorder's segments stay.
+    const watch = await apiA.post('/api/activities', { data: { activity: twinWire() } });
     expect(watch.status(), await readErrorBody(watch)).toBe(200);
     expect(await watch.json()).toEqual({ id, duplicate: true });
     const { data: merged } = await admin.from('activities').select('segments, avg_hr, source, steps').eq('id', id).single();
-    expect(merged!.avg_hr).toBeGreaterThan(90); // the watch's heart rate arrived — the richer stream won
+    expect(merged!.avg_hr).toBeGreaterThan(90); // the twin's heart rate arrived — the richer stream won
     expect(merged!.segments).toHaveLength(1);
     // The steps follow the stream: recomputed on the server from the twin's distance.
     expect(merged!.steps).toBeGreaterThan(1000);

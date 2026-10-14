@@ -31,10 +31,9 @@ export const GATED_WRITE_ROUTES = [
   'clubs/requests/route.ts',
   'leagues/requests/route.ts',
   'challenges/route.ts', // Play (244): a friend challenge reaches another person
-  'activities/route.ts', // Activities (245): an import is the athlete's content
+  'activities/route.ts', // Activities (245): a saved recording is the athlete's content (the file import left Oct 13 2026)
   'activities/[id]/media/route.ts', // Live Activities (251): a photo on an activity is content
   'activities/[id]/media/[mediaId]/route.ts', // …and so is its caption / re-render
-  'activities/fit/route.ts', // Activities (245): the .FIT door of the same import
   'connections/upload-link/route.ts', // Connected apps (247): the upload link is a way to create content
   'activities/inbound/[token]/route.ts', // …and the link itself: the token names the account, the gate still applies
   'connections/polar/start/route.ts', // Connected apps (PR 4): a provider connection is a standing way to create content
