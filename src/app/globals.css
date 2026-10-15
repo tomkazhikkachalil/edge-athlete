@@ -1400,6 +1400,29 @@ html:not([data-theme="dark"]) .dark-theme-only {
 /* The activity route map is a FRAMED picture (Oct 9 2026, route-frame.ts):
    the base map is muted so the violet route is the focus. Only on the
    OpenStreetMap layer — the class comes off when Satellite is shown. */
+/* The phone thread shell FOLLOWS the visual viewport (useThreadViewport,
+   thread-viewport.ts — Oct 14 2026): `top` + `height` are the visible strip
+   minus the chrome that overlaps it; `top:`, never a transform (a transformed
+   ancestor would re-root the fixed GIF sheet and the media editor). The
+   safe-area insets live here; the bottom one goes with the keyboard open
+   (it covers the home indicator). Inert from `lg` — the split pane. */
+@media (max-width: 1023px) {
+  .ea-thread-shell {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--ea-thread-top, 0px);
+    height: 100vh;
+    height: var(--ea-thread-h, 100dvh);
+    z-index: 20;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+  .ea-thread-shell[data-keyboard-open] { padding-bottom: 0; }
+}
+
 .ea-route-frame .leaflet-tile-pane {
   filter: saturate(0.35) brightness(1.04);
 }

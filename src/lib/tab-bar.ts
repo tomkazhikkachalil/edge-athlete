@@ -37,9 +37,15 @@ const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/activit
 /** Phase 4: the live stat screen owns its bottom edge too (the entry strip) — a pattern, since the id sits in the middle. */
 const HIDDEN_PATTERNS: ReadonlyArray<RegExp> = [/^\/events\/[^/]+\/live$/];
 
-export function showsTabBar(pathname: string | null | undefined): boolean {
+/**
+ * `conversationParam` is the `c` search param: an open thread on `/messages`
+ * (the phone shows it full-screen) owns its bottom edge like `/messages/[id]`
+ * does — the composer sits on the keyboard, not on the bar (Oct 14 2026).
+ */
+export function showsTabBar(pathname: string | null | undefined, conversationParam?: string | null): boolean {
   if (!pathname) return false;
   const clean = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (clean === '/messages' && conversationParam) return false;
   if (HIDDEN_PATTERNS.some(re => re.test(clean))) return false;
   for (const h of HIDDEN_PREFIXES) {
     if (h.endsWith('/') ? clean.startsWith(h) : clean === h || clean.startsWith(`${h}/`)) return false;

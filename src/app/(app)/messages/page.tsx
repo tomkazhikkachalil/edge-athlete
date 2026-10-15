@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useMessages } from '@/lib/messages';
@@ -10,6 +10,8 @@ import ChatWindow from '@/components/messages/ChatWindow';
 import NewConversationModal from '@/components/messages/NewConversationModal';
 import QuickMessagesToggle from '@/components/messages/QuickMessagesToggle';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
+import { useThreadViewport } from '@/hooks/useThreadViewport';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 function MessagesContent() {
   const router = useRouter();
@@ -20,6 +22,15 @@ function MessagesContent() {
   useVisualViewportHeight();
 
   const activeId = searchParams.get('c');
+  // The phone thread shell follows the visual viewport (Oct 14 2026); the
+  // list screen keeps the --vvh model above. Inert from lg (the split pane).
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const isDesktop = useIsDesktop();
+  // Enabled only once the shell can be in the DOM (auth resolved, a thread
+  // open): the hook's effect re-runs on `enabled`, and the shell renders
+  // below the auth-loading branch — enabled earlier, the effect found no
+  // element and never ran again (the first staging run, Oct 15 2026).
+  const { keyboardOpen } = useThreadViewport(shellRef, !isDesktop && !!activeId && !authLoading && !!user);
   // `compose=1` (the profile's Message door, Oct 14 2026): the composer takes
   // focus once the thread has loaded. The intent is captured at mount and the
   // flag replaced out of the URL, so a refresh or a shared link does not
@@ -73,11 +84,12 @@ function MessagesContent() {
 
         {/* Chat pane */}
         {activeId ? (
-          <div className="flex-1 min-w-0">
+          <div ref={shellRef} data-thread-shell="" className="flex-1 min-w-0 ea-thread-shell flex flex-col bg-surface">
             <ChatWindow
               key={activeId}
               conversationId={activeId}
               autoFocusComposer={composeIntent}
+              keyboardOpen={keyboardOpen}
               onBack={() => router.push('/messages')}
             />
           </div>
@@ -108,10 +120,22 @@ function MessagesContent() {
   );
 }
 
+/** The app header — hidden below lg while a thread is open (the thread has its own: Back, the name, the menu). */
+function ThreadAwareHeader() {
+  const searchParams = useSearchParams();
+  return (
+    <div className={searchParams.get('c') ? 'hidden lg:block' : ''}>
+      <AppHeader showSearch={false} />
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   return (
     <div className="flex flex-col h-dvh bg-surface" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px) - var(--ea-dock-h, 0px))' }}>
-      <AppHeader showSearch={false} />
+      <Suspense fallback={<AppHeader showSearch={false} />}>
+        <ThreadAwareHeader />
+      </Suspense>
       <div className="flex-1 min-h-0">
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">

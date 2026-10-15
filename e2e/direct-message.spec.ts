@@ -38,7 +38,7 @@ test('direct message: A sends via API, B reads and replies in UI, A sees reply',
     await pageB.getByPlaceholder('Message…').fill(`qa-reply-${stamp}`);
     // Wait for the send to LAND before leaving the page. The thread only
     // renders a message after the POST answers, and until then the reply's
-    // text sits in the (disabled) textarea — which getByText matches, so
+    // text sits in the textarea — which getByText matches, so
     // asserting on the text alone passed at once and the navigation below
     // aborted the in-flight send (the route reads its body after the write
     // gate and the rate-limit round trips). The textarea clears on success.

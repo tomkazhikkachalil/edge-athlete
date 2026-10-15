@@ -10,6 +10,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import { useThreadScroll } from './useThreadScroll';
 import TypingIndicator from './TypingIndicator';
 import GroupSettingsModal from './GroupSettingsModal';
 import PostDetailModal from '@/components/PostDetailModal';
@@ -26,9 +27,11 @@ interface Props {
   onBack?: () => void;
   /** The profile's Message door (Oct 14 2026): focus the composer once the thread has loaded. */
   autoFocusComposer?: boolean;
+  /** The phone shell's keyboard state (useThreadViewport): opening it scrolls to the latest message. */
+  keyboardOpen?: boolean;
 }
 
-export default function ChatWindow({ conversationId, onBack, autoFocusComposer = false }: Props) {
+export default function ChatWindow({ conversationId, onBack, autoFocusComposer = false, keyboardOpen = false }: Props) {
   const { user, profile } = useAuth();
   const router = useRouter();
   const { markConversationRead, addOptimisticMessage, removeConversation } = useMessages();
@@ -68,8 +71,29 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const messageRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = user?.id ?? '';
+
+  // The list is a plain column (newest at the DOM end); `messages` stays
+  // newest-first in state (the realtime merge, the older-page append and the
+  // send prepend are untouched). useThreadScroll is the one writer of its
+  // scrollTop (Oct 14 2026 — column-reverse scrolled badly on WebKit and had
+  // no rules: no landing at the latest, no keeping your place, no pill).
+  const ordered = useMemo(() => messages.slice().reverse(), [messages]);
+  const newest = messages[0] ?? null;
+  const oldest = messages.length > 0 ? messages[messages.length - 1] : null;
+  const scroll = useThreadScroll({
+    listRef,
+    contentRef,
+    newestId: newest?.id ?? null,
+    oldestId: oldest?.id ?? null,
+    count: messages.length,
+    newestIsOwn: !!newest && newest.sender_id === currentUserId,
+    loading,
+    keyboardOpen,
+  });
 
   // Load initial conversation + messages
   useEffect(() => {
@@ -197,8 +221,10 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   // immutability requires declaration before access in source order.
   // Relocating a useCallback is safe — React requires a consistent hook
   // order across renders, not a particular one, and this stays unconditional.
+  const { beforePrepend } = scroll;
   const loadOlderMessages = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
+    beforePrepend();
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/messages/${conversationId}?cursor=${encodeURIComponent(nextCursor)}`);
@@ -215,7 +241,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
     } finally {
       setLoadingMore(false);
     }
-  }, [conversationId, nextCursor, loadingMore]);
+  }, [conversationId, nextCursor, loadingMore, beforePrepend]);
 
   // Infinite scroll — load older messages when sentinel enters view
   useEffect(() => {
@@ -370,11 +396,11 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   const handleReply = useCallback((message: Message) => {
     setReplyingTo(message);
     replyingToRef.current = message;
-    // Scroll the target into view so user sees what they're replying to
+    // Scroll the target into view so user sees what they're replying to —
+    // within the LIST, never the window (the phone shell must not move).
     const el = messageRefsMap.current.get(message.id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    const l = listRef.current;
+    if (el && l) l.scrollTo({ top: el.offsetTop - l.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
   }, []);
 
   const handleCancelReply = useCallback(() => {
@@ -395,8 +421,9 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   // Scroll to a specific message (when tapping a quoted reply)
   const handleScrollToMessage = useCallback((messageId: string) => {
     const el = messageRefsMap.current.get(messageId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const l = listRef.current;
+    if (el && l) {
+      l.scrollTo({ top: el.offsetTop - l.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
       // Brief highlight
       el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-1', 'rounded-xl');
       setTimeout(() => {
@@ -612,11 +639,10 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
 
   // Determine if sender name should be shown for each message
   // Show sender name in group chats for consecutive messages from different senders
-  const shouldShowSender = (msg: Message, index: number): boolean => {
+  const shouldShowSender = (msg: Message, prevMsg: Message | undefined): boolean => {
     if (!conversation || conversation.type !== 'group') return false;
     if (msg.sender_id === currentUserId) return false;
-    // In the display (flex-col-reverse), index 0 = newest. Prev message (older, rendered above) is at index+1
-    const prevMsg = messages[index + 1];
+    // `prevMsg` is the OLDER message, rendered above.
     return !prevMsg || prevMsg.sender_id !== msg.sender_id;
   };
 
@@ -824,55 +850,80 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
         </div>
       )}
 
-      {/* Messages (flex-col-reverse: newest at DOM top = visual bottom) */}
-      <div className="flex-1 overflow-y-auto flex flex-col-reverse px-4 py-4 gap-0">
-        {messages.map((msg, index) => (
-          <div
-            key={msg.id}
-            ref={(el) => {
-              if (el) messageRefsMap.current.set(msg.id, el);
-              else messageRefsMap.current.delete(msg.id);
-            }}
-            className={`transition-colors duration-300 rounded-xl ${
-              replyingTo?.id === msg.id ? 'bg-brand-soft ring-1 ring-violet-200' : ''
-            }`}
-          >
-            <MessageBubble
-              message={msg}
-              isOwn={msg.sender_id === currentUserId}
-              showSender={shouldShowSender(msg, index)}
-              onDelete={handleDeleteMessage}
-              onViewPost={setViewingPostId}
-              onToggleReaction={handleToggleReaction}
-              onGifReact={handleGifReact}
-              onReply={handleReply}
-              onScrollToMessage={handleScrollToMessage}
-              onMessageEdited={handleMessageEdited}
-              participants={activeParticipantProfiles}
-            />
-          </div>
-        ))}
-
-        {/* Sentinel: visually at top (end of flex-col-reverse), triggers loading older messages */}
-        {hasMore && (
-          <div ref={sentinelRef} className="flex items-center justify-center py-4">
-            {loadingMore ? (
-              <i className="fas fa-spinner fa-spin text-faint"></i>
-            ) : (
-              <div className="h-4" />
-            )}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {messages.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center flex-1 text-center py-12">
-            <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-comment-alt text-faint text-xl"></i>
+      {/* Messages: a plain column, oldest at the top, newest at the bottom.
+          `overflow-anchor: none` keeps useThreadScroll the one writer of
+          scrollTop on a prepend (Chrome would anchor as well); overscroll
+          containment stops the chain onto the page on a phone. */}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={listRef}
+          data-thread-list=""
+          onScroll={scroll.onScroll}
+          className="relative h-full overflow-y-auto overscroll-contain [overflow-anchor:none] px-4 py-4"
+        >
+          {/* Sentinel at the top: loads older messages when it comes into view. */}
+          {hasMore && (
+            <div ref={sentinelRef} className="flex items-center justify-center py-4">
+              {loadingMore ? (
+                <i className="fas fa-spinner fa-spin text-faint"></i>
+              ) : (
+                <div className="h-4" />
+              )}
             </div>
-            <p className="text-sm font-semibold text-secondary mb-1">No messages yet</p>
-            <p className="text-xs text-faint">Send the first message!</p>
+          )}
+
+          <div ref={contentRef}>
+            {ordered.map((msg, index) => (
+              <div
+                key={msg.id}
+                ref={(el) => {
+                  if (el) messageRefsMap.current.set(msg.id, el);
+                  else messageRefsMap.current.delete(msg.id);
+                }}
+                className={`transition-colors duration-300 rounded-xl ${
+                  replyingTo?.id === msg.id ? 'bg-brand-soft ring-1 ring-violet-200' : ''
+                }`}
+              >
+                <MessageBubble
+                  message={msg}
+                  isOwn={msg.sender_id === currentUserId}
+                  showSender={shouldShowSender(msg, ordered[index - 1])}
+                  onDelete={handleDeleteMessage}
+                  onViewPost={setViewingPostId}
+                  onToggleReaction={handleToggleReaction}
+                  onGifReact={handleGifReact}
+                  onReply={handleReply}
+                  onScrollToMessage={handleScrollToMessage}
+                  onMessageEdited={handleMessageEdited}
+                  participants={activeParticipantProfiles}
+                />
+              </div>
+            ))}
           </div>
+
+          {/* Empty state */}
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
+                <i className="fas fa-comment-alt text-faint text-xl"></i>
+              </div>
+              <p className="text-sm font-semibold text-secondary mb-1">No messages yet</p>
+              <p className="text-xs text-faint">Send the first message!</p>
+            </div>
+          )}
+        </div>
+
+        {/* A message arrived while you were reading history: a pill, not a yank. */}
+        {scroll.unseenCount > 0 && (
+          <button
+            type="button"
+            data-new-messages-pill=""
+            onClick={() => scroll.scrollToBottom('smooth')}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 min-h-[36px] px-3 rounded-full bg-brand text-white text-xs font-semibold shadow-lg inline-flex items-center gap-1.5"
+          >
+            {scroll.unseenCount === 1 ? 'New message' : `${scroll.unseenCount} new messages`}
+            <i className="fas fa-arrow-down text-[10px]" aria-hidden="true"></i>
+          </button>
         )}
       </div>
 

@@ -305,6 +305,14 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
     setSending(true);
     setError('');
+    // The field clears NOW (the next message can start while this one is in
+    // flight; nothing blurs); an error puts the text back.
+    const sentText = text;
+    const sentReply = replyingTo;
+    setText('');
+    dispatchLeading({ type: 'SENT' });
+    onCancelReply?.();
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
       let mediaUrl: string | null = null;
@@ -323,9 +331,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       const msgType = (attachedFile || gifUrl) ? attachedType! : 'text';
       const body: Record<string, unknown> = { type: msgType };
-      if (text.trim()) body.content = text.trim();
+      if (sentText.trim()) body.content = sentText.trim();
       if (mediaUrl) { body.media_url = mediaUrl; body.media_type = mediaType; }
-      if (replyingTo) body.parent_message_id = replyingTo.id;
+      if (sentReply) body.parent_message_id = sentReply.id;
 
       const res = await fetch(`/api/messages/${conversationId}/messages`, {
         method: 'POST',
@@ -340,15 +348,10 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       const data = await res.json();
       onSend(data.message as Message);
-
-      // Reset. Send is the session boundary, so the full leading cluster
-      // comes back without the user asking for it.
-      setText('');
-      dispatchLeading({ type: 'SENT' });
+      // The attachment goes only once it is sent (a failed upload keeps it).
       removeAttachment();
-      onCancelReply?.();
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
     } catch (err) {
+      setText(sentText);
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
@@ -393,7 +396,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     : null;
 
   return (
-    <div className="border-t border-border bg-surface shrink-0 safe-bottom">
+    <div className="border-t border-border bg-surface shrink-0" data-composer="">
       {/* Reply preview bar */}
       {replyingTo && (
         <div className="flex items-center gap-2 px-4 py-2 bg-surface-muted border-b border-border">
@@ -529,7 +532,11 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                 {/* GIF */}
                 <button
                   type="button"
-                  onClick={() => setShowGifPicker(prev => !prev)}
+                  onClick={() => {
+                    // The sheet wants the whole strip: let the keyboard go first.
+                    if (!showGifPicker) textareaRef.current?.blur();
+                    setShowGifPicker(prev => !prev);
+                  }}
                   disabled={disabled || sending}
                   data-gif-picker-toggle
                   className="w-10 h-11 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
@@ -598,7 +605,11 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? 'Reply…' : 'Message…'}
             rows={1}
-            disabled={disabled || sending}
+            // Never disabled for a send in flight: a disabled field blurs,
+            // and on a phone that closes the keyboard — reopened on the next
+            // tap with a relayout every message (Oct 14 2026). The Send
+            // button carries `sending`.
+            disabled={disabled}
             className="w-full resize-none border border-border-strong rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-y-auto block"
             style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
           />
@@ -646,6 +657,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         <button
           type="button"
           onClick={handleSend}
+          // The tap must not move focus off the field (iOS would drop the
+          // keyboard between messages); click still fires.
+          onPointerDown={e => e.preventDefault()}
           disabled={!canSend}
           className="shrink-0 w-11 h-11 bg-brand text-white rounded-full flex items-center justify-center hover:bg-brand-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Send message"

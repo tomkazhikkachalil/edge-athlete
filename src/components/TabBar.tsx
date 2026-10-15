@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useLiveNow } from '@/hooks/useLiveNow';
 import { useAuth } from '@/lib/auth';
 import { activeNavPath } from '@/lib/nav-active';
@@ -25,9 +25,11 @@ import { showsTabBar, TAB_BAR_LINKS } from '@/lib/tab-bar';
 export default function TabBar() {
   const { user, initialAuthCheckComplete } = useAuth();
   const pathname = usePathname();
+  // An open thread on /messages (?c=) owns its bottom edge (Oct 14 2026).
+  const searchParams = useSearchParams();
   const liveCount = useLiveNow(!!user);
   const ref = useRef<HTMLElement | null>(null);
-  const visible = initialAuthCheckComplete && !!user && showsTabBar(pathname);
+  const visible = initialAuthCheckComplete && !!user && showsTabBar(pathname, searchParams.get('c'));
 
   useLayoutEffect(() => {
     const root = document.documentElement;
