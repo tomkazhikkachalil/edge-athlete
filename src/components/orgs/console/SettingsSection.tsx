@@ -104,7 +104,7 @@ export default function SettingsSection({ side, orgId, switches, teamCount, comp
                   disabled={saving !== null}
                   onChange={e => void save(row.key, e.target.checked)}
                   data-org-switch={row.key}
-                  className="h-5 w-5 shrink-0 accent-violet-600"
+                  className="h-5 w-5 shrink-0 accent-control"
                 />
               </label>
               <p className="mt-1 text-xs text-muted" data-org-switch-note={row.key}>

@@ -29,6 +29,11 @@
    * opt-out; the dark block says `only dark` for the same reason. Pinned by
    * e2e/android-forced-dark.spec.ts. */
   color-scheme: only light;
+  /* Every checkbox, radio and range wears the theme's violet — without this
+   * Android paints them its own teal/blue, iOS its blue (Oct 15 2026). Set in
+   * BOTH theme blocks: accent-color inherits as a resolved colour, so an
+   * island must re-declare it. `accent-control` is the per-element utility. */
+  accent-color: var(--control-accent);
 
   /* The page canvas. Was #ffffff, which only ever showed during load and on
    * overscroll, because all 49 app pages paint `bg-gray-50` over it — so the
@@ -81,6 +86,10 @@
    * 8.98:1 (violet-500 would have failed at 4.23) and reads as a different
    * violet from the bubbles rather than merely a darker edge. */
   --brand-chrome: #5b21b6;    /* violet-800 */
+  /* Checkbox / radio / range fill (accent-color). Its own token because the
+   * solid --brand is theme-invariant, and violet-600 on the dark surface is
+   * 3.03:1 — a hair over the 3:1 floor; violet-500 is 4.07:1 there. */
+  --control-accent: #7c3aed;  /* violet-600 */
 
   /* Status. Solids are theme-invariant (they always carry white text); the
    * fg/soft/border companions lighten + desaturate in dark. */
@@ -210,6 +219,7 @@
   --color-brand-fg: var(--brand-fg);
   --color-brand-fg-strong: var(--brand-fg-strong);
   --color-brand-chrome: var(--brand-chrome);
+  --color-control: var(--control-accent);
 
   --color-success: var(--success);
   --color-success-fg: var(--success-fg);
@@ -339,6 +349,7 @@ body {
  * and kept current by useTheme (src/lib/use-theme.ts). */
 [data-theme="dark"] {
   color-scheme: only dark;
+  accent-color: var(--control-accent);
 
   --background: #171310;
   --foreground: #e9e5e1;
@@ -365,6 +376,7 @@ body {
   --brand-soft: #322a45;     /* warm violet wash, not navy */
   --brand-fg: #a78bfa;       /* ~6.5:1 on surface */
   --brand-fg-strong: #c4b5fd;
+  --control-accent: #8b5cf6; /* violet-500, 4.07:1 on surface */
 
   --success: #16a34a;
   --success-fg: #4ade80;

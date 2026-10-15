@@ -225,7 +225,7 @@ export default function ActivatePage() {
                       name="visibility"
                       checked={visibility === opt.value}
                       onChange={() => setVisibility(opt.value)}
-                      className="mt-1 accent-violet-600"
+                      className="mt-1 accent-control"
                     />
                     <span className="text-sm">
                       <span className="text-primary font-medium">{opt.label}</span>
@@ -244,7 +244,7 @@ export default function ActivatePage() {
                       name="messaging"
                       checked={messaging === opt.value}
                       onChange={() => setMessaging(opt.value)}
-                      className="mt-1 accent-violet-600"
+                      className="mt-1 accent-control"
                     />
                     <span className="text-sm">
                       <span className="text-primary font-medium">{opt.label}</span>

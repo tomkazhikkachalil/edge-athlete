@@ -440,7 +440,7 @@ export default function TransferPage() {
                         name="postRole"
                         checked={postRole === opt.value}
                         onChange={() => setPostRole(opt.value)}
-                        className="mt-1 accent-violet-600"
+                        className="mt-1 accent-control"
                       />
                       <span className="text-sm">
                         <span className="text-primary font-medium">{opt.label}</span>

@@ -1,5 +1,11 @@
 # Development Log
 
+## October 15, 2026 — Android control defaults: checkboxes, radios and ranges wear the theme (PR 2 of the theme-parity round, zero DDL)
+
+Android paints an un-themed checkbox / radio / range in its own teal; ours set `accent-violet-600` on 17 elements and left the rest to the platform, and violet-600 on the dark surface is 3.03:1. **Now** one token, `--control-accent` (violet-600 light · violet-500 dark, 4.07:1), set as `accent-color` in both theme blocks (an island re-declares it — the property inherits as a resolved colour); the 17 classes are `accent-control`; the always-dark media editor keeps its violet-500. Checked and left alone: the tap highlight (already transparent on body), text-size adjust (preflight), and text inputs / selects / textareas — the sweep's "330 un-classed controls" are transparent over the themed surface by Tailwind's preflight, not UA grey.
+
+**Proof:** `npm run verify` exit 0 (**5,059 tests**; `theme-signals.test.ts` pins both blocks); `android-forced-dark.spec` gained the computed check (a checkbox reads rgb(124,58,237) in light, rgb(139,92,246) in dark): android 2/2; with `appearance`: mobile 9/9, webkit-mobile 7 + 2 skipped (Chromium-only checks).
+
 ## October 15, 2026 — Samsung Internet: the stylesheet now has a real dark-mode rule (follow-up to #1197, zero DDL)
 
 Tom confirmed the reporter was on Samsung Internet / the stock Android browser — Chrome worked. Samsung's dark mode keeps a site's own look only when it finds the site's dark styles, which it looks for under `prefers-color-scheme`; ours are keyed to `data-theme`, so the stylesheet had none. Added a marker rule — `@media (prefers-color-scheme: dark) { :root { --ea-os-scheme: dark } }`, read by nothing, so no pixel changes — making the page send all three documented signals (with #1197's `only` schemes and color-scheme meta). Samsung documents no exact check, so this improves the odds, not a guarantee; Labs → "Use website dark theme" stays the user-side fallback. Also: `appearance.spec`'s quick-succession step leaves the field by focus (the android flake of #1197's prod probe — `locator.blur()` is dead under touch emulation).

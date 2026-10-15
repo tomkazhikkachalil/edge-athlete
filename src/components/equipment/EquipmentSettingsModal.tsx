@@ -219,7 +219,7 @@ export default function EquipmentSettingsModal({
                   type="checkbox"
                   checked={!hideHistory}
                   onChange={e => setHideHistory(!e.target.checked)}
-                  className="accent-violet-600"
+                  className="accent-control"
                 />
                 Show my retired gear (History)
               </label>
@@ -229,7 +229,7 @@ export default function EquipmentSettingsModal({
                     type="checkbox"
                     checked={!hiddenSports.includes(sport.key)}
                     onChange={() => toggleHidden(sport.key)}
-                    className="accent-violet-600"
+                    className="accent-control"
                   />
                   Show my {sport.label} gear
                 </label>
@@ -247,7 +247,7 @@ export default function EquipmentSettingsModal({
                   name="equipment-card-detail"
                   checked={cardDetail === 'detailed'}
                   onChange={() => setCardDetail('detailed')}
-                  className="accent-violet-600"
+                  className="accent-control"
                 />
                 Detailed — specs and notes on cards
               </label>
@@ -257,7 +257,7 @@ export default function EquipmentSettingsModal({
                   name="equipment-card-detail"
                   checked={cardDetail === 'compact'}
                   onChange={() => setCardDetail('compact')}
-                  className="accent-violet-600"
+                  className="accent-control"
                 />
                 Compact — brand, model and dates only
               </label>

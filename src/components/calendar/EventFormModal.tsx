@@ -570,7 +570,7 @@ export default function EventFormModal({
               type="checkbox"
               checked={form.allDay}
               onChange={e => set('allDay', e.target.checked)}
-              className="accent-violet-600 w-4 h-4"
+              className="accent-control w-4 h-4"
             />
             All day
           </label>
@@ -726,7 +726,7 @@ export default function EventFormModal({
                         name="repeat-ends"
                         checked={repeat.endsKind === 'never'}
                         onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'never' }))}
-                        className="accent-violet-600"
+                        className="accent-control"
                       />
                       Never ends
                     </label>
@@ -736,7 +736,7 @@ export default function EventFormModal({
                         name="repeat-ends"
                         checked={repeat.endsKind === 'until'}
                         onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'until' }))}
-                        className="accent-violet-600"
+                        className="accent-control"
                       />
                       Until
                       <input
@@ -752,7 +752,7 @@ export default function EventFormModal({
                         name="repeat-ends"
                         checked={repeat.endsKind === 'count'}
                         onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'count' }))}
-                        className="accent-violet-600"
+                        className="accent-control"
                       />
                       After
                       <input

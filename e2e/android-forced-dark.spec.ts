@@ -1,6 +1,6 @@
 import { test, expect, chromium, devices, type Browser } from '@playwright/test';
 import sharp from 'sharp';
-import { createQaUser, deleteQaUser, mintStorageState, type QaUser } from './helpers/qa-user';
+import { adminClient, createQaUser, deleteQaUser, mintStorageState, type QaUser } from './helpers/qa-user';
 
 // Android's forced dark mode must not repaint our LIGHT theme (Oct 15 2026).
 //
@@ -52,5 +52,34 @@ test('@mobile the light theme stays light under Android forced dark', async ({ b
     expect(brightness, `mean brightness ${brightness.toFixed(0)}`).toBeGreaterThan(180);
   } finally {
     await ctx.close();
+  }
+});
+
+// Checkboxes, radios and ranges wear the theme's violet, not Android's teal:
+// one token, lighter in dark (globals.css --control-accent).
+test('@mobile native controls take the theme accent in light and dark', async ({ browserName, baseURL }) => {
+  test.skip(browserName !== 'chromium', 'one engine is enough for a computed colour');
+  for (const [mode, rgb] of [['off', 'rgb(124, 58, 237)'], ['on', 'rgb(139, 92, 246)']] as const) {
+    const { error } = await adminClient().from('profiles').update({ theme_prefs: { mode } }).eq('id', user!.id);
+    if (error) throw new Error(error.message);
+    const ctx = await browser!.newContext({ ...devices['Pixel 7'], storageState: state!, baseURL });
+    try {
+      const page = await ctx.newPage();
+      // The mirror in the minted state is pinned light; the cookie-less first
+      // load reads it, so write the mode into the mirror before any script.
+      await ctx.addInitScript(m => { try { localStorage.setItem('ea:theme:v1', JSON.stringify({ mode: m })); } catch {} }, mode);
+      await page.goto('/feed');
+      if (mode === 'on') await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      else await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
+      const accent = await page.evaluate(() => {
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        document.body.appendChild(box);
+        return getComputedStyle(box).accentColor;
+      });
+      expect(accent, `theme ${mode}`).toBe(rgb);
+    } finally {
+      await ctx.close();
+    }
   }
 });

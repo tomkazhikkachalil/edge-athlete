@@ -134,7 +134,7 @@ export default function ReportMessageModal({
                     value={r.value}
                     checked={reason === r.value}
                     onChange={() => setReason(r.value)}
-                    className="mt-0.5 accent-violet-600"
+                    className="mt-0.5 accent-control"
                   />
                   <span className="flex-1">
                     <span className="block text-sm font-medium text-primary">{r.label}</span>

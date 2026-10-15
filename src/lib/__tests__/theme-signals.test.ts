@@ -27,3 +27,10 @@ describe('source pins — the page tells every browser it themes itself', () => 
     }
   });
 });
+
+describe('source pins — native controls wear the theme', () => {
+  it('accent-color is set in both theme blocks from the one token', () => {
+    expect(css).toMatch(/:root,\s*\[data-theme="light"\]\s*\{[^}]*accent-color:\s*var\(--control-accent\);/);
+    expect(css).toMatch(/\[data-theme="dark"\]\s*\{\s*color-scheme:\s*only dark;\s*accent-color:\s*var\(--control-accent\);/);
+  });
+});
