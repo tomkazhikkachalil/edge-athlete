@@ -87,7 +87,14 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
   /** The default framing: the route with a little room, no motion under reduced motion. */
   const fitRoute = (map: L.Map, animate: boolean) => {
     const rb = routeBoundsRef.current;
-    if (rb) map.fitBounds(rb, { padding: [FRAME.fitPaddingPx, FRAME.fitPaddingPx], animate: animate && !reducedMotion() });
+    if (!rb) return;
+    const go = () => map.fitBounds(rb, { padding: [FRAME.fitPaddingPx, FRAME.fitPaddingPx], animate: animate && !reducedMotion() });
+    // Leaflet 1.9 DROPS a setView issued while a zoom animation is running
+    // (`_tryAnimatedZoom` returns early): a Fit route tap right after a
+    // double-tap zoom did nothing (Oct 14 2026). The pane carries
+    // `leaflet-zoom-anim` meanwhile — fit when that zoom ends instead.
+    if (map.getPane('mapPane')?.classList.contains('leaflet-zoom-anim')) map.once('zoomend', go);
+    else go();
   };
 
   /** The camera, mirrored onto the container for the e2e hooks (read-only). */
@@ -125,11 +132,15 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
       markerZoomAnimation: !still,
       attributionControl: false,
     });
-    // The OSM / Esri credit is a licence condition, not chrome: kept, without the "Leaflet" link.
-    L.control.attribution({ prefix: false }).addTo(map);
+    // The OSM / Esri credit is a licence condition, not chrome: kept, without
+    // the "Leaflet" link — bottom-LEFT, so Esri's two-line credit never wraps
+    // under the Fit route pill at a phone width (Oct 14 2026).
+    L.control.attribution({ prefix: false, position: 'bottomleft' }).addTo(map);
     mapRef.current = map;
     routeBoundsRef.current = rb ? toLatLngBounds(rb) : null;
-    tileRef.current = L.tileLayer(OSM_TILES.url, { maxZoom: OSM_TILES.maxZoom, attribution: OSM_TILES.attribution }).addTo(map);
+    // The base layer is added by the [layer] effect below (it runs right after
+    // this one) — one tile layer, one place. Leaflet's panes keep the tiles
+    // under the route whatever the add order.
     for (const s of segs) {
       L.polyline(s, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
       L.polyline(s, { color: '#7c3aed', weight: 4 }).addTo(map);
@@ -155,14 +166,20 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
         mirror(map, frame);
       };
       applyMinZoom();
+      // `data-map-settled` (e2e hook): the container's first REAL size has
+      // been seen — the observer's first delivery — so a framing read after
+      // it is the settled one (WebKit's initial fit can land a level out).
+      const el = map.getContainer();
       const ro = typeof ResizeObserver === 'function'
         ? new ResizeObserver(() => {
             map.invalidateSize({ animate: false });
             fitRoute(map, false);
             applyMinZoom();
+            el.dataset.mapSettled = '';
           })
         : null;
-      ro?.observe(containerRef.current);
+      if (ro) ro.observe(el);
+      else el.dataset.mapSettled = '';
       map.on('moveend zoomend', () => mirror(map, frame));
       return () => {
         ro?.disconnect();
@@ -239,10 +256,17 @@ export default function RouteMapInner({ lat, lng, showEnds, highlightIndex, high
   return (
     // `isolate` keeps Leaflet's z-400 panes inside the map, under the page's
     // dialogs (the recorder's review sheet sat under its map — Oct 9 2026).
-    <div className="relative isolate">
+    // The muting class lives HERE, on the wrapper (`.ea-route-frame
+    // .leaflet-tile-pane` is a descendant rule), never on the Leaflet
+    // container: Leaflet owns that element's class list (`leaflet-container`,
+    // `leaflet-touch`, …), and a React className that changes with state
+    // rewrites the whole attribute and wipes them — the tiles and the route
+    // SVG then fall under Tailwind's `img, svg { max-width: 100% }`, and
+    // switching to Satellite broke the map for good (Oct 14 2026).
+    <div className={`relative isolate${layer === 'osm' ? ' ea-route-frame' : ''}`}>
       <div
         ref={containerRef}
-        className={`h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden${layer === 'osm' ? ' ea-route-frame' : ''}`}
+        className="h-64 sm:h-80 w-full rounded-lg border border-border overflow-hidden"
         data-activity-map
         data-route-frame=""
       />

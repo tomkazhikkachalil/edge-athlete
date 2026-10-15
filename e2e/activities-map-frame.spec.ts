@@ -6,8 +6,10 @@ import { containsPoint, FRAME } from '../src/lib/activities/route-frame';
 // The route map is a FRAMED picture (Oct 9 2026, route-frame.ts): no zoom
 // control, the camera stops at the padded box, zooming out stops with the
 // whole route visible, zooming in stops at street level, "Fit route" restores
-// the default framing, reduced motion turns the animations off, and under
-// Save-Data the page shows the route's line drawing until asked for the map.
+// the default framing, Satellite ⇄ Map keeps the route, the camera and the
+// limits however often it is switched, reduced motion turns the animations
+// off, and under Save-Data the page shows the route's line drawing until
+// asked for the map.
 
 const T0 = Date.UTC(2026, 9, 3, 9, 0, 0);
 const REC = '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f51';
@@ -53,8 +55,10 @@ test('the route map is a framed picture: no free pan, bounded zoom, Fit route, r
     await expect(page.locator('[data-route-fit]')).toBeVisible();
 
     // The baseline is the default framing at the container's SETTLED size:
-    // Fit route once, then wait for two identical readings (WebKit's first
-    // fit can land one level out until the resize observer's first callback).
+    // wait for the resize observer's first delivery (`data-map-settled` —
+    // WebKit's first fit can land one level out until then), Fit route once,
+    // then wait for two identical readings.
+    await expect(map).toHaveAttribute('data-map-settled', '', { timeout: 20_000 });
     await page.locator('[data-route-fit]').click();
     let start = await camera(page);
     await expect.poll(async () => {
@@ -98,6 +102,54 @@ test('the route map is a framed picture: no free pan, bounded zoom, Fit route, r
       const refit = await camera(page);
       return Math.max(Math.abs(refit.center[0] - start.center[0]), Math.abs(refit.center[1] - start.center[1]));
     }, { timeout: 10_000 }).toBeLessThan(1e-3);
+
+    // Satellite ⇄ Map, five round trips (Oct 14 2026): the Leaflet container
+    // keeps its own classes, the route stays drawn, the camera and its limits
+    // do not move, and the tiles come from the other provider each time. (A
+    // state-dependent className on the container used to wipe Leaflet's
+    // classes on the first switch.)
+    const routePaths = await page.locator('[data-activity-map] .leaflet-overlay-pane path').count();
+    expect(routePaths).toBeGreaterThan(0);
+    // Settle first: Fit route's pan can still be gliding on WebKit (the 1e-3
+    // poll above lets it) — a tile swap moves nothing, so the comparison is
+    // exact once two readings agree.
+    let before = await camera(page);
+    await expect.poll(async () => {
+      const again = await camera(page);
+      const same = again.zoom === before.zoom && again.center[0] === before.center[0] && again.center[1] === before.center[1];
+      before = again;
+      return same;
+    }, { timeout: 10_000, intervals: [250, 250, 500, 500, 1000] }).toBe(true);
+    for (let i = 0; i < 5; i++) {
+      const toSatellite = i % 2 === 0;
+      await page.getByRole('button', { name: toSatellite ? 'Satellite' : 'Map', exact: true }).click();
+      await expect(page.getByRole('button', { name: toSatellite ? 'Map' : 'Satellite', exact: true })).toBeVisible();
+      await expect(map).toHaveClass(/leaflet-container/);
+      await expect(map).toHaveClass(/leaflet-touch/);
+      await expect(page.locator('[data-activity-map] .leaflet-overlay-pane path')).toHaveCount(routePaths);
+      const host = toSatellite ? 'arcgisonline' : 'openstreetmap';
+      await expect.poll(async () =>
+        page.locator(`[data-activity-map] .leaflet-tile-pane img.leaflet-tile[src*="${host}"]`).count(),
+      { timeout: 15_000 }).toBeGreaterThan(0);
+      const after = await camera(page);
+      expect(after.zoom).toBe(before.zoom);
+      expect(after.center).toEqual(before.center);
+      expect(after.min).toBe(before.min);
+      expect(after.max).toBe(before.max);
+    }
+    // Five switches end on Satellite: a long drag still stops at the frame's
+    // edge there; then back to Map and Fit route for the checks below.
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx - 1500, cy - 1500, { steps: 25 });
+    await page.mouse.up();
+    await expect.poll(async () => {
+      const c = await camera(page);
+      return containsPoint(c.bounds, c.center[0], c.center[1]);
+    }, { timeout: 10_000 }).toBe(true);
+    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.locator('[data-route-fit]').click();
+    await expect.poll(async () => (await camera(page)).zoom, { timeout: 10_000 }).toBe(start.zoom);
 
     // Pinch out (Chromium's synthetic gesture; WebKit has none here): the
     // zoom never falls below the minimum — the whole route, no wider.
