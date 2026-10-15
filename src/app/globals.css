@@ -393,6 +393,20 @@ body {
   --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.5);
 }
 
+/* A SIGNAL, not a style (Oct 15 2026). Samsung Internet's dark mode keeps a
+ * site's own look only if the site "has dark styles", and it looks for them
+ * under prefers-color-scheme — ours are keyed to data-theme, so it found none
+ * and darkened the light theme. This rule is that marker. Nothing reads
+ * --ea-os-scheme and nothing ever may: the look comes from data-theme alone.
+ * A custom property, because an empty rule would be minified away. The other
+ * two signals are `only light`/`only dark` above and the color-scheme meta in
+ * both root layouts; src/lib/__tests__/theme-signals.test.ts pins all three. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ea-os-scheme: dark;
+  }
+}
+
 /* Any control that should respond to a pointer. */
 .ea-interactive {
   transition:

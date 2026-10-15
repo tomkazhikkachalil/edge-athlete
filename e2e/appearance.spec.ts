@@ -232,7 +232,9 @@ test('two edits in quick succession are saved in order, even when the first save
     const target = ahead(now);
     await startField(page).fill(hhmm(target.start));
     await endField(page).fill(hhmm(target.end)); // leaving the start field saves it; this is the second edit
-    await endField(page).blur();
+    // Leave by moving focus, not locator.blur() — no blur event under Android
+    // (touch) emulation (see the refusal step above).
+    await startField(page).focus();
 
     await expect.poll(() => answered, { timeout: 20_000 }).toBe(2);
     expect(await storedPrefs()).toEqual({ mode: 'scheduled', schedule: target });
