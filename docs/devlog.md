@@ -1,5 +1,11 @@
 # Development Log
 
+## October 15, 2026 — Samsung Internet: the stylesheet now has a real dark-mode rule (follow-up to #1197, zero DDL)
+
+Tom confirmed the reporter was on Samsung Internet / the stock Android browser — Chrome worked. Samsung's dark mode keeps a site's own look only when it finds the site's dark styles, which it looks for under `prefers-color-scheme`; ours are keyed to `data-theme`, so the stylesheet had none. Added a marker rule — `@media (prefers-color-scheme: dark) { :root { --ea-os-scheme: dark } }`, read by nothing, so no pixel changes — making the page send all three documented signals (with #1197's `only` schemes and color-scheme meta). Samsung documents no exact check, so this improves the odds, not a guarantee; Labs → "Use website dark theme" stays the user-side fallback. Also: `appearance.spec`'s quick-succession step leaves the field by focus (the android flake of #1197's prod probe — `locator.blur()` is dead under touch emulation).
+
+**Proof:** `npm run verify` exit 0 (**5,058 tests** — `theme-signals.test.ts` pins the three signals); the built CSS keeps `@media (prefers-color-scheme:dark){:root{--ea-os-scheme:dark}}`; `appearance` + `android-forced-dark` on staging: android 8/8, mobile 8/8, webkit-mobile 7 + 1 skipped. Owed: the reporter's retest in Samsung Internet (dark mode on, app on Light).
+
 ## October 15, 2026 — Light mode on Android: the page opts out of forced dark (PR 1 of the theme-parity round, zero DDL)
 
 Reported: light mode does not display correctly on Android but is right on iPhone. **Cause:** Android browsers force-darken pages that do not declare their own dark theme (Chrome "Darken websites" / Auto Dark Theme, Samsung Internet's dark mode); our light block declared plain `color-scheme: light`, so on a dark-OS phone the LIGHT theme was repainted at paint time. Our dark theme said `dark` and was spared; iOS has no forced dark. `docs/specs/ui-conventions.md` "Light and dark on every phone" is the rule.
