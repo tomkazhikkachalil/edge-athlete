@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-13T22:40:31.886097+00:00 from server 17.6 by
+-- Generated 2026-10-15T01:19:25.094554+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 262.
+-- public.schema_dump() (migration 227). Ledger head at generation: 264.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5711,7 +5711,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   moderation_ticket_id uuid,
   followers_count integer DEFAULT 0,
   following_count integer DEFAULT 0,
-  departed_at timestamp with time zone
+  departed_at timestamp with time zone,
+  avatar_source_url text,
+  avatar_recipe jsonb,
+  cover_source_url text,
+  cover_recipe jsonb
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -6028,7 +6032,9 @@ CREATE TABLE IF NOT EXISTS public.sport_settings (
   sport_key text NOT NULL,
   settings jsonb DEFAULT '{}'::jsonb NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  pinned boolean DEFAULT false NOT NULL,
+  pin_order smallint
 );
 
 CREATE TABLE IF NOT EXISTS public.sports (
@@ -8539,8 +8545,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_avatar_recipe_object_check' AND conrelid = 'public.profiles'::regclass) THEN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_avatar_recipe_object_check CHECK (((avatar_recipe IS NULL) OR (jsonb_typeof(avatar_recipe) = 'object'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_comment_moderation_check' AND conrelid = 'public.profiles'::regclass) THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_comment_moderation_check CHECK ((comment_moderation = ANY (ARRAY['instant'::text, 'held'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_cover_recipe_object_check' AND conrelid = 'public.profiles'::regclass) THEN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_cover_recipe_object_check CHECK (((cover_recipe IS NULL) OR (jsonb_typeof(cover_recipe) = 'object'::text)));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8926,6 +8942,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sport_events_visibility_check' AND conrelid = 'public.sport_events'::regclass) THEN
     ALTER TABLE public.sport_events ADD CONSTRAINT sport_events_visibility_check CHECK ((visibility = ANY (ARRAY['public'::text, 'link'::text, 'private'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sport_settings_pin_order_check' AND conrelid = 'public.sport_settings'::regclass) THEN
+    ALTER TABLE public.sport_settings ADD CONSTRAINT sport_settings_pin_order_check CHECK (((pinned AND (pin_order >= 1)) OR ((NOT pinned) AND (pin_order IS NULL))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -11062,6 +11083,7 @@ CREATE INDEX IF NOT EXISTS idx_sport_events_org ON public.sport_events USING btr
 CREATE INDEX IF NOT EXISTS idx_sport_events_status_starts ON public.sport_events USING btree (status, starts_on);
 CREATE INDEX IF NOT EXISTS idx_sport_settings_composite ON public.sport_settings USING btree (profile_id, sport_key);
 CREATE INDEX IF NOT EXISTS idx_sport_settings_jsonb ON public.sport_settings USING gin (settings);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sport_settings_pin_order ON public.sport_settings USING btree (profile_id, pin_order) WHERE pinned;
 CREATE INDEX IF NOT EXISTS idx_sport_settings_profile ON public.sport_settings USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_sport_settings_sport ON public.sport_settings USING btree (sport_key);
 CREATE INDEX IF NOT EXISTS idx_sports_active ON public.sports USING btree (profile_id, active);
@@ -17426,6 +17448,10 @@ COMMENT ON COLUMN public.profiles.moderation_ticket_id IS 'The ticket behind the
 COMMENT ON COLUMN public.profiles.followers_count IS '229: accepted follows where this profile is following_id. Maintained by follows_counts_sync; nullable (the row-type insert rule), read as coalesce(…, 0).';
 COMMENT ON COLUMN public.profiles.following_count IS '229: accepted follows where this profile is follower_id. Maintained by follows_counts_sync; nullable, read as coalesce(…, 0).';
 COMMENT ON COLUMN public.profiles.departed_at IS 'Departed tombstone (238): the auth user is gone and every personal column is stripped; the row survives, name only, because a result tied to an org, competition, sport event or shared round outlives the person. Never restorable. Written only by src/lib/account-deletion.ts.';
+COMMENT ON COLUMN public.profiles.avatar_source_url IS 'The uploaded ORIGINAL behind avatar_url (264): private uploads bucket, profile-sources/{id}/; owner-only through /api/media/profile-source. ONE writer: the avatar POST.';
+COMMENT ON COLUMN public.profiles.avatar_recipe IS 'The crop recipe that made avatar_url from avatar_source_url (264); Adjust reopens the editor here.';
+COMMENT ON COLUMN public.profiles.cover_source_url IS 'The uploaded ORIGINAL behind cover_url (264): private uploads bucket, profile-sources/{id}/; owner-only through /api/media/profile-source. ONE writer: the cover POST.';
+COMMENT ON COLUMN public.profiles.cover_recipe IS 'The crop recipe that made cover_url from cover_source_url (264); Adjust reopens the editor here.';
 COMMENT ON TABLE public.push_subscriptions IS 'Phone notifications (248): one row per device that turned them on (a Web Push subscription). Written by /api/push/subscriptions; pruned by src/lib/push/send-server.ts on 404/410. Posture A: service role only.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
@@ -17465,6 +17491,8 @@ COMMENT ON COLUMN public.sport_events.self_entry IS 'Players enter their own sco
 COMMENT ON COLUMN public.sport_events.shape IS 'round (golf: hole-by-hole cards) | game (a team sport: two ad-hoc sides + a live score) | session (a team sport: one roster) — one decision at creation (215); (sport_key = golf) = (shape = round).';
 COMMENT ON COLUMN public.sport_events.competition_id IS 'A bracketed MATCH event''s org golf bracket (221): kept from link time; each round''s matches are stamped onto the bracket''s contests (220) at go-live — stage n ↔ round n, slot k ↔ match k. Written only by the match-bracket path.';
 COMMENT ON TABLE public.sport_settings IS 'Sport-specific settings for athlete profiles (JSONB per sport, schema-driven by src/lib/sports/settings-schemas.ts). Created live from an archived script; DDL ratified as migration 076.';
+COMMENT ON COLUMN public.sport_settings.pinned IS 'The athlete pinned this sport on their profile (263): pinned sports lead, larger.';
+COMMENT ON COLUMN public.sport_settings.pin_order IS '1..n among the profile''s pinned sports (263); NULL when not pinned. ONE writer: pins-server.ts writeSportPins.';
 COMMENT ON COLUMN public.teams.sport_key IS 'The team''s sport (242; the registry is app-side). Backfilled from its entered divisions, else the org''s sport.';
 COMMENT ON COLUMN public.teams.logo_path IS 'BARE uploads path team-logos/{teamId}/{file} (242) — protected from the storage sweep by prefix.';
 COMMENT ON TABLE public.ticket_events IS 'Support & Reporting (222): a ticket''s APPEND-ONLY history — the app never updates or deletes a row. actor NULL = the system.';
@@ -17915,7 +17943,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (259, '259_session_reminder.sql', 'rebuild-000'),
   (260, '260_workout_screen.sql', 'rebuild-000'),
   (261, '261_media_jobs.sql', 'rebuild-000'),
-  (262, '262_media_jobs_schedule.sql', 'rebuild-000')
+  (262, '262_media_jobs_schedule.sql', 'rebuild-000'),
+  (263, '263_sport_pins.sql', 'rebuild-000'),
+  (264, '264_profile_photo_sources.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17924,12 +17954,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 132 | 115 | 173 | 262
+-- Expected: 000 REBUILT | 132 | 115 | 173 | 264
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_132,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_115,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_262;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_264;
 
