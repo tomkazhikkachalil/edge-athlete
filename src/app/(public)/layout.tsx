@@ -65,6 +65,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
+  // Sites theme themselves too: keeps Android's forced dark off them (see
+  // the app layout's note and the `only` schemes in globals.css).
+  colorScheme: 'light dark',
   themeColor: '#ffffff',
 };
 

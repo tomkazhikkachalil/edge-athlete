@@ -78,6 +78,11 @@ export const viewport: Viewport = {
   // Resize the layout viewport when the software keyboard opens (Android/
   // Chromium; iOS Safari ignores this — handled via visualViewport instead).
   interactiveWidget: 'resizes-content',
+  // <meta name="color-scheme" content="light dark">: the app themes ITSELF
+  // in both, so Samsung Internet's forced dark mode stands down (Chrome's
+  // Auto Dark reads the `only` on :root in globals.css). The used scheme is
+  // still the root's `color-scheme`, set per theme in globals.css.
+  colorScheme: 'light dark',
   // Mobile browser chrome / status bar tint. These media variants are only
   // the SSR default — browsers evaluate them against the OS, not our
   // data-theme, so the theme script and useTheme overwrite BOTH metas with

@@ -20,8 +20,15 @@
 [data-theme="light"] {
   /* Native UI (date/time pickers, selects, scrollbars, <video> controls,
    * checkboxes) follows this — the dark block flips it, which is what themes
-   * every native control without per-input work. */
-  color-scheme: light;
+   * every native control without per-input work.
+   *
+   * ONLY (Oct 15 2026): plain `light` reads as "no dark theme here", so
+   * Android's forced dark (Chrome "Darken websites", Samsung Internet)
+   * repainted the LIGHT theme on a dark-OS phone — iPhone never does, hence
+   * "fine on iPhone, wrong on Android". `only` is Chrome's documented
+   * opt-out; the dark block says `only dark` for the same reason. Pinned by
+   * e2e/android-forced-dark.spec.ts. */
+  color-scheme: only light;
 
   /* The page canvas. Was #ffffff, which only ever showed during load and on
    * overscroll, because all 49 app pages paint `bg-gray-50` over it — so the
@@ -331,7 +338,7 @@ body {
  * Applied via data-theme on <html>, stamped pre-paint by THEME_INIT_SCRIPT
  * and kept current by useTheme (src/lib/use-theme.ts). */
 [data-theme="dark"] {
-  color-scheme: dark;
+  color-scheme: only dark;
 
   --background: #171310;
   --foreground: #e9e5e1;
