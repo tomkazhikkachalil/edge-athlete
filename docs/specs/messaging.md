@@ -1,0 +1,12 @@
+# Messaging: the Message door, the thread on a phone (Oct 14 2026)
+
+> The messaging area's spec, started with Tom's seven fixes of Oct 14 2026 (fix 4 the Message door; fix 6 the thread on a phone). The chat dock (desktop, Jul 28 2026) and the messages pages predate it — read DEVLOG Jul 28–Aug 9 2026 for their history.
+
+## The Message door (fix 4, zero DDL)
+
+Tom: *"Add a Message button on every other user's profile, next to the follow button. Tapping it opens the existing conversation with that user if one exists, or starts a new one. The user lands directly in the chat with the keyboard ready."*
+
+- **One POST is the get-or-create.** `POST /api/messages { type: 'direct', participantId }` finds the direct conversation between the two (even one a side left — it is revived) or creates it, and answers `{ conversationId, existing }`. It is also the ONE place the rules live: blocks (403), a departed account (404), the target's `messaging_permission` (`nobody` / `fans_only` / `mutual_fans`, 403 with the honest sentence), the supervised sender's symmetric rule, the first-contact hold. The profile never asks whether a conversation exists and never repeats a rule.
+- **The button** — `src/components/profile/MessageButton.tsx` (`data-profile-message`), the Message half of `ProfileActions`' pair on `/athlete/[id]` and `/u/[username]` (signed in, not yourself; disabled while acting as a managed athlete — a DM is first-person). Tap → the POST → `fetchConversations()` (the list learns a new thread) → `/messages?c=<id>&compose=1`. A refusal shows the API's sentence as the error and leaves you on the profile.
+- **`compose=1` means keyboard ready:** `messages/page.tsx` reads it, `ChatWindow` passes `autoFocusComposer`, and `MessageInput` focuses the textarea once the thread has loaded, then the flag is replaced out of the URL (a refresh does not refocus). Android and desktop raise the keyboard at once; iOS raises it only inside a tap, so there the caret lands and one tap opens it.
+- **Pinned by:** `e2e/profile-message.spec.ts` (desktop + @mobile at 375 px, both routes): the pair's two buttons share a height and a line; Message lands on `/messages?c=` with the composer focused and the flag consumed; a message sends; the second tap (from `/u/`) opens the SAME conversation (one direct row between the two); `fans_only` without the follow → the API's words in the error and the URL stays on the profile.

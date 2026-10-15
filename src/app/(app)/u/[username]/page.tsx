@@ -9,6 +9,7 @@ import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import AppHeader from '@/components/AppHeader';
 import ProfileActions from '@/components/profile/ProfileActions';
 import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
+import MessageButton from '@/components/profile/MessageButton';
 import { useEditProfile } from '@/components/EditProfileHost';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import LazyImage from '@/components/LazyImage';
@@ -515,6 +516,7 @@ export default function PublicProfilePage() {
                     <ProfileActions
                       profileId={profile.id}
                       currentUserId={user.id}
+                      messageSlot={<MessageButton profileId={profile.id} />}
                       className="sm:ml-0"
                       onStatsLoaded={stats => setProfileData(d => d ? { ...d, profile: { ...d.profile, followersCount: stats.followersCount } } : d)}
                       onFollowChange={(_isFollowing, followersCount) => setProfileData(d => d ? { ...d, profile: { ...d.profile, followersCount } } : d)}

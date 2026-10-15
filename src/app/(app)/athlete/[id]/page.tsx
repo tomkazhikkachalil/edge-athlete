@@ -11,6 +11,7 @@ import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import ProfileActions from '@/components/profile/ProfileActions';
 import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
+import MessageButton from '@/components/profile/MessageButton';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
@@ -474,6 +475,7 @@ export default function AthleteProfilePage() {
                   <ProfileActions
                     profileId={athleteId}
                     currentUserId={user.id}
+                    messageSlot={<MessageButton profileId={athleteId} />}
                     onFollowChange={handleFollowChange}
                     onStatsLoaded={stats => setFollowStats(stats as typeof followStats)}
                   />
