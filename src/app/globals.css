@@ -1400,3 +1400,9 @@ html:not([data-theme="dark"]) .dark-theme-only {
 .ea-route-frame .leaflet-tile-pane {
   filter: saturate(0.35) brightness(1.04);
 }
+/* The credit sits bottom-left and wraps within its own lane: the Fit route
+   pill owns the bottom-right corner (Oct 14 2026). */
+[data-route-frame] .leaflet-control-attribution {
+  max-width: 62%;
+  white-space: normal;
+}
