@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { coverProxyUrl } from '@/lib/media/cover-url';
@@ -10,8 +9,8 @@ import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';;
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
-import FollowButton from '@/components/FollowButton';
-import ActionMenu from '@/components/ActionMenu';
+import ProfileActions from '@/components/profile/ProfileActions';
+import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
@@ -288,48 +287,13 @@ export default function AthleteProfilePage() {
 
       {/* Profile Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Page Header with Back Button and Actions */}
-        <div className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6 mb-6">
-          {/* flex-wrap: back + title + FollowButton is wider than a 320px
-              screen; the button drops to its own line instead of overflowing. */}
-          <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                onClick={() => backOr(router, '/feed')}
-                className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-secondary hover:text-primary"
-                aria-label="Go back"
-              >
-                <i className="fas fa-arrow-left text-xl"></i>
-              </button>
-              <h2 className="text-xl sm:text-2xl font-bold text-primary">
-                {isOwnProfile ? 'My Profile' : 'Athlete Profile'}
-              </h2>
-            </div>
-
-            {!isOwnProfile && (
-              <div className="flex items-center gap-3">
-                <FollowButton
-                  profileId={athleteId}
-                  currentUserId={user?.id}
-                  onFollowChange={handleFollowChange}
-                  onStatsLoaded={stats => setFollowStats(stats as typeof followStats)}
-                  size="md"
-                />
-                {/* Spec 2: report this profile (Block + Mute are offered after). */}
-                {user && (
-                  <ActionMenu
-                    ariaLabel="Profile options"
-                    triggerTestAttr="profile-menu"
-                    items={[{ key: 'report', label: 'Report profile', icon: 'fa-flag', onSelect: () => setReportOpen(true) }]}
-                  />
-                )}
-              </div>
-            )}
-            {reportOpen && (
-              <ReportSheet target={{ type: 'profile', id: athleteId, profileId: athleteId, noun: 'profile' }} onClose={() => setReportOpen(false)} />
-            )}
-          </div>
-        </div>
+        {/* No title card and no back control (Oct 14 2026): the cover card is
+            the first thing under the header; Back is the browser's, the
+            phone's swipe and the tab bar. Report lives in the cover's corner
+            menu, the fan button in the stats row. */}
+        {reportOpen && (
+          <ReportSheet target={{ type: 'profile', id: athleteId, profileId: athleteId, noun: 'profile' }} onClose={() => setReportOpen(false)} />
+        )}
 
         {/* Profile Info Section */}
         <div className="bg-surface rounded-lg shadow-sm border border-border mb-6 overflow-hidden">
@@ -339,6 +303,7 @@ export default function AthleteProfilePage() {
             coverSrc={coverProxyUrl(profile.id, profile.cover_url)}
             size="lg"
             rowClassName="px-4 sm:px-6 flex justify-center sm:justify-start"
+            overlay={user && !isOwnProfile ? <ProfileCornerControl mode="viewer" onReport={() => setReportOpen(true)} /> : undefined}
             onCoverTap={profile.cover_url ? () => setViewingPhoto('cover') : undefined}
             onAvatarTap={profile.avatar_url ? () => setViewingPhoto('avatar') : undefined}
           >
@@ -426,7 +391,7 @@ export default function AthleteProfilePage() {
 
             {/* Follow stats + social links — socials are outbound links here
                 (the owner's page keeps click-to-edit instead) */}
-            <div className="bg-surface-muted rounded-xl p-4 mb-6">
+            <div className="bg-surface-muted rounded-xl p-4 mb-6" data-profile-stats="">
               <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <button
                   onClick={() => {
@@ -501,6 +466,17 @@ export default function AthleteProfilePage() {
                     <i className="fa-brands fa-facebook text-2xl text-brand-fg" aria-hidden="true"></i>
                     <span>{formatSocialHandleDisplay(profile.social_facebook)}</span>
                   </a>
+                )}
+
+                {/* The actions pair — Message + Become a Fan — ends the row
+                    (its own full-width line at a phone width). */}
+                {!isOwnProfile && user && (
+                  <ProfileActions
+                    profileId={athleteId}
+                    currentUserId={user.id}
+                    onFollowChange={handleFollowChange}
+                    onStatsLoaded={stats => setFollowStats(stats as typeof followStats)}
+                  />
                 )}
               </div>
             </div>

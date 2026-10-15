@@ -102,7 +102,8 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
 
     // Edit profile offers both photos.
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
-    await page.getByRole('button', { name: 'Edit Profile' }).click();
+    // Exact: the cover's corner pencil is "Edit profile" too (Oct 14 2026).
+    await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
     const editor = page.getByRole('dialog').filter({ hasText: 'Edit Profile' });
     await expect(editor.getByRole('button', { name: 'Change profile picture', exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(editor.getByRole('button', { name: 'Change cover photo', exact: true })).toBeVisible();
