@@ -21,4 +21,11 @@ describe('the phone tab bar', () => {
     expect(showsTabBar('/events/11111111-1111-4111-8111-111111111111')).toBe(true);
     expect(showsTabBar('/feed/')).toBe(true);
   });
+  it('hides while a thread is open on /messages (the ?c= param), shows on the list', () => {
+    expect(showsTabBar('/messages', 'abc')).toBe(false);
+    expect(showsTabBar('/messages', '')).toBe(true);
+    expect(showsTabBar('/messages', null)).toBe(true);
+    expect(showsTabBar('/messages')).toBe(true);
+    expect(showsTabBar('/feed', 'abc')).toBe(true);
+  });
 });

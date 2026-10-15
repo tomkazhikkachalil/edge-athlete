@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { Inter } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
@@ -147,7 +148,9 @@ export default async function RootLayout({
               {children}
               {/* The phone tab bar (below lg) — the first app-wide chrome;
                   mounted once so it never remounts on navigation. */}
-              <TabBar />
+              <Suspense fallback={null}>
+                <TabBar />
+              </Suspense>
               {/* Phone notifications (248): the app icon's number follows the
                   bell; this device's subscription stays current. */}
               <PushHost />
