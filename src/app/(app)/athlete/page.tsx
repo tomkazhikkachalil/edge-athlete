@@ -6,6 +6,7 @@ import { useEffect, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import { coverProxyUrl } from '@/lib/media/cover-url';
 import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
+import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
@@ -611,17 +612,22 @@ export default function AthleteProfilePage() {
             size="lg"
             rowClassName="px-4 sm:px-6 lg:px-8 flex justify-center sm:justify-start"
             overlay={
-              !profile?.cover_url ? (
-                <button
-                  type="button"
-                  onClick={() => setPhotoDoor('cover')}
-                  aria-label="Add cover photo"
-                  className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg"
-                  data-add-cover=""
-                >
-                  <i className="fas fa-camera" aria-hidden="true"></i>
-                </button>
-              ) : undefined
+              <>
+                {/* The owner's corner (Oct 14 2026): Edit profile — the same
+                    editor as the header menu's entry, one tap from the cover. */}
+                <ProfileCornerControl mode="owner" onEdit={() => setIsEditModalOpen(true)} />
+                {!profile?.cover_url && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoDoor('cover')}
+                    aria-label="Add cover photo"
+                    className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg"
+                    data-add-cover=""
+                  >
+                    <i className="fas fa-camera" aria-hidden="true"></i>
+                  </button>
+                )}
+              </>
             }
             onCoverTap={profile?.cover_url ? () => setViewing('cover') : undefined}
             onAvatarTap={profile?.avatar_url ? () => setViewing('avatar') : undefined}

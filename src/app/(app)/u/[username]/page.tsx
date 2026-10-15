@@ -7,7 +7,9 @@ import { useAuth } from '@/lib/auth';
 import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import AppHeader from '@/components/AppHeader';
-import ActionMenu from '@/components/ActionMenu';
+import ProfileActions from '@/components/profile/ProfileActions';
+import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
+import { useEditProfile } from '@/components/EditProfileHost';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import LazyImage from '@/components/LazyImage';
 import ProfileSports from '@/components/profile/ProfileSports';
@@ -131,6 +133,7 @@ export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const editProfile = useEditProfile();
   const [reportOpen, setReportOpen] = useState(false);
   // Tap the picture or the cover to see it larger (Oct 14 2026).
   const [viewingPhoto, setViewingPhoto] = useState<ProfilePhotoSlot | null>(null);
@@ -326,6 +329,15 @@ export default function PublicProfilePage() {
             coverSrc={profile.cover ?? null}
             size="md"
             rowClassName="px-4 sm:px-6"
+            // The corner control (Oct 14 2026): the viewer's "…" (Report
+            // profile — route parity with /athlete), the owner's Edit pencil.
+            overlay={
+              user
+                ? user.id === profile.id
+                  ? <ProfileCornerControl mode="owner" onEdit={() => editProfile.open()} />
+                  : <ProfileCornerControl mode="viewer" onReport={() => setReportOpen(true)} />
+                : undefined
+            }
             onCoverTap={profile.cover ? () => setViewingPhoto('cover') : undefined}
             onAvatarTap={profile.avatar_url ? () => setViewingPhoto('avatar') : undefined}
           >
@@ -362,17 +374,7 @@ export default function PublicProfilePage() {
             {/* Name and Handle */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <div className="flex items-start justify-between gap-2">
-                  <h1 className="text-2xl font-bold text-primary break-words">{displayName}</h1>
-                  {/* Spec 2 (route parity with /athlete): report this profile. */}
-                  {user && user.id !== profile.id && (
-                    <ActionMenu
-                      ariaLabel="Profile options"
-                      triggerTestAttr="profile-menu"
-                      items={[{ key: 'report', label: 'Report profile', icon: 'fa-flag', onSelect: () => setReportOpen(true) }]}
-                    />
-                  )}
-                </div>
+                <h1 className="text-2xl font-bold text-primary break-words">{displayName}</h1>
                 <p className="text-muted">@{profile.handle}</p>
                 {reportOpen && (
                   <ReportSheet target={{ type: 'profile', id: profile.id, profileId: profile.id, noun: 'profile' }} onClose={() => setReportOpen(false)} />
@@ -486,8 +488,8 @@ export default function PublicProfilePage() {
                 </div>
               </div>
 
-              {/* Stats and CTA */}
-              <div className="flex flex-col items-start sm:items-end gap-3">
+              {/* Stats and the actions */}
+              <div className="flex flex-col items-start sm:items-end gap-3" data-profile-stats="">
                 {/* Fan stats — Fans, Following, Posts (matches the athlete pages) */}
                 <div className="flex gap-6 text-sm">
                   <div className="text-center">
@@ -504,8 +506,24 @@ export default function PublicProfilePage() {
                   </div>
                 </div>
 
-                {/* CTA */}
-                {user ? (
+                {/* The actions pair — Message + Become a Fan — beside the counts
+                    (Oct 14 2026, route parity with /athlete/[id]); the fan
+                    button's fresh counts replace the CDN payload's. "View Full
+                    Profile" stays the door to the sections /u/ does not show. */}
+                {user && user.id !== profile.id ? (
+                  <>
+                    <ProfileActions
+                      profileId={profile.id}
+                      currentUserId={user.id}
+                      className="sm:ml-0"
+                      onStatsLoaded={stats => setProfileData(d => d ? { ...d, profile: { ...d.profile, followersCount: stats.followersCount } } : d)}
+                      onFollowChange={(_isFollowing, followersCount) => setProfileData(d => d ? { ...d, profile: { ...d.profile, followersCount } } : d)}
+                    />
+                    <Link href={`/athlete/${profile.id}`} className="text-sm font-medium text-brand-fg hover:underline">
+                      View Full Profile
+                    </Link>
+                  </>
+                ) : user ? (
                   <Link
                     href={`/athlete/${profile.id}`}
                     className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"

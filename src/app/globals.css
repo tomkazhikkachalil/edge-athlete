@@ -770,6 +770,9 @@ body {
  * on round shapes. This corrects the ring's shape on bubble pills/cards; it
  * does NOT restyle the ring (that stays global). */
 .tr-scope .tr-pill:focus-visible { border-radius: 9999px; }
+/* The profile cover's corner disc (Oct 14 2026) — the same correction. */
+[data-profile-menu]:focus-visible,
+[data-profile-edit]:focus-visible { border-radius: 9999px; }
 .tr-scope .tr-card:focus-visible,
 .tr-scope .ea-bubble:focus-visible,
 .org-app-scope .ea-bubble:focus-visible { border-radius: 1.5rem; }

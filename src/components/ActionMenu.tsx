@@ -44,13 +44,22 @@ interface Props {
   trigger?: ReactNode;
   /** The trigger's e2e attribute name (rendered as data-<name>=""). */
   triggerTestAttr?: string;
+  /** `scrim`: the trigger sits ON a photo (the profile cover's corner, Oct 14
+   *  2026) — a translucent black disc with a white glyph reads on any photo
+   *  and in both themes. The default is the in-card look. */
+  triggerTone?: 'default' | 'scrim';
 }
+
+const TONE = {
+  default: 'text-primary hover:text-brand-fg hover:bg-surface-muted',
+  scrim: 'bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm shadow-lg',
+} as const;
 
 const GAP_PX = 4;
 const MARGIN_PX = 8;
 const ROW = 'w-full text-left px-4 min-h-[44px] text-sm flex items-center gap-3 hover:bg-surface-muted transition-colors';
 
-export default function ActionMenu({ items, ariaLabel, triggerClassName, trigger, triggerTestAttr }: Props) {
+export default function ActionMenu({ items, ariaLabel, triggerClassName, trigger, triggerTestAttr, triggerTone = 'default' }: Props) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -126,7 +135,7 @@ export default function ActionMenu({ items, ariaLabel, triggerClassName, trigger
         title={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`${triggerClassName ?? ''} text-primary hover:text-brand-fg transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-surface-muted inline-flex items-center justify-center`}
+        className={`${triggerClassName ?? ''} ${TONE[triggerTone]} transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full inline-flex items-center justify-center`}
         {...triggerAttrs}
       >
         {trigger ?? <i className="fas fa-ellipsis-h text-sm" aria-hidden="true"></i>}
