@@ -20,6 +20,14 @@ function MessagesContent() {
   useVisualViewportHeight();
 
   const activeId = searchParams.get('c');
+  // `compose=1` (the profile's Message door, Oct 14 2026): the composer takes
+  // focus once the thread has loaded. The intent is captured at mount and the
+  // flag replaced out of the URL, so a refresh or a shared link does not
+  // refocus — and the prop cannot flip back before the thread has loaded.
+  const [composeIntent] = useState(() => searchParams.get('compose') === '1');
+  useEffect(() => {
+    if (composeIntent && activeId) window.history.replaceState(null, '', `/messages?c=${activeId}`);
+  }, [composeIntent, activeId]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -69,6 +77,7 @@ function MessagesContent() {
             <ChatWindow
               key={activeId}
               conversationId={activeId}
+              autoFocusComposer={composeIntent}
               onBack={() => router.push('/messages')}
             />
           </div>

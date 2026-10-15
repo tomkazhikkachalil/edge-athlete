@@ -20,6 +20,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes |
+| `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026) |
 
 ## Convention number → file
 

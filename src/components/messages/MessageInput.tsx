@@ -48,6 +48,10 @@ interface Props {
    * deliberately allowed as inert text). Absent = no typeahead.
    */
   participants?: ParticipantProfile[];
+  /** Take focus on mount (the profile's Message door, Oct 14 2026): the
+   *  keyboard opens at once on Android and desktop; iOS raises it only
+   *  inside a tap, so there the caret lands and one tap opens it. */
+  autoFocus?: boolean;
 }
 
 const MESSAGE_EDITOR_CONFIG: EditorConfig = {
@@ -59,7 +63,7 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
 
 const MAX_FILE_SIZE = MAX_UPLOAD_BYTES;
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange, participants }: Props) {
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange, participants, autoFocus = false }: Props) {
   const [text, setText] = useState(initialText ?? '');
   // iMessage-style leading cluster. One-way latch: typing collapses it,
   // emptying the field does NOT re-expand (see composer-layout for why).
@@ -106,6 +110,11 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       textareaRef.current.focus();
     }
   }, [replyingTo]);
+
+  // The Message door's "keyboard ready": focus once the field is enabled.
+  useEffect(() => {
+    if (autoFocus && !disabled && textareaRef.current) textareaRef.current.focus();
+  }, [autoFocus, disabled]);
 
   // Draft observer (chat dock): one effect covers every text mutation —
   // typing, emoji insertion, and the clear-on-send reset.

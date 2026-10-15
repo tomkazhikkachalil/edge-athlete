@@ -24,9 +24,11 @@ import ReportSheet from '@/components/tickets/ReportSheet';
 interface Props {
   conversationId: string;
   onBack?: () => void;
+  /** The profile's Message door (Oct 14 2026): focus the composer once the thread has loaded. */
+  autoFocusComposer?: boolean;
 }
 
-export default function ChatWindow({ conversationId, onBack }: Props) {
+export default function ChatWindow({ conversationId, onBack, autoFocusComposer = false }: Props) {
   const { user, profile } = useAuth();
   const router = useRouter();
   const { markConversationRead, addOptimisticMessage, removeConversation } = useMessages();
@@ -892,6 +894,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         initialText={initialDraft}
         onTextChange={handleDraftChange}
         participants={activeParticipantProfiles}
+        autoFocus={autoFocusComposer}
       />
 
       {/* Group Settings Modal */}

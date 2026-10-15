@@ -25,15 +25,18 @@ interface ProfileActionsProps {
 export default function ProfileActions({ profileId, currentUserId, onFollowChange, onStatsLoaded, messageSlot, className = '' }: ProfileActionsProps) {
   return (
     <div className={`flex items-center gap-2 w-full sm:w-auto sm:ml-auto ${className}`} data-profile-actions="">
-      {messageSlot && <div className="flex-1 sm:flex-none min-w-0">{messageSlot}</div>}
-      <div className="flex-1 sm:flex-none min-w-0">
+      {/* Each half keeps its label on ONE line and never shrinks below it:
+          at 375 px "Become a Fan" takes the width it needs and Message the
+          rest (an even split wrapped the fan label and broke the match). */}
+      {messageSlot && <div className="flex-1 sm:flex-none">{messageSlot}</div>}
+      <div className="flex-1 sm:flex-none">
         <FollowButton
           profileId={profileId}
           currentUserId={currentUserId}
           onFollowChange={onFollowChange}
           onStatsLoaded={onStatsLoaded}
           size="md"
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto whitespace-nowrap"
         />
       </div>
     </div>
