@@ -52,7 +52,7 @@ export default function PlayerStatsPanel({
   base: string;
   contestId: string;
 }) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [agg, setAgg] = useState<Aggregate | null>(null);
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -163,7 +163,6 @@ export default function PlayerStatsPanel({
         showError('Player stats', body.error || 'Failed to save player stats');
         return;
       }
-      showSuccess('Player stats', 'Player stats saved');
       setReloadKey(k => k + 1);
     } catch {
       showError('Player stats', 'Failed to save player stats');
@@ -182,7 +181,6 @@ export default function PlayerStatsPanel({
         showError('Player stats', body.error || 'Failed to remove the stat line');
         return;
       }
-      showSuccess('Player stats', 'Stat line removed');
       setReloadKey(k => k + 1);
     } catch {
       showError('Player stats', 'Failed to remove the stat line');

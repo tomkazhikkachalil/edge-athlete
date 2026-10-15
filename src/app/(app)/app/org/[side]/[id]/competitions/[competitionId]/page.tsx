@@ -133,7 +133,7 @@ export default function CompetitionDetailPage() {
   const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
 
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [competition, setCompetition] = useState<CompetitionInfo | null>(null);
@@ -344,7 +344,6 @@ export default function CompetitionDetailPage() {
         showError('Competition', body.error || failMessage);
         return false;
       }
-      showSuccess('Competition', successMessage);
       refresh();
       return true;
     } catch (e) {
@@ -425,12 +424,6 @@ export default function CompetitionDetailPage() {
       }
       const report = (body.reports ?? [])[0];
       if (report) setSyncReports(prev => ({ ...prev, [contestId]: report }));
-      showSuccess(
-        'Competition',
-        report?.blocked
-          ? `Nothing synced — ${report.blocked}`
-          : `${report?.synced ?? 0} round${report?.synced === 1 ? '' : 's'} synced`
-      );
       refresh();
     } catch {
       showError('Competition', 'Sync failed — please try again');
@@ -453,7 +446,7 @@ export default function CompetitionDetailPage() {
         return;
       }
       const n = body.nudged as number;
-      showSuccess(
+      showNotice(
         'Reminder',
         n === 0
           ? body.unposted === 0
@@ -484,7 +477,7 @@ export default function CompetitionDetailPage() {
         return;
       }
       setSeasonAnnouncedAt(new Date().toISOString());
-      showSuccess('Season', `Announced to ${body.sent ?? 0} member${body.sent === 1 ? '' : 's'}`);
+      showNotice('Season', `Announced to ${body.sent ?? 0} member${body.sent === 1 ? '' : 's'}`);
     } catch {
       showError('Season', 'Could not announce the season');
     } finally {
@@ -570,7 +563,6 @@ export default function CompetitionDetailPage() {
       }
       setSchedReport(body);
       if (!dryRun) {
-        showSuccess('Schedule import', 'Imported — games are on the schedule');
         refresh();
       }
     } catch {
@@ -600,7 +592,6 @@ export default function CompetitionDetailPage() {
       }
       setStatsReport(body);
       if (!dryRun) {
-        showSuccess('Player stats import', 'Imported — stats are on the games');
         refresh();
       }
     } catch {
@@ -638,7 +629,6 @@ export default function CompetitionDetailPage() {
       }
       setSeasonReport(body);
       if (!dryRun) {
-        showSuccess('Generate rounds', `${body.summary?.created ?? 0} rounds added`);
         refresh();
       }
     } catch {
@@ -699,7 +689,7 @@ export default function CompetitionDetailPage() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) { showError('Generate bracket', body.error || 'Could not generate the bracket'); return; }
       setBracketReport(body.report ?? null);
-      if (!dryRun) { showSuccess('Generate bracket', `${body.report?.contests ?? 0} matches drawn`); setReloadKey(k => k + 1); }
+      if (!dryRun) setReloadKey(k => k + 1);
     } catch {
       showError('Generate bracket', 'Could not generate the bracket');
     } finally {
@@ -721,7 +711,7 @@ export default function CompetitionDetailPage() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) { showError('Pool games', body.error || 'Could not plan the pool games'); return; }
       setPoolsReport(body.report ?? null);
-      if (!dryRun) { showSuccess('Pool games', `${body.report?.games ?? 0} games added`); setReloadKey(k => k + 1); }
+      if (!dryRun) setReloadKey(k => k + 1);
     } catch {
       showError('Pool games', 'Could not plan the pool games');
     } finally {

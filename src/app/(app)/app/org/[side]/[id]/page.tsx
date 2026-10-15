@@ -161,7 +161,7 @@ export default function OrgConsolePage() {
   const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
 
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   const [orgName, setOrgName] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
@@ -653,7 +653,6 @@ export default function OrgConsolePage() {
         showError(title, body.error || failMessage);
         return false;
       }
-      showSuccess(title, successMessage);
       refresh();
       return true;
     } catch (e) {
@@ -913,7 +912,7 @@ export default function OrgConsolePage() {
 
   // C1: domain actions — each answers the fresh status; a 409 carries a
   // human reason (DNS not visible yet, domain not reaching us yet).
-  const domainAction = async (path: string, init: RequestInit, successMessage: string) => {
+  const domainAction = async (path: string, init: RequestInit) => {
     setDomainBusy(true);
     try {
       const res = await fetch(path, init);
@@ -923,7 +922,6 @@ export default function OrgConsolePage() {
         showError('Website', body.error || 'Domain step failed');
         return false;
       }
-      showSuccess('Website', successMessage);
       return true;
     } catch {
       showError('Website', 'Domain step failed — please try again');
@@ -1001,7 +999,6 @@ export default function OrgConsolePage() {
         return;
       }
       setJoinRequests(list => list.filter(r => r.id !== requestId));
-      showSuccess('Membership', res.status === 409 ? 'Already decided' : decision === 'approve' ? 'Member approved' : 'Request declined');
       if (decision === 'approve') refresh();
     } catch {
       showError('Membership', 'Could not decide the request');
@@ -1047,7 +1044,7 @@ export default function OrgConsolePage() {
       if (patch.visibility) setOrgVisibility(patch.visibility);
       if (patch.joinPolicy) setOrgJoinPolicy(patch.joinPolicy);
       if (patch.listing) setListing(patch.listing);
-      showSuccess(
+      showNotice(
         'Membership',
         patch.listing
           ? patch.listing === 'pending'
@@ -1081,7 +1078,6 @@ export default function OrgConsolePage() {
         competitionCount={competitions.length}
         onSaved={next => {
           setSwitches(next);
-          showSuccess('What you run', 'Saved');
         }}
         onError={message => showError('What you run', message)}
       />
@@ -1274,7 +1270,6 @@ export default function OrgConsolePage() {
           golfFirst={golfFirst}
           onConfirmDelete={setConfirmTarget}
           onChanged={refresh}
-          onSuccess={showSuccess}
           onError={showError}
         />
       </>
@@ -1288,7 +1283,6 @@ export default function OrgConsolePage() {
           orgId={orgId}
           teams={teams}
           onChanged={refresh}
-          onSuccess={showSuccess}
           onError={showError}
         />
       </>
@@ -2840,8 +2834,7 @@ export default function OrgConsolePage() {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ domain: domainInput.trim() }),
-                              },
-                              'Domain saved — add the DNS records below'
+                              }
                             );
                             if (ok) setDomainInput('');
                           }}
@@ -2918,8 +2911,7 @@ export default function OrgConsolePage() {
                             onClick={() =>
                               void domainAction(
                                 `/api/${plural}/${orgId}/site/domain/verify`,
-                                { method: 'POST' },
-                                'Domain verified'
+                                { method: 'POST' }
                               )
                             }
                             className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
@@ -2934,8 +2926,7 @@ export default function OrgConsolePage() {
                             onClick={() =>
                               void domainAction(
                                 `/api/${plural}/${orgId}/site/domain/check`,
-                                { method: 'POST' },
-                                'Your domain is live'
+                                { method: 'POST' }
                               )
                             }
                             className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
@@ -3151,7 +3142,6 @@ export default function OrgConsolePage() {
               season.divisions.map(d => ({ ...d, season_label: season.label, team_ids: d.entries.map(e => e.team_id) }))
             )}
             onChanged={refresh}
-            onSuccess={showSuccess}
             onError={showError}
           />
         ) : (

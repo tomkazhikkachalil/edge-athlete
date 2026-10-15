@@ -147,7 +147,7 @@ export default function FeedPage() {
   // pagination state — no more page-counter offset math (offset degraded on
   // deep pages and could skip/duplicate across new-post inserts).
   const nextCursorRef = useRef<string | null>(null);
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
 
   // "All" vs "My orgs" lens. The lens is a SCOPE over already-public posts
   // (server-enforced) — switching it swaps the whole list. Ref mirror for
@@ -230,7 +230,7 @@ export default function FeedPage() {
           added = toAdd.length;
           return toAdd.length ? [...toAdd, ...prev] : prev;
         });
-        if (added > 0) showSuccess('New posts', added === 1 ? 'A new post has been added to your feed' : `${added} new posts have been added to your feed`);
+        if (added > 0) showNotice('New posts', added === 1 ? 'A new post has been added to your feed' : `${added} new posts have been added to your feed`);
       } catch { /* the poll is a nicety — the next load has it */ }
     };
     const timer = setInterval(poll, NEW_POSTS_POLL_MS);
@@ -244,7 +244,7 @@ export default function FeedPage() {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
     };
-  }, [user, showSuccess]);
+  }, [user, showNotice]);
 
   // Note: Removed unfiltered real-time subscription for post updates (likes, comments)
   // to eliminate 850K+ Realtime overhead. Using optimistic UI updates instead for
@@ -408,7 +408,6 @@ export default function FeedPage() {
     }
 
     setIsCreatePostModalOpen(false);
-    showSuccess('Success', 'Post created successfully!');
   };
 
   const handleEdit = useCallback((postId: string) => {
@@ -424,7 +423,6 @@ export default function FeedPage() {
     loadFeed();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
-    showSuccess('Success', 'Post updated successfully!');
   };
 
   const handleDelete = useCallback(async (postId: string, mode?: 'delete') => {
@@ -449,9 +447,8 @@ export default function FeedPage() {
       // Results-kept (241): a bare delete of a result comes back hidden; a
       // delete asked for by name (Oct 2026) is gone for good.
       const body = await response.json().catch(() => ({}));
-      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
-      else showSuccess('Success', 'Post deleted successfully');
+      if (body.hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showNotice(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
     } catch (e) {
       if (removed) {
         setPosts(prevPosts => {
@@ -465,7 +462,7 @@ export default function FeedPage() {
       // The server's own words when it has some (a refusal names its reason).
       showError('Error', e instanceof Error && e.message ? e.message : 'Failed to delete post');
     }
-  }, [showError, showSuccess]);
+  }, [showError, showNotice]);
 
   // Show loading state
   if (loading || !user) {

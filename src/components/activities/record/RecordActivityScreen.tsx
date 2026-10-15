@@ -44,8 +44,6 @@ import FinishSheet, { type FinishDetails } from './FinishSheet';
 import { postActivity } from '@/lib/activities/share-client';
 import { sportForActivity } from '@/lib/activities/sport-bridge';
 import { isSportEnabled } from '@/lib/features';
-import { getSportDefinition } from '@/lib/sports/SportRegistry';
-import { whoSeesPost } from '@/lib/posts/audience';
 import { COPY } from '@/lib/copy';
 import type { LatLng } from '@/lib/activities/polyline';
 
@@ -62,7 +60,7 @@ const localZone = (): string | null => {
 export default function RecordActivityScreen() {
   const router = useRouter();
   const { user, profile, initialAuthCheckComplete, activeProfile } = useAuth();
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   const rec = useRecording();
   const engine = rec.engine;
   const state: RecordingState | null = engine?.state ?? null;
@@ -182,10 +180,7 @@ export default function RecordActivityScreen() {
         // page, where "Share to feed" still offers it.
         const posted = await postActivity({ activityId: json.id, sport, caption, targetProfileId });
         if (!posted.ok) showError('Saved — not posted', `${posted.error} You can share it from this page.`);
-        else if (posted.pendingApproval) showSuccess('Sent for approval');
-        else showSuccess(sport ? `Posted as a ${getSportDefinition(sport).display_name} result` : 'Posted', whoSeesPost(accountVisibility));
-      } else {
-        showSuccess('Saved — only you can see it', 'It is in your Training, not on the feed.');
+        else if (posted.pendingApproval) showNotice('Sent for approval');
       }
       router.push(`/activities/${json.id}`);
     } catch (e) {

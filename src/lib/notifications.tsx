@@ -113,7 +113,7 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { showSuccess } = useToast();
+  const { showNotice } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   // Live mirror of `notifications` — realtime handlers need the current list
   // (e.g. to detect an unread→read transition) without stale closures.
@@ -500,7 +500,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const party = celebrationFor(incoming);
         if (party) {
           if (party.confetti) void celebratePR();
-          showSuccess(party.title, party.message ?? undefined);
+          showNotice(party.title, party.message ?? undefined);
         }
 
         // Optional: Play notification sound
@@ -574,7 +574,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       channel.unsubscribe();
       setConnectionStatus('connecting');
     };
-  }, [user, showSuccess]); // showSuccess is stable (useCallback [])
+  }, [user, showNotice]); // showNotice is stable (useCallback [])
 
   return (
     <NotificationsContext.Provider

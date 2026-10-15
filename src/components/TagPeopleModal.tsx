@@ -42,7 +42,7 @@ export default function TagPeopleModal({
 }: TagPeopleModalProps) {
   const [selectedProfiles, setSelectedProfiles] = useState<Profile[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
     const response = await fetch(
@@ -121,7 +121,6 @@ export default function TagPeopleModal({
         throw new Error('Failed to add tags');
       }
 
-      showSuccess(`Tagged ${selectedProfiles.length} ${selectedProfiles.length === 1 ? 'person' : 'people'}`);
 
       if (onTagsAdded) {
         onTagsAdded();

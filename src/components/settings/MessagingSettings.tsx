@@ -49,7 +49,7 @@ const options: PermissionOption[] = [
 
 export default function MessagingSettings() {
   const { profile, refreshProfile } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   // Starts from the profile: this tab mounts with it already loaded, and the
   // sync below only runs when it CHANGES — the saved choice used to open as
   // "Everyone" (Sep 30 2026).
@@ -86,7 +86,6 @@ export default function MessagingSettings() {
       if (!res.ok) throw new Error('Failed to update');
       setPermission(newPermission);
       await refreshProfile();
-      showSuccess('Success', 'Messaging settings updated');
     } catch (e) {
       console.error('Failed to update messaging settings:', e);
       showError('Error', 'Failed to update messaging settings');

@@ -131,7 +131,7 @@ test('@mobile org site sections: the phone editor lists the draft; Move down and
       // Publish from the phone header; the public page renders the list's
       // order (module instance ids) and the resized tile's column span.
       await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Changes published' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Changes published' })).toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
     }

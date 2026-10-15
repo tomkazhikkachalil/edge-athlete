@@ -75,7 +75,7 @@ function useNow(active: boolean): number {
 }
 
 export default function WorkoutControls({ exercises, rest, onRest, stopwatch, onStopwatch, lastEditedClientId, onSaveStopwatch }: Props) {
-  const { showInfo } = useToast();
+  const { showNotice } = useToast();
   const [targetS, setTargetS] = useState<number | null>(() => readRestTarget());
   const [targetSheet, setTargetSheet] = useState(false);
   const [stopwatchOpen, setStopwatchOpen] = useState(false);
@@ -91,8 +91,8 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
     if (!reached || rest.startedAt === null || alertedForRef.current === rest.startedAt) return;
     alertedForRef.current = rest.startedAt;
     haptic();
-    showInfo('Rest is up', targetS ? `${formatElapsed(targetS)} — next set.` : undefined);
-  }, [reached, rest.startedAt, targetS, showInfo]);
+    showNotice('Rest is up', targetS ? `${formatElapsed(targetS)} — next set.` : undefined);
+  }, [reached, rest.startedAt, targetS, showNotice]);
 
   // The measured height → `--ea-workout-bar-h` (the TabBar recipe): the editor's clearance follows the bar as it grows and shrinks.
   const rootRef = useRef<HTMLDivElement | null>(null);

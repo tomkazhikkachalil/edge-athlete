@@ -66,7 +66,7 @@ interface OwnerCandidate {
 export default function AdminClubsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [clubs, setClubs] = useState<AdminClubRow[]>([]);
@@ -154,7 +154,6 @@ export default function AdminClubsPage() {
         showError('Clubs', data.error || 'Decision failed');
         return;
       }
-      showSuccess('Clubs', decision === 'approve' ? 'Club approved and created' : 'Request declined');
       if (decision === 'approve' && Array.isArray(data.replay?.stubs) && data.replay.stubs.length > 0) {
         setClaimUrls(data.replay.stubs);
       }
@@ -192,7 +191,6 @@ export default function AdminClubsPage() {
         showError('Clubs', data.error || 'Failed to create club');
         return;
       }
-      showSuccess('Clubs', `${name.trim()} created`);
       setName('');
       setDescription('');
       setPlace(null);

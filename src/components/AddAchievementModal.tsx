@@ -42,7 +42,7 @@ export default function AddAchievementModal({
   onSaved,
   editing = null,
 }: AddAchievementModalProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -123,7 +123,6 @@ export default function AddAchievementModal({
         throw new Error(data?.error || 'Failed to save achievement');
       }
 
-      showSuccess('Success', editing ? 'Achievement updated' : 'Achievement added');
       onSaved();
       onClose();
     } catch (err) {

@@ -11,7 +11,7 @@ import ShortlistNoteModal from './ShortlistNoteModal';
 // ── The scout's shortlist (R3) — cards below sm, a table from sm up ───────
 
 export default function ScoutShortlist() {
-  const { showError, showSuccess } = useToast();
+  const { showError} = useToast();
   const [state, setState] = useState<'loading' | 'ready' | 'unsupported' | 'error'>('loading');
   const [items, setItems] = useState<ShortlistAthlete[]>([]);
   const [noteFor, setNoteFor] = useState<ShortlistAthlete | null>(null);
@@ -58,7 +58,6 @@ export default function ScoutShortlist() {
     }
     const saved = (await res.json()) as { note: string | null };
     setItems(prev => prev.map(i => (i.athleteId === athleteId ? { ...i, note: saved.note } : i)));
-    showSuccess('Note saved', 'Only you can see it.');
   };
 
   const remove = async (athleteId: string) => {

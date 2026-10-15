@@ -51,7 +51,7 @@ interface AffiliationSectionProps {
 }
 
 export default function AffiliationSection({ side, orgId, bare = false }: AffiliationSectionProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const other = otherKind(side);
   const base = side === 'league' ? `/api/leagues/${orgId}/clubs` : `/api/clubs/${orgId}/leagues`;
   const targetKey = side === 'league' ? 'clubId' : 'leagueId';
@@ -119,7 +119,7 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
         showError('Affiliation', body.error || 'Failed to send the invite');
         return;
       }
-      showSuccess('Affiliation', `Invite sent to ${target.name}`);
+      showNotice('Affiliation', `Invite sent to ${target.name}`);
       setInviteQuery('');
       setInviteResults([]);
       refresh();
@@ -145,7 +145,6 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
         showError('Affiliation', body.error || 'Failed to accept');
         return;
       }
-      showSuccess('Affiliation', 'Affiliation accepted');
       refresh();
     } catch (e) {
       console.error('Affiliation accept failed:', e);
@@ -155,7 +154,7 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
     }
   };
 
-  const remove = async (row: AffRow, kind: 'withdraw' | 'decline' | 'dissolve') => {
+  const remove = async (row: AffRow) => {
     const targetId = side === 'league' ? row.club_id : row.league_id;
     setBusyId(targetId);
     try {
@@ -167,10 +166,6 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
         showError('Affiliation', body.error || 'Failed');
         return;
       }
-      showSuccess(
-        'Affiliation',
-        kind === 'withdraw' ? 'Invite withdrawn' : kind === 'decline' ? 'Invite declined' : 'Affiliation ended'
-      );
       refresh();
     } catch (e) {
       console.error('Affiliation remove failed:', e);
@@ -301,7 +296,7 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
                       <button
                         type="button"
                         disabled={busyId === targetId}
-                        onClick={() => remove(row, 'withdraw')}
+                        onClick={() => remove(row)}
                         className="px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium border border-border-strong text-secondary hover:bg-surface-sunken disabled:opacity-60"
                       >
                         Withdraw
@@ -373,7 +368,7 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
         }
         confirmText={confirmTarget?.kind === 'dissolve' ? 'End affiliation' : 'Decline'}
         confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
-        onConfirm={() => confirmTarget && remove(confirmTarget.row, confirmTarget.kind)}
+        onConfirm={() => confirmTarget && remove(confirmTarget.row)}
         onCancel={() => setConfirmTarget(null)}
       />
     </div>

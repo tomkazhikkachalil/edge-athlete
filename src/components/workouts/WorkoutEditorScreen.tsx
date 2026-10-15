@@ -79,7 +79,7 @@ interface WorkoutEditorScreenProps {
 
 export default function WorkoutEditorScreen({ mode, session, currentUserId, initialPhase }: WorkoutEditorScreenProps) {
   const router = useRouter();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   // live + review both edit a persisted server session (draft keyed by id,
   // debounced entries PUT); manual is client-local until its one atomic POST.
@@ -320,7 +320,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     if (reconciledRef.current) return;
     reconciledRef.current = true;
     if (initial.fromDraft) {
-      showSuccess('Restored', 'Unsaved sets were restored');
+      showNotice('Restored', 'Unsaved sets were restored');
       if (isServerSession) void syncNow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -536,7 +536,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       }
       clearDraft(draftId);
       if (session.post_id) {
-        showSuccess('Saved', 'Workout updated');
         router.push('/athlete');
       } else {
         setPhase('share');
@@ -726,7 +725,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         body: JSON.stringify({ postId }),
       });
       await recordPRs(postId);
-      showSuccess('Shared', 'Your workout is on the feed');
       router.push('/athlete');
     } catch (err) {
       setShareError(err instanceof Error ? err.message : 'Failed to share workout');
@@ -748,7 +746,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       }).catch(() => undefined);
     }
     await recordPRs(null);
-    showSuccess('Saved', 'Workout saved to your history');
     router.push('/athlete');
   };
 

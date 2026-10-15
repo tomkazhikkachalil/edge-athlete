@@ -82,7 +82,7 @@ export default function EventDetailModal({
 }) {
   const { user } = useAuth();
   const router = useRouter();
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [viewerAccess, setViewerAccess] = useState<ViewerAccess | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,7 +165,6 @@ export default function EventDetailModal({
       }
       await loadRef.current();
       onChanged();
-      showSuccess('Restored', 'The event is back on the calendar.');
     } catch {
       showError('Could not restore', 'Please try again.');
     } finally {
@@ -186,11 +185,6 @@ export default function EventDetailModal({
       if (!res.ok) { showError('Could not respond', data.error || 'Please try again.'); return; }
       await loadRef.current();
       onChanged();
-      if (status === 'declined') {
-        showSuccess('Declined', scope === 'series'
-          ? 'The series was removed from your calendar.'
-          : 'The event was removed from your calendar.');
-      }
     } catch {
       showError('Could not respond', 'Please try again.');
     } finally {
@@ -276,7 +270,7 @@ export default function EventDetailModal({
         return;
       }
       setRoutineSaved(true);
-      showSuccess('Routine saved', `Pick “${event.routine.name}” next time you start a workout.`);
+      showNotice('Routine saved', `Pick “${event.routine.name}” next time you start a workout.`);
     } catch (err) {
       console.error('Failed to save routine:', err);
       showError('Not saved', 'Could not save the routine. Please try again.');
@@ -292,7 +286,7 @@ export default function EventDetailModal({
       const res = await fetch(`/api/calendar/events/${event.id}?scope=${scope}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not cancel', data.error || 'Please try again.'); return; }
-      showSuccess(
+      showNotice(
         scope === 'this' ? 'Event cancelled' : scope === 'following' ? 'Events cancelled' : 'Series cancelled',
         'Every guest has been notified.'
       );

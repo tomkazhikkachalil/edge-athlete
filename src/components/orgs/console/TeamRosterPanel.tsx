@@ -29,13 +29,12 @@ interface Props {
   team: { id: string; name: string };
   /** The org's other ACTIVE teams — the move targets. */
   otherTeams: { id: string; name: string }[];
-  onSuccess: (message: string) => void;
   onError: (message: string) => void;
   /** A move changes the other team's roster too — the section re-reads. */
   onMoved: () => void;
 }
 
-export default function TeamRosterPanel({ side, orgId, team, otherTeams, onSuccess, onError, onMoved }: Props) {
+export default function TeamRosterPanel({ side, orgId, team, otherTeams, onError, onMoved }: Props) {
   const plural = ORG_ROUTE_FAMILY[side];
   const url = `/api/${plural}/${orgId}/teams/${team.id}/roster`;
   const [roster, setRoster] = useState<RosterPlayer[] | null>(null);
@@ -89,7 +88,6 @@ export default function TeamRosterPanel({ side, orgId, team, otherTeams, onSucce
           onError(body.error || 'Could not update the roster');
           return false;
         }
-        onSuccess(done);
         setReloadKey(k => k + 1);
         return true;
       } catch {
@@ -99,7 +97,7 @@ export default function TeamRosterPanel({ side, orgId, team, otherTeams, onSucce
         setBusy(null);
       }
     },
-    [url, onError, onSuccess]
+    [url, onError]
   );
 
   const { canAdd, needsInvite } = filterCandidates(candidates, query);

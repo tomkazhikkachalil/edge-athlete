@@ -33,13 +33,12 @@ interface Props {
   teams: (TeamIdentity & { status: 'active' | 'archived' })[];
   divisions: (DivisionEditable & { season_label: string | null; team_ids: string[] })[];
   onChanged: () => void;
-  onSuccess: (title: string, message: string) => void;
   onError: (title: string, message: string) => void;
 }
 
 type Open = { id: string; panel: 'roster' | 'edit' | 'event' } | null;
 
-export default function ScopedConsole({ side, orgId, orgName, grants, teams, divisions, onChanged, onSuccess, onError }: Props) {
+export default function ScopedConsole({ side, orgId, orgName, grants, teams, divisions, onChanged, onError }: Props) {
   const [open, setOpen] = useState<Open>(null);
   const toggle = (id: string, panel: NonNullable<Open>['panel']) => setOpen(o => (o?.id === id && o.panel === panel ? null : { id, panel }));
 
@@ -98,10 +97,10 @@ export default function ScopedConsole({ side, orgId, orgName, grants, teams, div
             )}
           </div>
           {open?.id === division.id && open.panel === 'edit' && (
-            <DivisionEditForm side={side} orgId={orgId} division={division} onSaved={m => { onSuccess('Division', m); onChanged(); }} onError={m => onError('Division', m)} onClose={() => setOpen(null)} />
+            <DivisionEditForm side={side} orgId={orgId} division={division} onSaved={() => onChanged()} onError={m => onError('Division', m)} onClose={() => setOpen(null)} />
           )}
           {open?.id === division.id && open.panel === 'event' && (
-            <ScopedEventForm scope={{ type: 'division', id: division.id, name: division.name }} onSaved={m => onSuccess('Calendar', m)} onError={m => onError('Calendar', m)} onClose={() => setOpen(null)} />
+            <ScopedEventForm scope={{ type: 'division', id: division.id, name: division.name }} onSaved={() => undefined} onError={m => onError('Calendar', m)} onClose={() => setOpen(null)} />
           )}
         </section>
       ))}
@@ -139,16 +138,15 @@ export default function ScopedConsole({ side, orgId, orgName, grants, teams, div
                 orgId={orgId}
                 team={{ id: team.id, name: team.name }}
                 otherTeams={allTeams.filter(t => t.id !== team.id && teamSections.get(t.id)?.has('teams'))}
-                onSuccess={m => onSuccess('Team roster', m)}
                 onError={m => onError('Team roster', m)}
                 onMoved={() => setOpen(null)}
               />
             )}
             {open?.id === team.id && open.panel === 'edit' && (
-              <TeamIdentityForm side={side} orgId={orgId} team={team} onSaved={m => { onSuccess('Team', m); onChanged(); }} onError={m => onError('Team', m)} onClose={() => setOpen(null)} />
+              <TeamIdentityForm side={side} orgId={orgId} team={team} onSaved={() => onChanged()} onError={m => onError('Team', m)} onClose={() => setOpen(null)} />
             )}
             {open?.id === team.id && open.panel === 'event' && (
-              <ScopedEventForm scope={{ type: 'team', id: team.id, name: team.name }} onSaved={m => onSuccess('Calendar', m)} onError={m => onError('Calendar', m)} onClose={() => setOpen(null)} />
+              <ScopedEventForm scope={{ type: 'team', id: team.id, name: team.name }} onSaved={() => undefined} onError={m => onError('Calendar', m)} onClose={() => setOpen(null)} />
             )}
           </section>
         );

@@ -24,7 +24,7 @@ interface StripItem {
 }
 
 export default function ContestMediaStrip({ profileId }: { profileId: string }) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [items, setItems] = useState<StripItem[]>([]);
   const [untagging, setUntagging] = useState<StripItem | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -57,7 +57,6 @@ export default function ContestMediaStrip({ profileId }: { profileId: string }) 
         showError('Team media', body.error || 'Failed to remove the tag');
         return;
       }
-      showSuccess('Team media', 'Tag removed');
       setReloadKey(k => k + 1);
     } catch {
       showError('Team media', 'Failed to remove the tag');

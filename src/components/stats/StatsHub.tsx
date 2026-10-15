@@ -118,7 +118,7 @@ export default function StatsHub({
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<MediaItem | null>(null);
 
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   // Paginated loader: defined inside the effect (clears the lint rule) and
   // published on a ref for the IntersectionObserver's load-more and the
@@ -276,9 +276,8 @@ export default function StatsHub({
       setIsModalOpen(false);
       setSelectedPostIndex(null);
       onCountsChanged?.();
-      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
-      else showSuccess('Success', 'Post deleted successfully');
+      if (body.hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showNotice(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }
@@ -289,7 +288,6 @@ export default function StatsHub({
     onCountsChanged?.();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
-    showSuccess('Success', 'Post updated successfully!');
   };
 
   const activeSportLabel = selectedSport ? sportLabels.get(selectedSport) ?? selectedSport : null;

@@ -42,7 +42,6 @@ export interface SitePanelProps {
   onFlush?: () => Promise<boolean>;
   onReload?: () => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }
 
 const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-primary';
@@ -52,7 +51,7 @@ const CTA = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md bg-brand text-white fon
 
 type FooterLink = { label: string; url: string };
 
-export default function SitePanel({ site, plural, orgId, variant = 'aside', className, onClose, onSaved, onDirtyChange, onSiteChanged, onFlush, onReload, showError, showSuccess }: SitePanelProps) {
+export default function SitePanel({ site, plural, orgId, variant = 'aside', className, onClose, onSaved, onDirtyChange, onSiteChanged, onFlush, onReload, showError }: SitePanelProps) {
   const seo0 = parseSeoConfig(site.seo_config);
   const footer0 = parseFooterConfig(site.footer_config);
   const icon0 = parseThemeTokens(site.theme_token_set).iconPath;
@@ -96,7 +95,6 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
         showError('Website', err.error || 'Failed to remove the logo');
         return;
       }
-      showSuccess('Website', 'Logo removed');
       await onSiteChanged?.();
     } catch {
       showError('Website', 'Failed to remove the logo');
@@ -114,7 +112,6 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
         await patch({ action: 'set_theme', accent: t.accent, accentStrong: t.accentStrong, surface: t.surface, typeface: t.typeface, ...(t.wordmark ? { wordmark: t.wordmark } : {}), iconPath });
       }
       await onSaved();
-      showSuccess('Website', 'Site settings saved to your draft');
     } catch (e) {
       showError('Website', e instanceof Error ? e.message : 'Could not save the site settings');
     } finally {
@@ -151,7 +148,6 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           <OrgLogoUploader
             endpoint={`/api/${plural}/${orgId}/site/logo`}
             onUploaded={() => {
-              showSuccess('Website', 'Logo updated');
               void onSiteChanged?.();
             }}
             render={({ open, uploading }) => (
@@ -260,7 +256,6 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           beforeStructural={onFlush}
           onStructural={onReload}
           showError={showError}
-          showSuccess={showSuccess}
         />
       </fieldset>
     </aside>

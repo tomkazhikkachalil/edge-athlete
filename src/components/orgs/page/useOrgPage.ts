@@ -16,7 +16,7 @@ import type { OrgKind } from '@/lib/orgs/org-ref';
 export function useOrgPage(side: OrgKind, orgId: string) {
   const copy = SIDE_COPY[side];
   const { user, profile: viewerProfile } = useAuth();
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -99,7 +99,7 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Something went wrong');
         return;
       }
-      showSuccess(
+      showNotice(
         copy.label,
         body.action === 'joined'
           ? `You joined the ${copy.noun}`
@@ -133,7 +133,6 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Failed to change role');
         return;
       }
-      showSuccess(copy.label, role === 'manager' ? 'Manager added' : 'Manager removed');
       refresh();
     } catch (e) {
       console.error('Role change failed:', e);
@@ -153,7 +152,6 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Failed to add the owner');
         return;
       }
-      showSuccess(copy.label, 'Owner added');
       refresh();
     } catch (e) {
       console.error('Owner promote failed:', e);
@@ -171,7 +169,6 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Failed to step down');
         return;
       }
-      showSuccess(copy.label, 'You stepped down');
       refresh();
     } catch (e) {
       console.error('Owner step-down failed:', e);
@@ -207,7 +204,6 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || failMessage);
         return;
       }
-      showSuccess(copy.label, successMessage);
       refresh();
     } catch (e) {
       console.error('Roster action failed:', e);
@@ -239,7 +235,7 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Could not join the roster');
         return;
       }
-      showSuccess(
+      showNotice(
         copy.label,
         body.action === 'guardian_asked'
           ? 'Your guardian has been asked to confirm'
@@ -258,7 +254,7 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         return;
       }
       await navigator.clipboard.writeText(url);
-      showSuccess(copy.label, 'Join link copied');
+      showNotice(copy.label, 'Join link copied');
     } catch {
       /* dismissed */
     }
@@ -296,7 +292,6 @@ export function useOrgPage(side: OrgKind, orgId: string) {
         showError(copy.label, body.error || 'Failed to remove member');
         return;
       }
-      showSuccess(copy.label, 'Member removed');
       refresh();
     } catch (e) {
       console.error('Remove member failed:', e);

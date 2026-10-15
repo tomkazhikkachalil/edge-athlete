@@ -249,7 +249,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const removedKey = await removable.getAttribute('data-sb-widget');
       await removable.getByRole('button', { name: /^Remove / }).click();
       await expect(page.locator('[data-sb-instance]')).toHaveCount(before - 1);
-      const toast = page.getByRole('alert').filter({ hasText: 'Section removed' });
+      const toast = page.getByRole('status').filter({ hasText: 'Section removed' });
       await expect(toast).toBeVisible();
       // H6: an edit made while the toast is up (rename another section), THEN
       // the toast's Undo — the REMOVED section comes back (the toast undoes
@@ -778,7 +778,7 @@ test('org site editor: pages — New page…, words, switch and back, settings, 
       await page.setViewportSize({ width: 1280, height: 900 });
       // Publish changes → the public page renders the words.
       await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Changes published' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Changes published' })).toBeVisible({ timeout: 15_000 });
     } finally {
       await ownerCtx.close();
     }

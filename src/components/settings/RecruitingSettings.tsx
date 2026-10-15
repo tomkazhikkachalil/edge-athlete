@@ -31,7 +31,7 @@ interface Read {
 
 export default function RecruitingSettings() {
   const { user, profile } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [supported, setSupported] = useState<boolean | null>(null);
   const [form, setForm] = useState<RecruitingForm>(() => formsFromProfile(null).recruiting);
   const [shortlistedBy, setShortlistedBy] = useState(0);
@@ -91,7 +91,6 @@ export default function RecruitingSettings() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to save recruiting details');
       }
-      showSuccess('Recruiting saved', 'Your recruiting details are up to date.');
     } catch (e) {
       showError('Could not save', e instanceof Error ? e.message : 'Please try again.');
     } finally {

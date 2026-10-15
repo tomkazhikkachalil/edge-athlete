@@ -57,7 +57,7 @@ function FollowersContent() {
     | { kind: 'decline'; followId: string }
     | null
   >(null);
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -127,7 +127,6 @@ function FollowersContent() {
       if (!response.ok) throw new Error('Failed to accept request');
 
       setRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Fan request accepted');
       loadData(); // Reload to update counts
     } catch (e) {
       console.error('Failed to accept fan request:', e);
@@ -146,7 +145,6 @@ function FollowersContent() {
       if (!response.ok) throw new Error('Failed to reject request');
 
       setRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Fan request declined');
     } catch (e) {
       console.error('Failed to reject fan request:', e);
       showError('Error', 'Failed to reject request');
@@ -172,7 +170,6 @@ function FollowersContent() {
 
       if (!response.ok) throw new Error('Failed to unfollow');
 
-      showSuccess('Success', 'You are no longer a fan');
       loadData(); // Reload the lists
     } catch (e) {
       console.error('Failed to unfollow:', e);
@@ -194,7 +191,6 @@ function FollowersContent() {
 
       if (!response.ok) throw new Error('Failed to remove follower');
 
-      showSuccess('Success', 'Fan removed');
       loadData(); // Reload the lists
     } catch (e) {
       console.error('Failed to remove fan:', e);

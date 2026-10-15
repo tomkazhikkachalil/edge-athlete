@@ -15,7 +15,7 @@ import { usePhoneNotifications } from './usePhoneNotifications';
 // no keys (no dishonest switch).
 
 export default function PhoneNotificationsSection() {
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   const { openGuide } = useInstallApp();
   const phone = usePhoneNotifications();
   const [testing, setTesting] = useState(false);
@@ -39,7 +39,7 @@ export default function PhoneNotificationsSection() {
     setTesting(true);
     try {
       const response = await fetch('/api/push/test', { method: 'POST' });
-      if (response.ok) showSuccess('Test sent', 'It should arrive in a few seconds.');
+      if (response.ok) showNotice('Test sent', 'It should arrive in a few seconds.');
       else showError('Could not send a test', 'Please try again in a moment.');
     } catch {
       showError('Could not send a test', 'Check your connection.');

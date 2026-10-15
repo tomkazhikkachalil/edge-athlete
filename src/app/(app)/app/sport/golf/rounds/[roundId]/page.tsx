@@ -66,7 +66,7 @@ export default function GolfRoundDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   const [round, setRound] = useState<GolfRound | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -197,7 +197,6 @@ export default function GolfRoundDetailPage() {
       }
       setRound(data.round);
       setEditing(false);
-      showSuccess('Round updated', 'Scores saved and stats recalculated.');
     } catch (e) {
       console.error('Failed to save round:', e);
       showError('Save failed', 'Could not save changes. Please try again.');
@@ -219,7 +218,7 @@ export default function GolfRoundDetailPage() {
         showError('Could not delete it', data.error || 'Please try again.');
         return;
       }
-      showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
+      showNotice(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
       backOr(router, '/athlete');
     } catch (e) {
       console.error('Failed to delete the round:', e);
@@ -247,8 +246,7 @@ export default function GolfRoundDetailPage() {
         return;
       }
       setRound(r => (r ? { ...r, profile_hidden_at: hidden ? new Date().toISOString() : null } : r));
-      if (hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-      else showSuccess('Back on your profile');
+      if (hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
     } catch (e) {
       console.error('Failed to change the round:', e);
       showError('Something went wrong', 'Please try again.');

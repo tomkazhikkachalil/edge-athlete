@@ -44,7 +44,7 @@ export default function ContestMediaPanel({
   base: string;
   contestId: string;
 }) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [data, setData] = useState<MediaResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -83,7 +83,6 @@ export default function ContestMediaPanel({
         showError('Game media', body.error || failMsg);
         return;
       }
-      showSuccess('Game media', okMsg);
       refresh();
     } catch {
       showError('Game media', failMsg);

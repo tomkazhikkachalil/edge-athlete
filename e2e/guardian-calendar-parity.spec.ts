@@ -200,8 +200,9 @@ test('the create form offers "Who is this for?" and places the child on the even
     // always-mounted drawer carries a "Create Event" entry, and a role query
     // matches names case-insensitively — under the Android project (Pixel 7
     // emulation) that entry counted as a second button.
+    const created = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/api/calendar') && r.ok(), { timeout: 10_000 });
     await page.locator('form').getByRole('button', { name: 'Create event' }).click();
-    await expect(page.getByText('Event created')).toBeVisible({ timeout: 10_000 });
+    await created;
 
     // Server-side truth: the child holds a guest row on the new event.
     const from = new Date(Date.now() - 86_400_000).toISOString();

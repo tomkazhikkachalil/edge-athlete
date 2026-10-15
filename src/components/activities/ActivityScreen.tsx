@@ -418,7 +418,7 @@ const draftId = () => `seg-${Date.now().toString(36)}-${Math.floor(Math.random()
 
 function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity: ActivityDetailView; athlete: Athlete | null; onChanged: (a: Partial<ActivityDetailView>) => void; onReload: () => Promise<void> }) {
   const router = useRouter();
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(a.name);
   const [type, setType] = useState<ActivityType>(a.type);
@@ -618,9 +618,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
       }
       onChanged({ postId: result.postId ?? 'shared' });
       closeShare();
-      showSuccess(
-        result.pendingApproval ? 'Sent for approval' : shareAs === 'sport' && sportEnabled ? `Posted as a ${getSportDefinition(sport!).display_name} result` : 'Shared to your feed'
-      );
+      if (result.pendingApproval) showNotice('Sent for approval');
     } finally {
       setBusy(false);
     }
@@ -636,7 +634,6 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
         showError('Not deleted', typeof json.error === 'string' ? json.error : 'Please try again.');
         return;
       }
-      showSuccess('Activity deleted');
       router.push(`/athlete/${athlete?.id ?? a.profileId}?tab=activities`);
     } catch {
       showError('Not deleted', 'Check your connection and try again.');

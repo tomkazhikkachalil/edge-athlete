@@ -60,7 +60,7 @@ const today = () => localDayKey(new Date());
 export default function TrainingSettingsModal({
   currentBodyMetrics, trainingPrivacy = null, onClose, onSaved, onManageRoutines,
 }: TrainingSettingsModalProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const [saving, setSaving] = useState(false);
   const [heightError, setHeightError] = useState('');
   const [weightError, setWeightError] = useState('');
@@ -171,14 +171,8 @@ export default function TrainingSettingsModal({
         anyBackdated = submitted.some(key => !data?.profileUpdated?.[key]);
       }
 
-      showSuccess(
-        'Saved',
-        anyBackdated
-          ? 'Added to your timeline — current measurements unchanged (a newer entry exists).'
-          : heightChanged || weightChanged
-            ? 'Measurements updated.'
-            : 'Privacy updated.'
-      );
+      // A backdated entry lands in the timeline, not in the numbers on screen.
+      if (anyBackdated) showNotice('Added to your timeline', 'Current measurements unchanged — a newer entry exists.');
       onSaved();
       // Successful save closes directly — never the discard prompt.
       onClose();

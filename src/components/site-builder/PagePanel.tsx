@@ -21,7 +21,6 @@ interface Props {
   /** After the page is deleted: reload on the home. */
   onDeleted: () => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }
 
 const LABEL = 'mb-1 block text-xs font-medium text-secondary';
@@ -29,7 +28,7 @@ const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-
 const PILL = 'min-h-[44px] rounded-md border border-border-strong px-3 text-sm text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50';
 const CTA = 'min-h-[44px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50';
 
-export default function PagePanel({ page, plural, orgId, onClose, onSaved, onDeleted, showError, showSuccess }: Props) {
+export default function PagePanel({ page, plural, orgId, onClose, onSaved, onDeleted, showError }: Props) {
   const [title, setTitle] = useState(page.title);
   const [slug, setSlug] = useState(page.slug);
   const [visibility, setVisibility] = useState<'public' | 'draft'>(page.visibility);
@@ -58,7 +57,6 @@ export default function PagePanel({ page, plural, orgId, onClose, onSaved, onDel
         showError('Website', body.error || 'Could not save the page');
         return;
       }
-      showSuccess('Website', 'Page saved to your draft');
       onSaved();
     } catch {
       showError('Website', 'Could not save the page');
@@ -80,7 +78,6 @@ export default function PagePanel({ page, plural, orgId, onClose, onSaved, onDel
         showError('Website', body.error || 'Could not delete the page');
         return;
       }
-      showSuccess('Website', 'Page removed from your draft');
       onDeleted();
     } catch {
       showError('Website', 'Could not delete the page');

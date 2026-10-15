@@ -50,8 +50,15 @@ test('one home: documents, logo, a header label, a subpage switch and the photo 
       await docs.locator('[data-sb-document-add]').click();
       await docs.getByLabel('Document 1 title').fill(`Code of conduct ${stamp}`);
       await docs.getByLabel('Document 1 link').fill('https://example.com/code-of-conduct');
+      // The save is the PATCH and then the editor's re-read of the canvas
+      // (refreshSite → GET /site/canvas): the widgets re-mount on it, so the
+      // next tap waits for both (the removed toast used to follow the re-read).
+      const contentSaved = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"documents"') && r.ok(), { timeout: 15_000 });
+      const canvasRefreshed = page.waitForResponse(r => r.request().method() === 'GET' && r.url().endsWith('/site/canvas') && r.ok(), { timeout: 15_000 });
       await docs.getByRole('button', { name: 'Save content' }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Saved to your draft' })).toBeVisible({ timeout: 15_000 });
+      await contentSaved;
+      await canvasRefreshed;
+      await expect(page.locator('[data-sb-widget="gallery"]')).toBeVisible({ timeout: 15_000 });
 
       // The gallery's photo picks ride the gallery panel.
       await page.locator('[data-sb-widget="gallery"] .sb-frame-controls').click();
@@ -71,14 +78,16 @@ test('one home: documents, logo, a header label, a subpage switch and the photo 
       // … a header label …
       const nav = settings.locator('[data-sb-navigation]');
       await nav.getByLabel('Standings section label').fill('Tables');
+      const layoutSaved = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"') && r.ok(), { timeout: 15_000 });
       await nav.getByRole('button', { name: 'Save navigation' }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Layout saved' })).toBeVisible({ timeout: 15_000 });
+      await layoutSaved;
 
       // … and a subpage switched off: the draft is re-laid, the editor reloads from it.
       // A controlled checkbox: it flips when the server has answered and the
       // editor has reloaded — click, then wait for the reload.
+      const sectionUpdated = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"set_module"') && r.ok(), { timeout: 15_000 });
       await nav.getByLabel('Toggle Divisions section').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Section updated' })).toBeVisible({ timeout: 15_000 });
+      await sectionUpdated;
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       await expect(page.locator('[data-sb-widget="divisions"]')).toHaveCount(0, { timeout: 15_000 });
     } finally {

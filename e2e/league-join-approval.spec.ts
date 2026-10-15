@@ -138,7 +138,6 @@ test('league join approval: request → bell + not a member → withdraw → req
       await expect(op.getByRole('heading', { name: /Membership requests \(1\)/, level: 3 })).toBeVisible({ timeout: 20_000 });
       expect(await op.evaluate(() => document.documentElement.scrollWidth), 'console: no horizontal overflow at 375px').toBeLessThanOrEqual(375);
       await op.getByRole('button', { name: 'Approve' }).click();
-      await expect(op.getByText('Member approved')).toBeVisible({ timeout: 15_000 });
       await expect
         .poll(async () => ((await (await alphaApi.get(`/api/leagues/${leagueId}`)).json()) as { viewerRole: string | null }).viewerRole, { timeout: 15_000 })
         .toBe('member');

@@ -77,7 +77,7 @@ interface AuditEvent {
 export default function HouseholdSettingsPage() {
   const router = useRouter();
   const { user, loading, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'load_error'>('loading');
   const [policy, setPolicy] = useState<HouseholdPolicy | null>(null);
   const [saving, setSaving] = useState(false);
@@ -132,7 +132,7 @@ export default function HouseholdSettingsPage() {
       const results: Array<{ ok: boolean; changed?: string[]; skipped?: string[] }> = data.results ?? [];
       const changedCount = results.filter(r => r.ok && (r.changed?.length ?? 0) > 0).length;
       const skippedVisibility = results.some(r => r.ok && r.skipped?.includes('visibility'));
-      showSuccess(
+      showNotice(
         changedCount > 0 ? `Updated ${changedCount} athlete${changedCount === 1 ? '' : 's'}` : 'Already matching',
         skippedVisibility
           ? 'Athletes without a completed consent review stay private.'
@@ -184,7 +184,6 @@ export default function HouseholdSettingsPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not save household defaults');
       setPolicy(data.policy ?? next);
-      showSuccess('Household defaults saved', 'New athletes start with these settings.');
     } catch (e) {
       setPolicy(previous);
       showError('Could not save', e instanceof Error ? e.message : undefined);

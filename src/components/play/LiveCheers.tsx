@@ -17,14 +17,14 @@ import { useToast } from '@/components/Toast';
  */
 export default function LiveCheers({ contextKey, signedIn }: { contextKey: string; signedIn: boolean }) {
   const { totals, total, live, ready, floats, send } = useCheers(contextKey);
-  const { showInfo } = useToast();
+  const { showNotice } = useToast();
   if (!ready || (!live && total === 0)) return null;
 
   const onTap = async (key: (typeof CHEERS)[number]['key']) => {
     const out = await send(key);
-    if (out === 'slow_down') showInfo('Easy there', 'Cheers are cooling down — try again in a moment.');
-    else if (out === 'not_live') showInfo('This round has finished', 'Cheers are for live rounds.');
-    else if (out === 'error') showInfo('Your cheer did not send', 'Please try again.');
+    if (out === 'slow_down') showNotice('Easy there', 'Cheers are cooling down — try again in a moment.');
+    else if (out === 'not_live') showNotice('This round has finished', 'Cheers are for live rounds.');
+    else if (out === 'error') showNotice('Your cheer did not send', 'Please try again.');
   };
 
   return (

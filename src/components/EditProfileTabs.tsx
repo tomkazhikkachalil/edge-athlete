@@ -134,7 +134,7 @@ export default function EditProfileTabs({
   initialTab
 }: EditProfileTabsProps) {
   const { user, refreshProfile } = useAuth();
-  const { showSuccess, showError, showInfo } = useToast();
+  const { showError, showNotice } = useToast();
   const actingAs = !!targetProfileId;
   // The visibility toggle is honest only for unsupervised self-edits: the
   // server strips it for supervised profiles (child AND guardian — safety
@@ -150,6 +150,15 @@ export default function EditProfileTabs({
   const visibleTabs = TABS.filter(t => (actingAs ? !isSportTab(t.id) : true) && (t.id !== 'recruiting' || actingAs));
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // The editor stays open after a save (the host decides), so the result has
+  // to show HERE: the Save button reads "Saved" for a moment (Oct 15 2026 —
+  // no banner; a visible result is the confirmation).
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [justSaved]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Form states — the empty forms (never undefined: controlled inputs). The
@@ -611,7 +620,6 @@ export default function EditProfileTabs({
           wrote = true;
           saved = true;
           snapRef.current.recruiting = JSON.stringify(recruitingForm);
-          showSuccess('Recruiting saved', 'Your recruiting details are up to date.');
           return;
         }
 
@@ -635,7 +643,7 @@ export default function EditProfileTabs({
             if (!schema) {
               // Registered sport with no settings schema yet — the tab shows
               // the same "coming soon" panel, so this matches what is on screen.
-              showInfo(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
+              showNotice(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
               return;
             }
 
@@ -667,7 +675,6 @@ export default function EditProfileTabs({
             // and the next merge, so two saves in one session stay correct.
             storedSportSettingsRef.current[tabId] = merged;
             snapRef.current[sportSnapKey(tabId)] = serializeSportSettings(tabId);
-            showSuccess('Changes Saved', `${sportName} settings updated successfully!`);
             wrote = true;
             saved = true;
           }
@@ -708,7 +715,6 @@ export default function EditProfileTabs({
         } else if (tabId === 'socials') {
           snapRef.current.socials = serializeGroup.socials();
         }
-        showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save changes';
@@ -727,7 +733,10 @@ export default function EditProfileTabs({
       // that host re-reads the athlete in its onSave.
       if (wrote && !actingAs) await refreshProfile();
       setIsSubmitting(false);
-      if (saved) onSave();
+      if (saved) {
+        setJustSaved(true);
+        onSave();
+      }
     }
   };
 
@@ -1486,6 +1495,11 @@ export default function EditProfileTabs({
                   <i className="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>
                   Saving...
                 </>
+              ) : justSaved ? (
+                <span data-profile-saved="">
+                  <i className="fas fa-check mr-2" aria-hidden="true"></i>
+                  Saved
+                </span>
               ) : (
                 <>
                   <i className="fas fa-save mr-2" aria-hidden="true"></i>

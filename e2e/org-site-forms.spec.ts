@@ -146,16 +146,15 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
       await expect(row).toContainText(`Hello from the form ${stamp}`);
       await expect(row.getByRole('link', { name: 'sam@example.com' })).toHaveAttribute('href', 'mailto:sam@example.com');
       await row.locator('[data-site-inbox-read]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Marked as read' })).toBeVisible({ timeout: 15_000 });
       await expect(inbox.locator('[data-site-inbox-unread]')).toHaveText('1');
       await row.locator('[data-site-inbox-archive]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Archived' }).first()).toBeVisible({ timeout: 15_000 });
       await expect(inbox.locator('[data-site-inbox-row]')).toHaveCount(1);
       await inbox.getByRole('radio', { name: 'Archived' }).click();
       const archived = inbox.locator('[data-site-inbox-row]').filter({ hasText: `Sam ${stamp}` });
       await expect(archived).toBeVisible();
+      const restored = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().includes('/site/forms') && r.ok(), { timeout: 15_000 });
       await archived.locator('[data-site-inbox-restore]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Restored to the inbox' })).toBeVisible({ timeout: 15_000 });
+      await restored;
       // A member who is not a manager cannot read the inbox.
       const memberApi = await apiAs('state.json');
       try {

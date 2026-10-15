@@ -247,7 +247,7 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
       // step completes here, with no trip to the console.
       await expect(page.locator('[data-sb-checklist-step="publish"]')).toHaveAttribute('data-done', '0');
       await page.getByRole('button', { name: 'Publish site', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       await expect
         .poll(async () => {
@@ -315,7 +315,7 @@ test('@mobile org site editor on a phone: the sections list, the gallery offer (
       await popup.close();
       // H6/H7: the phone notice's Publish takes the site live.
       await page.getByRole('button', { name: 'Publish site', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     } finally {
       await ctx.close();
@@ -396,7 +396,7 @@ test('@mobile a fresh golf club: the welcome card offers the golf designs, Use t
 
       // Take it live: the public page answers.
       await page.locator('[data-welcome-design-live]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText('It is live at your link.')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     } finally {
@@ -480,7 +480,7 @@ test('a fresh golf club on a laptop: the welcome card two-up, Use this → Open 
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
       // Publish site from the editor header.
       await page.getByRole('button', { name: 'Publish site', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
     }

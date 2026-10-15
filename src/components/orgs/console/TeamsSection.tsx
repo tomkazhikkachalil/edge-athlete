@@ -33,13 +33,12 @@ interface Props {
   teams: ConsoleTeamRow[];
   /** The console re-reads its structure (the page's refresh). */
   onChanged: () => void;
-  onSuccess: (title: string, message: string) => void;
   onError: (title: string, message: string) => void;
 }
 
 type ImportReportRow = { name: string; claimUrl: string | null; emailSent: boolean; error?: string };
 
-export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess, onError }: Props) {
+export default function TeamsSection({ side, orgId, teams, onChanged, onError }: Props) {
   const plural = ORG_ROUTE_FAMILY[side];
   const base = `/api/${plural}/${orgId}/structure`;
   const [teamName, setTeamName] = useState('');
@@ -64,7 +63,6 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
           onError(title, body.error || failMessage);
           return false;
         }
-        onSuccess(title, successMessage);
         onChanged();
         return true;
       } catch (e) {
@@ -73,7 +71,7 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
         return false;
       }
     },
-    [onChanged, onError, onSuccess]
+    [onChanged, onError]
   );
 
   const createTeam = async () => {
@@ -111,7 +109,6 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
       }
       setImportReport(body.report ?? []);
       setImportText('');
-      onSuccess('Roster import', `${(body.report ?? []).filter((r: { error?: string }) => !r.error).length} athletes imported`);
       onChanged();
     } catch (e) {
       console.error('Roster import failed:', e);
@@ -283,8 +280,7 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
                   side={side}
                   orgId={orgId}
                   team={team}
-                  onSaved={message => {
-                    onSuccess('Team', message);
+                  onSaved={() => {
                     onChanged();
                   }}
                   onError={message => onError('Team', message)}
@@ -298,7 +294,6 @@ export default function TeamsSection({ side, orgId, teams, onChanged, onSuccess,
                   orgId={orgId}
                   team={{ id: team.id, name: team.name }}
                   otherTeams={teams.filter(t => t.status === 'active' && t.id !== team.id).map(t => ({ id: t.id, name: t.name }))}
-                  onSuccess={message => onSuccess('Team roster', message)}
                   onError={message => onError('Team roster', message)}
                   onMoved={() => setRosterReload(k => k + 1)}
                 />

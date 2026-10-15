@@ -58,7 +58,7 @@ interface TeamRow {
 export default function AdminStructurePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
@@ -156,7 +156,6 @@ export default function AdminStructurePage() {
         showError('Structure', body.error || failMessage);
         return false;
       }
-      showSuccess('Structure', successMessage);
       refresh();
       return true;
     } catch (e) {

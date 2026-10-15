@@ -47,7 +47,7 @@ export default function EditPostModal({
   post,
   onPostUpdated
 }: EditPostModalProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const uploads = useMediaUploadQueue({ sessionId: `edit-post:${post.id}` });
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -142,11 +142,7 @@ export default function EditPostModal({
         return;
       }
       setMediaRows(prev => prev.map(r => (r.id === targetId ? { ...r, ...data.media } : r)));
-      showSuccess(
-        data.pending_approval
-          ? 'Media updated — sent to your guardian for review'
-          : 'Media updated'
-      );
+      if (data.pending_approval) showNotice('Media updated', 'Sent to your guardian for review.');
       // Hand the parent a freshly hydrated post so the feed card re-renders
       // with the new media URL (reuses the API's gated single-post branch).
       if (onPostUpdated) {
@@ -218,7 +214,6 @@ export default function EditPostModal({
         throw new Error(data.error || 'Failed to update post');
       }
 
-      showSuccess(data.message || 'Post updated successfully!');
 
       if (onPostUpdated) {
         onPostUpdated(data.post);
