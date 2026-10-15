@@ -1,5 +1,15 @@
 # Development Log
 
+## October 15, 2026 — Light mode on Android: the page opts out of forced dark (PR 1 of the theme-parity round, zero DDL)
+
+Reported: light mode does not display correctly on Android but is right on iPhone. **Cause:** Android browsers force-darken pages that do not declare their own dark theme (Chrome "Darken websites" / Auto Dark Theme, Samsung Internet's dark mode); our light block declared plain `color-scheme: light`, so on a dark-OS phone the LIGHT theme was repainted at paint time. Our dark theme said `dark` and was spared; iOS has no forced dark. `docs/specs/ui-conventions.md` "Light and dark on every phone" is the rule.
+
+- **The fix:** `color-scheme: only light` / `only dark` on the root (Chrome's documented opt-out); `<meta name="color-scheme" content="light dark">` from both root layouts (`viewport.colorScheme`, Samsung's signal); `public/offline.html` the same. Samsung Internet can still override some sites whatever the page says — a documented limit, not fought with hacks.
+- **The proof spec:** `e2e/android-forced-dark.spec.ts` — Chromium launched with `--blink-settings=forceDarkModeEnabled=true`, a dark-OS Pixel 7, a QA user pinned light, the screenshot's mean brightness: **30 before the fix (reproduced), above 180 after.**
+- **Found on the way (pre-existing on main, not this change):** `appearance.spec`'s "same hours twice is refused" step failed on `android` every time — under touch emulation Playwright's `locator.blur()` delivers no blur event; a real tap away does (checked). The step now leaves by focusing the next field.
+
+**Proof:** `npm run verify` exit 0 (5,055 tests); `appearance` + `android-forced-dark` on staging: android 8/8, mobile 8/8, webkit-mobile 7 + 1 skipped (forced dark is Chromium-only).
+
 ## October 15, 2026 — Maintenance pass after the seven fixes (#1190–#1195): all green on main `ada0f184`
 
 The checklist, in the house order, on main after the Oct 14 program (the map, the profile header, the Message door, the thread on a phone, no success banners) — read the exit code, not the tail.

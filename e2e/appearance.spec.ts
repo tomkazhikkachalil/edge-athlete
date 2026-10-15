@@ -119,7 +119,10 @@ test('the hours can be typed: one save, the field keeps focus, and the theme fol
 
     // The same hours twice is refused, and the stored hours show again.
     await startField(page).fill(hhmm(light.end));
-    await startField(page).blur();
+    // Leave by moving to the next field, as a person does: under Android
+    // (touch) emulation Playwright's locator.blur() delivers no blur event,
+    // and this refusal is the one step that commits on blur alone.
+    await endField(page).focus();
     await expect(page.getByText('Start and end times must differ')).toBeVisible();
     await expect(startField(page)).toHaveValue(hhmm(light.start));
     expect(await storedPrefs()).toEqual({ schedule: light });
