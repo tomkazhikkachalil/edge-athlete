@@ -204,7 +204,7 @@ export default function AthleteProfilePage() {
   const [editingPerformance] = useState<Performance | undefined>();
   const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { showSuccess, showError } = useToast();
+  const { showNotice, showError } = useToast();
   
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
@@ -392,7 +392,6 @@ export default function AthleteProfilePage() {
       }
 
       // Show success toast  
-      showSuccess(editingPerformance ? 'Performance updated successfully!' : 'Performance added successfully!');
 
       // Refresh the data instead of full page reload - do it in background  
       if (user?.id) {
@@ -425,7 +424,6 @@ export default function AthleteProfilePage() {
   //     }
 
   //     // Show success toast
-  //     showSuccess('Performance deleted successfully!');
 
   //     // Refresh the data
   //     if (user?.id) {
@@ -966,9 +964,8 @@ export default function AthleteProfilePage() {
             if (user?.id) loadAthleteData(user.id, true);
             // Results-kept (241): a result comes back hidden, not deleted.
             const body = await response.json().catch(() => ({}));
-            if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-            else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
-            else showSuccess('Success', 'Post deleted successfully');
+            if (body.hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
+            else if (body.deleted) showNotice(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
           } catch (e) {
             console.error('Failed to delete post:', e);
             // The server's own words when it has some (a refusal names its reason).
@@ -1023,7 +1020,7 @@ export default function AthleteProfilePage() {
         // (or already open, from Create → Sport).
         defaultSportKey="general"
         openSportPicker={composerPickSport}
-        onPostCreated={(newPost) => {
+        onPostCreated={() => {
           // Refresh athlete data
           if (user?.id) {
             loadAthleteData(user.id, true);
@@ -1031,14 +1028,6 @@ export default function AthleteProfilePage() {
           // Trigger media refresh by changing the key
           setMediaRefreshKey(prev => prev + 1);
           setIsCreatePostModalOpen(false);
-          // A golf round already showed its own "Round is LIVE!" toast, and
-          // the composer is navigating into the round — a generic "Post
-          // created successfully!" stacked on top of that is wrong.
-          const isRound =
-            !!newPost &&
-            typeof newPost === 'object' &&
-            (newPost as { type?: string }).type === 'golf_round';
-          if (!isRound) showSuccess('Success', 'Post created successfully!');
         }}
       />
 

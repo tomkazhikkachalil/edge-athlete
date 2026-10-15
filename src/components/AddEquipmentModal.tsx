@@ -102,7 +102,7 @@ export default function AddEquipmentModal({
   editingItem,
   existingGroupLabels = [],
 }: AddEquipmentModalProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(false);
 
   // Computed once per mount — edit-mode callers remount per item (key), so
@@ -346,7 +346,6 @@ export default function AddEquipmentModal({
         throw new Error(errorData.error || (editingItem ? 'Failed to update equipment' : 'Failed to add equipment'));
       }
 
-      showSuccess('Success', editingItem ? 'Equipment updated' : 'Equipment added successfully!');
       resetForm();
       onSuccess();
       onClose();

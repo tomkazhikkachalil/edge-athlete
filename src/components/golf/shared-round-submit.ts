@@ -27,7 +27,6 @@ export interface SharedRoundSubmitContext<M extends { type: 'image' | 'video' }>
   /** Uploads one media file (+ its video poster frame) — stays owned by the
    *  composer, which knows the editor's file shapes. */
   uploadMediaWithPoster: (file: M) => Promise<{ url: string; thumbnailUrl?: string }>;
-  showSuccess: (title: string, message?: string) => void;
   showError: (title: string, message?: string) => void;
 }
 
@@ -45,7 +44,7 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     manualYardageEntry,
     playerScores,
   } = value;
-  const { caption, visibility, mediaFiles, uploadMediaWithPoster, showSuccess, showError } = ctx;
+  const { caption, visibility, mediaFiles, uploadMediaWithPoster, showError } = ctx;
   // The 9/18 selector is gone: what the round IS gets derived from the holes
   // actually scored (front-9-only → 9; back-9-only → 9 numbered 10–18; else
   // 18, partial when incomplete). Live rounds submit before scores exist and
@@ -215,21 +214,7 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     }
   }
 
-  if (!sharedRoundDetails.alreadyPlayed) {
-    showSuccess(
-      sharedRoundParticipants.length > 0
-        ? 'Round is LIVE! Scores stream to your group as you play. 🔴'
-        : 'Round is LIVE! 🔴'
-    );
-  } else {
-    // Same participant-aware split the live branch gets: a solo round has
-    // nobody to notify, so saying so reads like a bug.
-    showSuccess(
-      sharedRoundParticipants.length > 0
-        ? 'Round posted! Participants will be notified. 🎉'
-        : 'Round posted! 🎉'
-    );
-  }
-
+  // No "Round is LIVE" / "Round posted" banner (Oct 15 2026): the composer
+  // closes onto the live round or the post — the result is the confirmation.
   return groupPostResult.group_post;
 }

@@ -54,11 +54,10 @@ interface Props {
   onConfirmDelete: (target: { kind: 'season' | 'division'; id: string; label: string }) => void;
   /** The console re-reads its structure (the page's refresh). */
   onChanged: () => void;
-  onSuccess: (title: string, message: string) => void;
   onError: (title: string, message: string) => void;
 }
 
-export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst, onConfirmDelete, onChanged, onSuccess, onError }: Props) {
+export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst, onConfirmDelete, onChanged, onError }: Props) {
   const plural = ORG_ROUTE_FAMILY[side];
   const base = `/api/${plural}/${orgId}/structure`;
   // Create forms
@@ -102,7 +101,6 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
           onError(title, body.error || failMessage);
           return false;
         }
-        onSuccess(title, successMessage);
         onChanged();
         return true;
       } catch (e) {
@@ -111,7 +109,7 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
         return false;
       }
     },
-    [onChanged, onError, onSuccess]
+    [onChanged, onError]
   );
 
   // Phase 6 R5: the structure-import runner — Preview (dryRun, default)
@@ -132,7 +130,6 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
       }
       setImportCsvReport(body);
       if (!dryRun) {
-        onSuccess('Structure import', 'Imported — the season structure is updated');
         onChanged();
       }
     } catch {
@@ -577,8 +574,7 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
                               side={side}
                               orgId={orgId}
                               division={division}
-                              onSaved={message => {
-                                onSuccess('Structure', message);
+                              onSaved={() => {
                                 onChanged();
                               }}
                               onError={message => onError('Structure', message)}

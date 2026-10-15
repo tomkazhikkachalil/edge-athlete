@@ -71,7 +71,7 @@ interface OwnerCandidate {
 export default function AdminLeaguesPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [leagues, setLeagues] = useState<AdminLeagueRow[]>([]);
@@ -164,7 +164,6 @@ export default function AdminLeaguesPage() {
         showError('Leagues', data.error || 'Decision failed');
         return;
       }
-      showSuccess('Leagues', decision === 'approve' ? 'League approved and created' : 'Request declined');
       if (decision === 'approve' && Array.isArray(data.replay?.stubs) && data.replay.stubs.length > 0) {
         setClaimUrls(data.replay.stubs);
       }
@@ -203,7 +202,6 @@ export default function AdminLeaguesPage() {
         showError('Leagues', data.error || 'Failed to create league');
         return;
       }
-      showSuccess('Leagues', `${name.trim()} created`);
       setName('');
       setDescription('');
       setPlace(null);

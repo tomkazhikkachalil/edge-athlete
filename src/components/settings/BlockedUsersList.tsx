@@ -84,7 +84,7 @@ export default function BlockedUsersList({
    *  one action covers the guardian and every supervised athlete. */
   scope?: 'self' | 'household';
 }) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [unblockTarget, setUnblockTarget] = useState<BlockRow | null>(null);
@@ -150,7 +150,6 @@ export default function BlockedUsersList({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not block this user');
-      showSuccess('Blocked', `${personName(person)} can no longer message ${subjectName || 'you'}.`);
       setResults(r => r.filter(p => p.id !== person.id));
       refetch();
     } catch (err) {
@@ -172,7 +171,6 @@ export default function BlockedUsersList({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not unblock this user');
-      showSuccess('Unblocked');
       setUnblockTarget(null);
       refetch();
     } catch (err) {

@@ -35,7 +35,7 @@ interface TaggedTabProps {
 }
 
 export default function TaggedTab({ profileId, currentUserId, isOwnProfile = false, onCountsChanged }: TaggedTabProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [summary, setSummary] = useState<TaggedSummary>(EMPTY_TAGGED_SUMMARY);
   const [items, setItems] = useState<TaggedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +178,6 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
       setItems(prev => prev.filter(item => item.id !== target.id));
       fetchSummary();
       onCountsChanged?.();
-      showSuccess('Success', 'Tag removed');
     } catch (err) {
       console.error('Failed to remove tag:', err);
       showError('Error', 'Failed to remove tag');

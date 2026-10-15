@@ -38,7 +38,7 @@ export default function DraftReviewPage() {
   const params = useParams<{ postId: string }>();
   const postId = params?.postId;
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [post, setPost] = useState<ReviewPost | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
@@ -124,7 +124,6 @@ export default function DraftReviewPage() {
       const res = await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId, action: 'post' }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not post it', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
-      showSuccess(COPY.FORMS.POSTED_TITLE, COPY.FORMS.POSTED_BODY);
       void refreshDrafts();
       router.replace(`/feed?post=${postId}`);
     } finally {
@@ -146,7 +145,6 @@ export default function DraftReviewPage() {
       const res = await fetch(`/api/posts?postId=${encodeURIComponent(postId)}&mode=delete`, { method: 'DELETE' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not delete it', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
-      showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, 'Nothing was posted.');
       void refreshDrafts();
       router.replace('/athlete/drafts');
     } finally {

@@ -51,7 +51,7 @@ interface FacilityDraft {
 export default function AdminVenuesPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [venues, setVenues] = useState<AdminVenueRow[]>([]);
@@ -143,7 +143,6 @@ export default function AdminVenuesPage() {
         showError('Venues', data.error || 'Failed to create venue');
         return;
       }
-      showSuccess('Venues', `${name.trim()} created`);
       setName('');
       setPlace(null);
       setPlaceText('');
@@ -169,7 +168,6 @@ export default function AdminVenuesPage() {
         showError('Venues', data.error || 'Failed to delete venue');
         return;
       }
-      showSuccess('Venues', 'Venue deleted');
       setReloadKey(k => k + 1);
     } catch (e) {
       console.error('Venue delete failed:', e);

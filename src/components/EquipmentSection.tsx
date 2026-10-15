@@ -40,7 +40,7 @@ interface EquipmentSectionProps {
 
 
 export default function EquipmentSection({ profileId, isOwnProfile = false }: EquipmentSectionProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   // 'now' or a season year — the store's time machine (replaces the old
@@ -140,10 +140,6 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         prev.map(e => (e.id === id ? { ...e, ...(data?.equipment ?? { status: newStatus }) } : e))
       );
 
-      showSuccess(
-        'Success',
-        `Equipment ${newStatus === 'active' ? 'activated' : 'retired'} successfully`
-      );
     } catch (e) {
       console.error('Failed to update equipment status:', e);
       showError('Error', 'Failed to update equipment status');
@@ -165,7 +161,6 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
       // Remove from local state
       setEquipment(prev => prev.filter(e => e.id !== id));
-      showSuccess('Success', 'Equipment deleted successfully');
     } catch (e) {
       console.error('Failed to delete equipment:', e);
       showError('Error', 'Failed to delete equipment');

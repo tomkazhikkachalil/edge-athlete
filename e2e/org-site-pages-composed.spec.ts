@@ -136,19 +136,22 @@ test('org site pages composed: layout renders publicly, header order and hide, p
         await expect(row).toBeVisible({ timeout: 30_000 });
         const tick = row.getByLabel(`Show About ${stamp} in the header`);
         await expect(tick).toBeChecked();
+        const hidden = console_.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"set_page"') && r.ok(), { timeout: 15_000 });
         await tick.click();
-        await expect(console_.getByRole('alert').filter({ hasText: 'Page hidden from the header' })).toBeVisible({ timeout: 15_000 });
+        await hidden;
         await publishSite(ownerApi, 'league', leagueId, 'Hidden');
         const hiddenHome = await settleBody(anon.request, base, `About ${stamp}`, false);
         expect(hiddenHome).not.toContain(`>About ${stamp}<`);
         await console_.goto(editorUrl);
         const tick2 = settings.locator(`[data-console-nav-page="${about.id}"]`).getByLabel(`Show About ${stamp} in the header`);
         await expect(tick2).not.toBeChecked({ timeout: 30_000 });
+        const shown = console_.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"set_page"') && r.ok(), { timeout: 15_000 });
         await tick2.click();
-        await expect(console_.getByRole('alert').filter({ hasText: 'Page shown in the header' })).toBeVisible({ timeout: 15_000 });
+        await shown;
         await settings.locator(`[data-console-nav-page="${about.id}"]`).getByRole('button', { name: `Move About ${stamp} down` }).click();
+        const layoutSaved = console_.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"') && r.ok(), { timeout: 15_000 });
         await settings.getByRole('button', { name: 'Save navigation' }).click();
-        await expect(console_.getByRole('alert').filter({ hasText: 'Layout saved' })).toBeVisible({ timeout: 15_000 });
+        await layoutSaved;
       } finally {
         await ownerCtx.close();
       }

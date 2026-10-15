@@ -36,7 +36,7 @@ export default function WorkoutCard({
   const [routineName, setRoutineName] = useState('');
   const [savingRoutine, setSavingRoutine] = useState(false);
   const [routineError, setRoutineError] = useState('');
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const entries = useMemo(() => serverToEntries(session), [session]);
   const summary = useMemo(() => computeSummary(entries), [entries]);
 
@@ -58,7 +58,6 @@ export default function WorkoutCard({
         const data = await response.json().catch(() => null);
         throw new Error(data?.error || 'Failed to delete workout');
       }
-      showSuccess('Deleted', 'Workout removed from your history');
       onDeleted?.();
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete workout');
@@ -83,7 +82,7 @@ export default function WorkoutCard({
         setRoutineError(data.error || 'Failed to save routine');
         return;
       }
-      showSuccess('Routine saved', `Pick “${name}” next time you start a workout.`);
+      showNotice('Routine saved', `Pick “${name}” next time you start a workout.`);
       setSavePromptOpen(false);
     } catch (err) {
       console.error('Failed to save routine:', err);

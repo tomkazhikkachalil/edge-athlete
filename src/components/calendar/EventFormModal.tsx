@@ -181,7 +181,7 @@ export default function EventFormModal({
    *  stable for the modal's lifetime — the seeding compares by identity. */
   defaultRange?: { start: Date; end: Date };
 }) {
-  const { showSuccess } = useToast();
+  const {} = useToast();
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [repeat, setRepeat] = useState<RepeatState>(() => emptyRepeat());
   const [chips, setChips] = useState<GuestChip[]>([]);
@@ -465,7 +465,6 @@ export default function EventFormModal({
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || 'Could not save the event.'); return; }
-      showSuccess(editing ? 'Event updated' : 'Event created', form.title.trim());
       onSaved();
       onClose();
     } catch {

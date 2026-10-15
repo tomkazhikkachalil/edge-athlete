@@ -168,7 +168,7 @@ for (const phone of [false, true]) {
       await expect(composer.locator('input[name="target"]')).toHaveValue('77');
       await expect(composer.locator('[data-challenge-preview]')).toContainText('Shoot under 77 (18 holes) at QA Dare Links');
       await composer.getByRole('button', { name: 'Send challenge' }).click({ timeout: 15_000 });
-      await expect(pageA.getByText('Challenge sent')).toBeVisible({ timeout: 15_000 });
+      await expect(pageA.getByRole('status').filter({ hasText: 'Challenge sent' })).toBeVisible({ timeout: 15_000 });
       await ctxA.close();
 
       const { data: bell } = await adminClient().from('notifications').select('action_url, metadata').eq('user_id', t.b.id).eq('type', 'challenge').single();

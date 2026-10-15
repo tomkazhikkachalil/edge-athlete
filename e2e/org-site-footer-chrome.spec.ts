@@ -51,11 +51,13 @@ test('footer chrome: sponsor bar placed from Settings (tier order, every page), 
       const panel = page.locator('[data-sb-settings-panel]');
       await panel.getByLabel('Show social links').check();
       await panel.locator('[data-sb-sponsor-bar]').selectOption('footer');
+      const footerSaved = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"set_footer"') && r.ok(), { timeout: 15_000 });
       await panel.locator('[data-sb-settings-save]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Site settings saved' })).toBeVisible({ timeout: 15_000 });
+      await footerSaved;
     } finally {
       await ctx.close();
     }
+    await expect.poll(async () => ((await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { footer_config?: { sponsorBar?: string } } }).site.footer_config?.sponsorBar, { timeout: 15_000 }).toBe('footer');
     await publishSite(ownerApi, 'league', leagueId, 'Sponsor bar');
 
     const anon = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 1280, height: 900 } });

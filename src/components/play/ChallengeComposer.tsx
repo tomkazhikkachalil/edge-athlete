@@ -49,7 +49,7 @@ function localDateOf(d: Date): string {
 }
 
 export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }: { sportKey: string; prefill?: ChallengePrefill | null; onClose: () => void; onSent?: () => void }) {
-  const { showSuccess } = useToast();
+  const { showNotice } = useToast();
   const metrics = useMemo(() => challengeMetrics(sportKey), [sportKey]);
   const [people, setPeople] = useState<Array<{ id: string; name: string }> | null>(null);
   // A failed people read is not "none yet" — the list says so and offers a retry.
@@ -154,7 +154,7 @@ export default function ChallengeComposer({ sportKey, prefill, onClose, onSent }
         setError(body.error ?? 'Could not send the challenge.');
         return;
       }
-      showSuccess('Challenge sent', `${people?.find(p => p.id === personId)?.name ?? 'Your friend'} will get a bell to accept.`);
+      showNotice('Challenge sent', `${people?.find(p => p.id === personId)?.name ?? 'Your friend'} will get a bell to accept.`);
       onSent?.();
       onClose(); // a successful send never asks to discard
     } catch {

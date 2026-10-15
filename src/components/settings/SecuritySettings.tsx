@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase';
 // the rotation killed every refresh token, including this session's.
 export default function SecuritySettings() {
   const { user, profile } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const supervised = profile?.supervision_state === 'supervised';
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -62,7 +62,7 @@ export default function SecuritySettings() {
         return;
       }
 
-      showSuccess('Password updated', 'Your other devices were signed out.');
+      showNotice('Password updated', 'Your other devices were signed out.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

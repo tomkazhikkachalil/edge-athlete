@@ -40,7 +40,6 @@ export interface GalleryProps {
   onApplied: () => void;
   onClose: () => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }
 
 const MODE_COPY: Record<GalleryMode, { label: string; hint: string }> = {
@@ -51,7 +50,7 @@ const MODE_COPY: Record<GalleryMode, { label: string; hint: string }> = {
 const USE = 'min-h-[36px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const PILL = 'min-h-[36px] rounded-md border border-border-strong px-3 text-sm text-secondary hover:bg-surface-sunken transition-colors';
 
-export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush, onApplied, onClose, showError, showSuccess }: GalleryProps) {
+export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush, onApplied, onClose, showError }: GalleryProps) {
   const [mode, setMode] = useState<GalleryMode>('keep');
   const [busyId, setBusyId] = useState<string | null>(null);
   const entries = galleryEntriesFor(site.side, site.sportKey);
@@ -82,7 +81,6 @@ export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush
         showError('Website', body.error || 'Could not apply the design');
         return;
       }
-      showSuccess('Website', `${entry.name} applied to your draft — publish when you’re ready`);
       onApplied();
     } catch {
       showError('Website', 'Could not apply the design');

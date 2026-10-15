@@ -18,7 +18,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void, opts: {
   // is the organizer's record — it keeps the Sep 26 behaviour (hidden).
   const eventRound = !!opts.eventRound;
   const [deleting, setDeleting] = useState(false);
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
 
   const deleteRound = useCallback(async () => {
     setDeleting(true);
@@ -32,8 +32,8 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void, opts: {
       }
       // Results-kept (241): a round anyone scored comes back HIDDEN, not deleted — say so.
       const body = await response.json().catch(() => ({}));
-      if (body && body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-      else showSuccess('Round deleted', 'Nothing from it was recorded.');
+      if (body && body.hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
+      else showNotice('Round deleted', 'Nothing from it was recorded.');
       void refreshDrafts();
       onDone?.();
       return true;
@@ -44,7 +44,7 @@ export function useDeleteRound(groupPostId: string, onDone?: () => void, opts: {
     } finally {
       setDeleting(false);
     }
-  }, [groupPostId, onDone, showError, showSuccess, eventRound]);
+  }, [groupPostId, onDone, showError, showNotice, eventRound]);
 
   return { deleteRound, deleting };
 }

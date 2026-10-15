@@ -15,7 +15,7 @@ import { MAX_ROUTINES, type WorkoutRoutine } from '@/lib/workouts/routines';
  */
 
 export default function RoutineManager() {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
   const [editing, setEditing] = useState<{ routine: WorkoutRoutine | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkoutRoutine | null>(null);
@@ -54,7 +54,6 @@ export default function RoutineManager() {
       });
       if (!response.ok) throw new Error(`${response.status}`);
       setRoutines(prev => (prev ?? []).filter(r => r.id !== deleteTarget.id));
-      showSuccess('Routine deleted', `“${deleteTarget.name}” is gone. Past workouts are unaffected.`);
     } catch (e) {
       console.error('Failed to delete routine:', e);
       showError('Error', 'Failed to delete routine');

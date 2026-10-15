@@ -57,7 +57,6 @@ export interface ThemePanelProps {
   plural: string;
   orgId: string;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }
 
 const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-primary';
@@ -97,7 +96,7 @@ const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names
   { key: 'width', label: 'Page width', options: THEME_WIDTHS, names: { standard: 'Standard', wide: 'Wide' } },
 ];
 
-export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, showSuccess, variant = 'aside' }: ThemePanelProps) {
+export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, variant = 'aside' }: ThemePanelProps) {
   const [saving, setSaving] = useState(false);
   const tokens = parseThemeTokens(draft.tokens);
   const seed = templateSpec(draft.templateId);
@@ -158,7 +157,6 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
         appearance: tokens.appearance,
       });
       await onSaved();
-      showSuccess('Website', 'Theme saved to your draft');
     } catch (e) {
       showError('Website', e instanceof Error ? e.message : 'Could not save the theme');
     } finally {

@@ -49,8 +49,7 @@ function NavigationEditorInner({
   beforeStructural,
   onStructural,
   showError,
-  showSuccess,
-}: {
+  }: {
   plural: string;
   orgId: string;
   side: OrgKind;
@@ -64,7 +63,6 @@ function NavigationEditorInner({
   beforeStructural?: () => Promise<boolean>;
   onStructural?: () => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }) {
   const parsed = useMemo(() => parseNavConfig(navConfig), [navConfig]);
   const [navLabels, setNavLabels] = useState<Record<string, string>>(parsed.labels);
@@ -107,7 +105,6 @@ function NavigationEditorInner({
         showError('Website', json.error || fail);
         return false;
       }
-      showSuccess('Website', ok);
       if (structural && onStructural) {
         onStructural();
         return true;

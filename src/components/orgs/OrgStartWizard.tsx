@@ -56,7 +56,7 @@ export default function OrgStartWizard({
    *  or preselects it (leagues); `golf` also applies the golf defaults. */
   initialSport?: string | null;
 }) {
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const startsGolf = initialSport === 'golf';
 
   const [step, setStep] = useState<Step>('identity');
@@ -339,7 +339,7 @@ export default function OrgStartWizard({
       }
       clearOrgWizardDraft(side);
       // R2: the org is LIVE from this moment (179) — the parent lands in the console.
-      showSuccess(
+      showNotice(
         `Your ${side}`,
         data.orgId
           ? `Your ${side} is live — here's your console`

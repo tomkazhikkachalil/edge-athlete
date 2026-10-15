@@ -17,7 +17,7 @@ export default function CalendarSyncModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const [exists, setExists] = useState(false);
   const [supervised, setSupervised] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -76,7 +76,7 @@ export default function CalendarSyncModal({
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      showSuccess('Copied', 'Paste it into Google or Outlook.');
+      showNotice('Copied', 'Paste it into Google or Outlook.');
     } catch {
       showError('Could not copy', 'Select and copy the link manually.');
     }

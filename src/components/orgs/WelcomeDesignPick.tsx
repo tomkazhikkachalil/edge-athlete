@@ -45,7 +45,7 @@ const USE = 'min-h-[44px] rounded-md bg-brand px-3 text-sm font-medium text-whit
 const PILL = 'inline-flex min-h-[44px] items-center rounded-md border border-border-strong px-3 text-sm text-secondary hover:bg-surface-sunken transition-colors';
 
 export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   const [canvas, setCanvas] = useState<CanvasBody | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'hidden' | 'applied'>('loading');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -135,7 +135,7 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
       });
       if (res.ok) {
         setLive(true);
-        showSuccess('Website', plan.success);
+        showNotice('Website', plan.success);
         return;
       }
       if (res.status === 403) {

@@ -119,7 +119,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [editingPost, setEditingPost] = useState<MediaItem | null>(null);
 
   // Toast notifications
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
 
   // Fetch counts for tab badges. Tab counts reflect the full profile and are
   // intentionally NOT affected by the sport/year filter selections, so badges
@@ -344,9 +344,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       // Refresh counts
       fetchCountsRef.current();
 
-      if (body.hidden) showSuccess('Hidden from your profile', HIDDEN_NOTICE);
-      else if (body.deleted) showSuccess(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
-      else showSuccess('Success', 'Post deleted successfully');
+      if (body.hidden) showNotice('Hidden from your profile', HIDDEN_NOTICE);
+      else if (body.deleted) showNotice(COPY.FORMS.DELETED_RESULT_TITLE, COPY.FORMS.DELETED_RESULT_BODY);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }
@@ -358,7 +357,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     fetchCountsRef.current();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
-    showSuccess('Success', 'Post updated successfully!');
   };
 
   // Six tabs overflow a phone-width viewport and `scrollbar-hide` removes the

@@ -9,7 +9,7 @@ import SupervisedSettingCard from './SupervisedSettingCard';
 
 export default function PrivacySettings() {
   const { profile, refreshProfile } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   // Starts from the profile: this tab mounts with it already loaded, and the
   // sync below only runs when it CHANGES — a private profile used to open
   // this tab showing "Public" (Sep 30 2026).
@@ -48,7 +48,6 @@ export default function PrivacySettings() {
 
       setVisibility(newVisibility);
       await refreshProfile();
-      showSuccess('Success', 'Privacy settings updated successfully');
     } catch (e) {
       console.error('Failed to update privacy settings:', e);
       showError('Error', 'Failed to update privacy settings');

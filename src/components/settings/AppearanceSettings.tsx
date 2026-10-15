@@ -58,7 +58,7 @@ type Edge = 'start' | 'end';
 
 export default function AppearanceSettings() {
   const { prefs, ready, savePrefs } = useTheme();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   // A count, not a flag: saves queue (use-theme.ts), so a second can start
   // before the first has finished.
   const [pendingSaves, setPendingSaves] = useState(0);
@@ -75,18 +75,17 @@ export default function AppearanceSettings() {
   const mode: ThemeMode | null = ready ? effectiveMode(prefs) : null;
   const schedule = prefs.schedule ?? DEFAULT_SCHEDULE;
 
-  const persist = async (next: Parameters<typeof savePrefs>[0], successMessage: string) => {
+  const persist = async (next: Parameters<typeof savePrefs>[0]) => {
     setPendingSaves(n => n + 1);
     const ok = await savePrefs(next);
     setPendingSaves(n => n - 1);
-    if (ok) showSuccess('Success', successMessage);
-    else showError('Error', 'Failed to save appearance settings');
+    if (!ok) showError('Error', 'Failed to save appearance settings');
   };
 
   const handleModeChange = (newMode: ThemeMode) => {
     if (!ready || newMode === mode || saving) return;
     // The hours ride along in every mode, so the schedule comes back as it was.
-    void persist({ ...prefs, mode: newMode }, 'Appearance updated');
+    void persist({ ...prefs, mode: newMode });
   };
 
   // `leaving`: the field lost focus — an emptied or half-typed value is
@@ -109,7 +108,7 @@ export default function AppearanceSettings() {
     }
     setDraft({});
     if (start === schedule.start && end === schedule.end) return;
-    void persist({ ...prefs, schedule: { start, end } }, 'Schedule updated');
+    void persist({ ...prefs, schedule: { start, end } });
   };
 
   useEffect(() => {

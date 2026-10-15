@@ -26,7 +26,7 @@ export default function ReopenPromptHost() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const drafts = useDrafts(!!user);
   // The phone's own recording: the root engine (RecordingProvider) — ONE
   // owner id rule, one read; `ready` once the device answered.
@@ -112,7 +112,6 @@ export default function ReopenPromptHost() {
       } else {
         await rec.engine?.clear();
       }
-      showSuccess('Discarded', 'Nothing was posted.');
       void refreshDrafts();
       close();
     } finally {

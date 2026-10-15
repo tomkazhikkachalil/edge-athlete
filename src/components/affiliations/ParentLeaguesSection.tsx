@@ -51,7 +51,7 @@ const DOWN_LABEL: Record<AffType, string> = {
 };
 
 export default function ParentLeaguesSection({ leagueId, bare = false }: { leagueId: string; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const base = `/api/leagues/${leagueId}/parents`;
 
   const [data, setData] = useState<ChainData | null>(null);
@@ -119,7 +119,6 @@ export default function ParentLeaguesSection({ leagueId, bare = false }: { leagu
         showError('League chain', body.error || failMsg);
         return;
       }
-      showSuccess('League chain', okMsg);
       refresh();
     } catch {
       showError('League chain', failMsg);

@@ -46,7 +46,7 @@ export default function FollowButton({
   const [statsLoading, setStatsLoading] = useState(true);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [followMessage, setFollowMessage] = useState('');
-  const { showError, showSuccess } = useToast();
+  const { showError, showNotice } = useToast();
   // Published on a ref so the loader effect's deps stay [profileId, currentUserId].
   const onStatsLoadedRef = useRef(onStatsLoaded);
   useEffect(() => {
@@ -171,16 +171,11 @@ export default function FollowButton({
       // Notify parent component with server-accurate values
       onFollowChange?.(newFollowingStatus, fresh?.followersCount ?? followersCount);
 
-      if (newFollowingStatus) {
-        const message = data.isPending
-          ? 'Fan request sent! They will be notified.'
-          : 'You are now a fan of this athlete!';
-        showSuccess('Success', message);
-        // (No redirect — the hard-coded push to /feed yanked users out of
-        // whatever page or modal they were following from.)
-      } else {
-        showSuccess('Removed', 'You are no longer a fan of this athlete');
-      }
+      // The button itself says Fan / Requested now (Oct 14 2026: a visible
+      // result is its own confirmation); a REQUEST is the one thing the user
+      // cannot see from here. (No redirect — the hard-coded push to /feed
+      // yanked users out of whatever page or modal they were following from.)
+      if (newFollowingStatus && data.isPending) showNotice('Request sent', 'They will be notified.');
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update follow status';

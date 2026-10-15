@@ -32,7 +32,7 @@ const cta = 'inline-flex items-center justify-center px-3 py-2 min-h-[44px] roun
 
 export default function DraftRow({ item, onChanged }: { item: DraftItem; onChanged: () => void }) {
   const router = useRouter();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [busy, setBusy] = useState<'finish' | 'discard' | 'post' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -56,7 +56,6 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
       const res = await fetch(`/api/group-posts/${item.id}?mode=delete`, { method: 'DELETE' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not discard the round', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
-      showSuccess('Discarded', 'Nothing was posted.');
       onChanged();
     } finally {
       setBusy(null);
@@ -68,7 +67,6 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
     try {
       const res = await fetch(`/api/workouts/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keepPrivate: true }) });
       if (!res.ok) { showError('Could not save that', 'Please try again.'); return; }
-      showSuccess('Kept private', 'It stays in your history, off the feed.');
       onChanged();
     } finally {
       setBusy(null);
@@ -82,7 +80,6 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
       const res = await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: item.postId, action: 'post' }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not post it', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
-      showSuccess(COPY.FORMS.POSTED_TITLE, COPY.FORMS.POSTED_BODY);
       onChanged();
     } finally {
       setBusy(null);

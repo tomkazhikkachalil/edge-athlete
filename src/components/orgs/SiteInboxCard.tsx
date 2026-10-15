@@ -23,7 +23,7 @@ interface Row {
 const PILL = 'min-h-[36px] rounded-md border border-border-strong px-3 text-xs text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50';
 
 export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | 'clubs'; orgId: string }) {
-  const { showError, showSuccess } = useToast();
+  const { showError} = useToast();
   const [state, setState] = useState<'open' | 'archived'>('open');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [unread, setUnread] = useState(0);
@@ -56,7 +56,7 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
   }, [plural, orgId, state, reloadKey]);
 
   const patch = useCallback(
-    async (id: string, body: { read?: boolean; archived?: boolean }, done: string) => {
+    async (id: string, body: { read?: boolean; archived?: boolean }) => {
       setBusy(id);
       try {
         const res = await fetch(`/api/${plural}/${orgId}/site/forms`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }) });
@@ -65,7 +65,6 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
           showError('Inbox', out.error || 'Could not update the submission');
           return;
         }
-        showSuccess('Inbox', done);
         setReloadKey(k => k + 1);
       } catch {
         showError('Inbox', 'Could not update the submission');
@@ -73,7 +72,7 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
         setBusy(null);
       }
     },
-    [plural, orgId, showError, showSuccess]
+    [plural, orgId, showError]
   );
 
   if (!supported) return null;
@@ -127,16 +126,16 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-1">
                     {state === 'open' && unreadRow && (
-                      <button type="button" onClick={() => void patch(r.id, { read: true }, 'Marked as read')} disabled={busy === r.id} className={PILL} data-site-inbox-read="">
+                      <button type="button" onClick={() => void patch(r.id, { read: true })} disabled={busy === r.id} className={PILL} data-site-inbox-read="">
                         Mark read
                       </button>
                     )}
                     {state === 'open' ? (
-                      <button type="button" onClick={() => void patch(r.id, { archived: true }, 'Archived')} disabled={busy === r.id} className={PILL} data-site-inbox-archive="">
+                      <button type="button" onClick={() => void patch(r.id, { archived: true })} disabled={busy === r.id} className={PILL} data-site-inbox-archive="">
                         Archive
                       </button>
                     ) : (
-                      <button type="button" onClick={() => void patch(r.id, { archived: false }, 'Restored to the inbox')} disabled={busy === r.id} className={PILL} data-site-inbox-restore="">
+                      <button type="button" onClick={() => void patch(r.id, { archived: false })} disabled={busy === r.id} className={PILL} data-site-inbox-restore="">
                         Restore
                       </button>
                     )}

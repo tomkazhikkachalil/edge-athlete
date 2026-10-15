@@ -23,7 +23,7 @@ interface RepostModalProps {
 export default function RepostModal({ isOpen, onClose, quotedPost, onReposted }: RepostModalProps) {
   const [caption, setCaption] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   useBodyScrollLock(isOpen);
 
@@ -63,7 +63,6 @@ export default function RepostModal({ isOpen, onClose, quotedPost, onReposted }:
         showError('Repost failed', data.error || 'Something went wrong');
         return;
       }
-      showSuccess('Reposted', 'Shared to your feed');
       onReposted?.(data.post);
       handleClose();
     } catch {

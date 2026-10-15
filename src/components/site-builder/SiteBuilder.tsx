@@ -114,7 +114,7 @@ export default function SiteBuilder() {
   const consoleHref = `/app/org/${side}/${orgId}`;
 
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError, showUndo } = useToast();
+  const { showNotice, showError, showUndo } = useToast();
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'>('loading');
   const [canvas, setCanvas] = useState<CanvasBody | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -250,7 +250,7 @@ export default function SiteBuilder() {
         setState('loading');
         setReloadKey(k => k + 1);
       }}
-      showSuccess={showSuccess}
+      showNotice={showNotice}
       showError={showError}
       showUndo={showUndo}
     />
@@ -268,7 +268,7 @@ function Editor({
   target,
   openPageSettings,
   onSwitchTarget,
-  showSuccess,
+  showNotice,
   showError,
   showUndo,
 }: {
@@ -287,7 +287,7 @@ function Editor({
   openPageSettings: boolean;
   /** Flush, then reload onto another target. */
   onSwitchTarget: (next: EditorTarget, opts?: { openSettings?: boolean }) => void;
-  showSuccess: (title: string, message?: string) => void;
+  showNotice: (title: string, message?: string) => void;
   showError: (title: string, message?: string) => void;
   showUndo: (title: string, onUndo: () => void, message?: string) => void;
 }) {
@@ -413,7 +413,6 @@ function Editor({
     const before = history.present;
     history.commit(next);
     if (flipped === 'fixed') showUndo('Fixed height — this section scrolls inside', () => history.commit(before), 'Drag it taller than its content to let it grow again.');
-    else if (flipped === 'auto') showSuccess('Website', 'This section fits its content again');
   };
 
   // H5: the wire mapped to what the editor can act on — a 400 says WHICH
@@ -577,7 +576,7 @@ function Editor({
           body: JSON.stringify({ action: 'publish' }),
         });
         if (live.ok) {
-          showSuccess('Website', plan.success);
+          showNotice('Website', plan.success);
           setPublished(true);
           onReload();
           return;
@@ -601,7 +600,7 @@ function Editor({
         showError('Website', body.error || 'Could not publish the changes');
         return;
       }
-      if (plan.target === 'revisions') showSuccess('Website', plan.success);
+      if (plan.target === 'revisions') showNotice('Website', plan.success);
       setVersionLabel('');
       onReload();
     } catch {
@@ -793,14 +792,13 @@ function Editor({
                 onDirtyChange={reportPanelDirty}
                 onContentPreview={setContentPreview}
                 showError={showError}
-                showSuccess={showSuccess}
               />
             </LargerWindow>
           )}
           {/* N4: the newsroom — one window at every width (a card ≥ sm, a sheet below). */}
           {newsOpen !== null && (
             <LargerWindow title="News" windowKey="sb-news" onClose={() => setNewsOpen(null)}>
-              <NewsRoom plural={plural} orgId={orgId} siteId={site.id} initial={newsOpen} showError={showError} showSuccess={showSuccess} />
+              <NewsRoom plural={plural} orgId={orgId} siteId={site.id} initial={newsOpen} showError={showError} showNotice={showNotice} />
             </LargerWindow>
           )}
           {!isDesktop && settingsOpen && !themeDraft && !selected && (
@@ -823,7 +821,6 @@ function Editor({
                 }}
                 onReload={onReload}
                 showError={showError}
-                showSuccess={showSuccess}
               />
             </LargerWindow>
           )}
@@ -844,7 +841,6 @@ function Editor({
                 plural={plural}
                 orgId={orgId}
                 showError={showError}
-                showSuccess={showSuccess}
               />
             </LargerWindow>
           )}
@@ -895,7 +891,6 @@ function Editor({
                   plural={plural}
                   orgId={orgId}
                   showError={showError}
-                  showSuccess={showSuccess}
                 />
               )}
               {isDesktop && settingsOpen && !themeDraft && !selected && (
@@ -917,7 +912,6 @@ function Editor({
                   }}
                   onReload={onReload}
                   showError={showError}
-                  showSuccess={showSuccess}
                 />
               )}
               {isDesktop && !themeDraft && selected && (
@@ -937,7 +931,6 @@ function Editor({
                   onDirtyChange={reportPanelDirty}
                   onContentPreview={setContentPreview}
                   showError={showError}
-                  showSuccess={showSuccess}
                 />
               )}
             </div>
@@ -966,7 +959,6 @@ function Editor({
           }}
           onClose={() => setGallery(null)}
           showError={showError}
-          showSuccess={showSuccess}
         />
         )}
       </div>
@@ -1005,7 +997,6 @@ function Editor({
             onSwitchTarget('home');
           }}
           showError={showError}
-          showSuccess={showSuccess}
         />
       )}
     </div>

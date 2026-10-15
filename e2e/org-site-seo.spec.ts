@@ -151,9 +151,17 @@ test('org site settings panel: SEO, footer and icon from the editor; the sheet a
       await expect(discard).toBeVisible();
       await discard.getByRole('button', { name: 'Cancel' }).click();
       await expect(panel).toBeVisible();
+      // The save is sequential PATCHes (set_seo, set_footer, set_theme): wait for
+      // the footer's, then poll the site until the icon has landed too.
+      const footerSaved = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/site') && (r.request().postData() ?? '').includes('"action":"set_footer"') && r.ok(), { timeout: 15_000 });
       await panel.locator('[data-sb-settings-save]').click();
-      await expect(page.getByRole('alert').filter({ hasText: 'Site settings saved' })).toBeVisible({ timeout: 15_000 });
-      const saved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { seo_config: Record<string, unknown>; footer_config: Record<string, unknown>; theme_token_set: Record<string, unknown> } };
+      await footerSaved;
+      type SavedSite = { site: { seo_config: Record<string, unknown>; footer_config: Record<string, unknown>; theme_token_set: Record<string, unknown> } };
+      let saved!: SavedSite;
+      await expect.poll(async () => {
+        saved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as SavedSite;
+        return typeof saved.site.theme_token_set.iconPath === 'string' && saved.site.footer_config.text === `Footer ${stamp}`;
+      }, { timeout: 15_000 }).toBe(true);
       expect(saved.site.seo_config).toMatchObject({ title: `Settings League ${stamp}`, description: `Set from the editor ${stamp}` });
       expect(saved.site.footer_config).toMatchObject({ text: `Footer ${stamp}`, links: [{ label: `Rules ${stamp}`, url: 'https://example.com/rules' }], showSocials: true });
       iconPath = (saved.site.theme_token_set.iconPath as string | undefined) ?? null;

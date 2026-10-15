@@ -64,7 +64,6 @@ export interface PropertiesPanelProps {
    *  the editor lays it over the canvas; null clears it (a save, a close). */
   onContentPreview?: (preview: ContentPreview | null) => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
 }
 
 const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-primary';
@@ -76,7 +75,7 @@ const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Con
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 const EMPTY_DATA: SiteHomeData = { standings: null, events: null, teams: [], staff: [], venues: [], affiliations: [], openWindows: [], courses: [], divisions: [], leaders: [] };
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, data, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, onContentPreview, className, variant = 'aside' }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, data, onInstanceChange, onResize, onContentSaved, showError, onDirtyChange, onContentPreview, className, variant = 'aside' }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
@@ -257,7 +256,6 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       unsavedUploads.current.clear();
       onContentPreview?.(null);
       await onContentSaved(typeof body.draft?.rev === 'number' ? body.draft.rev : null);
-      showSuccess('Website', 'Saved to your draft');
     } catch {
       showError('Website', 'Could not save');
     } finally {

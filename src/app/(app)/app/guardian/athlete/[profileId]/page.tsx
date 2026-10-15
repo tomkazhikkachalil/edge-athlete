@@ -145,7 +145,7 @@ export default function GuardianAthletePage() {
   const router = useRouter();
   const profileId = params.profileId as string;
   const { user, loading, initialAuthCheckComplete, refreshManagedProfiles } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [athlete, setAthlete] = useState<ConsoleAthlete | null>(null);
   // Household policy (Wave 4) — deviations recompute from LIVE athlete state
@@ -260,7 +260,7 @@ export default function GuardianAthletePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not decline');
-      showSuccess('Declined', 'The organizer will see the change.');
+      showNotice('Declined', 'The organizer will see the change.');
       refetchCalendar();
     } catch (err) {
       showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
@@ -378,7 +378,6 @@ export default function GuardianAthletePage() {
       const res = await fetch(`/api/tags?tagId=${removeTagTarget.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not remove this tag');
-      showSuccess('Tag removed');
       setRemoveTagTarget(null);
       refetchTags();
     } catch (err) {
@@ -399,7 +398,6 @@ export default function GuardianAthletePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not update the request');
-      showSuccess(action === 'accept' ? 'Request approved' : 'Request declined');
       refetchFans();
     } catch (err) {
       showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
@@ -423,7 +421,6 @@ export default function GuardianAthletePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not remove this fan');
-      showSuccess('Fan removed');
       setRemoveFanTarget(null);
       refetchFans();
     } catch (err) {
@@ -448,12 +445,12 @@ export default function GuardianAthletePage() {
       if (!res.ok) throw new Error(data.error || 'Could not send the invite');
       setInviteEmail('');
       if (data.emailSent) {
-        showSuccess('Invite sent', 'They have 7 days to accept.');
+        showNotice('Invite sent', 'They have 7 days to accept.');
       } else {
         // Send failed OR SMTP unset — either way the URL is the reliable
         // channel; never claim a configuration problem we can't see.
         setManualInviteUrl(data.inviteUrl ?? '');
-        showSuccess('Invite created', "We couldn't email it — share the link below.");
+        showNotice('Invite created', "We couldn't email it — share the link below.");
       }
       refetchGuardians();
     } catch (err) {
@@ -476,7 +473,6 @@ export default function GuardianAthletePage() {
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       setAthlete({ ...athlete, avatar_url: data.avatar_url });
       void refreshManagedProfiles();
-      showSuccess('Photo updated', `${athlete.first_name || 'Their'} profile photo is live.`);
     } catch (e) {
       showError('Photo not updated', e instanceof Error ? e.message : 'Please try again');
     } finally {
@@ -504,7 +500,7 @@ export default function GuardianAthletePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not create a new link');
       setManualInviteUrl(data.inviteUrl ?? '');
-      showSuccess('New link ready', data.emailSent ? 'Also emailed to them.' : 'Share the link below.');
+      showNotice('New link ready', data.emailSent ? 'Also emailed to them.' : 'Share the link below.');
       refetchGuardians();
     } catch (err) {
       showError('Could not get a new link', err instanceof Error ? err.message : 'Please try again');
@@ -522,7 +518,6 @@ export default function GuardianAthletePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not cancel the invite');
-      showSuccess('Invite cancelled', 'You can invite someone else any time.');
       refetchGuardians();
     } catch (err) {
       showError('Cancel failed', err instanceof Error ? err.message : 'Please try again');
@@ -542,7 +537,6 @@ export default function GuardianAthletePage() {
       if (!res.ok) throw new Error(data.error || 'Could not remove the guardian');
       const removedSelf = removeTarget.user_id === user?.id;
       setRemoveTarget(null);
-      showSuccess('Guardian removed', removedSelf ? 'You no longer manage this athlete.' : undefined);
       if (removedSelf) {
         // No longer a guardian of this profile — the console is the way out.
         router.replace('/app/guardian');
@@ -575,7 +569,7 @@ export default function GuardianAthletePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
       await refreshManagedProfiles();
-      showSuccess('Deletion scheduled', 'The profile is hidden now and permanently deleted in 30 days. Restore it from the console until then.');
+      showNotice('Deletion scheduled', 'The profile is hidden now and permanently deleted in 30 days. Restore it from the console until then.');
       router.replace('/app/guardian');
     } catch {
       setDeleteError('Could not delete the profile. Please try again.');
@@ -603,7 +597,6 @@ export default function GuardianAthletePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not save the change');
-      showSuccess('Saved', 'Safety settings updated.');
     } catch (e) {
       setAthlete(before);
       showError('Not saved', e instanceof Error ? e.message : 'Please try again');
@@ -1084,7 +1077,6 @@ export default function GuardianAthletePage() {
                               throw new Error(err.error || 'Could not update recruiting');
                             }
                             await refreshChildProfile();
-                            showSuccess('Recruiting updated', `Now "${RECRUITING_STATUS_LABEL[next]}".`);
                           } catch (err) {
                             showError('Recruiting', err instanceof Error ? err.message : 'Could not update recruiting');
                           } finally {

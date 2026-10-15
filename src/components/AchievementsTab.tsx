@@ -35,7 +35,7 @@ interface AchievementsTabProps {
 }
 
 export default function AchievementsTab({ profileId, isOwnProfile = false }: AchievementsTabProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -119,7 +119,6 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
       });
       if (!response.ok) throw new Error('Failed to delete achievement');
       setAchievements(prev => prev.filter(a => a.id !== target.id));
-      showSuccess('Success', 'Achievement deleted');
     } catch (err) {
       console.error('Failed to delete achievement:', err);
       showError('Error', 'Failed to delete achievement');

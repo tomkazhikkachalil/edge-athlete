@@ -497,7 +497,7 @@ function PostCard({
   // Hidden from the profile (241): only its owner is ever sent one, and only
   // on their own profile. The card says so and carries the way back — it used
   // to look published and offer a Hide that did nothing (Tom, Oct 2026).
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [shownAgainId, setShownAgainId] = useState<string | null>(null);
   const [showBusy, setShowBusy] = useState(false);
   const isProfileHidden = post.status === 'profile_hidden' && shownAgainId !== post.id;
@@ -516,7 +516,6 @@ function PostCard({
         return;
       }
       setPostedNowId(post.id);
-      showSuccess(COPY.FORMS.POSTED_TITLE, COPY.FORMS.POSTED_BODY);
       void refreshDrafts();
       onPosted?.(post.id);
       router.refresh();
@@ -541,7 +540,6 @@ function PostCard({
         return;
       }
       setShownAgainId(post.id);
-      showSuccess(COPY.FORMS.SHOWN_AGAIN_TITLE, COPY.FORMS.SHOWN_AGAIN_BODY);
     } catch {
       showError('Could not show it', 'Please try again.');
     } finally {

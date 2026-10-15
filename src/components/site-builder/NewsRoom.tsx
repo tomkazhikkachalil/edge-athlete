@@ -39,10 +39,10 @@ export interface NewsRoomProps {
   /** 'list', 'new', a post id, or 'recap:<contest id>' (the ?news= deep link). */
   initial: string;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
+  showNotice: (title: string, message?: string) => void;
 }
 
-export default function NewsRoom({ plural, orgId, siteId, initial, showError, showSuccess }: NewsRoomProps) {
+export default function NewsRoom({ plural, orgId, siteId, initial, showError, showNotice }: NewsRoomProps) {
   const recapFor = initial.startsWith('recap:') ? initial.slice('recap:'.length) : null;
   const [openId, setOpenId] = useState<string | null>(initial !== 'list' && initial !== 'new' && !recapFor ? initial : null);
   const [creating, setCreating] = useState(false);
@@ -75,13 +75,12 @@ export default function NewsRoom({ plural, orgId, siteId, initial, showError, sh
           showError('News', body.error || 'Could not draft the recap');
           return;
         }
-        if (!body.existing) showSuccess('News', 'Recap drafted — edit it, then publish');
         setOpenId(body.post.id);
       } finally {
         setCreating(false);
       }
     },
-    [base, showError, showSuccess]
+    [base, showError]
   );
 
   // ?news=new / ?news=recap:<id>: act once (a ref guard — never two posts for one link).
@@ -93,7 +92,7 @@ export default function NewsRoom({ plural, orgId, siteId, initial, showError, sh
   }, [initial, recapFor, createPost, draftRecap]);
 
   return openId ? (
-    <Composer key={openId} id={openId} base={base} plural={plural} orgId={orgId} siteId={siteId} onBack={() => setOpenId(null)} showError={showError} showSuccess={showSuccess} />
+    <Composer key={openId} id={openId} base={base} plural={plural} orgId={orgId} siteId={siteId} onBack={() => setOpenId(null)} showError={showError} showNotice={showNotice} />
   ) : (
     <NewsList base={base} creating={creating} onOpen={setOpenId} onNew={() => void createPost()} onRecap={id => void draftRecap(id)} showError={showError} />
   );
@@ -248,7 +247,7 @@ function Composer({
   siteId,
   onBack,
   showError,
-  showSuccess,
+  showNotice,
 }: {
   id: string;
   base: string;
@@ -257,7 +256,7 @@ function Composer({
   siteId: string;
   onBack: () => void;
   showError: (title: string, message?: string) => void;
-  showSuccess: (title: string, message?: string) => void;
+  showNotice: (title: string, message?: string) => void;
 }) {
   const url = `${base}/${id}`;
   const [post, setPost] = useState<NewsRow | null>(null);
@@ -390,7 +389,9 @@ function Composer({
     [url]
   );
 
-  const act = async (body: Record<string, unknown>, ok: string) => {
+  // `notice` only for a result that is not on this screen (the post going
+  // live, scheduled, members told); a pin, a banner, an audience change show.
+  const act = async (body: Record<string, unknown>, notice?: string) => {
     setBusy(true);
     try {
       await flush();
@@ -401,7 +402,7 @@ function Composer({
         return;
       }
       adopt(json.post, true);
-      showSuccess('News', ok);
+      if (notice) showNotice('News', notice);
     } finally {
       setBusy(false);
     }
@@ -417,7 +418,7 @@ function Composer({
         showError('News', json.error || 'Could not delete the post');
         return;
       }
-      showSuccess('News', 'Post deleted — it can be restored from the console for 30 days');
+      showNotice('News', 'Post deleted — it can be restored from the console for 30 days');
       onBack();
     } finally {
       setBusy(false);
@@ -533,7 +534,7 @@ function Composer({
             disabled={busy}
             onChange={e => {
               const next = e.target.value === 'members' ? 'members' : 'public';
-              void act({ audience: next }, next === 'members' ? 'Members only — hidden on a private club’s site' : 'Public — shown on the site');
+              void act({ audience: next });
             }}
             className={INPUT}
           >
@@ -546,7 +547,7 @@ function Composer({
         type="button"
         aria-pressed={!!post.pinned_at}
         disabled={busy}
-        onClick={() => void act({ pinned: !post.pinned_at }, post.pinned_at ? 'Unpinned' : 'Pinned to the top of your news')}
+        onClick={() => void act({ pinned: !post.pinned_at })}
         className={PILL}
         data-news-pin=""
       >
@@ -570,7 +571,7 @@ function Composer({
               className="mt-0.5 h-4 w-4"
               checked={!!post.notify_members}
               disabled={busy}
-              onChange={e => void act({ notifyMembers: e.target.checked }, e.target.checked ? 'Members will be notified when it goes live' : 'No notification')}
+              onChange={e => void act({ notifyMembers: e.target.checked })}
               data-sb-news-notify=""
             />
             <span>
@@ -589,13 +590,13 @@ function Composer({
               type="date"
               value={post.banner_until ?? ''}
               disabled={busy}
-              onChange={e => void act({ bannerUntil: e.target.value || null }, e.target.value ? 'Banner set — it shows once the post is live' : 'Banner removed')}
+              onChange={e => void act({ bannerUntil: e.target.value || null })}
               className={`${INPUT} w-auto`}
               data-sb-news-banner=""
             />
           </div>
           {post.banner_until && (
-            <button type="button" className={PILL} disabled={busy} onClick={() => void act({ bannerUntil: null }, 'Banner removed')}>
+            <button type="button" className={PILL} disabled={busy} onClick={() => void act({ bannerUntil: null })}>
               Remove banner
             </button>
           )}
@@ -621,7 +622,7 @@ function Composer({
             <button type="button" className={CTA} disabled={busy || (!pendingDraft && status !== 'saving')} onClick={() => void act({ promote: true }, 'Your changes are live')} data-sb-news-update="">
               Update
             </button>
-            <button type="button" className={PILL} disabled={busy} onClick={() => void act({ publish: false }, 'Post unpublished')}>
+            <button type="button" className={PILL} disabled={busy} onClick={() => void act({ publish: false })}>
               Unpublish
             </button>
           </>
@@ -651,7 +652,7 @@ function Composer({
               {state === 'scheduled' ? 'Change time' : 'Schedule'}
             </button>
             {state === 'scheduled' && (
-              <button type="button" className={PILL} disabled={busy} onClick={() => void act({ publish: false }, 'Back to draft')}>
+              <button type="button" className={PILL} disabled={busy} onClick={() => void act({ publish: false })}>
                 Unschedule
               </button>
             )}

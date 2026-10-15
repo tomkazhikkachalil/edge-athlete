@@ -620,7 +620,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   const viewerSupervised = profile?.supervision_state === 'supervised';
   const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
   const [escalating, setEscalating] = useState(false);
-  const { showSuccess, showError } = useToast();
+  const { showError, showNotice } = useToast();
   const handleEscalate = async () => {
     if (escalating) return;
     setEscalating(true);
@@ -629,7 +629,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not notify your guardian');
       setShowEscalateConfirm(false);
-      showSuccess('Your guardian was notified', 'Nothing from this chat was shared.');
+      showNotice('Your guardian was notified', 'Nothing from this chat was shared.');
     } catch (e) {
       showError('Could not notify your guardian', e instanceof Error ? e.message : undefined);
     } finally {

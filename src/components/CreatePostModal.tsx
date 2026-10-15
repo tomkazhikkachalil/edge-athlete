@@ -183,7 +183,7 @@ export default function CreatePostModal({
   openSportPicker = false,
   defaultPostCategory
 }: CreatePostModalProps) {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const router = useRouter();
   const { activeProfile, profile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
@@ -762,7 +762,6 @@ export default function CreatePostModal({
           visibility: POST_VISIBILITY,
           mediaFiles,
           uploadMediaWithPoster: uploadedFor,
-          showSuccess,
           showError,
           // Guardian "Posting as": the composer seeds the ATHLETE's identity
           // (GolfComposerSection displayProfile) — the server must agree.
@@ -886,7 +885,6 @@ export default function CreatePostModal({
         if (mediaId) void attachOriginalInBackground(result.post.id, mediaId, file, activeProfile?.id);
       }
 
-      showSuccess('Post created successfully! 🎉');
 
       // Call callback to refresh posts
       if (onPostCreated) {
