@@ -59,8 +59,11 @@ test('media re-edit after publish: new render, original preserved on the same ro
   await page.getByRole('button', { name: 'Edit media', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: '4:5', exact: true }).click();
+  // No "Media updated" banner since Oct 15 2026 (a visible result is its own
+  // confirmation): wait for the media edit's own request, then read the row.
+  const edited = page.waitForResponse(r => r.request().method() !== 'GET' && /\/api\/posts\/[^/]+\/media\/[^/]+$/.test(r.url()) && r.ok(), { timeout: 30_000 });
   await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(page.getByText('Media updated').first()).toBeVisible({ timeout: 30_000 });
+  await edited;
 
   // Same row, new render, original untouched.
   const { data: after } = await admin
