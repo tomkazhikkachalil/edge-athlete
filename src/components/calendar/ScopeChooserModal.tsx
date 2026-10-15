@@ -65,7 +65,7 @@ export default function ScopeChooserModal<T extends string>({
                 name="scope"
                 checked={selected === opt.value}
                 onChange={() => setSelected(opt.value)}
-                className="mt-0.5 accent-violet-600"
+                className="mt-0.5 accent-control"
               />
               <span className="text-sm">
                 <span className="text-primary font-medium">{opt.label}</span>

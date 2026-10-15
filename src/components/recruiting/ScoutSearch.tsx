@@ -118,7 +118,7 @@ export default function ScoutSearch() {
             onChange={e => setVerifiedOnly(e.target.checked)}
             disabled={!sport}
             title={sport ? 'Only athletes with a club-recorded, league-verified or sanctioned performance' : 'Pick a sport first'}
-            className="h-4 w-4 accent-brand disabled:opacity-50"
+            className="h-4 w-4 accent-control disabled:opacity-50"
           />
           <span>Verified only</span>
         </label>

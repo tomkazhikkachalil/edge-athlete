@@ -131,7 +131,7 @@ export default function EquipmentFilters({
                         name="equipment-season"
                         checked={view === option}
                         onChange={() => onViewChange(option)}
-                        className="accent-violet-600"
+                        className="accent-control"
                       />
                       {option === 'now' ? 'Now' : option}
                     </label>
@@ -156,7 +156,7 @@ export default function EquipmentFilters({
                         type="checkbox"
                         checked={selectedCategories.includes(option.value)}
                         onChange={() => toggleCategory(option.value)}
-                        className="accent-violet-600"
+                        className="accent-control"
                       />
                       {option.label}
                     </label>
@@ -175,7 +175,7 @@ export default function EquipmentFilters({
                   type="checkbox"
                   checked={showHistory}
                   onChange={e => onShowHistory(e.target.checked)}
-                  className="accent-violet-600"
+                  className="accent-control"
                 />
                 Show History
               </label>
