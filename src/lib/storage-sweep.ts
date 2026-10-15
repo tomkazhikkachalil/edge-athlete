@@ -56,7 +56,9 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   { table: 'post_media', columns: ['media_url', 'thumbnail_url', 'source_url', 'transcode_source_url'] },
   { table: 'group_post_media', columns: ['media_url', 'thumbnail_url'] },
   { table: 'messages', columns: ['media_url'] },
-  { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
+  // avatar_source_url / cover_source_url (migration 264): the kept ORIGINAL behind a
+  // profile photo, at uploads/profile-sources/{profile}/ — Adjust re-renders from it.
+  { table: 'profiles', columns: ['avatar_url', 'cover_url', 'avatar_source_url', 'cover_source_url'] },
   { table: 'conversations', columns: ['avatar_url'] },
   { table: 'athlete_equipment', columns: ['image_url'] },
   // Support & Reporting, Spec 3: a support request's screenshot (uploads/{user}/tickets/…).

@@ -164,7 +164,7 @@ export async function hardDeleteAccount(
 
   const { data: profileRow, error: profileReadError } = await admin
     .from('profiles')
-    .select('email, supervision_state, avatar_url, cover_url')
+    .select('email, supervision_state, avatar_url, cover_url, avatar_source_url, cover_source_url')
     .eq('id', userId)
     .maybeSingle();
   if (profileReadError) throw new Error(`Failed to read profile: ${profileReadError.message}`);
@@ -186,6 +186,9 @@ export async function hardDeleteAccount(
   };
   addRef(profileRow.avatar_url);
   addRef(profileRow.cover_url);
+  // The kept originals behind the two photos (264) go with them.
+  addRef(profileRow.avatar_source_url);
+  addRef(profileRow.cover_source_url);
 
   // The posts that go. A kept account keeps the posts that ARE a shared
   // thing's feed card — an event round's post, a kept shared round's post —

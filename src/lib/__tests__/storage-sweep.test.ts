@@ -90,6 +90,9 @@ describe('URL_SOURCE_COLUMNS', () => {
     ['messages', 'media_url'],
     ['profiles', 'avatar_url'],
     ['profiles', 'cover_url'],
+    // Migration 264 — the kept originals behind the profile photos (Adjust).
+    ['profiles', 'avatar_source_url'],
+    ['profiles', 'cover_source_url'],
   ])('covers %s.%s', (table, column) => {
     expect(covered(table, column)).toBe(true);
   });
@@ -163,6 +166,9 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   'src/app/api/upload/equipment/route.ts': { marker: 'equipment/', keep: { kind: 'url', table: 'athlete_equipment' } },
   'src/app/api/upload/avatar/route.ts': { marker: 'avatars/', keep: { kind: 'url', table: 'profiles' } },
   'src/app/api/upload/cover/route.ts': { marker: 'covers/', keep: { kind: 'url', table: 'profiles' } },
+  // The kept originals behind the profile photos (PR 5, migration 264): uploads/profile-sources/{profile}/ —
+  // named by profiles.avatar_source_url / cover_source_url, which the sweep scans.
+  'src/lib/profiles/photo-source-server.ts': { marker: 'profile-sources/', keep: { kind: 'url', table: 'profiles' } },
   'src/lib/org-sites/logo-server.ts': { marker: 'ORG_LOGO_PREFIX', keep: { kind: 'protected', prefix: 'org-logos/' } },
   'src/lib/org-sites/pages-server.ts': { marker: 'ORG_MEDIA_PREFIX', keep: { kind: 'protected', prefix: 'org-media/' } },
   'src/lib/orgs/contest-media-server.ts': { marker: 'contest-media/', keep: { kind: 'protected', prefix: 'contest-media/' } },

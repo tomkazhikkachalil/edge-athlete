@@ -4,16 +4,20 @@ import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { prepareImage } from '@/lib/media/image-meta';
-import { managedProfilePhotoPath } from '@/lib/profiles/photo-paths';
+import { readPhotoPostFields, removeProfilePhoto, storeProfilePhoto } from '@/lib/profiles/photo-source-server';
 
 /**
  * POST /api/upload/cover — profile cover/banner image.
  *
  * The avatar route's PATTERN without its legacy debt (no bucket-guessing
- * loop): field `cover`, image-only (allowlist shared with the client via
- * lib/media/validation), 10MB, fixed `uploads` bucket at covers/{userId}/…,
- * updates profiles.cover_url, rolls the upload back on DB failure, and
- * best-effort deletes the previous cover file.
+ * loop): field `cover` (the DERIVED 3:1 render), image-only (allowlist shared
+ * with the client via lib/media/validation), 10MB, fixed `uploads` bucket at
+ * covers/{userId}/…. Beside it, since PR 5 (Oct 14 2026, migration 264):
+ * `source` (the kept original), `recipe` (the crop that made the render) and
+ * `sameSource=1` (Adjust — keep the stored original); the row and the
+ * cleanup are photo-source-server.ts's. A guardian may act for a supervised
+ * athlete through `targetProfileId` (the acting gate; the row written is the
+ * ACTOR's).
  */
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024;
@@ -28,8 +32,6 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('cover') as File | null;
-    // A guardian may set their supervised athlete's cover (the avatar route's
-    // acting gate; Oct 14 2026) — the row written is the ACTOR's.
     const targetProfileId = formData.get('targetProfileId');
     const { resolveActingProfile } = await import('@/lib/guardian-gate');
     const gate = await resolveActingProfile(user.id, typeof targetProfileId === 'string' ? targetProfileId : null, 'You do not have permission to change this profile');
@@ -47,16 +49,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const fields = readPhotoPostFields(formData);
+    if (!fields.ok) return NextResponse.json({ error: fields.error }, { status: 400 });
 
     // The bytes must BE the declared image; location metadata leaves on the
     // server too (image-meta.ts — the device strip is no longer the only one).
     const prepared = prepareImage(new Uint8Array(await file.arrayBuffer()), file.type);
     if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: 400 });
 
-    // Previous cover path (deleted after a successful swap)
+    // What the row names today (deleted after a successful swap)
     const { data: profileRow } = await supabase
       .from('profiles')
-      .select('cover_url')
+      .select('cover_url, cover_source_url')
       .eq('id', userId)
       .single();
 
@@ -78,30 +82,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to get cover URL' }, { status: 500 });
     }
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ cover_url: coverUrl })
-      .eq('id', userId);
-    if (updateError) {
-      // Roll the orphan back — the profile still points at the old cover
-      await supabase.storage.from('uploads').remove([filePath]);
-      reportRouteError('Cover profile update error:', updateError);
-      return NextResponse.json({ error: 'Failed to save cover image' }, { status: 500 });
+    const stored = await storeProfilePhoto(supabase, {
+      profileId: userId,
+      slot: 'cover',
+      derived: { bucket: 'uploads', path: filePath, url: coverUrl },
+      fields: fields.fields,
+      previous: { url: profileRow?.cover_url ?? null, sourceUrl: profileRow?.cover_source_url ?? null },
+    });
+    if (!stored.ok) {
+      if (stored.status === 500) reportRouteError('Cover profile update error:', stored.detail ?? stored.error);
+      return NextResponse.json({ error: stored.error }, { status: stored.status });
     }
 
-    // Best-effort cleanup of the replaced file (only paths we manage)
-    const previous = profileRow?.cover_url;
-    if (previous) {
-      const m = /\/storage\/v1\/object\/public\/uploads\/(covers\/.+)$/.exec(previous);
-      if (m) {
-        const { error: removeError } = await supabase.storage
-          .from('uploads')
-          .remove([decodeURIComponent(m[1])]);
-        if (removeError) console.warn('Previous cover cleanup failed:', removeError);
-      }
-    }
-
-    return NextResponse.json({ success: true, cover_url: coverUrl });
+    return NextResponse.json({ success: true, cover_url: coverUrl, cover_source_url: stored.sourceUrl, cover_recipe: stored.recipe });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('Cover upload error:', error);
@@ -112,8 +105,9 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/upload/cover — remove the cover photo (profile quick fixes PR 4,
  * Oct 14 2026): the column goes NULL and the managed file (ours, under
- * covers/) is removed; the upload button returns. Body: { targetProfileId? }
- * — the same acting gate as the POST. Shares the POST's write gate.
+ * covers/) is removed — and, since PR 5, the kept original and its recipe
+ * with it; the upload button returns. Body: { targetProfileId? } — the same
+ * acting gate as the POST. Shares the POST's write gate.
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -125,19 +119,11 @@ export async function DELETE(request: NextRequest) {
     const { resolveActingProfile } = await import('@/lib/guardian-gate');
     const gate = await resolveActingProfile(user.id, typeof body.targetProfileId === 'string' ? body.targetProfileId : null, 'You do not have permission to change this profile');
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    const userId = gate.actorId;
 
-    const supabase = getSupabaseAdmin();
-    const { data: current } = await supabase.from('profiles').select('cover_url').eq('id', userId).maybeSingle();
-    const { error: updateError } = await supabase.from('profiles').update({ cover_url: null }).eq('id', userId);
-    if (updateError) {
-      reportRouteError('Cover remove error:', updateError);
+    const removed = await removeProfilePhoto(getSupabaseAdmin(), gate.actorId, 'cover');
+    if (!removed.ok) {
+      reportRouteError('Cover remove error:', removed.error);
       return NextResponse.json({ error: 'Failed to remove the cover photo' }, { status: 500 });
-    }
-    const managed = managedProfilePhotoPath(current?.cover_url, 'cover');
-    if (managed) {
-      const { error: removeError } = await supabase.storage.from(managed.bucket).remove([managed.path]);
-      if (removeError) console.warn('Cover removal: file cleanup failed:', removeError);
     }
     return NextResponse.json({ success: true });
   } catch (error) {

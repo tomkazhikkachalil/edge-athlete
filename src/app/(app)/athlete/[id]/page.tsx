@@ -362,6 +362,10 @@ export default function AthleteProfilePage() {
               src={viewingPhoto === 'avatar' ? (profile.avatar_url as string) : (coverProxyUrl(profile.id, profile.cover_url) as string)}
               alt={viewingPhoto === 'avatar' ? 'Profile picture' : 'Cover photo'}
               canEdit={isOwnProfile}
+              profileId={profile.id}
+              current={viewingPhoto === 'avatar'
+                ? { sourceUrl: profile.avatar_source_url ?? null, recipe: profile.avatar_recipe ?? null }
+                : { sourceUrl: profile.cover_source_url ?? null, recipe: profile.cover_recipe ?? null }}
               // The owner's usual door is /athlete (refreshProfile); on their
               // own /athlete/[id] a change simply reloads the page.
               onChanged={() => window.location.reload()}

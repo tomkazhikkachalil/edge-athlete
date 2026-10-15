@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import ProfilePhotoDoor from './profile/ProfilePhotoDoor';
+import { profilePhotoFormData } from '@/lib/profiles/photo-upload-client';
+import type { ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
 import { PHOTO_SLOTS } from './profile/ProfilePhotoUploader';
 import { coverProxyUrl } from '@/lib/media/cover-url';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
@@ -233,7 +235,7 @@ export default function EditProfileTabs({
   // tabs must survive a save and still count as unsaved on close.
   const snapRef = useRef<Record<string, string>>({});
   const serializeGroup = {
-    basic: () => JSON.stringify({ ...basicForm, avatar_file: basicForm.avatar_file?.name ?? null, cover_file: basicForm.cover_file?.name ?? null }),
+    basic: () => JSON.stringify({ ...basicForm, avatar_photo: basicForm.avatar_photo?.file.name ?? null, cover_photo: basicForm.cover_photo?.file.name ?? null }),
     sports: () => JSON.stringify(selectedSports),
     bodyMetrics: () => JSON.stringify(bodyMetricsForm),
     socials: () => JSON.stringify(socialsForm),
@@ -343,7 +345,7 @@ export default function EditProfileTabs({
   // top bumps `seedVersion`), so it snapshots exactly the values that were
   // just applied.
   useEffect(() => {
-    snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null, cover_file: null });
+    snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_photo: null, cover_photo: null });
     snapRef.current.bodyMetrics = JSON.stringify(bodyMetricsForm);
     snapRef.current.socials = JSON.stringify(socialsForm);
     snapRef.current.recruiting = JSON.stringify(recruitingForm);
@@ -421,16 +423,16 @@ export default function EditProfileTabs({
       switch (tabId) {
         case 'basic':
           // Handle avatar upload if present
-          if (basicForm.avatar_file) {
-            await uploadProfilePhoto('avatar', basicForm.avatar_file);
+          if (basicForm.avatar_photo) {
+            await uploadProfilePhoto('avatar', basicForm.avatar_photo);
             wrote = true;
             // Uploaded: a later save must not send the same file again.
-            setBasicForm(prev => ({ ...prev, avatar_file: null }));
+            setBasicForm(prev => ({ ...prev, avatar_photo: null }));
           }
-          if (basicForm.cover_file) {
-            await uploadProfilePhoto('cover', basicForm.cover_file);
+          if (basicForm.cover_photo) {
+            await uploadProfilePhoto('cover', basicForm.cover_photo);
             wrote = true;
-            setBasicForm(prev => ({ ...prev, cover_file: null }));
+            setBasicForm(prev => ({ ...prev, cover_photo: null }));
           }
 
           // Validate required fields
@@ -699,7 +701,7 @@ export default function EditProfileTabs({
         // three snapshots, so saving Training marked unsaved Basic edits as
         // saved and the modal closed on them without asking.
         if (tabId === 'basic') {
-          snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null, cover_file: null });
+          snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_photo: null, cover_photo: null });
           snapRef.current.sports = serializeGroup.sports();
         } else if (tabId === 'body_metrics') {
           snapRef.current.bodyMetrics = serializeGroup.bodyMetrics();
@@ -731,13 +733,10 @@ export default function EditProfileTabs({
 
   // The picture and the cover upload the same way (Oct 14 2026): the slot's
   // route and field, the guardian's targetProfileId when acting.
-  const uploadProfilePhoto = async (slot: ProfilePhotoSlot, file: File) => {
+  const uploadProfilePhoto = async (slot: ProfilePhotoSlot, payload: ProfilePhotoPayload) => {
     const def = PHOTO_SLOTS[slot];
-    if (file.size > def.maxBytes) throw new Error(`${def.noun} must be less than ${Math.round(def.maxBytes / (1024 * 1024))}MB`);
-    const formData = new FormData();
-    formData.append(def.field, file);
-    if (targetProfileId) formData.append('targetProfileId', targetProfileId);
-    const response = await fetch(def.endpoint, { method: 'POST', body: formData });
+    if (payload.file.size > def.maxBytes) throw new Error(`${def.noun} must be less than ${Math.round(def.maxBytes / (1024 * 1024))}MB`);
+    const response = await fetch(def.endpoint, { method: 'POST', body: profilePhotoFormData(slot, payload, targetProfileId) });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
       throw new Error(result.error || `Failed to upload the ${def.noun.toLowerCase()}`);
@@ -747,12 +746,12 @@ export default function EditProfileTabs({
   // A pending pick previews as itself (an object URL, revoked on change).
   const [pendingPreview, setPendingPreview] = useState<{ avatar: string | null; cover: string | null }>({ avatar: null, cover: null });
   useEffect(() => {
-    const a = basicForm.avatar_file ? URL.createObjectURL(basicForm.avatar_file) : null;
-    const c = basicForm.cover_file ? URL.createObjectURL(basicForm.cover_file) : null;
+    const a = basicForm.avatar_photo ? URL.createObjectURL(basicForm.avatar_photo.file) : null;
+    const c = basicForm.cover_photo ? URL.createObjectURL(basicForm.cover_photo.file) : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the object URLs are the effect's own, revoked below
     setPendingPreview({ avatar: a, cover: c });
     return () => { if (a) URL.revokeObjectURL(a); if (c) URL.revokeObjectURL(c); };
-  }, [basicForm.avatar_file, basicForm.cover_file]);
+  }, [basicForm.avatar_photo, basicForm.cover_photo]);
 
   // The name as the form holds it (avatar alt + initials) — the loaded
   // full_name only when both parts are empty.
@@ -796,7 +795,7 @@ export default function EditProfileTabs({
             <i className="fas fa-camera mr-2" aria-hidden="true"></i>
             Change profile picture
           </button>
-          <p className="mt-1 text-xs text-muted">{basicForm.avatar_file ? 'Saves with profile.' : 'JPG, PNG, GIF, WebP or HEIC. Max 5MB.'}</p>
+          <p className="mt-1 text-xs text-muted">{basicForm.avatar_photo ? 'Saves with profile.' : 'JPG, PNG, GIF, WebP or HEIC. Max 5MB.'}</p>
         </div>
       </div>
       <div data-edit-photo="cover">
@@ -814,7 +813,7 @@ export default function EditProfileTabs({
           <i className="fas fa-image mr-2" aria-hidden="true"></i>
           Change cover photo
         </button>
-        <p className="mt-1 text-xs text-muted">{basicForm.cover_file ? 'Saves with profile.' : 'A 3:1 banner. Max 10MB.'}</p>
+        <p className="mt-1 text-xs text-muted">{basicForm.cover_photo ? 'Saves with profile.' : 'A 3:1 banner. Max 10MB.'}</p>
       </div>
       {photoDoor && (
         <ProfilePhotoDoor
@@ -822,7 +821,11 @@ export default function EditProfileTabs({
           hasPhoto={photoDoor === 'avatar' ? !!profile?.avatar_url : !!profile?.cover_url}
           mode="deferred"
           targetProfileId={targetProfileId ?? undefined}
-          onFileReady={file => setBasicForm(prev => (photoDoor === 'avatar' ? { ...prev, avatar_file: file } : { ...prev, cover_file: file }))}
+          profileId={targetProfileId ?? profile?.id}
+          current={photoDoor === 'avatar'
+            ? { photoUrl: profile?.avatar_url ?? null, sourceUrl: profile?.avatar_source_url ?? null, recipe: profile?.avatar_recipe ?? null }
+            : { photoUrl: coverProxyUrl(profile?.id, profile?.cover_url), sourceUrl: profile?.cover_source_url ?? null, recipe: profile?.cover_recipe ?? null }}
+          onPhotoReady={payload => setBasicForm(prev => (photoDoor === 'avatar' ? { ...prev, avatar_photo: payload } : { ...prev, cover_photo: payload }))}
           onClose={() => setPhotoDoor(null)}
         />
       )}

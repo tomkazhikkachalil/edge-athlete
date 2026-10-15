@@ -984,6 +984,10 @@ export default function AthleteProfilePage() {
           slot={photoDoor}
           hasPhoto={photoDoor === 'avatar' ? !!profile?.avatar_url : !!profile?.cover_url}
           mode="immediate"
+          profileId={profile?.id}
+          current={photoDoor === 'avatar'
+            ? { photoUrl: profile?.avatar_url ?? null, sourceUrl: profile?.avatar_source_url ?? null, recipe: profile?.avatar_recipe ?? null }
+            : { photoUrl: coverProxyUrl(profile?.id, profile?.cover_url), sourceUrl: profile?.cover_source_url ?? null, recipe: profile?.cover_recipe ?? null }}
           onChanged={() => refreshProfile()}
           onClose={() => setPhotoDoor(null)}
         />
@@ -994,6 +998,10 @@ export default function AthleteProfilePage() {
           src={viewing === 'avatar' ? (profile.avatar_url as string) : (coverProxyUrl(profile.id, profile.cover_url) as string)}
           alt={viewing === 'avatar' ? 'Profile picture' : 'Cover photo'}
           canEdit
+          profileId={profile.id}
+          current={viewing === 'avatar'
+            ? { sourceUrl: profile.avatar_source_url ?? null, recipe: profile.avatar_recipe ?? null }
+            : { sourceUrl: profile.cover_source_url ?? null, recipe: profile.cover_recipe ?? null }}
           onChanged={() => refreshProfile()}
           onClose={() => setViewing(null)}
         />
