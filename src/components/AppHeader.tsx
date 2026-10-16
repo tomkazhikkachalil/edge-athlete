@@ -408,14 +408,17 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               >
                 {/* The wordmark is a hard 112px at h-7 — over a third of a
                     320px screen. Below `sm` the square mark carries the
-                    identity in 32px so the icon cluster on the right actually
-                    fits (see the width budget on that cluster below). */}
+                    identity in 44px so the icon cluster on the right actually
+                    fits (see the width budget on that cluster below). The
+                    mark was raised 32 → 44px on Oct 16 2026 (Tom: a bigger
+                    logo on the phone). The wordmark stays h-7 — one step up
+                    looked odd beside the nav on wide screens. */}
                 <Image
                   src="/logo-mark.png"
                   alt="Edge Athlete"
                   width={64}
                   height={64}
-                  className="h-8 w-8 sm:hidden"
+                  className="h-11 w-11 sm:hidden"
                 />
                 <Image
                   src="/logo.png"
@@ -488,9 +491,9 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
             </div>
 
             {/* Right - Actions.
-                Width budget at 320px (288px inside px-4): logo mark 32 +
+                Width budget at 320px (288px inside px-4): logo mark 44 +
                 search trigger ~44 + two bells at 40 + Post ~36 + hamburger 40
-                + five gap-1.5 ≈ 260px. Every flex item carries `shrink-0` at
+                + five gap-1.5 ≈ 272px. Every flex item carries `shrink-0` at
                 the call site — never on `.ea-icon-btn` itself (see the
                 globals.css note on why that class must not own layout) —
                 because `min-width:auto` otherwise lets the 40px circles
