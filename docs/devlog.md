@@ -1,5 +1,9 @@
 # Development Log
 
+## October 16, 2026 — A bigger logo on the phone (zero DDL)
+
+Tom wanted the top-left logo slightly bigger. A preview with the wordmark one step up (h-7 → h-8) looked odd beside the nav on wide screens, so only the phone's square mark changes: 32 → 44 px (`AppHeader.tsx`, `h-11 w-11 sm:hidden`); the wordmark on tablet and desktop is the original (captures at 1280 px, light and dark, identical to before). Size only — the same link, the same 64 px header; the 320 px width budget fits (≈272 of 288 px). **Proof:** verify green; previews reviewed by Tom on his phone (draft #1204).
+
 ## October 15, 2026 — A HEIC shows in the editor on Android; a selfie saves as seen (PR 3 of the profile-photo round, zero DDL)
 
 Two finds from the photo → editor trace. **HEIC:** Chromium cannot paint a HEIC `<img>`, and the decoder ran only at export, so a Samsung "high efficiency" photo opened a BLACK crop stage on Android Chrome. `useEditorSession` now converts a HEIF candidate to JPEG for the session when (and only when) the native decode fails; the stage says "Preparing photo…" meanwhile. Proved first: `heic-photo.spec`'s new stage check timed out at 60 s on android against the old code. **Selfie:** the in-app camera's front preview was mirrored but the still was not — Tom: match the preview, so the still is drawn mirrored (clips unchanged). The camera comment's "up to 4K" now says 1080p, which is what the stream asks for.
