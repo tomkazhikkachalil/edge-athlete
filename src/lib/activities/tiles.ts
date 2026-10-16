@@ -10,6 +10,7 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from './catalog';
 import type { Derived } from './derived';
 import { poolOf, type Details } from './details';
 import { lengths } from './pool';
+import { gradeLabel, isClimbScale, summarizeClimbs, type Climb, type ClimbScale, type ClimbSummary } from './climbing';
 import { formatDistance, formatDuration, formatElevation, formatPace, formatSpeed, paceMetres, paceSuffix, type DistanceUnit } from './format';
 
 /** Everything a tile can read. The feed card fills only what its snapshot holds. */
@@ -63,7 +64,10 @@ export type TileKey =
   | 'lengths'
   | 'rounds'
   | 'workRest'
-  | 'sparring';
+  | 'sparring'
+  | 'climbs'
+  | 'sends'
+  | 'hardest';
 
 /** The detail page's ceiling: five rows of two at 375 px. */
 export const MAX_TILES = 9;
@@ -108,7 +112,7 @@ const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {
   snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'gain', 'effort', 'total', 'hr', 'calories'],
   water: ['distance', 'moving', 'pace', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
   indoor: ['distance', 'time', 'pace', 'lengths', 'effort', 'hr', 'power', 'cadence', 'steps', 'calories'],
-  session: ['time', 'rounds', 'workRest', 'sparring', 'effort', 'hr', 'calories'],
+  session: ['time', 'climbs', 'sends', 'hardest', 'rounds', 'workRest', 'sparring', 'effort', 'hr', 'calories'],
 };
 
 /** Types whose moving and total time are both worth showing (breaks matter). */
@@ -120,6 +124,14 @@ function cadenceUnit(type: ActivityType): string {
   const family = TILE_FAMILY[type];
   if (type === 'row') return 'spm';
   return family === 'wheel' || type === 'indoor_ride' ? 'rpm' : 'spm';
+}
+
+/** A climbing session's summary from its answers (climbing.ts), or null without climbs. */
+function climbSummaryOf(src: TileSource): (ClimbSummary & { scale: ClimbScale }) | null {
+  const d = src.details;
+  const climbs = d?.climbs;
+  if (src.type !== 'climb' || !d || !isClimbScale(d.scale) || !Array.isArray(climbs) || climbs.length === 0) return null;
+  return { ...summarizeClimbs(d.scale, climbs as Climb[], d.colours_ordered === true), scale: d.scale };
 }
 
 /** One tile, or null when it has nothing to say. */
@@ -198,6 +210,15 @@ function tile(key: TileKey, src: TileSource, derived: Derived | null, unit: Dist
     case 'sparring': {
       const n = src.details?.sparring_rounds;
       return typeof n === 'number' ? { key, label: 'Sparring rounds', value: `${n}` } : null;
+    }
+    case 'climbs':
+    case 'sends':
+    case 'hardest': {
+      const sum = climbSummaryOf(src);
+      if (!sum) return null;
+      if (key === 'climbs') return { key, label: 'Climbs', value: `${sum.climbs}` };
+      if (key === 'sends') return { key, label: 'Sends', value: `${sum.sends}` };
+      return sum.hardest ? { key, label: 'Hardest send', value: gradeLabel(sum.scale, sum.hardest) } : null;
     }
     case 'effort':
       return isNum(src.effort) ? { key, label: 'Effort', value: `${src.effort} / 10` } : null;

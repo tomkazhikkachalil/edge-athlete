@@ -9,8 +9,10 @@
 
 import { useState } from 'react';
 import type { ActivityType } from '@/lib/activities/catalog';
-import { EFFORT_LABELS, EFFORT_MAX, fieldVisible, NOTES_MAX, splitFields, type DetailField, type Details } from '@/lib/activities/details';
+import { detailFieldsFor, EFFORT_LABELS, EFFORT_MAX, fieldVisible, NOTES_MAX, optionsFor, splitFields, type DetailField, type Details } from '@/lib/activities/details';
 import { fromInput, QUANTITY_UNITS, toDisplay, type UnitSystem } from '@/lib/activities/units';
+import { isClimbScale, SCALES_FOR_STYLE, type Climb, type ClimbStyle } from '@/lib/activities/climbing';
+import ClimbLog from './ClimbLog';
 
 export interface FinishFormValue {
   effort: number | null;
@@ -49,7 +51,7 @@ function NumberField({ f, value, sys, onChange }: { f: Extract<DetailField, { ki
   );
 }
 
-function Field({ f, value, sys, onChange }: { f: DetailField; value: Details[string] | undefined; sys: UnitSystem; onChange: (v: Details[string] | undefined) => void }) {
+function Field({ f, value, values, sys, onChange }: { f: DetailField; value: Details[string] | undefined; values: Details; sys: UnitSystem; onChange: (v: Details[string] | undefined) => void }) {
   if (f.kind === 'number') return <NumberField f={f} value={typeof value === 'number' ? value : undefined} sys={sys} onChange={onChange} />;
   if (f.kind === 'text') {
     return (
@@ -81,9 +83,10 @@ function Field({ f, value, sys, onChange }: { f: DetailField; value: Details[str
     );
   }
   const multi = f.kind === 'multi';
-  const picked = multi ? (Array.isArray(value) ? value : []) : [];
-  // A yard pool leads for an imperial swimmer (Tom's review: units follow the athlete).
-  const options = f.key === 'pool' && sys === 'imperial' ? [...f.options].sort((a, b) => Number(b.value === '25yd') - Number(a.value === '25yd')) : f.options;
+  const picked: string[] = multi && Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+  // Only what the other answers allow (a style's own scales); a yard pool leads for an imperial swimmer.
+  const allowed = optionsFor(f, values);
+  const options = f.key === 'pool' && sys === 'imperial' ? [...allowed].sort((a, b) => Number(b.value === '25yd') - Number(a.value === '25yd')) : allowed;
   return (
     <fieldset data-detail-field={f.key}>
       <legend className="text-sm font-medium text-secondary">{f.label}</legend>
@@ -135,10 +138,18 @@ export default function FinishDetailsForm({
     const next = { ...value.details };
     if (v === undefined) delete next[key];
     else next[key] = v;
+    // An answer its parent no longer offers goes (a new style's scales).
+    for (const f of detailFieldsFor(type)) {
+      if (f.filterBy && next[f.key] !== undefined && !optionsFor(f, next).some(o => o.value === next[f.key])) delete next[f.key];
+    }
     onChange({ ...value, details: next });
   };
-  const render = (f: DetailField) =>
-    fieldVisible(f, value.details) ? <Field key={f.key} f={f} value={value.details[f.key]} sys={sys} onChange={v => setDetail(f.key, v)} /> : null;
+  const render = (f: DetailField) => {
+    if (!fieldVisible(f, value.details)) return null;
+    // A8: a climbing session's scale is chosen with its climbs (the log owns both).
+    if (type === 'climb' && f.key === 'scale') return <ClimbAnswers key="climbs" value={value} onChange={onChange} disabled={disabled} />;
+    return <Field key={f.key} f={f} value={value.details[f.key]} values={value.details} sys={sys} onChange={v => setDetail(f.key, v)} />;
+  };
   return (
     <fieldset className="space-y-4" disabled={disabled} data-finish-details={type}>
       <div data-finish-effort={value.effort ?? ''}>
@@ -191,6 +202,32 @@ export default function FinishDetailsForm({
       </label>
       )}
     </fieldset>
+  );
+}
+
+/** The climb log bound to the form's answers: `details.scale` and `details.climbs`. */
+function ClimbAnswers({ value, onChange, disabled }: { value: FinishFormValue; onChange: (v: FinishFormValue) => void; disabled?: boolean }) {
+  const d = value.details;
+  const scale = isClimbScale(d.scale) ? d.scale : null;
+  const climbs = Array.isArray(d.climbs) ? (d.climbs as Climb[]) : [];
+  const style = typeof d.style === 'string' && d.style in SCALES_FOR_STYLE ? (d.style as ClimbStyle) : null;
+  const put = (next: Details) => {
+    const merged: Details = { ...d, ...next };
+    if (Array.isArray(merged.climbs) && merged.climbs.length === 0) delete merged.climbs;
+    onChange({ ...value, details: merged });
+  };
+  return (
+    <ClimbLog
+      scale={scale}
+      scales={style ? SCALES_FOR_STYLE[style] : undefined}
+      climbs={climbs}
+      coloursOrdered={d.colours_ordered === true}
+      disabled={disabled}
+      onScale={s => put({ scale: s })}
+      onAdd={c => put({ climbs: [...climbs, c] })}
+      onEdit={(i, c) => put({ climbs: climbs.map((x, j) => (j === i ? { ...c, ...(x.at_s !== undefined ? { at_s: x.at_s } : {}) } : x)) })}
+      onRemove={i => put({ climbs: climbs.filter((_, j) => j !== i) })}
+    />
   );
 }
 

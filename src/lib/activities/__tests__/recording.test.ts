@@ -314,3 +314,35 @@ describe('optional distance at finish (Oct 16 2026)', () => {
     expect(parseWireActivity(toRecordingWire(s, 'UTC')).ok).toBe(true);
   });
 });
+
+describe('climbs logged while recording (A8)', () => {
+  const at = (s: number) => T0 + s * 1000;
+  it('logs, edits and removes climbs on the session’s scale, stamps their second, and survives the store', () => {
+    let s = reduce(newRecording(REC_ID, 'p1', 'climb'), { type: 'start', now: T0 });
+    s = reduce(s, { type: 'climbLogged', now: at(60), climb: { grade: 'V3', sent: true } }); // no scale yet: ignored
+    expect(s.climbs ?? []).toHaveLength(0);
+    s = reduce(s, { type: 'climbScale', scale: 'v' });
+    s = reduce(s, { type: 'climbLogged', now: at(120), climb: { grade: 'V3', sent: true } });
+    s = reduce(s, { type: 'climbLogged', now: at(300), climb: { grade: 'V5', sent: false } });
+    s = reduce(s, { type: 'climbLogged', now: at(480), climb: { grade: 'V4', sent: false } });
+    s = reduce(s, { type: 'climbEdited', index: 2, climb: { grade: 'V4', sent: true, attempts: 2 } });
+    s = reduce(s, { type: 'climbLogged', now: at(500), climb: { grade: '5.10a', sent: true } }); // not a V grade
+    expect(s.climbs).toEqual([
+      { grade: 'V3', sent: true, at_s: 120 },
+      { grade: 'V5', sent: false, at_s: 300 },
+      { grade: 'V4', sent: true, attempts: 2, at_s: 480 },
+    ]);
+    s = reduce(s, { type: 'climbRemoved', index: 1 });
+    expect(s.climbs!.map(c => c.grade)).toEqual(['V3', 'V4']);
+    expect(metaOf(s, at(600))).toMatchObject({ climbScale: 'v', climbs: s.climbs });
+  });
+
+  it('stops at 50; a new scale keeps only what grades there', () => {
+    let s = reduce(newRecording(REC_ID, 'p1', 'climb'), { type: 'start', now: T0 });
+    s = reduce(s, { type: 'climbScale', scale: 'v' });
+    for (let i = 0; i < 55; i++) s = reduce(s, { type: 'climbLogged', now: at(10 + i), climb: { grade: 'V1', sent: true } });
+    expect(s.climbs).toHaveLength(50);
+    s = reduce(s, { type: 'climbScale', scale: 'font' });
+    expect(s.climbs).toEqual([]);
+  });
+});

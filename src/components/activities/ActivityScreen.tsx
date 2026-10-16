@@ -48,6 +48,7 @@ import { segmentStats, splits } from '@/lib/activities/stream';
 import { readsSpeed, tilesFor } from '@/lib/activities/tiles';
 import { detailLine } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
+import { climbLine, isClimbScale, type Climb } from '@/lib/activities/climbing';
 import FinishDetailsForm, { type FinishFormValue } from './FinishDetailsForm';
 import type { ActivityDetailView, ActivityMediaView } from '@/lib/activities/visibility';
 import ActivityStreamChart from './ActivityStreamChart';
@@ -214,6 +215,11 @@ function ActivityBody({
   const stats = tilesFor(a, derived, unit);
   // 265: the answers given at the finish, in this viewer's units.
   const detailText = detailLine(a.type, a.details, unitSystemOf(unit));
+  // A8: a climbing session's climbs, in the order they were logged.
+  const climbList =
+    a.type === 'climb' && isClimbScale(a.details.scale) && Array.isArray(a.details.climbs) && a.details.climbs.length > 0
+      ? { scale: a.details.scale, climbs: a.details.climbs as Climb[] }
+      : null;
 
   return (
     <article className="space-y-6" data-activity={a.id}>
@@ -374,6 +380,20 @@ function ActivityBody({
               ))}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {climbList && (
+        <section className="ea-surface rounded-lg p-4" data-activity-climbs={climbList.climbs.length}>
+          <h3 className="text-sm font-semibold text-primary mb-2">Climbs</h3>
+          <ol className="space-y-1 text-sm">
+            {climbList.climbs.map((c, i) => (
+              <li key={i} className="flex gap-3 border-t border-border-subtle py-1.5 first:border-t-0" data-activity-climb={i}>
+                <span className="w-6 text-muted tabular-nums">{i + 1}</span>
+                <span className={c.sent ? 'font-semibold text-primary' : 'text-secondary'}>{climbLine(climbList.scale, c)}</span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 

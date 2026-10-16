@@ -22,6 +22,7 @@
 import type { ActivityType } from './catalog';
 import { isPoolLength, POOL_LENGTH_LABELS, POOL_LENGTHS, type PoolLength } from './pool';
 import { formatQuantity, type Quantity, type UnitSystem } from './units';
+import { CLIMB_SCALE_LABELS, CLIMB_SCALES, climbsFrom, isClimbScale, SCALES_FOR_STYLE, type Climb } from './climbing';
 
 export interface ChoiceOption {
   value: string;
@@ -36,6 +37,10 @@ interface FieldBase {
   /** Shown only when another field holds this value (e.g. the room's
    *  temperature only when heated = yes). */
   showIf?: { key: string; equals: string | boolean };
+  /** A choice whose options depend on another answer (a climbing style
+   *  offers its own grade scales): only `allowed[values[key]]` are offered
+   *  and valid once that answer is given. */
+  filterBy?: { key: string; allowed: Readonly<Record<string, readonly string[]>> };
 }
 
 export type DetailField =
@@ -129,6 +134,19 @@ export const DETAIL_FIELDS_BY_TYPE: Readonly<Partial<Record<ActivityType, readon
   snowboard: [{ key: 'terrain', kind: 'choice', label: 'Where', options: opts(['resort', 'Resort'], ['backcountry', 'Backcountry']) }],
   xc_ski: [{ key: 'technique', kind: 'choice', label: 'Technique', options: opts(['classic', 'Classic'], ['skate', 'Skate']) }],
   hike: [{ key: 'pack_kg', kind: 'number', label: 'Pack weight', quantity: 'weight', min: 0.5, max: 60, more: true }],
+  // ── A8: climbing — the session's answers; the climbs themselves are `details.climbs` (climbing.ts) ──
+  climb: [
+    { key: 'setting', kind: 'choice', label: 'Where', options: opts(['indoor', 'Indoor'], ['outdoor', 'Outdoor']) },
+    { key: 'style', kind: 'choice', label: 'Style', options: opts(['bouldering', 'Bouldering'], ['top_rope', 'Top rope'], ['lead', 'Lead']) },
+    {
+      key: 'scale',
+      kind: 'choice',
+      label: 'Grades',
+      options: CLIMB_SCALES.map(s => ({ value: s, label: CLIMB_SCALE_LABELS[s] })),
+      filterBy: { key: 'style', allowed: SCALES_FOR_STYLE },
+    },
+    { key: 'colours_ordered', kind: 'bool', label: 'My gym’s colours run white → yellow → green → blue → red → purple → black', showIf: { key: 'scale', equals: 'colour' } },
+  ],
 };
 
 /** At most this many questions show before "More details". */
@@ -165,8 +183,17 @@ export function fieldVisible(f: DetailField, values: Record<string, unknown>): b
   return !f.showIf || values[f.showIf.key] === f.showIf.equals;
 }
 
-export type DetailValue = string | string[] | number | boolean;
+export type DetailValue = string | string[] | number | boolean | Climb[];
 export type Details = Record<string, DetailValue>;
+
+/** The options a choice offers given the other answers (`filterBy`). */
+export function optionsFor(f: DetailField, values: Record<string, unknown>): readonly ChoiceOption[] {
+  if (f.kind !== 'choice' && f.kind !== 'multi') return [];
+  const by = f.filterBy;
+  const parent = by ? values[by.key] : undefined;
+  if (!by || typeof parent !== 'string' || !by.allowed[parent]) return f.options;
+  return f.options.filter(o => by.allowed[parent].includes(o.value));
+}
 
 /** Whether one value is a valid answer to one field (zod-free: the feed
  *  reads this file, and zod stays out of the first download). */
@@ -205,6 +232,13 @@ export function detailsFromRow(type: ActivityType, raw: unknown): Details {
   for (const f of storedFields(type)) {
     const v = given[f.key];
     if (v !== undefined && validAnswer(f, v)) out[f.key] = (f.kind === 'text' ? (v as string).trim() : v) as DetailValue;
+  }
+  // A choice its parent answer no longer offers goes too (a YDS grade on a bouldering session).
+  for (const f of detailFieldsFor(type)) if (out[f.key] !== undefined && f.filterBy && !optionsFor(f, out).some(o => o.value === out[f.key])) delete out[f.key];
+  // A8: a climbing session's climbs, read on its own scale (none without one).
+  if (type === 'climb' && isClimbScale(out.scale)) {
+    const climbs = climbsFrom(out.scale, given.climbs);
+    if (climbs.length > 0) out.climbs = climbs;
   }
   return withoutHiddenAnswers(type, out);
 }

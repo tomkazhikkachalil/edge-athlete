@@ -119,3 +119,28 @@ describe('the duration and snow tiles (A7)', () => {
     expect(tilesFor(src('ski', day), null, 'km').some(x => x.key === 'gain')).toBe(false);
   });
 });
+
+describe('climbing tiles (A8)', () => {
+  const climbs = [
+    { grade: 'V3', sent: true },
+    { grade: 'V5', sent: false },
+    { grade: 'V4', sent: true, attempts: 2 },
+  ];
+  it('Climbs, Sends and the hardest send', () => {
+    const t = tilesFor(src('climb', { effort: 7, details: { style: 'bouldering', scale: 'v', climbs } }), null, 'km');
+    expect(t.map(x => [x.key, x.value])).toEqual([
+      ['time', '45:00'],
+      ['climbs', '3'],
+      ['sends', '2'],
+      ['hardest', 'V4'],
+      ['effort', '7 / 10'],
+    ]);
+  });
+
+  it('no Hardest send without a send, or for colours with no order', () => {
+    expect(tilesFor(src('climb', { details: { scale: 'v', climbs: [{ grade: 'V5', sent: false }] } }), null, 'km').some(x => x.key === 'hardest')).toBe(false);
+    const colours = { scale: 'colour', climbs: [{ grade: 'blue', sent: true }] };
+    expect(tilesFor(src('climb', { details: colours }), null, 'km').some(x => x.key === 'hardest')).toBe(false);
+    expect(tilesFor(src('climb', { details: { ...colours, colours_ordered: true } }), null, 'km').find(x => x.key === 'hardest')!.value).toBe('Blue');
+  });
+});

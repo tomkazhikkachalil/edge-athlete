@@ -18,6 +18,7 @@ import { ACTIVITY_TYPE_DEFS, DISTANCE_OPTIONAL_TYPES, type ActivityType } from '
 import { cumulativeDistances, estimateSteps, haversineM, PAUSE_GAP_S } from '../normalize';
 import { normalizeSegments, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '../segments';
 import { normalizeSpec, timerSegments, totalS, type TimerSpec } from './round-timer';
+import { CLIMBS_MAX, climbsFrom, validClimb, type Climb, type ClimbScale } from '../climbing';
 import { toWire } from '../wire';
 import { liveRouteGrowing } from '../gps-filter';
 import type { ActivityPoint } from '../types';
@@ -92,6 +93,10 @@ export interface RecordingState {
    *  second it started at and stopped at (null = it runs to its end), and an
    *  AMRAP's "+1 round" taps. Absent on recordings stored before. */
   timer?: RecordingTimer | null;
+  /** A8 (Oct 16 2026): a climbing session's climbs, logged as they happen,
+   *  and the scale they are graded on. Absent on recordings stored before. */
+  climbs?: Climb[];
+  climbScale?: ClimbScale | null;
 }
 
 export interface RecordingTimer {
@@ -124,6 +129,10 @@ export type RecordingEvent =
   | { type: 'timerStart'; now: number; spec: TimerSpec }
   | { type: 'timerStop'; now: number }
   | { type: 'amrapTap'; now: number }
+  | { type: 'climbScale'; scale: ClimbScale }
+  | { type: 'climbLogged'; now: number; climb: { grade: string; sent: boolean; attempts?: number } }
+  | { type: 'climbEdited'; index: number; climb: { grade: string; sent: boolean; attempts?: number } }
+  | { type: 'climbRemoved'; index: number }
   | { type: 'finish'; now: number };
 
 /** A v4 UUID — the one minter (`src/lib/ids.ts`), re-exported for the recorder's callers. */
@@ -275,6 +284,27 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       if (at <= t.startS || at > timerEndS(t)) return state;
       return { ...state, timer: { ...t, amrapTapsS: [...t.amrapTapsS, at] } };
     }
+    case 'climbScale': {
+      // A new scale re-reads the climbs on it: those that are not grades there go.
+      return { ...state, climbScale: event.scale, climbs: climbsFrom(event.scale, state.climbs ?? []) };
+    }
+    case 'climbLogged': {
+      const scale = state.climbScale;
+      const list = state.climbs ?? [];
+      if (!scale || list.length >= CLIMBS_MAX) return state;
+      const at = state.startedAt !== null ? elapsedS(state, event.now) : undefined;
+      const climb = validClimb(scale, { ...event.climb, ...(at !== undefined ? { at_s: at } : {}) });
+      return climb ? { ...state, climbs: [...list, climb] } : state;
+    }
+    case 'climbEdited': {
+      const list = state.climbs ?? [];
+      const prev = list[event.index];
+      if (!state.climbScale || !prev) return state;
+      const climb = validClimb(state.climbScale, { ...event.climb, ...(prev.at_s !== undefined ? { at_s: prev.at_s } : {}) });
+      return climb ? { ...state, climbs: list.map((c, i) => (i === event.index ? climb : c)) } : state;
+    }
+    case 'climbRemoved':
+      return { ...state, climbs: (state.climbs ?? []).filter((_, i) => i !== event.index) };
     case 'finish': {
       if (state.status !== 'recording' && state.status !== 'paused') return state;
       let next = state;
