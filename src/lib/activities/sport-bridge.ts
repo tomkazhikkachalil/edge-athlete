@@ -60,6 +60,7 @@ export function buildEnduranceStatLine(a: EnduranceSource): StatLineData | null 
   if (a.elapsed_s > 0) stats.elapsed_s = Math.round(a.elapsed_s);
   if (time > 0) {
     if (sport === 'swimming') stats.pace_s_per_100m = r((time / a.distance_m) * 100, 2);
+    else if (sport === 'rowing') stats.pace_s_per_500m = r((time / a.distance_m) * 500, 2);
     else stats.pace_s_per_km = r((time / a.distance_m) * 1000, 2);
   }
   if (a.elev_gain_m !== null && a.elev_gain_m > 0) stats.elev_gain_m = Math.round(a.elev_gain_m);
@@ -67,6 +68,6 @@ export function buildEnduranceStatLine(a: EnduranceSource): StatLineData | null 
   if (a.max_hr !== null && a.max_hr >= 20) stats.max_hr = Math.round(a.max_hr);
   if (a.avg_cadence !== null && a.avg_cadence > 0) stats.avg_cadence = Math.round(a.avg_cadence);
   if (a.calories !== null && a.calories > 0) stats.calories = Math.round(a.calories);
-  if (sport === 'cycling' && a.avg_power !== null && a.avg_power > 0) stats.avg_power = Math.round(a.avg_power);
+  if ((sport === 'cycling' || sport === 'rowing') && a.avg_power !== null && a.avg_power > 0) stats.avg_power = Math.round(a.avg_power);
   return { type: 'stat_line', sport_key: sport, date: a.occurred_on, opponent: a.name.slice(0, 80), stats };
 }

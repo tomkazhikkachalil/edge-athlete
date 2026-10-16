@@ -65,3 +65,26 @@ test('a recorded ride posts as a Cycling result: a stat line, a performance row,
     await deleteQaUser(a.id);
   }
 });
+
+test('a recorded row posts as a Rowing result read per 500 m (Oct 16 2026)', async () => {
+  test.setTimeout(150_000);
+  const admin = adminClient();
+  const a = await createQaUser({ displayName: 'Rower Ro', firstName: 'Rower', lastName: 'Ro' });
+  const api = await ctxFor(a);
+  try {
+    // An erg session: a timer (no positions), 2,000 m typed at the finish, 8 minutes.
+    const points = line(481, { t0: T0, stepM: 0, stepS: 1 }).map(({ t }) => ({ t }));
+    const w = toWire({ format: 'live', type: 'row', name: 'Erg 2k', points, device: { distanceM: 2000 }, tzOffsetMin: null }, 'America/Toronto');
+    const created = await api.post('/api/activities', { data: { activity: { ...w, recordingId: '7d4f9e2a-1b3c-4d5e-8f6a-9b0c1d2e3f61' } } });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    const id = (await created.json()).id as string;
+    const shared = await api.post('/api/posts', { data: { postType: 'rowing', caption: '', visibility: 'public', stats_data: { type: 'activity', activity_id: id } } });
+    expect(shared.status(), await readErrorBody(shared)).toBeLessThan(300);
+    const { data: post } = await admin.from('posts').select('stats_data').eq('profile_id', a.id).single();
+    expect(post!.stats_data).toMatchObject({ type: 'stat_line', sport_key: 'rowing', stats: { distance_m: 2000, pace_s_per_500m: 120 } });
+    expect(post!.stats_data.stats.pace_s_per_km).toBeUndefined();
+  } finally {
+    await api.dispose();
+    await deleteQaUser(a.id);
+  }
+});

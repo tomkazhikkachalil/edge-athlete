@@ -57,7 +57,8 @@ describe('the share-time bridge — an activity posted as a sport result (Oct 4 
     const row = buildEnduranceStatLine({ ...ride, activity_type: 'row', distance_m: 5000, moving_s: 1200 })!;
     expect(row.sport_key).toBe('rowing');
     expect(row.stats.distance_m).toBe(5000);
-    expect(row.stats.pace_s_per_km).toBe(240);
+    expect(row.stats.pace_s_per_500m).toBe(120); // the erg's split, Oct 16 2026
+    expect(row.stats.pace_s_per_km).toBeUndefined();
     expect(validateStatLine(row, 'rowing', '2026-12-31')).toMatchObject({ ok: true });
   });
 
@@ -67,5 +68,16 @@ describe('the share-time bridge — an activity posted as a sport result (Oct 4 
     const line = buildEnduranceStatLine(ride)!;
     expect(STAT_SCHEMAS.cycling!.headline(line.stats)).toBe('42.2 km · 1:30:00');
     expect(STAT_SCHEMAS.cycling!.heroStat.compute(line.stats)).toBe(42.2);
+  });
+});
+
+describe('rowing reads per 500 m (Oct 16 2026)', () => {
+  it('labels and keys the pace per 500 m, and older per-km lines still validate', () => {
+    const fields = STAT_SCHEMAS.rowing!.fields;
+    expect(fields.find(f => f.key === 'pace_s_per_500m')!.label).toBe('Pace (s /500 m)');
+    expect(fields.find(f => f.key === 'pace_s_per_km')!.label).toBe('Pace (s /km)');
+    expect(STAT_SCHEMAS.rowing!.supportKeys).toContain('pace_s_per_500m');
+    const legacy = { type: 'stat_line' as const, sport_key: 'rowing', date: '2026-10-01', opponent: 'Erg', stats: { distance_m: 2000, pace_s_per_km: 240 } };
+    expect(validateStatLine(legacy, 'rowing', '2026-12-31')).toMatchObject({ ok: true });
   });
 });

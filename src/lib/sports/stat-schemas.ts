@@ -176,8 +176,13 @@ const firstTrackEvent = (stats: Record<string, number>) =>
 
 export type EnduranceDistanceUnit = 'km' | 'm';
 
-function paceLabel(unit: EnduranceDistanceUnit, swim: boolean): string {
-  return swim ? 'Pace (s /100 m)' : unit === 'km' ? 'Pace (s /km)' : 'Pace (s /500 m)';
+/** The pace each endurance sport reads (Oct 16 2026: rowing per 500 m — the
+ *  erg's own split; before, it was KEYED and computed per km but LABELLED
+ *  per 500 m). */
+function paceField(opts: { swim?: boolean; row?: boolean }): { key: string; label: string } {
+  if (opts.swim) return { key: 'pace_s_per_100m', label: 'Pace (s /100 m)' };
+  if (opts.row) return { key: 'pace_s_per_500m', label: 'Pace (s /500 m)' };
+  return { key: 'pace_s_per_km', label: 'Pace (s /km)' };
 }
 
 /** mm:ss from seconds for a headline. */
@@ -191,17 +196,20 @@ export const formatSessionTime = (seconds: number): string => {
 
 export function enduranceSchema(
   sportKey: SportKey,
-  opts: { noun: string; unit: EnduranceDistanceUnit; swim?: boolean; power?: boolean; pool?: boolean; milestones: ReadonlyArray<number | { value: number; label: string }> }
+  opts: { noun: string; unit: EnduranceDistanceUnit; swim?: boolean; row?: boolean; power?: boolean; pool?: boolean; milestones: ReadonlyArray<number | { value: number; label: string }> }
 ): SportStatSchema {
   const distanceKey = opts.unit === 'km' ? 'distance_km' : 'distance_m';
-  const paceKey = opts.swim ? 'pace_s_per_100m' : 'pace_s_per_km';
+  const pace = paceField(opts);
+  const paceKey = pace.key;
   const fields: StatFieldDef[] = [
     opts.unit === 'km'
       ? { key: 'distance_km', label: 'Distance (km)', shortLabel: 'km', min: 0, max: 1000, decimal: true, milestones: opts.milestones }
       : { key: 'distance_m', label: 'Distance (m)', shortLabel: 'm', min: 0, max: 200_000, milestones: opts.milestones },
     { key: 'moving_s', label: 'Moving time (s)', shortLabel: 'Time', min: 0, max: 172_800 },
     { key: 'elapsed_s', label: 'Elapsed time (s)', shortLabel: 'Elapsed', min: 0, max: 172_800 },
-    { key: paceKey, label: paceLabel(opts.unit, !!opts.swim), shortLabel: 'Pace', min: 0, max: 7200, decimal: true },
+    { key: paceKey, label: pace.label, shortLabel: 'Pace', min: 0, max: 7200, decimal: true },
+    // Rowing lines written before Oct 16 2026 carry a per-km pace: still valid, read truthfully.
+    ...(opts.row ? [{ key: 'pace_s_per_km', label: 'Pace (s /km)', shortLabel: 'Pace /km', min: 0, max: 7200, decimal: true }] : []),
     { key: 'elev_gain_m', label: 'Elevation gain (m)', shortLabel: 'Elev', min: 0, max: 30_000 },
     { key: 'avg_hr', label: 'Avg heart rate', shortLabel: 'HR', min: 20, max: 250 },
     { key: 'max_hr', label: 'Max heart rate', shortLabel: 'Max HR', min: 20, max: 250 },
@@ -239,7 +247,7 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
   cycling: enduranceSchema('cycling', { noun: 'Ride', unit: 'km', power: true, milestones: [25, 50, { value: 100, label: 'Century (100 km)' }] }),
   // Whole numbers only: a badge key is `${sport}.${field}_${value}` and holds no dot — 21 ≈ the half (21.1 km), 42 ≈ the marathon (42.2 km).
   running: enduranceSchema('running', { noun: 'Run', unit: 'km', milestones: [5, 10, { value: 21, label: 'Half marathon' }, { value: 42, label: 'Marathon' }] }),
-  rowing: enduranceSchema('rowing', { noun: 'Row', unit: 'm', milestones: [2000, 5000, 10_000] }),
+  rowing: enduranceSchema('rowing', { noun: 'Row', unit: 'm', row: true, power: true, milestones: [2000, 5000, 10_000] }),
   ice_hockey: {
     sport_key: 'ice_hockey',
     activityNoun: 'Game',
