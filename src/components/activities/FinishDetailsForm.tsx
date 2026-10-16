@@ -9,10 +9,11 @@
 
 import { useState } from 'react';
 import type { ActivityType } from '@/lib/activities/catalog';
-import { detailFieldsFor, EFFORT_LABELS, EFFORT_MAX, fieldVisible, NOTES_MAX, optionsFor, splitFields, type DetailField, type Details } from '@/lib/activities/details';
+import { detailFieldsFor, fieldVisible, NOTES_MAX, optionsFor, splitFields, type DetailField, type Details } from '@/lib/activities/details';
 import { fromInput, QUANTITY_UNITS, toDisplay, type UnitSystem } from '@/lib/activities/units';
 import { isClimbScale, SCALES_FOR_STYLE, type Climb, type ClimbStyle } from '@/lib/activities/climbing';
 import ClimbLog from './ClimbLog';
+import EffortChips from './EffortChips';
 
 export interface FinishFormValue {
   effort: number | null;
@@ -152,32 +153,7 @@ export default function FinishDetailsForm({
   };
   return (
     <fieldset className="space-y-4" disabled={disabled} data-finish-details={type}>
-      <div data-finish-effort={value.effort ?? ''}>
-        <p className="text-sm font-medium text-secondary" id="finish-effort-label">
-          How hard was it? <span className="font-normal text-muted">optional</span>
-        </p>
-        <div className="mt-1 grid grid-cols-5 gap-1.5" role="radiogroup" aria-labelledby="finish-effort-label">
-          {Array.from({ length: EFFORT_MAX }, (_, i) => i + 1).map(n => (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={value.effort === n}
-              aria-label={`${n}${EFFORT_LABELS[n] ? ` — ${EFFORT_LABELS[n]}` : ''}`}
-              onClick={() => onChange({ ...value, effort: value.effort === n ? null : n })}
-              className={`${chip(value.effort === n)} min-w-[44px] tabular-nums`}
-              data-effort={n}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 flex justify-between text-xs text-muted" aria-hidden="true">
-          <span>1 · {EFFORT_LABELS[1]}</span>
-          <span>5 · {EFFORT_LABELS[5]}</span>
-          <span>10 · {EFFORT_LABELS[10]}</span>
-        </p>
-      </div>
+      <EffortChips value={value.effort} onChange={effort => onChange({ ...value, effort })} />
       {shown.map(render)}
       {more.length > 0 && (
         <div>

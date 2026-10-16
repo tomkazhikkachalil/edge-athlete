@@ -134,3 +134,10 @@ auto-advance fires on the false → true edge of the round IN VIEW only),
 view (`swipe` default | `list`) and the one-time hint are device
 preferences in `timer-prefs.ts`. A spec that logs rounds by row index asks
 for LIST view in `addInitScript` (`workout-groups.spec`).
+
+### Oct 16 2026 — Strength training is the Workout: records for every exercise, effort (activities details A10)
+
+- **Strength is not an activity type** (Tom approved, Oct 16): the recorder's picker carries a **Strength training** tile in its Indoor group that opens the Workout (`useStartWorkout` — its routines sheet when there are routines). A second set-and-rep logger would record one session twice. Hidden while a guardian acts for an athlete (workouts are the athlete's own).
+- **Records for every exercise** (`src/lib/workouts/prs.ts`, pure): heaviest weight, best estimated 1-rep max (Epley, sets of 1–12 reps), most reps in an unweighted set, best session volume — **derived from the sets, never stored**. An exercise is one lift by its catalog key, else its name. A session's records are its bests that beat EVERY earlier completed session's (`GET /api/workouts/prs?exclude=<id>`, owner-only, `private, no-store`); a first-ever lift is a baseline, never a record. The summary shows them ("New PRs"), a shared post carries them; the five-lift body-metric confirm stays as it was.
+- **Effort 1–10** on the summary (`EffortChips`, the activities' one control) → `workout_sessions.effort` (265) through the PATCH, saved as tapped.
+- **Units:** a workout reads in the unit most of its weighted sets were logged in (`workoutUnit`; lbs on a tie — the app's spelling); Training's **Personal records** card (own profile) reads in the unit most of the athlete's sets use.
