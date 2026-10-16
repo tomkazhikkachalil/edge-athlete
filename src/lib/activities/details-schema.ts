@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { ActivityType } from './catalog';
-import { detailFieldsFor, EFFORT_MAX, EFFORT_MIN, NOTES_MAX, type DetailField, type Details } from './details';
+import { detailFieldsFor, EFFORT_MAX, EFFORT_MIN, NOTES_MAX, withoutHiddenAnswers, type DetailField, type Details } from './details';
 
 function fieldSchema(f: DetailField): z.ZodTypeAny {
   switch (f.kind) {
@@ -84,7 +84,8 @@ export function parseFinishAnswers(
     const i = r.error.issues[0];
     return { ok: false, error: i ? `finish.details.${i.path.join('.') || '?'}: ${i.message}` : 'Invalid details.' };
   }
-  const details = Object.keys(r.data).length > 0 ? (r.data as Details) : null;
+  const kept = withoutHiddenAnswers(type, r.data as Details);
+  const details = Object.keys(kept).length > 0 ? kept : null;
   const notes = outer.data.notes && outer.data.notes.length > 0 ? outer.data.notes : null;
   return { ok: true, value: { effort: outer.data.effort ?? null, notes, details, ...columns } };
 }

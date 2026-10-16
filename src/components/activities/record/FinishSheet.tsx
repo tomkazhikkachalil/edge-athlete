@@ -12,6 +12,7 @@ import PostChoicePicker from '@/components/posts/PostChoicePicker';
 import FinishDetailsForm, { type FinishFormValue } from '@/components/activities/FinishDetailsForm';
 import type { Details } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
+import type { TimerFormat } from '@/lib/activities/record/round-timer';
 
 export interface FinishDetails {
   name: string;
@@ -45,6 +46,7 @@ export default function FinishSheet({
   onDiscard,
   onDropFailed,
   prefill,
+  timerFormat = null,
 }: {
   type: ActivityType;
   defaultName: string;
@@ -63,6 +65,8 @@ export default function FinishSheet({
   onDropFailed: () => void;
   /** The last answers of this type (choices only — /api/activities/last-details); null while loading. */
   prefill: Details | null;
+  /** The round timer's format, when one ran — a HIIT's "Format" starts there (A7). */
+  timerFormat?: TimerFormat | null;
 }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   const [name, setName] = useState(defaultName);
@@ -70,7 +74,12 @@ export default function FinishSheet({
   const [distUnit, setDistUnit] = useState<DistanceUnit | 'm'>(def.recording === 'timer' && (type === 'swim' || type === 'row') ? 'm' : unit);
   const [choice, setChoice] = useState<PostChoice>(DEFAULT_CHOICE);
   const [caption, setCaption] = useState('');
-  const [answers, setAnswers] = useState<FinishFormValue>({ effort: null, notes: '', details: {} });
+  const [answers, setAnswers] = useState<FinishFormValue>((): FinishFormValue => ({
+    effort: null,
+    notes: '',
+    // The timer knows the format better than last time's answer does (Rounds reads as Intervals).
+    details: type === 'hiit' && timerFormat ? { format: timerFormat === 'rounds' ? 'intervals' : String(timerFormat) } : {},
+  }));
   // The last answers land once, and only before the athlete touched a question.
   const [touched, setTouched] = useState(false);
   const [seededFrom, setSeededFrom] = useState<Details | null>(null);

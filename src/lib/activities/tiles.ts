@@ -30,6 +30,8 @@ export interface TileSource {
   /** 265: how hard it felt, and the type's answers (details.ts) — absent on a card written before. */
   effort?: number | null;
   details?: Details;
+  /** The marked segments — the round timer's rounds and rests (A3) become tiles. */
+  segments?: readonly { kind: string; from_s: number; to_s: number }[];
 }
 
 export interface Tile {
@@ -58,7 +60,10 @@ export type TileKey =
   | 'calories'
   | 'steps'
   | 'effort'
-  | 'lengths';
+  | 'lengths'
+  | 'rounds'
+  | 'workRest'
+  | 'sparring';
 
 /** The detail page's ceiling: five rows of two at 375 px. */
 export const MAX_TILES = 9;
@@ -100,10 +105,10 @@ const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {
   foot: ['distance', 'moving', 'pace', 'gain', 'effort', 'total', 'hr', 'cadence', 'steps', 'calories'],
   trail: ['distance', 'moving', 'pace', 'gap', 'gain', 'loss', 'high', 'climbRate', 'effort', 'total', 'hr', 'steps', 'calories'],
   wheel: ['distance', 'moving', 'pace', 'maxSpeed', 'gain', 'descent', 'effort', 'total', 'hr', 'power', 'cadence', 'calories'],
-  snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
+  snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'gain', 'effort', 'total', 'hr', 'calories'],
   water: ['distance', 'moving', 'pace', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
   indoor: ['distance', 'time', 'pace', 'lengths', 'effort', 'hr', 'power', 'cadence', 'steps', 'calories'],
-  session: ['time', 'effort', 'hr', 'calories'],
+  session: ['time', 'rounds', 'workRest', 'sparring', 'effort', 'hr', 'calories'],
 };
 
 /** Types whose moving and total time are both worth showing (breaks matter). */
@@ -146,7 +151,9 @@ function tile(key: TileKey, src: TileSource, derived: Derived | null, unit: Dist
       return { key, label: 'Grade-adjusted pace', value: `${formatDuration((moving / adj) * per)} ${paceSuffix(src.type, unit)}` };
     }
     case 'gain':
-      return isNum(src.elevGainM) && src.elevGainM > 0 ? { key, label: 'Elevation gain', value: formatElevation(src.elevGainM, unit) } : null;
+      // On a lift day the gain is the lift's; a backcountry day climbed it (A7).
+      if (TILE_FAMILY[src.type] === 'snow' && src.details?.terrain !== 'backcountry') return null;
+      return isNum(src.elevGainM) && src.elevGainM > 0 ? { key, label: TILE_FAMILY[src.type] === 'snow' ? 'Climbed' : 'Elevation gain', value: formatElevation(src.elevGainM, unit) } : null;
     case 'loss':
       return isNum(src.elevLossM) && src.elevLossM > 0 ? { key, label: 'Elevation loss', value: formatElevation(src.elevLossM, unit) } : null;
     case 'descent':
@@ -175,6 +182,23 @@ function tile(key: TileKey, src: TileSource, derived: Derived | null, unit: Dist
       return isNum(src.avgCadence) ? { key, label: 'Cadence', value: `${src.avgCadence} ${cadenceUnit(src.type)}` } : null;
     case 'calories':
       return isNum(src.calories) ? { key, label: 'Calories', value: `${src.calories}` } : null;
+    case 'rounds': {
+      const n = (src.segments ?? []).filter(x => x.kind === 'round').length;
+      return n > 0 ? { key, label: 'Rounds', value: `${n}` } : null;
+    }
+    case 'workRest': {
+      // The pattern of the first round and the rest after it ("0:20 / 0:10").
+      const segs = src.segments ?? [];
+      const i = segs.findIndex(x => x.kind === 'round');
+      const work = i >= 0 ? segs[i] : null;
+      const rest = work ? segs.slice(i + 1).find(x => x.kind === 'recovery' && x.from_s >= work.to_s - 1) : null;
+      if (!work || !rest) return null;
+      return { key, label: 'Work / rest', value: `${formatDuration(work.to_s - work.from_s)} / ${formatDuration(rest.to_s - rest.from_s)}` };
+    }
+    case 'sparring': {
+      const n = src.details?.sparring_rounds;
+      return typeof n === 'number' ? { key, label: 'Sparring rounds', value: `${n}` } : null;
+    }
     case 'effort':
       return isNum(src.effort) ? { key, label: 'Effort', value: `${src.effort} / 10` } : null;
     case 'lengths': {
