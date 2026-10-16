@@ -28,7 +28,7 @@ and the pages `/activities/record` and `/activities/[id]`.
 
 `activities` (245, posture A: RLS on, no policies, service role only) holds one row per activity per athlete.
 
-- **An activity is NOT a sport.** `activity_type` is its own list (`catalog.ts` ≡ 245's CHECK, pinned by a test): run, trail_run, walk, hike, ride, mountain_bike, swim, row, ski, climb, other. It follows the training → post-category precedent, and nothing writes `athlete_performances` in phase 1. Bridging activities into the dataset (e.g. a run's times for recruiting) is a separate decision: it would need a `source_table` value, a `natural_key` prefix and a vocabulary.
+- **An activity is NOT a sport.** `activity_type` is its own list (`catalog.ts` ≡ the LAST `activities_activity_type_check` in the chain, pinned by a test): 245 created eleven; 251 widened it to 26 in three groups — outdoor (run, trail_run, walk, hike, ride, mountain_bike, open_water_swim, paddle, ski, xc_ski, snowboard, skate), indoor (swim, row, indoor_ride, treadmill, elliptical, stair_climber) and duration (yoga, pilates, stretch, hiit, martial_arts, dance, climb, other). Polar and the Apple-Health bridge map to all of them (Oct 16 2026); strength stays `other`, the gym being the Workout path. It follows the training → post-category precedent, and nothing writes `athlete_performances` in phase 1. Bridging activities into the dataset (e.g. a run's times for recruiting) is a separate decision: it would need a `source_table` value, a `natural_key` prefix and a vocabulary.
 - **The dedupe key** is `UNIQUE (profile_id, source, external_id)`. A recording's is `live:<recordingId>` (a retry is the same row). A file's was `start:<unix seconds>` (`fileExternalId`, still the upload link's rule), because an athlete cannot start two activities in the same second. Across sources the twin rule (`dedupe.ts`) keeps ONE activity.
 - **Totals** (`elapsed_s`, `moving_s`, `distance_m`, `elev_gain_m`, …) are computed by the **server** from the points. A device's own total is kept only when it agrees with the points (distance ±15%, ascent 0.5–2× + 50 m).
 - **`route_preview`** is an encoded polyline (≤ 200 points) stored **already trimmed**, so every reader of it is safe by default.
@@ -334,7 +334,7 @@ superseded for the web app.
   before the PATCH), adds / re-edits / removes photos. The feed card gains "1
   segment · 1 photo · ~N steps (est.)". The doors: Training's **Record Activity**
   pill (+ `RecordingResumeBanner`), the Activities section's link, the header's
-  Create sheet ("Record an activity" / "Import an activity") and the drawer.
+  Create sheet ("Record an activity" — the import door left Oct 13 2026) and the drawer.
 
 ## Activities as sports — the share-time bridge (Oct 4 2026)
 

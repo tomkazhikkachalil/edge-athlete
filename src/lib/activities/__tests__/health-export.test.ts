@@ -37,21 +37,42 @@ describe('workoutType', () => {
     expect(workoutType('Outdoor Run')).toBe('run');
     expect(workoutType('Running')).toBe('run');
     expect(workoutType('Trail Running')).toBe('trail_run');
-    expect(workoutType('Indoor Cycle')).toBe('ride');
+    expect(workoutType('Indoor Cycle')).toBe('indoor_ride');
     expect(workoutType('Cycling')).toBe('ride');
     expect(workoutType('Mountain Biking')).toBe('mountain_bike');
     expect(workoutType('Outdoor Walk')).toBe('walk');
     expect(workoutType('Hiking')).toBe('hike');
     expect(workoutType('Pool Swim')).toBe('swim');
-    expect(workoutType('Open Water Swim')).toBe('swim');
+    expect(workoutType('Open Water Swim')).toBe('open_water_swim');
     expect(workoutType('Rowing')).toBe('row');
-    expect(workoutType('Cross Country Skiing')).toBe('ski');
-    expect(workoutType('Snowboarding')).toBe('ski');
+    expect(workoutType('Cross Country Skiing')).toBe('xc_ski');
+    expect(workoutType('Downhill Skiing')).toBe('ski');
+    expect(workoutType('Snowboarding')).toBe('snowboard');
     expect(workoutType('Climbing')).toBe('climb');
   });
 
+  it('maps every catalog type Apple has a name for (Oct 16 2026)', () => {
+    const cases: [string, string][] = [
+      ['Indoor Run', 'treadmill'],
+      ['Paddling', 'paddle'],
+      ['Skating Sports', 'skate'],
+      ['Elliptical', 'elliptical'],
+      ['Stair Climbing', 'stair_climber'],
+      ['Stair Stepper', 'stair_climber'],
+      ['Yoga', 'yoga'],
+      ['Pilates', 'pilates'],
+      ['Flexibility', 'stretch'],
+      ['High Intensity Interval Training', 'hiit'],
+      ['Martial Arts', 'martial_arts'],
+      ['Kickboxing', 'martial_arts'],
+      ['Cardio Dance', 'dance'],
+    ];
+    for (const [name, type] of cases) expect(workoutType(name), name).toBe(type);
+  });
+
   it('never guesses: a name it does not know is "other"', () => {
-    for (const name of ['Traditional Strength Training', 'Stair Climbing', 'Skating Sports', 'Yoga', 'High Intensity Interval Training', 'Elliptical', 'Core Training', 'Pickleball', '', 42, null]) {
+    // Strength is the Workout path, never an activity.
+    for (const name of ['Traditional Strength Training', 'Functional Strength Training', 'Core Training', 'Pickleball', '', 42, null]) {
       expect(workoutType(name), String(name)).toBe('other');
     }
   });

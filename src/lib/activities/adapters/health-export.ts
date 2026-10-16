@@ -87,16 +87,34 @@ export function parseExportDate(v: unknown): { t: number; offsetMin: number } | 
  * skiing): anything not named here is `other`, which Training still counts as
  * a session.
  */
+// Apple's workout names as the export app writes them, most specific first
+// (Oct 16 2026: every catalog type). Strength ("Traditional / Functional
+// Strength Training") stays `other` — the gym is the Workout path.
 const NAME_RULES: readonly [RegExp, ActivityType][] = [
   [/\btrail run(ning)?\b/, 'trail_run'],
+  [/\b(treadmill|indoor run(ning)?)\b/, 'treadmill'],
   [/\b(run|running|jog|jogging)\b/, 'run'],
   [/\bmountain bik(e|ing)\b/, 'mountain_bike'],
+  [/\b(indoor (cycle|cycling|bike|biking|ride)|spin(ning)?)\b/, 'indoor_ride'],
   [/\b(cycle|cycling|bike|biking|ride)\b/, 'ride'],
   [/\b(hike|hiking)\b/, 'hike'],
   [/\b(walk|walking)\b/, 'walk'],
+  [/\bopen water swim(ming)?\b/, 'open_water_swim'],
   [/\b(swim|swimming)\b/, 'swim'],
   [/\b(row|rowing|rower)\b/, 'row'],
-  [/\b(ski|skiing|snowboard|snowboarding)\b/, 'ski'],
+  [/\b(paddling|paddle|kayak(ing)?|canoe(ing)?|stand up paddl(e|ing))\b/, 'paddle'],
+  [/\b(snowboard|snowboarding)\b/, 'snowboard'],
+  [/\bcross country ski(ing)?\b/, 'xc_ski'],
+  [/\b(ski|skiing)\b/, 'ski'],
+  [/\bskat(e|ing)\b/, 'skate'],
+  [/\belliptical\b/, 'elliptical'],
+  [/\b(stair stepper|stairs|stair climb(ing|er)?)\b/, 'stair_climber'],
+  [/\byoga\b/, 'yoga'],
+  [/\bpilates\b/, 'pilates'],
+  [/\b(flexibility|stretch(ing)?|mobility)\b/, 'stretch'],
+  [/\b(high intensity interval training|hiit|cross training|mixed cardio)\b/, 'hiit'],
+  [/\b(martial arts|boxing|kickboxing|wrestling)\b/, 'martial_arts'],
+  [/\bdanc(e|ing)\b/, 'dance'],
   [/^(rock |indoor |outdoor )?climbing$/, 'climb'],
 ];
 
