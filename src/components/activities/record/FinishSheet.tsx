@@ -5,7 +5,7 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '@/lib/activities/catalog'
 import { UNIT_METRES, formatDistance, formatDuration, formatPace, type DistanceUnit } from '@/lib/activities/format';
 import { encodePolyline, type LatLng } from '@/lib/activities/polyline';
 import { routeSvg } from '@/lib/activities/route-svg';
-import type { RecordingPhoto } from '@/lib/activities/record/recording';
+import { requiresManualDistance, type RecordingPhoto } from '@/lib/activities/record/recording';
 import { DEFAULT_CHOICE, type PostChoice } from '@/lib/posts/audience';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import PostChoicePicker from '@/components/posts/PostChoicePicker';
@@ -64,6 +64,8 @@ export default function FinishSheet({
   const [caption, setCaption] = useState('');
   const [shareAs, setShareAs] = useState<'training' | 'sport'>('training');
   const needsDistance = def.recording === 'timer';
+  // Oct 16 2026: elliptical, stairs and indoor rides may finish without one.
+  const distanceRequired = requiresManualDistance(type);
   const pending = photos.filter(p => !p.url && !p.failed).length;
   const failed = photos.filter(p => p.failed).length;
   const parsedDistance = (): number | null => {
@@ -116,7 +118,7 @@ export default function FinishSheet({
         <input id="record-name" type="text" value={name} onChange={e => setName(e.target.value.slice(0, 120))} className="mt-1 w-full min-h-[44px] rounded-lg border border-border-strong bg-surface px-3 text-base text-primary" />
         {needsDistance && (
           <div className="mt-3">
-            <label className="block text-sm font-medium text-secondary" htmlFor="record-distance">Distance</label>
+            <label className="block text-sm font-medium text-secondary" htmlFor="record-distance">Distance{distanceRequired ? '' : ' (optional)'}</label>
             <div className="mt-1 flex gap-2">
               <input id="record-distance" type="number" inputMode="decimal" min={0} value={distance} onChange={e => setDistance(e.target.value)} placeholder={distUnit === 'm' ? '1500' : '5.0'} className="min-h-[44px] flex-1 rounded-lg border border-border-strong bg-surface px-3 text-base text-primary" data-record-distance-input="" />
               <select value={distUnit} onChange={e => setDistUnit(e.target.value as DistanceUnit | 'm')} className="min-h-[44px] rounded-lg border border-border-strong bg-surface px-2 text-base text-primary" aria-label="Unit">
@@ -192,7 +194,7 @@ export default function FinishSheet({
                 sport: posting && shareAs === 'sport' ? sportOption : null,
               })
             }
-            disabled={saving || pending > 0 || failed > 0 || (needsDistance && parsedDistance() === null)}
+            disabled={saving || pending > 0 || failed > 0 || (distanceRequired && parsedDistance() === null)}
             className="ea-cta min-h-[48px] flex-1 rounded-lg text-base font-semibold text-white disabled:opacity-50"
             data-record-save=""
             data-record-save-choice={choice}

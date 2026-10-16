@@ -13,7 +13,8 @@
 
 import { z } from 'zod';
 
-export const SEGMENT_KINDS = ['sprint', 'climb', 'interval', 'recovery', 'lap'] as const;
+/** 'round' (Oct 16 2026): a round of the round timer, or one marked by hand — code-only, the DB CHECK holds the array and the cap. */
+export const SEGMENT_KINDS = ['sprint', 'climb', 'interval', 'recovery', 'lap', 'round'] as const;
 export type SegmentKind = (typeof SEGMENT_KINDS)[number];
 
 export const SEGMENT_KIND_LABELS: Readonly<Record<SegmentKind, string>> = {
@@ -22,6 +23,7 @@ export const SEGMENT_KIND_LABELS: Readonly<Record<SegmentKind, string>> = {
   interval: 'Interval',
   recovery: 'Recovery',
   lap: 'Lap',
+  round: 'Round',
 };
 
 /** The DB CHECK's cap (251). */

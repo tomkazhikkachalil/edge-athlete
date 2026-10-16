@@ -13,7 +13,7 @@ export default function SegmentSheet({ seconds, onPick, onDismiss }: { seconds: 
         <h2 className="text-lg font-bold text-primary">
           What was that? <span className="text-secondary font-normal">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>
         </h2>
-        <div className="mt-3 grid grid-cols-5 gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {SEGMENT_KINDS.map(kind => (
             <button
               key={kind}
