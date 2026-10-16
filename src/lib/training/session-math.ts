@@ -32,6 +32,8 @@ export interface TrainingSession {
   /** A9: a sport session's sport (a SportRegistry key) and kind (practice | game | other). */
   sportKey?: string | null;
   sessionKind?: string | null;
+  /** 265 (A11): how hard it felt, 1–10 — absent or null when not rated. */
+  effort?: number | null;
 }
 
 export interface WeekTotals {
@@ -39,6 +41,10 @@ export interface WeekTotals {
   workouts: number;
   volumeLbs: number;
   seconds: number;
+  /** A11: Σ minutes × effort over the RATED sessions (session-RPE). */
+  load: number;
+  /** How many of `workouts` carry an effort — the load's honesty line. */
+  rated: number;
 }
 
 export interface WeeklySummary extends WeekTotals {
@@ -52,8 +58,24 @@ export interface WeekBar {
   workouts: number;
   volumeLbs: number;
   seconds: number;
+  load: number;
+  rated: number;
   isCurrent: boolean;
 }
+
+/**
+ * A session's training load (A11, Oct 16 2026): minutes × effort — the
+ * session-RPE measure (Foster), the one intensity a timer-only session has.
+ * A session nobody rated contributes NOTHING: a load is never imputed (Tom's
+ * review — "6 of 8 rated" says what the number covers).
+ */
+export function loadOf(s: Pick<TrainingSession, 'seconds' | 'effort'>): number {
+  const e = s.effort;
+  if (typeof e !== 'number' || !(e >= 1 && e <= 10) || !(s.seconds > 0)) return 0;
+  return (s.seconds / 60) * e;
+}
+
+const isRated = (s: Pick<TrainingSession, 'effort'>): boolean => typeof s.effort === 'number' && s.effort >= 1 && s.effort <= 10;
 
 const DAY_MS = 24 * 3600 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -68,8 +90,8 @@ function localDateKey(d: Date): string {
 export function sessionsWeeklySummary(sessions: readonly TrainingSession[], now: Date = new Date()): WeeklySummary {
   const thisWeekStart = startOfWeek(now).getTime();
   const priorWeekStart = thisWeekStart - WEEK_MS;
-  const totals: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0 };
-  const prior: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0 };
+  const totals: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0, load: 0, rated: 0 };
+  const prior: WeekTotals = { workouts: 0, volumeLbs: 0, seconds: 0, load: 0, rated: 0 };
   for (const s of sessions) {
     const t = new Date(s.startedAt).getTime();
     const bucket = t >= thisWeekStart ? totals : t >= priorWeekStart ? prior : null;
@@ -77,9 +99,13 @@ export function sessionsWeeklySummary(sessions: readonly TrainingSession[], now:
     bucket.workouts += 1;
     bucket.volumeLbs += s.volumeLbs;
     bucket.seconds += s.seconds;
+    bucket.load += loadOf(s);
+    if (isRated(s)) bucket.rated += 1;
   }
   totals.volumeLbs = Math.round(totals.volumeLbs);
   prior.volumeLbs = Math.round(prior.volumeLbs);
+  totals.load = Math.round(totals.load);
+  prior.load = Math.round(prior.load);
   return { ...totals, prior };
 }
 
@@ -129,7 +155,7 @@ export function sessionsWeeklyBars(sessions: readonly TrainingSession[], weeks: 
   }
   const barByStart = new Map<number, WeekBar>();
   const bars = starts.map((start, i) => {
-    const bar: WeekBar = { weekStart: localDateKey(start), workouts: 0, volumeLbs: 0, seconds: 0, isCurrent: i === starts.length - 1 };
+    const bar: WeekBar = { weekStart: localDateKey(start), workouts: 0, volumeLbs: 0, seconds: 0, load: 0, rated: 0, isCurrent: i === starts.length - 1 };
     barByStart.set(start.getTime(), bar);
     return bar;
   });
@@ -139,7 +165,12 @@ export function sessionsWeeklyBars(sessions: readonly TrainingSession[], weeks: 
     bar.workouts += 1;
     bar.volumeLbs += s.volumeLbs;
     bar.seconds += s.seconds;
+    bar.load += loadOf(s);
+    if (isRated(s)) bar.rated += 1;
   }
-  for (const bar of bars) bar.volumeLbs = Math.round(bar.volumeLbs);
+  for (const bar of bars) {
+    bar.volumeLbs = Math.round(bar.volumeLbs);
+    bar.load = Math.round(bar.load);
+  }
   return bars;
 }

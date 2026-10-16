@@ -46,6 +46,8 @@ export interface ServerWorkoutSession {
   last_activity_at: string;
   updated_at: string;
   exercises?: ServerExerciseRow[];
+  /** 265: how hard it felt (1–10). Optional: rows and literals from before the column. */
+  effort?: number | null;
   /** 260: the clock's facts. Optional: rows and literals from before the columns. */
   timed?: boolean | null;
   paused_seconds?: number | null;

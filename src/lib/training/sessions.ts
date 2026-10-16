@@ -24,6 +24,8 @@ export interface ActivitySession {
   /** A9: a sport session's sport and kind. */
   sportKey?: string | null;
   sessionKind?: string | null;
+  /** A11: how hard it felt (1–10), when rated. */
+  effort?: number | null;
 }
 
 /** Moving time where the device recorded it, else elapsed (the Activities tab's rule). */
@@ -39,6 +41,7 @@ export function fromActivity(a: ActivitySession): TrainingSession {
     distanceM: a.distanceM,
     sourceName: a.sourceName ?? null,
     ...(a.sportKey ? { sportKey: a.sportKey, sessionKind: a.sessionKind ?? null } : {}),
+    ...(typeof a.effort === 'number' ? { effort: a.effort } : {}),
   };
 }
 

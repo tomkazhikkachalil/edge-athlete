@@ -141,3 +141,8 @@ for LIST view in `addInitScript` (`workout-groups.spec`).
 - **Records for every exercise** (`src/lib/workouts/prs.ts`, pure): heaviest weight, best estimated 1-rep max (Epley, sets of 1–12 reps), most reps in an unweighted set, best session volume — **derived from the sets, never stored**. An exercise is one lift by its catalog key, else its name. A session's records are its bests that beat EVERY earlier completed session's (`GET /api/workouts/prs?exclude=<id>`, owner-only, `private, no-store`); a first-ever lift is a baseline, never a record. The summary shows them ("New PRs"), a shared post carries them; the five-lift body-metric confirm stays as it was.
 - **Effort 1–10** on the summary (`EffortChips`, the activities' one control) → `workout_sessions.effort` (265) through the PATCH, saved as tapped.
 - **Units:** a workout reads in the unit most of its weighted sets were logged in (`workoutUnit`; lbs on a tie — the app's spelling); Training's **Personal records** card (own profile) reads in the unit most of the athlete's sets use.
+
+### Oct 16 2026 — Training load (activities details A11)
+
+- **Load = minutes × effort** (session-RPE), per session (`loadOf` in `src/lib/training/session-math.ts`): the effort is 265's `activities.effort` / `workout_sessions.effort`, carried into `TrainingSession.effort` by both feeds (`fromActivity`, `workoutToSession`). **A session nobody rated adds no load — never imputed**; every week carries `rated` beside `workouts`.
+- **Shown:** Training's hero reads "Load 1,240 · 6 of 8 rated" under the week's stats (or, with none rated, how to make one count); the Weekly activity overlay switches between Sessions and Load and each week's row adds its load.

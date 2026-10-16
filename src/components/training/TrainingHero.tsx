@@ -177,6 +177,19 @@ export default function TrainingHero({
         />
       </div>
 
+      {/* A11: training load — minutes × effort over the RATED sessions, and how many that is. */}
+      {summary.workouts > 0 && (
+        <p className="mt-3 text-sm text-secondary tabular-nums" data-training-load={summary.load} data-training-rated={`${summary.rated}/${summary.workouts}`}>
+          {summary.rated > 0 ? (
+            <>
+              <span className="font-semibold text-primary">Load {summary.load.toLocaleString()}</span> · {summary.rated} of {summary.workouts} rated
+            </>
+          ) : (
+            <>Load — rate how hard a session was when you finish it, and its load shows here.</>
+          )}
+        </p>
+      )}
+
       {/* PB spotlight — the newest all-time best, front and center */}
       <div className="mt-6 flex items-center gap-3 rounded-2xl bg-surface-muted p-4">
         <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${pb ? accent.chip : 'bg-surface-sunken'}`}>
