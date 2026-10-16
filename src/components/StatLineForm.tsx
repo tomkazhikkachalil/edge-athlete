@@ -9,6 +9,8 @@
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { localDayKey } from '@/lib/calendar/grid';
+import { envelopeResult, isCombatSport } from '@/lib/sports/bout';
+import BoutFields from '@/components/sports/BoutFields';
 
 interface StatLineFormProps {
   sportKey: SportKey;
@@ -30,7 +32,8 @@ export function statLineHasContent(line: StatLineData): boolean {
   return (
     Object.values(line.stats).some(v => typeof v === 'number' && v > 0) ||
     Boolean(line.opponent?.trim()) ||
-    Boolean(line.result)
+    Boolean(line.result) ||
+    Boolean(line.bout)
   );
 }
 
@@ -38,6 +41,8 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
   const schema = getStatSchema(sportKey);
   const sportDef = getSportDefinition(sportKey);
   if (!schema) return null;
+  // A combat sport's result is the bout (bout.ts): its own fields, not W / L / T.
+  const combat = isCombatSport(sportKey);
 
   const setStat = (key: string, raw: string) => {
     const stats = { ...value.stats };
@@ -63,7 +68,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
       </div>
 
       {/* Context row: date / opponent / result */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className={`grid grid-cols-1 gap-3 ${combat ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
         <div>
           <label htmlFor={`${sportKey}-date`} className="block text-xs font-semibold text-secondary mb-1">
             {schema.activityNoun} Date
@@ -90,6 +95,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm text-primary placeholder-faint focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
           />
         </div>
+        {!combat && (
         <div>
           <label className="block text-xs font-semibold text-secondary mb-1">Result</label>
           {/* flex-wrap + min widths: at the sm grid boundary this row's
@@ -128,7 +134,24 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             />
           </div>
         </div>
+        )}
       </div>
+
+      {isCombatSport(sportKey) && (
+        <BoutFields
+          sport={sportKey}
+          value={value.bout}
+          onChange={bout => {
+            const next: StatLineData = { ...value, bout };
+            // The envelope's W / L / T follows the bout (the server derives it too).
+            const r = bout ? envelopeResult(bout.result) : undefined;
+            if (r) next.result = r;
+            else delete next.result;
+            if (!bout) delete next.bout;
+            onChange(next);
+          }}
+        />
+      )}
 
       {/* Stat fields grid */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">

@@ -116,6 +116,12 @@ export default function SportPostBody({
     );
   }
 
+  // A combat bout (Oct 16 2026) leads with its result and headline — "W ·
+  // TKO · R2 1:47" — which the hero card (a number over W / L / T) cannot say.
+  if (isStatLineData(statsData) && statsData.bout) {
+    return <StatLineCard line={statsData} />;
+  }
+
   // Stat-line sports: hero treatment only without media, since a photo post
   // already leads with MediaStatStrip over the image.
   if (!hasMedia && isStatLineData(statsData)) {

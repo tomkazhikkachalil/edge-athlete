@@ -5,6 +5,7 @@
 
 import { getStatSchema, formatResult, formatRaceTime, type StatLineData } from '@/lib/sports/stat-schemas';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { boutHeadline, isCombatSport } from '@/lib/sports/bout';
 
 /** Race times read as times ("11.85s", "4:05.30"), not bare numbers. Every
  *  other sport's chips stay raw values. */
@@ -25,7 +26,9 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
   const enteredFields = schema.fields.filter(
     f => typeof line.stats[f.key] === 'number' && line.stats[f.key] > 0
   );
-  const result = formatResult(line);
+  // A bout: the pill is its letter (W / L / D / NC), its headline a line of its own.
+  const bout = line.bout && isCombatSport(line.sport_key) ? line.bout : null;
+  const result = bout ? bout.result : formatResult(line);
 
   return (
     <div className="bg-gradient-to-br from-violet-50 dark:from-violet-950/40 to-slate-100 dark:to-stone-900 rounded-lg p-3 mt-2 border border-violet-200 dark:border-violet-800">
@@ -52,13 +55,20 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
         {result && (
           <span
             className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-black tracking-wide ${
-              RESULT_STYLES[line.result ?? ''] ?? 'bg-slate-600 text-white'
+              RESULT_STYLES[bout ? (bout.result === 'D' ? 'T' : bout.result) : (line.result ?? '')] ?? 'bg-slate-600 text-white'
             }`}
+            data-stat-line-result={result}
           >
             {result}
           </span>
         )}
       </div>
+      {/* The pill carries the result; the line says how (empty for a bare result). */}
+      {bout && isCombatSport(line.sport_key) && boutHeadline(line.sport_key, bout, { withResult: false }) && (
+        <p className="mb-2 text-sm font-semibold text-slate-800 dark:text-secondary" data-bout-headline>
+          {boutHeadline(line.sport_key, bout, { withResult: false })}
+        </p>
+      )}
 
       {/* Stat chips */}
       {enteredFields.length > 0 && (

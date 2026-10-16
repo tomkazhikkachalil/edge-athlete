@@ -1,3 +1,4 @@
+import { BOUT_METHODS_BY_SPORT, isCombatSport, type CombatSportKey } from '@/lib/sports/bout';
 import { OFFICIAL_PROVENANCE } from '@/lib/results/official';
 import { BADGES, type BadgeDef } from './catalog';
 
@@ -51,6 +52,12 @@ export const isVerifiedRow = (row: Pick<EvalRow, 'provenance'>): boolean => !!ro
 
 const isWin = (row: EvalRow): boolean => row.outcome === 'win' || (row.outcome == null && row.context?.result === 'W');
 
+/** A self-posted bout's win that ended early (its context carries the bout — bout.ts). */
+const isFinish = (sport: CombatSportKey, row: EvalRow): boolean => {
+  const bout = (row.context as { bout?: { result?: unknown; method?: unknown } } | null | undefined)?.bout;
+  return bout?.result === 'W' && !!BOUT_METHODS_BY_SPORT[sport].find(x => x.value === bout.method)?.finish;
+};
+
 const newest = (rows: readonly EvalRow[]): EvalRow | undefined =>
   [...rows].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || a.natural_key.localeCompare(b.natural_key))[0];
 
@@ -67,6 +74,11 @@ function earningRow(def: BadgeDef, sportRows: readonly EvalRow[], input: EvalInp
     case 'win': {
       const wins = sportRows.filter(isWin);
       return wins.length > 0 ? { row: pick(wins) ?? null, detail: {} } : null;
+    }
+    case 'finish': {
+      const sport = def.sportKey ?? '';
+      const fin = isCombatSport(sport) ? sportRows.filter(r => isFinish(sport, r)) : [];
+      return fin.length > 0 ? { row: pick(fin) ?? null, detail: {} } : null;
     }
     case 'verified': {
       const v = sportRows.filter(isVerifiedRow);

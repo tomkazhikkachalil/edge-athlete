@@ -1,3 +1,4 @@
+import { isCombatSport } from '@/lib/sports/bout';
 import { STAT_SCHEMAS } from '@/lib/sports/stat-schemas';
 
 /**
@@ -37,6 +38,8 @@ export type BadgeRule =
   | { kind: 'metric'; metric: string; op: 'gte' | 'lte'; value: number; holes?: number }
   /** A (non-provisional) golf handicap index at or below the value. */
   | { kind: 'handicap'; atMost: number }
+  /** A combat win that ended early — KO, TKO, submission, pin … (bout.ts `finish`). */
+  | { kind: 'finish' }
   /** Results in at least `min` different sports. */
   | { kind: 'sports'; min: number };
 
@@ -53,7 +56,7 @@ export interface BadgeDef {
 }
 
 /** The sports that get the per-sport pack (FEATURE_SPORTS — kept in step by test). */
-export const BADGE_SPORTS: readonly string[] = ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing'];
+export const BADGE_SPORTS: readonly string[] = ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing', 'mma', 'boxing', 'wrestling', 'bjj'];
 
 const COUNT_STEPS: ReadonlyArray<{ min: number; slug: string; label: string; tier: BadgeTier }> = [
   { min: 1, slug: 'first_result', label: 'First one in the books', tier: 'bronze' },
@@ -82,6 +85,9 @@ function perSportPack(sportKey: string): BadgeDef[] {
   }));
   if (sportKey !== 'golf' && sportKey !== 'track_field') {
     out.push({ key: `${sportKey}.first_win`, sportKey, label: 'First win', description: `Won a ${n}.`, icon: 'trophy', tier: 'bronze', rule: { kind: 'win' } });
+  }
+  if (isCombatSport(sportKey)) {
+    out.push({ key: `${sportKey}.first_finish`, sportKey, label: 'First finish', description: 'Won a bout before the final bell.', icon: 'flame', tier: 'silver', rule: { kind: 'finish' } });
   }
   out.push({ key: `${sportKey}.first_verified`, sportKey, label: 'On the record', description: `A verified ${n} — recorded by a club, league or sanctioning body.`, icon: 'verified', tier: 'silver', rule: { kind: 'verified' } });
   return out;

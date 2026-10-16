@@ -151,6 +151,14 @@ const dominantHandField = (label = 'Dominant Hand'): SettingsFieldDef => ({
  * a claimed level must never read as a measured one (the same anti-conflation
  * rule as the golf handicap pair).
  */
+const STANCE_FIELD: SettingsFieldDef = {
+  key: 'stance',
+  label: 'Stance',
+  kind: 'select',
+  defaultValue: NOT_SPECIFIED.value,
+  options: [NOT_SPECIFIED, { value: 'orthodox', label: 'Orthodox' }, { value: 'southpaw', label: 'Southpaw' }, { value: 'switch', label: 'Switch' }],
+};
+
 const competitiveFields = (levelOptions: SettingsSelectOption[]): SettingsFieldDef[] => [
   {
     key: COMPETITIVE_LEVEL_KEY,
@@ -502,6 +510,80 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
       { value: 'collegiate', label: 'Collegiate' },
       { value: 'pro', label: 'National team / Professional' },
     ]),
+  },
+
+  // ── Combat sports (Oct 16 2026): profile defaults that pre-fill a bout ──
+  mma: {
+    sport_key: 'mma',
+    fields: [
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'amateur', label: 'Amateur' },
+        { value: 'regional_amateur', label: 'Regional amateur' },
+        { value: 'semi_pro', label: 'Semi-pro' },
+        { value: 'pro', label: 'Professional' },
+      ]),
+      { key: 'weight_class', label: 'Weight class', kind: 'text', placeholder: '155 lb / Lightweight', maxLength: 40 },
+      STANCE_FIELD,
+      { key: 'gym', label: 'Gym', kind: 'text', placeholder: 'Tristar Gym', maxLength: 80 },
+    ],
+  },
+  boxing: {
+    sport_key: 'boxing',
+    fields: [
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'amateur', label: 'Amateur' },
+        { value: 'regional_amateur', label: 'Regional amateur (Golden Gloves)' },
+        { value: 'national_amateur', label: 'National amateur' },
+        { value: 'pro', label: 'Professional' },
+      ]),
+      { key: 'weight_class', label: 'Weight class', kind: 'text', placeholder: '147 lb / Welterweight', maxLength: 40 },
+      STANCE_FIELD,
+      { key: 'gym', label: 'Gym', kind: 'text', placeholder: 'Wild Card Boxing', maxLength: 80 },
+    ],
+  },
+  wrestling: {
+    sport_key: 'wrestling',
+    fields: [
+      ...competitiveFields([
+        { value: 'youth', label: 'Youth' },
+        { value: 'high_school', label: 'High school' },
+        { value: 'club', label: 'Club' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'national', label: 'National' },
+        { value: 'international', label: 'International' },
+      ]),
+      { key: 'weight_class', label: 'Weight class', kind: 'text', placeholder: '157 lb / 74 kg', maxLength: 40 },
+      {
+        key: 'style',
+        label: 'Main style',
+        kind: 'select',
+        defaultValue: NOT_SPECIFIED.value,
+        options: [NOT_SPECIFIED, { value: 'folkstyle', label: 'Folkstyle' }, { value: 'freestyle', label: 'Freestyle' }, { value: 'greco', label: 'Greco-Roman' }],
+      },
+    ],
+  },
+  bjj: {
+    sport_key: 'bjj',
+    fields: [
+      ...competitiveFields([
+        { value: 'hobbyist', label: 'Hobbyist' },
+        { value: 'local', label: 'Local tournaments' },
+        { value: 'regional', label: 'Regional' },
+        { value: 'national', label: 'National' },
+        { value: 'world', label: 'World level' },
+      ]),
+      {
+        key: 'belt',
+        label: 'Belt',
+        kind: 'select',
+        defaultValue: NOT_SPECIFIED.value,
+        options: [NOT_SPECIFIED, { value: 'white', label: 'White' }, { value: 'blue', label: 'Blue' }, { value: 'purple', label: 'Purple' }, { value: 'brown', label: 'Brown' }, { value: 'black', label: 'Black' }],
+      },
+      { key: 'weight_class', label: 'Weight class', kind: 'text', placeholder: 'Middle / 82 kg', maxLength: 40 },
+      { key: 'gym', label: 'Academy', kind: 'text', placeholder: 'Gracie Barra', maxLength: 80 },
+    ],
   },
 
   track_field: {

@@ -53,7 +53,8 @@ export function fromStatLinePost(post: StatLinePostOrigin): PerformanceRow | nul
   if (!schema) return null;
   const line = checked.value;
   const metrics = finiteNumbers(line.stats);
-  if (Object.keys(metrics).length === 0) return null;
+  // A bout with no numbers is still a result (the badges and the record read its context).
+  if (Object.keys(metrics).length === 0 && !line.bout) return null;
   return {
     profile_id: post.profile_id,
     sport_key: post.sport_key,
@@ -63,7 +64,7 @@ export function fromStatLinePost(post: StatLinePostOrigin): PerformanceRow | nul
     source_id: post.id,
     natural_key: naturalKey.post(post.id),
     metrics,
-    context: compact({ opponent: line.opponent, result: line.result, result_score: line.result_score }),
+    context: compact({ opponent: line.opponent, result: line.result, result_score: line.result_score, bout: line.bout }),
     headline: schema.heroStat.compute(metrics),
     ...statLineContext(post.stats_data, line.result),
   };

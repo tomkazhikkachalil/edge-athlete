@@ -1,4 +1,5 @@
 import { getStatSchema, isStatLineData, type SportStatSchema, type StatLineData } from './stat-schemas';
+import { envelopeResult, validateBout } from './bout';
 
 /**
  * Server-side validation of a stat line — data foundation, F2 (Sep 13 2026).
@@ -50,9 +51,22 @@ export function validateStatLine(data: unknown, sportKey: string, today: string 
     if (data.date > today) return { ok: false, error: 'The date cannot be in the future' };
   }
   if (data.result !== undefined && !['W', 'L', 'T'].includes(data.result)) return { ok: false, error: 'The result must be W, L or T' };
+  // A combat bout (Oct 16 2026): checked for the sport; the envelope's W / L / T
+  // is DERIVED from it (a draw is T, a no contest none) and must not disagree.
+  let line: StatLineData = data;
+  if (data.bout !== undefined) {
+    const bout = validateBout(sportKey, data.bout);
+    if (!bout.ok) return bout;
+    const derived = envelopeResult(bout.value.result);
+    if (data.result !== undefined && data.result !== derived) return { ok: false, error: 'The result disagrees with the bout' };
+    const { result: _drop, ...rest } = data;
+    void _drop;
+    line = { ...rest, bout: bout.value, ...(derived ? { result: derived } : {}) };
+  }
   const keys = Object.keys(data.stats);
-  if (keys.length === 0) return { ok: false, error: 'A stat line needs at least one stat' };
+  // A bout alone is a complete line (its numbers are optional).
+  if (keys.length === 0 && data.bout === undefined) return { ok: false, error: 'A stat line needs at least one stat' };
   const stats = validateStatsAgainstSchema(data.stats as Record<string, unknown>, schema);
   if (!stats.ok) return stats;
-  return { ok: true, value: data };
+  return { ok: true, value: line };
 }

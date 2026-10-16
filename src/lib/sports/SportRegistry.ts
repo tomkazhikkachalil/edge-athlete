@@ -26,7 +26,13 @@ export type SportKey =
   // enabled now), cycling, running (distinct from track & field), rowing.
   | 'cycling'
   | 'running'
-  | 'rowing';
+  | 'rowing'
+  // Combat sports (Oct 16 2026): sports with real bout results (bout.ts) —
+  // Tom: MMA, boxing, wrestling and jiu-jitsu are sports, not activities.
+  | 'mma'
+  | 'boxing'
+  | 'wrestling'
+  | 'bjj';
 
 export interface SportMetricLabels {
   tile1: string;  // Primary stat (e.g., "Last 5 Avg", "Goals")
@@ -339,6 +345,124 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
       col5: 'Where'
     },
     primary_action: 'Add Row'
+  },
+
+  // === COMBAT SPORTS (Oct 16 2026 — bouts with results: bout.ts) ===
+  mma: {
+    sport_key: 'mma',
+    display_name: 'MMA',
+    brand_color_token: 'red',
+    icon_id: 'fas fa-hand-fist',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Record',
+      tile2: 'Bouts',
+      tile3: 'Finishes',
+      tile4: 'Takedowns'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Opponent',
+      col3: 'Result',
+      col4: 'How',
+      col5: 'Event'
+    },
+    primary_action: 'Log a Bout',
+    tag_options: [
+      { value: 'bout', label: 'Bout', color: 'red' },
+      { value: 'sparring', label: 'Sparring', color: 'blue' },
+      { value: 'camp', label: 'Fight camp', color: 'purple' },
+      { value: 'weigh_in', label: 'Weigh-in', color: 'yellow' },
+      { value: 'achievement', label: 'Achievement', color: 'green' },
+    ],
+    hashtag_suggestions: ['#MMA', '#FightNight', '#FightCamp', '#Grappling', '#Striking', '#Win']
+  },
+  boxing: {
+    sport_key: 'boxing',
+    display_name: 'Boxing',
+    brand_color_token: 'red',
+    icon_id: 'fas fa-mitten',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Record',
+      tile2: 'Bouts',
+      tile3: 'Finishes',
+      tile4: 'Knockdowns'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Opponent',
+      col3: 'Result',
+      col4: 'How',
+      col5: 'Event'
+    },
+    primary_action: 'Log a Bout',
+    tag_options: [
+      { value: 'bout', label: 'Bout', color: 'red' },
+      { value: 'sparring', label: 'Sparring', color: 'blue' },
+      { value: 'camp', label: 'Fight camp', color: 'purple' },
+      { value: 'weigh_in', label: 'Weigh-in', color: 'yellow' },
+      { value: 'achievement', label: 'Achievement', color: 'green' },
+    ],
+    hashtag_suggestions: ['#Boxing', '#FightNight', '#FightCamp', '#Sparring', '#Jab', '#Win']
+  },
+  wrestling: {
+    sport_key: 'wrestling',
+    display_name: 'Wrestling',
+    brand_color_token: 'amber',
+    icon_id: 'fas fa-people-pulling',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Record',
+      tile2: 'Bouts',
+      tile3: 'Finishes',
+      tile4: 'Takedowns'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Opponent',
+      col3: 'Result',
+      col4: 'How',
+      col5: 'Event'
+    },
+    primary_action: 'Log a Bout',
+    tag_options: [
+      { value: 'bout', label: 'Bout', color: 'red' },
+      { value: 'sparring', label: 'Sparring', color: 'blue' },
+      { value: 'camp', label: 'Fight camp', color: 'purple' },
+      { value: 'weigh_in', label: 'Weigh-in', color: 'yellow' },
+      { value: 'achievement', label: 'Achievement', color: 'green' },
+    ],
+    hashtag_suggestions: ['#Wrestling', '#Takedown', '#Pin', '#MatLife', '#Folkstyle', '#Win']
+  },
+  bjj: {
+    sport_key: 'bjj',
+    display_name: 'Jiu-Jitsu',
+    brand_color_token: 'violet',
+    icon_id: 'fas fa-user-ninja',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Record',
+      tile2: 'Bouts',
+      tile3: 'Finishes',
+      tile4: 'Submissions'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Opponent',
+      col3: 'Result',
+      col4: 'How',
+      col5: 'Event'
+    },
+    primary_action: 'Log a Bout',
+    tag_options: [
+      { value: 'bout', label: 'Bout', color: 'red' },
+      { value: 'sparring', label: 'Sparring', color: 'blue' },
+      { value: 'camp', label: 'Fight camp', color: 'purple' },
+      { value: 'weigh_in', label: 'Weigh-in', color: 'yellow' },
+      { value: 'achievement', label: 'Achievement', color: 'green' },
+    ],
+    hashtag_suggestions: ['#BJJ', '#JiuJitsu', '#NoGi', '#Submission', '#Rolling', '#Win']
   },
 
   // === BASEBALL (Future Implementation) ===
