@@ -42,7 +42,7 @@ test.afterAll(async () => {
 /** The editor's stage is showing the picture: a decoded image inside the editor dialog. */
 async function stageReady(page: Page) {
   await page.waitForFunction(() => {
-    const editor = document.querySelector('[aria-label="Edit media"]');
+    const editor = document.querySelector('[role="dialog"][aria-label="Edit media"]');
     if (!editor) return false;
     return [...editor.querySelectorAll('img')].some(img => img.src.startsWith('blob:') && img.complete && img.naturalWidth > 0);
   }, undefined, { timeout: 30_000, polling: 'raf' });

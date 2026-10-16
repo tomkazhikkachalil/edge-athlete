@@ -101,6 +101,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const defaultAspect = config.enforcedRatio ?? config.aspectRatios[0] ?? 'free';
   const {
     assets,
+    preparing,
     recipes,
     patchRecipe,
     previewUrls,
@@ -606,8 +607,12 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           exceeded". Never render media elements until the URL exists. */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
         <div className="flex-1 min-h-0 flex flex-col">
-      {!activeUrl ? (
-        <div className="flex-1 min-h-0" aria-hidden="true" />
+      {!activeUrl || preparing.has(active.id) ? (
+        // Also while a HEIC the browser cannot paint is converted for the
+        // stage (useEditorSession) — said, so the stage is not just black.
+        <div className="flex-1 min-h-0 flex items-center justify-center" data-editor-preparing={preparing.has(active.id) || undefined}>
+          {preparing.has(active.id) && <p className="text-label text-white/80">Preparing photo…</p>}
+        </div>
       ) : isVideo && videoRecipe ? (
         activeTool === 'crop' ? (
           <VideoCropStage

@@ -22,8 +22,9 @@
  * itself. A camera the OS will not start still cannot be fixed from a web
  * page — the error says so and points at the device camera / a restart.
  *
- * Quality: stream stills and clips are video-frame resolution (up to 4K),
- * below the native 12MP. Acceptable for a fallback; the copy says so.
+ * Quality: stream stills and clips are video-frame resolution (the stream
+ * asks for 1080p — `ideal` 1920 × 1080), below the native 12MP. A front-camera
+ * STILL is mirrored like its preview; a clip is recorded as the stream gives it. Acceptable for a fallback; the copy says so.
  * Floor: getUserMedia since iOS 11, MediaRecorder since iOS 14.3 — the whole
  * feature is gated by `canUseInAppCamera()` / `isTypeSupported`.
  */
@@ -300,6 +301,13 @@ export default function InAppCamera({
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('No 2D canvas context');
+      // The front camera's preview is mirrored (the CSS below), so the photo
+      // is too: a selfie saves the way the person saw it, as the iPhone's own
+      // camera does by default (Tom, Oct 15 2026 — it used to save flipped).
+      if (facing === 'user') {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const blob = await withDeadline(
         new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92)),
@@ -319,7 +327,7 @@ export default function InAppCamera({
       canvas.width = 0;
       canvas.height = 0;
     }
-  }, [busy, onCapture]);
+  }, [busy, onCapture, facing]);
 
   const startRecording = useCallback(() => {
     const stream = streamRef.current;
