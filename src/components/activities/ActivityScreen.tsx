@@ -686,7 +686,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
               onChange={e => setType(e.target.value as ActivityType)}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-base text-primary"
             >
-              {ACTIVITY_TYPES.map(t => (
+              {ACTIVITY_TYPES.filter(t => !ACTIVITY_TYPE_DEFS[t].hidden || t === type).map(t => (
                 <option key={t} value={t}>
                   {ACTIVITY_TYPE_DEFS[t].label}
                 </option>

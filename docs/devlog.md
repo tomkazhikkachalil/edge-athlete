@@ -1,5 +1,9 @@
 # Development Log
 
+## October 16, 2026 — Migration 265: effort, details, the sport session (activities details A5)
+
+The program's first DDL. `activities` gains `effort` (1–10), `details` (one jsonb object per activity, ≤ 8,000 characters, validated per type in code — a new question is never a migration), `sport_key` and `session_kind` (for the coming sport session); `workout_sessions` gains `effort`; `activity_type` allows `sport_session`, which the catalog holds but the picker hides until it is wired. Nothing reads the new columns in this PR. **Proof:** ran on staging (`265 APPLIED | 5 | 5 | true | 265`) and on production by Tom (the same row); `check:schema` and `check:schema:prod` both at head 265; verify green (the catalog test pins 27 types ≡ 265's CHECK, one hidden).
+
 ## October 16, 2026 — Watch imports map to every activity type (activities details A4, zero DDL)
 
 Polar and the Apple-Health bridge still mapped to the original eleven types: a yoga, HIIT or elliptical session arrived as "Activity", a snowboard day as "Ski", an indoor ride as a ride. Both now map to every catalog type, most specific first (treadmill, indoor ride, open-water swim, paddle, snowboard, cross-country ski, skate, elliptical, stairs, yoga, pilates, stretching, HIIT, martial arts, dance). Strength training stays `other` on purpose — the gym is the Workout path. The connections are paused in production, so this was latent. `docs/ACTIVITIES.md`'s type list (it still said eleven) and the removed import door are corrected. **Proof:** verify green; `polar.test.ts` and `health-export.test.ts` pin every mapping and the never-guess cases (strength, core training, pickleball, waterski).
