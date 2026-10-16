@@ -14,7 +14,7 @@ export const FEATURE_FLAGS = {
   // statLineSports list in AdapterRegistry.ts (see CLAUDE.md "Add a New Sport").
   // Live Activities (Oct 4 2026): swimming, cycling, running, rowing — a
   // recorded activity may be posted as a result in them (the share-time bridge).
-  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing'] as SportKey[],
+  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball', 'track_field', 'swimming', 'cycling', 'running', 'rowing', 'mma', 'boxing', 'wrestling', 'bjj'] as SportKey[],
   
   // Parent-managed athlete profiles (guardian/supervised/owner/viewer roles,
   // DOB-gated signup, transfer of control). Build-time env flag (same

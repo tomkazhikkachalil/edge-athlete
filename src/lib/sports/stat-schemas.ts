@@ -27,6 +27,7 @@
  * No component or API changes.
  */
 
+import { boutHeadline, formatRecord, isCombatSport, recordFrom, type Bout } from './bout';
 import type { SportKey } from './SportRegistry';
 
 export interface StatFieldDef {
@@ -54,7 +55,10 @@ export type ProfileTileComputation =
   | { kind: 'sum'; keys: string[] }            // total across entries (Goals, Points)
   | { kind: 'avg'; keys: string[]; decimals?: number }  // per-entry average (PPG, AVG)
   | { kind: 'min'; keys: string[]; decimals?: number; format?: 'race_time' } // best-is-lowest (race PBs; times as m:ss.hh)
-  | { kind: 'ratio'; num: string[]; den: string[]; decimals?: number; format?: 'batting' }; // Σnum / Σden (AVG = H/AB — a ratio of two SUMS, never an average of per-game averages)
+  | { kind: 'ratio'; num: string[]; den: string[]; decimals?: number; format?: 'batting' } // Σnum / Σden (AVG = H/AB — a ratio of two SUMS, never an average of per-game averages)
+  // Combat sports (Oct 16 2026): from the lines' bouts (bout.ts), not from stats.
+  | { kind: 'record' }                         // "3-1-1 (1 NC)"
+  | { kind: 'finishes' };                      // wins that ended early
 
 export interface ProfileTileDef {
   label: string;                 // matches the registry metric label
@@ -101,6 +105,9 @@ export interface StatLineData {
   result?: 'W' | 'L' | 'T';
   result_score?: string;
   stats: Record<string, number>;
+  /** A combat sport's bout (Oct 16 2026, bout.ts): W / L / D / NC, how and
+   *  when it ended, its context. `result` is then derived from it. */
+  bout?: Bout;
 }
 
 const compactLine = (
@@ -243,12 +250,87 @@ export function enduranceSchema(
   };
 }
 
+// ── The combat sports (Oct 16 2026) ─────────────────────────────────────────
+// The RESULT is the bout (bout.ts — W / L / D / NC, how, when, context); the
+// numbers below are what a fighter or coach tracks, every one optional (a
+// bout alone is a complete line). Profile tiles: the record, bouts, finishes
+// and one sport-defining count.
+function combatSchema(sportKey: SportKey, fields: StatFieldDef[], countTile: { label: string; key: string }): SportStatSchema {
+  return {
+    sport_key: sportKey,
+    activityNoun: 'Bout',
+    opponentLabel: 'Opponent',
+    fields,
+    profileTiles: [
+      { label: 'Record', compute: { kind: 'record' } },
+      { label: 'Bouts', compute: { kind: 'count' } },
+      { label: 'Finishes', compute: { kind: 'finishes' } },
+      { label: countTile.label, compute: { kind: 'sum', keys: [countTile.key] } },
+    ],
+    headline: stats => compactLine(stats, fields),
+    heroStat: { label: countTile.label, compute: stats => (typeof stats[countTile.key] === 'number' ? stats[countTile.key] : null) },
+    supportKeys: fields.slice(0, 3).map(f => f.key),
+  };
+}
+
+const ROUNDS_FOUGHT: StatFieldDef = { key: 'rounds_fought', label: 'Rounds fought', shortLabel: 'Rds', min: 0, max: 15 };
+const TIME_S = (key: string, label: string, max: number): StatFieldDef => ({ key, label, shortLabel: 'Time', min: 0, max });
+
 export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
   swimming: enduranceSchema('swimming', { noun: 'Swim', unit: 'm', swim: true, pool: true, milestones: [1000, 2000, { value: 5000, label: '5K swim' }] }),
   cycling: enduranceSchema('cycling', { noun: 'Ride', unit: 'km', power: true, milestones: [25, 50, { value: 100, label: 'Century (100 km)' }] }),
   // Whole numbers only: a badge key is `${sport}.${field}_${value}` and holds no dot — 21 ≈ the half (21.1 km), 42 ≈ the marathon (42.2 km).
   running: enduranceSchema('running', { noun: 'Run', unit: 'km', milestones: [5, 10, { value: 21, label: 'Half marathon' }, { value: 42, label: 'Marathon' }] }),
   rowing: enduranceSchema('rowing', { noun: 'Row', unit: 'm', row: true, power: true, milestones: [2000, 5000, 10_000] }),
+  mma: combatSchema(
+    'mma',
+    [
+      { key: 'sig_strikes_landed', label: 'Significant strikes landed', shortLabel: 'Sig. str.', min: 0, max: 1000 },
+      { key: 'takedowns', label: 'Takedowns', shortLabel: 'TD', min: 0, max: 50 },
+      { key: 'knockdowns', label: 'Knockdowns', shortLabel: 'KD', min: 0, max: 20 },
+      { key: 'sig_strikes_attempted', label: 'Significant strikes attempted', shortLabel: 'Sig. att.', min: 0, max: 2000 },
+      { key: 'takedown_attempts', label: 'Takedown attempts', shortLabel: 'TD att.', min: 0, max: 100 },
+      { key: 'submission_attempts', label: 'Submission attempts', shortLabel: 'Sub. att.', min: 0, max: 50 },
+      TIME_S('control_time_s', 'Control time (s)', 1800),
+      ROUNDS_FOUGHT,
+    ],
+    { label: 'Takedowns', key: 'takedowns' }
+  ),
+  boxing: combatSchema(
+    'boxing',
+    [
+      { key: 'punches_landed', label: 'Punches landed', shortLabel: 'Landed', min: 0, max: 2000 },
+      { key: 'knockdowns', label: 'Knockdowns', shortLabel: 'KD', min: 0, max: 20 },
+      { key: 'punches_thrown', label: 'Punches thrown', shortLabel: 'Thrown', min: 0, max: 3000 },
+      ROUNDS_FOUGHT,
+    ],
+    { label: 'Knockdowns', key: 'knockdowns' }
+  ),
+  wrestling: combatSchema(
+    'wrestling',
+    [
+      { key: 'takedowns', label: 'Takedowns', shortLabel: 'TD', min: 0, max: 50 },
+      { key: 'escapes', label: 'Escapes', shortLabel: 'Esc', min: 0, max: 50 },
+      { key: 'reversals', label: 'Reversals', shortLabel: 'Rev', min: 0, max: 50 },
+      { key: 'near_fall_points', label: 'Near-fall points', shortLabel: 'NF', min: 0, max: 50 },
+      { key: 'team_points', label: 'Team points', shortLabel: 'Team', min: 0, max: 6 },
+      TIME_S('match_time_s', 'Match time (s)', 900),
+    ],
+    { label: 'Takedowns', key: 'takedowns' }
+  ),
+  bjj: combatSchema(
+    'bjj',
+    [
+      { key: 'submissions', label: 'Submissions', shortLabel: 'Subs', min: 0, max: 20 },
+      { key: 'points', label: 'Points', shortLabel: 'Pts', min: 0, max: 200 },
+      { key: 'sweeps', label: 'Sweeps', shortLabel: 'Sweeps', min: 0, max: 50 },
+      { key: 'passes', label: 'Guard passes', shortLabel: 'Passes', min: 0, max: 50 },
+      { key: 'advantages', label: 'Advantages', shortLabel: 'Adv', min: 0, max: 50 },
+      { key: 'submission_attempts', label: 'Submission attempts', shortLabel: 'Sub. att.', min: 0, max: 50 },
+      TIME_S('match_time_s', 'Match time (s)', 1200),
+    ],
+    { label: 'Submissions', key: 'submissions' }
+  ),
   ice_hockey: {
     sport_key: 'ice_hockey',
     activityNoun: 'Game',
@@ -450,6 +532,8 @@ export const isStatLineData = (data: unknown): data is StatLineData => {
 
 /** Format a result like "W 4-2" from a stat line's context fields. */
 export const formatResult = (line: StatLineData): string | null => {
+  // A bout reads as its own headline: "W · TKO · R2 1:47", "NC".
+  if (line.bout && isCombatSport(line.sport_key)) return boutHeadline(line.sport_key, line.bout);
   if (!line.result) return null;
   return line.result_score ? `${line.result} ${line.result_score}` : line.result;
 };
@@ -464,6 +548,12 @@ export const computeProfileTile = (
 ): string => {
   const c = tile.compute;
   if (c.kind === 'count') return String(lines.length);
+  if (c.kind === 'record' || c.kind === 'finishes') {
+    const sport = lines[0]?.sport_key;
+    if (!isCombatSport(sport)) return '-';
+    const r = recordFrom(sport, lines.map(l => l.bout).filter((b): b is Bout => !!b));
+    return c.kind === 'record' ? formatRecord(r) : String(r.finishes);
+  }
 
   if (c.kind === 'sum') {
     let total = 0;

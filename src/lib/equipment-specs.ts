@@ -132,6 +132,10 @@ export const EQUIPMENT_SPEC_FIELDS: Record<string, SpecFieldDef[]> = {
     { key: 'boat_class', label: 'Boat class', options: ['1x', '2x', '2-', '4x', '4-', '4+', '8+'], categories: ['boat'] },
     { key: 'length_cm', label: 'Length (cm)', placeholder: 'e.g., 372', categories: ['oars'] },
   ],
+  mma: [{ key: 'glove_oz', label: 'Glove weight (oz)', options: ['4', '6', '8', '10', '12', '14', '16'], categories: ['gloves'] }],
+  boxing: [{ key: 'glove_oz', label: 'Glove weight (oz)', options: ['8', '10', '12', '14', '16', '18'], categories: ['gloves'] }],
+  wrestling: [{ key: 'size', label: 'Size', placeholder: 'e.g., 10.5 / M', categories: ['shoes', 'singlet'] }],
+  bjj: [{ key: 'gi_size', label: 'Gi size', options: ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'F1', 'F2', 'F3', 'F4', 'M0', 'M1', 'M2', 'M3', 'M4'], categories: ['gi'] }],
   track_field: [
     { key: 'size', label: 'Size', placeholder: 'e.g., 10.5 / M', categories: ['spikes', 'trainers', 'apparel'] },
     {

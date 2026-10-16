@@ -70,6 +70,8 @@ const SPORT_ICONS: Record<string, LucideIcon> = {
   wrestling: Swords,
   boxing: Shield,
   martial_arts: Swords,
+  mma: Swords,
+  bjj: Swords,
 
   // Winter Sports
   ice_hockey: Shield,
@@ -121,6 +123,8 @@ const SPORT_COLORS: Record<string, string> = {
   wrestling: '#DC2626',
   boxing: '#B91C1C',
   martial_arts: '#991B1B',
+  mma: '#B91C1C',
+  bjj: '#7C3AED',
 
   // Winter Sports - Ice Blue
   ice_hockey: '#0EA5E9',

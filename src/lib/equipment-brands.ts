@@ -328,6 +328,36 @@ const RUNNING_BRANDS: EquipmentBrand[] = [
   { id: 'coros', name: 'COROS', domain: 'coros.com' },
   { id: 'other', name: 'Other' },
 ];
+// Combat sports (Oct 16 2026): gloves, wraps, mouthguards, gis, shoes.
+const COMBAT_BRANDS: EquipmentBrand[] = [
+  { id: 'hayabusa', name: 'Hayabusa', domain: 'hayabusafight.com' },
+  { id: 'venum', name: 'Venum', domain: 'venum.com' },
+  { id: 'everlast', name: 'Everlast', domain: 'everlast.com' },
+  { id: 'cleto-reyes', name: 'Cleto Reyes', domain: 'cletoreyes.com' },
+  { id: 'winning', name: 'Winning', domain: 'winningboxing.com' },
+  { id: 'title', name: 'Title Boxing', domain: 'titleboxing.com' },
+  { id: 'shock-doctor', name: 'Shock Doctor', domain: 'shockdoctor.com' },
+  { id: 'other', name: 'Other' },
+];
+
+const WRESTLING_BRANDS: EquipmentBrand[] = [
+  { id: 'asics', name: 'ASICS', domain: 'asics.com' },
+  { id: 'nike', name: 'Nike', domain: 'nike.com' },
+  { id: 'adidas', name: 'adidas', domain: 'adidas.com' },
+  { id: 'cliff-keen', name: 'Cliff Keen', domain: 'cliffkeen.com' },
+  { id: 'rudis', name: 'RUDIS', domain: 'rudis.com' },
+  { id: 'other', name: 'Other' },
+];
+
+const BJJ_BRANDS: EquipmentBrand[] = [
+  { id: 'shoyoroll', name: 'Shoyoroll', domain: 'shoyoroll.com' },
+  { id: 'tatami', name: 'Tatami Fightwear', domain: 'tatamifightwear.com' },
+  { id: 'fuji', name: 'Fuji', domain: 'fujisports.com' },
+  { id: 'hayabusa', name: 'Hayabusa', domain: 'hayabusafight.com' },
+  { id: 'venum', name: 'Venum', domain: 'venum.com' },
+  { id: 'other', name: 'Other' },
+];
+
 const ROWING_BRANDS: EquipmentBrand[] = [
   { id: 'concept2', name: 'Concept2', domain: 'concept2.com' },
   { id: 'empacher', name: 'Empacher', domain: 'empacher.de' },
@@ -343,6 +373,10 @@ export const BRAND_SEEDS: Record<string, EquipmentBrand[]> = {
   cycling: CYCLING_BRANDS,
   running: RUNNING_BRANDS,
   rowing: ROWING_BRANDS,
+  mma: COMBAT_BRANDS,
+  boxing: COMBAT_BRANDS,
+  wrestling: WRESTLING_BRANDS,
+  bjj: BJJ_BRANDS,
   golf: GOLF_BRANDS,
   ice_hockey: ICE_HOCKEY_BRANDS,
   soccer: SOCCER_BRANDS,

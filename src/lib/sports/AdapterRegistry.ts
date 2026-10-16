@@ -49,7 +49,12 @@ class AdapterRegistry {
       'swimming',
       'cycling',
       'running',
-      'rowing'
+      'rowing',
+      // Combat sports (Oct 16 2026): the stat line carries the bout (bout.ts).
+      'mma',
+      'boxing',
+      'wrestling',
+      'bjj'
     ];
     statLineSports.forEach(sportKey => this.register(new StatLinePostAdapter(sportKey)));
 

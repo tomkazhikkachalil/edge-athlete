@@ -62,3 +62,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 41 | A session is a place you can always get back to | `workouts-and-sessions.md` |
 | 42 | A workout has a clock you control, groups done for rounds, a rest timer and a stopwatch, and nothing saved before it changes | `workouts-and-sessions.md` |
 | 43 | A video is a poster first, media never looks broken, and the iPhone's clip is converted by a worker | `media.md` |
+| 44 | MMA, boxing, wrestling and jiu-jitsu are sports, and a bout is a result | `combat-sports.md` |

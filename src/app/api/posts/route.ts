@@ -332,6 +332,8 @@ export async function POST(request: NextRequest) {
     if (statsData && postType !== 'golf') {
       const line = validateStatLine(statsData, postType);
       if (!line.ok) return NextResponse.json({ error: line.error }, { status: 400 });
+      // A bout's envelope result is derived on the server (bout.ts): store the checked line.
+      if (line.value && typeof line.value === 'object' && (line.value as { bout?: unknown }).bout !== undefined) statsData = { ...(line.value as unknown as Record<string, unknown>) };
     }
 
     // Create the post record
