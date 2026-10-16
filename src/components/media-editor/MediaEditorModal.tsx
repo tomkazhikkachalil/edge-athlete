@@ -135,8 +135,9 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // Phase 4 (E-W1): the session's copied look (color/texture only — never
   // geometry, masks, retouch, or text).
   const [copiedLook, setCopiedLook] = useState<Look | null>(null);
-  // Profile photos (Oct 14 2026) open the editor with `tools: ['crop']`: the
-  // tab row, the keyboard cycle and the active tool all read this list.
+  // `config.tools` limits the image tools (none do today — profile photos
+  // were crop-only until Oct 15 2026): the tab row, the keyboard cycle and
+  // the active tool all read this list.
   const imageTools = useMemo(() => (config.tools ? IMAGE_TOOLS.filter(t => config.tools!.includes(t.id as ImageToolId)) : IMAGE_TOOLS), [config.tools]);
   // Phase 4 (E-W2): export preferences. Lazy-init from localStorage is
   // safe HERE (unlike the RegistrationSteps hydration trap): the editor
@@ -667,6 +668,18 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                   fallbackUrl={activeUrl}
                   showOriginal={comparing}
                 />
+                {/* The round frame on every tab, not only Crop: a profile
+                    picture is shown as a circle, so text or a mask near a
+                    corner must look clipped while it is being placed. Above
+                    the preview, below every interactive layer (pointer-events
+                    none), dimming what the circle will cut. */}
+                {config.circularPreview && (
+                  <div
+                    aria-hidden="true"
+                    data-circular-preview
+                    className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_rgb(0_0_0/0.55)]"
+                  />
+                )}
                 {activeTool === 'masks' && (
                   <MaskOverlay
                     masks={imageRecipe.masks ?? []}

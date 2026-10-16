@@ -328,6 +328,6 @@ export interface EditorConfig {
   allowVideo: boolean;
   maxAssets: number; // 1 = single-asset mode, no filmstrip
   output: OutputConfig;
-  /** Limit the image tools (profile photos: ['crop'] — the one tool, no tab row). */
+  /** Limit the image tools (one tool = no tab row). Unset = every tool. */
   tools?: ImageToolId[];
 }

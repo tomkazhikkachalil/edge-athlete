@@ -17,7 +17,7 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 };
 
 /**
- * POST /api/upload/avatar — field `avatar` (the DERIVED 512 px round render).
+ * POST /api/upload/avatar — field `avatar` (the DERIVED round render, ≤1024 px).
  * Beside it, since PR 5 (Oct 14 2026, migration 264): `source` (the kept
  * original), `recipe` (the crop that made the render) and `sameSource=1`
  * (Adjust — keep the stored original); the row and the cleanup are

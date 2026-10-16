@@ -1,5 +1,14 @@
 # Development Log
 
+## October 15, 2026 — Profile photos get the post editor's full toolset (PR 1 of the profile-photo round, zero DDL)
+
+Tom: *"When you're making edits to the profile picture and background img, it should have the same editing toolsets as a post. The user is limited to a few options."* The cause was one field: both `PHOTO_SLOTS` configs set `tools: ['crop']`. The ratio lock never disabled a tool (the org logo already had every tool at 1:1), and the stored recipe (`avatar_recipe` / `cover_recipe`, migration 264) was always the editor's whole v3 envelope, so every edit already persisted and round-tripped with no server or schema change.
+
+- **Every post tool** for the picture and the cover; the ratio stays enforced. On a non-crop tab the picture shows a round frame over the engine preview (`[data-circular-preview]`, pointer-events none), so a corner edit looks clipped while it is placed.
+- **The picture renders at 1024 px** (was 512), so retouch and text keep their detail.
+- **A camera capture opens the editor** (Tom's decision); it used to attach a centred crop at once. `captureRecipe` / `centeredCrop` / `SLOT_ASPECT` are deleted with their tests.
+- `profile-photos.spec` now proves all seven tools are offered, the round frame shows on Filters, a film look lands in `avatar_recipe.filterId` and survives Adjust, and a capture lands in the editor (Cancel → Discard saves nothing; the fixed-ratio stage seeds its crop on open, so Cancel names the loss — unchanged behaviour).
+
 ## October 15, 2026 — Theme colour sweep: what bypassed the theme now reads it (PR 3 of the theme-parity round, zero DDL)
 
 The audit's sweep of colour outside the theme: 174 un-twinned raw-palette lines, ~120 deliberate (the always-dark editor/camera/video chrome, white knobs on solids), ~50 real. Light mode stays byte-identical everywhere except where a hex moved to a token of the SAME light value.
