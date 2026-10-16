@@ -38,11 +38,14 @@ import {
   formatElevation,
   formatPace,
   formatStart,
+  paceSuffix,
   readUnitPreference,
   writeUnitPreference,
   type DistanceUnit,
 } from '@/lib/activities/format';
+import { deriveAll } from '@/lib/activities/derived';
 import { segmentStats, splits } from '@/lib/activities/stream';
+import { readsSpeed, tilesFor } from '@/lib/activities/tiles';
 import type { ActivityDetailView, ActivityMediaView } from '@/lib/activities/visibility';
 import ActivityStreamChart from './ActivityStreamChart';
 import RouteMap from './RouteMap';
@@ -188,7 +191,8 @@ function ActivityBody({
     return row?.stat ? [row.stat.startIndex, row.stat.endIndex] : null;
   }, [segmentRows, picked]);
   const pins = useMemo(() => a.media.filter(m => m.pin).map(m => ({ id: m.id, at: m.pin as [number, number] })), [a.media]);
-  const pace = formatPace(a.distanceM, a.movingS ?? a.elapsedS, a.type, unit);
+  // Oct 16 2026: what the stream says beyond the totals, derived once per fetched stream.
+  const derived = useMemo(() => deriveAll(a.stream, a.type), [a.stream, a.type]);
   const series = useMemo(() => chartSeries(a.stream, a.type, unit), [a.stream, a.type, unit]);
   const splitRows = useMemo(() => (a.stream ? splits(a.stream, unit) : []), [a.stream, unit]);
   // Owners (and guardians) manage from the in-app profile; everyone else
@@ -203,18 +207,8 @@ function ActivityBody({
   // instead, the map it is.
   const staticRoute = reducedData && !liveMap && !!a.routePreview;
 
-  const stats: { label: string; value: string }[] = [
-    { label: 'Distance', value: formatDistance(a.distanceM, unit) },
-    { label: 'Moving time', value: formatDuration(a.movingS ?? a.elapsedS) },
-    pace,
-    { label: 'Elevation gain', value: formatElevation(a.elevGainM, unit) },
-  ];
-  if (a.movingS !== null && a.elapsedS - a.movingS > 60) stats.push({ label: 'Elapsed time', value: formatDuration(a.elapsedS) });
-  if (a.avgHr !== null) stats.push({ label: 'Avg heart rate', value: `${a.avgHr} bpm` });
-  if (a.maxHr !== null) stats.push({ label: 'Max heart rate', value: `${a.maxHr} bpm` });
-  if (a.avgPower !== null) stats.push({ label: 'Avg power', value: `${a.avgPower} W` });
-  if (a.calories !== null) stats.push({ label: 'Calories', value: `${a.calories}` });
-  if (a.steps !== null) stats.push({ label: a.stepsSource === 'device' ? 'Steps' : 'Steps (est.)', value: `~${a.steps.toLocaleString()}` });
+  // The type's own tiles (tiles.ts) — only those with a value.
+  const stats = tilesFor(a, derived, unit);
 
   return (
     <article className="space-y-6" data-activity={a.id}>
@@ -242,7 +236,7 @@ function ActivityBody({
 
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-activity-stats>
         {stats.map(s => (
-          <div key={s.label} className="ea-surface rounded-lg p-3">
+          <div key={s.key} className="ea-surface rounded-lg p-3" data-activity-tile={s.key}>
             <dt className="text-xs font-semibold text-muted">{s.label}</dt>
             <dd className="text-lg font-bold text-primary tabular-nums">{s.value}</dd>
           </div>
@@ -327,9 +321,9 @@ function ActivityBody({
               ? `${Math.round(v)} bpm`
               : s.kind === 'elevation'
                 ? `${Math.round(v)} ${unit === 'mi' ? 'ft' : 'm'}`
-                : ACTIVITY_TYPE_DEFS[a.type].paceStyle === 'speed'
-                  ? `${v.toFixed(1)} ${unit === 'km' ? 'km/h' : 'mph'}`
-                  : `${formatDuration(v)} /${ACTIVITY_TYPE_DEFS[a.type].paceStyle === 'swim_pace' ? '100m' : unit}`
+                : readsSpeed(a.type)
+                  ? `${v.toFixed(1)} ${paceSuffix(a.type, unit)}`
+                  : `${formatDuration(v)} ${paceSuffix(a.type, unit)}`
           }
         />
       ))}
@@ -344,7 +338,7 @@ function ActivityBody({
                 <th className="py-1 pr-3 font-semibold">When</th>
                 <th className="py-1 pr-3 font-semibold">Distance</th>
                 <th className="py-1 pr-3 font-semibold">Time</th>
-                <th className="py-1 pr-3 font-semibold">{def.paceStyle === 'speed' ? 'Speed' : 'Pace'}</th>
+                <th className="py-1 pr-3 font-semibold">{readsSpeed(a.type) ? 'Speed' : 'Pace'}</th>
                 <th className="py-1 pr-3 font-semibold">Elev</th>
                 {segmentRows.some(r => r.stat?.avgHr !== null && r.stat?.avgHr !== undefined) && <th className="py-1 font-semibold">HR</th>}
               </tr>
@@ -372,6 +366,20 @@ function ActivityBody({
         </section>
       )}
 
+      {derived.bestEfforts.length > 0 && (
+        <section className="ea-surface rounded-lg p-4" data-activity-best-efforts={derived.bestEfforts.length}>
+          <h3 className="text-sm font-semibold text-primary mb-2">Best efforts</h3>
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
+            {derived.bestEfforts.map(e => (
+              <div key={e.key} data-best-effort={e.key}>
+                <dt className="text-xs font-semibold text-muted">{e.label}</dt>
+                <dd className="text-base font-bold text-primary">{formatDuration(e.seconds)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
       {splitRows.length > 1 && (
         <section className="ea-surface rounded-lg p-4 overflow-x-auto" data-activity-splits>
           <h3 className="text-sm font-semibold text-primary mb-2">Splits</h3>
@@ -380,7 +388,7 @@ function ActivityBody({
               <tr className="text-left text-muted">
                 <th className="py-1 pr-3 font-semibold">{unit}</th>
                 <th className="py-1 pr-3 font-semibold">Time</th>
-                <th className="py-1 pr-3 font-semibold">{ACTIVITY_TYPE_DEFS[a.type].paceStyle === 'speed' ? 'Speed' : 'Pace'}</th>
+                <th className="py-1 pr-3 font-semibold">{readsSpeed(a.type) ? 'Speed' : 'Pace'}</th>
                 <th className="py-1 pr-3 font-semibold">Elev</th>
                 {splitRows.some(r => r.avgHr !== null) && <th className="py-1 font-semibold">HR</th>}
               </tr>

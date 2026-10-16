@@ -14,7 +14,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
-import { formatDistance, formatDuration, formatPace, readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
+import { formatDistance, formatDuration, readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
+import { tilesFor } from '@/lib/activities/tiles';
 import type { WeekTotal } from '@/lib/activities/totals';
 import type { ActivityView } from '@/lib/activities/visibility';
 import RouteThumb from './RouteThumb';
@@ -161,7 +162,8 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
           <ul className="space-y-3">
             {state.items.map(a => {
               const def = ACTIVITY_TYPE_DEFS[a.type];
-              const pace = formatPace(a.distanceM, a.movingS ?? a.elapsedS, a.type, unit);
+              // The type's first three tiles with a value (tiles.ts) — "45:00" for a yoga, never "0 km".
+              const line = tilesFor(a, null, unit, 3).map(t => t.value).join(' · ');
               return (
                 <li key={a.id}>
                   <Link href={`/activities/${a.id}`} className="ea-surface ea-interactive flex items-center gap-3 rounded-lg p-3" data-activity-item={a.id}>
@@ -178,7 +180,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                         {a.credit && <span data-activity-credit> · {a.credit}</span>}
                       </p>
                       <p className="mt-1 text-sm text-secondary tabular-nums">
-                        {formatDistance(a.distanceM, unit)} · {formatDuration(a.movingS ?? a.elapsedS)} · {pace.value}
+                        {line}
                       </p>
                     </div>
                   </Link>

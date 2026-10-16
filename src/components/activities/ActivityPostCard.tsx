@@ -10,8 +10,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
-import { formatDistance, formatDuration, formatElevation, formatPace, readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
-import { isActivityPostStats } from '@/lib/activities/post-card';
+import { readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
+import { cardTileSource, isActivityPostStats } from '@/lib/activities/post-card';
+import { tilesFor } from '@/lib/activities/tiles';
 import RouteThumb from './RouteThumb';
 
 export default function ActivityPostCard({ statsData }: { statsData: unknown }) {
@@ -19,14 +20,10 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
   if (!isActivityPostStats(statsData)) return null;
   const s = statsData;
   const def = ACTIVITY_TYPE_DEFS[s.activity_type];
-  const seconds = s.moving_s ?? s.elapsed_s;
-  const pace = formatPace(s.distance_m, seconds, s.activity_type, unit);
-  const cells = [
-    { label: 'Distance', value: formatDistance(s.distance_m, unit) },
-    { label: 'Time', value: formatDuration(seconds) },
-    pace,
-    { label: 'Elevation', value: formatElevation(s.elev_gain_m, unit) },
-  ];
+  // The type's first four tiles that have a value (tiles.ts) — a yoga card
+  // reads its time, never "0 km".
+  const { src, derived } = cardTileSource(s);
+  const cells = tilesFor(src, derived, unit, 4);
   return (
     <Link href={`/activities/${s.activity_id}`} className="mt-3 block rounded-lg border border-border bg-surface-muted/40 overflow-hidden ea-interactive" data-activity-post-card={s.activity_id}>
       {s.route_preview && (
@@ -41,7 +38,7 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
         </p>
         <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {cells.map(c => (
-            <div key={c.label} className="min-w-0">
+            <div key={c.key} className="min-w-0" data-activity-card-cell={c.key}>
               <dt className="text-xs text-muted">{c.label}</dt>
               <dd className="text-sm font-bold text-primary tabular-nums truncate">{c.value}</dd>
             </div>

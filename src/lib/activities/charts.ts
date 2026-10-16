@@ -4,7 +4,7 @@
 // makes a sample-to-sample pace unreadable), null while stopped.
 
 import { ACTIVITY_TYPE_DEFS, type ActivityType } from './catalog';
-import { UNIT_METRES, type DistanceUnit } from './format';
+import { paceMetres, type DistanceUnit } from './format';
 import type { ActivityStream } from './types';
 
 export type ChartKind = 'elevation' | 'hr' | 'pace';
@@ -25,7 +25,7 @@ const FEET_PER_M = 3.28084;
 export function paceSeries(stream: ActivityStream, type: ActivityType, unit: DistanceUnit, halfWindow = 5): (number | null)[] {
   const { s, d } = stream;
   const def = ACTIVITY_TYPE_DEFS[type];
-  const per = def.paceStyle === 'swim_pace' ? 100 : UNIT_METRES[unit];
+  const per = paceMetres(type, unit);
   return d.map((_, i) => {
     const a = Math.max(0, i - halfWindow);
     const b = Math.min(d.length - 1, i + halfWindow);
@@ -34,7 +34,7 @@ export function paceSeries(stream: ActivityStream, type: ActivityType, unit: Dis
     if (dt <= 0 || dd <= 0) return null;
     const speed = dd / dt;
     if (speed < def.movingSpeed) return null;
-    return def.paceStyle === 'speed' ? speed * 3.6 * (unit === 'mi' ? 1 / 1.609344 : 1) : per / speed;
+    return per === null ? speed * 3.6 * (unit === 'mi' ? 1 / 1.609344 : 1) : per / speed;
   });
 }
 
