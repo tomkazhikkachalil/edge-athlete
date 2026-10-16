@@ -29,7 +29,7 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '@/lib/activities/catalog'
 import type { ActivityPoint } from '@/lib/activities/types';
 import { defaultActivityName } from '@/lib/activities/normalize';
 import { readUnitPreference } from '@/lib/activities/format';
-import { elapsedS, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
+import { elapsedS, recordsGpsFor, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
 import { hasWakeLock } from '@/lib/activities/record/wake-lock';
 import { queryGeoPermission } from '@/lib/activities/record/geolocation';
 import type { SegmentKind } from '@/lib/activities/segments';
@@ -60,6 +60,8 @@ const localZone = (): string | null => {
     return null;
   }
 };
+
+const GPS_NOTE = 'GPS records only while the screen is on and this app is in front — leaving this page is fine, closing the app is a gap.';
 
 export default function RecordActivityScreen() {
   const router = useRouter();
@@ -215,13 +217,15 @@ export default function RecordActivityScreen() {
   const lastFix = state?.points[state.points.length - 1];
   const stale = !!lastFix && state?.status === 'recording' && now - lastFix.t > 20_000;
   const def = state ? ACTIVITY_TYPE_DEFS[state.type] : null;
-  const gpsType = !!def && def.recording === 'gps';
+  const gpsType = !!state && recordsGpsFor(state);
   // The review (FinishSheet): the drawn route, the sport it may be posted as,
   // and the POSTING account's privacy — the athlete a guardian acts for, else self.
   const reviewRoute = useMemo<LatLng[]>(
     () => drawnRoute.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number').map(p => [p.lat as number, p.lng as number]),
     [drawnRoute]
   );
+  const geoNote =
+    geoPermission === 'denied' ? 'Location is OFF for Edge Athlete — allow it in your phone’s settings first.' : geoPermission === 'prompt' || geoPermission === null ? 'Your phone will ask to use your location when you start.' : '';
   const bridged = state ? sportForActivity(state.type) : null;
   const sportOption = bridged && isSportEnabled(bridged) ? bridged : null;
   const accountVisibility = (activeProfile ?? profile)?.visibility ?? null;
@@ -288,12 +292,24 @@ export default function RecordActivityScreen() {
         <main className="mx-auto max-w-xl">
           {state.status === 'idle' && (
             <div className="mx-4 mt-4 rounded-xl border border-border bg-surface p-4 text-sm text-secondary" data-record-ready="">
-              {gpsType ? (
+              {def.recording === 'gps_optional' ? (
+                // A9: the sport session keeps its toggle whichever way it is set (it can be turned back off).
+                <>
+                  <p className="font-semibold text-primary">A timer runs; you pick the sport when you finish.</p>
+                  <label className="mt-2 flex min-h-[44px] items-center justify-between gap-3" data-record-map-toggle="">
+                    <span>
+                      <span className="block text-primary font-medium">Map my movement</span>
+                      <span className="block text-xs text-muted">Distance and a map of where you went — a run-heavy practice, a long game.</span>
+                    </span>
+                    <input type="checkbox" className="h-6 w-6 shrink-0" checked={state.mapOn === true} onChange={e => dispatch({ type: 'setMap', on: e.target.checked })} />
+                  </label>
+                  {gpsType && <p className="mt-1">{GPS_NOTE}{' '}{geoNote}</p>}
+                </>
+              ) : gpsType ? (
                 <>
                   <p className="font-semibold text-primary">Ready when you are.</p>
                   <p className="mt-1">
-                    GPS records only while the screen is on and this app is in front — leaving this page is fine, closing the app is a gap.{' '}
-                    {geoPermission === 'denied' ? 'Location is OFF for Edge Athlete — allow it in your phone’s settings first.' : geoPermission === 'prompt' || geoPermission === null ? 'Your phone will ask to use your location when you start.' : ''}
+                    {GPS_NOTE}{' '}{geoNote}
                   </p>
                 </>
               ) : def.recording === 'timer' ? (

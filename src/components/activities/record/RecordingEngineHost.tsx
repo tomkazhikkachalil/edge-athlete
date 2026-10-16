@@ -19,7 +19,7 @@ import {
   liveTotals,
   newId,
   newRecording,
-  recordsGps,
+  recordsGpsFor,
   reduce,
   restoreRecording,
   type RecordingEvent,
@@ -208,7 +208,7 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
   }, [profileId]);
 
   const running = state?.status === 'recording' || state?.status === 'paused';
-  const gpsType = !!state && recordsGps(state.type);
+  const gpsType = !!state && recordsGpsFor(state);
   const geoStatus = useWatchPosition({
     enabled: !!state && state.status === 'recording' && gpsType,
     onFix: (fix: GeoFix) => {

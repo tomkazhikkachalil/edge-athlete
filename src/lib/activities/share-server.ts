@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
 import { DERIVED_BY_TYPE, deriveAll } from './derived';
-import { detailsFromRow } from './details';
+import { answersOf } from './details';
 import type { ActivityPostStats } from './post-card';
 import { segmentsFromRow } from './segments';
 import { segmentStats } from './stream';
@@ -29,7 +29,7 @@ export async function buildActivityPostStats(
   const [actRes, profRes] = await Promise.all([
     admin
       .from('activities')
-      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, elev_loss_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path, effort, details')
+      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, elev_loss_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path, effort, details, sport_key, session_kind')
       .eq('id', activityId)
       .maybeSingle(),
     admin.from('profiles').select('supervision_state').eq('id', authorId).maybeSingle(),
@@ -68,7 +68,7 @@ export async function buildActivityPostStats(
         .filter((x): x is NonNullable<typeof x> => x !== null);
     }
   }
-  const answers = detailsFromRow(type, a.details);
+  const answers = answersOf(type, a);
   const { count: photoCount } = await admin.from('activity_media').select('id', { count: 'exact', head: true }).eq('activity_id', activityId);
   return {
     ok: true,

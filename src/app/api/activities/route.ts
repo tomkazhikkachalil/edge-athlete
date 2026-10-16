@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const answers = parseFinishAnswers(parsed.value.type, finish);
     if (!answers.ok) return NextResponse.json({ error: answers.error }, { status: 400 });
+    // A9: a sport session IS its sport — never saved without one.
+    if (parsed.value.type === 'sport_session' && !answers.value.sportKey) return NextResponse.json({ error: 'Choose the sport for this session.' }, { status: 400 });
 
     const admin = getSupabaseAdmin();
     const { data: prof } = await admin.from('profiles').select('height_cm').eq('id', gate.actorId).maybeSingle();

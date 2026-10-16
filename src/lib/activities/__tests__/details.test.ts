@@ -41,7 +41,7 @@ describe('the yoga questions (the user’s complaint)', () => {
 describe('parseFinishAnswers', () => {
   it('reads effort, notes and a pool swim’s details', () => {
     const r = parseFinishAnswers('swim', { effort: 7, notes: '  felt smooth ', details: { pool: '25m', stroke: 'freestyle' } });
-    expect(r).toEqual({ ok: true, value: { effort: 7, notes: 'felt smooth', details: { pool: '25m', stroke: 'freestyle' }, avgPower: null, avgCadence: null } });
+    expect(r).toEqual({ ok: true, value: { effort: 7, notes: 'felt smooth', details: { pool: '25m', stroke: 'freestyle' }, avgPower: null, avgCadence: null, sportKey: null, sessionKind: null } });
   });
 
   it('routes a column field to its column, never into details', () => {
@@ -58,7 +58,7 @@ describe('parseFinishAnswers', () => {
   });
 
   it('nothing answered is nothing stored', () => {
-    expect(parseFinishAnswers('swim', undefined)).toEqual({ ok: true, value: { effort: null, notes: null, details: null, avgPower: null, avgCadence: null } });
+    expect(parseFinishAnswers('swim', undefined)).toEqual({ ok: true, value: { effort: null, notes: null, details: null, avgPower: null, avgCadence: null, sportKey: null, sessionKind: null } });
     expect(parseFinishAnswers('swim', { notes: '   ', details: {} })).toMatchObject({ ok: true, value: { notes: null, details: null } });
     // a type with no questions refuses any detail
     expect(parseFinishAnswers('run', { details: { pool: '25m' } })).toMatchObject({ ok: false });
@@ -139,5 +139,24 @@ describe('climbing answers (A8)', () => {
     expect(detailsFromRow('climb', { scale: 'v', colours_ordered: true })).toEqual({ scale: 'v' });
     expect(detailsFromRow('climb', { style: 'bouldering', scale: 'yds' })).toEqual({ style: 'bouldering' });
     expect(detailLine('climb', { setting: 'indoor', style: 'bouldering', scale: 'v', climbs }, 'metric')).toBe('Indoor · Bouldering · V-scale');
+  });
+});
+
+describe('a sport session (A9)', () => {
+  it('its sport and kind are columns, its minutes and position details', () => {
+    const r = parseFinishAnswers('sport_session', { effort: 6, details: { sport: 'soccer', session_kind: 'practice', minutes_played: 60, position: 'Midfield' } });
+    expect(r).toEqual({ ok: true, value: { effort: 6, notes: null, details: { minutes_played: 60, position: 'Midfield' }, avgPower: null, avgCadence: null, sportKey: 'soccer', sessionKind: 'practice' } });
+    expect(parseFinishAnswers('sport_session', { details: { sport: 'quidditch' } })).toMatchObject({ ok: false });
+    // the four combat sports are among the sports
+    expect(parseFinishAnswers('sport_session', { details: { sport: 'bjj', session_kind: 'practice' } })).toMatchObject({ ok: true, value: { sportKey: 'bjj' } });
+  });
+
+  it('reads back from its columns, and the next session pre-fills the sport and kind — never the minutes', async () => {
+    const { answersOf } = await import('../details');
+    const answers = answersOf('sport_session', { details: { minutes_played: 60, position: 'Midfield' }, sport_key: 'soccer', session_kind: 'practice' });
+    expect(answers).toEqual({ minutes_played: 60, position: 'Midfield', sport: 'soccer', session_kind: 'practice' });
+    expect(detailLine('sport_session', answers, 'metric')).toBe('Soccer · Practice · 60 min played · Midfield');
+    expect(prefillFrom('sport_session', answers)).toEqual({ sport: 'soccer', session_kind: 'practice' });
+    expect(answersOf('sport_session', { details: null, sport_key: 'not-a-sport', session_kind: null })).toEqual({});
   });
 });

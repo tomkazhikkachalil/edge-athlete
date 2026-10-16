@@ -234,10 +234,15 @@ export async function applyFinishAnswers(
   admin: Admin,
   profileId: string,
   id: string,
-  a: { effort: number | null; notes: string | null; details: Details | null; avgPower: number | null; avgCadence: number | null }
+  a: { effort: number | null; notes: string | null; details: Details | null; avgPower: number | null; avgCadence: number | null; sportKey?: string | null; sessionKind?: string | null }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const patch: Record<string, unknown> = {};
   if (a.effort !== null) patch.effort = a.effort;
+  // A9: a sport session's sport and kind (265's columns; the kind needs the sport — its CHECK).
+  if (a.sportKey) {
+    patch.sport_key = a.sportKey;
+    if (a.sessionKind) patch.session_kind = a.sessionKind;
+  }
   if (a.notes !== null) patch.notes = a.notes;
   if (a.details !== null) patch.details = a.details;
   if (Object.keys(patch).length > 0) {

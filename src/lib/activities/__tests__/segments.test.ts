@@ -82,10 +82,10 @@ describe('segmentStats — a marked time range measured from the stream', () => 
 });
 
 describe('the broad, grouped catalog (Tom, Oct 4 2026)', () => {
-  it('has 26 pickable types in three groups, each with a recording mode, and a hidden sport session (265)', () => {
+  it('has 26 types in three groups, each with a recording mode, and the sport session in its own (265, A9)', () => {
     expect(ACTIVITY_TYPES).toHaveLength(27);
-    expect(ACTIVITY_TYPE_DEFS.sport_session).toMatchObject({ group: 'sport', hidden: true });
-    expect(activityTypesInGroup('sport')).toEqual([]);
+    expect(ACTIVITY_TYPE_DEFS.sport_session).toMatchObject({ group: 'sport', recording: 'gps_optional' });
+    expect(activityTypesInGroup('sport')).toEqual(['sport_session']);
     const groups = { outdoor: activityTypesInGroup('outdoor'), indoor: activityTypesInGroup('indoor'), duration: activityTypesInGroup('duration') };
     expect(groups.outdoor.length + groups.indoor.length + groups.duration.length).toBe(26);
     for (const t of groups.outdoor) expect(ACTIVITY_TYPE_DEFS[t].recording).toBe('gps');

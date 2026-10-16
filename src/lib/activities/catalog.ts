@@ -88,8 +88,9 @@ export const ACTIVITY_GROUP_LABELS: Readonly<Record<ActivityGroup, string>> = {
   sport: 'Sport',
 };
 /** How the recorder captures a type: a GPS track, a timer with the distance
- *  entered at finish, or a timer alone. */
-export type ActivityRecording = 'gps' | 'timer' | 'duration';
+ *  entered at finish, a timer alone, or a timer with a map the athlete may
+ *  turn on (a sport session — Oct 16 2026). */
+export type ActivityRecording = 'gps' | 'timer' | 'duration' | 'gps_optional';
 
 export interface ActivityTypeDef {
   label: string;
@@ -137,8 +138,8 @@ export const ACTIVITY_TYPE_DEFS: Readonly<Record<ActivityType, ActivityTypeDef>>
   dance: { label: 'Dance', icon: 'music', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.1, maxSpeed: 5 },
   climb: { label: 'Climb', icon: 'mountain', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.1, maxSpeed: 3 },
   other: { label: 'Activity', icon: 'stopwatch', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.5, maxSpeed: 45 },
-  // a sport's practice or game (265): wired in A9
-  sport_session: { label: 'Sport session', icon: 'medal', group: 'sport', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.5, maxSpeed: 12, hidden: true },
+  // a sport's practice or game (265, wired in A9): a timer, and a map only when the athlete turns it on
+  sport_session: { label: 'Sport session', icon: 'medal', group: 'sport', recording: 'gps_optional', paceStyle: 'speed', movingSpeed: 0.5, maxSpeed: 12 },
 };
 
 /** The picker's order within each group — the catalog's own order. */

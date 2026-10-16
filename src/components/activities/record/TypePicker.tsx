@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { ACTIVITY_GROUP_LABELS, ACTIVITY_TYPE_DEFS, activityTypesInGroup, type ActivityGroup, type ActivityType } from '@/lib/activities/catalog';
 import { readRecentTypes, rememberRecentType } from '@/lib/activities/record/recent-types';
 
-const GROUPS: ActivityGroup[] = ['outdoor', 'indoor', 'duration'];
-const RECORDING_CHIP: Record<string, string> = { gps: 'GPS', timer: 'Timer', duration: 'Timer' };
+const GROUPS: ActivityGroup[] = ['outdoor', 'indoor', 'duration', 'sport'];
+const RECORDING_CHIP: Record<string, string> = { gps: 'GPS', timer: 'Timer', duration: 'Timer', gps_optional: 'Timer · map optional' };
 
 function TypeTile({ type, onPick, recent }: { type: ActivityType; onPick: (type: ActivityType) => void; recent?: boolean }) {
   const def = ACTIVITY_TYPE_DEFS[type];
@@ -48,7 +48,7 @@ export default function TypePicker({ onPick }: { onPick: (type: ActivityType) =>
           <h2 id={`record-group-${group}`} className="text-xs font-semibold uppercase tracking-wide text-secondary mb-3">
             {ACTIVITY_GROUP_LABELS[group]}
             <span className="ml-2 font-normal normal-case tracking-normal text-muted">
-              {group === 'outdoor' ? 'a map of where you went' : group === 'indoor' ? 'a timer; distance at the end' : 'a timer'}
+              {group === 'outdoor' ? 'a map of where you went' : group === 'indoor' ? 'a timer; distance at the end' : group === 'sport' ? 'a practice or a game — counts toward your week' : 'a timer'}
             </span>
           </h2>
           <div className="grid grid-cols-3 gap-2">

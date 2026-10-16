@@ -97,6 +97,8 @@ export interface RecordingState {
    *  and the scale they are graded on. Absent on recordings stored before. */
   climbs?: Climb[];
   climbScale?: ClimbScale | null;
+  /** A9: a sport session's "Map my movement" — chosen before the start. */
+  mapOn?: boolean;
 }
 
 export interface RecordingTimer {
@@ -129,6 +131,7 @@ export type RecordingEvent =
   | { type: 'timerStart'; now: number; spec: TimerSpec }
   | { type: 'timerStop'; now: number }
   | { type: 'amrapTap'; now: number }
+  | { type: 'setMap'; on: boolean }
   | { type: 'climbScale'; scale: ClimbScale }
   | { type: 'climbLogged'; now: number; climb: { grade: string; sent: boolean; attempts?: number } }
   | { type: 'climbEdited'; index: number; climb: { grade: string; sent: boolean; attempts?: number } }
@@ -163,6 +166,12 @@ export function newRecording(id: string, profileId: string, type: ActivityType):
 /** Whether a type records a GPS track (else a timer, distance at finish). */
 export function recordsGps(type: ActivityType): boolean {
   return ACTIVITY_TYPE_DEFS[type].recording === 'gps';
+}
+
+/** Whether THIS recording draws a map: a GPS type, or a sport session with "Map my movement" on (A9). */
+export function recordsGpsFor(state: Pick<RecordingState, 'type' | 'mapOn'>): boolean {
+  const rec = ACTIVITY_TYPE_DEFS[state.type].recording;
+  return rec === 'gps' || (rec === 'gps_optional' && state.mapOn === true);
 }
 
 /** Whether a type takes a distance at finish (a timer type). */
@@ -284,6 +293,10 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       if (at <= t.startS || at > timerEndS(t)) return state;
       return { ...state, timer: { ...t, amrapTapsS: [...t.amrapTapsS, at] } };
     }
+    case 'setMap':
+      // Chosen before the start: a map that begins half-way is no map.
+      if (state.status !== 'idle' || ACTIVITY_TYPE_DEFS[state.type].recording !== 'gps_optional') return state;
+      return { ...state, mapOn: event.on };
     case 'climbScale': {
       // A new scale re-reads the climbs on it: those that are not grades there go.
       return { ...state, climbScale: event.scale, climbs: climbsFrom(event.scale, state.climbs ?? []) };

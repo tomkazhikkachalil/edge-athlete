@@ -13,7 +13,7 @@
 
 import { sourceCredit } from './connections';
 import { isActivityType, type ActivityType } from './catalog';
-import { detailsFromRow, type Details } from './details';
+import { answersOf, type Details } from './details';
 import { segmentsFromRow, type ActivitySegment } from './segments';
 import { trimStream } from './stream';
 import type { ActivityStream } from './types';
@@ -24,7 +24,7 @@ export type ActivityAudience = 'owner' | 'viewer' | 'supervised_viewer';
  *  a select naming a column the database lacks 404s the whole API, so this
  *  list grows only after the migration ran on BOTH environments). */
 export const ACTIVITY_COLUMNS =
-  'id, profile_id, activity_type, source, source_format, name, started_at, timezone, occurred_on, elapsed_s, moving_s, distance_m, elev_gain_m, elev_loss_m, avg_hr, max_hr, avg_power, avg_cadence, calories, has_route, route_preview, stream_path, post_id, only_me, segments, steps, steps_source, notes, effort, details, created_at, updated_at';
+  'id, profile_id, activity_type, source, source_format, name, started_at, timezone, occurred_on, elapsed_s, moving_s, distance_m, elev_gain_m, elev_loss_m, avg_hr, max_hr, avg_power, avg_cadence, calories, has_route, route_preview, stream_path, post_id, only_me, segments, steps, steps_source, notes, effort, details, sport_key, session_kind, created_at, updated_at';
 
 export interface ActivityRow {
   id: string;
@@ -59,6 +59,9 @@ export interface ActivityRow {
   /** 265: the finish's effort (1–10) and the per-type answers (details.ts). */
   effort?: number | null;
   details?: unknown;
+  /** 265 (A9): a sport session's sport and kind. */
+  sport_key?: string | null;
+  session_kind?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -232,7 +235,7 @@ export function projectActivity(row: ActivityRow, audience: ActivityAudience): A
     stepsSource: row.steps_source === 'estimated' || row.steps_source === 'device' ? row.steps_source : null,
     notes: row.notes,
     effort: typeof row.effort === 'number' ? row.effort : null,
-    details: detailsFromRow(isActivityType(row.activity_type) ? row.activity_type : 'other', row.details),
+    details: answersOf(isActivityType(row.activity_type) ? row.activity_type : 'other', row),
     owner: audience === 'owner' ? { onlyMe: row.only_me, updatedAt: row.updated_at } : null,
   };
 }

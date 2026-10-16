@@ -3,7 +3,7 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { resolveActingProfile } from '@/lib/guardian-gate';
 import { reportRouteError } from '@/lib/observability/report';
 import { isActivityType } from '@/lib/activities/catalog';
-import { prefillFrom } from '@/lib/activities/details';
+import { answersOf, prefillFrom } from '@/lib/activities/details';
 
 /**
  * GET /api/activities/last-details?type=swim[&targetProfileId=…] — the
@@ -26,10 +26,11 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status, headers: NO_STORE });
     const { data, error } = await getSupabaseAdmin()
       .from('activities')
-      .select('details')
+      .select('details, sport_key, session_kind')
       .eq('profile_id', gate.actorId)
       .eq('activity_type', type)
-      .not('details', 'is', null)
+      // A sport session's answers are its columns (A9); every other type's are details.
+      .not(type === 'sport_session' ? 'sport_key' : 'details', 'is', null)
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       reportRouteError('[activities/last-details] read failed:', error);
       return NextResponse.json({ error: 'Could not read your last answers.' }, { status: 500, headers: NO_STORE });
     }
-    return NextResponse.json({ details: prefillFrom(type, data?.details ?? null) }, { headers: NO_STORE });
+    return NextResponse.json({ details: data ? prefillFrom(type, answersOf(type, data)) : {} }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[activities/last-details] GET error:', error);

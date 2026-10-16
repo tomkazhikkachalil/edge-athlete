@@ -21,6 +21,9 @@ export interface ActivitySession {
   distanceM: number | null;
   /** The provider's name when its terms ask for a credit ("Polar"). */
   sourceName?: string | null;
+  /** A9: a sport session's sport and kind. */
+  sportKey?: string | null;
+  sessionKind?: string | null;
 }
 
 /** Moving time where the device recorded it, else elapsed (the Activities tab's rule). */
@@ -35,6 +38,7 @@ export function fromActivity(a: ActivitySession): TrainingSession {
     activityType: a.type,
     distanceM: a.distanceM,
     sourceName: a.sourceName ?? null,
+    ...(a.sportKey ? { sportKey: a.sportKey, sessionKind: a.sessionKind ?? null } : {}),
   };
 }
 

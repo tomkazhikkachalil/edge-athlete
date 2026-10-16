@@ -30,8 +30,19 @@ function fieldSchema(f: DetailField): z.ZodTypeAny {
 /** The STORED details for a type: its non-column fields, each optional, nothing else. */
 export function detailsSchema(type: ActivityType) {
   const shape: Record<string, z.ZodTypeAny> = {};
-  for (const f of detailFieldsFor(type)) if (!(f.kind === 'number' && f.column)) shape[f.key] = fieldSchema(f).optional();
+  for (const f of detailFieldsFor(type)) if (!f.column) shape[f.key] = fieldSchema(f).optional();
   return z.object(shape).strict();
+}
+
+/** A Finish's answers as the writer stores them (the column-backed ones apart). */
+export interface FinishParsed {
+  effort: number | null;
+  notes: string | null;
+  details: Details | null;
+  avgPower: number | null;
+  avgCadence: number | null;
+  sportKey: string | null;
+  sessionKind: string | null;
 }
 
 /** What a Finish (or an edit) sends beside the recording. */
@@ -53,8 +64,8 @@ export interface FinishAnswers {
 export function parseFinishAnswers(
   type: ActivityType,
   raw: unknown
-): { ok: true; value: { effort: number | null; notes: string | null; details: Details | null; avgPower: number | null; avgCadence: number | null } } | { ok: false; error: string } {
-  if (raw === undefined || raw === null) return { ok: true, value: { effort: null, notes: null, details: null, avgPower: null, avgCadence: null } };
+): { ok: true; value: FinishParsed } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, value: { effort: null, notes: null, details: null, avgPower: null, avgCadence: null, sportKey: null, sessionKind: null } };
   const outer = z
     .object({
       effort: z.number().int().min(EFFORT_MIN).max(EFFORT_MAX).nullable().optional(),
@@ -68,16 +79,18 @@ export function parseFinishAnswers(
     return { ok: false, error: i ? `finish.${i.path.join('.') || '?'}: ${i.message}` : 'Invalid answers.' };
   }
   const given = outer.data.details ?? {};
-  const columns: { avgPower: number | null; avgCadence: number | null } = { avgPower: null, avgCadence: null };
+  const columns: { avgPower: number | null; avgCadence: number | null; sportKey: string | null; sessionKind: string | null } = { avgPower: null, avgCadence: null, sportKey: null, sessionKind: null };
   const stored: Record<string, unknown> = {};
   const fields = detailFieldsFor(type);
   for (const [k, v] of Object.entries(given)) {
     const f = fields.find(x => x.key === k);
-    if (f && f.kind === 'number' && f.column) {
+    if (f && f.column) {
       const r = fieldSchema(f).safeParse(v);
       if (!r.success) return { ok: false, error: `finish.details.${k}: ${r.error.issues[0]?.message ?? 'invalid'}` };
       if (f.column === 'avg_power') columns.avgPower = r.data as number;
-      else columns.avgCadence = r.data as number;
+      else if (f.column === 'avg_cadence') columns.avgCadence = r.data as number;
+      else if (f.column === 'sport_key') columns.sportKey = r.data as string;
+      else columns.sessionKind = r.data as string;
     } else stored[k] = v;
   }
   // A8: a climbing session's climbs are their own list, checked on its scale.
