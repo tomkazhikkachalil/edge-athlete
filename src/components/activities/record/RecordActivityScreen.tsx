@@ -41,6 +41,8 @@ import RecorderControls from './RecorderControls';
 import SegmentSheet from './SegmentSheet';
 import RoundTimerPanel from './RoundTimerPanel';
 import ClimbLog from '@/components/activities/ClimbLog';
+import { useStartWorkout } from '@/hooks/useStartWorkout';
+import StartWorkoutSheet from '@/components/workouts/StartWorkoutSheet';
 import { finishPayload } from '@/components/activities/FinishDetailsForm';
 import type { Details } from '@/lib/activities/details';
 import RecorderPhotos from './RecorderPhotos';
@@ -133,6 +135,10 @@ export default function RecordActivityScreen() {
   }, [engine, state]);
 
   const dispatch = engine?.dispatch ?? (() => undefined);
+  // A10: the picker's "Strength training" opens the Workout (its routines picker when there are routines).
+  // Workouts are the athlete's own (a guardian acting for an athlete records activities only).
+  const ownWorkouts = !!user && (!targetProfileId || targetProfileId === user.id);
+  const startWorkout = useStartWorkout(ownWorkouts);
 
   const onMark = () => {
     const s = engine?.getState();
@@ -275,6 +281,7 @@ export default function RecordActivityScreen() {
             Pick what you are about to do. Edge Athlete records only while this app is open with the screen on — any page of it; the screen stays awake where your phone allows it. Recording with the phone locked comes with the Edge Athlete app — for now keep the app open. Steps are an estimate.
           </p>
           <TypePicker
+            onStrength={ownWorkouts ? () => startWorkout.open() : undefined}
             onPick={type => {
               setStartingType(type);
               rec.start(type);
@@ -438,6 +445,14 @@ export default function RecordActivityScreen() {
               ? { scale: state.climbScale, ...((state.climbs ?? []).length > 0 ? { climbs: state.climbs! } : {}) }
               : null
           }
+        />
+      )}
+      {startWorkout.showStartSheet && (
+        <StartWorkoutSheet
+          routines={startWorkout.routines}
+          starting={startWorkout.starting}
+          onStart={routineId => void startWorkout.start(routineId)}
+          onClose={() => startWorkout.setShowStartSheet(false)}
         />
       )}
       <ConfirmModal

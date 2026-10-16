@@ -13,6 +13,8 @@ import {
   type CollectedMedia,
   type WorkoutSummary, formatElapsed } from '@/lib/workouts/summary';
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
+import { formatPr, PR_LABELS, type PrHit } from '@/lib/workouts/prs';
+import EffortChips from '@/components/activities/EffortChips';
 
 /** State + handlers for the optional "save as routine" card; null hides it. */
 export interface RoutineSaveProps {
@@ -30,6 +32,12 @@ interface FinishSummaryProps {
   durationSeconds: number | null;
   summary: WorkoutSummary;
   prCandidates: PRCandidate[];
+  /** A10: this session's records for every exercise (workouts/prs.ts). */
+  exercisePRs?: PrHit[];
+  /** The unit the workout was logged in — records and volume read in it. */
+  prUnit?: 'lb' | 'kg';
+  effort?: number | null;
+  onEffort?: (v: number | null) => void;
   checkedPRs: Set<string>;
   onTogglePR: (metricKey: string) => void;
   onContinue: () => void;
@@ -41,25 +49,30 @@ export function FinishSummary({
   durationSeconds,
   summary,
   prCandidates,
+  exercisePRs = [],
+  prUnit = 'lb',
+  effort = null,
+  onEffort,
   checkedPRs,
   onTogglePR,
   onContinue,
   routineSave,
 }: FinishSummaryProps) {
+  const anyPR = prCandidates.length > 0 || exercisePRs.length > 0;
   // One burst per summary, fired when PR candidates arrive (they load async
   // after the phase flips). Ref-guarded so a re-render can't re-fire; no
   // state involved, so no set-state-in-effect concern.
   const celebratedRef = useRef(false);
   useEffect(() => {
-    if (celebratedRef.current || prCandidates.length === 0) return;
+    if (celebratedRef.current || !anyPR) return;
     celebratedRef.current = true;
     void celebratePR();
-  }, [prCandidates]);
+  }, [anyPR]);
 
   return (
     <div className="tr-scope max-w-md mx-auto px-4 py-8 space-y-6">
       <div className="text-center">
-        {prCandidates.length > 0 ? (
+        {anyPR ? (
           <div className="ea-reaction-chip w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center">
             <Award className="w-10 h-10 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           </div>
@@ -70,8 +83,8 @@ export function FinishSummary({
         )}
         <h1 className="text-2xl font-bold text-primary">{title || 'Workout Complete'}</h1>
         <p className="text-muted mt-1">
-          {prCandidates.length > 0
-            ? `New personal ${prCandidates.length === 1 ? 'best' : 'bests'} — huge!`
+          {anyPR
+            ? `New personal ${prCandidates.length + exercisePRs.length === 1 ? 'record' : 'records'} — huge!`
             : 'Nice work. Here’s the damage:'}
         </p>
       </div>
@@ -94,7 +107,7 @@ export function FinishSummary({
         <div className="text-center tr-card p-4">
           <TrendingUp className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
           <div className="text-xl font-bold text-primary">
-            {summary.totalVolumeLbs > 0 ? formatVolume(summary.totalVolumeLbs) : '—'}
+            {summary.totalVolumeLbs > 0 ? (prUnit === 'kg' ? formatPr('volume', summary.totalVolumeLbs, 'kg') : formatVolume(summary.totalVolumeLbs)) : '—'}
           </div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wide">Volume</div>
         </div>
@@ -149,6 +162,33 @@ export function FinishSummary({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* A10: every exercise's new records — derived from the sets, nothing to confirm. */}
+      {exercisePRs.length > 0 && (
+        <div className="tr-card p-4" data-workout-prs={exercisePRs.length}>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">New PRs</p>
+          <ul className="space-y-1.5">
+            {exercisePRs.map(pr => (
+              <li key={`${pr.exerciseId}:${pr.kind}`} className="flex items-center justify-between gap-3 text-sm" data-workout-pr={`${pr.exerciseId}:${pr.kind}`}>
+                <span className="min-w-0 truncate text-primary">
+                  <span className="font-semibold">{pr.name}</span> <span className="text-muted">· {PR_LABELS[pr.kind]}</span>
+                </span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-0.5 font-bold text-amber-700 dark:text-amber-300 tabular-nums">
+                  <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                  {formatPr(pr.kind, pr.value, prUnit)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* A10: how hard it was — saved as it is tapped (265). */}
+      {onEffort && (
+        <div className="tr-card p-4" data-workout-effort="">
+          <EffortChips value={effort} onChange={onEffort} />
         </div>
       )}
 

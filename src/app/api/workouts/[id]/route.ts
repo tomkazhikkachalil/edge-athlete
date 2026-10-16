@@ -122,7 +122,8 @@ export async function GET(
 /**
  * PATCH /api/workouts/[id] — owner only.
  * Body: { title?, notes?, postId?, keepPrivate?: true, finish?: { endedAt },
- *         pause?: { at }, resume?: { at }, timed?: boolean }
+ *         pause?: { at }, resume?: { at }, timed?: boolean, effort?: 1–10 | null }
+ * effort (265, Oct 16 2026): how hard the session felt, asked on the summary.
  * postId and keepPrivate both stamp share_decided_at (Drafts round, 253):
  * a completed session without it is a DRAFT — the owner never reached the
  * share decision.
@@ -197,6 +198,13 @@ export async function PATCH(
       if (!body.timed && session.paused_at) updates.paused_at = null;
     }
 
+    if (body.effort !== undefined) {
+      const e = body.effort;
+      if (e !== null && !(typeof e === 'number' && Number.isInteger(e) && e >= 1 && e <= 10)) {
+        return NextResponse.json({ error: 'effort must be 1–10' }, { status: 400 });
+      }
+      updates.effort = e;
+    }
     if (body.title !== undefined) {
       updates.title =
         typeof body.title === 'string' && body.title.trim().length > 0

@@ -55,6 +55,7 @@ import {
   type CollectedMedia,
 } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
+import { bestsOf, formatPr, newPRs, PR_LABELS, workoutUnit, type ExerciseBests, type PrHit } from '@/lib/workouts/prs';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { localDayKey } from '@/lib/calendar/grid';
 import { refreshDrafts } from '@/hooks/useDrafts';
@@ -144,6 +145,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   };
   const [clockBusy, setClockBusy] = useState(false);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
+  // A10 (Oct 16 2026): this session's records for EVERY exercise, against all earlier sessions.
+  const [exercisePRs, setExercisePRs] = useState<PrHit[]>([]);
+  const [effort, setEffort] = useState<number | null>(null);
   const [checkedPRs, setCheckedPRs] = useState<Set<string>>(new Set());
   const [caption, setCaption] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -396,6 +400,34 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   };
 
   // ── Finish flows ─────────────────────────────────────────────────────────
+  /** Every exercise's new records (A10): this session's bests against everything before it. */
+  const loadExercisePRs = async (finalExercises: EntryExercise[], sessionId: string) => {
+    try {
+      const res = await fetch(`/api/workouts/prs?exclude=${sessionId}`, { credentials: 'include' });
+      if (!res.ok) return setExercisePRs([]);
+      const data = (await res.json()) as { bests?: Record<string, ExerciseBests> };
+      setExercisePRs(newPRs(bestsOf(finalExercises), new Map(Object.entries(data.bests ?? {}))));
+    } catch {
+      setExercisePRs([]);
+    }
+  };
+
+  /** Effort is a fact of the session (265), saved as it is tapped; a failed save says so. */
+  const saveEffort = (next: number | null) => {
+    setEffort(next);
+    if (!finishedSessionId) return;
+    void fetch(`/api/workouts/${finishedSessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ effort: next }),
+    })
+      .then(r => {
+        if (!r.ok) showError('Effort not saved', 'Check your connection and tap it again.');
+      })
+      .catch(() => showError('Effort not saved', 'Check your connection and tap it again.'));
+  };
+
   const loadPRs = async (finalExercises: EntryExercise[]) => {
     try {
       const response = await fetch(`/api/vitals?profileId=${currentUserId}`, { credentials: 'include' });
@@ -464,7 +496,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       void refreshDrafts();
       setFinishedSessionId(session.id);
       setFinishedDuration(data.session?.duration_seconds ?? (timed ? elapsedNow() : null));
-      await loadPRs(exercises);
+      await Promise.all([loadPRs(exercises), loadExercisePRs(exercises, session.id)]);
       setPhase('summary');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to finish workout');
@@ -504,7 +536,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       uploads.clearStash();
       setFinishedSessionId(data.session.id);
       setFinishedDuration(data.session.duration_seconds ?? durationMin * 60);
-      await loadPRs(exercises);
+      await Promise.all([loadPRs(exercises), loadExercisePRs(exercises, data.session.id)]);
       setPhase('summary');
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
@@ -706,9 +738,11 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             durationSeconds: finishedDuration,
             summary,
             // Only CONFIRMED PRs ride the post — same gate as recordPRs.
-            prs: prCandidates
-              .filter(pr => checkedPRs.has(pr.metricKey))
-              .map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
+            prs: [
+              ...prCandidates.filter(pr => checkedPRs.has(pr.metricKey)).map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
+              // A10: every exercise's new records ride the post too.
+              ...exercisePRs.map(pr => ({ label: `${pr.name} · ${PR_LABELS[pr.kind]}`, display: formatPr(pr.kind, pr.value, workoutUnit(exercises)) })),
+            ],
           }),
         }),
       });
@@ -771,6 +805,10 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         durationSeconds={finishedDuration}
         summary={summary}
         prCandidates={prCandidates}
+        exercisePRs={exercisePRs}
+        prUnit={workoutUnit(exercises)}
+        effort={effort}
+        onEffort={saveEffort}
         checkedPRs={checkedPRs}
         onTogglePR={key =>
           setCheckedPRs(prev => {

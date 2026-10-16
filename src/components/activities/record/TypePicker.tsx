@@ -28,7 +28,7 @@ function TypeTile({ type, onPick, recent }: { type: ActivityType; onPick: (type:
 }
 
 /** The grouped grid of every timed activity (Tom: a broad, grouped list), the last-used first (Oct 16 2026). */
-export default function TypePicker({ onPick }: { onPick: (type: ActivityType) => void }) {
+export default function TypePicker({ onPick, onStrength }: { onPick: (type: ActivityType) => void; onStrength?: () => void }) {
   // Read once on mount (client-only: the recorder renders after the auth check).
   const [recent] = useState<ActivityType[]>(() => (typeof window === 'undefined' ? [] : readRecentTypes()));
   return (
@@ -52,6 +52,14 @@ export default function TypePicker({ onPick }: { onPick: (type: ActivityType) =>
             </span>
           </h2>
           <div className="grid grid-cols-3 gap-2">
+            {/* A10: strength is the Workout — sets, reps, weight and the rest timer — not a timed activity. */}
+            {group === 'indoor' && onStrength && (
+              <button type="button" onClick={onStrength} data-record-strength="" className="ea-interactive ea-surface flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-center">
+                <i className="fas fa-dumbbell text-xl text-brand-fg" aria-hidden="true"></i>
+                <span className="text-sm font-semibold text-primary leading-tight">Strength training</span>
+                <span className="text-[11px] text-muted">Sets & reps</span>
+              </button>
+            )}
             {activityTypesInGroup(group).map(type => (
               <TypeTile key={type} type={type} onPick={onPick} />
             ))}

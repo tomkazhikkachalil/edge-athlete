@@ -28,6 +28,7 @@ import { useStartWorkout } from '@/hooks/useStartWorkout';
 import TrainingHero from './training/TrainingHero';
 import PBShowcase from './training/PBShowcase';
 import ProgressSection from './training/ProgressSection';
+import ExerciseRecords from './training/ExerciseRecords';
 import StatBubbleCard from './training/StatBubbleCard';
 import MetricBubbleCard from './training/MetricBubbleCard';
 import MetricDetailOverlay from './training/MetricDetailOverlay';
@@ -533,6 +534,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
 
       {/* ── Progress — one big chart, pick what to track ─────────────── */}
       <ProgressSection bodyMetrics={bodyMetrics} sessions={completedWorkouts} />
+      {/* A10: every exercise's records — the athlete's own (workouts are owner-only). */}
+      {isOwnProfile && <ExerciseRecords />}
 
       {/* ── Activities — runs, rides, swims recorded on the phone. Its own
              gated fetch (routes are trimmed for a viewer, "Only me" is the
