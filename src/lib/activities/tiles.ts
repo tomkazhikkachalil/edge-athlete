@@ -86,6 +86,7 @@ export const TILE_FAMILY: Readonly<Record<ActivityType, Family>> = {
   dance: 'session',
   climb: 'session',
   other: 'session',
+  sport_session: 'session',
 };
 
 const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {

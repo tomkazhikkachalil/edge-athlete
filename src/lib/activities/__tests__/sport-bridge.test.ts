@@ -81,3 +81,9 @@ describe('rowing reads per 500 m (Oct 16 2026)', () => {
     expect(validateStatLine(legacy, 'rowing', '2026-12-31')).toMatchObject({ ok: true });
   });
 });
+
+describe('a sport session is never a result (265)', () => {
+  it('maps to no sport', () => {
+    expect(sportForActivity('sport_session')).toBeNull();
+  });
+});

@@ -41,6 +41,8 @@ export const ACTIVITY_TYPES = [
   'dance',
   'climb',
   'other',
+  // a sport's practice or game (265) — hidden from the picker until it is wired
+  'sport_session',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -78,11 +80,12 @@ export function isActivitySource(v: unknown): v is ActivitySource {
 export type PaceStyle = 'pace' | 'speed' | 'swim_pace' | 'pace_500m';
 
 /** The picker's three groups (Tom, Oct 4 2026). */
-export type ActivityGroup = 'outdoor' | 'indoor' | 'duration';
+export type ActivityGroup = 'outdoor' | 'indoor' | 'duration' | 'sport';
 export const ACTIVITY_GROUP_LABELS: Readonly<Record<ActivityGroup, string>> = {
   outdoor: 'Outdoor',
   indoor: 'Indoor',
   duration: 'Duration only',
+  sport: 'Sport',
 };
 /** How the recorder captures a type: a GPS track, a timer with the distance
  *  entered at finish, or a timer alone. */
@@ -100,6 +103,8 @@ export interface ActivityTypeDef {
   /** A sustained speed above this (m/s) is not this activity — a car, a
    *  train, a GPS jump. Samples faster than 3× this are dropped as glitches. */
   maxSpeed: number;
+  /** Not offered in the recorder's picker yet (a type the DB knows before the screen does). */
+  hidden?: boolean;
 }
 
 export const ACTIVITY_TYPE_DEFS: Readonly<Record<ActivityType, ActivityTypeDef>> = {
@@ -132,11 +137,13 @@ export const ACTIVITY_TYPE_DEFS: Readonly<Record<ActivityType, ActivityTypeDef>>
   dance: { label: 'Dance', icon: 'music', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.1, maxSpeed: 5 },
   climb: { label: 'Climb', icon: 'mountain', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.1, maxSpeed: 3 },
   other: { label: 'Activity', icon: 'stopwatch', group: 'duration', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.5, maxSpeed: 45 },
+  // a sport's practice or game (265): wired in A9
+  sport_session: { label: 'Sport session', icon: 'medal', group: 'sport', recording: 'duration', paceStyle: 'speed', movingSpeed: 0.5, maxSpeed: 12, hidden: true },
 };
 
 /** The picker's order within each group — the catalog's own order. */
 export function activityTypesInGroup(group: ActivityGroup): ActivityType[] {
-  return ACTIVITY_TYPES.filter(t => ACTIVITY_TYPE_DEFS[t].group === group);
+  return ACTIVITY_TYPES.filter(t => ACTIVITY_TYPE_DEFS[t].group === group && !ACTIVITY_TYPE_DEFS[t].hidden);
 }
 
 /** Timer types whose distance is optional at finish (Oct 16 2026): nobody
