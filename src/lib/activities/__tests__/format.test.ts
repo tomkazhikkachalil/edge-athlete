@@ -20,6 +20,10 @@ describe('format', () => {
 
   it('gives each type its own speed reading', () => {
     expect(formatPace(5000, 1500, 'run', 'km')).toEqual({ label: 'Avg pace', value: '5:00 /km' });
+    // Oct 16 2026: a row reads per 500 m (the erg's own number), a swim per 100 m, whatever the unit
+    expect(formatPace(2000, 480, 'row', 'km')).toEqual({ label: 'Avg pace', value: '2:00 /500m' });
+    expect(formatPace(2000, 480, 'row', 'mi')).toEqual({ label: 'Avg pace', value: '2:00 /500m' });
+    expect(formatPace(1000, 1200, 'swim', 'mi')).toEqual({ label: 'Avg pace', value: '2:00 /100m' });
     expect(formatPace(5000, 1500, 'run', 'mi').value).toBe('8:03 /mi');
     expect(formatPace(30_000, 3600, 'ride', 'km')).toEqual({ label: 'Avg speed', value: '30.0 km/h' });
     expect(formatPace(30_000, 3600, 'ride', 'mi').value).toBe('18.6 mph');

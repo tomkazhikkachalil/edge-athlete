@@ -73,8 +73,9 @@ export function isActivitySource(v: unknown): v is ActivitySource {
   return typeof v === 'string' && (ACTIVITY_SOURCES as readonly string[]).includes(v);
 }
 
-/** How a type's speed reads: a pace (time per distance) or a speed. */
-export type PaceStyle = 'pace' | 'speed' | 'swim_pace';
+/** How a type's speed reads: a pace per km/mi, per 100 m (swims), per 500 m
+ *  (rowing — the erg's own number, Oct 16 2026), or a speed. */
+export type PaceStyle = 'pace' | 'speed' | 'swim_pace' | 'pace_500m';
 
 /** The picker's three groups (Tom, Oct 4 2026). */
 export type ActivityGroup = 'outdoor' | 'indoor' | 'duration';
@@ -117,7 +118,7 @@ export const ACTIVITY_TYPE_DEFS: Readonly<Record<ActivityType, ActivityTypeDef>>
   skate: { label: 'Skate', icon: 'person-skating', group: 'outdoor', recording: 'gps', paceStyle: 'speed', movingSpeed: 0.8, maxSpeed: 15 },
   // indoor — a timer, distance entered at finish
   swim: { label: 'Swim', icon: 'person-swimming', group: 'indoor', recording: 'timer', paceStyle: 'swim_pace', movingSpeed: 0.2, maxSpeed: 3 },
-  row: { label: 'Row', icon: 'water', group: 'indoor', recording: 'timer', paceStyle: 'pace', movingSpeed: 0.5, maxSpeed: 7 },
+  row: { label: 'Row', icon: 'water', group: 'indoor', recording: 'timer', paceStyle: 'pace_500m', movingSpeed: 0.5, maxSpeed: 7 },
   indoor_ride: { label: 'Indoor ride', icon: 'bicycle', group: 'indoor', recording: 'timer', paceStyle: 'speed', movingSpeed: 1.5, maxSpeed: 30 },
   treadmill: { label: 'Treadmill', icon: 'person-running', group: 'indoor', recording: 'timer', paceStyle: 'pace', movingSpeed: 0.4, maxSpeed: 12 },
   elliptical: { label: 'Elliptical', icon: 'heart-pulse', group: 'indoor', recording: 'timer', paceStyle: 'pace', movingSpeed: 0.4, maxSpeed: 8 },

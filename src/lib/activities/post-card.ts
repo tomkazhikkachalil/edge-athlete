@@ -7,6 +7,8 @@
 // without a second read.
 
 import { isActivityType, type ActivityType } from './catalog';
+import type { Derived } from './derived';
+import type { TileSource } from './tiles';
 
 export interface ActivityPostStats {
   type: 'activity';
@@ -18,6 +20,12 @@ export interface ActivityPostStats {
   moving_s: number | null;
   elapsed_s: number;
   elev_gain_m: number | null;
+  /** Oct 16 2026: the descent (ski, MTB, hikes) — absent on older cards. */
+  elev_loss_m?: number | null;
+  /** Oct 16 2026: the stream's max speed (m/s) and downhill runs, for the
+   *  types that show them — absent otherwise and on older cards. */
+  max_speed_mps?: number | null;
+  runs?: number;
   avg_hr: number | null;
   route_preview: string | null;
   /** The provider credit its terms require ("Recorded with Polar"); absent
@@ -48,4 +56,33 @@ export function isActivityPostStats(v: unknown): v is ActivityPostStats {
     typeof o.occurred_on === 'string' &&
     typeof o.elapsed_s === 'number'
   );
+}
+
+/** A card's snapshot as tile input (tiles.ts) — what it does not hold is null. */
+export function cardTileSource(s: ActivityPostStats): { src: TileSource; derived: Derived } {
+  return {
+    src: {
+      type: s.activity_type,
+      distanceM: s.distance_m,
+      movingS: s.moving_s,
+      elapsedS: s.elapsed_s,
+      elevGainM: s.elev_gain_m,
+      elevLossM: s.elev_loss_m ?? null,
+      avgHr: s.avg_hr,
+      maxHr: null,
+      avgPower: null,
+      avgCadence: null,
+      calories: null,
+      steps: null,
+      stepsSource: null,
+    },
+    derived: {
+      bestEfforts: [],
+      maxSpeedMps: s.max_speed_mps ?? null,
+      maxElevationM: null,
+      climbRateMph: null,
+      runs: s.runs ?? 0,
+      gradeAdjustedM: null,
+    },
+  };
 }

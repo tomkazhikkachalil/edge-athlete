@@ -9,6 +9,7 @@ import { sourceCredit } from './connections';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
+import { DERIVED_BY_TYPE, deriveAll } from './derived';
 import type { ActivityPostStats } from './post-card';
 import { segmentsFromRow } from './segments';
 import { segmentStats } from './stream';
@@ -27,7 +28,7 @@ export async function buildActivityPostStats(
   const [actRes, profRes] = await Promise.all([
     admin
       .from('activities')
-      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path')
+      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, elev_loss_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path')
       .eq('id', activityId)
       .maybeSingle(),
     admin.from('profiles').select('supervision_state').eq('id', authorId).maybeSingle(),
@@ -42,10 +43,22 @@ export async function buildActivityPostStats(
   // 251: the segments as the card shows them (measured from the stream, once,
   // here — the card is a denormalized snapshot by design) and the photo count.
   const segments = segmentsFromRow(a.segments);
+  const type = isActivityType(a.activity_type) ? a.activity_type : 'other';
+  // Oct 16 2026: the card's max speed and downhill runs (derived.ts), for the types that show them.
+  const uses = DERIVED_BY_TYPE[type] ?? [];
+  const wantsDerived = uses.includes('maxSpeed') || uses.includes('runs');
   let segmentLines: NonNullable<ActivityPostStats['segments']> = [];
-  if (segments.length > 0) {
+  let derived: Pick<ActivityPostStats, 'max_speed_mps' | 'runs'> = {};
+  if (segments.length > 0 || wantsDerived) {
     const stream = await readStream(admin, (a.stream_path as string | null) ?? null);
-    if (stream) {
+    if (stream && wantsDerived) {
+      const d = deriveAll(stream, type);
+      derived = {
+        ...(d.maxSpeedMps !== null ? { max_speed_mps: Math.round(d.maxSpeedMps * 100) / 100 } : {}),
+        ...(d.runs > 0 ? { runs: d.runs } : {}),
+      };
+    }
+    if (stream && segments.length > 0) {
       segmentLines = segments
         .map(seg => {
           const stat = segmentStats(stream, seg);
@@ -61,13 +74,15 @@ export async function buildActivityPostStats(
     statsData: {
       type: 'activity',
       activity_id: activityId,
-      activity_type: isActivityType(a.activity_type) ? a.activity_type : 'other',
+      activity_type: type,
       name: a.name as string,
       occurred_on: a.occurred_on as string,
       distance_m: num(a.distance_m),
       moving_s: a.moving_s as number | null,
       elapsed_s: a.elapsed_s as number,
       elev_gain_m: num(a.elev_gain_m),
+      elev_loss_m: num(a.elev_loss_m),
+      ...derived,
       avg_hr: a.avg_hr as number | null,
       route_preview: supervised ? null : ((a.route_preview as string | null) ?? null),
       credit: sourceCredit(a.source as string),

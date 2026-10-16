@@ -1,5 +1,9 @@
 # Development Log
 
+## October 16, 2026 — Each activity shows its own numbers (activities details A1, zero DDL)
+
+The first PR of the activities details program (the plan Tom approved Oct 16, after his review against Strava, Garmin, Hevy, Slopes and Concept2). A user complained a yoga session read "0 km · — /km": every activity showed the same four tiles. Now `tiles.ts` names each type family's tiles and **a tile shows only with a value** — a yoga reads its time (and heart rate when a device gave one); a hike its gain, loss, high point, climb rate and moving vs total time; a trail run its grade-adjusted pace; a ride its max speed; a ski day its descent, runs and max speed; a run its best efforts (1 km · 1 mi · 5 km · 10 km). All derived from the stored stream on read (`derived.ts`), nothing stored. Rows read per 500 m. The feed card and the profile list take the same tiles (4 and 3). Spec: `docs/specs/activities.md` "Per-type tiles". **Proof:** verify green (5,075 tests; new `derived.test.ts`, `tiles.test.ts`, row/swim pace in `format.test.ts`); new `e2e/activities-tiles.spec.ts` (yoga: time, no distance/pace/gain/HR tile; hike: its climb) + `activities-after` + `activities-profile` green on mobile, webkit-mobile, android and desktop; 375 px light and dark on Android captured and checked.
+
 ## October 16, 2026 — A bigger logo on the phone (zero DDL)
 
 Tom wanted the top-left logo slightly bigger. A preview with the wordmark one step up (h-7 → h-8) looked odd beside the nav on wide screens, so only the phone's square mark changes: 32 → 44 px (`AppHeader.tsx`, `h-11 w-11 sm:hidden`); the wordmark on tablet and desktop is the original (captures at 1280 px, light and dark, identical to before). Size only — the same link, the same 64 px header; the 320 px width budget fits (≈272 of 288 px). **Proof:** verify green; previews reviewed by Tom on his phone (draft #1204).

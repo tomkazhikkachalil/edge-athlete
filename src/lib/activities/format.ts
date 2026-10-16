@@ -31,15 +31,38 @@ export function formatElevation(m: number | null, unit: DistanceUnit): string {
   return unit === 'mi' ? `${Math.round(m * FEET_PER_M)} ft` : `${Math.round(m)} m`;
 }
 
-/** The type's own speed reading: a pace per km/mi, a pace per 100 m (swim), or a speed. */
-export function formatPace(distanceM: number | null, seconds: number | null, type: ActivityType, unit: DistanceUnit): { label: string; value: string } {
+/** The metres a pace is read over: 100 for a swim, 500 for a row, the
+ *  viewer's km or mile otherwise. Null for a speed type. */
+export function paceMetres(type: ActivityType, unit: DistanceUnit): number | null {
   const style = ACTIVITY_TYPE_DEFS[type].paceStyle;
-  const label = style === 'speed' ? 'Avg speed' : 'Avg pace';
+  if (style === 'speed') return null;
+  if (style === 'swim_pace') return 100;
+  if (style === 'pace_500m') return 500;
+  return UNIT_METRES[unit];
+}
+
+/** What follows a value: "/km", "/100m", "/500m", or "km/h" / "mph" for a speed. */
+export function paceSuffix(type: ActivityType, unit: DistanceUnit): string {
+  const style = ACTIVITY_TYPE_DEFS[type].paceStyle;
+  if (style === 'speed') return unit === 'km' ? 'km/h' : 'mph';
+  if (style === 'swim_pace') return '/100m';
+  if (style === 'pace_500m') return '/500m';
+  return `/${unit}`;
+}
+
+/** A speed in m/s, in the viewer's unit: "32.4 km/h". */
+export function formatSpeed(mps: number | null, unit: DistanceUnit): string {
+  if (mps === null || !Number.isFinite(mps) || mps <= 0) return '—';
+  return `${((mps * 3600) / UNIT_METRES[unit]).toFixed(1)} ${unit === 'km' ? 'km/h' : 'mph'}`;
+}
+
+/** The type's own speed reading: a pace (per km/mi, 100 m or 500 m) or a speed. */
+export function formatPace(distanceM: number | null, seconds: number | null, type: ActivityType, unit: DistanceUnit): { label: string; value: string } {
+  const per = paceMetres(type, unit);
+  const label = per === null ? 'Avg speed' : 'Avg pace';
   if (!distanceM || !seconds || distanceM <= 0 || seconds <= 0) return { label, value: '—' };
-  if (style === 'swim_pace') return { label, value: `${formatDuration((seconds / distanceM) * 100)} /100m` };
-  if (style === 'pace') return { label, value: `${formatDuration((seconds / distanceM) * UNIT_METRES[unit])} /${unit}` };
-  const perHour = (distanceM / UNIT_METRES[unit]) / (seconds / 3600);
-  return { label, value: `${perHour.toFixed(1)} ${unit === 'km' ? 'km/h' : 'mph'}` };
+  if (per === null) return { label, value: formatSpeed(distanceM / seconds, unit) };
+  return { label, value: `${formatDuration((seconds / distanceM) * per)} ${paceSuffix(type, unit)}` };
 }
 
 /** "Sun, Sep 20 · 7:00 AM" in the activity's own zone when known. */
