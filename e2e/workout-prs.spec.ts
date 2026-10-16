@@ -26,15 +26,20 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     // Today: bench 195 × 5 (heaviest + e1RM + volume), pull-ups 12, a first-ever deadlift.
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    const id = (await started.json()).session.id as string;
+    const session = (await started.json()).session as { id: string; updated_at: string; last_activity_at: string };
+    const id = session.id;
+    // Stamped from the SERVER's clock (the entries guard refuses a save older than
+    // the session's own stamp — a test machine's clock may run behind the host's).
+    const savedAt = Math.max(Date.now(), Date.parse(session.updated_at), Date.parse(session.last_activity_at)) + 1000;
     const seeded = await api.put(`/api/workouts/${id}/entries`, {
-      data: { savedAt: Date.now(), exercises: [
+      data: { savedAt, exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 195)] },
         { name: 'Pull-Ups', exerciseKey: 'pull_ups', category: 'strength', notes: null, sets: [set(1, 12, null)] },
         { name: 'Deadlift', exerciseKey: 'deadlift', category: 'strength', notes: null, sets: [set(1, 5, 315)] },
       ] },
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
+    expect((await seeded.json()).stale ?? false).toBe(false);
 
     const page = await ctx.newPage();
     await page.goto(`/app/workout/${id}`);
