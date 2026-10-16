@@ -9,11 +9,8 @@
  * - Consistent typography scale (32/24/18/16/14/12)
  * - Standardized icon sizes (24/20/16/20)
  * - Spacing rhythm locked to 12/24/48px
- * - Color tokens come from Sport Registry
+ * - Colours come from the theme tokens in globals.css
  */
-
-import type { SportKey } from './sports/SportRegistry';
-import { getSportDefinition } from './sports/SportRegistry';
 
 // Typography Scale (matches CSS custom properties)
 export const TYPOGRAPHY = {
@@ -92,61 +89,10 @@ export const LAYOUT = {
   }
 } as const;
 
-// Sport Color System (integrates with Sport Registry)
-export const SPORT_COLORS = {
-  /**
-   * Get standardized color classes for a sport
-   * Uses brand_color_token from Sport Registry
-   */
-  getColorClasses: (sportKey: SportKey) => {
-    const sportDef = getSportDefinition(sportKey);
-    const colorToken = sportDef.brand_color_token;
-    
-    return {
-      // Card/container styles
-      cardBorder: `border-${colorToken}-200`,
-      cardBackground: `bg-${colorToken}-50`,
-      
-      // Icon colors  
-      iconPrimary: `text-${colorToken}-600`,
-      iconSecondary: `text-${colorToken}-400`,
-      
-      // Button styles
-      buttonPrimary: `bg-${colorToken}-600 hover:bg-${colorToken}-700 text-white`,
-      buttonSecondary: `text-${colorToken}-600 hover:text-${colorToken}-800`,
-      
-      // Text colors
-      textPrimary: `text-${colorToken}-600`,
-      textSecondary: `text-${colorToken}-500`,
-      
-      // State indicators
-      activeBorder: `border-${colorToken}-500`,
-      activeBackground: `bg-${colorToken}-100`,
-      activeText: `text-${colorToken}-700`,
-      
-      // Raw token for dynamic usage
-      token: colorToken
-    };
-  },
-
-  /**
-   * Get neutral colors for disabled/inactive states
-   */
-  NEUTRAL: {
-    cardBorder: 'border-gray-200',
-    cardBackground: 'bg-gray-50',
-    iconPrimary: 'text-gray-400',
-    iconSecondary: 'text-gray-300',
-    buttonPrimary: 'bg-gray-100 text-gray-500 cursor-not-allowed',
-    buttonSecondary: 'text-gray-400 cursor-not-allowed',
-    textPrimary: 'text-gray-500',
-    textSecondary: 'text-gray-400',
-    activeBorder: 'border-gray-300',
-    activeBackground: 'bg-gray-100',
-    activeText: 'text-gray-600',
-    token: 'gray'
-  }
-} as const;
+// Sport colours: the SPORT_COLORS / getSportColorClasses / getNeutralColorClasses /
+// getButtonClasses helpers lived here, unused, with light-only gray literals —
+// removed in the theme sweep (Oct 15 2026). Colour comes from the theme tokens
+// in globals.css (bg-surface, text-muted, …) and the SportRegistry.
 
 // Utility class mappings (for components using CSS classes)
 export const CSS_CLASSES = {
@@ -238,37 +184,6 @@ export const DESIGN_VALIDATION = {
     }
   }
 } as const;
-
-// Export helper functions
-export function getSportColorClasses(sportKey: SportKey) {
-  return SPORT_COLORS.getColorClasses(sportKey);
-}
-
-export function getNeutralColorClasses() {
-  return SPORT_COLORS.NEUTRAL;
-}
-
-/**
- * Get consistent button classes that respect the design system
- */
-export function getButtonClasses(variant: 'primary' | 'secondary' | 'neutral' = 'primary', sportKey?: SportKey) {
-  const baseClasses = `min-h-[${LAYOUT.BUTTON.MIN_HEIGHT}] px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2`;
-  
-  if (variant === 'neutral' || !sportKey) {
-    return `${baseClasses} bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500`;
-  }
-  
-  const colors = getSportColorClasses(sportKey);
-  
-  switch (variant) {
-    case 'primary':
-      return `${baseClasses} ${colors.buttonPrimary} focus:ring-${colors.token}-500`;
-    case 'secondary':
-      return `${baseClasses} border border-gray-300 ${colors.buttonSecondary} bg-white hover:bg-gray-50 focus:ring-${colors.token}-500`;
-    default:
-      return baseClasses;
-  }
-}
 
 // Export all tokens for easy importing
 export {

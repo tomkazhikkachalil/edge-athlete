@@ -102,7 +102,7 @@ export default function ConversationList({
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             {search ? (
               <>
-                <i className="fas fa-search text-gray-300 text-3xl mb-3"></i>
+                <i className="fas fa-search text-gray-300 dark:text-faint text-3xl mb-3"></i>
                 <p className="text-sm text-muted">No conversations match &ldquo;{search}&rdquo;</p>
               </>
             ) : (

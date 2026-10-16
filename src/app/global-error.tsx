@@ -1,7 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { THEME_RESOLVED_COOKIE } from '@/lib/theme-cookie';
+
+// This boundary REPLACES the root layout, so neither the stylesheet nor the
+// theme script reaches it — it used to be a white screen for a dark-theme
+// user. It reads the resolved theme the app last wrote (the cookie the
+// manifest also reads) and paints the matching hexes of globals.css by hand.
+const PALETTE = {
+  light: { canvas: '#f9fafb', surface: '#ffffff', primary: '#111827', secondary: '#374151', tertiary: '#4b5563', faint: '#9ca3af', border: '#d1d5db', dangerFg: '#b91c1c', dangerSoft: '#fef2f2', dangerBorder: '#fee2e2' },
+  dark: { canvas: '#171310', surface: '#1f1a16', primary: '#e9e5e1', secondary: '#c8c1ba', tertiary: '#a9a29b', faint: '#78716c', border: '#4a423b', dangerFg: '#f87171', dangerSoft: '#2e1a18', dangerBorder: '#5e2d2a' },
+} as const;
+
+const noSubscribe = () => () => {};
+
+function resolvedTheme(): keyof typeof PALETTE {
+  if (typeof document === 'undefined') return 'light';
+  const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${THEME_RESOLVED_COOKIE}=([^;]*)`));
+  return m?.[1] === 'dark' ? 'dark' : 'light';
+}
 
 export default function GlobalError({
   error,
@@ -16,9 +34,13 @@ export default function GlobalError({
     // (no-op without a DSN).
     Sentry.captureException(error);
   }, [error]);
+  // A server render paints light; the client re-reads the cookie after
+  // hydration with no mismatch (the server snapshot is the light one).
+  const theme = useSyncExternalStore(noSubscribe, resolvedTheme, () => 'light' as const);
+  const c = PALETTE[theme];
 
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: theme === 'dark' ? 'only dark' : 'only light' }}>
       <body
         style={{
           margin: 0,
@@ -26,7 +48,7 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#f9fafb',
+          backgroundColor: c.canvas,
           fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
           padding: '1rem',
         }}
@@ -35,17 +57,17 @@ export default function GlobalError({
           style={{
             maxWidth: '28rem',
             width: '100%',
-            backgroundColor: '#ffffff',
+            backgroundColor: c.surface,
             borderRadius: '1rem',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
             padding: '2rem',
             textAlign: 'center',
           }}
         >
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', marginBottom: '0.5rem' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: c.primary, marginBottom: '0.5rem' }}>
             Something went wrong
           </h1>
-          <p style={{ color: '#4b5563', marginBottom: '1.5rem' }}>
+          <p style={{ color: c.tertiary, marginBottom: '1.5rem' }}>
             The application hit an unexpected error. Please try again.
           </p>
           {process.env.NODE_ENV !== 'production' && error.message && (
@@ -53,9 +75,9 @@ export default function GlobalError({
               style={{
                 fontSize: '0.75rem',
                 textAlign: 'left',
-                color: '#b91c1c',
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fee2e2',
+                color: c.dangerFg,
+                backgroundColor: c.dangerSoft,
+                border: `1px solid ${c.dangerBorder}`,
                 borderRadius: '0.375rem',
                 padding: '0.5rem',
                 marginBottom: '1.5rem',
@@ -92,9 +114,9 @@ export default function GlobalError({
               onClick={() => window.location.assign('/')}
               style={{
                 padding: '0.75rem 1.5rem',
-                backgroundColor: '#ffffff',
-                color: '#374151',
-                border: '1px solid #d1d5db',
+                backgroundColor: c.surface,
+                color: c.secondary,
+                border: `1px solid ${c.border}`,
                 borderRadius: '0.5rem',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -105,7 +127,7 @@ export default function GlobalError({
             </button>
           </div>
           {error.digest && (
-            <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '1.5rem' }}>
+            <p style={{ fontSize: '0.75rem', color: c.faint, marginTop: '1.5rem' }}>
               Error ID: <code>{error.digest}</code>
             </p>
           )}

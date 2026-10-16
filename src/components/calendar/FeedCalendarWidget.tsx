@@ -507,7 +507,7 @@ export default function FeedCalendarWidget() {
                               ? 'bg-brand text-white font-bold'
                               : inMonth
                                 ? 'text-primary'
-                                : 'text-gray-300'
+                                : 'text-gray-300 dark:text-faint'
                           }`}
                         >
                           {day.getDate()}

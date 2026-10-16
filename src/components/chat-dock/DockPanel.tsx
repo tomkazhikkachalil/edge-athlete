@@ -217,7 +217,7 @@ export default function DockPanel({
               <div className="px-4 py-8 text-center">
                 {filter ? (
                   <>
-                    <i className="fas fa-search text-gray-300 text-2xl mb-2"></i>
+                    <i className="fas fa-search text-gray-300 dark:text-faint text-2xl mb-2"></i>
                     <p className="text-sm text-muted">
                       No conversations match &ldquo;{filter}&rdquo;
                     </p>

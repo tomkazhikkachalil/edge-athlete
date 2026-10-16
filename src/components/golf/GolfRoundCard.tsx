@@ -166,7 +166,7 @@ export default function GolfRoundCard({
             <div className="bg-surface rounded border border-border-strong overflow-x-auto">
               {/* Front 9 */}
               {round.golf_holes.filter((h) => h.hole_number <= 9).length > 0 && (
-                <div className="border-b-2 border-gray-400">
+                <div className="border-b-2 border-faint">
                   <table className="w-full min-w-[500px] text-xs">
                     <thead>
                       <tr className="bg-green-100 dark:bg-green-950/60 border-b border-border-strong">
@@ -215,7 +215,7 @@ export default function GolfRoundCard({
                         </td>
                       </tr>
                       {/* Score Row */}
-                      <tr className="border-b-2 border-gray-400">
+                      <tr className="border-b-2 border-faint">
                         <td className="py-2 px-2 font-black text-primary">SCORE</td>
                         {round.golf_holes
                           .filter((h) => h.hole_number <= 9)

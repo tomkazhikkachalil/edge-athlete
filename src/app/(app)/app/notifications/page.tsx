@@ -232,7 +232,7 @@ export default function NotificationsPage() {
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-12">
-            <i className="fas fa-bell-slash text-5xl text-gray-300 mb-4"></i>
+            <i className="fas fa-bell-slash text-5xl text-gray-300 dark:text-faint mb-4"></i>
             <h3 className="text-lg font-medium text-primary mb-2">No notifications</h3>
             <p className="text-tertiary">
               When you receive notifications, they&apos;ll appear here.

@@ -143,7 +143,7 @@ export default function GuardianTransfersPage() {
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${CHIP_TONES[chip.tone]}`}>
                   {chip.label}
                 </span>
-                {!transferred && <i className="fas fa-chevron-right text-gray-300 shrink-0"></i>}
+                {!transferred && <i className="fas fa-chevron-right text-gray-300 dark:text-faint shrink-0"></i>}
               </>
             );
             return transferred ? (

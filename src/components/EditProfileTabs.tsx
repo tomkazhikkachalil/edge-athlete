@@ -1234,7 +1234,7 @@ export default function EditProfileTabs({
     if (!schema) {
       return (
         <div className="text-center py-12 text-muted">
-          <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
+          <i className={`${sportDef.icon_id} text-4xl text-gray-300 dark:text-faint mb-4`} aria-hidden="true"></i>
           <h3 className="text-lg font-medium mb-2">{label} Settings</h3>
           <p>{getComingSoonMessage(sportKey, 'settings')}</p>
           <div className="mt-4 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md inline-block">
