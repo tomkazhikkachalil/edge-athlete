@@ -9,6 +9,7 @@ import {
   newRecording,
   recordsGps,
   reduce,
+  requiresManualDistance,
   restoreRecording,
   GAP_ENDS_RECORDING_MS,
   takesManualDistance,
@@ -250,5 +251,66 @@ describe('newId — a v4 uuid on every browser the app supports', () => {
     const ids = new Set(Array.from({ length: 200 }, () => newId()));
     expect(ids.size).toBe(200);
     for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+describe('the round timer in a recording (Oct 16 2026)', () => {
+  const at = (s: number) => T0 + s * 1000;
+  const start = (type: 'hiit' | 'elliptical' = 'hiit') => reduce(newRecording(REC_ID, 'p1', type), { type: 'start', now: T0 });
+
+  it('a finished Tabata leaves its 8 rounds and 7 rests as segments, at the timer’s offset', () => {
+    let s = start();
+    s = reduce(s, { type: 'timerStart', now: at(60), spec: { format: 'tabata', rounds: 8, workS: 20, restS: 10, warmupS: 0, cooldownS: 0 } });
+    s = reduce(s, { type: 'finish', now: at(600) });
+    const rounds = s.segments.filter(x => x.kind === 'round');
+    expect(rounds).toHaveLength(8);
+    expect(rounds[0]).toMatchObject({ from_s: 60, to_s: 80, label: 'Round 1' });
+    expect(s.segments.filter(x => x.kind === 'recovery')).toHaveLength(7);
+    // and the wire carries them through the server's own schema
+    expect(parseWireActivity(toRecordingWire(s, 'UTC')).ok).toBe(true);
+  });
+
+  it('a pause pauses the timer: the phase reads from the recording clock', () => {
+    let s = start();
+    s = reduce(s, { type: 'timerStart', now: at(0), spec: { format: 'rounds', rounds: 2, workS: 60, restS: 30, warmupS: 0, cooldownS: 0 } });
+    s = reduce(s, { type: 'pause', now: at(30) });
+    s = reduce(s, { type: 'resume', now: at(330) });
+    s = reduce(s, { type: 'finish', now: at(400) });
+    // 400 s of wall clock, 100 s of recording: round 1 (0–60), rest (60–90), 10 s of round 2
+    expect(s.segments.map(x => [x.kind, x.from_s, x.to_s])).toEqual([
+      ['round', 0, 60],
+      ['recovery', 60, 90],
+      ['round', 90, 100],
+    ]);
+  });
+
+  it('a stopped timer marks only what ran; AMRAP rounds are the taps', () => {
+    let s = start();
+    s = reduce(s, { type: 'timerStart', now: at(10), spec: { format: 'amrap', rounds: 1, workS: 600, restS: 0, warmupS: 0, cooldownS: 0 } });
+    for (const t of [100, 190, 300]) s = reduce(s, { type: 'amrapTap', now: at(t) });
+    s = reduce(s, { type: 'timerStop', now: at(320) });
+    s = reduce(s, { type: 'amrapTap', now: at(330) }); // after Stop: ignored
+    expect(s.timer!.amrapTapsS).toEqual([100, 190, 300]);
+    s = reduce(s, { type: 'finish', now: at(900) });
+    expect(s.segments.map(x => [x.from_s, x.to_s])).toEqual([[10, 100], [100, 190], [190, 300]]);
+  });
+
+  it('a timer cannot start before the recording does', () => {
+    const idle = newRecording(REC_ID, 'p1', 'hiit');
+    expect(reduce(idle, { type: 'timerStart', now: T0, spec: { format: 'tabata', rounds: 8, workS: 20, restS: 10, warmupS: 0, cooldownS: 0 } }).timer).toBeUndefined();
+  });
+});
+
+describe('optional distance at finish (Oct 16 2026)', () => {
+  it('elliptical, stairs and indoor ride may finish without one; swim and row may not', () => {
+    expect(requiresManualDistance('elliptical')).toBe(false);
+    expect(requiresManualDistance('stair_climber')).toBe(false);
+    expect(requiresManualDistance('indoor_ride')).toBe(false);
+    expect(requiresManualDistance('swim')).toBe(true);
+    expect(requiresManualDistance('row')).toBe(true);
+    expect(requiresManualDistance('run')).toBe(false);
+    let s = reduce(newRecording(REC_ID, 'p1', 'elliptical'), { type: 'start', now: T0 });
+    s = reduce(s, { type: 'finish', now: T0 + 1_800_000 });
+    expect(parseWireActivity(toRecordingWire(s, 'UTC')).ok).toBe(true);
   });
 });

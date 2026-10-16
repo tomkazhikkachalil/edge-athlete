@@ -14,9 +14,10 @@
 // function the server runs); every total here is for the live display — the
 // server recomputes all of them at import.
 
-import { ACTIVITY_TYPE_DEFS, type ActivityType } from '../catalog';
+import { ACTIVITY_TYPE_DEFS, DISTANCE_OPTIONAL_TYPES, type ActivityType } from '../catalog';
 import { cumulativeDistances, estimateSteps, haversineM, PAUSE_GAP_S } from '../normalize';
 import { normalizeSegments, SEGMENT_MIN_S, type ActivitySegment, type SegmentKind } from '../segments';
+import { normalizeSpec, timerSegments, totalS, type TimerSpec } from './round-timer';
 import { toWire } from '../wire';
 import { liveRouteGrowing } from '../gps-filter';
 import type { ActivityPoint } from '../types';
@@ -87,7 +88,21 @@ export interface RecordingState {
   /** A timer type's distance, typed at finish. */
   manualDistanceM: number | null;
   name: string | null;
+  /** The round timer (Oct 16 2026), when one ran: its spec, the recording
+   *  second it started at and stopped at (null = it runs to its end), and an
+   *  AMRAP's "+1 round" taps. Absent on recordings stored before. */
+  timer?: RecordingTimer | null;
 }
+
+export interface RecordingTimer {
+  spec: TimerSpec;
+  startS: number;
+  stopS: number | null;
+  amrapTapsS: number[];
+}
+
+/** An AMRAP never needs more taps than the segment cap. */
+const AMRAP_TAPS_MAX = 50;
 
 export type RecordingEvent =
   | { type: 'start'; now: number }
@@ -106,6 +121,9 @@ export type RecordingEvent =
   | { type: 'visible'; now: number }
   | { type: 'setManualDistance'; distanceM: number | null }
   | { type: 'setName'; name: string | null }
+  | { type: 'timerStart'; now: number; spec: TimerSpec }
+  | { type: 'timerStop'; now: number }
+  | { type: 'amrapTap'; now: number }
   | { type: 'finish'; now: number };
 
 /** A v4 UUID — the one minter (`src/lib/ids.ts`), re-exported for the recorder's callers. */
@@ -141,6 +159,17 @@ export function recordsGps(type: ActivityType): boolean {
 /** Whether a type takes a distance at finish (a timer type). */
 export function takesManualDistance(type: ActivityType): boolean {
   return ACTIVITY_TYPE_DEFS[type].recording === 'timer';
+}
+
+/** Whether Finish REQUIRES that distance (Oct 16 2026: not for elliptical, stairs, indoor ride). */
+export function requiresManualDistance(type: ActivityType): boolean {
+  return takesManualDistance(type) && !DISTANCE_OPTIONAL_TYPES.has(type);
+}
+
+/** The recording second the timer stops at: where it was stopped, or its schedule's end. */
+export function timerEndS(timer: RecordingTimer): number {
+  const natural = timer.startS + totalS(timer.spec);
+  return timer.stopS === null ? natural : Math.min(timer.stopS, natural);
 }
 
 /** Seconds into the recording at `now`, pauses excluded. */
@@ -231,6 +260,21 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       return { ...state, manualDistanceM: event.distanceM !== null && Number.isFinite(event.distanceM) && event.distanceM >= 0 ? event.distanceM : null };
     case 'setName':
       return { ...state, name: event.name && event.name.trim() ? event.name.trim().slice(0, 120) : null };
+    case 'timerStart': {
+      if (state.status !== 'recording' && state.status !== 'paused') return state;
+      return { ...state, timer: { spec: normalizeSpec(event.spec), startS: elapsedS(state, event.now), stopS: null, amrapTapsS: [] } };
+    }
+    case 'timerStop': {
+      if (!state.timer || state.timer.stopS !== null) return state;
+      return { ...state, timer: { ...state.timer, stopS: elapsedS(state, event.now) } };
+    }
+    case 'amrapTap': {
+      const t = state.timer;
+      if (!t || t.spec.format !== 'amrap' || t.amrapTapsS.length >= AMRAP_TAPS_MAX) return state;
+      const at = elapsedS(state, event.now);
+      if (at <= t.startS || at > timerEndS(t)) return state;
+      return { ...state, timer: { ...t, amrapTapsS: [...t.amrapTapsS, at] } };
+    }
     case 'finish': {
       if (state.status !== 'recording' && state.status !== 'paused') return state;
       let next = state;
@@ -239,6 +283,11 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       }
       next = closeOpenSegment(next, event.now, 'interval', null, `seg-${event.now}`);
       const gaps = next.gaps.map(g => (g.toMs === null ? { ...g, toMs: event.now } : g));
+      // The round timer's rounds and rests become segments (normalizeSegments clamps and caps at the wire).
+      if (next.timer) {
+        const end = Math.min(timerEndS(next.timer), elapsedS(next, event.now));
+        next = { ...next, segments: [...next.segments, ...timerSegments(next.timer.spec, next.timer.startS, end, next.timer.amrapTapsS)] };
+      }
       return { ...next, status: 'finished', finishedAt: event.now, gaps };
     }
     default:

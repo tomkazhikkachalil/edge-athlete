@@ -34,7 +34,7 @@ const lineStyle = (): L.PolylineOptions => ({ color: LINE_COLOUR, weight: 4 });
 const casingStyle = (): L.PolylineOptions => ({ color: '#ffffff', weight: 7, opacity: 0.9 });
 const bridgeStyle = (): L.PolylineOptions => ({ color: LINE_COLOUR, weight: 3, opacity: 0.7, dashArray: '6 8', interactive: false });
 
-const SEGMENT_COLOURS: Record<SegmentKind, string> = { sprint: '#dc2626', climb: '#d97706', interval: '#2563eb', recovery: '#16a34a', lap: '#7c3aed' };
+const SEGMENT_COLOURS: Record<SegmentKind, string> = { sprint: '#dc2626', climb: '#d97706', interval: '#2563eb', recovery: '#16a34a', lap: '#7c3aed', round: '#db2777' };
 
 const playerIcon = L.divIcon({
   className: '',

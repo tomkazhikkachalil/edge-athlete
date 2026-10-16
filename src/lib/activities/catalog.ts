@@ -139,6 +139,11 @@ export function activityTypesInGroup(group: ActivityGroup): ActivityType[] {
   return ACTIVITY_TYPES.filter(t => ACTIVITY_TYPE_DEFS[t].group === group);
 }
 
+/** Timer types whose distance is optional at finish (Oct 16 2026): nobody
+ *  knows an elliptical's distance, a stair "distance" is nominal, and many
+ *  indoor rides show none. */
+export const DISTANCE_OPTIONAL_TYPES: ReadonlySet<ActivityType> = new Set<ActivityType>(['elliptical', 'stair_climber', 'indoor_ride']);
+
 /** The types whose distance is walked or run — the only ones steps are estimated for. */
 export const STEP_TYPES: ReadonlySet<ActivityType> = new Set<ActivityType>(['walk', 'hike', 'run', 'trail_run', 'treadmill']);
 

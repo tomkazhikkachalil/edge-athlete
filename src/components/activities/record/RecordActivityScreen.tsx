@@ -39,6 +39,7 @@ import LiveStats from './LiveStats';
 import LiveRouteMap from './LiveRouteMap';
 import RecorderControls from './RecorderControls';
 import SegmentSheet from './SegmentSheet';
+import RoundTimerPanel from './RoundTimerPanel';
 import RecorderPhotos from './RecorderPhotos';
 import FinishSheet, { type FinishDetails } from './FinishSheet';
 import { postActivity } from '@/lib/activities/share-client';
@@ -307,6 +308,15 @@ export default function RecordActivityScreen() {
           <div className="mt-4">
             <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} />
           </div>
+          {(state.status === 'recording' || state.status === 'paused') && (
+            <RoundTimerPanel
+              state={state}
+              wakeHeld={engine.wakeHeld}
+              onStart={spec => dispatch({ type: 'timerStart', now: Date.now(), spec })}
+              onStop={() => dispatch({ type: 'timerStop', now: Date.now() })}
+              onAmrapTap={() => dispatch({ type: 'amrapTap', now: Date.now() })}
+            />
+          )}
           {state.status !== 'idle' && (
             <div className="mt-4">
               <RecorderPhotos photos={state.photos} previews={engine.previews} disabled={state.status === 'finished'} onFiles={files => engine.addFiles(files)} onRemove={engine.removePhoto} onRetry={engine.retryPhoto} />
