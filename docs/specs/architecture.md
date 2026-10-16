@@ -147,8 +147,12 @@ redeploy.
 **Location:** `src/lib/sports/`
 
 Platform uses adapters for sport-specific logic:
-- **SportRegistry.ts** - Defines all 11 sports (baseball, basketball, football, golf,
-  ice_hockey, soccer, swimming, tennis, track_field, training, volleyball)
+- **SportRegistry.ts** - Defines 17 sports, 15 enabled (`FEATURE_SPORTS`; tennis and football are
+  "coming soon"): golf; the stat-line team sports ice_hockey, volleyball, basketball, soccer,
+  baseball, track_field; the endurance sports swimming, cycling, running, rowing (Live
+  Activities, Oct 2026); and the combat sports mma, boxing, wrestling, bjj with bout results
+  (Oct 16 2026 — `docs/specs/combat-sports.md`). `training` left the registry in migration 077;
+  `registry-agreement.test.ts` pins the registry, `FEATURE_SPORTS` and the adapters together.
 - **SportAdapter.ts** - Base interface, plus `BaseSportAdapter` and `DisabledSportAdapter`
 - **adapters/GolfAdapter.ts** - Reference implementation (deep tables)
 - **adapters/StatLinePostAdapter.ts** - One adapter parameterised by `sport_key`, serving
@@ -157,7 +161,7 @@ Platform uses adapters for sport-specific logic:
 **Status** — every registered sport has an adapter; `AdapterRegistry.getAdapter()` throws
 rather than falling back, so the fallback is applied at *registration* time:
 - ✅ **Golf** — fully implemented (rounds, scorecards, stats), its own deep tables
-- ✅ **Ice hockey, volleyball, basketball, soccer, baseball, track & field** — `StatLinePostAdapter`.
+- ✅ **Ice hockey, volleyball, basketball, soccer, baseball, track & field, swimming, cycling, running, rowing, MMA, boxing, wrestling, jiu-jitsu** — `StatLinePostAdapter`.
   Adding another is 2 edits; see `src/lib/sports/stat-schemas.ts`
 - ✅ **Swimming, cycling, running, rowing** (Live Activities, Oct 4 2026) — `StatLinePostAdapter`
   over ONE shared endurance stat line (`enduranceSchema`); a recorded or imported
