@@ -82,8 +82,8 @@ describe('weeklySummary', () => {
 
   it('handles empty input', () => {
     expect(weeklySummary([], NOW)).toEqual({
-      workouts: 0, volumeLbs: 0, seconds: 0,
-      prior: { workouts: 0, volumeLbs: 0, seconds: 0 },
+      workouts: 0, volumeLbs: 0, seconds: 0, load: 0, rated: 0,
+      prior: { workouts: 0, volumeLbs: 0, seconds: 0, load: 0, rated: 0 },
     });
   });
 });

@@ -103,3 +103,37 @@ describe('the streak survives a week with no gym session but a run (the Oct 1 fi
     expect(sessionsStreakWeeks([], NOW)).toBe(0);
   });
 });
+
+describe('training load (A11, Oct 16 2026)', () => {
+  // Wednesday Oct 14 2026, local noon — inside the week of Monday Oct 12.
+  const NOW_L = new Date(2026, 9, 14, 12, 0, 0);
+  const at = (d: number) => new Date(2026, 9, d, 9, 0, 0).toISOString();
+  const s = (id: string, day: number, minutes: number, effort?: number | null) => ({
+    id,
+    kind: 'activity' as const,
+    startedAt: at(day),
+    seconds: minutes * 60,
+    volumeLbs: 0,
+    title: id,
+    ...(effort !== undefined ? { effort } : {}),
+  });
+
+  it('is minutes × effort; an unrated session adds nothing — never imputed', async () => {
+    const { loadOf, sessionsWeeklySummary, sessionsWeeklyBars } = await import('../training/session-math');
+    expect(loadOf({ seconds: 3600, effort: 7 })).toBe(420);
+    expect(loadOf({ seconds: 3600, effort: null })).toBe(0);
+    expect(loadOf({ seconds: 3600 })).toBe(0);
+    expect(loadOf({ seconds: 3600, effort: 11 })).toBe(0);
+    const week = sessionsWeeklySummary([s('a', 12, 60, 7), s('b', 13, 30, 4), s('c', 14, 45), s('d', 6, 50, 5)], NOW_L);
+    expect(week).toMatchObject({ workouts: 3, load: 540, rated: 2, prior: { workouts: 1, load: 250, rated: 1 } });
+    const bars = sessionsWeeklyBars([s('a', 12, 60, 7), s('c', 14, 45)], 2, NOW_L);
+    expect(bars.at(-1)).toMatchObject({ workouts: 2, load: 420, rated: 1 });
+  });
+
+  it('a workout and an activity both carry their effort into the week', async () => {
+    const { fromActivity } = await import('../training/sessions');
+    const { workoutToSession } = await import('../workouts/dashboard');
+    expect(fromActivity({ id: 'x', type: 'yoga', name: 'Flow', startedAt: at(12), elapsedS: 1800, movingS: null, distanceM: null, effort: 5 } as never).effort).toBe(5);
+    expect(workoutToSession({ id: 'w', profile_id: 'p', title: 'Push', notes: null, status: 'completed', source: 'live', started_at: at(12), ended_at: at(12), duration_seconds: 2400, post_id: null, last_activity_at: at(12), updated_at: at(12), effort: 8 }).effort).toBe(8);
+  });
+});

@@ -88,6 +88,7 @@ export function workoutToSession(session: ServerWorkoutSession): TrainingSession
     volumeLbs: sessionVolumeLbs(session),
     title: session.title || 'Workout',
     ...(distanceM !== null ? { distanceM } : {}),
+    ...(typeof session.effort === 'number' ? { effort: session.effort } : {}),
   };
 }
 

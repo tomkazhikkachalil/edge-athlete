@@ -124,7 +124,7 @@ export async function listActivitySessions(
   const since = new Date(now - SESSIONS_WEEKS * 7 * 86_400_000).toISOString();
   let q = admin
     .from('activities')
-    .select('id, activity_type, source, name, started_at, elapsed_s, moving_s, distance_m, sport_key, session_kind')
+    .select('id, activity_type, source, name, started_at, elapsed_s, moving_s, distance_m, sport_key, session_kind, effort')
     .eq('profile_id', profileId)
     .gte('started_at', since)
     .order('started_at', { ascending: false })
@@ -151,6 +151,7 @@ export async function listActivitySessions(
       distanceM: num(r.distance_m),
       sourceName: sourceName(r.source as string | null),
       ...(typeof r.sport_key === 'string' ? { sportKey: r.sport_key, sessionKind: typeof r.session_kind === 'string' ? r.session_kind : null } : {}),
+      ...(typeof r.effort === 'number' ? { effort: r.effort } : {}),
     })),
   };
 }
