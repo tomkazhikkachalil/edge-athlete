@@ -29,6 +29,9 @@ export interface TrainingSession {
   /** An activity's type (run, ride, …) and distance; absent on a workout. */
   activityType?: string;
   distanceM?: number | null; sourceName?: string | null;
+  /** A9: a sport session's sport (a SportRegistry key) and kind (practice | game | other). */
+  sportKey?: string | null;
+  sessionKind?: string | null;
 }
 
 export interface WeekTotals {

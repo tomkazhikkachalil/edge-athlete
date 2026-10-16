@@ -1,5 +1,6 @@
 'use client';
 
+import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BODY_METRIC_CATEGORIES } from '@/lib/body-metrics-config';
@@ -43,6 +44,9 @@ import { useTheme } from '@/lib/use-theme';
 import type { BodyMetricEntry } from './training/metric-stats';
 import type { TrainingPrivacy } from '@/lib/training-privacy';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
+
+/** A9: a sport session's kind, as the row reads it. */
+const SESSION_KIND_LABELS: Record<string, string> = { practice: 'Practice', game: 'Game', other: 'Other' };
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // BodyMetricEntry moved to bodyMetrics/metric-stats.ts with the metric math.
@@ -441,11 +445,18 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             <div className="space-y-2" data-training-recent-sessions>
               {recentSessions.map(session => {
                 const def = session.kind === 'activity' && isActivityType(session.activityType) ? ACTIVITY_TYPE_DEFS[session.activityType] : null;
+                // A9: a sport session wears its sport — "Soccer · Practice".
+                const sport = session.sportKey && session.sportKey in SPORT_REGISTRY ? SPORT_REGISTRY[session.sportKey as SportKey] : null;
+                const sportLine = sport ? [sport.display_name, session.sessionKind ? SESSION_KIND_LABELS[session.sessionKind] : null].filter(Boolean).join(' · ') : null;
                 return (
                   <div key={`${session.kind}:${session.id}`} className="flex items-center justify-between gap-2 text-sm" data-session-kind={session.kind}>
                     <span className="flex min-w-0 items-center gap-2 font-semibold text-primary">
-                      <i className={`fas fa-${def ? def.icon : 'dumbbell'} w-4 shrink-0 text-center text-xs text-muted`} aria-hidden="true" />
-                      <span className="truncate">{session.title}</span>
+                      <i className={`${sport ? sport.icon_id : `fas fa-${def ? def.icon : 'dumbbell'}`} w-4 shrink-0 text-center text-xs text-muted`} aria-hidden="true" />
+                      {/* A sport session's sport sits under its name: side by side, both truncate at 375 px. */}
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate">{session.title}</span>
+                        {sportLine && <span className="truncate text-xs font-normal text-muted" data-session-sport={session.sportKey}>{sportLine}</span>}
+                      </span>
                     </span>
                     <span className="text-xs text-muted whitespace-nowrap shrink-0">
                       {new Date(session.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

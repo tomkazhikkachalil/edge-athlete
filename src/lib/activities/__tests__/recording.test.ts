@@ -346,3 +346,17 @@ describe('climbs logged while recording (A8)', () => {
     expect(s.climbs).toEqual([]);
   });
 });
+
+describe('a sport session’s map (A9)', () => {
+  it('is off by default, chosen before the start, and only for a sport session', async () => {
+    const { recordsGpsFor } = await import('../record/recording');
+    const idle = newRecording(REC_ID, 'p1', 'sport_session');
+    expect(recordsGpsFor(idle)).toBe(false);
+    const on = reduce(idle, { type: 'setMap', on: true });
+    expect(recordsGpsFor(on)).toBe(true);
+    const started = reduce(on, { type: 'start', now: T0 });
+    expect(reduce(started, { type: 'setMap', on: false }).mapOn).toBe(true); // too late to change
+    expect(reduce(newRecording(REC_ID, 'p1', 'yoga'), { type: 'setMap', on: true }).mapOn).toBeUndefined();
+    expect(recordsGpsFor(newRecording(REC_ID, 'p1', 'run'))).toBe(true);
+  });
+});

@@ -144,3 +144,10 @@ describe('climbing tiles (A8)', () => {
     expect(tilesFor(src('climb', { details: { ...colours, colours_ordered: true } }), null, 'km').find(x => x.key === 'hardest')!.value).toBe('Blue');
   });
 });
+
+describe('a sport session (A9)', () => {
+  it('reads its time and effort; a distance only when its map was on', () => {
+    expect(tilesFor(src('sport_session', { effort: 6 }), null, 'km').map(t => t.key)).toEqual(['time', 'effort']);
+    expect(tilesFor(src('sport_session', { distanceM: 5800, movingS: 3600, elapsedS: 3600 }), null, 'km').map(t => t.key)).toEqual(['time', 'distance']);
+  });
+});

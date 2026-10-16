@@ -93,13 +93,22 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     const { name, type, onlyMe, segments, notes, effort, details } = parsed.data;
     const finalType = type ?? (isActivityType(read.row.activity_type) ? read.row.activity_type : 'other');
     let detailsPatch: Record<string, unknown> | null | undefined;
+    // A9: a sport session's sport and kind are columns; any other type has none.
+    let sportPatch: { sport_key: string | null; session_kind: string | null } | undefined;
+    const retyped = type !== undefined && type !== read.row.activity_type;
     if (details !== undefined) {
       const answers = parseFinishAnswers(finalType, { details });
       if (!answers.ok) return NextResponse.json({ error: answers.error }, { status: 400 });
       detailsPatch = answers.value.details;
-    } else if (type !== undefined && type !== read.row.activity_type) {
+      if (finalType === 'sport_session') {
+        if (!answers.value.sportKey) return NextResponse.json({ error: 'Choose the sport for this session.' }, { status: 400 });
+        sportPatch = { sport_key: answers.value.sportKey, session_kind: answers.value.sessionKind };
+      }
+    } else if (retyped) {
       detailsPatch = null;
+      if (finalType === 'sport_session') return NextResponse.json({ error: 'Choose the sport for this session.' }, { status: 400 });
     }
+    if (retyped && finalType !== 'sport_session') sportPatch = { sport_key: null, session_kind: null };
     if (onlyMe === true && read.row.post_id) {
       return NextResponse.json(
         { error: 'This activity is on your feed. Delete that post first, then set the activity to Only me.' },
@@ -114,6 +123,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     if (notes !== undefined) patch.notes = notes && notes.length > 0 ? notes : null;
     if (effort !== undefined) patch.effort = effort;
     if (detailsPatch !== undefined) patch.details = detailsPatch;
+    if (sportPatch) Object.assign(patch, sportPatch);
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ activity: projectActivity(read.row, 'owner') }, { headers: NO_STORE });
     }

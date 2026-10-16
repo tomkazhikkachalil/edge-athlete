@@ -86,6 +86,7 @@ export default function FinishSheet({
       ...(initialDetails ?? {}),
     },
   }));
+  const sportMissing = type === 'sport_session' && typeof answers.details.sport !== 'string';
   // The last answers land once, and only before the athlete touched a question.
   const [touched, setTouched] = useState(false);
   const [seededFrom, setSeededFrom] = useState<Details | null>(null);
@@ -97,6 +98,7 @@ export default function FinishSheet({
   const needsDistance = def.recording === 'timer';
   // Oct 16 2026: elliptical, stairs and indoor rides may finish without one.
   const distanceRequired = requiresManualDistance(type);
+  // A9: a sport session is saved with its sport.
   const pending = photos.filter(p => !p.url && !p.failed).length;
   const failed = photos.filter(p => p.failed).length;
   const parsedDistance = (): number | null => {
@@ -222,6 +224,7 @@ export default function FinishSheet({
             <button type="button" onClick={onDropFailed} className="underline font-medium">Continue without {failed === 1 ? 'it' : 'them'}</button>
           </p>
         )}
+        {sportMissing && <p className="mt-3 text-sm text-secondary" data-record-sport-needed="">Choose the sport to save this session.</p>}
         {error && <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>}
         {/* Pinned to the sheet's bottom: the decision is always one tap away. */}
         <div className="sticky bottom-0 -mx-4 mt-4 flex gap-2 border-t border-border bg-surface px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-record-review-actions="">
@@ -240,7 +243,7 @@ export default function FinishSheet({
                 answers,
               })
             }
-            disabled={saving || pending > 0 || failed > 0 || (distanceRequired && parsedDistance() === null)}
+            disabled={saving || pending > 0 || failed > 0 || (distanceRequired && parsedDistance() === null) || sportMissing}
             className="ea-cta min-h-[48px] flex-1 rounded-lg text-base font-semibold text-white disabled:opacity-50"
             data-record-save=""
             data-record-save-choice={choice}

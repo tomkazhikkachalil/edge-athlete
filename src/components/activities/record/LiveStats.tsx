@@ -14,7 +14,8 @@ function hms(seconds: number): string {
 /** What the screen shows while recording — the server recomputes every number at Finish. */
 export default function LiveStats({ type, totals, unit, gps }: { type: ActivityType; totals: LiveTotals; unit: DistanceUnit; gps: { status: string; accuracy: number | null; stale: boolean } | null }) {
   const def = ACTIVITY_TYPE_DEFS[type];
-  const showDistance = def.recording !== 'duration';
+  // A sport session shows distance only when its map is on (A9).
+  const showDistance = def.recording === 'gps' || def.recording === 'timer' || (def.recording === 'gps_optional' && gps !== null);
   const current = totals.currentPaceSPerM !== null ? formatPace(1000, totals.currentPaceSPerM * 1000, type, unit) : null;
   const avg = totals.avgPaceSPerM !== null ? formatPace(1000, totals.avgPaceSPerM * 1000, type, unit) : null;
   return (
@@ -22,7 +23,7 @@ export default function LiveStats({ type, totals, unit, gps }: { type: ActivityT
       <p className="text-center text-[56px] leading-none font-bold tabular-nums text-primary" data-record-timer="">
         {hms(totals.elapsedS)}
       </p>
-      {gps && def.recording === 'gps' && (
+      {gps && (
         <p className="mt-1 text-center text-xs" data-record-gps={gps.status}>
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${gps.stale || gps.status === 'denied' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-surface-muted text-secondary'}`}>
             <i className="fas fa-location-dot" aria-hidden="true"></i>

@@ -72,7 +72,7 @@ export type TileKey =
 /** The detail page's ceiling: five rows of two at 375 px. */
 export const MAX_TILES = 9;
 
-type Family = 'foot' | 'trail' | 'wheel' | 'snow' | 'water' | 'indoor' | 'session';
+type Family = 'foot' | 'trail' | 'wheel' | 'snow' | 'water' | 'indoor' | 'session' | 'sport';
 
 /** Each type's family — the order its tiles read in. */
 export const TILE_FAMILY: Readonly<Record<ActivityType, Family>> = {
@@ -102,7 +102,7 @@ export const TILE_FAMILY: Readonly<Record<ActivityType, Family>> = {
   dance: 'session',
   climb: 'session',
   other: 'session',
-  sport_session: 'session',
+  sport_session: 'sport',
 };
 
 const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {
@@ -112,6 +112,8 @@ const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {
   snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'gain', 'effort', 'total', 'hr', 'calories'],
   water: ['distance', 'moving', 'pace', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
   indoor: ['distance', 'time', 'pace', 'lengths', 'effort', 'hr', 'power', 'cadence', 'steps', 'calories'],
+  // A9: time first; distance only when the map was on (a tile shows only with a value).
+  sport: ['time', 'distance', 'effort', 'hr', 'calories'],
   session: ['time', 'climbs', 'sends', 'hardest', 'rounds', 'workRest', 'sparring', 'effort', 'hr', 'calories'],
 };
 

@@ -22,6 +22,7 @@
 import type { ActivityType } from './catalog';
 import { isPoolLength, POOL_LENGTH_LABELS, POOL_LENGTHS, type PoolLength } from './pool';
 import { formatQuantity, type Quantity, type UnitSystem } from './units';
+import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { CLIMB_SCALE_LABELS, CLIMB_SCALES, climbsFrom, isClimbScale, SCALES_FOR_STYLE, type Climb } from './climbing';
 
 export interface ChoiceOption {
@@ -41,7 +42,12 @@ interface FieldBase {
    *  offers its own grade scales): only `allowed[values[key]]` are offered
    *  and valid once that answer is given. */
   filterBy?: { key: string; allowed: Readonly<Record<string, readonly string[]>> };
+  /** Written to the row's own column instead of details (a device's watts,
+   *  a sport session's sport — facts other readers query across rows). */
+  column?: DetailColumn;
 }
+
+export type DetailColumn = 'avg_power' | 'avg_cadence' | 'sport_key' | 'session_kind';
 
 export type DetailField =
   | (FieldBase & { kind: 'choice'; options: readonly ChoiceOption[] })
@@ -56,8 +62,6 @@ export type DetailField =
       min: number;
       max: number;
       integer?: boolean;
-      /** Written to the row's own column instead of details. */
-      column?: 'avg_power' | 'avg_cadence';
     })
   | (FieldBase & { kind: 'text'; max: number; placeholder?: string });
 
@@ -134,6 +138,13 @@ export const DETAIL_FIELDS_BY_TYPE: Readonly<Partial<Record<ActivityType, readon
   snowboard: [{ key: 'terrain', kind: 'choice', label: 'Where', options: opts(['resort', 'Resort'], ['backcountry', 'Backcountry']) }],
   xc_ski: [{ key: 'technique', kind: 'choice', label: 'Technique', options: opts(['classic', 'Classic'], ['skate', 'Skate']) }],
   hike: [{ key: 'pack_kg', kind: 'number', label: 'Pack weight', quantity: 'weight', min: 0.5, max: 60, more: true }],
+  // ── A9: a sport's practice or game — the sport and the kind are the row's own columns ──
+  sport_session: [
+    { key: 'sport', kind: 'choice', label: 'Sport', options: getEnabledSports().map(s => ({ value: s.sport_key, label: s.display_name })), column: 'sport_key' },
+    { key: 'session_kind', kind: 'choice', label: 'What was it', options: opts(['practice', 'Practice'], ['game', 'Game'], ['other', 'Other']), column: 'session_kind' },
+    { key: 'minutes_played', kind: 'number', label: 'Minutes played', unit: 'min played', min: 1, max: 300, integer: true },
+    { key: 'position', kind: 'text', label: 'Position', more: true, max: 40, placeholder: 'Midfield, goalie, point guard…' },
+  ],
   // ── A8: climbing — the session's answers; the climbs themselves are `details.climbs` (climbing.ts) ──
   climb: [
     { key: 'setting', kind: 'choice', label: 'Where', options: opts(['indoor', 'Indoor'], ['outdoor', 'Outdoor']) },
@@ -214,7 +225,22 @@ export function validAnswer(f: DetailField, v: unknown): boolean {
 
 /** The fields stored in details (not those that are the row's own columns). */
 export function storedFields(type: ActivityType): DetailField[] {
-  return detailFieldsFor(type).filter(f => !(f.kind === 'number' && f.column));
+  return detailFieldsFor(type).filter(f => !f.column);
+}
+
+/**
+ * Everything a reader shows as the activity's answers: the stored details
+ * plus the column-backed CHOICES (a sport session's sport and kind) — the
+ * columns stay the one fact, read back into the same shape.
+ */
+export function answersOf(type: ActivityType, row: { details?: unknown; sport_key?: string | null; session_kind?: string | null }): Details {
+  const out = detailsFromRow(type, row.details);
+  for (const f of detailFieldsFor(type)) {
+    if (f.kind !== 'choice' || !f.column) continue;
+    const v = f.column === 'sport_key' ? row.sport_key : f.column === 'session_kind' ? row.session_kind : null;
+    if (typeof v === 'string' && f.options.some(o => o.value === v)) out[f.key] = v;
+  }
+  return out;
 }
 
 export const EFFORT_MIN = 1;
@@ -255,7 +281,14 @@ export function withoutHiddenAnswers(type: ActivityType, details: Details): Deta
  * type: choices, multi-choices and yes/no ONLY. Numbers and text start empty.
  */
 export function prefillFrom(type: ActivityType, last: unknown): Details {
+  // The stored details, plus a column-backed choice when the value carries one (answersOf's shape).
   const known = detailsFromRow(type, last);
+  if (last && typeof last === 'object' && !Array.isArray(last)) {
+    for (const f of detailFieldsFor(type)) {
+      const v = (last as Record<string, unknown>)[f.key];
+      if (f.kind === 'choice' && f.column && validAnswer(f, v)) known[f.key] = v as string;
+    }
+  }
   const out: Details = {};
   for (const f of detailFieldsFor(type)) {
     if ((f.kind === 'choice' || f.kind === 'multi' || f.kind === 'bool') && known[f.key] !== undefined) out[f.key] = known[f.key];
@@ -284,7 +317,7 @@ function valueText(f: DetailField, v: DetailValue, sys: UnitSystem): string | nu
 export function detailParts(type: ActivityType, details: Details, sys: UnitSystem): { key: string; label: string; value: string }[] {
   const out: { key: string; label: string; value: string }[] = [];
   for (const f of detailFieldsFor(type)) {
-    if (f.kind === 'number' && f.column) continue;
+    if (f.kind === 'number' && f.column) continue; // a device's number, shown as its own tile
     const v = details[f.key];
     if (v === undefined) continue;
     const text = valueText(f, v, sys);
