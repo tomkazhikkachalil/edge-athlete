@@ -47,6 +47,7 @@ export default function FinishSheet({
   onDropFailed,
   prefill,
   timerFormat = null,
+  initialDetails = null,
 }: {
   type: ActivityType;
   defaultName: string;
@@ -67,6 +68,8 @@ export default function FinishSheet({
   prefill: Details | null;
   /** The round timer's format, when one ran — a HIIT's "Format" starts there (A7). */
   timerFormat?: TimerFormat | null;
+  /** What the recording already holds (A8: a climbing session's scale and climbs). */
+  initialDetails?: Details | null;
 }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   const [name, setName] = useState(defaultName);
@@ -78,7 +81,10 @@ export default function FinishSheet({
     effort: null,
     notes: '',
     // The timer knows the format better than last time's answer does (Rounds reads as Intervals).
-    details: type === 'hiit' && timerFormat ? { format: timerFormat === 'rounds' ? 'intervals' : String(timerFormat) } : {},
+    details: {
+      ...(type === 'hiit' && timerFormat ? { format: timerFormat === 'rounds' ? 'intervals' : String(timerFormat) } : {}),
+      ...(initialDetails ?? {}),
+    },
   }));
   // The last answers land once, and only before the athlete touched a question.
   const [touched, setTouched] = useState(false);

@@ -5,7 +5,8 @@
 
 import { z } from 'zod';
 import type { ActivityType } from './catalog';
-import { detailFieldsFor, EFFORT_MAX, EFFORT_MIN, NOTES_MAX, withoutHiddenAnswers, type DetailField, type Details } from './details';
+import { detailFieldsFor, EFFORT_MAX, EFFORT_MIN, NOTES_MAX, optionsFor, withoutHiddenAnswers, type DetailField, type Details } from './details';
+import { CLIMBS_MAX, isClimbScale, validClimb, type Climb } from './climbing';
 
 function fieldSchema(f: DetailField): z.ZodTypeAny {
   switch (f.kind) {
@@ -79,12 +80,34 @@ export function parseFinishAnswers(
       else columns.avgCadence = r.data as number;
     } else stored[k] = v;
   }
+  // A8: a climbing session's climbs are their own list, checked on its scale.
+  let climbs: Climb[] | undefined;
+  if (type === 'climb' && 'climbs' in stored) {
+    const raw = stored.climbs;
+    delete stored.climbs;
+    if (!Array.isArray(raw)) return { ok: false, error: 'finish.details.climbs: a list of climbs' };
+    if (raw.length > CLIMBS_MAX) return { ok: false, error: `finish.details.climbs: at most ${CLIMBS_MAX} climbs` };
+    if (!isClimbScale(stored.scale)) return { ok: false, error: 'finish.details.climbs: choose the grade scale first' };
+    climbs = [];
+    for (const [i, c] of raw.entries()) {
+      const v = validClimb(stored.scale, c);
+      if (!v) return { ok: false, error: `finish.details.climbs.${i}: not a climb on this scale` };
+      climbs.push(v);
+    }
+  }
   const r = detailsSchema(type).safeParse(stored);
   if (!r.success) {
     const i = r.error.issues[0];
     return { ok: false, error: i ? `finish.details.${i.path.join('.') || '?'}: ${i.message}` : 'Invalid details.' };
   }
-  const kept = withoutHiddenAnswers(type, r.data as Details);
+  // A choice must be one its parent answer offers (a style's own scales).
+  for (const f of detailFieldsFor(type)) {
+    const v = (r.data as Details)[f.key];
+    if (v !== undefined && f.filterBy && !optionsFor(f, r.data as Details).some(o => o.value === v)) {
+      return { ok: false, error: `finish.details.${f.key}: not offered for that ${f.filterBy.key}` };
+    }
+  }
+  const kept = withoutHiddenAnswers(type, { ...(r.data as Details), ...(climbs && climbs.length > 0 ? { climbs } : {}) });
   const details = Object.keys(kept).length > 0 ? kept : null;
   const notes = outer.data.notes && outer.data.notes.length > 0 ? outer.data.notes : null;
   return { ok: true, value: { effort: outer.data.effort ?? null, notes, details, ...columns } };

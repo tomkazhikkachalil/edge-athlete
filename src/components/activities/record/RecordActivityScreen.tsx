@@ -40,6 +40,7 @@ import LiveRouteMap from './LiveRouteMap';
 import RecorderControls from './RecorderControls';
 import SegmentSheet from './SegmentSheet';
 import RoundTimerPanel from './RoundTimerPanel';
+import ClimbLog from '@/components/activities/ClimbLog';
 import { finishPayload } from '@/components/activities/FinishDetailsForm';
 import type { Details } from '@/lib/activities/details';
 import RecorderPhotos from './RecorderPhotos';
@@ -336,6 +337,19 @@ export default function RecordActivityScreen() {
           <div className="mt-4">
             <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} />
           </div>
+          {state.type === 'climb' && (state.status === 'recording' || state.status === 'paused') && (
+            // A8: each climb is logged as it happens — in the stored recording at once.
+            <div className="mx-4 mt-4 rounded-xl border border-border bg-surface p-4" data-record-climbs="">
+              <ClimbLog
+                scale={state.climbScale ?? null}
+                climbs={state.climbs ?? []}
+                onScale={scale => dispatch({ type: 'climbScale', scale })}
+                onAdd={climb => dispatch({ type: 'climbLogged', now: Date.now(), climb })}
+                onEdit={(index, climb) => dispatch({ type: 'climbEdited', index, climb })}
+                onRemove={index => dispatch({ type: 'climbRemoved', index })}
+              />
+            </div>
+          )}
           {(state.status === 'recording' || state.status === 'paused') && (
             <RoundTimerPanel
               state={state}
@@ -403,6 +417,11 @@ export default function RecordActivityScreen() {
           onDropFailed={dropFailed}
           prefill={prefill}
           timerFormat={state.timer?.spec.format ?? null}
+          initialDetails={
+            state.type === 'climb' && state.climbScale
+              ? { scale: state.climbScale, ...((state.climbs ?? []).length > 0 ? { climbs: state.climbs! } : {}) }
+              : null
+          }
         />
       )}
       <ConfirmModal

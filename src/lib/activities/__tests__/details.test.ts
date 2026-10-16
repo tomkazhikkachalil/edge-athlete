@@ -120,3 +120,24 @@ describe('detailLine and units', () => {
     expect(lengths(1500, null)).toBeNull();
   });
 });
+
+describe('climbing answers (A8)', () => {
+  const climbs = [{ grade: 'V3', sent: true }, { grade: 'V4', sent: true, attempts: 2 }];
+  it('a style offers its own scales; climbs ride on the scale', () => {
+    const r = parseFinishAnswers('climb', { details: { setting: 'indoor', style: 'bouldering', scale: 'v', climbs } });
+    expect(r).toMatchObject({ ok: true, value: { details: { setting: 'indoor', style: 'bouldering', scale: 'v', climbs } } });
+    expect(parseFinishAnswers('climb', { details: { style: 'bouldering', scale: 'yds' } })).toMatchObject({ ok: false, error: expect.stringContaining('scale') });
+    expect(parseFinishAnswers('climb', { details: { climbs } })).toMatchObject({ ok: false, error: expect.stringContaining('scale') });
+    expect(parseFinishAnswers('climb', { details: { scale: 'v', climbs: [{ grade: '6A', sent: true }] } })).toMatchObject({ ok: false });
+    const many = Array.from({ length: 51 }, () => ({ grade: 'V1', sent: true }));
+    expect(parseFinishAnswers('climb', { details: { scale: 'v', climbs: many } })).toMatchObject({ ok: false, error: expect.stringContaining('50') });
+    expect(parseFinishAnswers('swim', { details: { climbs } })).toMatchObject({ ok: false });
+  });
+
+  it('the next session pre-fills the style and scale, never the climbs; colours order hangs off Gym colours', () => {
+    expect(prefillFrom('climb', { setting: 'indoor', style: 'lead', scale: 'french', climbs })).toEqual({ setting: 'indoor', style: 'lead', scale: 'french' });
+    expect(detailsFromRow('climb', { scale: 'v', colours_ordered: true })).toEqual({ scale: 'v' });
+    expect(detailsFromRow('climb', { style: 'bouldering', scale: 'yds' })).toEqual({ style: 'bouldering' });
+    expect(detailLine('climb', { setting: 'indoor', style: 'bouldering', scale: 'v', climbs }, 'metric')).toBe('Indoor · Bouldering · V-scale');
+  });
+});
