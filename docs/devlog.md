@@ -1,5 +1,17 @@
 # Development Log
 
+## October 15, 2026 — Theme colour sweep: what bypassed the theme now reads it (PR 3 of the theme-parity round, zero DDL)
+
+The audit's sweep of colour outside the theme: 174 un-twinned raw-palette lines, ~120 deliberate (the always-dark editor/camera/video chrome, white knobs on solids), ~50 real. Light mode stays byte-identical everywhere except where a hex moved to a token of the SAME light value.
+
+- **19 `text-gray-300` icons and separators** (empty states — notifications, dashboard, saved, drafts, golf trends/rounds, activity, Edit Profile, the bell, conversations, the dock; header and round-page separators; the calendar widget's out-of-month days) glared brighter than the text beside them in dark: `dark:text-faint` appended.
+- **Token swaps, same light hex:** the feed card's meta lines `text-gray-500` → `text-muted`; the chat quote bar, the typing dots and the golf scorecard rules `gray-400` → `faint`; the equipment image well gets a dark gradient twin.
+- **`global-error.tsx`** replaces the root layout, so it had neither the stylesheet nor the theme script — a white screen for a dark user. It reads `ea-theme-resolved` (`useSyncExternalStore`, light server snapshot) and paints the dark hexes.
+- **Leaflet's chrome** (zoom buttons, popups, close button, the credit) had leaflet.css's white in dark: overrides at the end of `globals.css`. Tiles unchanged by design.
+- **`design-tokens.ts`:** `SPORT_COLORS` and `getSportColorClasses` / `getNeutralColorClasses` / `getButtonClasses` were unused and light-only — deleted.
+- **Kept, now with the reason in place:** `OrgHero`'s white logo plate, the site-gallery thumbnail.
+- **Contrast audit** (axe `color-contrast`, both themes, phone width: feed, own profile, settings, notifications, messages, calendar, explore, help): nothing introduced by this sweep. Two standing items go to Tom as decisions: `text-faint` carries readable text in places (timestamps, "Nothing on this day.", hints, unselected tabs) at 2.53:1 light / 3.59:1 dark — the token is documented "decorative-only, below AA" (the Oct 10 finding, still open); `text-muted` on `surface-sunken` is 4.39:1 in light (the composer prompt, a chip) — a hair under 4.5.
+
 ## October 15, 2026 — Android control defaults: checkboxes, radios and ranges wear the theme (PR 2 of the theme-parity round, zero DDL)
 
 Android paints an un-themed checkbox / radio / range in its own teal; ours set `accent-violet-600` on 17 elements and left the rest to the platform, and violet-600 on the dark surface is 3.03:1. **Now** one token, `--control-accent` (violet-600 light · violet-500 dark, 4.07:1), set as `accent-color` in both theme blocks (an island re-declares it — the property inherits as a resolved colour); the 17 classes are `accent-control`; the always-dark media editor keeps its violet-500. Checked and left alone: the tap highlight (already transparent on body), text-size adjust (preflight), and text inputs / selects / textareas — the sweep's "330 un-classed controls" are transparent over the themed surface by Tailwind's preflight, not UA grey.

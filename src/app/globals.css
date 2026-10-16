@@ -1465,3 +1465,35 @@ html:not([data-theme="dark"]) .dark-theme-only {
   max-width: 62%;
   white-space: normal;
 }
+
+/* Leaflet's own chrome (zoom buttons, popups, the credit) ships white with
+ * #333 text from leaflet.css and never reads the theme — in dark it was a set
+ * of white squares on a dark page (Oct 15 2026). The tiles stay as they are:
+ * the map is a picture of the ground, and a dark basemap is its own decision. */
+[data-theme="dark"] .leaflet-bar a,
+[data-theme="dark"] .leaflet-popup-content-wrapper,
+[data-theme="dark"] .leaflet-popup-tip {
+  background-color: var(--surface-raised);
+  color: var(--text-primary);
+}
+[data-theme="dark"] .leaflet-bar a {
+  border-bottom-color: var(--border-default);
+}
+[data-theme="dark"] .leaflet-bar a:hover,
+[data-theme="dark"] .leaflet-bar a:focus {
+  background-color: var(--surface-muted);
+}
+[data-theme="dark"] .leaflet-bar a.leaflet-disabled {
+  background-color: var(--surface);
+  color: var(--text-faint);
+}
+[data-theme="dark"] .leaflet-container a.leaflet-popup-close-button {
+  color: var(--text-muted);
+}
+[data-theme="dark"] .leaflet-container .leaflet-control-attribution {
+  background-color: rgb(31 26 22 / 0.8); /* --surface at 80 %, as leaflet's white is */
+  color: var(--text-muted);
+}
+[data-theme="dark"] .leaflet-control-attribution a {
+  color: var(--brand-fg);
+}

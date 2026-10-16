@@ -954,7 +954,7 @@ function PostCard({
             TIMESTAMPTZ, so local-TZ rendering via new Date() is correct here
             (the parseDateLocal rule is for date-ONLY strings). */}
         {post.event && (
-          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+          <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
             <i className="fas fa-calendar-day text-xs" aria-hidden="true"></i>
             <span className="truncate">
               {post.event.title}
@@ -967,7 +967,7 @@ function PostCard({
         {/* Contest link (181) — the round was counted into a league round;
             the chip is the way from the feed to the contest's place. */}
         {post.contest && (
-          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+          <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
             <i className="fas fa-trophy text-xs" aria-hidden="true"></i>
             <Link
               href={`/event/${post.contest.id}`}
@@ -983,7 +983,7 @@ function PostCard({
         {/* Event link (Events program) — the post is the round of an event;
             the chip is the way from the feed to the event's place. */}
         {post.sport_event && (
-          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+          <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
             <i className="fas fa-flag-checkered text-xs" aria-hidden="true"></i>
             <Link
               href={`/events/${post.sport_event.id}`}

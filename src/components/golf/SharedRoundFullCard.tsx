@@ -867,7 +867,7 @@ export default function SharedRoundFullCard({
                       return (
                         <div key={participant.id} className="flex items-center gap-4 p-4 bg-surface-muted">
                           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                            <span className="text-2xl font-black text-gray-300">-</span>
+                            <span className="text-2xl font-black text-gray-300 dark:text-faint">-</span>
                           </div>
 
                           {profile.avatar_url ? (
@@ -1068,7 +1068,7 @@ export default function SharedRoundFullCard({
 
               {roundMediaItems.length === 0 ? (
                 <div className="py-12 text-center text-muted">
-                  <i className="fas fa-images text-4xl text-gray-300 mb-3 block" aria-hidden="true"></i>
+                  <i className="fas fa-images text-4xl text-gray-300 dark:text-faint mb-3 block" aria-hidden="true"></i>
                   <p className="font-semibold text-secondary">No photos or videos yet</p>
                   <p className="mt-1 text-sm">
                     Photos added while scoring are tagged to the hole automatically.

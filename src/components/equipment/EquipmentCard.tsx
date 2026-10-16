@@ -76,7 +76,7 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
       </div>
 
       {/* Image */}
-      <div className={`aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative ${isActive ? '' : 'opacity-75'}`}>
+      <div className={`aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-surface-muted dark:to-surface-sunken relative ${isActive ? '' : 'opacity-75'}`}>
         {item.image_url ? (
           <OptimizedImage
             src={item.image_url}

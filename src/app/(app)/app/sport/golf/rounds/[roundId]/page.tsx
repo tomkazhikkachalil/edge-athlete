@@ -563,7 +563,7 @@ export default function GolfRoundDetailPage() {
                                 {eh.fairway_hit === null && <span className="text-faint text-xs">n/a</span>}
                               </button>
                             ) : (
-                              <span className="text-gray-300">—</span>
+                              <span className="text-gray-300 dark:text-faint">—</span>
                             )}
                           </td>
                           <td className="px-2 py-1 text-center">
@@ -622,7 +622,7 @@ export default function GolfRoundDetailPage() {
                               <i className={`fas ${h.fairway_hit ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
                             )
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-gray-300 dark:text-faint">—</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">

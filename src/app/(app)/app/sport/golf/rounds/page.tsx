@@ -224,7 +224,7 @@ export default function GolfRoundsListPage() {
           </div>
         ) : rounds.length === 0 ? (
           <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
-            <i className="fas fa-golf-ball text-4xl text-gray-300 mb-4"></i>
+            <i className="fas fa-golf-ball text-4xl text-gray-300 dark:text-faint mb-4"></i>
             <h2 className="text-lg font-semibold text-primary mb-2">
               {courseSearch || holesFilter !== 'all' ? 'No rounds match those filters' : 'No rounds logged yet'}
             </h2>

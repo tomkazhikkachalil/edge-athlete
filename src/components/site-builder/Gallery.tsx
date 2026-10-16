@@ -141,7 +141,9 @@ export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush
 /** A 12-column block diagram of the seed: the hero as the accent gradient
  *  with the wordmark, the header strip shaped by the entry's tokens, each
  *  block titled — the welcome by its REAL generated heading, the map by the
- *  venue. Heights are row-proportional; nothing renders live data. */
+ *  venue. Heights are row-proportional; nothing renders live data.
+ *  Light in BOTH themes on purpose: it is a miniature of a printed page, and
+ *  a gallery entry carries no appearance of its own to preview. */
 export function GalleryThumb({
   seed,
   entry,

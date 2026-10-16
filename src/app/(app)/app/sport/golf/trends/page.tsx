@@ -197,7 +197,7 @@ export default function GolfTrendsPage() {
           <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>
         ) : series.length < 2 ? (
           <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
-            <i className="fas fa-chart-line text-4xl text-gray-300 mb-4"></i>
+            <i className="fas fa-chart-line text-4xl text-gray-300 dark:text-faint mb-4"></i>
             <h2 className="text-lg font-semibold text-primary mb-2">Not enough rounds yet</h2>
             <p className="text-sm text-muted">
               Log at least two rounds{holesFilter !== 'all' ? ` (${holesFilter}-hole)` : ''} and your

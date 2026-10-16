@@ -169,6 +169,9 @@ export default function OrgHero({
       </div>
       <div className="px-4 sm:px-6 pb-5">
         <div className="-mt-8 sm:-mt-10 flex items-end justify-between gap-3">
+          {/* bg-white in BOTH themes on purpose: org logos are uploaded with
+              transparency and drawn for a light ground — a dark plate would
+              swallow a black wordmark. */}
           <div
             className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-border-subtle shadow-md overflow-hidden flex items-center justify-center shrink-0"
             data-org-logo={logoUrl ? 'image' : 'initial'}
