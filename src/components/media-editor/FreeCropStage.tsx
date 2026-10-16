@@ -139,6 +139,9 @@ export default function FreeCropStage({
             src={imageUrl}
             alt=""
             draggable={false}
+            // Decode off the main thread: a 12 MP photo's decode no longer
+            // blocks the editor's first frames (Oct 15 2026).
+            decoding="async"
             onLoad={e => {
               const size = {
                 width: e.currentTarget.naturalWidth,

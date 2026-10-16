@@ -12,7 +12,7 @@
  * same map — every view mounted after that points at dead blob: URLs.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
 import { emptyHistory, jumpTo, push, undo, redo, type History } from '@/lib/media/history';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
@@ -44,10 +44,11 @@ export function useEditorSession(
   // MUST stay effect-owned — do not "optimise" this into a useMemo. Render-
   // owned object URLs were revoked by StrictMode's mount→unmount→remount
   // while the memo kept the dead map, blanking images on tab switch (DEVLOG,
-  // July 26). Each mount mints its own URLs and its own cleanup revokes them;
-  // the one-render empty gap is why the crop stage renders nothing until a
-  // URL exists.
-  useEffect(() => {
+  // July 26). Each mount mints its own URLs and its own cleanup revokes them.
+  // A LAYOUT effect (Oct 15 2026, photo → editor speed): the URL lands in
+  // the same commit, before the first paint, so the stage never paints a
+  // frame empty and the picture's decode starts one frame sooner.
+  useLayoutEffect(() => {
     const map = new Map(assets.map(asset => [asset.id, URL.createObjectURL(asset.file)]));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewUrls(map);

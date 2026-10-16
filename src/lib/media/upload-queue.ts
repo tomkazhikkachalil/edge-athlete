@@ -206,6 +206,11 @@ export interface UploadQueue {
   attachBlur(localId: string, hash: string): void;
   /** Run CPU work on the device chain (a grab, a resize) — one at a time, never beside an upload's own prepare. */
   device<T>(task: () => Promise<T>): Promise<T>;
+  /** Hold the device chain while the editor is open (Oct 15 2026): a task
+   *  not yet started waits until every hold is released; one already running
+   *  finishes. The editor's own decode gets the CPU, and an edit replaces the
+   *  resize anyway. Returns the release (idempotent). */
+  holdDevice(): () => void;
   fileFor(localId: string): File | null;
   /** The untouched original the prepare step kept (the composer defers it after the post exists). */
   originalFor(localId: string): File | null;
@@ -234,6 +239,25 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
   let uploadChain: Promise<void> = Promise.resolve();
   let deviceChain: Promise<void> = Promise.resolve();
   let destroyed = false;
+  // The device hold: a count + the gate tasks wait on while it is above 0.
+  let holds = 0;
+  let gate: Promise<void> | null = null;
+  let openGate: (() => void) | null = null;
+  const holdDevice = () => {
+    holds += 1;
+    if (!gate) gate = new Promise<void>(resolve => { openGate = resolve; });
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      holds = Math.max(0, holds - 1); // a release after destroy() stays at 0
+      if (holds === 0) {
+        openGate?.();
+        gate = null;
+        openGate = null;
+      }
+    };
+  };
 
   const dispatch = (event: QueueEvent) => {
     const next = reduceQueue(state, event);
@@ -259,7 +283,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
     return uploadChain;
   };
   const onDevice = <T,>(task: () => Promise<T>): Promise<T> => {
-    const run = deviceChain.then(task);
+    const run = deviceChain.then(() => gate ?? undefined).then(task);
     deviceChain = run.then(() => undefined, () => undefined);
     return run;
   };
@@ -399,6 +423,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
       dispatch({ type: 'blur', localId, hash });
     },
     device: onDevice,
+    holdDevice,
     fileFor: localId => files.get(localId) ?? null,
     originalFor: localId => originals.get(localId) ?? null,
     previewFor: localId => previews.get(localId),
@@ -442,6 +467,10 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
     },
     destroy() {
       destroyed = true;
+      holds = 0;
+      openGate?.(); // nothing waits on a hold past the queue's life
+      gate = null;
+      openGate = null;
       unsubscribeOnline();
       for (const url of previews.values()) URL.revokeObjectURL(url);
       previews.clear();

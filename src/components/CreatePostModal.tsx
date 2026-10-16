@@ -30,7 +30,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
-import { MediaEditor } from '@/components/media-editor';
+import { MediaEditor, warmEditorChunk } from '@/components/media-editor';
 import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
@@ -206,6 +206,9 @@ export default function CreatePostModal({
   const [availableDraft, setAvailableDraft] = useState<ComposerDraft | null>(null);
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
+      // A photo is the likely next step: the editor's chunk loads while the
+      // person types, not after they pick (photo → editor speed, Oct 15 2026).
+      warmEditorChunk();
       setPostType(defaultSportKey);
       setShowSportSelector(Boolean(openSportPicker));
       setAvailableDraft(loadComposerDraft());
@@ -329,6 +332,14 @@ export default function CreatePostModal({
     notify: showError,
   });
   const queue = uploads.queue;
+  // While the editor is open the queue's device work (the post-time resize,
+  // a blur grab) waits: the editor's own decode gets the CPU, and an edit
+  // replaces the resized bytes anyway (photo → editor speed, Oct 15 2026).
+  const editorOpen = editorAssets !== null;
+  useEffect(() => {
+    if (!editorOpen) return;
+    return queue.holdDevice();
+  }, [editorOpen, queue]);
   const clearComposerStash = () => queue.clearStash();
   const restoreStashedMedia = async () => {
     const { restored } = await queue.resumeFromStash();
