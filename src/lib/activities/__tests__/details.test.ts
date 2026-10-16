@@ -9,11 +9,32 @@ describe('the per-type questions', () => {
   it('show at most three up front for every type; keys are unique', () => {
     for (const t of ACTIVITY_TYPES) {
       const { shown, more } = splitFields(t);
-      expect(shown.length).toBeLessThanOrEqual(SHOWN_MAX);
+      // a sub-field (showIf — the room's temperature under "Heated") is part of its question
+      expect(shown.filter(f => !f.showIf).length).toBeLessThanOrEqual(SHOWN_MAX);
       expect(shown.length + more.length).toBe(detailFieldsFor(t).length);
       const keys = detailFieldsFor(t).map(f => f.key);
       expect(new Set(keys).size).toBe(keys.length);
     }
+  });
+});
+
+describe('the yoga questions (the user’s complaint)', () => {
+  it('shows style, heated (with its temperature) and class up front; focus and poses behind More', () => {
+    const { shown, more } = splitFields('yoga');
+    expect(shown.map(f => f.key)).toEqual(['style', 'heated', 'room_temp_c', 'guided']);
+    expect(more.map(f => f.key)).toEqual(['focus', 'poses']);
+    expect(detailLine('yoga', { style: 'vinyasa', heated: true, room_temp_c: 40, guided: 'class', focus: ['hips', 'back'] }, 'metric')).toBe('Vinyasa · Heated · 40 °C · Class · Hips, Back');
+    expect(prefillFrom('yoga', { style: 'yin', heated: true, room_temp_c: 40, poses: 'pigeon' })).toEqual({ style: 'yin', heated: true });
+  });
+
+  it('a temperature without Heated is dropped', () => {
+    expect(parseFinishAnswers('yoga', { details: { heated: false, room_temp_c: 38 } })).toMatchObject({ ok: true, value: { details: { heated: false } } });
+  });
+
+  it('sparring rounds hang off Sparring', () => {
+    const { shown } = splitFields('martial_arts');
+    expect(shown.map(f => f.key)).toEqual(['discipline', 'session', 'sparring_rounds', 'rank']);
+    expect(parseFinishAnswers('martial_arts', { details: { discipline: 'bjj', session: 'sparring', sparring_rounds: 5, rank: 'Blue belt' } })).toMatchObject({ ok: true });
   });
 });
 

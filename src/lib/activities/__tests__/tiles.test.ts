@@ -93,3 +93,29 @@ describe('effort and lengths (265)', () => {
     expect(tilesFor(src('swim', { distanceM: 1500, movingS: 1800 }), null, 'km').some(t => t.key === 'lengths')).toBe(false);
   });
 });
+
+describe('the duration and snow tiles (A7)', () => {
+  const tabata = Array.from({ length: 8 }, (_, i) => [
+    { kind: 'round', from_s: i * 30, to_s: i * 30 + 20 },
+    ...(i < 7 ? [{ kind: 'recovery', from_s: i * 30 + 20, to_s: i * 30 + 30 }] : []),
+  ]).flat();
+
+  it('a HIIT shows its rounds and its work / rest, never a heart rate it has not got', () => {
+    const t = tilesFor(src('hiit', { segments: tabata, effort: 9 }), null, 'km');
+    expect(t.map(x => x.key)).toEqual(['time', 'rounds', 'workRest', 'effort']);
+    expect(t.find(x => x.key === 'rounds')!.value).toBe('8');
+    expect(t.find(x => x.key === 'workRest')!.value).toBe('0:20 / 0:10');
+  });
+
+  it('martial arts show sparring rounds only when answered', () => {
+    expect(tilesFor(src('martial_arts', { details: { session: 'sparring', sparring_rounds: 5 } }), null, 'km').find(x => x.key === 'sparring')!.value).toBe('5');
+    expect(tilesFor(src('martial_arts'), null, 'km').some(x => x.key === 'sparring')).toBe(false);
+  });
+
+  it('a backcountry ski day shows what it climbed; a resort day does not', () => {
+    const day = { distanceM: 12000, movingS: 9000, elevGainM: 900, elevLossM: 950 };
+    expect(tilesFor(src('ski', { ...day, details: { terrain: 'backcountry' } }), null, 'km').find(x => x.key === 'gain')!.label).toBe('Climbed');
+    expect(tilesFor(src('ski', { ...day, details: { terrain: 'resort' } }), null, 'km').some(x => x.key === 'gain')).toBe(false);
+    expect(tilesFor(src('ski', day), null, 'km').some(x => x.key === 'gain')).toBe(false);
+  });
+});

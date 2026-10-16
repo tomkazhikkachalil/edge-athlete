@@ -81,6 +81,8 @@ export function cardTileSource(s: ActivityPostStats): { src: TileSource; derived
       stepsSource: null,
       effort: s.effort ?? null,
       details: s.details ?? {},
+      // The card's segments carry no positions: enough to count rounds, never a work / rest.
+      segments: (s.segments ?? []).map(x => ({ kind: x.kind, from_s: 0, to_s: x.seconds })),
     },
     derived: {
       bestEfforts: [],

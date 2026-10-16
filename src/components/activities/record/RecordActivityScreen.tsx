@@ -402,6 +402,7 @@ export default function RecordActivityScreen() {
           onDiscard={() => setDiscardOpen(true)}
           onDropFailed={dropFailed}
           prefill={prefill}
+          timerFormat={state.timer?.spec.format ?? null}
         />
       )}
       <ConfirmModal

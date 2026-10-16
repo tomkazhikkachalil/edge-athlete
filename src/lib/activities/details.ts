@@ -88,6 +88,47 @@ export const DETAIL_FIELDS_BY_TYPE: Readonly<Partial<Record<ActivityType, readon
   ],
   paddle: [{ key: 'craft', kind: 'choice', label: 'Craft', options: opts(['kayak', 'Kayak'], ['sup', 'SUP'], ['canoe', 'Canoe']) }],
   skate: [{ key: 'surface', kind: 'choice', label: 'Surface', options: opts(['ice', 'Ice'], ['inline', 'Inline']) }],
+  // ── A7: the duration types, snow and hikes ──
+  yoga: [
+    { key: 'style', kind: 'choice', label: 'Style', options: opts(['vinyasa', 'Vinyasa'], ['hatha', 'Hatha'], ['yin', 'Yin'], ['power', 'Power'], ['ashtanga', 'Ashtanga'], ['restorative', 'Restorative'], ['other', 'Other']) },
+    { key: 'heated', kind: 'bool', label: 'Heated' },
+    { key: 'room_temp_c', kind: 'number', label: 'Room temperature', quantity: 'temp', min: 15, max: 50, showIf: { key: 'heated', equals: true } },
+    { key: 'guided', kind: 'choice', label: 'How', options: opts(['class', 'Class'], ['self', 'Self-guided']) },
+    { key: 'focus', kind: 'multi', label: 'Focus', more: true, options: opts(['hips', 'Hips'], ['back', 'Back'], ['balance', 'Balance'], ['flexibility', 'Flexibility'], ['strength', 'Strength']) },
+    { key: 'poses', kind: 'text', label: 'Poses or sequence', more: true, max: 200, placeholder: 'Sun salutation B, pigeon…' },
+  ],
+  pilates: [
+    { key: 'apparatus', kind: 'choice', label: 'Type', options: opts(['mat', 'Mat'], ['reformer', 'Reformer']) },
+    { key: 'guided', kind: 'choice', label: 'How', options: opts(['class', 'Class'], ['self', 'Self-guided']) },
+    { key: 'focus', kind: 'choice', label: 'Focus', options: opts(['core', 'Core'], ['full_body', 'Full body'], ['lower_body', 'Lower body']) },
+  ],
+  stretch: [
+    { key: 'areas', kind: 'multi', label: 'Body areas', options: opts(['neck', 'Neck'], ['shoulders', 'Shoulders'], ['back', 'Back'], ['hips', 'Hips'], ['hamstrings', 'Hamstrings'], ['quads', 'Quads'], ['calves', 'Calves'], ['full_body', 'Full body']) },
+    { key: 'purpose', kind: 'choice', label: 'Purpose', options: opts(['warm_up', 'Warm-up'], ['recovery', 'Recovery'], ['flexibility', 'Flexibility']) },
+  ],
+  hiit: [
+    { key: 'format', kind: 'choice', label: 'Format', options: opts(['tabata', 'Tabata'], ['emom', 'EMOM'], ['amrap', 'AMRAP'], ['intervals', 'Intervals'], ['circuit', 'Circuit']) },
+    { key: 'exercises', kind: 'text', label: 'Exercises', more: true, max: 200, placeholder: 'Burpees, kettlebell swings…' },
+  ],
+  martial_arts: [
+    {
+      key: 'discipline',
+      kind: 'choice',
+      label: 'Discipline',
+      options: opts(['mma', 'MMA'], ['boxing', 'Boxing'], ['wrestling', 'Wrestling'], ['bjj', 'Jiu-jitsu'], ['judo', 'Judo'], ['karate', 'Karate'], ['taekwondo', 'Taekwondo'], ['muay_thai', 'Muay Thai'], ['kickboxing', 'Kickboxing']),
+    },
+    { key: 'session', kind: 'choice', label: 'Session', options: opts(['drilling', 'Drilling'], ['sparring', 'Sparring'], ['conditioning', 'Conditioning'], ['class', 'Class']) },
+    { key: 'sparring_rounds', kind: 'number', label: 'Sparring rounds', min: 1, max: 60, integer: true, showIf: { key: 'session', equals: 'sparring' } },
+    { key: 'rank', kind: 'text', label: 'Belt or rank', max: 40, placeholder: 'Blue belt' },
+  ],
+  dance: [
+    { key: 'dance_style', kind: 'text', label: 'Style', max: 60, placeholder: 'Salsa, hip-hop, ballet…' },
+    { key: 'guided', kind: 'choice', label: 'How', options: opts(['class', 'Class'], ['freestyle', 'Freestyle']) },
+  ],
+  ski: [{ key: 'terrain', kind: 'choice', label: 'Where', options: opts(['resort', 'Resort'], ['backcountry', 'Backcountry']) }],
+  snowboard: [{ key: 'terrain', kind: 'choice', label: 'Where', options: opts(['resort', 'Resort'], ['backcountry', 'Backcountry']) }],
+  xc_ski: [{ key: 'technique', kind: 'choice', label: 'Technique', options: opts(['classic', 'Classic'], ['skate', 'Skate']) }],
+  hike: [{ key: 'pack_kg', kind: 'number', label: 'Pack weight', quantity: 'weight', min: 0.5, max: 60, more: true }],
 };
 
 /** At most this many questions show before "More details". */
@@ -97,11 +138,25 @@ export function detailFieldsFor(type: ActivityType): readonly DetailField[] {
   return DETAIL_FIELDS_BY_TYPE[type] ?? [];
 }
 
-/** The fields shown up front and those behind "More details". */
+/**
+ * The fields shown up front and those behind "More details". A field with
+ * a `showIf` is part of the question it hangs off (the room's temperature
+ * belongs to "Heated"): it goes where its parent went and is not counted.
+ */
 export function splitFields(type: ActivityType): { shown: DetailField[]; more: DetailField[] } {
   const shown: DetailField[] = [];
   const more: DetailField[] = [];
-  for (const f of detailFieldsFor(type)) (f.more || shown.length >= SHOWN_MAX ? more : shown).push(f);
+  let counted = 0;
+  for (const f of detailFieldsFor(type)) {
+    if (f.showIf) {
+      (shown.some(p => p.key === f.showIf!.key) ? shown : more).push(f);
+      continue;
+    }
+    if (!f.more && counted < SHOWN_MAX) {
+      shown.push(f);
+      counted++;
+    } else more.push(f);
+  }
   return { shown, more };
 }
 
@@ -151,6 +206,13 @@ export function detailsFromRow(type: ActivityType, raw: unknown): Details {
     const v = given[f.key];
     if (v !== undefined && validAnswer(f, v)) out[f.key] = (f.kind === 'text' ? (v as string).trim() : v) as DetailValue;
   }
+  return withoutHiddenAnswers(type, out);
+}
+
+/** A sub-answer whose question no longer holds goes (a room temperature without "Heated"). */
+export function withoutHiddenAnswers(type: ActivityType, details: Details): Details {
+  const out = { ...details };
+  for (const f of detailFieldsFor(type)) if (f.showIf && out[f.key] !== undefined && !fieldVisible(f, out)) delete out[f.key];
   return out;
 }
 
