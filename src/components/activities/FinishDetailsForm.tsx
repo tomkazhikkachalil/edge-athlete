@@ -82,11 +82,13 @@ function Field({ f, value, sys, onChange }: { f: DetailField; value: Details[str
   }
   const multi = f.kind === 'multi';
   const picked = multi ? (Array.isArray(value) ? value : []) : [];
+  // A yard pool leads for an imperial swimmer (Tom's review: units follow the athlete).
+  const options = f.key === 'pool' && sys === 'imperial' ? [...f.options].sort((a, b) => Number(b.value === '25yd') - Number(a.value === '25yd')) : f.options;
   return (
     <fieldset data-detail-field={f.key}>
       <legend className="text-sm font-medium text-secondary">{f.label}</legend>
       <div className="mt-1 flex flex-wrap gap-2">
-        {f.options.map(o => {
+        {options.map(o => {
           const on = multi ? picked.includes(o.value) : value === o.value;
           return (
             <button
