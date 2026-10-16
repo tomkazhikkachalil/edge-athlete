@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getServerAuth, getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { isUuid } from '@/lib/uuid';
 import { reportRouteError } from '@/lib/observability/report';
-import { ACTIVITY_TYPES } from '@/lib/activities/catalog';
+import { ACTIVITY_TYPES, isActivityType } from '@/lib/activities/catalog';
+import { parseFinishAnswers } from '@/lib/activities/details-schema';
 import { readActivityMedia } from '@/lib/activities/media-server';
 import { readActivityForViewer, readStream } from '@/lib/activities/read-server';
 import { normalizeSegments, SegmentsSchema } from '@/lib/activities/segments';
@@ -20,7 +21,7 @@ import { deleteActivity } from '@/lib/activities/write-server';
  * position). Viewer-dependent → `private, no-store`. Signed-out viewers of
  * a public athlete are welcome.
  *
- * PATCH { name?, type?, onlyMe?, segments?, notes? } and DELETE: the owner
+ * PATCH { name?, type?, onlyMe?, segments?, notes?, effort?, details? } and DELETE: the owner
  * audience only (the athlete or their guardian). Segments (251) are a full
  * replace, clamped to the activity's seconds; notes ≤ 2000. DELETE removes
  * the stream, the photos (the FK cascades; the sweep reclaims the files)
@@ -65,6 +66,10 @@ const PatchSchema = z
     onlyMe: z.boolean().optional(),
     segments: SegmentsSchema.optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
+    // 265 (Oct 16 2026): edited after the fact — validated for the type it
+    // will have (a type change without new details clears the old ones).
+    effort: z.number().int().min(1).max(10).nullable().optional(),
+    details: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .strict();
 
@@ -85,7 +90,16 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     }
     const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid changes' }, { status: 400 });
-    const { name, type, onlyMe, segments, notes } = parsed.data;
+    const { name, type, onlyMe, segments, notes, effort, details } = parsed.data;
+    const finalType = type ?? (isActivityType(read.row.activity_type) ? read.row.activity_type : 'other');
+    let detailsPatch: Record<string, unknown> | null | undefined;
+    if (details !== undefined) {
+      const answers = parseFinishAnswers(finalType, { details });
+      if (!answers.ok) return NextResponse.json({ error: answers.error }, { status: 400 });
+      detailsPatch = answers.value.details;
+    } else if (type !== undefined && type !== read.row.activity_type) {
+      detailsPatch = null;
+    }
     if (onlyMe === true && read.row.post_id) {
       return NextResponse.json(
         { error: 'This activity is on your feed. Delete that post first, then set the activity to Only me.' },
@@ -98,6 +112,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     if (onlyMe !== undefined) patch.only_me = onlyMe;
     if (segments !== undefined) patch.segments = normalizeSegments(segments, read.row.elapsed_s);
     if (notes !== undefined) patch.notes = notes && notes.length > 0 ? notes : null;
+    if (effort !== undefined) patch.effort = effort;
+    if (detailsPatch !== undefined) patch.details = detailsPatch;
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ activity: projectActivity(read.row, 'owner') }, { headers: NO_STORE });
     }

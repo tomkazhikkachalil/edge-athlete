@@ -217,7 +217,8 @@ export function enduranceSchema(
     { key: 'calories', label: 'Calories', shortLabel: 'kcal', min: 0, max: 50_000 },
   ];
   if (opts.power) fields.push({ key: 'avg_power', label: 'Avg power (W)', shortLabel: 'W', min: 0, max: 2500 });
-  if (opts.pool) fields.push({ key: 'pool_length_m', label: 'Pool length (m)', shortLabel: 'Pool', min: 10, max: 100 });
+  // 25 yd is 22.86 m (Oct 16 2026: a recorded swim's pool rides along).
+  if (opts.pool) fields.push({ key: 'pool_length_m', label: 'Pool length (m)', shortLabel: 'Pool', min: 10, max: 100, decimal: true });
   const unitWord = opts.unit;
   return {
     sport_key: sportKey,

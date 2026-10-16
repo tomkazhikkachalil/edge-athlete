@@ -83,3 +83,13 @@ describe('tilesFor', () => {
     }
   });
 });
+
+describe('effort and lengths (265)', () => {
+  it('an effort shows on every family; a pool swim counts its lengths', () => {
+    expect(tilesFor(src('yoga', { effort: 6 }), null, 'km').map(t => t.key)).toEqual(['time', 'effort']);
+    expect(tilesFor(src('yoga', { effort: 6 }), null, 'km')[1].value).toBe('6 / 10');
+    const swim = tilesFor(src('swim', { distanceM: 1500, movingS: 1800, details: { pool: '25m' } }), null, 'km');
+    expect(swim.find(t => t.key === 'lengths')!.value).toBe('60');
+    expect(tilesFor(src('swim', { distanceM: 1500, movingS: 1800 }), null, 'km').some(t => t.key === 'lengths')).toBe(false);
+  });
+});

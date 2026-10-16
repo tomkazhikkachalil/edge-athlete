@@ -46,6 +46,9 @@ import {
 import { deriveAll } from '@/lib/activities/derived';
 import { segmentStats, splits } from '@/lib/activities/stream';
 import { readsSpeed, tilesFor } from '@/lib/activities/tiles';
+import { detailLine } from '@/lib/activities/details';
+import { unitSystemOf } from '@/lib/activities/units';
+import FinishDetailsForm, { type FinishFormValue } from './FinishDetailsForm';
 import type { ActivityDetailView, ActivityMediaView } from '@/lib/activities/visibility';
 import ActivityStreamChart from './ActivityStreamChart';
 import RouteMap from './RouteMap';
@@ -209,6 +212,8 @@ function ActivityBody({
 
   // The type's own tiles (tiles.ts) — only those with a value.
   const stats = tilesFor(a, derived, unit);
+  // 265: the answers given at the finish, in this viewer's units.
+  const detailText = detailLine(a.type, a.details, unitSystemOf(unit));
 
   return (
     <article className="space-y-6" data-activity={a.id}>
@@ -233,6 +238,12 @@ function ActivityBody({
           </div>
         </div>
       </header>
+
+      {detailText && (
+        <p className="text-base text-secondary" data-activity-details>
+          {detailText}
+        </p>
+      )}
 
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-activity-stats>
         {stats.map(s => (
@@ -431,6 +442,9 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
   const [name, setName] = useState(a.name);
   const [type, setType] = useState<ActivityType>(a.type);
   const [notes, setNotes] = useState(a.notes ?? '');
+  // 265 (Oct 16 2026): effort and the type's answers, edited after the fact.
+  const [answers, setAnswers] = useState<FinishFormValue>({ effort: a.effort, notes: '', details: a.details });
+  const answersDirty = () => answers.effort !== a.effort || JSON.stringify(answers.details) !== JSON.stringify(a.details);
   const [drafts, setDrafts] = useState<SegmentDraft[]>(() => a.segments.map(draftOf));
   const [segmentError, setSegmentError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -462,10 +476,11 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
     setName(a.name);
     setType(a.type);
     setNotes(a.notes ?? '');
+    setAnswers({ effort: a.effort, notes: '', details: a.details });
     setDrafts(a.segments.map(draftOf));
     setSegmentError(null);
-  }, [a.name, a.type, a.notes, a.segments]);
-  const editGuard = useDirtyClose(() => editing && (name.trim() !== a.name || type !== a.type || notes.trim() !== (a.notes ?? '') || segmentsDirty()), closeEdit);
+  }, [a.name, a.type, a.notes, a.segments, a.effort, a.details]);
+  const editGuard = useDirtyClose(() => editing && (name.trim() !== a.name || type !== a.type || notes.trim() !== (a.notes ?? '') || answersDirty() || segmentsDirty()), closeEdit);
 
   /** The drafts as the PATCH wants them — or the first problem, by name. */
   const segmentsFromDrafts = (): { ok: true; segments: ActivitySegment[] } | { ok: false; error: string } => {
@@ -665,7 +680,9 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
               return;
             }
             setSegmentError(null);
-            if (await patch({ name: name.trim(), type, notes: notes.trim() || null, segments: segs.segments })) setEditing(false);
+            // A changed type asks its own questions: the old answers go (the server clears them too).
+            const details = type === a.type ? (Object.keys(answers.details).length > 0 ? answers.details : null) : undefined;
+            if (await patch({ name: name.trim(), type, notes: notes.trim() || null, segments: segs.segments, effort: answers.effort, ...(details !== undefined ? { details } : {}) })) setEditing(false);
           }}
           data-activity-edit-form
         >
@@ -705,6 +722,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
               data-activity-notes-input
             />
           </label>
+          {type === a.type && <FinishDetailsForm type={type} value={answers} onChange={setAnswers} sys={unitSystemOf(readUnitPreference())} showNotes={false} />}
           <fieldset className="space-y-2" data-activity-segments-editor>
             <legend className="text-sm font-semibold text-secondary">Segments <span className="font-normal text-muted">— sprints, climbs, intervals; times as m:ss</span></legend>
             {drafts.map((d, i) => (

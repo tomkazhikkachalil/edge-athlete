@@ -13,6 +13,7 @@
 
 import { sourceCredit } from './connections';
 import { isActivityType, type ActivityType } from './catalog';
+import { detailsFromRow, type Details } from './details';
 import { segmentsFromRow, type ActivitySegment } from './segments';
 import { trimStream } from './stream';
 import type { ActivityStream } from './types';
@@ -23,7 +24,7 @@ export type ActivityAudience = 'owner' | 'viewer' | 'supervised_viewer';
  *  a select naming a column the database lacks 404s the whole API, so this
  *  list grows only after the migration ran on BOTH environments). */
 export const ACTIVITY_COLUMNS =
-  'id, profile_id, activity_type, source, source_format, name, started_at, timezone, occurred_on, elapsed_s, moving_s, distance_m, elev_gain_m, elev_loss_m, avg_hr, max_hr, avg_power, avg_cadence, calories, has_route, route_preview, stream_path, post_id, only_me, segments, steps, steps_source, notes, created_at, updated_at';
+  'id, profile_id, activity_type, source, source_format, name, started_at, timezone, occurred_on, elapsed_s, moving_s, distance_m, elev_gain_m, elev_loss_m, avg_hr, max_hr, avg_power, avg_cadence, calories, has_route, route_preview, stream_path, post_id, only_me, segments, steps, steps_source, notes, effort, details, created_at, updated_at';
 
 export interface ActivityRow {
   id: string;
@@ -55,6 +56,9 @@ export interface ActivityRow {
   steps: number | null;
   steps_source: string | null;
   notes: string | null;
+  /** 265: the finish's effort (1–10) and the per-type answers (details.ts). */
+  effort?: number | null;
+  details?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -134,6 +138,10 @@ export interface ActivityView {
   steps: number | null;
   stepsSource: 'estimated' | 'device' | null;
   notes: string | null;
+  /** 265: how hard it felt (1–10), null when not rated. */
+  effort: number | null;
+  /** 265: the per-type answers, read through the type's own table. */
+  details: Details;
   /** The athlete's own controls, present for the owner audience only. */
   owner: { onlyMe: boolean; updatedAt: string } | null;
 }
@@ -223,6 +231,8 @@ export function projectActivity(row: ActivityRow, audience: ActivityAudience): A
     steps: row.steps,
     stepsSource: row.steps_source === 'estimated' || row.steps_source === 'device' ? row.steps_source : null,
     notes: row.notes,
+    effort: typeof row.effort === 'number' ? row.effort : null,
+    details: detailsFromRow(isActivityType(row.activity_type) ? row.activity_type : 'other', row.details),
     owner: audience === 'owner' ? { onlyMe: row.only_me, updatedAt: row.updated_at } : null,
   };
 }

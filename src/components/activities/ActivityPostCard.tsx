@@ -13,6 +13,8 @@ import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
 import { readUnitPreference, type DistanceUnit } from '@/lib/activities/format';
 import { cardTileSource, isActivityPostStats } from '@/lib/activities/post-card';
 import { tilesFor } from '@/lib/activities/tiles';
+import { detailLine } from '@/lib/activities/details';
+import { unitSystemOf } from '@/lib/activities/units';
 import RouteThumb from './RouteThumb';
 
 export default function ActivityPostCard({ statsData }: { statsData: unknown }) {
@@ -24,6 +26,7 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
   // reads its time, never "0 km".
   const { src, derived } = cardTileSource(s);
   const cells = tilesFor(src, derived, unit, 4);
+  const line = s.details ? detailLine(s.activity_type, s.details, unitSystemOf(unit)) : null;
   return (
     <Link href={`/activities/${s.activity_id}`} className="mt-3 block rounded-lg border border-border bg-surface-muted/40 overflow-hidden ea-interactive" data-activity-post-card={s.activity_id}>
       {s.route_preview && (
@@ -44,6 +47,7 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
             </div>
           ))}
         </dl>
+        {line && <p className="mt-2 text-xs text-secondary" data-activity-card-details>{line}</p>}
         {(s.segments?.length || s.photo_count || typeof s.steps === 'number') && (
           <p className="mt-2 text-xs text-secondary" data-activity-card-extras>
             {[

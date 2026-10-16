@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidTimeZone } from '@/lib/calendar/time-zones';
 import type { ActivitySource } from './catalog';
 import { DEDUPE_START_WINDOW_S, findDuplicate, incomingIsRicher } from './dedupe';
+import type { Details } from './details';
 import { cleanPoints, defaultActivityName, estimateSteps, fileExternalId, implausibility, localParts, summarize } from './normalize';
 import { normalizeSegments, segmentsFromRow, type ActivitySegment } from './segments';
 import { buildStream, routePreview } from './stream';
@@ -222,6 +223,41 @@ export async function importActivity(
 
 /** Delete an activity: its stream, its feed post (the athlete confirmed
  *  both), then the row. The caller has already authorized the owner. */
+/**
+ * The Finish's answers (activities details, Oct 16 2026): effort, notes and
+ * the per-type details, already validated by parseFinishAnswers for the
+ * row's type. A typed watts / cadence fills the row's own column only when
+ * no device gave one (a device's number wins). Called after importActivity
+ * — also for a retried save (the same row), so a retry lands the answers too.
+ */
+export async function applyFinishAnswers(
+  admin: Admin,
+  profileId: string,
+  id: string,
+  a: { effort: number | null; notes: string | null; details: Details | null; avgPower: number | null; avgCadence: number | null }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const patch: Record<string, unknown> = {};
+  if (a.effort !== null) patch.effort = a.effort;
+  if (a.notes !== null) patch.notes = a.notes;
+  if (a.details !== null) patch.details = a.details;
+  if (Object.keys(patch).length > 0) {
+    const { error } = await admin.from('activities').update(patch).eq('id', id).eq('profile_id', profileId);
+    if (error) {
+      console.error('[activities] finish answers failed:', error.message);
+      return { ok: false, error: 'Could not save your answers.' };
+    }
+  }
+  for (const [column, value] of [['avg_power', a.avgPower], ['avg_cadence', a.avgCadence]] as const) {
+    if (value === null) continue;
+    const { error } = await admin.from('activities').update({ [column]: value }).eq('id', id).eq('profile_id', profileId).is(column, null);
+    if (error) {
+      console.error(`[activities] finish ${column} failed:`, error.message);
+      return { ok: false, error: 'Could not save your answers.' };
+    }
+  }
+  return { ok: true };
+}
+
 export async function deleteActivity(admin: Admin, row: { id: string; profile_id: string; stream_path: string | null; post_id: string | null }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (row.post_id) {
     const { error } = await admin.from('posts').delete().eq('id', row.post_id).eq('profile_id', row.profile_id);

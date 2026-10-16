@@ -5,7 +5,8 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { fromWire } from '@/lib/activities/wire';
 import { parseWireActivity } from '@/lib/activities/wire-schema';
-import { importActivity } from '@/lib/activities/write-server';
+import { parseFinishAnswers } from '@/lib/activities/details-schema';
+import { applyFinishAnswers, importActivity } from '@/lib/activities/write-server';
 
 /**
  * POST /api/activities — save the phone recorder's finished recording
@@ -21,7 +22,10 @@ import { importActivity } from '@/lib/activities/write-server';
  * never a second row), the segments it marked, and a step estimate from the
  * acting profile's height.
  *
- * Body: { activity: WireActivity, targetProfileId?: string, onlyMe?: true }
+ * Body: { activity: WireActivity, targetProfileId?: string, onlyMe?: true,
+ * finish?: { effort?, notes?, details? } } — the Finish's answers (Oct 16
+ * 2026, details.ts): validated for the recording's type BEFORE anything is
+ * written, then applied to the row (a retry applies them again).
  * — a guardian saves for their athlete through the shared acting gate.
  * 201 { id, duplicate: false } · 200 { id, duplicate: true } · 400 / 413 /
  * 422 with the reason.
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
-    const { activity, targetProfileId, onlyMe } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown; onlyMe?: unknown };
+    const { activity, targetProfileId, onlyMe, finish } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown; onlyMe?: unknown; finish?: unknown };
 
     const gate = await resolveActingProfile(
       user.id,
@@ -55,6 +59,8 @@ export async function POST(request: NextRequest) {
 
     const parsed = parseWireActivity(activity);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const answers = parseFinishAnswers(parsed.value.type, finish);
+    if (!answers.ok) return NextResponse.json({ error: answers.error }, { status: 400 });
 
     const admin = getSupabaseAdmin();
     const { data: prof } = await admin.from('profiles').select('height_cm').eq('id', gate.actorId).maybeSingle();
@@ -67,6 +73,8 @@ export async function POST(request: NextRequest) {
       live: { segments: parsed.value.segments ?? [] },
     });
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+    const applied = await applyFinishAnswers(admin, gate.actorId, outcome.id, answers.value);
+    if (!applied.ok) return NextResponse.json({ error: applied.error }, { status: 500 });
     // The recorder's review chose Only me (Oct 9 2026): private from the
     // moment it exists — set here, not by a second call that could fail and
     // leave it on the profile. Idempotent, so a retried save (the same

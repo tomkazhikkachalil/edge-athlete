@@ -87,3 +87,13 @@ describe('a sport session is never a result (265)', () => {
     expect(sportForActivity('sport_session')).toBeNull();
   });
 });
+
+describe('a pool swim carries its pool (265)', () => {
+  it('writes pool_length_m from the answers, and it validates', () => {
+    const base = { activity_type: 'swim' as const, occurred_on: '2026-10-16', name: 'Lanes', distance_m: 1500, moving_s: 1800, elapsed_s: 1900, elev_gain_m: null, avg_hr: null, max_hr: null, avg_cadence: null, avg_power: null, calories: null };
+    const yd = buildEnduranceStatLine({ ...base, details: { pool: '25yd', stroke: 'freestyle' } })!;
+    expect(yd.stats.pool_length_m).toBe(22.86);
+    expect(validateStatLine(yd, 'swimming', '2026-12-31')).toMatchObject({ ok: true });
+    expect(buildEnduranceStatLine(base)!.stats.pool_length_m).toBeUndefined();
+  });
+});

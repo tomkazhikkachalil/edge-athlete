@@ -8,6 +8,8 @@
 
 import { ACTIVITY_TYPE_DEFS, type ActivityType } from './catalog';
 import type { Derived } from './derived';
+import { poolOf, type Details } from './details';
+import { lengths } from './pool';
 import { formatDistance, formatDuration, formatElevation, formatPace, formatSpeed, paceMetres, paceSuffix, type DistanceUnit } from './format';
 
 /** Everything a tile can read. The feed card fills only what its snapshot holds. */
@@ -25,6 +27,9 @@ export interface TileSource {
   calories: number | null;
   steps: number | null;
   stepsSource: 'estimated' | 'device' | null;
+  /** 265: how hard it felt, and the type's answers (details.ts) — absent on a card written before. */
+  effort?: number | null;
+  details?: Details;
 }
 
 export interface Tile {
@@ -51,7 +56,9 @@ export type TileKey =
   | 'power'
   | 'cadence'
   | 'calories'
-  | 'steps';
+  | 'steps'
+  | 'effort'
+  | 'lengths';
 
 /** The detail page's ceiling: five rows of two at 375 px. */
 export const MAX_TILES = 9;
@@ -90,13 +97,13 @@ export const TILE_FAMILY: Readonly<Record<ActivityType, Family>> = {
 };
 
 const TILE_ORDER: Readonly<Record<Family, readonly TileKey[]>> = {
-  foot: ['distance', 'moving', 'pace', 'gain', 'total', 'hr', 'cadence', 'steps', 'calories'],
-  trail: ['distance', 'moving', 'pace', 'gap', 'gain', 'loss', 'high', 'climbRate', 'total', 'hr', 'steps', 'calories'],
-  wheel: ['distance', 'moving', 'pace', 'maxSpeed', 'gain', 'descent', 'total', 'hr', 'power', 'cadence', 'calories'],
-  snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'total', 'hr', 'calories'],
-  water: ['distance', 'moving', 'pace', 'maxSpeed', 'total', 'hr', 'calories'],
-  indoor: ['distance', 'time', 'pace', 'hr', 'power', 'cadence', 'steps', 'calories'],
-  session: ['time', 'hr', 'calories'],
+  foot: ['distance', 'moving', 'pace', 'gain', 'effort', 'total', 'hr', 'cadence', 'steps', 'calories'],
+  trail: ['distance', 'moving', 'pace', 'gap', 'gain', 'loss', 'high', 'climbRate', 'effort', 'total', 'hr', 'steps', 'calories'],
+  wheel: ['distance', 'moving', 'pace', 'maxSpeed', 'gain', 'descent', 'effort', 'total', 'hr', 'power', 'cadence', 'calories'],
+  snow: ['distance', 'moving', 'descent', 'runs', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
+  water: ['distance', 'moving', 'pace', 'maxSpeed', 'effort', 'total', 'hr', 'calories'],
+  indoor: ['distance', 'time', 'pace', 'lengths', 'effort', 'hr', 'power', 'cadence', 'steps', 'calories'],
+  session: ['time', 'effort', 'hr', 'calories'],
 };
 
 /** Types whose moving and total time are both worth showing (breaks matter). */
@@ -168,6 +175,12 @@ function tile(key: TileKey, src: TileSource, derived: Derived | null, unit: Dist
       return isNum(src.avgCadence) ? { key, label: 'Cadence', value: `${src.avgCadence} ${cadenceUnit(src.type)}` } : null;
     case 'calories':
       return isNum(src.calories) ? { key, label: 'Calories', value: `${src.calories}` } : null;
+    case 'effort':
+      return isNum(src.effort) ? { key, label: 'Effort', value: `${src.effort} / 10` } : null;
+    case 'lengths': {
+      const n = lengths(src.distanceM, src.details ? poolOf(src.details) : null);
+      return n !== null ? { key, label: 'Lengths', value: `${n}` } : null;
+    }
     case 'steps':
       return isNum(src.steps) ? { key, label: src.stepsSource === 'device' ? 'Steps' : 'Steps (est.)', value: `~${src.steps.toLocaleString()}` } : null;
   }

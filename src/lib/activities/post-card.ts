@@ -9,6 +9,7 @@
 import { isActivityType, type ActivityType } from './catalog';
 import type { Derived } from './derived';
 import type { TileSource } from './tiles';
+import type { Details } from './details';
 
 export interface ActivityPostStats {
   type: 'activity';
@@ -38,6 +39,9 @@ export interface ActivityPostStats {
   steps?: number | null;
   /** 251: how many photos rode along (the post's own media carry them). */
   photo_count?: number;
+  /** 265: how hard it felt and the type's answers — absent on older cards. */
+  effort?: number | null;
+  details?: Details;
 }
 
 /** A composer's request to share an activity: `{ type: 'activity', activity_id }`. */
@@ -75,6 +79,8 @@ export function cardTileSource(s: ActivityPostStats): { src: TileSource; derived
       calories: null,
       steps: null,
       stepsSource: null,
+      effort: s.effort ?? null,
+      details: s.details ?? {},
     },
     derived: {
       bestEfforts: [],

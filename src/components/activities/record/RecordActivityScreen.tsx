@@ -40,6 +40,8 @@ import LiveRouteMap from './LiveRouteMap';
 import RecorderControls from './RecorderControls';
 import SegmentSheet from './SegmentSheet';
 import RoundTimerPanel from './RoundTimerPanel';
+import { finishPayload } from '@/components/activities/FinishDetailsForm';
+import type { Details } from '@/lib/activities/details';
 import RecorderPhotos from './RecorderPhotos';
 import FinishSheet, { type FinishDetails } from './FinishSheet';
 import { postActivity } from '@/lib/activities/share-client';
@@ -145,7 +147,7 @@ export default function RecordActivityScreen() {
 
   const onFinish = () => dispatch({ type: 'finish', now: Date.now() });
 
-  const save = async ({ name, manualDistanceM, choice, caption, sport }: FinishDetails) => {
+  const save = async ({ name, manualDistanceM, choice, caption, sport, answers }: FinishDetails) => {
     const s0 = engine?.getState();
     if (!engine || !s0 || s0.status !== 'finished') return;
     setSaving(true);
@@ -162,7 +164,12 @@ export default function RecordActivityScreen() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         // Only me is set in the SAME call — private from the moment it exists.
-        body: JSON.stringify({ activity: wire, ...(targetProfileId ? { targetProfileId } : {}), ...(choice === 'only_me' ? { onlyMe: true } : {}) }),
+        body: JSON.stringify({
+          activity: wire,
+          finish: finishPayload(answers),
+          ...(targetProfileId ? { targetProfileId } : {}),
+          ...(choice === 'only_me' ? { onlyMe: true } : {}),
+        }),
       });
       const json = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok || !json.id) throw new Error(json.error || 'Could not save the activity.');
@@ -218,6 +225,27 @@ export default function RecordActivityScreen() {
   const sportOption = bridged && isSportEnabled(bridged) ? bridged : null;
   const accountVisibility = (activeProfile ?? profile)?.visibility ?? null;
   const gapNotice = engine?.gapNotice ?? null;
+
+  // The Finish's starting answers: this type's last CHOICES, read once per
+  // review from the server (so they follow the athlete across devices).
+  const finishedType = state?.status === 'finished' ? state.type : null;
+  const [prefill, setPrefill] = useState<Details | null>(null);
+  useEffect(() => {
+    if (!finishedType) return;
+    let cancelled = false;
+    const q = new URLSearchParams({ type: finishedType, ...(targetProfileId ? { targetProfileId } : {}) });
+    fetch(`/api/activities/last-details?${q}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : { details: {} }))
+      .then((j: { details?: Details }) => {
+        if (!cancelled) setPrefill(j.details ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setPrefill({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [finishedType, targetProfileId]);
 
   if (!initialAuthCheckComplete || !user) return null;
 
@@ -373,6 +401,7 @@ export default function RecordActivityScreen() {
           onSave={save}
           onDiscard={() => setDiscardOpen(true)}
           onDropFailed={dropFailed}
+          prefill={prefill}
         />
       )}
       <ConfirmModal
