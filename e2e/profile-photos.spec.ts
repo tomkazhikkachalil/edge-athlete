@@ -9,10 +9,13 @@ import { managedProfilePhotoPath, managedProfileSourcePath } from '../src/lib/pr
 // larger with Edit for the owner; Remove brings the upload button back and
 // removes our file; Edit profile offers BOTH photos. @mobile: 390 px
 // Chromium AND WebKit AND Android. PR 5 (migration 264): the ORIGINAL is kept
-// with its crop; Adjust re-renders from it — the render changes, the kept
-// original does not, and no second original is written.
+// with its recipe; Adjust re-renders from it — the render changes, the kept
+// original does not, and no second original is written. Oct 15 2026: the
+// editor is the FULL post toolset (it was crop-only), the round frame shows on
+// every tab, and every edit rides the recipe back into Adjust.
 
 const PHOTO = join(process.cwd(), 'e2e', 'fixtures', 'photo.png');
+const GOLD = 'gold'; // src/lib/media/filters.ts — the 'Gold' film look
 
 test('photos: add both through the door, the buttons go, tap → viewer → Edit → Remove brings them back @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
@@ -30,12 +33,29 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
     await expect(addCover).toBeVisible();
     await expect(page.getByRole('button', { name: 'View profile picture', exact: true })).toHaveCount(0);
 
-    // The picture through the door: Upload a new photo → the crop-only editor → Done.
+    // The picture through the door: Upload a new photo → the full editor
+    // (every post tool, the round frame on a non-crop tab) → a film look → Done.
     await addAvatar.click();
     const door = page.locator('[data-photo-door="avatar"]');
     await expect(door.getByRole('dialog')).toBeVisible();
     await expect(door.locator('[data-photo-remove]')).toHaveCount(0); // nothing to remove yet
+    // A camera capture opens the editor too (Tom, Oct 15 2026 — it used to
+    // attach a centred crop at once); cancelling saves nothing.
+    await door.locator('input[aria-label="Take a profile photo"]').setInputFiles(PHOTO);
+    await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Cancel editing', exact: true }).click();
+    // The fixed-ratio crop stage seeds its crop on open, so Cancel names the loss.
+    await page.getByRole('button', { name: 'Discard', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
+    expect((await admin.from('profiles').select('avatar_url').eq('id', u.id).single()).data?.avatar_url ?? null).toBeNull();
     await door.locator('input[aria-label="Choose a profile photo"]').setInputFiles(PHOTO);
+    await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
+    for (const tool of ['Crop', 'Adjust', 'Filters', 'Masks', 'Retouch', 'Text', 'Perspective']) {
+      await expect(page.getByRole('button', { name: tool, exact: true }), `${tool} is offered`).toBeVisible();
+    }
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await expect(page.locator('[data-circular-preview]')).toBeVisible();
+    await page.getByRole('button', { name: /Gold/ }).click();
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
     await expect(addAvatar).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('[data-profile-avatar] img')).toBeVisible();
@@ -60,13 +80,15 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
       const m = managedProfileSourcePath(url);
       expect(m, `${slot} keeps its original`).not.toBeNull();
       expect(m!.path.startsWith(`profile-sources/${u.id}/`)).toBe(true);
-      expect((recipe as { v?: number; recipe?: { kind?: string } } | null)?.recipe?.kind, `${slot} keeps its crop`).toBe('image');
+      expect((recipe as { v?: number; recipe?: { kind?: string } } | null)?.recipe?.kind, `${slot} keeps its recipe`).toBe('image');
       cleanupFiles.push(m!);
     }
     const listSources = async () => (await admin.storage.from('uploads').list(`profile-sources/${u.id}`)).data?.map(f => f.name) ?? [];
     expect((await listSources()).length).toBe(2);
+    // The film look is in the picture's recipe — not only the crop.
+    expect((row!.avatar_recipe as { recipe?: { filterId?: string | null } }).recipe?.filterId, 'the avatar keeps its filter').toBe(GOLD);
 
-    // Adjust the picture: the kept original reopens in the crop-only editor; Done
+    // Adjust the picture: the kept original reopens in the full editor; Done
     // re-renders from it — avatar_url changes, avatar_source_url does not, and no
     // second original appears.
     await page.getByRole('button', { name: 'View profile picture', exact: true }).click();
@@ -79,6 +101,8 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
     const { data: adjusted } = await admin.from('profiles').select('avatar_url, avatar_source_url, avatar_recipe').eq('id', u.id).single();
     expect(adjusted?.avatar_source_url).toBe(row!.avatar_source_url);
     expect((adjusted?.avatar_recipe as { recipe?: { kind?: string } } | null)?.recipe?.kind).toBe('image');
+    // Adjust reopened WITH the look: Done kept it without being re-picked.
+    expect((adjusted?.avatar_recipe as { recipe?: { filterId?: string | null } }).recipe?.filterId, 'the filter survives Adjust').toBe(GOLD);
     cleanupFiles.push(managedProfilePhotoPath(adjusted!.avatar_url, 'avatar')!);
     expect((await listSources()).length).toBe(2);
 

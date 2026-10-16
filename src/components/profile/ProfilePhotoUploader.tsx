@@ -4,19 +4,20 @@
  * The ONE profile-photo upload engine (profile quick fixes PR 4, Oct 14
  * 2026) — AvatarUploader generalised by SLOT, replacing it and
  * CoverPhotoUploader. Pick (library or the native camera) → validate →
- * the crop-only editor in the slot's shape (round 1:1 for the picture, 3:1
- * for the cover — a live preview of the final shape) → a jpeg of the slot's
- * size →
+ * the FULL post editor in the slot's shape (round 1:1 for the picture, 3:1
+ * for the cover — a live preview of the final shape on every tab; Oct 15
+ * 2026: it was crop-only) → a jpeg of the slot's size →
  *   immediate mode: POST the slot's route, then onUploaded(url)
  *   deferred mode:  onPhotoReady(payload) — the caller uploads at save time
  * Render-prop trigger so each surface keeps its own buttons. A guardian
  * passes targetProfileId (the routes' shared acting gate).
  *
  * PR 5 (migration 264): the ORIGINAL is kept beside the render, with the
- * crop that made it (photo-recipe.ts). A camera capture ATTACHES AT ONCE —
- * the slot's centred crop, no editor (Capture v2's rule; Adjust is the
- * pencil). "Adjust the current photo" reopens the kept original at its
- * stored crop through the owner-only proxy; Done sends the new render and
+ * recipe that made it (photo-recipe.ts — every edit, not just the crop). A
+ * camera capture opens the editor like a pick (Tom, Oct 15 2026 — it used to
+ * attach a centred crop at once). "Adjust the current photo" reopens the
+ * kept original with its stored edits through the owner-only proxy; Done
+ * sends the new render and
  * `sameSource` — the original stays. A photo with no original (set before
  * 264, or by a plain upload) adjusts from the render itself, which then
  * becomes the original: lossy exactly once, never a spiral.
@@ -28,7 +29,7 @@ import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
-import { captureRecipe, parseProfilePhotoRecipe, profileSourceProxyUrl, type ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
+import { parseProfilePhotoRecipe, profileSourceProxyUrl, type ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
 import { assetFromProfilePhoto, prepareProfileSource, profilePhotoFormData } from '@/lib/profiles/photo-upload-client';
 
 export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
@@ -43,7 +44,7 @@ export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
   noun: string;
 }> = {
   avatar: {
-    config: { aspectRatios: ['1:1'], enforcedRatio: '1:1', circularPreview: true, allowVideo: false, maxAssets: 1, tools: ['crop'], output: { maxDimension: 512, mime: 'image/jpeg', quality: 0.9 } },
+    config: { aspectRatios: ['1:1'], enforcedRatio: '1:1', circularPreview: true, allowVideo: false, maxAssets: 1, output: { maxDimension: 1024, mime: 'image/jpeg', quality: 0.9 } },
     maxBytes: 5 * 1024 * 1024, // matches /api/upload/avatar
     field: 'avatar',
     endpoint: '/api/upload/avatar',
@@ -54,7 +55,7 @@ export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
     noun: 'Profile photo',
   },
   cover: {
-    config: { aspectRatios: ['3:1'], enforcedRatio: '3:1', allowVideo: false, maxAssets: 1, tools: ['crop'], output: { maxDimension: 1500, mime: 'image/jpeg', quality: 0.85 } },
+    config: { aspectRatios: ['3:1'], enforcedRatio: '3:1', allowVideo: false, maxAssets: 1, output: { maxDimension: 1500, mime: 'image/jpeg', quality: 0.85 } },
     maxBytes: 10 * 1024 * 1024, // matches /api/upload/cover
     field: 'cover',
     endpoint: '/api/upload/cover',
@@ -128,35 +129,11 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
     }
   };
 
-  /** A capture attaches at once: the slot's centred crop, the original kept. The editor only if the decode fails. */
-  const attachCapture = async (file: File) => {
-    setBusy(true);
-    try {
-      const [{ decodeImage }, { renderImage }] = await Promise.all([import('@/lib/media/decode'), import('@/lib/media/render')]);
-      const decoded = await decodeImage(file);
-      const recipe = captureRecipe(slot, decoded.width, decoded.height);
-      decoded.close();
-      const blob = await renderImage(file, recipe, def.config.output);
-      const derived = new File([blob], `${slot}.jpg`, { type: blob.type || def.config.output.mime });
-      const source = await prepareProfileSource(file);
-      await finish({ file: derived, source, recipe, sameSource: false });
-    } catch (err) {
-      console.warn(`${def.noun}: capture could not attach at once; opening the editor:`, err);
-      setPending({ asset: { id: slot, file, kind: 'image' }, kind: 'pick' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handlePick = (file: File | undefined, fromCamera: boolean) => {
+  const handlePick = (file: File | undefined) => {
     if (!file) return;
     const { accepted, rejected } = validateFiles([file], { maxBytes: def.maxBytes, allowVideo: false, maxCount: 1 });
     if (rejected.length > 0) {
       reportError(rejected[0].message);
-      return;
-    }
-    if (fromCamera) {
-      void attachCapture(accepted[0]);
       return;
     }
     setPending({ asset: { id: slot, file: accepted[0], kind: 'image' }, kind: 'pick' });
@@ -212,7 +189,7 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
         aria-label={def.pickLabel}
         accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif"
         className="sr-only"
-        onChange={e => { handlePick(e.target.files?.[0], false); e.target.value = ''; }}
+        onChange={e => { handlePick(e.target.files?.[0]); e.target.value = ''; }}
       />
       {/* Native capture: broad accept on purpose (capture + a narrow MIME
           list is unreliable on Android); validateFiles still guards it. */}
@@ -223,7 +200,7 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
         accept="image/*"
         capture={def.facing}
         className="sr-only"
-        onChange={e => { handlePick(e.target.files?.[0], true); e.target.value = ''; }}
+        onChange={e => { handlePick(e.target.files?.[0]); e.target.value = ''; }}
       />
       {render({ open, openCamera, adjust, canAdjust, uploading, busy })}
       {editorAssets && (
