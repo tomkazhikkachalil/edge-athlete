@@ -12,7 +12,7 @@ import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { emptyEntrySet, MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
 import { useToast } from '../Toast';
-import { MediaEditor } from '@/components/media-editor';
+import { MediaEditor, warmEditorChunk } from '@/components/media-editor';
 import CaptureInputs from '@/components/media/CaptureInputs';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { validateFiles } from '@/lib/media/validation';
@@ -62,9 +62,6 @@ interface SetRowProps {
   roundLabel?: boolean;
 }
 
-/** Warm the editor chunk while the camera menu is open — the pencil then
- *  opens without the "Opening editor…" shell. Fire-and-forget. */
-const warmEditorChunk = () => { void import('@/components/media-editor/MediaEditorModal').catch(() => undefined); };
 
 function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exerciseClientId, roundLabel = false }: SetRowProps) {
   const { showError } = useToast();

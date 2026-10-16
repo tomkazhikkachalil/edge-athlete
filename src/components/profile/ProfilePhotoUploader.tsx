@@ -23,9 +23,9 @@
  * becomes the original: lossy exactly once, never a spiral.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
-import { MediaEditor } from '@/components/media-editor';
+import { MediaEditor, warmEditorChunk } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
@@ -104,6 +104,41 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const editorAssets = useMemo(() => (pending ? [pending.asset] : null), [pending]);
+  // The uploader mounts when its door opens (or on onboarding's photo step):
+  // load the editor now so the pick opens it at once (Oct 15 2026).
+  useEffect(() => { warmEditorChunk(); }, []);
+
+  // The kept original is prepared WHILE the person edits, not after Done
+  // (Oct 15 2026): a 12 MP pick is decoded and re-encoded to ≤2048 px in the
+  // background, started once the editor has had its moment to paint, and
+  // Done awaits the work already under way.
+  const sourceRef = useRef<{ file: File; promise: Promise<File | null> } | null>(null);
+  const sourceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SOURCE_DELAY_MS = 1500;
+  const prepareSourceSoon = (file: File) => {
+    if (sourceTimerRef.current) clearTimeout(sourceTimerRef.current);
+    sourceRef.current = null;
+    sourceTimerRef.current = setTimeout(() => {
+      sourceTimerRef.current = null;
+      sourceRef.current = { file, promise: prepareProfileSource(file) };
+    }, SOURCE_DELAY_MS);
+  };
+  const sourceFor = (file: File): Promise<File | null> => {
+    if (sourceTimerRef.current) {
+      clearTimeout(sourceTimerRef.current);
+      sourceTimerRef.current = null;
+    }
+    const started = sourceRef.current;
+    sourceRef.current = null;
+    return started && started.file === file ? started.promise : prepareProfileSource(file);
+  };
+  /** Cancel: nothing will be kept — stop a source not yet started. */
+  const dropSource = () => {
+    if (sourceTimerRef.current) clearTimeout(sourceTimerRef.current);
+    sourceTimerRef.current = null;
+    sourceRef.current = null;
+  };
+  useEffect(() => dropSource, []);
 
   const reportError = (message: string) => (onError ? onError(message) : showError(def.noun, message));
 
@@ -137,6 +172,7 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
       return;
     }
     setPending({ asset: { id: slot, file: accepted[0], kind: 'image' }, kind: 'pick' });
+    prepareSourceSoon(accepted[0]);
   };
 
   const handleDone = async (results: EditedMedia[]) => {
@@ -153,7 +189,7 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
     setBusy(true);
     let source: File | null = null;
     try {
-      source = await prepareProfileSource(result.sourceFile);
+      source = await sourceFor(result.sourceFile);
     } finally {
       setBusy(false);
     }
@@ -204,7 +240,7 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
       />
       {render({ open, openCamera, adjust, canAdjust, uploading, busy })}
       {editorAssets && (
-        <MediaEditor assets={editorAssets} config={def.config} onDone={handleDone} onCancel={() => setPending(null)} />
+        <MediaEditor assets={editorAssets} config={def.config} onDone={handleDone} onCancel={() => { setPending(null); dropSource(); }} />
       )}
     </>
   );

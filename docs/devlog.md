@@ -1,5 +1,11 @@
 # Development Log
 
+## October 15, 2026 — Photo → editor speed (PR 2 of the profile-photo round, zero DDL)
+
+Tom: the wait between taking or choosing a photo and editing it. `docs/specs/media.md` "Photo → editor speed" is the reference. Changed: the editor's chunk is warmed when the composer opens and when a profile-photo uploader mounts (`warmEditorChunk`, now one export); the session's object URLs land in a layout effect (no empty first frame); the free-crop stage decodes async; the upload queue's device chain is HELD while the composer's editor is open (`holdDevice`, unit-tested: waits, nests, idempotent release, destroy frees); the profile's kept original is prepared during editing instead of after Done.
+
+**Measured** (`e2e/photo-open-timing.spec.ts`, 4032 × 3024 JPEG, pick → the stage showing the picture, 3 runs android / 2 webkit, same spec before and after): **android (4× CPU, phone network) composer 1,107–1,161 ms → 958–968 ms; profile picture 901–905 → 881–981 ms (unchanged); webkit-mobile (this machine, no throttle) 439–514 → 430–481 ms (unchanged).** The floor with a 400 px image is ~350 ms, so ~600 ms of what is left is the full-resolution decode of the original — a ≤2048 preview proxy is the next lever (a decision for Tom: crop coordinates live in source pixels; iOS 15 has no decode-time downscale). The profile path's real gains are off the measured line: Done no longer waits for the original's re-encode, and (PR 1) a capture no longer runs four serial decodes before anything shows.
+
 ## October 15, 2026 — Profile photos get the post editor's full toolset (PR 1 of the profile-photo round, zero DDL)
 
 Tom: *"When you're making edits to the profile picture and background img, it should have the same editing toolsets as a post. The user is limited to a few options."* The cause was one field: both `PHOTO_SLOTS` configs set `tools: ['crop']`. The ratio lock never disabled a tool (the org logo already had every tool at 1:1), and the stored recipe (`avatar_recipe` / `cover_recipe`, migration 264) was always the editor's whole v3 envelope, so every edit already persisted and round-tripped with no server or schema change.

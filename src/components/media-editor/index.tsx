@@ -24,6 +24,15 @@ function EditorLoading() {
   );
 }
 
+/** Fetch + evaluate the editor's chunk ahead of the pick (Oct 15 2026,
+ *  photo → editor speed): call it where a photo is about to be chosen — a
+ *  composer opening, a camera button, a profile-photo door — so the editor
+ *  opens without the "Opening editor…" shell. Fire-and-forget; idempotent
+ *  (the module cache answers every call after the first). */
+export function warmEditorChunk(): void {
+  void import('./MediaEditorModal').catch(() => undefined);
+}
+
 export const MediaEditor = dynamic(() => import('./MediaEditorModal'), {
   ssr: false,
   loading: EditorLoading,

@@ -254,4 +254,28 @@ describe('createUploadQueue — the runtime', () => {
     h.queue.destroy();
     expect(h.listeners.size).toBe(0);
   });
+
+  it('holdDevice: device work waits while the editor holds it; a released hold lets it run; holds nest; destroy frees a waiter', async () => {
+    const h = harness();
+    const ran: string[] = [];
+    const release = h.queue.holdDevice();
+    const second = h.queue.holdDevice();
+    const done = h.queue.device(async () => { ran.push('resize'); return 1; });
+    await flush();
+    expect(ran).toEqual([]); // held
+    release();
+    release(); // idempotent — the other hold still stands
+    await flush();
+    expect(ran).toEqual([]);
+    second();
+    await flush();
+    expect(ran).toEqual(['resize']);
+    await expect(done).resolves.toBe(1);
+
+    const h2 = harness();
+    h2.queue.holdDevice();
+    const waiting = h2.queue.device(async () => 'ran');
+    h2.queue.destroy();
+    await expect(waiting).resolves.toBe('ran'); // never stranded
+  });
 });

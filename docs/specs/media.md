@@ -79,3 +79,14 @@ with no open job. e2e: `video-poster`, `composer-upload`,
 `admin-media-jobs` (desktop, `E2E_ADMIN_EMAIL`; the fixture
 `e2e/fixtures/clip-h264.mp4` is made by ffmpeg-static). Read DEVLOG Oct 13
 2026 PR 1–9 first.
+
+## Photo → editor speed (Oct 15 2026, zero DDL)
+
+Tom: *"improve the speed from when a photo is taken to when it's uploaded for edit, same rule for when the user selects a photo, there seems to be a delay."* The trace (every awaited step from the pick or the shutter to the editor's stage) and what changed:
+
+- **The editor's code loads before the pick.** `warmEditorChunk()` (`src/components/media-editor/index.tsx`, the one export; it was a private copy in `ExerciseCard`) runs when the composer opens and when a profile-photo uploader mounts (its door, onboarding's photo step), so a pick no longer waits for the chunk behind "Opening editor…".
+- **The stage never paints a frame empty.** `useEditorSession` mints the object URLs in a LAYOUT effect: the same commit, before the first paint. It stays effect-owned (the StrictMode rule in the file). The free-crop stage's `<img>` decodes with `decoding="async"`.
+- **The upload queue steps aside.** `UploadQueue.holdDevice()` holds the DEVICE chain (the post-time resize, a blur grab) while the composer's editor is open — a task not yet started waits, one running finishes; holds nest; `destroy()` frees any waiter. An edit replaces the resized bytes anyway.
+- **The profile original is prepared while the person edits.** The ≤2048 px kept original (`prepareProfileSource`) starts 1.5 s after the pick and Done awaits the work under way; it used to start only after Done. Cancel drops a start not yet made.
+- **The measure:** `e2e/photo-open-timing.spec.ts` (@mobile) — a 4032 × 3024 JPEG, a fresh context, Chromium at 4× CPU on a phone connection (150 ms RTT, ~1.6 Mbps), a 1.5 s picker moment, the clock from the file arriving to the stage showing the picture. It records the numbers as annotations and fails only past 15 s.
+- **What is left is the decode itself:** the same flow with a 400 px image is ~350 ms; a 12 MP photo adds ~600 ms at 4× CPU, the browser decoding the full-resolution original for the crop stage. A ≤2048 preview proxy would cut it, but crop coordinates live in the source's pixel space and iOS 15 has no decode-time downscale — a decision, not done here.
