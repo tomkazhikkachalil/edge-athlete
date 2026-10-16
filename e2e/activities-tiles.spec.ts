@@ -35,7 +35,10 @@ test('a yoga shows its time and no distance; a hike shows its climb @mobile', as
     await page.goto(`/activities/${ids[1]}`);
     await expect(page.locator('[data-activity-name]')).toHaveText('Ridge hike', { timeout: 20_000 });
     const hike = page.locator('[data-activity-stats]');
-    for (const k of ['distance', 'moving', 'gain', 'high', 'climbRate']) await expect(hike.locator(`[data-activity-tile="${k}"]`)).toBeVisible();
+    for (const k of ['distance', 'gain', 'high', 'climbRate']) await expect(hike.locator(`[data-activity-tile="${k}"]`)).toBeVisible();
+    // A time always shows: moving time, or — when the filter saw no movement on this synthetic line — the total.
+    await expect(hike.locator('[data-activity-tile="moving"], [data-activity-tile="total"]').first()).toBeVisible();
+    await expect(hike.locator('[data-activity-tile="moving"]', { hasText: /^Moving time0:00$/ })).toHaveCount(0);
   } finally {
     for (const id of ids) await api.delete(`/api/activities/${id}`).catch(() => undefined);
     await adminClient().from('activities').delete().eq('profile_id', user.id).in('name', ['Morning flow', 'Ridge hike']);
