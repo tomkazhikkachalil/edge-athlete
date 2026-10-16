@@ -1,5 +1,9 @@
 # Development Log
 
+## October 15, 2026 — A HEIC shows in the editor on Android; a selfie saves as seen (PR 3 of the profile-photo round, zero DDL)
+
+Two finds from the photo → editor trace. **HEIC:** Chromium cannot paint a HEIC `<img>`, and the decoder ran only at export, so a Samsung "high efficiency" photo opened a BLACK crop stage on Android Chrome. `useEditorSession` now converts a HEIF candidate to JPEG for the session when (and only when) the native decode fails; the stage says "Preparing photo…" meanwhile. Proved first: `heic-photo.spec`'s new stage check timed out at 60 s on android against the old code. **Selfie:** the in-app camera's front preview was mirrored but the still was not — Tom: match the preview, so the still is drawn mirrored (clips unchanged). The camera comment's "up to 4K" now says 1080p, which is what the stream asks for.
+
 ## October 15, 2026 — Photo → editor speed (PR 2 of the profile-photo round, zero DDL)
 
 Tom: the wait between taking or choosing a photo and editing it. `docs/specs/media.md` "Photo → editor speed" is the reference. Changed: the editor's chunk is warmed when the composer opens and when a profile-photo uploader mounts (`warmEditorChunk`, now one export); the session's object URLs land in a layout effect (no empty first frame); the free-crop stage decodes async; the upload queue's device chain is HELD while the composer's editor is open (`holdDevice`, unit-tested: waits, nests, idempotent release, destroy frees); the profile's kept original is prepared during editing instead of after Done.

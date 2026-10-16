@@ -12,7 +12,8 @@
  * same map — every view mounted after that points at dead blob: URLs.
  */
 
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { HEIF_SNIFF_BYTES, isHeifCandidate } from '@/lib/media/heic-brand';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
 import { emptyHistory, jumpTo, push, undo, redo, type History } from '@/lib/media/history';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
@@ -56,6 +57,44 @@ export function useEditorSession(
       for (const url of map.values()) URL.revokeObjectURL(url);
     };
   }, [assets]);
+
+  // A HEIC the browser cannot paint (Samsung's "high efficiency" photos in
+  // Chrome on Android — Safari decodes them itself) used to leave the crop
+  // stage blank: the stage is a plain <img>, and the WebAssembly decoder only
+  // ran at export. Now the session converts it to a JPEG up front, ONLY when
+  // the native decode fails, and swaps the asset's file under the same id
+  // (recipes are keyed by id; the URLs re-mint with the assets). Oct 15 2026.
+  const [preparing, setPreparing] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    for (const asset of initialAssets) {
+      if (asset.kind !== 'image') continue;
+      void (async () => {
+        const head = new Uint8Array(await asset.file.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
+        if (!isHeifCandidate(asset.file.type, head)) return;
+        try {
+          (await createImageBitmap(asset.file)).close();
+          return; // this browser paints HEIC itself
+        } catch {
+          // fall through to the WebAssembly decoder
+        }
+        if (cancelled) return;
+        setPreparing(prev => new Set(prev).add(asset.id));
+        try {
+          const { decodeHeicToJpeg } = await import('@/lib/media/heic-decode');
+          const jpeg = await decodeHeicToJpeg(asset.file);
+          if (!cancelled) setAssets(prev => prev.map(a => (a.id === asset.id ? { ...a, file: jpeg } : a)));
+        } catch (err) {
+          console.warn('[editor] HEIC could not be converted for the stage:', err);
+        } finally {
+          if (!cancelled) setPreparing(prev => { const next = new Set(prev); next.delete(asset.id); return next; });
+        }
+      })();
+    }
+    return () => { cancelled = true; };
+    // Once per session: the assets the editor opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Per-asset undo/redo over whole-recipe snapshots. The coalescing key is
   // the patch's key set, so a slider drag (many same-key patches) is ONE
@@ -129,6 +168,8 @@ export function useEditorSession(
 
   return {
     assets,
+    /** Assets being converted for the stage (a HEIC the browser cannot paint). */
+    preparing,
     recipes,
     patchRecipe,
     addAsset,

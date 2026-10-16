@@ -43,6 +43,13 @@ test('a HEIC photo opens in the editor and attaches; the decoder is fetched only
   await page.locator(LIBRARY_INPUT).setInputFiles(HEIC);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[role="status"]').filter({ hasText: 'was skipped' })).toHaveCount(0);
+  // …and the STAGE shows the picture (Oct 15 2026): Chromium cannot paint a
+  // HEIC <img>, so the session converts it for the stage — it used to stay
+  // black until Done, the decoder running only at export.
+  await page.waitForFunction(() => {
+    const editor = document.querySelector('[role="dialog"][aria-label="Edit media"]');
+    return !!editor && [...editor.querySelectorAll('img')].some(img => img.src.startsWith('blob:') && img.complete && img.naturalWidth > 0);
+  }, undefined, { timeout: 60_000 });
   await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 60_000 });
   await expect(page.locator('[role="status"]').filter({ hasText: 'was skipped' })).toHaveCount(0);
