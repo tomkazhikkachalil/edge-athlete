@@ -8,6 +8,8 @@
 // built from the activity's row — validated by the server like any stat line,
 // turned into the performance row by fromStatLinePost.
 
+import { detailsFromRow, poolOf } from './details';
+import { POOL_LENGTH_M } from './pool';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import type { StatLineData } from '@/lib/sports/stat-schemas';
 import type { ActivityType } from './catalog';
@@ -42,6 +44,8 @@ export interface EnduranceSource {
   avg_cadence: number | null;
   avg_power: number | null;
   calories: number | null;
+  /** 265: the type's answers — a swim's pool rides along as pool_length_m. */
+  details?: unknown;
 }
 
 const r = (v: number, dp: number) => Math.round(v * 10 ** dp) / 10 ** dp;
@@ -68,6 +72,10 @@ export function buildEnduranceStatLine(a: EnduranceSource): StatLineData | null 
   if (a.max_hr !== null && a.max_hr >= 20) stats.max_hr = Math.round(a.max_hr);
   if (a.avg_cadence !== null && a.avg_cadence > 0) stats.avg_cadence = Math.round(a.avg_cadence);
   if (a.calories !== null && a.calories > 0) stats.calories = Math.round(a.calories);
+  if (sport === 'swimming') {
+    const pool = poolOf(detailsFromRow(a.activity_type, a.details));
+    if (pool) stats.pool_length_m = POOL_LENGTH_M[pool];
+  }
   if ((sport === 'cycling' || sport === 'rowing') && a.avg_power !== null && a.avg_power > 0) stats.avg_power = Math.round(a.avg_power);
   return { type: 'stat_line', sport_key: sport, date: a.occurred_on, opponent: a.name.slice(0, 80), stats };
 }

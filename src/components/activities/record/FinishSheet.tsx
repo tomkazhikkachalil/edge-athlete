@@ -9,6 +9,9 @@ import { requiresManualDistance, type RecordingPhoto } from '@/lib/activities/re
 import { DEFAULT_CHOICE, type PostChoice } from '@/lib/posts/audience';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import PostChoicePicker from '@/components/posts/PostChoicePicker';
+import FinishDetailsForm, { type FinishFormValue } from '@/components/activities/FinishDetailsForm';
+import type { Details } from '@/lib/activities/details';
+import { unitSystemOf } from '@/lib/activities/units';
 
 export interface FinishDetails {
   name: string;
@@ -17,6 +20,8 @@ export interface FinishDetails {
   caption: string;
   /** Post it as this sport's result; null = the training card. */
   sport: SportKey | null;
+  /** Oct 16 2026: effort, notes and the type's own answers (details.ts). */
+  answers: FinishFormValue;
 }
 
 /**
@@ -39,6 +44,7 @@ export default function FinishSheet({
   onSave,
   onDiscard,
   onDropFailed,
+  prefill,
 }: {
   type: ActivityType;
   defaultName: string;
@@ -55,6 +61,8 @@ export default function FinishSheet({
   onSave: (details: FinishDetails) => void;
   onDiscard: () => void;
   onDropFailed: () => void;
+  /** The last answers of this type (choices only — /api/activities/last-details); null while loading. */
+  prefill: Details | null;
 }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   const [name, setName] = useState(defaultName);
@@ -62,6 +70,14 @@ export default function FinishSheet({
   const [distUnit, setDistUnit] = useState<DistanceUnit | 'm'>(def.recording === 'timer' && (type === 'swim' || type === 'row') ? 'm' : unit);
   const [choice, setChoice] = useState<PostChoice>(DEFAULT_CHOICE);
   const [caption, setCaption] = useState('');
+  const [answers, setAnswers] = useState<FinishFormValue>({ effort: null, notes: '', details: {} });
+  // The last answers land once, and only before the athlete touched a question.
+  const [touched, setTouched] = useState(false);
+  const [seededFrom, setSeededFrom] = useState<Details | null>(null);
+  if (prefill && prefill !== seededFrom && !touched) {
+    setSeededFrom(prefill);
+    setAnswers(a => ({ ...a, details: { ...prefill, ...a.details } }));
+  }
   const [shareAs, setShareAs] = useState<'training' | 'sport'>('training');
   const needsDistance = def.recording === 'timer';
   // Oct 16 2026: elliptical, stairs and indoor rides may finish without one.
@@ -130,6 +146,20 @@ export default function FinishSheet({
           </div>
         )}
 
+        {/* How it went — every answer optional (activities details, Oct 16 2026). */}
+        <div className="mt-4">
+          <FinishDetailsForm
+            type={type}
+            value={answers}
+            onChange={v => {
+              setTouched(true);
+              setAnswers(v);
+            }}
+            sys={unitSystemOf(unit)}
+            disabled={saving}
+          />
+        </div>
+
         {/* The one decision. */}
         <div className="mt-4">
           <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your Training" accountVisibility={accountVisibility} disabled={saving} />
@@ -192,6 +222,7 @@ export default function FinishSheet({
                 choice,
                 caption,
                 sport: posting && shareAs === 'sport' ? sportOption : null,
+                answers,
               })
             }
             disabled={saving || pending > 0 || failed > 0 || (distanceRequired && parsedDistance() === null)}

@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
 import { DERIVED_BY_TYPE, deriveAll } from './derived';
+import { detailsFromRow } from './details';
 import type { ActivityPostStats } from './post-card';
 import { segmentsFromRow } from './segments';
 import { segmentStats } from './stream';
@@ -28,7 +29,7 @@ export async function buildActivityPostStats(
   const [actRes, profRes] = await Promise.all([
     admin
       .from('activities')
-      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, elev_loss_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path')
+      .select('id, profile_id, activity_type, source, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, elev_loss_m, avg_hr, route_preview, post_id, only_me, segments, steps, stream_path, effort, details')
       .eq('id', activityId)
       .maybeSingle(),
     admin.from('profiles').select('supervision_state').eq('id', authorId).maybeSingle(),
@@ -67,6 +68,7 @@ export async function buildActivityPostStats(
         .filter((x): x is NonNullable<typeof x> => x !== null);
     }
   }
+  const answers = detailsFromRow(type, a.details);
   const { count: photoCount } = await admin.from('activity_media').select('id', { count: 'exact', head: true }).eq('activity_id', activityId);
   return {
     ok: true,
@@ -89,6 +91,8 @@ export async function buildActivityPostStats(
       ...(segmentLines.length > 0 ? { segments: segmentLines } : {}),
       ...(typeof a.steps === 'number' ? { steps: a.steps } : {}),
       ...(photoCount ? { photo_count: photoCount } : {}),
+      ...(typeof a.effort === 'number' ? { effort: a.effort } : {}),
+      ...(Object.keys(answers).length > 0 ? { details: answers } : {}),
     },
   };
 }
@@ -110,7 +114,7 @@ export async function buildActivitySportLine(
   if (typeof activityId !== 'string' || !isUuid(activityId)) return { ok: false, status: 400, error: 'Unknown activity' };
   const { data: a, error } = await admin
     .from('activities')
-    .select('id, profile_id, activity_type, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, max_hr, avg_cadence, avg_power, calories, post_id, only_me')
+    .select('id, profile_id, activity_type, name, occurred_on, distance_m, moving_s, elapsed_s, elev_gain_m, avg_hr, max_hr, avg_cadence, avg_power, calories, post_id, only_me, details')
     .eq('id', activityId)
     .maybeSingle();
   if (error) return { ok: false, status: 500, error: 'Could not read the activity.' };
@@ -134,6 +138,7 @@ export async function buildActivitySportLine(
     avg_cadence: a.avg_cadence as number | null,
     avg_power: a.avg_power as number | null,
     calories: a.calories as number | null,
+    details: a.details,
   });
   if (!line) return { ok: false, status: 400, error: 'This activity has no distance to post as a result.' };
   return { ok: true, activityId, statsData: line };
