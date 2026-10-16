@@ -96,7 +96,20 @@ describe('the exercise summary', () => {
     expect(polarSportType('CYCLING', 'MOUNTAIN_BIKING')).toBe('mountain_bike');
     expect(polarSportType('CYCLING', 'ROAD_BIKING')).toBe('ride');
     expect(polarSportType('SWIMMING', 'POOL_SWIMMING')).toBe('swim');
-    expect(polarSportType('OTHER', 'CROSS-COUNTRY_SKIING')).toBe('ski');
+    expect(polarSportType('OTHER', 'CROSS-COUNTRY_SKIING')).toBe('xc_ski');
+    expect(polarSportType('OTHER', 'DOWNHILL_SKIING')).toBe('ski');
+    expect(polarSportType('OTHER', 'SNOWBOARDING')).toBe('snowboard');
+    expect(polarSportType('RUNNING', 'TREADMILL_RUNNING')).toBe('treadmill');
+    expect(polarSportType('CYCLING', 'INDOOR_CYCLING')).toBe('indoor_ride');
+    expect(polarSportType('SWIMMING', 'OPEN_WATER_SWIMMING')).toBe('open_water_swim');
+    expect(polarSportType('OTHER', 'KAYAKING')).toBe('paddle');
+    expect(polarSportType('OTHER', 'YOGA')).toBe('yoga');
+    expect(polarSportType('OTHER', 'PILATES')).toBe('pilates');
+    expect(polarSportType('OTHER', 'HIIT')).toBe('hiit');
+    expect(polarSportType('OTHER', 'BOXING')).toBe('martial_arts');
+    expect(polarSportType('OTHER', 'DANCING')).toBe('dance');
+    expect(polarSportType('OTHER', 'CROSS_TRAINER')).toBe('elliptical');
+    expect(polarSportType('OTHER', 'ICE_SKATING')).toBe('skate');
     expect(polarSportType('OTHER', 'WATERSPORTS_WATERSKI')).toBe('other'); // "waterski" is not skiing
     expect(polarSportType('OTHER', 'STRENGTH_TRAINING')).toBe('other');
     expect(polarSportType(undefined)).toBe('other');

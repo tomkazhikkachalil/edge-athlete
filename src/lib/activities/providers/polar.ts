@@ -49,17 +49,34 @@ export function parsePolarWebhook(body: unknown): PolarWebhook | null {
 
 /** Polar's `sport` / `detailed_sport_info` words → our types. An explicit
  *  list; anything else is `other`, which Training still counts as a session. */
+// Most specific first (Oct 16 2026: every catalog type, not the first eleven).
+// Strength training stays `other` — the gym is the Workout path, never an activity.
 const SPORT_RULES: readonly [RegExp, ActivityType][] = [
   [/TRAIL_RUNNING/, 'trail_run'],
-  [/(^|_)RUNNING|JOGGING|TREADMILL/, 'run'],
+  [/TREADMILL|INDOOR_RUNNING/, 'treadmill'],
+  [/(^|_)RUNNING|JOGGING/, 'run'],
   [/MOUNTAIN_BIKING/, 'mountain_bike'],
-  [/CYCLING|BIKING|SPINNING/, 'ride'],
-  [/HIKING/, 'hike'],
+  [/INDOOR_CYCLING|SPINNING|INDOOR_BIKING|VIRTUAL/, 'indoor_ride'],
+  [/CYCLING|BIKING/, 'ride'],
+  [/HIKING|TREKKING/, 'hike'],
   [/WALKING/, 'walk'],
+  [/OPEN_WATER/, 'open_water_swim'],
   [/SWIMMING/, 'swim'],
   [/ROWING/, 'row'],
-  [/SKIING|SNOWBOARDING/, 'ski'],
-  [/(^|_)CLIMBING/, 'climb'],
+  [/KAYAK|CANOE|PADDL|SUP(_|$)/, 'paddle'],
+  [/SNOWBOARD/, 'snowboard'],
+  [/CROSS_COUNTRY_SKIING|CROSS-COUNTRY|NORDIC|XC_SKIING|BACKCOUNTRY_SKIING/, 'xc_ski'],
+  [/SKIING/, 'ski'],
+  [/SKATING/, 'skate'],
+  [/ELLIPTICAL|CROSS_TRAINER/, 'elliptical'],
+  [/STAIR|STEP_MACHINE/, 'stair_climber'],
+  [/YOGA/, 'yoga'],
+  [/PILATES/, 'pilates'],
+  [/STRETCHING|MOBILITY/, 'stretch'],
+  [/HIIT|CIRCUIT|INTERVAL|CROSSFIT|FUNCTIONAL_TRAINING/, 'hiit'],
+  [/MARTIAL|BOXING|KICKBOX|JUDO|KARATE|TAEKWONDO|WRESTLING|MMA/, 'martial_arts'],
+  [/DANC/, 'dance'],
+  [/(^|_)CLIMBING|BOULDERING/, 'climb'],
 ];
 
 export function polarSportType(sport: unknown, detailed?: unknown): ActivityType {
