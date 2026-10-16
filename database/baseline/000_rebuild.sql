@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-15T01:19:25.094554+00:00 from server 17.6 by
+-- Generated 2026-10-16T19:59:00.768595+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 264.
+-- public.schema_dump() (migration 227). Ledger head at generation: 265.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -4264,7 +4264,11 @@ CREATE TABLE IF NOT EXISTS public.activities (
   segments jsonb DEFAULT '[]'::jsonb NOT NULL,
   steps integer,
   steps_source text,
-  notes text
+  notes text,
+  effort smallint,
+  details jsonb,
+  sport_key text,
+  session_kind text
 );
 
 CREATE TABLE IF NOT EXISTS public.activity_connections (
@@ -6218,7 +6222,8 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
   share_decided_at timestamp with time zone,
   timed boolean DEFAULT true NOT NULL,
   paused_seconds integer DEFAULT 0 NOT NULL,
-  paused_at timestamp with time zone
+  paused_at timestamp with time zone,
+  effort smallint
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_sets (
@@ -7277,7 +7282,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_activity_type_check' AND conrelid = 'public.activities'::regclass) THEN
-    ALTER TABLE public.activities ADD CONSTRAINT activities_activity_type_check CHECK ((activity_type = ANY (ARRAY['run'::text, 'trail_run'::text, 'walk'::text, 'hike'::text, 'ride'::text, 'mountain_bike'::text, 'open_water_swim'::text, 'paddle'::text, 'ski'::text, 'xc_ski'::text, 'snowboard'::text, 'skate'::text, 'swim'::text, 'row'::text, 'indoor_ride'::text, 'treadmill'::text, 'elliptical'::text, 'stair_climber'::text, 'yoga'::text, 'pilates'::text, 'stretch'::text, 'hiit'::text, 'martial_arts'::text, 'dance'::text, 'climb'::text, 'other'::text])));
+    ALTER TABLE public.activities ADD CONSTRAINT activities_activity_type_check CHECK ((activity_type = ANY (ARRAY['run'::text, 'trail_run'::text, 'walk'::text, 'hike'::text, 'ride'::text, 'mountain_bike'::text, 'open_water_swim'::text, 'paddle'::text, 'ski'::text, 'xc_ski'::text, 'snowboard'::text, 'skate'::text, 'swim'::text, 'row'::text, 'indoor_ride'::text, 'treadmill'::text, 'elliptical'::text, 'stair_climber'::text, 'yoga'::text, 'pilates'::text, 'stretch'::text, 'hiit'::text, 'martial_arts'::text, 'dance'::text, 'climb'::text, 'other'::text, 'sport_session'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7301,8 +7306,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_details_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_details_check CHECK (((details IS NULL) OR ((jsonb_typeof(details) = 'object'::text) AND (length((details)::text) <= 8000))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_distance_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_distance_check CHECK (((distance_m IS NULL) OR ((distance_m >= (0)::numeric) AND (distance_m <= (2000000)::numeric))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_effort_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_effort_check CHECK (((effort IS NULL) OR ((effort >= 1) AND (effort <= 10))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7361,6 +7376,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_session_kind_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_session_kind_check CHECK (((session_kind IS NULL) OR ((session_kind = ANY (ARRAY['practice'::text, 'game'::text, 'other'::text])) AND (sport_key IS NOT NULL))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_source_check CHECK ((source = ANY (ARRAY['file'::text, 'upload_link'::text, 'polar'::text, 'wahoo'::text, 'coros'::text, 'suunto'::text, 'garmin'::text, 'google_health'::text, 'live'::text])));
   END IF;
@@ -7368,6 +7388,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_source_format_check' AND conrelid = 'public.activities'::regclass) THEN
     ALTER TABLE public.activities ADD CONSTRAINT activities_source_format_check CHECK (((source_format IS NULL) OR (source_format = ANY (ARRAY['fit'::text, 'gpx'::text, 'tcx'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_sport_key_check' AND conrelid = 'public.activities'::regclass) THEN
+    ALTER TABLE public.activities ADD CONSTRAINT activities_sport_key_check CHECK (((sport_key IS NULL) OR ((length(sport_key) >= 1) AND (length(sport_key) <= 40))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9122,6 +9147,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sessions_duration_seconds_check' AND conrelid = 'public.workout_sessions'::regclass) THEN
     ALTER TABLE public.workout_sessions ADD CONSTRAINT workout_sessions_duration_seconds_check CHECK ((duration_seconds >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sessions_effort_check' AND conrelid = 'public.workout_sessions'::regclass) THEN
+    ALTER TABLE public.workout_sessions ADD CONSTRAINT workout_sessions_effort_check CHECK (((effort IS NULL) OR ((effort >= 1) AND (effort <= 10))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -17292,6 +17322,10 @@ COMMENT ON TABLE public.activities IS 'Imported GPS activities (245): one row pe
 COMMENT ON COLUMN public.activities.segments IS 'Segments (251): [{id, kind sprint|climb|interval|recovery|lap, from_s, to_s, label?}] — boundaries only, ≤ 50, shape enforced in code (src/lib/activities/segments.ts); stats are computed from the stream at read time, never stored.';
 COMMENT ON COLUMN public.activities.steps IS 'Steps (251): an ESTIMATE from distance and stride on the web (steps_source estimated, shown "est."); a device count arrives with the native apps.';
 COMMENT ON COLUMN public.activities.notes IS 'The athlete''s notes (251), ≤ 2000 chars; public words — "Only me" hides the whole row.';
+COMMENT ON COLUMN public.activities.effort IS 'How hard it felt, 1–10, asked at the finish (265). Training load = minutes × effort; an unrated activity adds no load.';
+COMMENT ON COLUMN public.activities.details IS 'The per-type answers (265): a jsonb object validated per type by src/lib/activities/details.ts — a new question is code, never DDL.';
+COMMENT ON COLUMN public.activities.sport_key IS 'A sport_session''s sport (265): a SportRegistry key. Never a result.';
+COMMENT ON COLUMN public.activities.session_kind IS 'A sport_session''s kind (265): practice | game | other.';
 COMMENT ON TABLE public.activity_connections IS 'Connected watches and apps (247): one row per athlete per source. ONE writer: src/lib/activities/connections-server.ts. secret_ciphertext is app-encrypted OAuth tokens; token_hash is the personal upload link (sha256). Posture A: service role only — no response ever carries either column.';
 COMMENT ON TABLE public.activity_media IS 'A photo / clip on an activity (251): taken during a recording or added after; posture A behind the activity gate (src/lib/activities/read-server.ts); at_s pins it to the route at READ time from the viewer''s trimmed stream; mirrored into the shared post (mirrored_at).';
 COMMENT ON COLUMN public.activity_media.created_by_user_id IS 'The human author when a guardian acts for a supervised athlete (the 090 attribution); NULL for a self-upload.';
@@ -17515,6 +17549,7 @@ COMMENT ON COLUMN public.workout_sessions.share_decided_at IS 'Drafts (253): whe
 COMMENT ON COLUMN public.workout_sessions.timed IS 'The clock runs (260). false: duration_seconds is NULL at finish; Vitals counts the session with no minutes.';
 COMMENT ON COLUMN public.workout_sessions.paused_seconds IS 'Closed pauses so far, seconds (260). The clock = now − started_at − paused_seconds − an open pause.';
 COMMENT ON COLUMN public.workout_sessions.paused_at IS 'A live pause (260); NULL otherwise. Only an active session may be paused — every finish writes NULL.';
+COMMENT ON COLUMN public.workout_sessions.effort IS 'How hard the session felt, 1–10, asked at the finish (265).';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
@@ -17945,7 +17980,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (261, '261_media_jobs.sql', 'rebuild-000'),
   (262, '262_media_jobs_schedule.sql', 'rebuild-000'),
   (263, '263_sport_pins.sql', 'rebuild-000'),
-  (264, '264_profile_photo_sources.sql', 'rebuild-000')
+  (264, '264_profile_photo_sources.sql', 'rebuild-000'),
+  (265, '265_activity_details_effort.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17954,12 +17990,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 132 | 115 | 173 | 264
+-- Expected: 000 REBUILT | 132 | 115 | 173 | 265
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_132,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_115,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_264;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_265;
 
