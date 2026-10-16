@@ -3,14 +3,14 @@
  * strings. Deliberately a second file next to SportRegistry, not a duplicate
  * of it:
  *
- * - `src/lib/sports/SportRegistry.ts` is the PRODUCT registry: the 10 sports
+ * - `src/lib/sports/SportRegistry.ts` is the PRODUCT registry: the 17 sports
  *   the platform can actually enable, with metrics, adapters and enablement.
  *   Its key space is a closed union.
  * - This file answers "what do I show for this string?" for the long tail —
  *   `training` (a post category since migration 077), legacy `general` rows,
  *   and the ~20 sports athletes can name in achievements without the
  *   platform supporting them. Its key space is open on purpose; narrowing
- *   achievement pickers to the registry's 10 would be a product regression.
+ *   achievement pickers to the registry's 17 would be a product regression.
  *
  * Display names for registry sports are DERIVED from SPORT_REGISTRY below,
  * so a rename there propagates here — the two files can no longer drift on
@@ -63,6 +63,10 @@ const SPORT_ICONS: Record<string, LucideIcon> = {
 
   // Water Sports
   swimming: Activity,
+  // The endurance sports (Live Activities, Oct 2026) — registry sports, so named here too.
+  cycling: Activity,
+  running: Activity,
+  rowing: Activity,
   diving: Activity,
   water_polo: Circle,
 
@@ -116,6 +120,9 @@ const SPORT_COLORS: Record<string, string> = {
 
   // Water Sports - Ocean Blue
   swimming: '#06B6D4',
+  cycling: '#0EA5E9',
+  running: '#F97316',
+  rowing: '#0284C7',
   diving: '#06B6D4',
   water_polo: '#0EA5E9',
 

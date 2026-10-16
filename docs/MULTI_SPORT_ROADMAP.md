@@ -32,7 +32,7 @@ Guiding principle: *build for today, architect for tomorrow.* We deliberately di
 ## What is already sport-agnostic (do not regress)
 
 - **Core tables:** `profiles` (no sport columns beyond `sport` label), `posts.sport_key` + `posts.stats_data` (JSONB), `season_highlights` (sport_key + generic metrics), `sport_settings` (profile_id + sport_key + JSONB).
-- **Adapter scaffolding:** `src/lib/sports/SportRegistry.ts` (11 sports defined, golf + training enabled), `SportAdapter.ts` interface, `AdapterRegistry.ts`, `adapters/GolfAdapter.ts`.
+- **Adapter scaffolding:** `src/lib/sports/SportRegistry.ts` (17 sports defined, 15 enabled as of Oct 16 2026 — `training` left in migration 077), `SportAdapter.ts` interface, `AdapterRegistry.ts`, `adapters/GolfAdapter.ts`.
 - **Surfaces the adapter actually governs today:** profile highlight tiles (`MultiSportHighlights`) and profile activity table (`MultiSportActivity`).
 - **Generic settings API:** `/api/sport-settings` (GET/PUT/DELETE) is fully sport-agnostic.
 - **Cleaned in migration 020:** dead per-sport FK columns (`posts.game_id/match_id/race_id`), 5 dead tables, `golf_mode` → `activity_mode`.
@@ -131,7 +131,7 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
     different things and must never read as the same one.
 
 ### 6. Consolidations / small fixes — ✅ ALL DONE (August 20, 2026 sweep)
-- ~~Two parallel sport registries~~ ✅ — NOT merged into one file, deliberately: `SportRegistry.ts` is the closed-union PRODUCT registry (10 sports, metrics, adapters, enablement); `sports-config.ts` is an open-keyed DISPLAY LEXICON for arbitrary strings (`training`, legacy `general`, the ~20 achievement-picker sports). Display names for registry sports are now DERIVED from `SPORT_REGISTRY`, so shared entries can't drift; the lexicon's 7 dead exports (categories, tailwind maps, metadata) were deleted. Rationale in the sports-config header.
+- ~~Two parallel sport registries~~ ✅ — NOT merged into one file, deliberately: `SportRegistry.ts` is the closed-union PRODUCT registry (17 sports as of Oct 16 2026, metrics, adapters, enablement); `sports-config.ts` is an open-keyed DISPLAY LEXICON for arbitrary strings (`training`, legacy `general`, the ~20 achievement-picker sports). Display names for registry sports are now DERIVED from `SPORT_REGISTRY`, so shared entries can't drift; the lexicon's 7 dead exports (categories, tailwind maps, metadata) were deleted. Rationale in the sports-config header.
 - ~~`MultiSportHighlights` / `MultiSportActivity` hardcode sport lists~~ ✅ DONE — derived via `getPrimarySports()` (July 17, 2026).
 - ~~`formatGolfStatsSummary` into GolfAdapter~~ ✅ — moved to `src/lib/sports/stats-summary.ts` as the pure dispatcher `buildStatsSummary()`, NOT onto the adapter class (adapters are async/network-backed; this takes fetched rows — same reasoning as `post-headline.ts`). Callers lost their golf/generic branching; golf path now unit-tested.
 - ~~`supabase.ts` per-sport settings types~~ ✅ DONE earlier — deleted in favor of `src/lib/sports/settings-schemas.ts`.

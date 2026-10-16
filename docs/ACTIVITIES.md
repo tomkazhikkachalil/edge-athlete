@@ -28,7 +28,7 @@ and the pages `/activities/record` and `/activities/[id]`.
 
 `activities` (245, posture A: RLS on, no policies, service role only) holds one row per activity per athlete.
 
-- **An activity is NOT a sport.** `activity_type` is its own list (`catalog.ts` ≡ the LAST `activities_activity_type_check` in the chain, pinned by a test): 245 created eleven; 251 widened it to 26 in three groups — outdoor (run, trail_run, walk, hike, ride, mountain_bike, open_water_swim, paddle, ski, xc_ski, snowboard, skate), indoor (swim, row, indoor_ride, treadmill, elliptical, stair_climber) and duration (yoga, pilates, stretch, hiit, martial_arts, dance, climb, other). Polar and the Apple-Health bridge map to all of them (Oct 16 2026); strength stays `other`, the gym being the Workout path. It follows the training → post-category precedent, and nothing writes `athlete_performances` in phase 1. Bridging activities into the dataset (e.g. a run's times for recruiting) is a separate decision: it would need a `source_table` value, a `natural_key` prefix and a vocabulary.
+- **An activity is NOT a sport.** `activity_type` is its own list (`catalog.ts` ≡ the LAST `activities_activity_type_check` in the chain, pinned by a test): 245 created eleven; 251 widened it to 26 in three groups — outdoor (run, trail_run, walk, hike, ride, mountain_bike, open_water_swim, paddle, ski, xc_ski, snowboard, skate), indoor (swim, row, indoor_ride, treadmill, elliptical, stair_climber) and duration (yoga, pilates, stretch, hiit, martial_arts, dance, climb, other); 265 added a 27th, `sport_session` (its own Sport group — a practice or game tagged with its sport, Oct 16 2026). Polar and the Apple-Health bridge map to all of them (Oct 16 2026); strength stays `other`, the gym being the Workout path. It follows the training → post-category precedent, and nothing writes `athlete_performances` in phase 1. Bridging activities into the dataset (e.g. a run's times for recruiting) is a separate decision: it would need a `source_table` value, a `natural_key` prefix and a vocabulary.
 - **The dedupe key** is `UNIQUE (profile_id, source, external_id)`. A recording's is `live:<recordingId>` (a retry is the same row). A file's was `start:<unix seconds>` (`fileExternalId`, still the upload link's rule), because an athlete cannot start two activities in the same second. Across sources the twin rule (`dedupe.ts`) keeps ONE activity.
 - **Totals** (`elapsed_s`, `moving_s`, `distance_m`, `elev_gain_m`, …) are computed by the **server** from the points. A device's own total is kept only when it agrees with the points (distance ±15%, ascent 0.5–2× + 50 m).
 - **`route_preview`** is an encoded polyline (≤ 200 points) stored **already trimmed**, so every reader of it is safe by default.
@@ -231,12 +231,15 @@ types record on a timer with the distance typed at finish; a broad, grouped type
 list. `docs/ROADMAP_2026-10.md` §2's "not a general run / ride recorder" is
 superseded for the web app.
 
-- **The catalog** (`src/lib/activities/catalog.ts`, mig 251): 26 types in
+- **The catalog** (`src/lib/activities/catalog.ts`, mig 251; 265 added the 27th,
+  `sport_session`, in its own Sport group — `recording: gps_optional`): 26 types in
   three groups — outdoor GPS (walk, hike, run, trail run, ride, mountain bike,
   open-water swim, paddle, ski, cross-country ski, snowboard, skate), indoor
   timer (pool swim, row, indoor ride, treadmill, elliptical, stair climber),
   duration only (yoga, pilates, stretching, HIIT, martial arts, dance, climb,
-  other). Each def says how it `recording`s (`gps | timer | duration`). The
+  other). Each def says how it `recording`s (`gps | timer | duration |
+  gps_optional`). The per-type tiles, Finish questions, climbs, round timer and
+  load are in `docs/specs/activities.md` (Oct 16 2026). The
   order mirrors the chain's LAST `activities_activity_type_check`.
 - **The recorder owns no rule.** `src/lib/activities/record/recording.ts` is the
   pure state machine (idle → recording ⇄ paused → finished; `admitFix` drops a

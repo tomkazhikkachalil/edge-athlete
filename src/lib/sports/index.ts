@@ -13,9 +13,7 @@ export {
   getSportDefinition,
   getEnabledSports as getEnabledSportsFromRegistry,
   getAllSports as getAllSportsFromRegistry,
-  getDisabledSports,
-  getPrimarySports,
-  TEASER_SPORT_KEYS
+  getDisabledSports
 } from './SportRegistry';
 
 // Sport Adapter exports  

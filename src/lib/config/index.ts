@@ -26,16 +26,6 @@ export {
   getAllSports,
 } from './sports-config';
 
-// Sport metrics configuration
-export {
-  getSportConfig,
-  getSportMetrics,
-  getDisplaySports,
-  SPORT_METRICS,
-  DEFAULT_METRICS
-} from './sports-metrics';
-export type { SportMetricConfig } from './sports-metrics';
-
 // League configuration
 export {
   getLeagueConfig,

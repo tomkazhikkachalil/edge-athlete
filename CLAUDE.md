@@ -45,7 +45,7 @@ src/app/(public)/     public org sites: own root layout, SERVER COMPONENTS ONLY,
 src/app/api/          API routes — read src/app/api/CLAUDE.md first
 src/middleware.ts     session refresh; order: host 301 → launch gate → static-CSP fast paths
 src/lib/              domain logic: pure rules in zero-import files, writers in *-server.ts
-src/lib/sports/       SportRegistry (11 sports) · GolfAdapter (deep tables) · StatLinePostAdapter
+src/lib/sports/       SportRegistry (17 sports, 15 on) · GolfAdapter (deep tables) · StatLinePostAdapter
                       (every other sport over posts.stats_data) · stat-schemas.ts · features.ts
 src/components/       UI (bubbles/, media/VideoFrame, site-builder/, profile/, golf/)
 database/migrations/  THE schema source of truth (numbered; baseline/000_rebuild.sql rebuilds)
