@@ -252,7 +252,7 @@ superseded for the web app.
   batches of 10 fixes / 15 s, the pending photo blobs; **7 days** — the
   retention every unfinished session has, since the resume pill program).
   `record/geolocation.ts` is the rangefinder's `watchPosition` policy (only
-  PERMISSION_DENIED stops the watch); `record/wake-lock.ts` is feature-detected
+  PERMISSION_DENIED stops the watch); `src/lib/device/wake-lock.ts` (shared with the workout screen) is feature-detected
   and re-requested on return. A hidden page opens a gap.
 - **The engine lives under the app's root (resume pill program, Oct 12
   2026).** `RecordingProvider` (in the `(app)` layout) owns the recording for

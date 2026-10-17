@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Copy, Pencil, Plus, RotateCw, StickyNote, Upload, Video, X } from 'lucide-react';
 import ActionMenu from '@/components/ActionMenu';
 import SetMediaThumb from './SetMediaThumb';
+import ExerciseName from './ExerciseName';
 import type { SetMediaUploads } from './useSetMediaUploads';
 import { planPickAttach } from '@/lib/media/capture-attach';
 import { pendingIdOf } from '@/lib/workouts/set-media-pending';
+import { placeCaretAtEnd } from '@/lib/workouts/name-field';
 import { fetchStoredMediaFile } from '@/lib/workouts/set-media-file';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
@@ -509,11 +511,10 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads, gr
   const showNotes = exercise.notes !== null;
   // Rename in place (260): the name is one field of the exercise; the sets,
   // notes, media and group stay — `onChange({ ...exercise, name })`.
+  // The field opens holding the current name with the cursor at its end, ONCE
+  // (Oct 17 2026: an effect keyed on the draft re-selected the whole text after
+  // every keystroke, so each letter replaced the last).
   const [renaming, setRenaming] = useState<string | null>(null);
-  const renameRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (renaming !== null) renameRef.current?.select();
-  }, [renaming]);
   const commitRename = () => {
     const next = (renaming ?? '').trim().slice(0, 80);
     setRenaming(null);
@@ -552,8 +553,9 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads, gr
       <div className="flex items-center gap-2 mb-2" data-exercise-card={exercise.clientId}>
         {renaming !== null ? (
           <input
-            ref={renameRef}
             type="text"
+            autoFocus
+            onFocus={e => placeCaretAtEnd(e.currentTarget)}
             value={renaming}
             onChange={e => setRenaming(e.target.value.slice(0, 80))}
             onBlur={commitRename}
@@ -566,7 +568,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads, gr
             className="flex-1 min-w-0 px-2 py-1 border border-border-strong rounded-lg text-base font-bold text-primary focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         ) : (
-          <h3 className="text-base font-bold text-primary flex-1 min-w-0 truncate" data-exercise-name="">{exercise.name}</h3>
+          <ExerciseName as="h3" name={exercise.name} className="text-base font-bold text-primary flex-1" />
         )}
         <button
           type="button"

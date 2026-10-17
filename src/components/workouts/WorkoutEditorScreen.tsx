@@ -60,6 +60,7 @@ import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/seria
 import { localDayKey } from '@/lib/calendar/grid';
 import { refreshDrafts } from '@/hooks/useDrafts';
 import { publishProgress } from '@/lib/sessions/progress-store';
+import { useWakeLock } from '@/lib/device/wake-lock';
 
 type Phase = 'editing' | 'summary' | 'share';
 
@@ -106,6 +107,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [phase, setPhase] = useState<Phase>(
     mode === 'review' && initialPhase === 'share' ? 'share' : 'editing'
   );
+  // The screen stays on while the workout runs (paused included, as the
+  // recorder does); Finish, discard or leaving the screen lets it sleep again.
+  useWakeLock(mode === 'live' && phase === 'editing');
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   // PR 3: the sheet's purpose — one exercise, a new superset / circuit (optionally seeded from an existing exercise), or more members for a group.
   const [addMode, setAddMode] = useState<{ kind: 'single' } | { kind: ExerciseGroupKind; seed?: string } | { kind: 'addTo'; groupId: string }>({ kind: 'single' });
@@ -890,6 +894,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             value={title}
             onChange={e => updateTitle(e.target.value.slice(0, 120))}
             placeholder="Workout title (e.g. Push Day)"
+            aria-label="Workout title"
             className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           {/* The house menu (ActionMenu): portalled, never clipped by the sticky header. */}

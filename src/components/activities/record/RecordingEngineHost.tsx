@@ -27,7 +27,7 @@ import {
 } from '@/lib/activities/record/recording';
 import { FLUSH_EVERY_POINTS, openRecordingStore, type RecordingMeta, type RecordingStore } from '@/lib/activities/record/storage';
 import { useWatchPosition, type GeoFix } from '@/lib/activities/record/geolocation';
-import { useWakeLock } from '@/lib/activities/record/wake-lock';
+import { useWakeLock } from '@/lib/device/wake-lock';
 import { liveRouteGrowing } from '@/lib/activities/gps-filter';
 import { publishEngine, type RecordingEngineApi } from '@/lib/activities/record/engine-store';
 

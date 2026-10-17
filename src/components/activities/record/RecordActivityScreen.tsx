@@ -30,7 +30,7 @@ import type { ActivityPoint } from '@/lib/activities/types';
 import { defaultActivityName } from '@/lib/activities/normalize';
 import { readUnitPreference } from '@/lib/activities/format';
 import { elapsedS, recordsGpsFor, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
-import { hasWakeLock } from '@/lib/activities/record/wake-lock';
+import { hasWakeLock } from '@/lib/device/wake-lock';
 import { queryGeoPermission } from '@/lib/activities/record/geolocation';
 import type { SegmentKind } from '@/lib/activities/segments';
 import { useRecording } from './RecordingProvider';

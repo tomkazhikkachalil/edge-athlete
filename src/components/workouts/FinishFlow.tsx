@@ -15,6 +15,7 @@ import {
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
 import { formatPr, PR_LABELS, type PrHit } from '@/lib/workouts/prs';
 import EffortChips from '@/components/activities/EffortChips';
+import ExerciseName from './ExerciseName';
 
 /** State + handlers for the optional "save as routine" card; null hides it. */
 export interface RoutineSaveProps {
@@ -144,7 +145,7 @@ export function FinishSummary({
           <ul className="space-y-1">
             {summary.perExerciseVolume!.map(v => (
               <li key={v.clientId} className="flex items-center justify-between text-sm">
-                <span className="truncate text-primary">{v.name}</span>
+                <ExerciseName name={v.name} className="flex-1 text-primary" />
                 <span className="tabular-nums font-semibold text-primary">{formatVolume(v.volumeLbs)}</span>
               </li>
             ))}
