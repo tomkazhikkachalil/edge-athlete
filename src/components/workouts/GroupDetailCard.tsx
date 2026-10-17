@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import RoundsTrack from './RoundsTrack';
-import SetMediaStrip from './SetMediaStrip';
+import SetImageStack from './SetImageStack';
 import { formatSetLine, formatVolume } from '@/lib/workouts/summary';
 import { groupLine, groupVolumeLbs } from '@/lib/workouts/groups';
+import { setMediaId } from '@/lib/workouts/collage';
 import type { EntryExercise, ExerciseGroupKind } from '@/lib/workouts/entries';
 
 // ── A finished workout's superset / circuit — compact, swipeable (Oct 13 2026)
@@ -15,8 +16,10 @@ import type { EntryExercise, ExerciseGroupKind } from '@/lib/workouts/entries';
 // can never disagree. The header — "Circuit · 4 rounds · 1,200 lbs" — is a
 // button: collapsed, the rounds ride a RoundsTrack (one slide per round, each
 // member's name · line); expanded, every round vertically, the Oct 12 list.
-// Single exercises never come here; a workout without groups renders exactly
-// as before.
+// Single exercises never come here (WorkoutDetailItems gives them their own
+// card). Oct 17 2026 (Tom): a round's images sit BELOW the round's lines,
+// inside the card — swiping the rounds shows each round's images under it —
+// and a tap opens the host's viewer, never a new window.
 
 interface Props {
   kind: ExerciseGroupKind;
@@ -24,30 +27,43 @@ interface Props {
   members: EntryExercise[];
   /** The host's text tones (the post is violet; the history card is neutral). */
   tone?: 'post' | 'history';
+  /** Opens the host's viewer at one image (`setMediaId`). */
+  onOpenMedia: (id: string) => void;
 }
 
-export default function GroupDetailCard({ kind, rounds, members, tone = 'post' }: Props) {
+export default function GroupDetailCard({ kind, rounds, members, tone = 'post', onOpenMedia }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [slide, setSlide] = useState(0);
   const volume = groupVolumeLbs(members);
   const count = Math.max(1, rounds);
   const nameClass = tone === 'post' ? 'text-primary' : 'text-secondary';
 
+  /** Every member's images for round k, in member order. */
+  const roundImages = (k: number) => {
+    const shots = members.flatMap(m => (m.sets[k]?.media ?? []).map((media, i) => ({ media, id: setMediaId(m.clientId, k, i) })));
+    if (shots.length === 0) return null;
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-1.5" data-post-round-images={k + 1}>
+        {shots.map(shot => (
+          <SetImageStack key={shot.id} media={[shot.media]} size="round" onOpen={() => onOpenMedia(shot.id)} />
+        ))}
+      </div>
+    );
+  };
+
   const roundLines = (k: number) => (
     <div className="space-y-1 px-0.5">
       {members.map(m => {
         const set = m.sets[k];
         return (
-          <div key={m.clientId}>
-            <p className="text-xs text-tertiary">
-              <span className={`font-bold ${nameClass}`}>{m.name}</span>
-              {' · '}
-              {set ? formatSetLine(set) : '—'}
-            </p>
-            {set && set.media.length > 0 && <SetMediaStrip media={set.media} />}
-          </div>
+          <p key={m.clientId} className="text-xs text-tertiary">
+            <span className={`font-bold ${nameClass}`}>{m.name}</span>
+            {' · '}
+            {set ? formatSetLine(set) : '—'}
+          </p>
         );
       })}
+      {roundImages(k)}
     </div>
   );
 
@@ -67,20 +83,17 @@ export default function GroupDetailCard({ kind, rounds, members, tone = 'post' }
       </button>
       {expanded ? (
         <div className="mt-2 space-y-2" data-post-group-list="">
-          {members.map(m => (
-            <div key={m.clientId}>
-              <p className={`text-xs font-bold ${nameClass}`}>{m.name}</p>
-              {m.notes && <p className="text-xs text-muted italic">{m.notes}</p>}
-              <div className="mt-0.5 space-y-1">
-                {m.sets.map((set, i) => (
-                  <div key={i}>
-                    <p className="text-xs text-tertiary">
-                      <span className="text-faint">Round {set.setNumber}</span> · {formatSetLine(set)}
-                    </p>
-                    {set.media.length > 0 && <SetMediaStrip media={set.media} />}
-                  </div>
-                ))}
-              </div>
+          {members.some(m => m.notes) && (
+            <div className="space-y-0.5">
+              {members.filter(m => m.notes).map(m => (
+                <p key={m.clientId} className="text-xs text-muted italic"><span className={`not-italic font-bold ${nameClass}`}>{m.name}:</span> {m.notes}</p>
+              ))}
+            </div>
+          )}
+          {Array.from({ length: count }, (_, k) => (
+            <div key={k} data-post-group-round={k + 1}>
+              <p className="text-xs text-faint">Round {k + 1}</p>
+              {roundLines(k)}
             </div>
           ))}
         </div>

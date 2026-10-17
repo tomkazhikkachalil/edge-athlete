@@ -2,12 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { Bookmark, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Trash2 } from 'lucide-react';
-import { computeSummary, formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
+import { computeSummary, formatDuration, formatVolume } from '@/lib/workouts/summary';
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
-import { renderItems } from '@/lib/workouts/groups';
-import GroupDetailCard from './GroupDetailCard';
-import SetMediaStrip from './SetMediaStrip';
+import WorkoutDetailItems from './WorkoutDetailItems';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 
@@ -153,26 +151,7 @@ export default function WorkoutCard({
           {entries.length === 0 && (
             <p className="text-xs text-muted">No exercises logged.</p>
           )}
-          {renderItems(entries).map(item => item.type === 'group' ? (
-            <GroupDetailCard key={item.group.groupId} kind={item.group.kind} rounds={item.group.rounds} members={item.group.members} tone="history" />
-          ) : (
-            <div key={item.index}>
-              <p className="text-xs font-bold text-secondary">{item.exercise.name}</p>
-              {item.exercise.notes && (
-                <p className="text-xs text-muted italic">{item.exercise.notes}</p>
-              )}
-              <div className="mt-1 space-y-1">
-                {item.exercise.sets.map((set, setIndex) => (
-                  <div key={setIndex}>
-                    <p className="text-xs text-tertiary">
-                      <span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}
-                    </p>
-                    {set.media.length > 0 && <SetMediaStrip media={set.media} />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <WorkoutDetailItems exercises={entries} tone="history" />
           {session.notes && (
             <p className="text-xs text-muted italic border-t border-border-subtle pt-2">
               {session.notes}
