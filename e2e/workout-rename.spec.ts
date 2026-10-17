@@ -34,14 +34,28 @@ test('rename an exercise after logging sets: the sets stay, the id stays; an old
     await page.locator('[data-menu-item="rename"]').click();
     const input = page.locator('[data-exercise-rename-input]');
     await expect(input).toBeVisible();
-    await input.fill('Incline Bench');
+    // Oct 17 2026: the field opens HOLDING the name, cursor at its end; typing
+    // key by key builds a word (a select-every-keystroke effect kept one letter);
+    // deleting and retyping works as anywhere.
+    await expect(input).toHaveValue('Bench Press');
+    await input.pressSequentially(' Wide');
+    await expect(input).toHaveValue('Bench Press Wide');
+    for (let i = 0; i < 4; i++) await input.press('Backspace');
+    await input.pressSequentially('Close');
+    await expect(input).toHaveValue('Bench Press Close');
     await input.press('Enter');
-    await expect(page.locator('[data-exercise-name]')).toHaveText('Incline Bench');
+    await expect(page.locator('[data-exercise-name]')).toHaveText('Bench Press Close');
+
+    // The workout title builds words the same way.
+    const title = page.getByRole('textbox', { name: 'Workout title' });
+    await title.fill('');
+    await title.pressSequentially('Push Day');
+    await expect(title).toHaveValue('Push Day');
     // Both sets are still on the card.
     await expect(page.getByRole('button', { name: /Mark set complete/ })).toHaveCount(2);
 
     // The save carried the SAME stable id, the new name, both sets and the notes.
-    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises[0].name, { timeout: 15_000 }).toBe('Incline Bench');
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises[0].name, { timeout: 15_000 }).toBe('Bench Press Close');
     const after = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises[0];
     expect(after.client_id).toBe(beforeEx.client_id);
     expect(after.notes).toBe('pause reps');

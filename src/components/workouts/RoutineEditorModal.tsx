@@ -14,6 +14,7 @@ import {
   type RoutineExercise,
   type WorkoutRoutine,
 } from '@/lib/workouts/routines';
+import ExerciseName from './ExerciseName';
 
 /**
  * Create/edit a saved workout routine: name, ordered exercises, planned set
@@ -162,9 +163,7 @@ export default function RoutineEditorModal({ routine, onClose, onSaved }: Routin
                     key={`${exercise.name}-${index}`}
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2"
                   >
-                    <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">
-                      {exercise.name}
-                    </span>
+                    <ExerciseName name={exercise.name} className="flex-1 text-sm font-medium text-primary" />
                     <span
                       className="flex items-center gap-0.5"
                       aria-label={`${exercise.name}: ${exercise.targetSets} sets`}
