@@ -202,7 +202,11 @@ describe('the OAuth state', () => {
     const [payload, sig] = state.split('.');
     const forged = Buffer.from(JSON.stringify({ u: B, p: 'polar', t: Date.now(), n: 'x' })).toString('base64url');
     expect(verifyOAuthState(`${forged}.${sig}`, { userId: B, provider: 'polar' })).toBe(false);
-    expect(verifyOAuthState(`${payload}.${sig.slice(0, -2)}xx`, { userId: A, provider: 'polar' })).toBe(false);
+    // Alter a FULL-bit character (the first): swapping the last two for "xx"
+    // left the decoded bytes unchanged ~1 run in 1,000 (CI, Oct 16 2026) —
+    // the last base64url character carries spare bits, and it could already be "x".
+    const altered = (sig[0] === 'A' ? 'B' : 'A') + sig.slice(1);
+    expect(verifyOAuthState(`${payload}.${altered}`, { userId: A, provider: 'polar' })).toBe(false);
     expect(verifyOAuthState(`${payload}.${sig}.extra`, { userId: A, provider: 'polar' })).toBe(false);
     expect(verifyOAuthState(null, { userId: A, provider: 'polar' })).toBe(false);
     process.env.CONNECTIONS_ENC_KEY = randomBytes(32).toString('base64');
