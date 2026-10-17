@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The thread on a phone (Oct 14 2026, Tom's fix 6): the tab bar leaves while a

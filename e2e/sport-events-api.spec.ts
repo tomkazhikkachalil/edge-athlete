@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest } from './helpers/test';
 import { apiAs, E2E_BASE_URL, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext, type Page } from './helpers/test';
 import { loadQaUser, resetGetStarted } from './helpers/qa-user';
 
 // Download the app (Oct 2026) — Edge Athlete on the home screen, no store.

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { cardRowFor, cleanupEvent, createEvent, goLive, inviteAndAccept, openEventSession, readScorecard, setGroups } from './helpers/sport-events';
 import { readErrorBody } from './helpers/qa-user';
 

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Edit Profile opens filled in, and an edit shows everywhere (Sep 30 2026).

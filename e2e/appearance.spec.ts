@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext, type Page } from './helpers/test';
 import { adminClient, createQaUser, deleteQaUser, mintStorageState, previewBypassCookies, type QaUser } from './helpers/qa-user';
 
 // Appearance: the schedule works and is the default (Oct 1 2026).

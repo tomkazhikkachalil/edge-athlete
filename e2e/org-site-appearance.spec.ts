@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, previewBypassCookies, readErrorBody, resetRateBucket, E2E_BASE_URL } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';

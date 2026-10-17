@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser } from './helpers/qa-user';
 
 // Oct 10 2026 (Tom): a new post always starts as a plain General post — never

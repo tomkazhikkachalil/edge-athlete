@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { liveWire } from './helpers/activities';
 import { CONNECTION_PROVIDERS } from '../src/lib/activities/connections';

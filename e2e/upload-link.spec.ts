@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { gpxOf, healthWorkout, line } from '../src/lib/activities/__tests__/fixtures';
 import { liveWire } from './helpers/activities';

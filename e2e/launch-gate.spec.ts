@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { createQaUser, deleteQaUser, mintStorageState, bypassHeaders } from './helpers/qa-user';
 
 // The launch gate (Sep 30 2026): runs only against a build made with

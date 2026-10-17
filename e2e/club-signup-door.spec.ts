@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, deleteQaUser, guardianFlagOn, loadQaUser } from './helpers/qa-user';
 
 // Club sign-up, part 1 (phase 7 C1): the door. The login page's Club and

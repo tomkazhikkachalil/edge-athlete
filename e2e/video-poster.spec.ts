@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import sharp from 'sharp';
 
 // Video posters program, PR 1 (Oct 13 2026): a recorded clip posts with a

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // The in-app camera (Sep 3 2026, round 10): the composer's fallback for a
 // native photo picker that fails inside iOS's own screen. The `mobile` project

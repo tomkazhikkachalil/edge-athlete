@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 import { awaitDraftSaved, settleBody } from './helpers/isr';

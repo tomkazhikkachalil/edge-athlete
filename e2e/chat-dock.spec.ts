@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Chat dock UX round: minimize-to-dock from the full Messages page, the

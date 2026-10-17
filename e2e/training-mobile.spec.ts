@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { loadQaUser, adminClient } from './helpers/qa-user';
 
 // The first phone-width spec (390×844 via the `mobile` project — see

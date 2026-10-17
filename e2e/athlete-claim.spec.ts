@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, deleteQaUser, loadQaUser } from './helpers/qa-user';
 
 // The stub-athlete claim (phase 1 R3), both paths against seeded stubs.

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The profile header, Oct 14 2026 (Tom's fixes 3 + 5): the title card with its

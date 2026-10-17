@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout screen PR 4 (Oct 12 2026): the bottom bar — Rest records each rest

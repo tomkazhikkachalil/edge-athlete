@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout fixes (Oct 13 2026): a circuit's rounds are a horizontal stack —

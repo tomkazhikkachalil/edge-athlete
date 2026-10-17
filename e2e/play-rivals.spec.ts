@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Browser } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIRequestContext, type Browser } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { cleanupEvent } from './helpers/sport-events';
 

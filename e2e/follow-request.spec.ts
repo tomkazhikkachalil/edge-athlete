@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Full follow-request loop between two PRIVATE users: A requests from B's

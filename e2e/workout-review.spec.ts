@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext } from './helpers/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout capture round PR 2 (Oct 8 2026): the end-of-workout review step

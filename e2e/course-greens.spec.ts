@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // PR G2 (Oct 2026): a green outline stored in `hole_geometry.greens` rides

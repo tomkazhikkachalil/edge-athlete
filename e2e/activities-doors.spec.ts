@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser } from './helpers/qa-user';
 
 // The doors to the recorder (Live Activities PR 6): Training's header pill, the

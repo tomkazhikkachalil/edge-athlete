@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
 import { liveWire } from './helpers/activities';
 

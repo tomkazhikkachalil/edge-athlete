@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, adminClient } from './helpers/qa-user';
 
 // The server's image check (maintenance pass, Oct 10 2026): an uploaded

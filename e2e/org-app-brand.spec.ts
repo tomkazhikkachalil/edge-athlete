@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import fs from 'node:fs';
 import path from 'node:path';

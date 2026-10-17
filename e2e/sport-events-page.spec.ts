@@ -1,5 +1,5 @@
 import { cleanupEvent } from './helpers/sport-events';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, E2E_BASE_URL, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**

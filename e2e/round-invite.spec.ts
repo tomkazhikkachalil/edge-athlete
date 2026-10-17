@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 type ScoresResponse = { results: Array<{ participant_id: string }>; failures: Array<{ participant_id: string; error: string }> };

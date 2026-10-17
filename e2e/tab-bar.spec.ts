@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { assertSuggestionsUsable } from './helpers/overlay';
 import { cleanupEvent, createEvent, goLive, openEventSession } from './helpers/sport-events';
 

@@ -1,6 +1,6 @@
 import path from 'path';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
 import { adminClient, apiAs, deleteQaUser, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody, settleStatus } from './helpers/isr';

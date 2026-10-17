@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { join } from 'node:path';
 
 // Video posters program, PR 2 (Oct 13 2026): media never looks broken while

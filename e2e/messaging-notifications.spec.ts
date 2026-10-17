@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Light render checks: a fresh QA user has no conversations or notifications,
 // so these assert the authenticated surfaces load to a sane state (real

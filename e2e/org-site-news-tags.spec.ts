@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';

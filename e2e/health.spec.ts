@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { readErrorBody } from './helpers/qa-user';
 
 // First real assertion of the suite: env + database reachability. The

@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody, adminClient, E2E_BASE_URL } from './helpers/qa-user';
-import { request as pwRequest } from '@playwright/test';
+import { request as pwRequest } from './helpers/test';
 import { finishAndPost } from './helpers/drafts';
 
 // The Tagged tab round-trip: B tags A in a post; A shares a round with B

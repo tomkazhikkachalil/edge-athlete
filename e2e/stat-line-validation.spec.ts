@@ -1,5 +1,5 @@
 import { purgePost } from './helpers/results';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Data foundation F2 (Sep 13 2026): a post's stat line is validated on the

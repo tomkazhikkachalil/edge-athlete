@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The round timer and the recorder tweaks (activities details A3, Oct 16

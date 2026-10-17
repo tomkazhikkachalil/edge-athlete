@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 /**
  * Location-aware course search on Explore (migrations 104–107, Aug 24 2026).

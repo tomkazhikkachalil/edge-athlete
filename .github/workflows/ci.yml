@@ -133,10 +133,12 @@ jobs:
         run: npm ci
 
       # WebKit too (Sep 2026): the `webkit-mobile` project runs the @mobile
-      # specs on the phone ENGINE — every iPhone browser is WebKit.
+      # specs on the phone ENGINE — every iPhone browser is WebKit. Firefox
+      # too (every-browser round, Oct 16 2026): the `firefox-mobile` project;
+      # `brave-android` is Chromium and fetches Brave's lists itself.
       - name: Install Playwright browsers
         if: steps.gate.outputs.run == 'true'
-        run: npx playwright install chromium webkit --with-deps
+        run: npx playwright install chromium webkit firefox --with-deps
 
       - name: Run smoke suite
         if: steps.gate.outputs.run == 'true'

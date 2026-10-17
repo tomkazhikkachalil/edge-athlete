@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // Workout set photos (Oct 4 2026). Tom: "the picture capture and upload is

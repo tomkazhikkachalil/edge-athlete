@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest } from './helpers/test';
 import {
   E2E_BASE_URL, adminClient, adminEmailForE2E, apiAs, bypassHeaders, createQaUser, deleteQaUser, loadQaUser,
   mintStorageState, readErrorBody, resetRateBucket,

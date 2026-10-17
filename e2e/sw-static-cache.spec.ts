@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // The installed app's static cache (speed round 2, phase E). Runs only where
 // the deployment turned it on (NEXT_PUBLIC_SW_STATIC_CACHE=1 — a Preview

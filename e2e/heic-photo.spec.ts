@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import path from 'path';
 
 // Every-phone round PR 6 (Oct 9 2026): a HEIC photo — what a Samsung with

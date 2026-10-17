@@ -1,4 +1,4 @@
-import { test, expect, request } from '@playwright/test';
+import { test, expect, request } from './helpers/test';
 import { randomBytes } from 'crypto';
 import {
   E2E_BASE_URL, adminClient, bypassHeaders, createQaChild, createQaUser, deleteQaUser, listStaleQaShapes,

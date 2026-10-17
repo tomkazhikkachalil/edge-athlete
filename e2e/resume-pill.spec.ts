@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 

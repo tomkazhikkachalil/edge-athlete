@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, adminClient, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // One post by its id (`GET /api/posts/[id]`) follows the feed's rule

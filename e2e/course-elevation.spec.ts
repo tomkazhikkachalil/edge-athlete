@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // PR C (Oct 2026): `?holes=1` answers the geometry, the CACHED elevation

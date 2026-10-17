@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, deleteQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Recruiting skeleton R2 — the scout account. POST /api/signup with

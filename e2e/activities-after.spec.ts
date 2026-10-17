@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 import { liveWire as seedWire } from './helpers/activities';
 

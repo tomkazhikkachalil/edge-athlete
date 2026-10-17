@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
 
 // Recruiting skeleton R3 — the shortlist. A scout adds an OPEN athlete (the

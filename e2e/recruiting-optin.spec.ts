@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Recruiting skeleton R1 — the opt-in. The ONE gate is recruiting_status:

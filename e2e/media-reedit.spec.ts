@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Non-destructive re-edit (migration 120): publish a post with an edited
