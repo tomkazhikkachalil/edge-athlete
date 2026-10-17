@@ -2,12 +2,10 @@
 
 import { useState } from 'react';
 import { Award, ChevronDown, ChevronUp, Dumbbell, Timer, TrendingUp } from 'lucide-react';
-import { formatDuration, formatVolume, formatSetLine, formatElapsed } from '@/lib/workouts/summary';
+import { formatDuration, formatVolume, formatElapsed } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
-import { renderItems } from '@/lib/workouts/groups';
-import GroupDetailCard from './GroupDetailCard';
 import type { EntryExercise } from '@/lib/workouts/entries';
-import SetMediaStrip from './SetMediaStrip';
+import WorkoutDetailItems from './WorkoutDetailItems';
 
 interface WorkoutPostCardProps {
   /** posts.stats_data for type='workout_session' (denormalized summary). */
@@ -161,23 +159,7 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
           {detail.exercises.length === 0 && (
             <p className="text-xs text-muted">No exercises logged.</p>
           )}
-          {renderItems(detail.exercises).map(item => item.type === 'group' ? (
-            <GroupDetailCard key={item.group.groupId} kind={item.group.kind} rounds={item.group.rounds} members={item.group.members} tone="post" />
-          ) : (
-            <div key={item.index}>
-              <p className="text-xs font-bold text-primary">{item.exercise.name}</p>
-              <div className="mt-0.5 space-y-1">
-                {item.exercise.sets.map((set, setIndex) => (
-                  <div key={setIndex}>
-                    <p className="text-xs text-tertiary">
-                      <span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}
-                    </p>
-                    {set.media.length > 0 && <SetMediaStrip media={set.media} />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <WorkoutDetailItems exercises={detail.exercises} tone="post" />
         </div>
       )}
 

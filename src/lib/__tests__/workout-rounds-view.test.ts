@@ -183,8 +183,9 @@ describe('source pins — rounds as a swipe', () => {
     const exerciseCard = read('src/components/workouts/ExerciseCard.tsx');
     expect(exerciseCard).toMatch(/grouped\?\.onlyRound === undefined \|\| grouped\.onlyRound === index/);
   });
-  it('the post and the history card share GroupDetailCard; a single exercise keeps its "Set N" lines', () => {
-    for (const f of ['src/components/workouts/WorkoutPostCard.tsx', 'src/components/workouts/WorkoutCard.tsx']) {
+  it('the post and the history card share ONE detail renderer (GroupDetailCard inside); a single exercise keeps its "Set N" lines', () => {
+    for (const f of ['src/components/workouts/WorkoutPostCard.tsx', 'src/components/workouts/WorkoutCard.tsx']) expect(read(f), f).toMatch(/<WorkoutDetailItems exercises=/);
+    for (const f of ['src/components/workouts/WorkoutDetailItems.tsx']) {
       const src = read(f);
       expect(src, f).toMatch(/renderItems\(/);
       expect(src, f).toMatch(/<GroupDetailCard key=\{item\.group\.groupId\}/);

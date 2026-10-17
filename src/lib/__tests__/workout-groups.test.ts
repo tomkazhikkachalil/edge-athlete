@@ -134,7 +134,8 @@ describe('the screen', () => {
     expect(group).toMatch(/data-group-round=\{current\}/);
     expect(group).toMatch(/data-group-add-round=""/);
     // Oct 13 2026: both detail renderers hand a group to the ONE GroupDetailCard (rounds as a swipe).
-    for (const f of ['src/components/workouts/WorkoutPostCard.tsx', 'src/components/workouts/WorkoutCard.tsx']) expect(read(f), f).toMatch(/<GroupDetailCard key=\{item\.group\.groupId\}/);
+    for (const f of ['src/components/workouts/WorkoutPostCard.tsx', 'src/components/workouts/WorkoutCard.tsx']) expect(read(f), f).toMatch(/<WorkoutDetailItems exercises=/);
+    expect(read('src/components/workouts/WorkoutDetailItems.tsx')).toMatch(/<GroupDetailCard key=\{item\.group\.groupId\}/);
     expect(read('src/components/workouts/GroupDetailCard.tsx')).toMatch(/groupLine\(kind, rounds\)/);
   });
 });
