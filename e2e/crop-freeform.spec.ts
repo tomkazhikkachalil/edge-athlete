@@ -31,10 +31,14 @@ async function drag(page: Page, handle: string, fx: number, fy: number): Promise
   const grip = (await page.locator(`[data-crop-handle="${handle}"]`).boundingBox())!;
   const startX = grip.x + grip.width / 2;
   const startY = grip.y + grip.height / 2;
+  // Kept on the screen, as a finger is: Playwright's Firefox reports a pointer
+  // moved past the viewport at a bogus point (0, −85) and drops its release.
+  const view = page.viewportSize()!;
+  const onScreen = (x: number, y: number): [number, number] => [Math.min(Math.max(x, 1), view.width - 1), Math.min(Math.max(y, 1), view.height - 1)];
   await page.mouse.move(startX, startY);
   await page.mouse.down();
   for (let i = 1; i <= 6; i++) {
-    await page.mouse.move(startX + (box.width * fx * i) / 6, startY + (box.height * fy * i) / 6);
+    await page.mouse.move(...onScreen(startX + (box.width * fx * i) / 6, startY + (box.height * fy * i) / 6));
   }
   await page.mouse.up();
 }

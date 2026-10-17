@@ -5,6 +5,7 @@ import { useToast } from '@/components/Toast';
 import Toggle from '@/components/settings/Toggle';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
 import { usePhoneNotifications } from './usePhoneNotifications';
+import { pushRefusedMessage } from '@/lib/push/card';
 
 // ── Settings → Notifications → "On this device" (mig 248) ──────────────────
 // The switch for phone notifications and the app icon's number. It is per
@@ -30,6 +31,10 @@ export default function PhoneNotificationsSection() {
     const result = await phone.turnOn();
     if (result === 'denied') {
       showError('Notifications are blocked', 'Allow them for Edge Athlete in your phone’s settings, then try again.');
+    } else if (result === 'refused') {
+      // Brave Android's default: the browser grants, then will not push (card.ts).
+      const { title, message } = pushRefusedMessage('brave' in navigator);
+      showError(title, message);
     } else if (result !== 'on') {
       showError('Could not turn on notifications', 'Please try again in a moment.');
     }

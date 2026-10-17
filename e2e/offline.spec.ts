@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from './helpers/test';
+import { test, expect, type Locator, type Page } from './helpers/test';
 
 // Offline (maintenance pass, Oct 10 2026 — Tom's section 7): a calm banner
 // when the connection drops (pollers pause), ONE precached static offline
@@ -50,12 +50,19 @@ test('a page that cannot load shows the static offline page; Retry brings the ap
   await expect(page).toHaveURL(/\/athlete/);
 });
 
+/** A tap before the page is interactive does nothing (slow under the Brave project's blocker): tap until `until` shows. */
+async function tapCreate(page: Page, until: Locator) {
+  await expect(async () => {
+    await page.getByRole('button', { name: /create a post/i }).click();
+    await expect(until).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 test('a captured photo waits on the device: a reload offers the post back with it @mobile', async ({ page }) => {
   test.setTimeout(120_000);
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
   await page.goto('/feed');
-  await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await tapCreate(page, page.getByPlaceholder('Share your thoughts...'));
   // The camera hand-back (the photo CAPTURE input): a tile at once.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles(fixture);
   await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible({ timeout: 5_000 });
@@ -63,19 +70,17 @@ test('a captured photo waits on the device: a reload offers the post back with i
   await page.waitForTimeout(2_000);
 
   await page.reload();
-  await page.getByRole('button', { name: /create a post/i }).click();
   const offer = page.getByText(/You have an unfinished post/);
+  await tapCreate(page, offer);
   await expect(offer).toContainText('1 photo or video');
   await page.getByRole('button', { name: 'Restore', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(1, { timeout: 10_000 });
 
   // Discarding clears it: no offer next time.
   await page.reload();
-  await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByText(/You have an unfinished post/)).toBeVisible();
+  await tapCreate(page, page.getByText(/You have an unfinished post/));
   await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
   await page.reload();
-  await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await tapCreate(page, page.getByPlaceholder('Share your thoughts...'));
   await expect(page.getByText(/You have an unfinished post/)).toHaveCount(0);
 });

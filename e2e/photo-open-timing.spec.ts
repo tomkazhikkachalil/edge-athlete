@@ -67,8 +67,8 @@ test('@mobile a library photo reaches the editor quickly — composer and profil
     const page = await ctx.newPage();
     // Chromium: a mid-range phone's CPU (4× slower than this machine) — the
     // decode and the chunk evaluation are CPU-bound. WebKit has no throttle
-    // (its numbers are this machine's, a floor).
-    if (testInfo.project.use.browserName !== 'webkit') {
+    // (its numbers are this machine's, a floor); nor has Firefox (no CDP).
+    if (testInfo.project.use.browserName !== 'webkit' && testInfo.project.use.browserName !== 'firefox') {
       const cdp = await ctx.newCDPSession(page);
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
       // …on a phone connection (150 ms RTT, ~1.6 Mbps down): a code chunk

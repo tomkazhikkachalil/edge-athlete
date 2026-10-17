@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  keepSourceAsIs,
   parseProfilePhotoRecipe,
+  PROFILE_PHOTO_BODY_BUDGET,
+  PROFILE_SOURCE_KEEP_MAX_BYTES,
   profilePhotoRecipeEnvelope,
   profileSourcePath,
   profileSourceProxyUrl,
+  sourceFitsRequest,
 } from '../photo-recipe';
 import { defaultImageRecipe, defaultVideoRecipe, recipeEnvelope } from '@/lib/media/recipes';
 
@@ -33,5 +37,25 @@ describe('the kept original paths', () => {
     );
     expect(profileSourceProxyUrl('p1', 'avatar', null)).toBeNull();
     expect(profileSourceProxyUrl('', 'avatar', 'x')).toBeNull();
+  });
+});
+
+describe('the photo and its original fit one Vercel request (every-browser round, Oct 16 2026)', () => {
+  const MB = 1024 * 1024;
+  it('keeps a pick as the original only when it is a small JPEG / PNG / WebP within 2048 px', () => {
+    expect(keepSourceAsIs('image/jpeg', 1.8 * MB, 2048)).toBe(true);
+    expect(keepSourceAsIs('image/webp', 0.4 * MB, 1200)).toBe(true);
+    // The reported shape: a 2000 px PNG wallpaper of 8 MB — re-encoded, never sent as-is.
+    expect(keepSourceAsIs('image/png', 8 * MB, 2000)).toBe(false);
+    expect(keepSourceAsIs('image/png', PROFILE_SOURCE_KEEP_MAX_BYTES + 1, 1000)).toBe(false);
+    expect(keepSourceAsIs('image/jpeg', 1 * MB, 4032)).toBe(false); // a 12 MP capture
+    expect(keepSourceAsIs('image/heic', 1 * MB, 1000)).toBe(false);
+    expect(keepSourceAsIs('image/jpeg', 1 * MB, null)).toBe(false); // dimensions unknown
+  });
+  it('sends the original only while render + original stay under the budget, itself under 4.5 MB', () => {
+    expect(PROFILE_PHOTO_BODY_BUDGET).toBeLessThan(4.5 * MB);
+    expect(PROFILE_SOURCE_KEEP_MAX_BYTES + 1.5 * MB).toBeLessThanOrEqual(PROFILE_PHOTO_BODY_BUDGET); // a kept original + a 1500 px render fit
+    expect(sourceFitsRequest(0.8 * MB, 2.5 * MB)).toBe(true);
+    expect(sourceFitsRequest(1.2 * MB, 3.2 * MB)).toBe(false);
   });
 });

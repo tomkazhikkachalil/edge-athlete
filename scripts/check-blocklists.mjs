@@ -53,7 +53,7 @@ async function collectUrls() {
       if (!urls.has(u)) urls.set(u, path.relative(ROOT, f));
     }
   }
-  for (const u of ['/sw.js', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-192.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon.ico', '/_next/static/immutable/chunks/app-a1b2c3.js', '/_next/image?url=%2Flogo-mark.png&w=96&q=75'])
+  for (const u of ['/sw.js', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-192.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon.ico', '/_next/static/immutable/chunks/app-a1b2c3.js', '/_next/image?url=%2Flogo-mark.png&w=96&q=75', '/api/relay?o=4511793217863680&p=4511793223106560'])
     urls.set(u, 'public / build');
   return urls;
 }

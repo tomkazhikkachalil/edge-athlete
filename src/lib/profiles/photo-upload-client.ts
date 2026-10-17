@@ -4,22 +4,20 @@
 // request body, and the editor asset that Adjust opens.
 
 import type { ImageRecipe, MediaAsset } from '@/lib/media/types';
-import { PROFILE_SOURCE_MAX_DIM, type ProfilePhotoPayload } from './photo-recipe';
+import { keepSourceAsIs, PROFILE_SOURCE_MAX_DIM, sourceFitsRequest, type ProfilePhotoPayload } from './photo-recipe';
 import type { ProfilePhotoSlot } from './photo-paths';
 
-const KEEP_AS_IS = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
 /**
- * The original to keep: the file itself when it is a JPEG / PNG / WebP within
- * PROFILE_SOURCE_MAX_DIM, else a JPEG re-encode bounded to it (a HEIC, a GIF,
- * a 12 MP capture). Never throws: null means "keep no original" — the render
+ * The original to keep: the file itself when keepSourceAsIs allows it (a
+ * small JPEG / PNG / WebP within PROFILE_SOURCE_MAX_DIM), else a JPEG
+ * re-encode bounded to it (a HEIC, a GIF, a 12 MP capture, a big PNG). Never throws: null means "keep no original" — the render
  * uploads alone, and Adjust starts from it.
  */
 export async function prepareProfileSource(file: File): Promise<File | null> {
   try {
     const { probeImageDims } = await import('@/lib/media/probe');
     const dims = await probeImageDims(file);
-    if (KEEP_AS_IS.has(file.type) && dims && Math.max(dims.width, dims.height) <= PROFILE_SOURCE_MAX_DIM) return file;
+    if (keepSourceAsIs(file.type, file.size, dims ? Math.max(dims.width, dims.height) : null)) return file;
     const [{ renderImage }, { defaultImageRecipe }] = await Promise.all([import('@/lib/media/render'), import('@/lib/media/recipes')]);
     const blob = await renderImage(file, defaultImageRecipe(), { maxDimension: PROFILE_SOURCE_MAX_DIM, mime: 'image/jpeg', quality: 0.9 });
     return new File([blob], 'original.jpg', { type: 'image/jpeg' });
@@ -34,7 +32,8 @@ export function profilePhotoFormData(slot: ProfilePhotoSlot, payload: ProfilePho
   const formData = new FormData();
   formData.append(slot, payload.file);
   if (payload.sameSource) formData.append('sameSource', '1');
-  else if (payload.source) formData.append('source', payload.source);
+  else if (payload.source && sourceFitsRequest(payload.file.size, payload.source.size)) formData.append('source', payload.source);
+  else if (payload.source) console.warn('[profile photo] the original would not fit one upload; sending the photo alone');
   if (payload.recipe) formData.append('recipe', JSON.stringify({ v: 3, recipe: payload.recipe }));
   if (targetProfileId) formData.append('targetProfileId', targetProfileId);
   return formData;

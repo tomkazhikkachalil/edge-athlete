@@ -120,8 +120,9 @@ test('leaderboard: club championship — rounds, totals ascending, public board;
       await page.getByRole('button', { name: 'Enter score' }).first().click();
       await page.getByLabel('Score for Edge Bravo').fill('72');
       await page.getByLabel('Score for Edge Alpha').fill('75');
+      const saved = page.waitForResponse(r => r.url().includes('/competitions/') && r.request().method() !== 'GET');
       await page.getByRole('button', { name: 'Save result' }).click();
-      await expect(page.getByText('Result saved')).toBeVisible({ timeout: 15_000 });
+      expect((await saved).ok(), 'the save answered').toBe(true);
       await expect(page.getByRole('heading', { name: 'Standings', exact: true })).toBeVisible({
         timeout: 15_000,
       });
