@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, E2E_TARGET } from './helpers/qa-user';
 
 // P1 (Oct 2026). Tom: "verify holes still mapped — a check that fails if a

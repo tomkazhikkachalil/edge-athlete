@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // First editor coverage (the editor shipped Jul 26 with zero e2e). Drives the
 // real composer: pick a PNG → editor opens → ratio chip (recipe change) →

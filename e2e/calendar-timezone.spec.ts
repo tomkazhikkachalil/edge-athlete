@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 import { zonedWallClockToUtc, wallClockInZone } from '../src/lib/calendar/recurrence';
 

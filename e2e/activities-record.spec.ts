@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The recorder (Live Activities PR 4), as far as a browser can play it: a

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext } from './helpers/test';
 import { adminClient, E2E_TARGET, loadEnv, loadQaUser, resetGetStarted } from './helpers/qa-user';
 import { startPushMock, type PushMock } from './helpers/push-mock';
 

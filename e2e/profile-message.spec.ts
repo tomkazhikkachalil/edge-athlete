@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './helpers/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 
 // The Message door (Oct 14 2026, Tom's fix 4): on another athlete's profile,

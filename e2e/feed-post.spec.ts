@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Authenticated via the minted storageState (playwright.config.ts default).
 test('create a text post from the feed composer and see it render', { tag: '@smoke' }, async ({ page }) => {

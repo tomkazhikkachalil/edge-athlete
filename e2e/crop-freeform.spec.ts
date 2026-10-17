@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 
 // The hands-on crop (Oct 2026): the person shapes the crop box itself —
 // corners, edges, a drag inside, two fingers — to ANY area, where the editor

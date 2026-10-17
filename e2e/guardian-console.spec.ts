@@ -1,4 +1,4 @@
-import { test, expect, request } from '@playwright/test';
+import { test, expect, request } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody, E2E_BASE_URL } from './helpers/qa-user';
 
 // Family console (Aug 19) — the first guardian e2e coverage. The guardian

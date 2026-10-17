@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 import { liveWire as seedWire } from './helpers/activities';
 import { containsPoint, FRAME } from '../src/lib/activities/route-frame';

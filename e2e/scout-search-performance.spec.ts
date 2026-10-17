@@ -1,5 +1,5 @@
 import { purgePost } from './helpers/results';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Data foundation F6 (Sep 13 2026): the scout search reads

@@ -98,6 +98,33 @@ export default defineConfig({
         launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
       },
     },
+    // BRAVE on Android (every-browser round, Oct 16 2026 — a Brave user could
+    // not change their cover photo): the `android` phone plus Shields at their
+    // defaults — Brave's filter lists blocking and hiding, canvas farbling,
+    // no Network Information, push that rejects (e2e/helpers/brave.ts, wired
+    // into every context by e2e/helpers/test.ts). bypassCSP: the blocker hides
+    // elements with an injected <style>, which our nonce CSP would refuse;
+    // real Brave injects past a page's CSP, so this matches it. The lists are
+    // fetched into e2e/.cache/ once a week.
+    {
+      name: 'brave-android',
+      grep: /@mobile/,
+      use: {
+        ...devices['Pixel 7'],
+        bypassCSP: true,
+        permissions: ['camera', 'microphone'],
+        launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--test-third-party-cookie-phaseout'] },
+      },
+    },
+    // FIREFOX (Gecko) at phone width (every-browser round): the third engine —
+    // Firefox for Android is the one major phone browser that is neither
+    // Chromium nor WebKit. Firefox has no isMobile emulation, so this is the
+    // width and touch, not the Android UA. `npx playwright install firefox`.
+    {
+      name: 'firefox-mobile',
+      grep: /@mobile/,
+      use: { browserName: 'firefox', viewport: { width: 390, height: 844 }, hasTouch: true },
+    },
   ],
   // Only build/serve locally. Targeting a real deployment (E2E_BASE_URL) must
   // NOT spin up a local server — it would be the wrong code under test and

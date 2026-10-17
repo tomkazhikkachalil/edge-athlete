@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 import { filterBarGaps, fitsViewportWidth } from './helpers/layout';
 

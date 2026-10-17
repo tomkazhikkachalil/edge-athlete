@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import {
   apiAs, adminClient, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody,
 } from './helpers/qa-user';

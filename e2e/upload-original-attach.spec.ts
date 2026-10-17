@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // The background original (Oct 4 2026): an edited video's post is created
 // from its RENDER; the untouched original follows and is attached through

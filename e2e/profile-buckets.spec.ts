@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { test, expect, type Browser } from '@playwright/test';
+import { test, expect, type Browser } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The three profile buckets (Tom, Oct 4 2026 — see src/lib/statements.ts):

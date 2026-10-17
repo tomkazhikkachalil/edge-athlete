@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup } from './helpers/cleanup';

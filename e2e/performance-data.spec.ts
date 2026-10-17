@@ -1,5 +1,5 @@
 import { purgeGolfRound, purgePost } from './helpers/results';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Data foundation F4 (Sep 13 2026): every writer projects its fact into

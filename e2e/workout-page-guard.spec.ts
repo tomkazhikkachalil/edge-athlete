@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Workout capture round PR 3 (Oct 9 2026): a signed-out visit to a workout
 // (what an iPhone that threw the page away with the camera up and then

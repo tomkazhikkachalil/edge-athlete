@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody, adminClient } from './helpers/qa-user';
 
 // Equipment round-trip through the sport-profile layout: seed via API,

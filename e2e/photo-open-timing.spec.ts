@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import sharp from 'sharp';
 import { createQaUser, deleteQaUser, mintStorageState, type QaUser } from './helpers/qa-user';
 

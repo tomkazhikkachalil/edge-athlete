@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout screen PR 3 (Oct 12 2026): a superset of two and a three-round

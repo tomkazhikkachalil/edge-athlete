@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
+    "check:blocklists": "node scripts/check-blocklists.mjs",
     "test:e2e:prod": "E2E_TARGET=prod E2E_ALLOW_PROD=1 E2E_BASE_URL=${E2E_PROD_URL:-https://edge-athlete.vercel.app} playwright test",
     "check:syntax": "node scripts/check-browser-syntax.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
@@ -69,6 +70,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@ghostery/adblocker-playwright": "2.18.2",
     "@playwright/test": "^1.62.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/leaflet": "^1.9.22",

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout screen PR 2 (Oct 12 2026, 260): Start/Pause beside the clock — a

@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // The media diagnostic page (Sep 3 2026, round 9): every step the composer
 // runs on a picked file, logged on screen. Headless cannot run a camera, but

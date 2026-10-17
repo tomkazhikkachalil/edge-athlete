@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Offline (maintenance pass, Oct 10 2026 — Tom's section 7): a calm banner
 // when the connection drops (pollers pause), ONE precached static offline

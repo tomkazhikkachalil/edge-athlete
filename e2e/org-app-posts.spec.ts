@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';

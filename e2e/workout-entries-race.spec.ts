@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout capture round PR 4 (Oct 9 2026 — migration 256): concurrent

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Notifications clear (Oct 4 2026). Tom: the bell's dot and the app icon's

@@ -1,5 +1,5 @@
 import { purgePost } from './helpers/results';
-import { test, expect, request as pwRequest, type APIResponse } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIResponse } from './helpers/test';
 import {
   adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody, E2E_BASE_URL,
 } from './helpers/qa-user';

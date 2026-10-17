@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Speed round 2: the time ONE signed-in API call takes, measured from the
 // browser's own session (ten in a row, the median). It pairs with

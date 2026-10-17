@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 // Workout screen program PR 1 (Oct 12 2026, migration 260): an exercise has

@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, bypassHeaders, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanupEvent, createEvent } from './helpers/sport-events';

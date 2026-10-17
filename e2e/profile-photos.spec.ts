@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { join } from 'node:path';
 import { adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState } from './helpers/qa-user';
 import { managedProfilePhotoPath, managedProfileSourcePath } from '../src/lib/profiles/photo-paths';

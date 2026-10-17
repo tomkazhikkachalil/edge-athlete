@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 /**

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Anonymous context — the landing page is the signed-out surface.
 test.use({ storageState: 'e2e/.auth/anon.json' });

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { readErrorBody } from './helpers/qa-user';
 import { cleanupEvent, createEvent, inviteAndAccept, openEventSession, readView } from './helpers/sport-events';
 

@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
+import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, adminEmailForE2E, apiAs, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { fitRun } from './helpers/fit';
 import { POLAR_E2E_CLIENT, POLAR_MOCK_BASE, startPolarMock, type MockExercise, type PolarMock } from './helpers/polar-mock';

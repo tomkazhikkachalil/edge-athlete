@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Direct-to-storage upload (Oct 2026, src/lib/media/upload-rules.ts). The old
 // door carried every byte through a Vercel function, and Vercel refuses a

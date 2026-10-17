@@ -1,4 +1,4 @@
-import { test, expect, request as playwrightRequest } from '@playwright/test';
+import { test, expect, request as playwrightRequest } from './helpers/test';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { apiAs, loadQaUser, readErrorBody, E2E_BASE_URL } from './helpers/qa-user';

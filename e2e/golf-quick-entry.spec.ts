@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // The ALREADY-PLAYED ending of the unified flow (one flow, two modes): same
 // form as a live round, one-pass score entry, publishes once — no Individual/

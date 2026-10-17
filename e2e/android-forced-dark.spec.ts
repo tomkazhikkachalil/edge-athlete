@@ -1,4 +1,4 @@
-import { test, expect, chromium, devices, type Browser } from '@playwright/test';
+import { test, expect, chromium, devices, type Browser } from './helpers/test';
 import sharp from 'sharp';
 import { adminClient, createQaUser, deleteQaUser, mintStorageState, type QaUser } from './helpers/qa-user';
 

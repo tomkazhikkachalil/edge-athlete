@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody, adminClient } from './helpers/qa-user';
 
 // The Training dashboard round-trip: seed metric history (higher- and

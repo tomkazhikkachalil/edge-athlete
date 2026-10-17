@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 
 // How fast the app opens, and what it costs (Oct 2026 — Tom: "the app runs
 // very slow, especially the mobile version that is downloaded"). One signed-in

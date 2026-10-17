@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, apiAs, createQaUser, deleteQaUser, guardianFlagOn, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Round 1 PR 1 (Sep 2026) — the guardian claim gate. Alpha (a guardian)

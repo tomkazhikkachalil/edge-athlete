@@ -1,4 +1,4 @@
-import { test, expect, request } from '@playwright/test';
+import { test, expect, request } from './helpers/test';
 import { createHash } from 'crypto';
 import { apiAs, readErrorBody, E2E_BASE_URL, loadEnv } from './helpers/qa-user';
 

@@ -1,5 +1,5 @@
 import path from 'path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Capture v2 (Sep 3 2026): a CAMERA capture attaches immediately as a tile —
 // no editor between the camera's hand-back and the tile. Headless cannot run

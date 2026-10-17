@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import {
   adminClient, adminEmailForE2E, createQaUser, deleteQaUser, mintStorageState, readErrorBody,
 } from './helpers/qa-user';

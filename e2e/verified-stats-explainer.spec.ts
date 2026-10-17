@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Recruiting skeleton R5 — the verified-stats explainer: a public page (the
 // ladder a scout interrogates), signed-out, with the way back the BrandBar

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 

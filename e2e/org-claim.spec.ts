@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // The stub-org claim (phase 1 round 2): a service-role-seeded ownerless

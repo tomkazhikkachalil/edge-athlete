@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // A profile opens at the TOP (Oct 9 2026, Tom: "fix the scroll on my own
