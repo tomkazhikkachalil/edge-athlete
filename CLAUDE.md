@@ -29,7 +29,7 @@ npm run lint           # eslint --max-warnings 0 — a warning fails the gate
 npm run test           # vitest, node-only: no jsdom, only pure functions are unit-testable
 npm run verify         # typecheck + lint + test + build + check:syntax — THE GATE, before every commit
 npm run check:schema   # live schema vs the migration chain (local only); :prod for production
-npm run test:e2e       # Playwright against staging; @mobile specs also run in webkit-mobile + android
+npm run test:e2e       # Playwright against staging; @mobile specs also run in webkit-mobile, android, brave-android, firefox-mobile
 ```
 
 Never raise the lint cap or the heap number: fix the warning (a disable needs a reason at the site) or split the program. Never run the whole `@mobile` set in one invocation against staging — by area, one project at a time.
@@ -67,4 +67,4 @@ e2e/                  Playwright specs + helpers/     scripts/  ops, gates, guar
 
 ## Maintenance checklist
 
-Before any round is called done, in order: `npm run verify` (read the exit code explicitly) → `npm audit --omit=dev` → `scripts/hardening-guardrails.sh` → `npm run check:schema` and `check:schema:prod` → the phone-width pass → PR, merge, `/api/health` shows the commit → the prod probe (`npm run test:e2e:prod`, one project at a time) → **a dated entry at the top of `docs/devlog.md`** (what, why, proof). A program that adds rules writes or extends its spec in `docs/specs/` and adds one line to `docs/specs/README.md`. **Nothing is appended to this file**: it holds setup, commands, structure, conventions and this checklist, and stays under 10 k characters.
+Before any round is called done, in order: `npm run verify` (read the exit code explicitly) → `npm audit --omit=dev` → `scripts/hardening-guardrails.sh` → `npm run check:blocklists` → `npm run check:schema` and `check:schema:prod` → the phone-width pass → PR, merge, `/api/health` shows the commit → the prod probe (`npm run test:e2e:prod`, one project at a time) → **a dated entry at the top of `docs/devlog.md`** (what, why, proof). A program that adds rules writes or extends its spec in `docs/specs/` and adds one line to `docs/specs/README.md`. **Nothing is appended to this file**: it holds setup, commands, structure, conventions and this checklist, and stays under 10 k characters.
