@@ -24,8 +24,11 @@ async function holdComplete(page: Page) {
 
 async function openComposer(page: Page) {
   await page.goto('/feed');
-  await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  // A tap before the page is interactive does nothing (slow under the Brave project's blocker): tap until it opens.
+  await expect(async () => {
+    await page.getByRole('button', { name: /create a post/i }).click();
+    await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 test('a slow connection: the tile shows the local file with its progress before Post; Post waits for the upload; the post lands @mobile', { tag: '@mobile' }, async ({ page }) => {

@@ -28,11 +28,10 @@
  * IMMEDIATELY as a tile (capture-attach.ts); the editor is one tap away, never
  * mandatory. Nothing heavy runs between the camera's hand-back and the tile.
  *
- * THE ONE EXCEPTION TO "never getUserMedia" (Sep 3 2026): `InAppCamera.tsx`
- * is a FALLBACK the composer offers on touch devices when the native photo
- * picker fails inside iOS's own screen (black preview, nothing handed back
- * — iOS 26.6, while the same picker's video capture worked). The quality
- * rule above is unchanged: the native camera stays the primary path.
+ * The native camera is the ONLY capture path for customers. `InAppCamera.tsx`
+ * (getUserMedia) lives on only in the internal /app/diag/media page; the
+ * composer's "Camera not working?" fallback was removed Oct 17 2026 (Tom:
+ * the iOS black-preview failure it covered was his device alone).
  */
 
 import { useCallback, useState, type ReactNode } from 'react';

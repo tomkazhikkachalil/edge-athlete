@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
-import { cardDecision, isSnoozed, parseSnooze, PUSH_CARD_SNOOZE_KEY, snoozeUntil } from '@/lib/push/card';
+import { cardDecision, isSnoozed, parseSnooze, pushRefusedMessage, PUSH_CARD_SNOOZE_KEY, snoozeUntil } from '@/lib/push/card';
 import { usePhoneNotifications } from './usePhoneNotifications';
 
 /**
@@ -84,6 +84,12 @@ export default function PushCard() {
     if (result === 'denied') {
       // Blocked: the card leaves by itself (the device can no longer be asked).
       showError('Notifications are blocked', 'You can allow them later in your phone’s settings.');
+    } else if (result === 'refused') {
+      // The browser will not push (Brave Android's default): say where the
+      // switch is, and step aside for the snooze week (card.ts).
+      const { title, message } = pushRefusedMessage(typeof navigator !== 'undefined' && 'brave' in navigator);
+      showError(title, message);
+      notNow();
     } else {
       showError('Could not turn on notifications', 'Please try again in a moment.');
     }

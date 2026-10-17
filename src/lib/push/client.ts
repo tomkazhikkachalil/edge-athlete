@@ -26,6 +26,7 @@ import { staticCacheEnabled, swUrl } from '@/lib/sw/static-cache';
 import { urlBase64ToUint8Array } from './keys';
 import {
   deviceChoiceFor,
+  isBrowserPushRefusal,
   parseDeviceChoice,
   serializeDeviceChoice,
   PUSH_DEVICE_CHOICE_KEY,
@@ -162,7 +163,8 @@ async function subscribeHere(config: PushConfig): Promise<boolean> {
   return postSubscription(sub);
 }
 
-export type EnableResult = 'on' | 'denied' | 'unavailable' | 'failed';
+/** `refused` — permission granted, the browser still will not subscribe (Brave Android's default; card.ts isBrowserPushRefusal). */
+export type EnableResult = 'on' | 'denied' | 'unavailable' | 'refused' | 'failed';
 
 /** Call from a click / tap handler only. */
 export async function enablePush(): Promise<EnableResult> {
@@ -181,8 +183,8 @@ export async function enablePush(): Promise<EnableResult> {
   if (permission !== 'granted') return 'failed';
   try {
     return (await subscribeHere(config)) ? 'on' : 'failed';
-  } catch {
-    return 'failed';
+  } catch (err) {
+    return isBrowserPushRefusal(err) ? 'refused' : 'failed';
   }
 }
 

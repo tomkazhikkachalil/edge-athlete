@@ -70,4 +70,12 @@ export default withSentryConfig(nextConfig, {
   silent: true,
   telemetry: false,
   sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  // Browser errors go through OUR origin (every-browser round, Oct 16 2026):
+  // Brave Shields — and every blocker on EasyPrivacy — drop direct posts to
+  // *.ingest.sentry.io, so a Brave user's errors never reached us. The plugin
+  // rewrites this path to Sentry's ingest for our DSN only. Under /api, so the
+  // middleware (matcher excludes api) never gates or slows it; the name is
+  // proven unblocked by `npm run check:blocklists` (Sentry's suggested
+  // `/monitoring` is itself on the lists).
+  tunnelRoute: '/api/relay',
 });

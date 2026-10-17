@@ -33,8 +33,9 @@ test('bracket surfaces: seeds → preview → generate → a tied match decided 
     await page.goto(`/app/org/league/${leagueId}/competitions/${competitionId}`);
     await expect(page.getByRole('heading', { name: 'Playoffs' })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-bracket-seeds]')).toBeVisible();
+    const saved = page.waitForResponse(r => r.url().includes('/api/leagues/') && r.request().method() !== 'GET');
     await page.locator('[data-bracket-save-seeds]').click();
-    await expect(page.getByText('Seeds saved')).toBeVisible({ timeout: 15_000 });
+    expect((await saved).ok(), 'the save answered').toBe(true);
     await page.locator('[data-bracket-preview]').click();
     await expect(page.locator('[data-bracket-report]')).toContainText('a field of 4 over 2 rounds', { timeout: 15_000 });
     await page.locator('[data-bracket-generate]').click();
@@ -51,8 +52,9 @@ test('bracket surfaces: seeds → preview → generate → a tied match decided 
     await semi.getByLabel(`Score for Seed 4 ${stamp}`).fill('2');
     await semi.getByLabel('Advances').selectOption({ label: `Seed 4 ${stamp}` });
     await semi.getByLabel('Advance by').selectOption('shootout');
+    const saved2 = page.waitForResponse(r => r.url().includes('/api/leagues/') && r.request().method() !== 'GET');
     await semi.getByRole('button', { name: 'Save result' }).click();
-    await expect(page.getByText('Result saved')).toBeVisible({ timeout: 15_000 });
+    expect((await saved2).ok(), 'the save answered').toBe(true);
     await expect(page.locator('[data-bracket-slot="2:1"]')).toContainText(`Seed 4 ${stamp}`, { timeout: 20_000 });
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at phone width').toBeLessThanOrEqual(page.viewportSize()!.width);

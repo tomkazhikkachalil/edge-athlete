@@ -24,6 +24,10 @@ const NAVY = '#0b3d91'; // reads on white; far under 4.5:1 on the dark surface
 async function visitor(browser: Browser, mode: 'on' | 'off'): Promise<Page> {
   const ctx = await browser.newContext({
     storageState: { cookies: await previewBypassCookies(), origins: [{ origin: E2E_BASE_URL, localStorage: [{ name: MIRROR, value: JSON.stringify({ mode }) }] }] },
+    // `next start` hands the browser the ISR header (s-maxage + stale-while-revalidate),
+    // which Firefox applies to its own cache and shows the previous look. Vercel's CDN
+    // keeps those directives for itself (the browser gets max-age=0), so each visit asks fresh.
+    extraHTTPHeaders: { 'Cache-Control': 'no-cache' },
   });
   return ctx.newPage();
 }

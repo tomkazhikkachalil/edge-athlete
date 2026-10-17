@@ -238,6 +238,7 @@ test('phone notifications: the worker registers, an iPhone tab is sent to the ho
   // round 2 — Playwright WebKit stalls under any fetch handler), so the
   // worker cannot register here; a real iPhone does both. Chromium runs it.
   test.skip(browserName === 'webkit', 'service workers are blocked in the WebKit harness (playwright.config.ts)');
+  test.skip(browserName === 'firefox', 'the installed-app display mode is set through Chromium DevTools (CDP), which Firefox lacks');
   test.setTimeout(150_000);
   const user = loadQaUser('user.json');
   const created: string[] = [];
@@ -361,6 +362,7 @@ test('the installed app asks once: a device that said yes is repaired, never re-
   // as scripted — the app code path (getRegistration → getSubscription →
   // subscribe → POST /api/push/subscriptions) is the real one.
   test.skip(browserName === 'webkit', 'service workers are blocked in the WebKit harness (playwright.config.ts)');
+  test.skip(browserName === 'firefox', 'the installed-app display mode is set through Chromium DevTools (CDP), which Firefox lacks');
   test.setTimeout(120_000);
   const user = loadQaUser('user.json');
   const admin = adminClient();
@@ -462,6 +464,71 @@ test('the installed app asks once: a device that said yes is repaired, never re-
     }
   } finally {
     await cleanup(user.id, []);
+    await resetGetStarted(user.id);
+  }
+});
+
+test('Brave Android refuses push after "Allow": the card names the switch and steps aside, not "try again" @mobile', async ({ browser, browserName }) => {
+  // Every-browser round (Oct 16 2026): Brave grants the permission, then its
+  // pushManager.subscribe rejects (AbortError) until Settings › Privacy and
+  // security › "Use Google services for push messaging" is on. Played the
+  // same way as above — a scripted registration whose subscribe rejects as
+  // Brave's does — plus navigator.brave, what Brave exposes.
+  test.skip(browserName === 'webkit', 'service workers are blocked in the WebKit harness (playwright.config.ts)');
+  test.skip(browserName === 'firefox', 'the installed-app display mode is set through Chromium DevTools (CDP), which Firefox lacks');
+  test.setTimeout(90_000);
+  const user = loadQaUser('user.json');
+  const setup = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
+  try {
+    expect((await setup.request.post('/api/profile/getting-started', { data: { dismiss: true } })).ok()).toBe(true);
+  } finally {
+    await setup.close();
+  }
+  const ctx = await installedPhone(browser, ANDROID, { permission: 'granted' });
+  await ctx.addInitScript(() => {
+    try {
+      // A fresh device once — not on the reload below, which must see the snooze.
+      if (!window.sessionStorage.getItem('e2e:fresh')) {
+        window.sessionStorage.setItem('e2e:fresh', '1');
+        window.localStorage.removeItem('ea:push:device-choice:v1');
+        window.localStorage.removeItem('ea:push-card:snoozed-until:v1');
+      }
+    } catch {
+      // No storage: the card assertions below fail loudly.
+    }
+    Object.defineProperty(Navigator.prototype, 'brave', { configurable: true, get: () => ({ isBrave: () => Promise.resolve(true) }) });
+    const reg = {
+      scope: `${location.origin}/`,
+      active: {},
+      pushManager: {
+        getSubscription: async () => null,
+        subscribe: async () => { throw new DOMException('Registration failed - push service not available', 'AbortError'); },
+      },
+      getNotifications: async () => [],
+    };
+    const proto = ServiceWorkerContainer.prototype as unknown as Record<string, unknown>;
+    proto.getRegistration = async () => reg;
+    proto.register = async () => reg;
+    Object.defineProperty(navigator.serviceWorker, 'ready', { configurable: true, get: () => Promise.resolve(reg) });
+  });
+  try {
+    const p = await ctx.newPage();
+    const cdp = await ctx.newCDPSession(p);
+    await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'display-mode', value: 'standalone' }] });
+    await p.goto('/feed');
+    const card = p.locator('[data-push-card]');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.getByRole('button', { name: /Turn on notifications/ }).click();
+    await expect(p.getByText('Use Google services for push messaging')).toBeVisible({ timeout: 15_000 });
+    await expect(p.getByText('Please try again in a moment.')).toHaveCount(0);
+    // It steps aside for the snooze week instead of failing on every visit.
+    await expect(card).toHaveCount(0);
+    await p.reload();
+    await expect(p.getByRole('button', { name: /Notifications/ }).first()).toBeVisible({ timeout: 20_000 });
+    await p.waitForTimeout(2000);
+    await expect(card).toHaveCount(0);
+  } finally {
+    await ctx.close();
     await resetGetStarted(user.id);
   }
 });

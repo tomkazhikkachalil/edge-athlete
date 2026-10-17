@@ -5,6 +5,9 @@
  * app's root layout. Offline → a calm pill above the tab bar (and the desktop
  * chat dock's lane) saying the work is safe on this device; back online → a
  * short "Back online". Pollers pause on their own (net/online.ts shouldPoll).
+ * Nothing in it is tappable, so taps pass THROUGH it (Oct 17 2026: the pill
+ * sat over the group scorer's Save, and an offline golfer could not save a
+ * hole — the moment the offline queue exists for).
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -44,7 +47,7 @@ export default function OfflineBanner() {
     >
       {visible && (
         <p
-          className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-2xl px-4 py-3 text-sm font-medium shadow-lg ring-1 ${
+          className={`flex max-w-md items-start gap-2 rounded-2xl px-4 py-3 text-sm font-medium shadow-lg ring-1 ${
             online
               ? 'bg-emerald-50 text-emerald-900 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:ring-emerald-800'
               : 'bg-stone-900 text-white ring-white/10 dark:bg-stone-800 dark:text-stone-50 dark:ring-white/15'

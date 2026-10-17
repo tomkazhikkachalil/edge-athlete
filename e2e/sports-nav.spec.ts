@@ -37,7 +37,8 @@ test('sports nav: redirect, subnav, drawer, events list, leaderboards @mobile', 
     await expect(page.locator(`[data-events-card="${eventId}"]`)).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-events-filter="upcoming"]')).toHaveAttribute('aria-selected', 'true');
     await page.locator('[data-events-filter="live"]').click();
-    await expect(page.locator('[data-events-card]')).toHaveCount(0);
+    // Only OUR event: staging holds other runs' live events, so the tab is never assumed empty.
+    await expect(page.locator(`[data-events-card="${eventId}"]`)).toHaveCount(0);
 
     const live = await api.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'live', today: '2030-06-01' } });
     expect(live.ok(), await readErrorBody(live)).toBe(true);

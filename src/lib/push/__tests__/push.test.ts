@@ -14,6 +14,7 @@ import {
 import { urlBase64ToUint8Array } from '../keys';
 import { deliveryUrl, pushReady, vapidConfig, PUSH_MOCK_HOST } from '../config-server';
 import { pushSupportFrom } from '../client';
+import { isBrowserPushRefusal, pushRefusedMessage } from '../card';
 
 const row = (over: Partial<PushNotificationRow> = {}): PushNotificationRow => ({
   id: 'n1',
@@ -237,5 +238,25 @@ describe('the feed card asks once per device per account (Oct 4 2026)', () => {
     expect(parseDeviceChoice('{"userId":"u","choice":"maybe"}')).toBeNull();
     expect(parseDeviceChoice('{"choice":"on"}')).toBeNull();
     expect(parseDeviceChoice('[]')).toBeNull();
+  });
+});
+
+describe('a browser that refuses push (every-browser round, Oct 16 2026)', () => {
+  it('tells a refusal BY THE BROWSER from a dropped connection', () => {
+    // Brave Android, permission granted, Google push off: subscribe rejects with an AbortError.
+    expect(isBrowserPushRefusal(new DOMException('Registration failed - push service not available', 'AbortError'))).toBe(true);
+    expect(isBrowserPushRefusal({ name: 'NotAllowedError' })).toBe(true);
+    expect(isBrowserPushRefusal({ name: 'NotSupportedError' })).toBe(true);
+    expect(isBrowserPushRefusal(new TypeError('Failed to fetch'))).toBe(false); // the network — "try again" is right
+    expect(isBrowserPushRefusal(null)).toBe(false);
+    expect(isBrowserPushRefusal('AbortError')).toBe(false);
+  });
+  it('names Brave\'s switch in Brave, the site setting elsewhere — never "try again in a moment"', () => {
+    const brave = pushRefusedMessage(true);
+    expect(brave.message).toContain('Use Google services for push messaging');
+    expect(brave.title).toContain('Brave');
+    const other = pushRefusedMessage(false);
+    expect(other.message).not.toContain('Brave');
+    for (const m of [brave, other]) expect(m.message).not.toMatch(/in a moment/);
   });
 });

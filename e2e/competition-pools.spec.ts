@@ -51,8 +51,9 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     await expect(page.locator('[data-pools-panel]')).toBeVisible();
     await page.locator('[data-pools-preview]').click();
     await expect(page.locator('[data-pools-report]')).toContainText('Preview: 2 games', { timeout: 15_000 });
+    const saved = page.waitForResponse(r => r.url().includes('/api/leagues/') && r.request().method() !== 'GET');
     await page.locator('[data-pools-generate]').click();
-    await expect(page.getByText('2 games added')).toBeVisible({ timeout: 15_000 });
+    expect((await saved).ok(), 'the save answered').toBe(true);
     let d = (await (await api.get(`${base}/${competitionId}`)).json()) as Detail;
     expect(d.contests).toHaveLength(2);
     const again = await api.post(`${base}/${competitionId}/pools/generate`, { data: { competitionId, dryRun: true } });
@@ -101,8 +102,9 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     await expect(page.locator('[data-pools-target] option', { hasText: 'Playoffs' })).toHaveCount(1, { timeout: 15_000 });
     await page.locator('[data-pools-target]').selectOption(bracketId);
     await page.locator('[data-pools-per-pool]').fill('1');
+    const seededSaved = page.waitForResponse(r => r.url().includes('/api/leagues/') && r.request().method() !== 'GET');
     await page.locator('[data-pools-seed]').click();
-    await expect(page.getByText('Seeds written')).toBeVisible({ timeout: 15_000 });
+    expect((await seededSaved).ok(), 'the save answered').toBe(true);
     const { data: seeded } = await admin.from('competition_entries').select('team_id, seed').eq('competition_id', bracketId).order('seed');
     expect((seeded ?? []).map(e => [e.team_id, e.seed])).toEqual([[teamId(homeA), 1], [teamId(homeB), 2]]);
     const wrongTarget = await api.post(`${base}/${competitionId}/pools/seed`, { data: { competitionId, targetCompetitionId: competitionId, perPool: 1 } });

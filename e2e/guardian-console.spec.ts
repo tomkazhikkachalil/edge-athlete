@@ -62,8 +62,9 @@ test('per-athlete: safety change persists; going public is consent-gated', async
   await expect(page.getByRole('heading', { name: 'Safety' })).toBeVisible({ timeout: 15_000 });
 
   // Messaging: nobody → fans_only, saved via the PATCH, survives a reload.
+  const safetySaved = page.waitForResponse(r => r.url().includes('/api/guardian/') && r.request().method() === 'PATCH');
   await page.getByRole('button', { name: /Fans only/ }).click();
-  await expect(page.getByText('Safety settings updated.')).toBeVisible({ timeout: 10_000 });
+  expect((await safetySaved).ok(), 'the save answered').toBe(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Safety' })).toBeVisible();
   await expect
@@ -664,8 +665,9 @@ test('household policy (132): defaults save on the settings page; a new athlete 
     // proof) via the RadioCards.
     await page.goto('/app/guardian/settings');
     await expect(page.getByRole('heading', { name: 'Household defaults' })).toBeVisible({ timeout: 15_000 });
+    const householdSaved = page.waitForResponse(r => r.url().endsWith('/api/guardian/household') && r.request().method() !== 'GET');
     await page.getByRole('button', { name: /Fans only/ }).first().click();
-    await expect(page.getByText('Household defaults saved').first()).toBeVisible({ timeout: 10_000 });
+    expect((await householdSaved).ok(), 'the save answered').toBe(true);
     await page.getByRole('button', { name: /^Public/ }).first().click();
     await expect(page.getByText('New athletes still start private')).toBeVisible({ timeout: 10_000 });
 

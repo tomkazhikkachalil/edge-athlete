@@ -106,8 +106,8 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
       screen, "Use Photo" hands nothing back): that is iOS, not the app
       (DEVLOG round 10). Device checks first — another site's photo input,
       Settings → Camera → Formats → Most Compatible, reboot, browser camera
-      permission. The composer's "Camera not working? Use the in-app camera"
-      link is the documented fallback; confirm it reaches the editor.
+      permission. (The composer's "Camera not working?" in-app camera link
+      was removed Oct 17 2026 — the failure was one device.)
 - [ ] **Capture v2 (Sep 3 2026)**: from the composer, Take photo → the tile
       appears at once (no editor); Record video 10s → tile at once → Create
       Post → the feed plays it; tap a tile's pencil → editor → Done. A video
