@@ -1,5 +1,9 @@
 # Development Log
 
+## October 17, 2026 — Every browser, PR 3: Convention 46, the browser-support spec (docs only)
+
+The round closes with its rules written down: `docs/specs/browser-support.md` (Convention 46) — the browsers we support, what each of the six Playwright projects proves, feature-detect never sniff, no first-party path a blocker blocks (`npm run check:blocklists`, now in the maintenance checklist), the Sentry relay, a browser's refusal named not retried, one request under 4.5 MB, nothing covers a control. `docs/specs/README.md` gains the file and convention rows; CLAUDE.md gains only the two new project names on the `test:e2e` line and `check:blocklists` in the checklist.
+
 ## October 17, 2026 — Every browser, PR 2: the fixes the Brave and Firefox sweeps found; the composer's in-app camera link removed (zero DDL)
 
 The whole `@mobile` set ran on **brave-android** and **firefox-mobile** against staging, paced (batches with a latency gate and rests — last night's unpaced sweep starved free-tier staging). Brave failed only where every browser failed, or where the simulation itself is slow; Firefox the same, plus harness gaps. **Product fixes:**
