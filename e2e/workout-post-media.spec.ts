@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Training fixes PR 2 (Oct 17 2026), Tom: a posted workout's set images open
 // the app's own viewer over the post (they opened a bare image in a new
@@ -22,9 +23,10 @@ async function setImages(page: Page, context: BrowserContext) {
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [
+      data: { savedAt: savedAfter(startedSession), exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, [shot('/logo.png')]), set(2), set(3, [shot('/icon-192.png'), shot('/icon-512.png'), shot('/og-image.png')])] },
         { name: 'Squat', exerciseKey: 'squat', category: 'strength', notes: null, groupId: G, groupKind: 'circuit', groupRounds: 2, sets: [set(1, [shot('/logo-mark.png')]), set(2, [shot('/favicon-32.png')])] },
         { name: 'Row', exerciseKey: 'barbell_row', category: 'strength', notes: null, groupId: G, groupKind: 'circuit', groupRounds: 2, sets: [set(1, [shot('/apple-touch-icon.png')]), set(2)] },

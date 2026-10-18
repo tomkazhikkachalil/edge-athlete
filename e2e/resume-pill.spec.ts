@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './helpers/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 
 // The resume pill (Oct 12 2026): while a workout or a round is in progress,
@@ -36,9 +37,10 @@ test('resume pill: a live workout follows you to the feed, the calendar and the 
   try {
     const started = await apiA.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     const seeded = await apiA.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [setOf(1), setOf(2)] }] },
+      data: { savedAt: savedAfter(startedSession), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [setOf(1), setOf(2)] }] },
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
 

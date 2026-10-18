@@ -1,6 +1,7 @@
 import { test, expect, type Page } from './helpers/test';
 import path from 'path';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Workout capture round (Oct 8 2026). Tom: taking a photo or video during a
 // Training workout "kicked me out of the workout and the capture did not
@@ -70,8 +71,9 @@ test('a set clip is a tile at once, survives a reload mid-upload, a failed uploa
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.status(), await readErrorBody(started)).toBe(201);
-    workoutId = (await started.json()).session.id as string;
-    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: exerciseOf() } });
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: savedAfter(startedSession), exercises: exerciseOf() } });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
 
     await page.goto(`/app/workout/${workoutId}`);

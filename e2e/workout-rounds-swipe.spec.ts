@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Workout fixes (Oct 13 2026): a circuit's rounds are a horizontal stack —
 // "Round 1 of 4" and dots, one round per slide; completing the round in view
@@ -27,9 +28,10 @@ test('rounds as a swipe: one round per slide, auto-advance, Copy previous round,
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [
+      data: { savedAt: savedAfter(startedSession), exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [{ ...empty(1), reps: 5, weight: 100, weightUnit: 'lbs' }, empty(2)] },
         circuitMember('Squat', 'squat'),
         circuitMember('Push-Ups', 'push_ups'),
@@ -178,8 +180,9 @@ test('on a large screen the arrows move between rounds', async ({ page }) => {
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
-    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: [circuitMember('Squat', 'squat'), circuitMember('Push-Ups', 'push_ups')] } });
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: savedAfter(startedSession), exercises: [circuitMember('Squat', 'squat'), circuitMember('Push-Ups', 'push_ups')] } });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
     await page.goto(`/app/workout/${workoutId}`);
     const group = page.locator('[data-exercise-group]');

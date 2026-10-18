@@ -1,5 +1,6 @@
 import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Workout screen PR 4 (Oct 12 2026): the bottom bar — Rest records each rest
 // on the set completed next (a held rest waits for it); the stopwatch saves
@@ -15,9 +16,10 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [
+      data: { savedAt: savedAfter(startedSession), exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5)] },
         { name: 'Plank', exerciseKey: 'plank', category: 'strength', notes: null, sets: [set(1, null)] },
       ] },
@@ -109,8 +111,9 @@ test('the open stopwatch never covers the Add buttons on a large screen', async 
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
-    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5), set(4, 5)] }] } });
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: savedAfter(startedSession), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5), set(4, 5)] }] } });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
     await page.goto(`/app/workout/${workoutId}`);
     const bar = page.locator('[data-workout-controls]');

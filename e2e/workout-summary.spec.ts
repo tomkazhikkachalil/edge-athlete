@@ -1,5 +1,6 @@
 import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Workout screen PR 5 (Oct 12 2026): the finish summary shows total / active /
 // rest time, volume per exercise, the groups' rounds and the average rest, and
@@ -18,9 +19,10 @@ test('the summary and the post carry rests, active time, volume per exercise and
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [
+      data: { savedAt: savedAfter(startedSession), exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 100, 90), set(2, 5, 100, 60)] },
         { name: 'Squat', exerciseKey: 'squat', category: 'strength', notes: null, groupId: G, groupKind: 'circuit', groupRounds: 2, sets: [set(1, 10, 50), set(2, null, null)] },
         { name: 'Push-Ups', exerciseKey: 'push_ups', category: 'strength', notes: null, groupId: G, groupKind: 'circuit', groupRounds: 2, sets: [set(1, 15, null, 30), set(2, 12, null)] },

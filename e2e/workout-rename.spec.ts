@@ -1,5 +1,6 @@
 import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Workout screen program PR 1 (Oct 12 2026, migration 260): an exercise has
 // a STABLE id and can be renamed in place — the sets, notes and media stay;
@@ -15,10 +16,11 @@ test('rename an exercise after logging sets: the sets stay, the id stays; an old
   try {
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.ok(), await readErrorBody(started)).toBe(true);
-    workoutId = (await started.json()).session.id as string;
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
     // The OLD payload shape: no clientId, no group fields, no rest.
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
-      data: { savedAt: Date.now(), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: 'pause reps', sets: [set(1, 5), set(2, 5)] }] },
+      data: { savedAt: savedAfter(startedSession), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: 'pause reps', sets: [set(1, 5), set(2, 5)] }] },
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
     const before = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session;
