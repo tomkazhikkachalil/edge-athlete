@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
+import { savedAfter } from './helpers/workouts';
 
 // Training fixes (Oct 17 2026), Tom: the screen must not turn itself off during
 // a workout (the recorder already kept it on), and a long exercise name ends in
@@ -43,9 +44,10 @@ async function liveWorkout(exercises: Array<{ name: string; key: string }>) {
   const api = await apiAs('state.json');
   const started = await api.post('/api/workouts', { data: { mode: 'live' } });
   expect(started.ok(), await readErrorBody(started)).toBe(true);
-  const id = (await started.json()).session.id as string;
+  const startedSession = (await started.json()).session;
+  const id = startedSession.id as string;
   const seeded = await api.put(`/api/workouts/${id}/entries`, {
-    data: { savedAt: Date.now(), exercises: exercises.map(e => ({ name: e.name, exerciseKey: e.key, category: 'strength', notes: null, sets: [set(1)] })) },
+    data: { savedAt: savedAfter(startedSession), exercises: exercises.map(e => ({ name: e.name, exerciseKey: e.key, category: 'strength', notes: null, sets: [set(1)] })) },
   });
   expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
   return { api, id };
