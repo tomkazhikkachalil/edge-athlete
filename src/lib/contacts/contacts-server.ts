@@ -46,8 +46,10 @@ const SETTING_TTL_MS = 60_000;
 let cached: { value: string | null; source: 'setting' | 'env' | 'none'; at: number } | null = null;
 
 /** Where sign-ups and inquiries are mailed, and where that came from. */
-export async function notifyInboxAddress(admin: SupabaseClient = getSupabaseAdmin(), now = Date.now()): Promise<{ value: string | null; source: 'setting' | 'env' | 'none' }> {
-  if (cached && now - cached.at < SETTING_TTL_MS) return cached;
+export type NotifyInbox = { value: string | null; source: 'setting' | 'env' | 'none' };
+
+export async function notifyInboxAddress(admin: SupabaseClient = getSupabaseAdmin(), now = Date.now()): Promise<NotifyInbox> {
+  if (cached && now - cached.at < SETTING_TTL_MS) return { value: cached.value, source: cached.source };
   let setting: string | null = null;
   const { data, error } = await admin.from('app_settings').select('value').eq('key', NOTIFY_INBOX_KEY).maybeSingle();
   if (error) {
@@ -61,7 +63,7 @@ export async function notifyInboxAddress(admin: SupabaseClient = getSupabaseAdmi
     : env
       ? { value: env, source: 'env', at: now }
       : { value: null, source: 'none', at: now };
-  return cached;
+  return { value: cached.value, source: cached.source };
 }
 
 /** The admin console's write; clears the cache so the next mail uses it. */

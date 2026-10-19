@@ -16,6 +16,7 @@ import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
 import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel';
 import { FEATURE_FLAGS } from '@/lib/features';
 import SupportQueueTile from '@/components/admin/SupportQueueTile';
+import ContactsTile from '@/components/admin/ContactsTile';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -192,6 +193,7 @@ export default function AdminDashboardPage() {
         {/* Queues — dedicated admin pages */}
         <section className="grid sm:grid-cols-2 gap-4">
           <SupportQueueTile />
+          <ContactsTile />
           <button
             type="button"
             onClick={() => router.push('/dashboard/help')}

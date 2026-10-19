@@ -141,3 +141,32 @@ export function contactMailBody(input: {
   lines.push('', '— Edge Athlete');
   return lines.join('\n');
 }
+
+/** The app_settings keys the admin console may write (266). A key not listed is refused by name. */
+export const APP_SETTING_KEYS = ['notify_inbox_email'] as const;
+export type AppSettingKey = (typeof APP_SETTING_KEYS)[number];
+
+export const CONTACTS_PAGE_SIZE = 50;
+/** The export's ceiling — past it the file says so in its last line. */
+export const CONTACTS_EXPORT_MAX = 10_000;
+
+export interface ContactsFilter {
+  source?: ContactSource | null;
+  /** true = consented only; false = not consented only; null = all. */
+  consent?: boolean | null;
+  /** A substring of the name or the address, case-insensitive. */
+  q?: string | null;
+  page: number;
+}
+
+/** The export file's name: contacts-YYYY-MM-DD.csv, or contacts-marketing-… for the consented list. */
+export function exportFileName(list: 'all' | 'marketing', now: Date): string {
+  const d = now.toISOString().slice(0, 10);
+  return list === 'marketing' ? `contacts-marketing-${d}.csv` : `contacts-${d}.csv`;
+}
+
+/** The PostgREST `or` filter for a free-text search — the pattern escaped so a typed `%` or `,` cannot widen it. */
+export function searchPattern(q: string): string {
+  const safe = q.trim().replace(/[%_\\]/g, ch => `\\${ch}`).replace(/[,()]/g, ' ');
+  return `%${safe}%`;
+}
