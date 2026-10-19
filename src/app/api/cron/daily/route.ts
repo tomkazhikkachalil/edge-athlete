@@ -26,6 +26,7 @@ import { reportRouteError } from '@/lib/observability/report';
 import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
 import { runPushSweep } from '@/lib/push/sweep-server';
 import { runMediaJobsHygiene } from '@/lib/media/process-server';
+import { recordJobSummary } from '@/lib/platform-jobs/record';
 
 export const maxDuration = 60;
 
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ||
     (request.headers.get('origin') ?? `https://${request.headers.get('host')}`);
 
+  const startedAt = new Date();
   const summary: Record<string, unknown> = { ok: true };
   try {
     summary.digest = await runNotificationDigest(admin, appUrl);
@@ -279,6 +281,8 @@ export async function GET(request: NextRequest) {
     summary.push = { ok: false };
   }
 
+  // The jobs registry (267): the Overview reads when this ran and whether every phase was ok.
+  await recordJobSummary(admin, 'daily', startedAt, summary);
   console.log('[DAILY]', JSON.stringify(summary));
   // Round 1 PR 4: a phase that failed used to be a log line nobody read —
   // the deletion purge sitting ninth in a 60 s function could fail for a

@@ -14,7 +14,13 @@ const migrationsDir = join(process.cwd(), 'database', 'migrations');
 const LEDGER_BORN = 226;
 const KNOWN_GAPS = [217];
 
-const files = readdirSync(migrationsDir).filter(n => /^\d{3}_.*\.sql$/.test(n)).sort();
+// A CONCURRENTLY twin (`NNN_name.indexes.sql`, MIGRATIONS.md "Large-table
+// indexes") is run statement by statement outside a transaction and records
+// nothing: it is not a link in the chain and carries no footer. Its base
+// migration must exist (pinned below).
+const all = readdirSync(migrationsDir).filter(n => /^\d{3}_.*\.sql$/.test(n)).sort();
+const twins = all.filter(n => /\.indexes\.sql$/.test(n));
+const files = all.filter(n => !/\.indexes\.sql$/.test(n));
 
 describe('the chain\'s numbering', () => {
   it('is contiguous from 001 to the head, with only the recorded gap, and no duplicates', () => {
@@ -72,5 +78,15 @@ describe('diffLedger', () => {
   });
   it('numbers arrive as strings from PostgREST too', () => {
     expect(diffLedger(['001_a.sql'], [{ number: '1', name: '001_a.sql' }]).ok).toBe(true);
+  });
+});
+
+describe('the CONCURRENTLY index twins', () => {
+  it('each twin has its base migration and no ledger footer of its own', () => {
+    for (const twin of twins) {
+      const base = twin.replace(/\.indexes\.sql$/, '.sql');
+      expect(files, `${twin} has no base migration ${base}`).toContain(base);
+      expect(readFileSync(join(migrationsDir, twin), 'utf8')).not.toMatch(/INSERT INTO public\.schema_migrations/);
+    }
   });
 });

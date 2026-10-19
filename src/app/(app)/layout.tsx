@@ -13,6 +13,7 @@ import ModerationBanner from "@/components/ModerationBanner";
 import ChatDockMount from "@/components/chat-dock/ChatDockMount";
 import TabBar from '@/components/TabBar';
 import PushHost from '@/components/push/PushHost';
+import SeenBeacon from '@/components/seen/SeenBeacon';
 import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
@@ -159,6 +160,7 @@ export default async function RootLayout({
               {/* Phone notifications (248): the app icon's number follows the
                   bell; this device's subscription stays current. */}
               <PushHost />
+              <SeenBeacon />
               <StaticCacheRegistrar />
               {/* Offline: a calm banner; pollers pause (net/online.ts). */}
               <OfflineBanner />
