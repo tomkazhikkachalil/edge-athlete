@@ -242,7 +242,8 @@ BEGIN
     RAISE EXCEPTION 'platform_rollup_day: % is in the future', p_day;
   END IF;
   CREATE TEMP TABLE IF NOT EXISTS tmp_rollup (metric text, dim text, value bigint) ON COMMIT DROP;
-  DELETE FROM tmp_rollup;
+  -- TRUNCATE, not DELETE: the service role's session runs the safe-update guard, which refuses a DELETE without WHERE.
+  TRUNCATE tmp_rollup;
 
   IF p_group = 'users' THEN
     v_keys := ARRAY['users.new', 'users.departed', 'users.deletion_requested', 'users.dau', 'users.wau', 'users.mau'];

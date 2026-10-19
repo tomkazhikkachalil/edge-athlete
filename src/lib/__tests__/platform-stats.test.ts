@@ -76,6 +76,9 @@ describe('migration 267 keeps posture A and the shape the code relies on', () =>
     expect(mig).toContain('DELETE FROM platform_stats_daily d WHERE d.day = p_day AND d.metric = ANY (v_keys);');
     expect(mig).not.toMatch(/platform_stats_daily[^;]*ON CONFLICT/);
     expect(mig).toContain("RAISE EXCEPTION 'platform_rollup_day: % is in the future', p_day");
+    // The service role's session runs the safe-update guard: a DELETE without WHERE is refused, so the temp table is TRUNCATEd (Oct 19 2026, found by the rollup spec).
+    expect(mig).toContain('TRUNCATE tmp_rollup;');
+    expect(mig).not.toContain('DELETE FROM tmp_rollup;');
   });
   it('the CONCURRENTLY twin carries the four indexes the day ranges need, one statement each', () => {
     for (const t of ['activities', 'workout_sessions', 'tickets', 'organizations']) {
