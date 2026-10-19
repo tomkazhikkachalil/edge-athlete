@@ -48,6 +48,7 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'help/articles': 'published help articles; viewer-independent, CDN-cached',
   'help/articles/[slug]': 'one published help article; viewer-independent, CDN-cached',
   'tickets/guest': 'the signed-out Help request: honeypot + the contact IP bucket; Help only; the email is the recipient',
+  contacts: 'the coming-soon sign-up or inquiry (266, Oct 19 2026): honeypot + the contacts IP bucket; writes a contact row and mails the notify inbox; answers nothing about anyone',
   'public/profile': 'public-profile read surface; visibility-filtered in query',
   'public/org-sites/[slug]/live':
     'sports-team website program V1 (Sep 28 2026): a site’s live scoreboard feed — viewer-independent by construction (no auth, cookies or headers), edge-cached 10 s, query strings refused; published + public + schedule-on sites only; the names are the ISR pages’ own',
