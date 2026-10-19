@@ -5,6 +5,8 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runPlatformRollup } from '@/lib/platform-stats/rollup-server';
 import { DAY_RE, recomputableDay, yesterdayUTC } from '@/lib/platform-stats/metrics';
 import { recordJobRun } from '@/lib/platform-jobs/record';
+import { syncSentryErrors } from '@/lib/platform-stats/sentry-server';
+import { dayUTC } from '@/lib/platform-stats/metrics';
 import { reportRouteError } from '@/lib/observability/report';
 
 export const maxDuration = 300;
@@ -27,7 +29,12 @@ export async function POST(request: NextRequest) {
   if (!recomputableDay(day)) return NextResponse.json({ error: 'day must be YYYY-MM-DD, not in the future, within 400 days' }, { status: 400 });
   const admin = getSupabaseAdmin();
   waitUntil(
-    recordJobRun(admin, 'platform-rollup', () => runPlatformRollup(admin, day, { budgetMs: 240_000 }), { ok: r => r.ok }).then(
+    recordJobRun(admin, 'platform-rollup', async () => {
+      const r = await runPlatformRollup(admin, day, { budgetMs: 240_000 });
+      // Sentry's last 14 days (H3): a tile, never a gate — a refusal is named in the summary and nothing else fails.
+      const sentry = r.supported ? await syncSentryErrors(admin, dayUTC()) : null;
+      return { ...r, sentry };
+    }, { ok: r => r.ok }).then(
       r => {
         if (!r.supported) return;
         if (!r.ok) Sentry.captureMessage(`platform rollup ${day}: failed ${r.failed.map(f => f.group).join(',') || '-'} skipped ${r.skipped.join(',') || '-'}`, { level: 'error', tags: { area: 'cron' } });
