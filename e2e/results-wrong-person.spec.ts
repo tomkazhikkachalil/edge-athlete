@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, scoreHoles, setGroups, startRound } from './helpers/sport-events';
@@ -79,6 +80,7 @@ test('wrong person: report → support moves the result to the right person, cor
 
     // C (a platform owner) reads the event's results and moves B's to D.
     await admin.from('platform_admins').upsert({ profile_id: userC.id, role: 'owner' }, { onConflict: 'profile_id' });
+    await adminSignIn(apiC, userC);
     const panelUrl = `/api/admin/recovery/events/${eventId}`;
     const act = (body: Record<string, unknown>) => apiC.post(panelUrl, { data: { ticket: ticket.number, note: 'e2e: verified with both families', ...body } });
     let panel = (await (await apiC.get(panelUrl)).json()) as Panel;

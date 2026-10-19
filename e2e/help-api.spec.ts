@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody, settleStatus } from './helpers/isr';
 
@@ -75,6 +76,7 @@ test('help center API: public articles, the guest request, /contact, the screens
       const adminUser = await createQaUser({ email: adminEmail, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
       try {
         const adminApi = (await browser.newContext({ storageState: await mintStorageState(adminUser) })).request;
+        await adminSignIn(adminApi, adminUser);
         res = await adminApi.post('/api/admin/help/articles', { data: { title: `Joining an event ${rand}`, body: 'Tap Join.', topic: 'events', video_url: 'https://example.com/not-youtube' } });
         expect(res.status()).toBe(400); // not a YouTube link
         res = await adminApi.post('/api/admin/help/articles', { data: { title: `Joining an event ${rand}`, body: 'Tap Join.', topic: 'events', published: true } });
@@ -141,6 +143,7 @@ test('help center API: public articles, the guest request, /contact, the screens
     expect((await alphaApi.get(view.ticket.attachment!)).status()).toBe(200);
     expect((await bravoApi.get(view.ticket.attachment!)).status()).toBe(404);
     await admin.from('platform_admins').upsert({ profile_id: delta.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(deltaApi, delta);
     expect((await deltaApi.get(view.ticket.attachment!)).status()).toBe(200);
     res = await deltaApi.get(`/api/admin/tickets/${withShot.id}`);
     expect(((await res.json()) as { ticket: { attachment: string | null } }).ticket.attachment).toMatch(/^\/api\/media\//);

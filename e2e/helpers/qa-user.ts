@@ -322,6 +322,15 @@ export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {
   const email = opts.email ?? `edgeqa-${rand}@example.com`;
   const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
 
+  // A NAMED QA address (the admin-positive specs' E2E_ADMIN_EMAIL) can be left
+  // behind by a run that died before its finally; the sweep reaches it only
+  // after hours. Reclaim it here so the next spec is never "already
+  // registered" (Oct 19 2026) — QA addresses only, never a real person's.
+  if (opts.email && /^edgeqa-/i.test(opts.email)) {
+    const { data: leftover } = await admin.from('profiles').select('id').eq('email', opts.email.toLowerCase());
+    for (const row of leftover ?? []) await deleteQaUser(row.id);
+  }
+
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,

@@ -4,10 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ADMIN_LOGIN_PATH } from '@/lib/admin/session';
+import { useAdminAuth } from '@/lib/admin/use-admin-auth';
 
 /** The console's own header (flow changes item 2): who is signed in, Sign out, the way back to the app. */
-export default function AdminHeader({ email, role }: { email: string; role: 'owner' | 'moderator' }) {
+export default function AdminHeader(props: { email?: string; role?: 'owner' | 'moderator' } = {}) {
   const router = useRouter();
+  const session = useAdminAuth();
+  const email = props.email ?? session.user?.email ?? '';
+  const role = props.role ?? session.role ?? 'owner';
   const [busy, setBusy] = useState(false);
   const signOut = async () => {
     setBusy(true);

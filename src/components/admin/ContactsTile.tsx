@@ -32,7 +32,7 @@ export default function ContactsTile() {
   return (
     <button
       type="button"
-      onClick={() => router.push('/dashboard/contacts')}
+      onClick={() => router.push('/admin/contacts')}
       className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
       data-contacts-tile=""
     >

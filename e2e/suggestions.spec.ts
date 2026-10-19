@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 4 — suggestions and the polish, over the API and
@@ -30,6 +31,8 @@ test('suggestions: the form, the admin merge, the pasted reply, the tag, feature
   const ctxD = await browser.newContext({ storageState: 'e2e/.auth/state-d.json' });
   try {
     await admin.from('platform_admins').upsert({ profile_id: delta.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(deltaApi, delta);
+    await adminSignIn(ctxD, delta);
 
     // Alpha: the form on /help.
     const pageA = await ctxA.newPage();
@@ -56,7 +59,7 @@ test('suggestions: the form, the admin merge, the pasted reply, the tag, feature
 
     // Delta: merge bravo's into alpha's by number, from the ticket page.
     const pageD = await ctxD.newPage();
-    await pageD.goto(`/dashboard/tickets/${rowB.id}`);
+    await pageD.goto(`/admin/tickets/${rowB.id}`);
     await pageD.locator('[data-ticket-merge-into]').fill(numberA);
     await pageD.locator('[data-ticket-merge]').click();
     await expect(pageD.locator('[data-ticket-merged]')).toBeVisible();
@@ -76,14 +79,14 @@ test('suggestions: the form, the admin merge, the pasted reply, the tag, feature
     expect((await deltaApi.post(`/api/admin/tickets/${rowA!.id}/merge`, { data: { into: 'EA-1' } })).status()).toBe(404);
 
     // The tag, the pasted reply, the stats line.
-    await pageD.goto(`/dashboard/tickets/${rowA!.id}`);
+    await pageD.goto(`/admin/tickets/${rowA!.id}`);
     await pageD.getByLabel('Review tag').selectOption('planned');
     await expect(pageD.getByLabel('Review tag')).toHaveValue('planned');
     await pageD.locator('[data-ticket-paste-box]').fill('(from email) Yes — per sport, please.');
     await pageD.locator('[data-ticket-paste]').click();
     await expect(pageD.locator('[data-ticket-history]')).toContainText('(from email) Yes — per sport, please.');
     await expect(pageD.locator('[data-ticket-history]')).toContainText('Reply from the user');
-    await pageD.goto('/dashboard/tickets');
+    await pageD.goto('/admin/tickets');
     await expect(pageD.locator('[data-ticket-stats]')).toContainText('Last 90 days');
 
     // Feature shipped → alpha's bell and bravo's (the merged reporter) too.

@@ -1,7 +1,6 @@
 import { test, expect } from './helpers/test';
-import { adminClient, adminEmailForE2E, createQaUser, deleteQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
-import { runnerPublicIps } from './helpers/runner-ip';
-import { adminContext, adminDoorConfigured, adminSignIn } from './helpers/admin';
+import { adminClient, adminEmailForE2E, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
+import { adminContext, adminDoorConfigured, adminSignIn, resetAdminLoginBuckets } from './helpers/admin';
 
 // The admin console's own door (flow changes item 2 — B1, Oct 19 2026):
 // /admin/login takes an admin account's email + password and sets the
@@ -26,13 +25,7 @@ test.describe('admin login (admin-positive)', () => {
     const mod = await createQaUser({ displayName: 'Mod Morgan', firstName: 'Mod', lastName: 'Morgan' });
     const plain = await createQaUser({ displayName: 'Plain Pat', firstName: 'Plain', lastName: 'Pat' });
     // The two login buckets are IP-keyed (5 per IP + email, 20 per IP, 15 min): three projects in a row would meet their own hits.
-    const runnerIps = await runnerPublicIps();
-    const resetLoginBuckets = async () => {
-      for (const ip of ['::1', '127.0.0.1', 'unknown', ...runnerIps]) {
-        await resetRateBucket(admin, 'admin-login-ip', ip);
-        await resetRateBucket(admin, 'admin-login', ip);
-      }
-    };
+    const resetLoginBuckets = resetAdminLoginBuckets;
     await resetLoginBuckets();
     const probeCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const configured = await adminDoorConfigured(probeCtx);
@@ -62,7 +55,8 @@ test.describe('admin login (admin-positive)', () => {
       await page.locator('[data-admin-login-password]').fill(owner.password);
       await page.locator('[data-admin-login-submit]').click();
       await expect(page).toHaveURL(/\/admin$/, { timeout: 20_000 });
-      await expect(page.locator('[data-admin-home]')).toBeVisible();
+      await expect(page.locator('[data-admin-header]')).toBeVisible();
+      await expect(page.locator('[data-support-queue-tile]')).toBeVisible({ timeout: 20_000 });
       await expect(page.locator('[data-admin-who="owner"]')).toContainText(owner.email);
       const cookie = (await ctx.cookies()).find(c => c.name === 'ea_admin');
       expect(cookie?.httpOnly).toBe(true);

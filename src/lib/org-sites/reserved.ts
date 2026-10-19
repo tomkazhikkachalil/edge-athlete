@@ -17,6 +17,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   // Every routable segment under src/app/(app) — asserted by the test.
   'activities', // Activities program: /activities/[id], the activity page (seeded into reserved_handles by mig 245)
   'activate',
+  'admin', // the admin console's own door (Oct 19 2026): /admin/*
   'app',
   'athlete',
   'athlete-claim',

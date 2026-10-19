@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import {
   adminClient, adminEmailForE2E, createQaUser, deleteQaUser, mintStorageState, readErrorBody,
 } from './helpers/qa-user';
@@ -28,6 +29,7 @@ test.describe('admin site metrics (admin-positive)', () => {
     try {
       const storageState = await mintStorageState(user);
       const ctx = await browser.newContext({ storageState, viewport: { width: 1280, height: 900 } });
+      await adminSignIn(ctx, user);
       try {
         // The route: 200 for an admin (403 for everyone else — the owner half).
         const res = await ctx.request.get('/api/admin/site-metrics');
@@ -53,7 +55,7 @@ test.describe('admin site metrics (admin-positive)', () => {
 
         // The panel: the real tiles, not the loading or the pre-180 copy.
         const page = await ctx.newPage();
-        await page.goto('/dashboard');
+        await page.goto('/admin');
         const panel = page.locator('[data-admin-site-metrics]');
         await expect(panel).toBeVisible({ timeout: 30_000 });
         await expect(panel).not.toContainText('Loading…', { timeout: 30_000 });

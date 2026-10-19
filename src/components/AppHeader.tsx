@@ -699,7 +699,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           {isAdmin && (
                             <button
                               onClick={() => {
-                                router.push('/dashboard');
+                                router.push('/admin');
                                 setIsProfileDropdownOpen(false);
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
@@ -712,7 +712,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           {supportRole && (
                             <button
                               onClick={() => {
-                                router.push('/dashboard/tickets');
+                                router.push('/admin/tickets');
                                 setIsProfileDropdownOpen(false);
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
@@ -1068,7 +1068,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 {isAdmin && (
                   <button
                     onClick={() => {
-                      router.push('/dashboard');
+                      router.push('/admin');
                       setIsMobileMenuOpen(false);
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
@@ -1081,7 +1081,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 {supportRole && (
                   <button
                     onClick={() => {
-                      router.push('/dashboard/tickets');
+                      router.push('/admin/tickets');
                       setIsMobileMenuOpen(false);
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"

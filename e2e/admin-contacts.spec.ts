@@ -1,8 +1,9 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, adminEmailForE2E, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
 
 // The contact list in the console (flow changes item 1 — A3, Oct 19 2026,
-// migration 266), admin-positive: with E2E_ADMIN_EMAIL set to an address
+// migration 266; under /admin and the console's own cookie since B2), admin-positive: with E2E_ADMIN_EMAIL set to an address
 // the target build lists in ADMIN_EMAILS (and no real account owns), this
 // spec seeds three rows, reads the list with its filters, downloads both
 // CSVs (the marketing one dedupes and keeps only the consented), sets the
@@ -38,6 +39,7 @@ test.describe('admin contacts (admin-positive)', () => {
     const owner = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
     const stranger = await createQaUser({ displayName: 'Plain Pat', firstName: 'Plain', lastName: 'Pat' });
     const ownerCtx = await browser.newContext({ storageState: await mintStorageState(owner) });
+    await adminSignIn(ownerCtx, owner);
     const strangerCtx = await browser.newContext({ storageState: await mintStorageState(stranger) });
     try {
       // A stranger is refused everywhere.
@@ -99,12 +101,12 @@ test.describe('admin contacts (admin-positive)', () => {
 
       // The page: the card, the list with this run's rows, the message opening, the tile on the console.
       const page = await ownerCtx.newPage();
-      await page.goto('/dashboard');
+      await page.goto('/admin');
       const tile = page.locator('[data-contacts-tile]');
       await expect(tile).toBeVisible({ timeout: 30_000 });
       await expect(tile).toContainText('sign-ups', { timeout: 30_000 });
       await tile.click();
-      await expect(page).toHaveURL(/\/dashboard\/contacts$/);
+      await expect(page).toHaveURL(/\/admin\/contacts$/);
       await expect(page.locator('[data-notify-inbox-card]')).toBeVisible({ timeout: 30_000 });
       await page.locator('[data-contacts-search]').fill('edgeqa-ac-');
       await expect(page.locator('[data-contacts-total="3"]')).toBeVisible({ timeout: 30_000 });

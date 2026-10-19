@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const claims = await readAdminSession(request);
   if (!claims) return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401, headers: NO_STORE });
-  return NextResponse.json({ email: claims.email, role: claims.role, expiresAt: claims.exp }, { headers: NO_STORE });
+  return NextResponse.json({ id: claims.sub, email: claims.email, role: claims.role, expiresAt: claims.exp }, { headers: NO_STORE });
 }
 
 export async function DELETE(request: NextRequest) {

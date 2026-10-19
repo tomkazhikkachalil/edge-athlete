@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 2 PR 3 — the visible half at 390×844. Bravo
@@ -33,6 +34,8 @@ test('reporting UI: the sheet from a post and a profile, mute, the admin snapsho
   try {
     await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
     await admin.from('platform_admins').upsert({ profile_id: delta.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(deltaApi, delta);
+    await adminSignIn(ctxD, delta);
     const caption = `Reportable from the feed ${Date.now()}`;
     let res = await alphaApi.post('/api/posts', { data: { caption, visibility: 'public', postType: 'general' } });
     expect(res.ok(), await readErrorBody(res)).toBe(true);
@@ -76,7 +79,7 @@ test('reporting UI: the sheet from a post and a profile, mute, the admin snapsho
 
     // Delta: the ticket — the snapshot, then Hide.
     const pageD = await ctxD.newPage();
-    await pageD.goto(`/dashboard/tickets/${trow!.id}`);
+    await pageD.goto(`/admin/tickets/${trow!.id}`);
     await expect(pageD.locator('[data-ticket-snapshot]')).toContainText(caption);
     await expect(pageD.locator('[data-snapshot-kind="post"]')).toBeVisible();
     await expect(pageD.locator('[data-ticket-ladder]')).toContainText('warning');

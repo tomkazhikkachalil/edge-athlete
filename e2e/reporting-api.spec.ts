@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 2 (mig 223) — reporting and enforcement over
@@ -39,6 +40,7 @@ test('reporting: snapshot, merge, Critical hide, repeat-incident limit, actions,
   try {
     await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
     await admin.from('platform_admins').upsert({ profile_id: delta.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(deltaApi, delta);
 
     // Alpha posts twice, publicly.
     const mk = async (caption: string) => {

@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import {
   E2E_BASE_URL, adminClient, adminEmailForE2E, apiAs, bypassHeaders, createQaUser, deleteQaUser, loadQaUser,
   mintStorageState, readErrorBody, resetRateBucket,
@@ -42,6 +43,7 @@ test('an adult with results departs as a name-only tombstone; other players\' re
   const apiB = await apiAs('state-b.json');
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const adminApi = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(adminUser), extraHTTPHeaders: bypassHeaders() });
+  await adminSignIn(adminApi, adminUser);
   const league = await createQaOrg(admin, 'league', { name: `QA Departure League ${stamp}`, sport_key: 'golf', owner_profile_id: alpha.id });
   let eventId: string | null = null;
   try {

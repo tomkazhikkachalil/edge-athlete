@@ -827,7 +827,7 @@ async function bellAdminsCritical(admin: Admin, ticketId: string, number: number
         actor_id: null,
         title: `Critical ${type}: ${formatTicketNumber(number)}`,
         message: `Reason: ${reason.replace(/_/g, ' ')}. Target: within 1 hour.`,
-        action_url: `/dashboard/tickets/${ticketId}`,
+        action_url: `/admin/tickets/${ticketId}`,
         is_read: false,
         metadata: { ticket_id: ticketId, reason },
       }))

@@ -61,7 +61,7 @@ ONE table for articles and how-to videos (a video = a YouTube `video_url`,
 validated through the site builder's `parseEmbedUrl`; the body is PLAIN
 TEXT rendered as blocks, never HTML); the public read is CDN-cached 60 s
 (Vercel consumes `s-maxage` — a spec settles it first); the owner edits at
-`/dashboard/help`; a signed-out visitor files through `POST /api/tickets/
+`/dashboard/help` (→ `/admin/help` since Oct 19 2026, Convention 48); a signed-out visitor files through `POST /api/tickets/
 guest` (honeypot + the `contact` IP bucket; `guest_email` is the
 recipient); `/contact` files a Help ticket; a screenshot rides `POST
 /api/tickets/attachment` under the user's `tickets/` prefix (re-asserted on

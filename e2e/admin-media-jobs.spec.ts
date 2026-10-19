@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup } from './helpers/cleanup';
@@ -45,7 +46,9 @@ test('admin: a clip\'s codec is read at completion; the media worker plans, runs
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const athleteApi = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(athlete), extraHTTPHeaders: bypassHeaders() });
   const adminApi = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(adminUser), extraHTTPHeaders: bypassHeaders() });
+  await adminSignIn(adminApi, adminUser);
   const ctx = await browser.newContext({ storageState: await mintStorageState(adminUser) });
+  await adminSignIn(ctx, adminUser);
   let postId = '';
   let mediaId = '';
   const storagePaths: string[] = [];
@@ -136,7 +139,7 @@ test('admin: a clip\'s codec is read at completion; the media worker plans, runs
 
     // The panel.
     const page = await ctx.newPage();
-    await page.goto('/dashboard');
+    await page.goto('/admin');
     const panel = page.locator('[data-media-jobs-panel]');
     await expect(panel).toBeVisible({ timeout: 20_000 });
     await expect(panel.locator('[data-media-jobs-counts]')).toContainText('done', { timeout: 20_000 });

@@ -68,3 +68,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 45 | Every activity records what its kind of session records, asks at most three questions, and never invents a number | `activities.md` (+ `workouts-and-sessions.md`) |
 | 46 | Every browser works the same: feature-detect, never sniff; no first-party path a blocker blocks | `browser-support.md` |
 | 47 | A sign-up or inquiry is a contact row, a mail to ONE setting, and a confirmation the person reads | `contacts-and-admin.md` |
+| 48 | The admin console is its own door: its own sign-in, its own cookie, the app session never grants it | `contacts-and-admin.md` |

@@ -341,9 +341,9 @@ type CookieAdmin = { present: false } | { present: true; admin: { id: string; em
 async function adminFromCookie(request: NextRequest): Promise<CookieAdmin> {
   const claims = await readAdminSession(request);
   if (!claims) return { present: false };
-  if (claims.role === 'owner') {
-    return { present: true, admin: isAdminEmail(claims.email, process.env.ADMIN_EMAILS) ? { id: claims.sub, email: claims.email, role: 'owner' } : null };
-  }
+  // The role is read from the ONE source on every request — the allowlist, then
+  // `platform_admins` — never trusted from the cookie: a table-granted owner is an
+  // owner, a removed moderator stops at once, an email dropped from the list too.
   const role = await platformRoleFor({ id: claims.sub, email: claims.email });
   return { present: true, admin: role ? { id: claims.sub, email: claims.email, role } : null };
 }
