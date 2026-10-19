@@ -187,15 +187,20 @@ This email was sent from your website's contact form.
   }
 
   /**
-   * Notify the site owner of a new waitlist signup. Best-effort — callers
-   * should not fail the request if this throws.
+   * A new sign-up or inquiry, to the notify inbox (flow changes program,
+   * item 1 — Oct 19 2026). The caller (contacts-server.ts) composes the
+   * subject and the five-fact body and chooses the address — THE setting,
+   * never a string here. deliver()-backed: a false is an unsent mail, never a
+   * thrown request. Reply-To is the person who wrote, so Tom answers from
+   * his inbox.
    */
-  async sendWaitlistNotification(email: string, userType: string): Promise<void> {
-    await this.transporter.sendMail({
+  async sendContactNotification(data: { to: string; replyTo: string; subject: string; text: string }): Promise<boolean> {
+    return this.deliver('contact-notification', {
       from: fromAddress(),
-      to: process.env.CONTACT_EMAIL || process.env.EMAIL_FROM,
-      subject: `Waitlist signup: ${userType}`,
-      text: `New waitlist signup\n\nEmail: ${email}\nInterested as: ${userType}\n\n— Edge Athlete`,
+      to: data.to,
+      replyTo: data.replyTo,
+      subject: data.subject,
+      text: data.text,
     });
   }
 

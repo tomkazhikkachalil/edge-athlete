@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@/lib/auth-server';
-import { emailService } from '@/lib/email-service';
 import { parseBody, emailString } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
+import { ContactsNotLive, recordContact } from '@/lib/contacts/contacts-server';
 
-// Landing-page values ('Club', 'League'…) arrive mixed-case → normalize.
+/**
+ * POST /api/waitlist — since Oct 19 2026 a thin ADAPTER over the contact
+ * list (migration 266, `POST /api/contacts`): the landing page's
+ * Club / League / Fan / Guest popup still posts here until A2 moves it. A
+ * sign-up here is a `notify_signup` contact with no consent asked. The
+ * 027 `waitlist` table stops growing; its rows were copied into `contacts`.
+ */
 const WaitlistSchema = z.object({
   email: emailString,
   userType: z
@@ -22,48 +27,23 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, WaitlistSchema);
     if (!parsed.success) return parsed.response;
-    const { email: normalizedEmail, userType: normalizedType } = parsed.data;
+    const { email, userType } = parsed.data;
 
-    // Persist. Duplicate (email, user_type) is a friendly no-op — the person
-    // is already on the list, so tell them it worked.
-    const supabase = getSupabaseAdmin();
-    const { error: insertError } = await supabase
-      .from('waitlist')
-      .insert({ email: normalizedEmail, user_type: normalizedType });
+    await recordContact({
+      email,
+      name: null,
+      source: 'notify_signup',
+      message: null,
+      marketingConsent: false,
+      consentText: null,
+      userType,
+      userAgent: request.headers.get('user-agent'),
+    });
 
-    if (insertError && insertError.code !== '23505') {
-      reportRouteError('Waitlist insert error:', insertError);
-      return NextResponse.json(
-        { error: 'Could not join the waitlist right now. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    const isNewSignup = !insertError;
-
-    // Best-effort owner notification — only for NEW signups and only when
-    // SMTP is configured. Never fails the request.
-    if (isNewSignup && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        await emailService.sendWaitlistNotification(normalizedEmail, normalizedType);
-      } catch (emailError) {
-        reportRouteError('Waitlist notification email failed (non-fatal):', emailError);
-      }
-    }
-
-    return NextResponse.json(
-      {
-        message: 'Successfully added to waitlist',
-        email: normalizedEmail,
-        userType: normalizedType,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ message: 'Successfully added to waitlist', email, userType }, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof ContactsNotLive) return NextResponse.json({ error: error.message }, { status: 503 });
     reportRouteError('Waitlist API error:', error);
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Could not join the waitlist right now. Please try again.' }, { status: 500 });
   }
 }
