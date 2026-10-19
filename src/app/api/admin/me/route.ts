@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { platformRoleFor, requireAuth } from '@/lib/auth-server';
+import { readAdminSession } from '@/lib/admin/session-server';
 
 /**
  * GET /api/admin/me — "is this session an admin, and which kind?" for the
@@ -11,6 +12,14 @@ import { platformRoleFor, requireAuth } from '@/lib/auth-server';
  */
 export async function GET(request: NextRequest) {
   try {
+    // The console's own cookie answers first (flow changes item 2, B1); the app session still answers until B3.
+    const claims = await readAdminSession(request);
+    if (claims) {
+      const cookieRole = claims.role === 'owner' ? 'owner' : await platformRoleFor({ id: claims.sub, email: claims.email });
+      if (cookieRole) return NextResponse.json({ admin: cookieRole === 'owner', role: cookieRole, door: 'console' }, { headers: { 'Cache-Control': 'private, no-store' } });
+      // A cookie whose role is gone (removed from platform_admins) is refused, never handed to the app session.
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     const user = await requireAuth(request);
     const role = await platformRoleFor(user);
     if (!role) {

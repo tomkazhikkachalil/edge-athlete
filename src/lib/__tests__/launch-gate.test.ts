@@ -14,7 +14,7 @@ describe('launchGateRedirect (signed-out visitors while the gate is up)', () => 
   it('lets the doors through: the sign-in query on /, the auth routes, the password flows, the legal pages', () => {
     expect(launchGateRedirect('/', '?signin=1')).toBeNull();
     expect(launchGateRedirect('/', '?signin=0')).toBe(COMING_SOON_PATH);
-    for (const p of [COMING_SOON_PATH, '/auth/callback', '/auth/complete-profile', '/forgot-password', '/reset-password', '/privacy', '/terms']) {
+    for (const p of [COMING_SOON_PATH, '/auth/callback', '/auth/complete-profile', '/forgot-password', '/reset-password', '/privacy', '/terms', '/admin', '/admin/login', '/admin/contacts']) {
       expect(launchGateRedirect(p, ''), p).toBeNull();
     }
   });

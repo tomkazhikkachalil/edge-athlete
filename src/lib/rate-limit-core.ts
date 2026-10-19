@@ -41,6 +41,9 @@ export const RATE_LIMITS = {
   'username-login': { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   'username-login-ip': { max: 20, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   reauth: { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
+  // The admin console's own sign-in (Oct 19 2026): the username-login pair — per IP, then per IP + email.
+  'admin-login-ip': { max: 20, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
+  'admin-login': { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   'handle-check': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   // Course picker search — anonymous-reachable and it reads cross-user
   // course history; the golf_courses catalog makes it a scraping target.

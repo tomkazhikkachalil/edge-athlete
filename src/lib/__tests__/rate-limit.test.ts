@@ -124,7 +124,7 @@ describe('RATE_LIMITS shape guards', () => {
   });
 
   it('unauthenticated actions are IP-keyed', () => {
-    for (const action of ['contact', 'contacts', 'signup', 'activate', 'reauth'] as const) {
+    for (const action of ['contact', 'contacts', 'signup', 'activate', 'reauth', 'admin-login', 'admin-login-ip'] as const) {
       expect(RATE_LIMITS[action].keyBy).toBe('ip');
     }
   });
