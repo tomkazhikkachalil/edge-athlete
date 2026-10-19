@@ -1,7 +1,16 @@
 'use client';
 
+// The landing page's Club / League / Fan / Guest popup (shown while the gate
+// is off): since the contact list (Oct 19 2026, migration 266) a
+// notification sign-up through POST /api/contacts — an optional name, the
+// interest type, an explicit consent box — with the same confirmation the
+// coming-soon page gives.
+
 import { useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { COPY } from '@/lib/copy';
+import { MARKETING_CONSENT_TEXT } from '@/lib/contacts/rules';
+import { contactDoneCopy } from '@/components/ComingSoon';
 
 interface WaitlistPopupProps {
   isOpen: boolean;
@@ -9,63 +18,60 @@ interface WaitlistPopupProps {
   userType: string;
 }
 
+const TYPES = [
+  { value: 'club', label: 'Club' },
+  { value: 'league', label: 'League' },
+  { value: 'fan', label: 'Fan' },
+  { value: 'guest', label: 'Guest Explorer' },
+] as const;
+
+const FIELD = 'w-full px-3 py-2 min-h-[44px] border border-border-strong rounded-md bg-surface text-primary';
+
 export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPopupProps) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [selectedType, setSelectedType] = useState(userType);
+  const [consent, setConsent] = useState(false);
+  const [selectedType, setSelectedType] = useState(userType.toLowerCase());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (!email || !selectedType) {
-      setError('Please fill in all fields');
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
     setIsSubmitting(true);
-
     try {
-      const response = await fetch('/api/waitlist', {
+      const response = await fetch('/api/contacts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
+          email: email.trim(),
+          source: 'notify_signup',
+          name: name.trim() || undefined,
+          marketingConsent: consent,
+          consentText: MARKETING_CONSENT_TEXT,
           userType: selectedType,
         }),
       });
-
-      const result = await response.json();
-
+      const result = (await response.json().catch(() => ({}))) as { error?: string; email?: string };
       if (!response.ok) {
-        setError(result.error || 'Something went wrong. Please try again.');
+        setError(result.error || COPY.CONTACTS.ERROR_GENERIC);
         return;
       }
-
-      setIsSubmitted(true);
-    } catch (e) {
-      console.error('Failed to submit waitlist entry:', e);
-      setError('Something went wrong. Please try again.');
+      setSubmittedEmail(result.email ?? email.trim().toLowerCase());
+    } catch {
+      setError(COPY.CONTACTS.ERROR_OFFLINE);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
+    setName('');
     setEmail('');
-    setSelectedType(userType);
-    setIsSubmitted(false);
+    setConsent(false);
+    setSelectedType(userType.toLowerCase());
+    setSubmittedEmail(null);
     setError('');
     onClose();
   };
@@ -75,114 +81,84 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
 
   if (!isOpen) return null;
 
+  const typeLabel = TYPES.find(t => t.value === selectedType)?.label.toLowerCase() ?? selectedType;
+  const done = submittedEmail ? contactDoneCopy('notify_signup', name, submittedEmail) : null;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto">
-        {!isSubmitted ? (
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto" role="dialog" aria-modal="true" data-waitlist-popup="">
+        {!done ? (
           <div className="p-6">
-            {/* Header */}
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-xl font-bold text-primary mb-2">
-                  Thank you for your enthusiasm!
-                </h2>
+                <h2 className="text-xl font-bold text-primary mb-2">Thank you for your enthusiasm!</h2>
                 <p className="text-tertiary text-sm">
-                  We&apos;re not quite ready for {selectedType.toLowerCase()} profiles yet, but we&apos;d love to notify you when we launch.
+                  We&apos;re not quite ready for {typeLabel} profiles yet, but we&apos;d love to notify you when we launch.
                 </p>
               </div>
-              <button
-                onClick={handleClose}
-                className="text-faint hover:text-tertiary text-xl leading-none"
-                aria-label="Close popup"
-              >
+              <button onClick={handleClose} className="ea-icon-btn text-faint hover:text-tertiary text-xl leading-none" aria-label="Close popup">
                 ×
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">
-                  Email Address
+                <label htmlFor="waitlist-name" className="block text-sm font-medium text-secondary mb-1">
+                  {COPY.CONTACTS.NAME_LABEL}
                 </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  placeholder="Enter your email"
-                  required
-                />
+                <input id="waitlist-name" type="text" autoComplete="name" maxLength={100} value={name} onChange={e => setName(e.target.value)} className={FIELD} data-waitlist-name="" />
               </div>
-
               <div>
-                <label htmlFor="userType" className="block text-sm font-medium text-secondary mb-1">
+                <label htmlFor="waitlist-email" className="block text-sm font-medium text-secondary mb-1">
+                  {COPY.CONTACTS.EMAIL_LABEL}
+                </label>
+                <input id="waitlist-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} className={FIELD} placeholder="you@example.com" required />
+              </div>
+              <div>
+                <label htmlFor="waitlist-type" className="block text-sm font-medium text-secondary mb-1">
                   Profile Type
                 </label>
-                <select
-                  id="userType"
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  required
-                >
-                  <option value="Club">Club</option>
-                  <option value="League">League</option>
-                  <option value="Fan">Fan</option>
-                  <option value="Guest">Guest Explorer</option>
+                <select id="waitlist-type" value={selectedType} onChange={e => setSelectedType(e.target.value)} className={FIELD} required>
+                  {TYPES.map(t => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </select>
               </div>
+              <label className="flex min-h-[44px] items-start gap-3 text-sm text-secondary">
+                <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0" data-waitlist-consent="" />
+                <span>
+                  <span className="block text-primary">{COPY.CONTACTS.CONSENT_LABEL}</span>
+                  <span className="block text-xs text-muted">{COPY.CONTACTS.CONSENT_HINT}</span>
+                </span>
+              </label>
 
               {error && (
-                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-3 py-2 rounded-md text-sm">
+                <div className="bg-danger-soft border border-border text-danger-fg px-3 py-2 rounded-md text-sm" role="alert">
                   {error}
                 </div>
               )}
 
               <div className="flex space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="flex-1 px-4 py-2 border border-border-strong text-secondary rounded-md hover:bg-surface-muted transition duration-200"
-                >
+                <button type="button" onClick={handleClose} className="flex-1 px-4 py-2 min-h-[44px] border border-border-strong text-secondary rounded-md hover:bg-surface-muted transition duration-200">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-brand text-white rounded-md hover:bg-brand-hover transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
-                      Joining...
-                    </>
-                  ) : (
-                    'Join Waitlist'
-                  )}
+                <button type="submit" disabled={isSubmitting} className="ea-cta flex-1 px-4 py-2 min-h-[44px] rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center" data-waitlist-submit="">
+                  {isSubmitting ? COPY.CONTACTS.SENDING : COPY.CONTACTS.NOTIFY_CTA}
                 </button>
               </div>
             </form>
           </div>
         ) : (
-          <div className="p-6 text-center">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-950/60 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-check text-green-600 dark:text-green-400 text-2xl"></i>
+          <div className="p-6 text-center" role="status" data-waitlist-done="">
+            <div className="w-16 h-16 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="fas fa-check text-success-fg text-2xl" aria-hidden="true"></i>
             </div>
-            <h3 className="text-lg font-bold text-primary mb-2">
-              You&apos;re on the list!
-            </h3>
-            <p className="text-tertiary mb-6">
-              We&apos;ll notify you at <strong>{email}</strong> when {selectedType.toLowerCase()} profiles are ready.
-            </p>
-            <p className="text-sm text-muted mb-6">
-              In the meantime, you can still sign up as an Athlete to explore the platform!
-            </p>
-            <button
-              onClick={handleClose}
-              className="px-6 py-2 bg-brand text-white rounded-md hover:bg-brand-hover transition duration-200"
-            >
+            <h3 className="text-lg font-bold text-primary mb-2">{done.title}</h3>
+            <p className="text-tertiary mb-6">{done.body}</p>
+            <p className="text-sm text-muted mb-6">In the meantime, you can still sign up as an Athlete to explore the platform!</p>
+            <button onClick={handleClose} className="ea-cta px-6 py-2 min-h-[44px] rounded-md">
               Got it!
             </button>
           </div>

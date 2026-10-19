@@ -278,6 +278,31 @@ export const COPY = {
     CONTACT_EMAIL: 'support@edgeathlete.ca',
     CONTACT_NOTE: 'The fastest way to reach us is a request above — it gets a ticket number and a reply here and by email. Email is the fallback.',
   },
+  // The contact list (flow changes program, item 1 — Oct 19 2026): the
+  // coming-soon form and the landing popup. One confirmation the person
+  // reads; the consent words travel with the row (src/lib/contacts/rules.ts
+  // MARKETING_CONSENT_TEXT is the same sentence — a test pins them equal).
+  CONTACTS: {
+    NAME_LABEL: 'Name (optional)',
+    EMAIL_LABEL: 'Email',
+    CONSENT_LABEL: 'Also send me Edge Athlete news and offers',
+    CONSENT_HINT: 'Optional. You can unsubscribe any time.',
+    NOTIFY_CTA: 'Notify me',
+    INQUIRY_OFFER: 'Have a question? Send us a note',
+    INQUIRY_BACK: 'Just notify me instead',
+    MESSAGE_LABEL: 'Your message',
+    MESSAGE_PLACEHOLDER: 'What would you like to know?',
+    MESSAGE_REQUIRED: 'Write a short message with your inquiry.',
+    SEND_CTA: 'Send',
+    SENDING: 'Sending…',
+    /** {name} is ", Name" or empty; {email} the address. */
+    DONE_SIGNUP_TITLE: 'You’re on the list',
+    DONE_SIGNUP_BODY: 'We’ll email {email} when the doors open.',
+    DONE_INQUIRY_TITLE: 'Thanks{name} — we got your note',
+    DONE_INQUIRY_BODY: 'We’ll reply to {email}.',
+    ERROR_GENERIC: 'Please try again.',
+    ERROR_OFFLINE: 'Check your connection and try again.',
+  },
   ERRORS: {
     PROFILE_NOT_FOUND: 'Profile not found',
     ACTIVITY_NOT_FOUND: 'Activity not found',
