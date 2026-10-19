@@ -55,11 +55,13 @@ describe('safeAdminNext', () => {
 
 describe('the gates take the cookie first', () => {
   const src = readFileSync(resolve(__dirname, '../auth-server.ts'), 'utf8');
-  it('requireAdmin and requireModerator read the admin cookie before the app session', () => {
+  it('requireAdmin and requireModerator read the admin cookie and nothing else (B3)', () => {
     for (const fn of ['requireAdmin', 'requireModerator']) {
       const body = src.slice(src.indexOf(`export async function ${fn}(`));
-      const head = body.slice(0, body.indexOf('requireAuth(request'));
-      expect(head, fn).toContain('adminFromCookie(request)');
+      const call = body.slice(0, body.indexOf('\n}'));
+      expect(call, fn).toContain('adminFromCookie(request)');
+      expect(call, fn).toContain('requireConsoleCookie()');
+      expect(call, fn).not.toContain('requireAuth(');
     }
   });
   it('the launch gate lets /admin through and the env documents the secret as server-only', () => {

@@ -15,12 +15,15 @@ import path from 'node:path';
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
 
 describe('the network user is taken where it must be', () => {
-  it('the write, admin and moderator gates pass fresh: true', () => {
+  it('the write gate passes fresh: true; the admin and moderator gates read the console cookie only (B3, Oct 19 2026)', () => {
     const src = read('src/lib/auth-server.ts');
-    for (const fn of ['requireActiveWriter', 'requireAdmin', 'requireModerator']) {
-      const body = src.slice(src.indexOf(`export async function ${fn}(`));
-      const call = body.slice(0, body.indexOf('\n}'));
-      expect(call, fn).toMatch(/requireAuth\(request, \{ fresh: true \}\)/);
+    const body = src.slice(src.indexOf('export async function requireActiveWriter('));
+    expect(body.slice(0, body.indexOf('\n}'))).toMatch(/requireAuth\(request, \{ fresh: true \}\)/);
+    for (const fn of ['requireAdmin', 'requireModerator']) {
+      const gate = src.slice(src.indexOf(`export async function ${fn}(`));
+      const call = gate.slice(0, gate.indexOf('\n}'));
+      expect(call, fn).toContain('adminFromCookie(request)');
+      expect(call, fn).not.toContain('requireAuth(');
     }
   });
 

@@ -68,7 +68,7 @@ test('help center API: public articles, the guest request, /contact, the screens
     expect((await request.get(`/api/help/articles/qa-draft-${rand}`)).status()).toBe(404);
     expect((await request.get('/api/help/articles/Not%20A%20Slug')).status()).toBe(404);
     // The CRUD is owner-only: a plain member and a moderator are refused.
-    expect((await alphaApi.post('/api/admin/help/articles', { data: { title: 'x', topic: 'other' } })).status()).toBe(403);
+    expect((await alphaApi.post('/api/admin/help/articles', { data: { title: 'x', topic: 'other' } })).status()).toBe(401); // no console cookie (B3)
 
     // The owner's CRUD, when the target build names an admin.
     const adminEmail = adminEmailForE2E();

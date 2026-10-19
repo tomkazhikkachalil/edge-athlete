@@ -53,6 +53,12 @@ const viewerId = user?.id ?? null;   // null = anonymous, and that's fine
 
 ### The throwing variants: `requireAuth` / `requireAdmin` / `requireProfileRole`
 
+> **The admin gates read the CONSOLE COOKIE, not the app session (Oct 19 2026,
+> Convention 48).** `requireAdmin` and `requireModerator` verify `ea_admin`
+> (`src/lib/admin/session-server.ts`) and re-read the role from `platformRoleFor`;
+> no cookie → 401 `'Admin sign-in required'`, a cookie that is not enough → 403.
+> A signed-in app user is never an admin by that session alone.
+
 These **throw a `Response`** (401/403) instead of returning. Most routes using
 them have no surrounding try/catch and let the thrown Response propagate. If
 your handler DOES wrap work in try/catch, the catch block **MUST `return` the

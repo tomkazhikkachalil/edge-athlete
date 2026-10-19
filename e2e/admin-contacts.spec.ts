@@ -44,7 +44,7 @@ test.describe('admin contacts (admin-positive)', () => {
     try {
       // A stranger is refused everywhere.
       for (const path of ['/api/admin/contacts', '/api/admin/contacts/export', '/api/admin/settings']) {
-        expect((await strangerCtx.request.get(path)).status(), path).toBe(403);
+        expect((await strangerCtx.request.get(path)).status(), path).toBe(401); // no console cookie (B3)
       }
 
       // The list, filtered to this run's rows.

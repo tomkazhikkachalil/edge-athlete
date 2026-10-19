@@ -111,7 +111,7 @@ test('an adult with results departs as a name-only tombstone; other players\' re
 
     // ── T asks to delete (the park), then the owner's door purges now ─────────
     await admin.from('profiles').update({ deletion_requested_at: new Date().toISOString(), visibility: 'private' }).eq('id', t.id);
-    expect((await apiB.post('/api/admin/account-purge', { data: { profileId: t.id } })).status(), 'a non-admin is refused').toBe(403);
+    expect((await apiB.post('/api/admin/account-purge', { data: { profileId: t.id } })).status(), 'a non-admin (no console cookie) is refused').toBe(401);
     const dry = await adminApi.post('/api/admin/account-purge', { data: { profileId: t.id } });
     expect(dry.ok(), await readErrorBody(dry)).toBe(true);
     const plan = await dry.json();

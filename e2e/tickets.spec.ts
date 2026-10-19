@@ -26,9 +26,9 @@ test('tickets: file, My requests, the moderator queue, reply, resolve, the one a
   await resetRateBucket(admin, 'ticket-reply', alpha.id);
   const ticketIds: string[] = [];
   try {
-    // Pre-role: bravo is a plain member — the queue is 403 and admin/me is 403.
-    expect((await bravoApi.get('/api/admin/tickets')).status()).toBe(403);
-    expect((await bravoApi.get('/api/admin/me')).status()).toBe(403);
+    // Pre-role: bravo is a plain member with no console cookie — the queue and admin/me are 401 (the app session never grants admin, B3).
+    expect((await bravoApi.get('/api/admin/tickets')).status()).toBe(401);
+    expect((await bravoApi.get('/api/admin/me')).status()).toBe(401);
 
     // Alpha files a Help ticket. The reason must come from the type's list.
     let res = await alphaApi.post('/api/tickets', { data: { type: 'help', reason: 'minor_safety', description: 'x' } });
