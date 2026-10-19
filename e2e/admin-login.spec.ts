@@ -82,7 +82,7 @@ test.describe('admin login (admin-positive)', () => {
       await expect(page).toHaveURL(/\/admin\/login/);
       expect((await ctx.cookies()).find(c => c.name === 'ea_admin')?.value ?? '').toBe('');
       res = await ctx.request.get('/api/admin/me');
-      expect(res.status()).toBe(401); // no cookie → the legacy app-session path, and this context holds no session
+      expect(res.status()).toBe(401); // no cookie → no door
       await ctx.close();
 
       // A moderator's cookie: the queue yes, the owner routes no.
@@ -99,11 +99,12 @@ test.describe('admin login (admin-positive)', () => {
       expect(res.status()).toBe(403);
       await modCtx.close();
 
-      // The app session and the console cookie are two doors: an owner's APP session alone still answers the probe in B1 (B3 closes that).
+      // The app session and the console cookie are two doors: an owner's APP session alone never opens the console (B3) — the cookie does.
       const appCtx = await browser.newContext({ storageState: await mintStorageState(owner) });
       res = await appCtx.request.get('/api/admin/me');
-      expect(res.status()).toBe(200);
-      expect(((await res.json()) as { door?: string }).door).toBeUndefined();
+      expect(res.status()).toBe(401);
+      res = await appCtx.request.get('/api/admin/contacts?page=1');
+      expect(res.status()).toBe(401);
       await adminSignIn(appCtx, owner);
       res = await appCtx.request.get('/api/admin/me');
       expect(((await res.json()) as { door?: string }).door).toBe('console');

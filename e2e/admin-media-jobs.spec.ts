@@ -75,7 +75,7 @@ test('admin: a clip\'s codec is read at completion; the media worker plans, runs
 
     // The gate.
     expect((await anon.get('/api/admin/media-jobs')).status()).toBe(401);
-    expect((await qa.post('/api/admin/media-jobs', { data: { action: 'plan' } })).status()).toBe(403);
+    expect((await qa.post('/api/admin/media-jobs', { data: { action: 'plan' } })).status()).toBe(401); // no console cookie (B3)
     expect((await adminApi.post('/api/admin/media-jobs', { data: { action: 'everything' } })).status()).toBe(400);
 
     // The WRITER enqueued the clip's job at post (PR 8) — no owner action. The plan still LISTS the row

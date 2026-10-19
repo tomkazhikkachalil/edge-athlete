@@ -166,9 +166,9 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const subdomain = (await res.json()).site.subdomain as string;
     test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
-    // The metrics route is admin-only: a league owner is refused.
+    // The metrics route is admin-only: a league owner holds no console cookie and is refused (401 since B3).
     res = await ownerApi.get('/api/admin/site-metrics');
-    expect(res.status()).toBe(403);
+    expect(res.status()).toBe(401);
 
     const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
     try {

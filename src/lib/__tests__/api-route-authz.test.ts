@@ -25,7 +25,8 @@ const GATE_RE =
   // openMatchWrite (Events phase 3, PR 6) wraps getServerAuth + resolveActor + the event gate + the match membership for the three match writes.
   // requireModerator (Support & Reporting, Spec 1) wraps requireAuth + the platform role (owner | moderator) with an intent.
   // requireActiveWriter (Support & Reporting, Spec 2) wraps requireAuth + the moderation write gate.
-  /\b(requireAuth|requireActiveWriter|getServerAuth|requireAdmin|requireModerator|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|openMatchWrite|CRON_SECRET|auth\.getUser)\b/;
+  // readAdminSession (the admin console's own door, Oct 19 2026) is the console cookie's verified read — /api/admin/me answers from it alone.
+  /\b(requireAuth|requireActiveWriter|getServerAuth|requireAdmin|requireModerator|readAdminSession|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|openMatchWrite|CRON_SECRET|auth\.getUser)\b/;
 
 /** Gates that scope access to a PROFILE (not just "some session exists").
  *  requireAdmin qualifies: admin surfaces act cross-profile by design. */

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { platformRoleFor, requireAuth } from '@/lib/auth-server';
+import { platformRoleFor } from '@/lib/auth-server';
 import { readAdminSession } from '@/lib/admin/session-server';
 
 /**
@@ -11,21 +11,17 @@ import { readAdminSession } from '@/lib/admin/session-server';
  * allowlist is an env var and the roles table changes without a deploy.
  */
 export async function GET(request: NextRequest) {
+  const headers = { 'Cache-Control': 'private, no-store' } as const;
   try {
-    // The console's own cookie answers first (flow changes item 2, B1); the app session still answers until B3.
+    // The console's own cookie is the ONLY answer since B3 (Oct 19 2026): no
+    // cookie → 401 (the app session never grants admin), a cookie whose role
+    // is gone → 403. The header's menu shows its admin entries only to a
+    // browser that also holds the console cookie.
     const claims = await readAdminSession(request);
-    if (claims) {
-      const cookieRole = await platformRoleFor({ id: claims.sub, email: claims.email });
-      if (cookieRole) return NextResponse.json({ admin: cookieRole === 'owner', role: cookieRole, door: 'console' }, { headers: { 'Cache-Control': 'private, no-store' } });
-      // A cookie whose role is gone (removed from platform_admins) is refused, never handed to the app session.
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
-    }
-    const user = await requireAuth(request);
-    const role = await platformRoleFor(user);
-    if (!role) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
-    }
-    return NextResponse.json({ admin: role === 'owner', role }, { headers: { 'Cache-Control': 'private, no-store' } });
+    if (!claims) return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401, headers });
+    const role = await platformRoleFor({ id: claims.sub, email: claims.email });
+    if (!role) return NextResponse.json({ error: 'Admin access required' }, { status: 403, headers });
+    return NextResponse.json({ admin: role === 'owner', role, door: 'console' }, { headers });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

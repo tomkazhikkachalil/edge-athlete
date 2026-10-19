@@ -329,12 +329,9 @@ export function isAdminEmail(
 }
 
 /**
- * The console's own cookie (flow changes item 2, B1 — Oct 19 2026): an
- * owner's cookie is the owner; a moderator's is re-checked against
- * `platform_admins` on every request (removal bites at once; owners are
- * env). Null = no cookie / no secret — the gates then take the app session
- * as before, UNTIL B3 flips them to cookie-only (Tom: the app session never
- * grants admin).
+ * The console's own cookie (flow changes item 2 — Oct 19 2026): the ONLY key
+ * to the admin gates since B3 (Tom: the app session never grants admin). The
+ * role is re-read from the one source on every request.
  */
 type CookieAdmin = { present: false } | { present: true; admin: { id: string; email: string; role: PlatformRole } | null };
 
@@ -356,22 +353,25 @@ function refuseCookie(role: PlatformRole | null | undefined): never {
   );
 }
 
-export async function requireAdmin(request: NextRequest) {
+/** No console cookie at all: the door is the login, never the app session (B3, Oct 19 2026). */
+function requireConsoleCookie(): never {
+  throw new Response(
+    JSON.stringify({ error: 'Admin sign-in required' }),
+    { status: 401, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * The owner gate (flow changes item 2, B3 — Oct 19 2026): the CONSOLE COOKIE
+ * ONLY. Tom's decision: the app session never grants admin. The actor is the
+ * cookie's `sub` (a Supabase user on the admin list), so every admin write
+ * keeps its author. No cookie → 401; a cookie that is not an owner → 403.
+ */
+export async function requireAdmin(request: NextRequest): Promise<{ id: string; email: string }> {
   const fromCookie = await adminFromCookie(request);
-  if (fromCookie.present) {
-    if (fromCookie.admin?.role === 'owner') return { id: fromCookie.admin.id, email: fromCookie.admin.email } as Awaited<ReturnType<typeof requireAuth>>;
-    refuseCookie(fromCookie.admin?.role);
-  }
-  const user = await requireAuth(request, { fresh: true });
-
-  if (!isAdminEmail(user.email, process.env.ADMIN_EMAILS)) {
-    throw new Response(
-      JSON.stringify({ error: 'Admin access required' }),
-      { status: 403, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
-  return user;
+  if (!fromCookie.present) requireConsoleCookie();
+  if (fromCookie.admin?.role === 'owner') return { id: fromCookie.admin.id, email: fromCookie.admin.email };
+  return refuseCookie(fromCookie.admin?.role);
 }
 // ── Platform roles (Support & Reporting, Spec 1 — migration 222) ────────────
 //
@@ -413,24 +413,14 @@ export async function platformRoleFor(user: { id: string; email?: string | null 
  * ones MODERATOR_INTENTS lists. Throws the same 401 / 403 Responses the
  * other gates do; the caller `return`s a caught Response, never rethrows.
  */
-export async function requireModerator(request: NextRequest, opts: { intent: ModeratorIntent }) {
+export async function requireModerator(request: NextRequest, opts: { intent: ModeratorIntent }): Promise<{ user: { id: string; email: string }; role: PlatformRole }> {
   const fromCookie = await adminFromCookie(request);
-  if (fromCookie.present) {
-    const a = fromCookie.admin;
-    if (a && (a.role === 'owner' || MODERATOR_INTENTS.has(opts.intent))) {
-      return { user: { id: a.id, email: a.email } as Awaited<ReturnType<typeof requireAuth>>, role: a.role };
-    }
-    refuseCookie(a?.role);
+  if (!fromCookie.present) requireConsoleCookie();
+  const a = fromCookie.admin;
+  if (a && (a.role === 'owner' || MODERATOR_INTENTS.has(opts.intent))) {
+    return { user: { id: a.id, email: a.email }, role: a.role };
   }
-  const user = await requireAuth(request, { fresh: true });
-  const role = await platformRoleFor(user);
-  if (role === 'owner' || (role === 'moderator' && MODERATOR_INTENTS.has(opts.intent))) {
-    return { user, role };
-  }
-  throw new Response(
-    JSON.stringify({ error: role === 'moderator' ? 'Owner access required' : 'Admin access required' }),
-    { status: 403, headers: { 'Content-Type': 'application/json' } }
-  );
+  return refuseCookie(a?.role);
 }
 
 // ── The write gate (Support & Reporting, Spec 2 — migration 223) ───────────
