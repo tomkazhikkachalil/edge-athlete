@@ -1,4 +1,5 @@
 import { purgePost } from './helpers/results';
+import { adminSignIn } from './helpers/admin';
 import { test, expect, request as pwRequest, type APIResponse } from './helpers/test';
 import {
   adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody, E2E_BASE_URL,
@@ -21,6 +22,7 @@ test('performance backfill: admin gate, contract, and an idempotent live run ove
   let postId = '';
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const adminApi = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(adminUser) });
+  await adminSignIn(adminApi, adminUser);
   try {
     // The gate: a signed-in non-admin is refused.
     const denied = await qa.post('/api/admin/performance-backfill', { data: { source: 'posts' } });

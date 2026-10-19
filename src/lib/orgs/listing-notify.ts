@@ -1,6 +1,6 @@
 // ── The admin bell for a listing request (Onboarding v2 R1, 179) ────────────
 // Before R1 nothing told an admin a request had landed — they polled
-// /dashboard/clubs. Now every listing request (the public default at
+// /admin/clubs. Now every listing request (the public default at
 // creation, or an owner flipping "link only" → "ask to be listed") bells
 // every ADMIN_EMAILS account. Best-effort by contract: a 23514 on a
 // pre-179 CHECK, a missing admin profile, any insert error → log, never
@@ -39,7 +39,7 @@ export async function notifyAdminsOfListingRequest(
       type: 'org_listing_request',
       title: `${n.orgName} asked to be listed in the ${n.side} directory`,
       message: null,
-      action_url: `/dashboard/${plural}`,
+      action_url: `/admin/${plural}`,
       actor_id: n.requesterId,
       is_read: false,
       metadata: { [NOTIFY_ORG_KEY[n.side]]: n.orgId },

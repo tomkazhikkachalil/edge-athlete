@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, bypassHeaders, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanupEvent, createEvent } from './helpers/sport-events';
@@ -45,6 +46,7 @@ test('report a club and an event: the thing, never a person; your own is not rep
     expect(alphaRow?.moderation_state ?? 'active').toBe('active');
     // The one-click actions point at the recovery panel.
     await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'owner' }, { onConflict: 'profile_id' });
+    await adminSignIn(bravoApi, bravo);
     res = await bravoApi.post(`/api/admin/tickets/${orgTicket.id}/actions`, { data: { action: 'limit' } });
     expect(res.status()).toBe(409);
     expect(await res.text()).toMatch(/recovery panel/);
@@ -67,6 +69,7 @@ test('report a club and an event: the thing, never a person; your own is not rep
 
     // The door on the org page, at phone width: a visitor sees Report; ?report=1 opens the sheet.
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
+    await adminSignIn(ctx, bravo);
     try {
       const page = await ctx.newPage();
       await page.goto(`/club/${clubId}?report=1`);

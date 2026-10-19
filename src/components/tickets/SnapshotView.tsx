@@ -145,7 +145,7 @@ export default function SnapshotView({ snapshot, targetId }: { snapshot: Record<
         <p className="text-sm text-primary font-medium">{s.name} <span className="text-xs text-muted">· {s.org_kind} · {s.visibility}{s.location ? ` · ${s.location}` : ''}</span></p>
         {s.description && <p className="text-sm text-primary whitespace-pre-wrap">{s.description}</p>}
         {s.site && <p className="text-xs text-muted">Site /org/{s.site.subdomain}{s.site.custom_domain ? ` · ${s.site.custom_domain}` : ''} · {s.site.live ? 'live' : 'offline'} when reported{s.site.published_revision_id ? ' — the version live then is in its history' : ''}</p>}
-        <a href={`/dashboard/recovery/org/${s.org_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
+        <a href={`/admin/recovery/org/${s.org_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
       </div>
     );
   }
@@ -161,7 +161,7 @@ export default function SnapshotView({ snapshot, targetId }: { snapshot: Record<
             The reporter&apos;s result as recorded: {s.reporter_result.rounds.map(r => `R${r.sequence} ${r.gross != null ? `${r.gross} (${r.holes ?? '?'} holes)` : r.stats ? Object.entries(r.stats).map(([k, v]) => `${k} ${v}`).join(', ') : '—'}`).join(' · ') || 'no rounds'}
           </p>
         )}
-        <a href={`/dashboard/recovery/event/${s.event_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
+        <a href={`/admin/recovery/event/${s.event_id}`} className="text-xs text-brand-fg hover:underline">Open the recovery panel</a>
       </div>
     );
   }

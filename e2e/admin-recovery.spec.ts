@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanupEvent, createEvent, readView } from './helpers/sport-events';
@@ -54,8 +55,10 @@ test('recovery: owner-only; pause/release; add and remove an owner; the recovery
     const panel = `/api/admin/recovery/orgs/${clubId}`;
     expect((await bravoApi.get(panel)).status()).toBe(403);
     expect((await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'moderator' }, { onConflict: 'profile_id' })).error).toBeNull();
+    await adminSignIn(bravoApi, bravo);
     expect((await bravoApi.get(panel)).status()).toBe(403);
     expect((await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'owner' }, { onConflict: 'profile_id' })).error).toBeNull();
+    await adminSignIn(bravoApi, bravo);
     res = await bravoApi.get(panel);
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect(((await res.json()) as { people: { profileId: string; role: string }[] }).people).toEqual(expect.arrayContaining([expect.objectContaining({ profileId: alpha.id, role: 'owner' })]));
@@ -195,9 +198,10 @@ test('the org recovery panel at phone width: ticket + reason gate the actions; p
     expect((await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'owner' }, { onConflict: 'profile_id' })).error).toBeNull();
 
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
+    await adminSignIn(ctx, bravo);
     try {
       const page = await ctx.newPage();
-      await page.goto(`/dashboard/recovery/org/${clubId}?ticket=${encodeURIComponent(ticket.number)}`);
+      await page.goto(`/admin/recovery/org/${clubId}?ticket=${encodeURIComponent(ticket.number)}`);
       await expect(page.locator(`[data-recovery-org="${clubId}"]`)).toBeVisible({ timeout: 20_000 });
       await expect(page.locator('[data-recovery-ticket]')).toHaveValue(ticket.number);
       const pause = page.locator('[data-recovery-act="hold"]');

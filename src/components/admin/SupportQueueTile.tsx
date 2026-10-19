@@ -36,7 +36,7 @@ export default function SupportQueueTile() {
   return (
     <button
       type="button"
-      onClick={() => router.push('/dashboard/tickets')}
+      onClick={() => router.push('/admin/tickets')}
       className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
       data-support-queue-tile=""
     >

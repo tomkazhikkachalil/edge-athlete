@@ -149,7 +149,7 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       'app/api/calendar/events/[id]/route.ts': 12,
       'app/api/sport-events/[id]/route.ts': 12,
       'app/api/admin/venues/route.ts': 2,
-      'app/(app)/dashboard/venues/page.tsx': 2,
+      'app/(admin)/admin/(console)/venues/page.tsx': 2,
       // the helpers' own output shape (pairFieldsFor / pairFieldsOf), read by name
       'lib/orgs/gallery-gate.ts': 2,
       'lib/orgs/scoped-members.ts': 4,

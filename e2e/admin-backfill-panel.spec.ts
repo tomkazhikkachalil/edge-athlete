@@ -1,4 +1,5 @@
 import { purgePost } from './helpers/results';
+import { adminSignIn } from './helpers/admin';
 import { test, expect } from './helpers/test';
 import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, mintStorageState, readErrorBody } from './helpers/qa-user';
 
@@ -16,6 +17,7 @@ test('admin dashboard: the performance backfill panel dry-runs all four sources 
   const qa = await apiAs('state.json');
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const ctx = await browser.newContext({ storageState: await mintStorageState(adminUser) });
+  await adminSignIn(ctx, adminUser);
   let postId = '';
   try {
     // F5c: the dashboard has a door — the account menu's "Admin dashboard"
@@ -24,7 +26,7 @@ test('admin dashboard: the performance backfill panel dry-runs all four sources 
     await page.goto('/feed');
     await page.locator('[data-profile-menu-trigger]').click();
     await page.locator('[data-admin-dashboard-link]').first().click();
-    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 20_000 });
     const panel = page.locator('[data-admin-performance-backfill]');
     await expect(panel).toBeVisible({ timeout: 20_000 });
 

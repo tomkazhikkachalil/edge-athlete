@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 1 PR 4 — the admin UI in a real browser. Alpha
@@ -29,10 +30,11 @@ test('support queue UI: the row, the detail, take · reply · note · resolve, t
     ticketIds.push(created.id);
 
     const { error: roleError } = await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(ctxB, bravo);
     expect(roleError).toBeNull();
 
     const page = await ctxB.newPage();
-    await page.goto('/dashboard/tickets');
+    await page.goto('/admin/tickets');
     await expect(page.getByRole('heading', { name: 'Support queue' })).toBeVisible();
     const row = page.locator(`[data-ticket-row="${created.id}"]`);
     await expect(row).toBeVisible();
@@ -40,15 +42,19 @@ test('support queue UI: the row, the detail, take · reply · note · resolve, t
     await expect(row).toContainText('Cannot join the Sunday event');
     await expect(page.getByLabel('Open counts')).toContainText('Open');
 
-    // The header: a moderator gets the queue entry, never the dashboard.
+    // The APP header (the console has its own since B2): a moderator gets the queue entry, never the dashboard.
     // The drawer below lg, the account dropdown from lg up — open whichever is on screen.
-    const drawerToggle = page.getByRole('button', { name: 'Toggle mobile menu' });
+    const appPage = await ctxB.newPage();
+    await appPage.goto('/feed');
+    const drawerToggle = appPage.getByRole('button', { name: 'Toggle mobile menu' });
+    const accountMenu = appPage.getByRole('button', { name: 'Account menu' });
+    // Wait for the header to hydrate before choosing the door (a bare isVisible() right after load picked the wrong one).
+    await expect(drawerToggle.or(accountMenu)).toBeVisible({ timeout: 20_000 });
     if (await drawerToggle.isVisible()) await drawerToggle.click();
-    else await page.getByRole('button', { name: 'Account menu' }).click();
-    await expect(page.locator('[data-support-queue-link]').first()).toBeVisible();
-    await expect(page.locator('[data-admin-dashboard-link]')).toHaveCount(0);
-    if (await drawerToggle.isVisible()) await page.getByRole('button', { name: 'Close menu' }).click();
-    else await page.keyboard.press('Escape');
+    else await accountMenu.click();
+    await expect(appPage.locator('[data-support-queue-link]').first()).toBeVisible();
+    await expect(appPage.locator('[data-admin-dashboard-link]')).toHaveCount(0);
+    await appPage.close();
 
     // The detail.
     await row.click();

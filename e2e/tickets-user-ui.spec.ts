@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 1 PR 5 — the user's front door in a real
@@ -25,6 +26,7 @@ test('support settings: submit a request, My requests, the deep link, reply, the
   let ticketId: string | null = null;
   try {
     const { error: roleError } = await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(bravoApi, bravo);
     expect(roleError).toBeNull();
 
     const page = await ctxA.newPage();

@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // Support & Reporting, Spec 1 (mig 222) — the ticket backend over the API.
@@ -52,10 +53,11 @@ test('tickets: file, My requests, the moderator queue, reply, resolve, the one a
 
     // Bravo becomes a moderator through the service key (the owner-only route is what an owner would use).
     const { error: roleError } = await admin.from('platform_admins').upsert({ profile_id: bravo.id, role: 'moderator' }, { onConflict: 'profile_id' });
+    await adminSignIn(bravoApi, bravo);
     expect(roleError).toBeNull();
     res = await bravoApi.get('/api/admin/me');
     expect(res.status()).toBe(200);
-    expect(await res.json()).toEqual({ admin: false, role: 'moderator' });
+    expect(await res.json()).toMatchObject({ admin: false, role: 'moderator' });
     // Owner-only routes refuse a moderator by name.
     expect((await bravoApi.get('/api/admin/roles')).status()).toBe(403);
     expect((await bravoApi.delete(`/api/admin/tickets/${created.id}`)).status()).toBe(403);

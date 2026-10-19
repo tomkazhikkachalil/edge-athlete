@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { E2E_BASE_URL, adminClient, adminEmailForE2E, apiAs, bypassHeaders, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 import { fitRun } from './helpers/fit';
 import { POLAR_E2E_CLIENT, POLAR_MOCK_BASE, startPolarMock, type MockExercise, type PolarMock } from './helpers/polar-mock';
@@ -338,9 +339,10 @@ test('the owner\'s Polar setup: not for athletes; the panel shows the URLs and c
   test.skip(!adminEmail, 'E2E_ADMIN_EMAIL unset — the panel half needs an address on the target build\'s ADMIN_EMAILS');
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const ctx = await browser.newContext({ storageState: await mintStorageState(adminUser) });
+  await adminSignIn(ctx, adminUser);
   try {
     const page = await ctx.newPage();
-    await page.goto('/dashboard');
+    await page.goto('/admin');
     const panel = page.locator('[data-admin-connected-apps]');
     await expect(panel).toBeVisible({ timeout: 20_000 });
     const origin = new URL(E2E_BASE_URL).origin;

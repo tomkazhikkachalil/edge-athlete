@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from './helpers/test';
+import { adminSignIn } from './helpers/admin';
 import { cleanup } from './helpers/cleanup';
 import {
   adminClient, adminEmailForE2E, apiAs, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody, E2E_BASE_URL,
@@ -30,7 +31,9 @@ test('admin: the golf map sweep plans a cell, dry-runs nothing, sweeps one cell 
   const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] }, extraHTTPHeaders: bypassHeaders() });
   const adminUser = await createQaUser({ email: adminEmail!, displayName: 'Edge QA Admin', firstName: 'Edge', lastName: 'Admin' });
   const adminApi = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(adminUser), extraHTTPHeaders: bypassHeaders() });
+  await adminSignIn(adminApi, adminUser);
   const ctx = await browser.newContext({ storageState: await mintStorageState(adminUser) });
+  await adminSignIn(ctx, adminUser);
   const courseIds: string[] = [];
   let qaRowId = '';
   try {
@@ -121,7 +124,7 @@ test('admin: the golf map sweep plans a cell, dry-runs nothing, sweeps one cell 
 
     // The panel.
     const page = await ctx.newPage();
-    await page.goto('/dashboard');
+    await page.goto('/admin');
     const panel = page.locator('[data-admin-golf-map-sweep]');
     await expect(panel).toBeVisible({ timeout: 20_000 });
     await expect(panel.locator('[data-sweep-cells]')).toContainText('done', { timeout: 20_000 });
