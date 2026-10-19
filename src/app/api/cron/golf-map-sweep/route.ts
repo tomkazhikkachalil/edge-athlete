@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { WORK_BUDGET_MS } from '@/lib/golf/map-sweep';
 import { planSweepCells, readSweepProgress, runElevationBatch, runGeometryBatch, runHydrationBatch } from '@/lib/golf/map-sweep-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordJobSummary } from '@/lib/platform-jobs/record';
 
 export const maxDuration = 60;
 
@@ -59,5 +60,6 @@ export async function POST(request: NextRequest) {
     summary.hydration = { ok: false };
   }
   summary.elapsedMs = Date.now() - t0;
+  await recordJobSummary(admin, 'golf-map-sweep', new Date(t0), summary);
   return NextResponse.json(summary);
 }

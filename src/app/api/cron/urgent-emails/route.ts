@@ -11,6 +11,7 @@ import {
 } from '@/lib/urgent-email';
 import { reportRouteError } from '@/lib/observability/report';
 import { isDepartedEmail } from '@/lib/account-departure';
+import { recordJobSummary } from '@/lib/platform-jobs/record';
 
 export const maxDuration = 60;
 
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = getSupabaseAdmin();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+  const startedAt = new Date();
   try {
     const { data: rows, error } = await supabase
       .from('notifications')
@@ -129,6 +131,7 @@ export async function GET(request: NextRequest) {
     if (batches.length > 0) {
       console.log('[URGENT]', JSON.stringify({ considered: rows.length, sent, skipped }));
     }
+    await recordJobSummary(supabase, 'urgent-emails', startedAt, { ok: true, sent, considered: rows.length, skipped });
     return NextResponse.json({ ok: true, sent, considered: rows.length, skipped });
   } catch (error) {
     reportRouteError('[URGENT] sweep failed:', error);

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runScheduledNewsSweep } from '@/lib/org-sites/news-notify-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordJobSummary } from '@/lib/platform-jobs/record';
 
 export const maxDuration = 60;
 
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const startedAt = new Date();
   try {
     const admin = getSupabaseAdmin();
     const summary = await runReminderSweep(admin);
@@ -26,6 +28,7 @@ export async function GET(request: NextRequest) {
     // when its time comes (the claim makes a repeat run a no-op).
     const news = await runScheduledNewsSweep(admin);
     if (news.sent > 0) console.log('[NEWS NOTIFY]', JSON.stringify(news));
+    await recordJobSummary(admin, 'reminders', startedAt, { ok: true, ...summary, news });
     return NextResponse.json({ ok: true, ...summary, news });
   } catch (error) {
     reportRouteError('[REMINDERS] sweep failed:', error);

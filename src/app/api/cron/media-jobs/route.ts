@@ -3,6 +3,7 @@ import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { defaultJobDeps, mediaJobsEnabled, runMediaJobsTick } from '@/lib/media/process-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { recordJobRun } from '@/lib/platform-jobs/record';
 
 // The transcode of a 3-minute clip needs minutes on one vCPU: the function's ceiling.
 export const maxDuration = 300;
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: missing ? 'migration 261 has not run here' : error.message }, { status: missing ? 409 : 500 });
   }
   waitUntil(
-    runMediaJobsTick(admin, defaultJobDeps(admin)).then(
+    recordJobRun(admin, 'media-jobs', () => runMediaJobsTick(admin, defaultJobDeps(admin)), { ok: s => s.ok !== false }).then(
       summary => { if (summary.claimed > 0 || !summary.ok) console.log('[media-jobs] tick', JSON.stringify(summary)); },
       err => reportRouteError('[media-jobs] tick failed:', err)
     )
