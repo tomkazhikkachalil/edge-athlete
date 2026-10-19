@@ -31,7 +31,6 @@ export const RATE_LIMITS = {
   // per-SITE day cap (keyed 'user' with the site id as the identifier).
   'site-form': { max: 5, windowSeconds: 600, keyBy: 'ip' },
   'site-form-site': { max: 50, windowSeconds: 86400, keyBy: 'user' },
-  waitlist: { max: 5, windowSeconds: 3600, keyBy: 'ip' },
   // The contact list (266, Oct 19 2026): a sign-up or an inquiry from the coming-soon page.
   contacts: { max: 5, windowSeconds: 3600, keyBy: 'ip' },
   signup: { max: 5, windowSeconds: 3600, keyBy: 'ip' },

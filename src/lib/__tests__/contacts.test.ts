@@ -112,3 +112,10 @@ describe('migration 266 agrees with the rules', () => {
     expect(sql).toContain("VALUES (266, '266_contacts.sql')");
   });
 });
+
+describe('the consent words are one sentence everywhere', () => {
+  it('COPY.CONTACTS.CONSENT_LABEL equals MARKETING_CONSENT_TEXT', async () => {
+    const { COPY } = await import('../copy');
+    expect(COPY.CONTACTS.CONSENT_LABEL).toBe(MARKETING_CONSENT_TEXT);
+  });
+});
