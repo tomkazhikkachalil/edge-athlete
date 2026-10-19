@@ -143,6 +143,9 @@ test('rounds as a swipe: one round per slide, auto-advance, Copy previous round,
     await page.locator('[data-share-done="post"]').click();
     await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.post_id, { timeout: 20_000 }).toBeTruthy();
     postId = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.post_id as string;
+    // Posting takes the athlete to their profile; let that land first, or
+    // WebKit cuts the next navigation short (Oct 19 2026 prod probe).
+    await page.waitForURL('**/athlete', { timeout: 20_000 });
     await page.goto('/feed');
     const card = page.locator('[data-testid="post-card"]').filter({ hasText: title }).first();
     await expect(card).toBeVisible({ timeout: 30_000 });

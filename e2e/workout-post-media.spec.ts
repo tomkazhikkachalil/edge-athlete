@@ -45,6 +45,9 @@ async function setImages(page: Page, context: BrowserContext) {
     postId = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.post_id as string;
 
     // ── The feed card's details ────────────────────────────────────────────
+    // Posting takes the athlete to their profile; let that land first, or
+    // WebKit cuts the next navigation short (Oct 19 2026 prod probe).
+    await page.waitForURL('**/athlete', { timeout: 20_000 });
     await page.goto('/feed');
     const card = page.locator('[data-testid="post-card"]').filter({ hasText: title }).first();
     await expect(card).toBeVisible({ timeout: 30_000 });
