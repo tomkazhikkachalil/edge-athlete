@@ -119,3 +119,15 @@ describe('the consent words are one sentence everywhere', () => {
     expect(COPY.CONTACTS.CONSENT_LABEL).toBe(MARKETING_CONSENT_TEXT);
   });
 });
+
+describe('the console helpers', () => {
+  it('names the export file by list and day', async () => {
+    const { exportFileName, searchPattern, APP_SETTING_KEYS } = await import('../contacts/rules');
+    const d = new Date('2026-10-19T15:00:00Z');
+    expect(exportFileName('all', d)).toBe('contacts-2026-10-19.csv');
+    expect(exportFileName('marketing', d)).toBe('contacts-marketing-2026-10-19.csv');
+    // A typed wildcard or a PostgREST separator cannot widen the search.
+    expect(searchPattern('50%_off,(x)')).toBe('%50\\%\\_off  x %');
+    expect(APP_SETTING_KEYS).toEqual(['notify_inbox_email']);
+  });
+});

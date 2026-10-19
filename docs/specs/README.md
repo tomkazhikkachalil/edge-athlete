@@ -22,6 +22,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes |
 | `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026) |
+| `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 
 ## Convention number → file
 
@@ -66,3 +67,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 44 | MMA, boxing, wrestling and jiu-jitsu are sports, and a bout is a result | `combat-sports.md` |
 | 45 | Every activity records what its kind of session records, asks at most three questions, and never invents a number | `activities.md` (+ `workouts-and-sessions.md`) |
 | 46 | Every browser works the same: feature-detect, never sniff; no first-party path a blocker blocks | `browser-support.md` |
+| 47 | A sign-up or inquiry is a contact row, a mail to ONE setting, and a confirmation the person reads | `contacts-and-admin.md` |
