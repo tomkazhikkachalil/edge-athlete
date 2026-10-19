@@ -62,6 +62,8 @@ index on a now-large table must use `CREATE INDEX CONCURRENTLY` (outside a txn)
 — as the `NNN_name.indexes.sql` twin (`database/MIGRATIONS.md`, "Large-table
 indexes"). The baselines themselves index inline: their tables hold 3–36 rows.
 
+**The Overview's scale escapes (Convention 49, Oct 19 2026):** the first things to break past tens of millions of rows a day, and the recorded answers — `users.dau` on `profile_seen` ≈ 1–3 min at 10⁸ actives (fine in the 300 s rollup job, never in the 60 s daily route); WAU/MAU at 3×10⁸ → a sampled partial index (`WHERE (hashtext(profile_id::text) & 127) = 0`, count × 128), not partitioning (an UPDATE moving `last_day` across partitions makes every write heavier), a warehouse last; `posts.new` past ~10⁷ rows a day → a write-time counter; `storage.objects` past ~10⁷ → a per-bucket tally fed by the app's uploaders; `bump_profile_seen` is one non-HOT update per active account per day (per-table autovacuum knobs; watch `n_dead_tup`). `platform_jobs.duration_ms` for `platform-rollup` is the number that says when: move the hour at ~5 s, split at ~60 s. The dashboard SQL editor wraps even a single statement in a transaction, so `CREATE INDEX CONCURRENTLY` runs through the Management API path (`scripts/staging-sql.mjs -e`) or psql; while a table is small the plain form is the honest choice.
+
 **Foreign-key coverage (migration 239, Sep 25 2026):** every foreign key in
 `public` has an index whose leading columns are its columns. Before 239, 83
 did not (50 onto `profiles`); one profile DELETE on staging cost 756 ms with a

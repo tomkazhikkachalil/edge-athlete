@@ -23,6 +23,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes |
 | `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026) |
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
+| `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
 
 ## Convention number → file
 
@@ -69,3 +70,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 46 | Every browser works the same: feature-detect, never sniff; no first-party path a blocker blocks | `browser-support.md` |
 | 47 | A sign-up or inquiry is a contact row, a mail to ONE setting, and a confirmation the person reads | `contacts-and-admin.md` |
 | 48 | The admin console is its own door: its own sign-in, its own cookie, the app session never grants it | `contacts-and-admin.md` |
+| 49 | Every number on the Overview is read from a SMALL table: counted once a night over an index, estimated where exact would be a scan, sampled where it is a probe | `platform-overview.md` |
