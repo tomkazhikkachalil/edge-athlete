@@ -2,6 +2,7 @@ import { after, NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { parseCookieHeader } from './cookies';
+import { readAdminSession } from './admin/session-server';
 import {
   resolveProfileAction,
   type ProfileAction,
@@ -327,7 +328,40 @@ export function isAdminEmail(
   return admins.includes(needle);
 }
 
+/**
+ * The console's own cookie (flow changes item 2, B1 — Oct 19 2026): an
+ * owner's cookie is the owner; a moderator's is re-checked against
+ * `platform_admins` on every request (removal bites at once; owners are
+ * env). Null = no cookie / no secret — the gates then take the app session
+ * as before, UNTIL B3 flips them to cookie-only (Tom: the app session never
+ * grants admin).
+ */
+type CookieAdmin = { present: false } | { present: true; admin: { id: string; email: string; role: PlatformRole } | null };
+
+async function adminFromCookie(request: NextRequest): Promise<CookieAdmin> {
+  const claims = await readAdminSession(request);
+  if (!claims) return { present: false };
+  if (claims.role === 'owner') {
+    return { present: true, admin: isAdminEmail(claims.email, process.env.ADMIN_EMAILS) ? { id: claims.sub, email: claims.email, role: 'owner' } : null };
+  }
+  const role = await platformRoleFor({ id: claims.sub, email: claims.email });
+  return { present: true, admin: role ? { id: claims.sub, email: claims.email, role } : null };
+}
+
+/** A console cookie that is present but not enough for this route: refused by name, never handed to the app session. */
+function refuseCookie(role: PlatformRole | null | undefined): never {
+  throw new Response(
+    JSON.stringify({ error: role === 'moderator' ? 'Owner access required' : 'Admin access required' }),
+    { status: 403, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
 export async function requireAdmin(request: NextRequest) {
+  const fromCookie = await adminFromCookie(request);
+  if (fromCookie.present) {
+    if (fromCookie.admin?.role === 'owner') return { id: fromCookie.admin.id, email: fromCookie.admin.email } as Awaited<ReturnType<typeof requireAuth>>;
+    refuseCookie(fromCookie.admin?.role);
+  }
   const user = await requireAuth(request, { fresh: true });
 
   if (!isAdminEmail(user.email, process.env.ADMIN_EMAILS)) {
@@ -380,6 +414,14 @@ export async function platformRoleFor(user: { id: string; email?: string | null 
  * other gates do; the caller `return`s a caught Response, never rethrows.
  */
 export async function requireModerator(request: NextRequest, opts: { intent: ModeratorIntent }) {
+  const fromCookie = await adminFromCookie(request);
+  if (fromCookie.present) {
+    const a = fromCookie.admin;
+    if (a && (a.role === 'owner' || MODERATOR_INTENTS.has(opts.intent))) {
+      return { user: { id: a.id, email: a.email } as Awaited<ReturnType<typeof requireAuth>>, role: a.role };
+    }
+    refuseCookie(a?.role);
+  }
   const user = await requireAuth(request, { fresh: true });
   const role = await platformRoleFor(user);
   if (role === 'owner' || (role === 'moderator' && MODERATOR_INTENTS.has(opts.intent))) {
