@@ -84,3 +84,8 @@ person per day; the author's own looks never count.
   count).
 - **On the card:** "1.2K views · 300 plays" (`compactCount`), its own line on a
   phone, inline from `sm` up; hidden at zero.
+
+## The platform's own numbers (migration 267, Oct 19 2026 — Convention 49, `docs/specs/platform-overview.md`)
+
+The admin Overview reads only small tables: `platform_stats_daily` (one row per UTC day, metric and dimension, written a group at a time by the nightly `platform_rollup_day`), `platform_health_samples` (one 5-minute probe each, pruned at 14 days), `platform_jobs` (every cron's last run) and `pg_class` estimates ("≈"). **The seen mark** is the one new thing the app records about people: `profile_seen` is ONE row per account — the signup day, the last day the app was opened signed in, and a 63-day bitmap of those days — bumped once per account per day by the app shell (`POST /api/seen`). It is the account's own activity, like `last_sign_in_at`, not cross-user measurement, so it is not gated on Do Not Track; nothing about what was done is kept; the row dies with the account; service role only; the Overview shows counts (daily / weekly / monthly actives, day-1 / 7 / 30 retention), never who. Days are UTC. Uptime counts a MISSING sample as down.
+
