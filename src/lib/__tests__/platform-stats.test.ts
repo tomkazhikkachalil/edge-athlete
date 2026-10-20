@@ -99,3 +99,58 @@ describe('the jobs registry helper', () => {
     expect((trim({ arr: new Array(50).fill(1) }) as { arr: unknown[] }).arr.length).toBe(20);
   });
 });
+
+describe('the metric registry mirrors the SQL (267) and the day arithmetic holds', () => {
+  it('every SQL-written key appears as a literal in platform_rollup_day, and every group the SQL knows is in the registry', async () => {
+    const { PLATFORM_METRICS, ROLLUP_GROUPS, sqlKeysFor } = await import('../platform-stats/metrics');
+    const body = mig.slice(mig.indexOf('CREATE OR REPLACE FUNCTION public.platform_rollup_day('));
+    for (const m of PLATFORM_METRICS) {
+      if (m.how === 'external') continue;
+      expect(body, m.key).toContain(`'${m.key}'`);
+    }
+    for (const g of ROLLUP_GROUPS) expect(body, g).toContain(`p_group = '${g}'`);
+    expect(sqlKeysFor('totals')).toEqual(['total']);
+    expect(sqlKeysFor('users')).toContain('users.dau');
+  });
+  it('UTC days: yesterday, addDays across a month end, and what may be recomputed', async () => {
+    const { addDays, dayUTC, recomputableDay, yesterdayUTC, groupsForRun } = await import('../platform-stats/metrics');
+    const now = new Date('2026-03-01T00:30:00.000Z');
+    expect(dayUTC(now)).toBe('2026-03-01');
+    expect(yesterdayUTC(now)).toBe('2026-02-28');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(recomputableDay('2026-03-01', now)).toBe(true);
+    expect(recomputableDay('2026-03-02', now)).toBe(false);
+    expect(recomputableDay('2025-01-01', now)).toBe(false);
+    expect(recomputableDay('2026-02-30', now)).toBe(false);
+    expect(recomputableDay('garbage', now)).toBe(false);
+    expect(groupsForRun({ partial: true })).not.toContain('storage');
+    expect(groupsForRun({ partial: true })).not.toContain('cohorts');
+    expect(groupsForRun({ partial: false })).toContain('storage');
+    expect(groupsForRun({ partial: false, only: ['site', 'users'] })).toEqual(['users', 'site']);
+  });
+  it('the budget stops the run between groups and names what was skipped', async () => {
+    const { runPlatformRollup } = await import('../platform-stats/rollup-server');
+    let clock = 0;
+    const calls: string[] = [];
+    const admin = {
+      rpc: async (_fn: string, args: { p_group: string }) => {
+        calls.push(args.p_group);
+        clock += 1000;
+        return { data: [{ metric: 'x', dim: '', value: '1' }], error: null };
+      },
+    } as unknown as import('@supabase/supabase-js').SupabaseClient;
+    const r = await runPlatformRollup(admin, '2026-10-18', { budgetMs: 2500, now: () => clock });
+    expect(r.ran).toEqual(['users', 'cohorts', 'content']);
+    expect(r.skipped).toEqual(['community', 'totals', 'site', 'storage']);
+    expect(r.ok).toBe(false);
+    expect(r.rows).toHaveLength(3);
+    expect(r.rows[0].value).toBe(1);
+  });
+  it('a missing function means unsupported, not a failure storm', async () => {
+    const { runPlatformRollup } = await import('../platform-stats/rollup-server');
+    const admin = { rpc: async () => ({ data: null, error: { code: '42883', message: 'function does not exist' } }) } as unknown as import('@supabase/supabase-js').SupabaseClient;
+    const r = await runPlatformRollup(admin, '2026-10-18');
+    expect(r.supported).toBe(false);
+    expect(r.ran).toEqual([]);
+  });
+});

@@ -27,6 +27,8 @@ import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
 import { runPushSweep } from '@/lib/push/sweep-server';
 import { runMediaJobsHygiene } from '@/lib/media/process-server';
 import { recordJobSummary } from '@/lib/platform-jobs/record';
+import { runPlatformRollup } from '@/lib/platform-stats/rollup-server';
+import { addDays, dayUTC } from '@/lib/platform-stats/metrics';
 
 export const maxDuration = 60;
 
@@ -279,6 +281,22 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] push sweep phase failed:', e);
     summary.push = { ok: false };
+  }
+
+  // The platform rollup's SAFETY NET (267, H1): the nightly job (pg_cron, 268,
+  // prod only) is the sender; this re-asserts yesterday and the day before
+  // inside a small budget — staging schedules nothing, so this is its only
+  // rollup. A timeout is named, never fatal; storage is left to the night.
+  try {
+    const t = dayUTC();
+    const a = await runPlatformRollup(admin, addDays(t, -1), { budgetMs: 10_000, only: ['users', 'cohorts', 'content', 'community', 'totals', 'site'] });
+    const b = a.supported ? await runPlatformRollup(admin, addDays(t, -2), { budgetMs: 5_000, only: ['users', 'cohorts', 'content', 'community', 'site'] }) : a;
+    summary.platformRollup = a.supported
+      ? { ok: a.ok && b.ok, yesterday: { ran: a.ran, skipped: a.skipped, failed: a.failed.map(f => f.group) }, before: { ran: b.ran, skipped: b.skipped, failed: b.failed.map(f => f.group) } }
+      : { skipped: 'migration 267 has not run here' };
+  } catch (e) {
+    reportRouteError('[DAILY] platform rollup phase failed:', e);
+    summary.platformRollup = { ok: false };
   }
 
   // The jobs registry (267): the Overview reads when this ran and whether every phase was ok.
