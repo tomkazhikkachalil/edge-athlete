@@ -2,14 +2,15 @@ import { COPY } from '@/lib/copy';
 
 /**
  * Who sees what you post (Oct 9 2026, Tom): the ACCOUNT decides — a public
- * account means anyone, a private one means your approved fans. The only
- * per-item choice is Post it or Only me (not on the feed; only you see it).
- * There is never a per-post "followers only" choice: a post is written
+ * account means anyone, a private one means your approved fans. There is
+ * never a per-post "followers only" choice: a post is written
  * `visibility: 'public'` and the feed's rule applies the account's privacy.
+ *
+ * Oct 19 2026 (269, Tom: "Only me" is dropped): the one per-item choice is
+ * "Post to feed" ON / OFF — a SWITCH (posts.on_feed), not an audience. Off
+ * means not on the feed; it still stands on the profile (Stats, Training)
+ * for whoever the account lets in. Remembered per kind: feed-memory.ts.
  */
-export type PostChoice = 'post' | 'only_me';
-
-export const DEFAULT_CHOICE: PostChoice = 'post';
 
 /** Where a post goes is decided by the account; a post is always written public. */
 export const POST_VISIBILITY = 'public' as const;
@@ -22,12 +23,12 @@ export function isPrivateAccount(accountVisibility: string | null | undefined): 
   return accountVisibility !== 'public';
 }
 
-/** The line under "Post it": who will see it, from the account's privacy. */
+/** The line under the switch when it is ON: who will see it, from the account's privacy. */
 export function whoSeesPost(accountVisibility: string | null | undefined): string {
   return isPrivateAccount(accountVisibility) ? COPY.AUDIENCE.WHO_PRIVATE : COPY.AUDIENCE.WHO_PUBLIC;
 }
 
-/** The line under "Only me", with the place it is kept (e.g. "in your Training"). */
-export function onlyMeLine(place?: string): string {
-  return place ? `${COPY.AUDIENCE.ONLY_ME_LINE}, ${place}` : COPY.AUDIENCE.ONLY_ME_LINE;
+/** The line under the switch when it is OFF, with where the item stands (e.g. "in Training"). */
+export function feedOffLine(place?: string): string {
+  return place ? `${COPY.AUDIENCE.FEED_OFF_LINE}, ${place}` : COPY.AUDIENCE.FEED_OFF_LINE;
 }

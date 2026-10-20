@@ -239,7 +239,7 @@ function ActivityBody({
             <p className="text-sm text-secondary">
               {def.label} · {formatStart(a.startedAt, a.timezone)}
               {a.credit && <span data-activity-credit> · {a.credit}</span>}
-              {a.owner?.onlyMe && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-secondary"><i className="fas fa-lock" aria-hidden="true" /> Only me</span>}
+              {a.owner?.onlyMe && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-secondary"><i className="fas fa-eye-slash" aria-hidden="true" /> Hidden from your profile</span>}
             </p>
           </div>
         </div>
@@ -646,6 +646,30 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
     }
   };
 
+  /** 269: flip the feed post's switch — not a visibility change (the account still decides). */
+  const setPostOnFeed = async (on: boolean) => {
+    if (!a.postId) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: a.postId, onFeed: on }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        showError('Not saved', typeof json.error === 'string' ? json.error : 'Please try again.');
+        return;
+      }
+      onChanged({ owner: a.owner ? { ...a.owner, postOnFeed: on } : null });
+    } catch {
+      showError('Not saved', 'Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const share = async () => {
     setBusy(true);
     try {
@@ -659,7 +683,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
         showError('Not shared', result.error);
         return;
       }
-      onChanged({ postId: result.postId ?? 'shared' });
+      onChanged({ postId: result.postId ?? 'shared', owner: a.owner ? { ...a.owner, postOnFeed: true } : null });
       closeShare();
       if (result.pendingApproval) showNotice('Sent for approval');
     } finally {
@@ -795,19 +819,36 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
             <i className="fas fa-pen mr-2" aria-hidden="true" />
             Edit
           </button>
+          {/* The feed is a switch (269): no post → Post to feed; a post → On the feed + Remove from feed, or Show on feed. */}
           {a.postId ? (
-            <span className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-success-fg min-h-[44px]">
-              <i className="fas fa-check mr-2" aria-hidden="true" />
-              On your feed
-            </span>
+            a.owner?.postOnFeed === false ? (
+              <button type="button" disabled={busy} onClick={() => void setPostOnFeed(true)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50" data-activity-feed="off">
+                <i className="fas fa-share-from-square mr-2" aria-hidden="true" />
+                Show on feed
+              </button>
+            ) : (
+              <>
+                <span className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-success-fg min-h-[44px]" data-activity-feed="on">
+                  <i className="fas fa-check mr-2" aria-hidden="true" />
+                  On the feed
+                </span>
+                {a.owner?.postOnFeed !== null && a.owner?.postOnFeed !== undefined && (
+                  <button type="button" disabled={busy} onClick={() => void setPostOnFeed(false)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50" data-activity-feed-remove>
+                    <i className="fas fa-eye-slash mr-2" aria-hidden="true" />
+                    Remove from feed
+                  </button>
+                )}
+              </>
+            )
           ) : (
             !a.owner?.onlyMe && (
               <button type="button" onClick={() => setSharing(true)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px]" data-activity-share>
                 <i className="fas fa-share-from-square mr-2" aria-hidden="true" />
-                Share to feed
+                Post to feed
               </button>
             )
           )}
+          {/* Hide from my profile (the later Hide — only_me, 245): a visitor's Training no longer lists it. */}
           <button
             type="button"
             disabled={busy || (!a.owner?.onlyMe && !!a.postId)}
@@ -816,8 +857,8 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
             className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50"
             data-activity-only-me
           >
-            <i className={`fas ${a.owner?.onlyMe ? 'fa-lock-open' : 'fa-lock'} mr-2`} aria-hidden="true" />
-            {a.owner?.onlyMe ? 'Show on my profile' : 'Only me'}
+            <i className={`fas ${a.owner?.onlyMe ? 'fa-eye' : 'fa-eye-slash'} mr-2`} aria-hidden="true" />
+            {a.owner?.onlyMe ? 'Show on my profile' : 'Hide from my profile'}
           </button>
           <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} className="ea-interactive rounded-lg border border-danger-border px-4 py-2 font-semibold text-danger-fg min-h-[44px]">
             <i className="fas fa-trash mr-2" aria-hidden="true" />

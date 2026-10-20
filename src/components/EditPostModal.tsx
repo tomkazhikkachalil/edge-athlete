@@ -14,12 +14,15 @@ import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { COPY } from '@/lib/copy';
 import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
+import FeedToggle from '@/components/posts/FeedToggle';
 
 interface Post {
   id: string;
   caption: string | null;
   sport_key: string | null;
   visibility: string;
+  /** 269: the feed switch; absent on an older shape = on. */
+  on_feed?: boolean | null;
   tags?: string[];
   hashtags?: string[];
 }
@@ -56,6 +59,9 @@ export default function EditPostModal({
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
   const [customHashtag, setCustomHashtag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Show on feed (269): an edit flips the switch, never the audience; no device memory for an edit.
+  const initialOnFeed = post.on_feed !== false;
+  const [onFeed, setOnFeed] = useState(initialOnFeed);
 
   const postType = post.sport_key || 'general';
   const currentHashtagSuggestions = getHashtagSuggestions(postType);
@@ -205,6 +211,8 @@ export default function EditPostModal({
           hashtags: hashtags,
           // No visibility: an edit never changes who sees the post — the
           // account decides (src/lib/posts/audience.ts); the PUT keeps it.
+          // The feed switch (269) travels only when it changed.
+          ...(onFeed !== initialOnFeed ? { onFeed } : {}),
         }),
       });
 
@@ -393,8 +401,9 @@ export default function EditPostModal({
 
           {/* Who sees it: the account's call, said — never a per-post switch.
               A followers-only post from before Oct 9 2026 keeps that, marked. */}
-          <div className="mb-6" data-edit-post-audience="">
+          <div className="mb-6 space-y-3" data-edit-post-audience="">
             <AccountAudienceLine legacyFansOnly={post.visibility === 'private'} />
+            <FeedToggle on={onFeed} onChange={setOnFeed} disabled={isSubmitting} />
           </div>
         </div>
 

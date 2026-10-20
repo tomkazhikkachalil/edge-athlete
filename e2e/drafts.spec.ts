@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, readScorecard, scoreHoles } from './helpers/sport-events';
 
 // Drafts round PR 2 (Oct 2026): the private Drafts area and the review
@@ -74,16 +74,27 @@ test('drafts: in progress → Finish → review → Keep as draft → Post', { t
     const feed = await apiA.get('/api/posts?limit=50');
     expect(((await feed.json()).posts as Array<{ id: string }>).map(p => p.id)).not.toContain(made.postId);
 
-    // Review → the notes survived → Post → the feed, and Drafts is empty of it.
+    // Review → the notes survived → Post with the feed switch OFF (269): published,
+    // in Stats, not on the feed — and Drafts is empty of it.
     await row.locator('[data-draft-review]').click();
     await page.waitForURL(`**/athlete/drafts/${made.postId}`, { timeout: 20_000 });
     await expect(page.locator('[data-draft-notes]')).toHaveValue(/Windy back nine/);
+    await expect(page.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-draft-post]').click();
     await page.waitForURL(/\/feed\?post=/, { timeout: 20_000 });
+    await page.evaluate(() => localStorage.removeItem('ea:post:feed:v1'));
     await expect.poll(async () => {
-      const f = await apiA.get('/api/posts?limit=50');
-      return ((await f.json()).posts as Array<{ id: string; caption: string | null }>).find(p => p.id === made.postId)?.caption ?? null;
-    }, { timeout: 15_000 }).toMatch(/Windy back nine/);
+      const g = await apiA.get(`/api/profile/${alpha.id}/media?tab=stats&limit=50`);
+      return ((await g.json()).items as Array<{ id: string }>).map(i => i.id);
+    }, { timeout: 15_000 }).toContain(made.postId);
+    const { data: postedRow } = await adminClient().from('posts').select('status, on_feed, caption').eq('id', made.postId).single();
+    expect(postedRow).toMatchObject({ status: 'published', on_feed: false });
+    expect(postedRow!.caption).toMatch(/Windy back nine/);
+    const feedAfter = await apiA.get('/api/posts?limit=50');
+    expect(((await feedAfter.json()).posts as Array<{ id: string }>).map(p => p.id)).not.toContain(made.postId);
+    const own = await apiA.get(`/api/posts?userId=${alpha.id}&limit=50`);
+    expect(((await own.json()).posts as Array<{ id: string }>).map(p => p.id)).toContain(made.postId);
     await page.goto('/athlete/drafts');
     await expect(page.locator('[data-drafts-page]')).toBeVisible({ timeout: 15_000 });
     await expect(row).toHaveCount(0);

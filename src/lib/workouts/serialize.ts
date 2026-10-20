@@ -52,6 +52,8 @@ export interface ServerWorkoutSession {
   timed?: boolean | null;
   paused_seconds?: number | null;
   paused_at?: string | null;
+  /** 269: the owner hid it from their profile (visitors never receive a hidden session). */
+  profile_hidden_at?: string | null;
 }
 
 export function serverToEntries(session: ServerWorkoutSession): EntryExercise[] {

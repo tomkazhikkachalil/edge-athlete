@@ -156,7 +156,7 @@ export default function RecordActivityScreen() {
 
   const onFinish = () => dispatch({ type: 'finish', now: Date.now() });
 
-  const save = async ({ name, manualDistanceM, choice, caption, sport, answers }: FinishDetails) => {
+  const save = async ({ name, manualDistanceM, onFeed, caption, sport, answers }: FinishDetails) => {
     const s0 = engine?.getState();
     if (!engine || !s0 || s0.status !== 'finished') return;
     setSaving(true);
@@ -172,12 +172,11 @@ export default function RecordActivityScreen() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        // Only me is set in the SAME call — private from the moment it exists.
+        // The row IS the profile presence (Training); the feed is a separate switch below.
         body: JSON.stringify({
           activity: wire,
           finish: finishPayload(answers),
           ...(targetProfileId ? { targetProfileId } : {}),
-          ...(choice === 'only_me' ? { onlyMe: true } : {}),
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
@@ -192,9 +191,9 @@ export default function RecordActivityScreen() {
         }).catch(() => undefined);
       }
       await engine.clear();
-      if (choice === 'post') {
+      if (onFeed) {
         // The activity is saved either way; a failed post leaves it on its
-        // page, where "Share to feed" still offers it.
+        // page, where "Post to feed" still offers it.
         const posted = await postActivity({ activityId: json.id, sport, caption, targetProfileId });
         if (!posted.ok) showError('Saved — not posted', `${posted.error} You can share it from this page.`);
         else if (posted.pendingApproval) showNotice('Sent for approval');

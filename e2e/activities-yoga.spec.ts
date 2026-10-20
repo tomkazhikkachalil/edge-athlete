@@ -44,7 +44,7 @@ test('a yoga session keeps its style, heat, class and effort; the next one pre-f
     await expect(form.locator('[data-detail-field="focus"]')).toHaveCount(0);
     await form.locator('[data-finish-more]').click();
     await form.locator('[data-detail-field="focus"] [data-detail-option="hips"]').click();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;

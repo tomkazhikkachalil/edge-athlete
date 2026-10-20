@@ -138,7 +138,7 @@ test('record a run: fixes draw, a segment is marked, a reload keeps recording, F
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     // These cases test the recording, not posting: keep it to me.
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -263,7 +263,7 @@ test('a jittery phone: standing still adds nothing, a walk reads close to its tr
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     const shown = await distance();
     // These cases test the recording, not posting: keep it to me.
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -326,7 +326,7 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
     await expect(page.locator('[data-record-save]')).toBeDisabled(); // no distance yet
     await page.locator('[data-record-distance-input]').fill('25');
     // These cases test the recording, not posting: keep it to me.
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -345,7 +345,7 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
 // — Post it (who sees it follows the ACCOUNT: anyone on a public one, approved
 // fans on a private one) or Only me (in Training, not on the feed). Post it is
 // the default; Done does it all.
-test('Finish is a review: Post it by default posts the run; Only me keeps it in Training @mobile', async ({ browser, browserName }) => {
+test('Finish is a review: Post to feed is on by default and posts the run; off saves it to Training with no post @mobile', async ({ browser, browserName }) => {
   test.skip(browserName === 'webkit', 'the scripted geolocation stub is Chromium-only in this harness');
   test.setTimeout(180_000);
   const user = loadQaUser('user.json');
@@ -381,8 +381,8 @@ test('Finish is a review: Post it by default posts the run; Only me keeps it in 
     await expect(sheet.getByRole('heading', { name: 'Nice run!' })).toBeVisible();
     await expect(sheet.locator('[data-record-review-summary]')).toContainText('Distance');
     await expect(sheet.locator('[data-record-review-route]')).toBeVisible();
-    await expect(sheet.locator('[data-choice="post"]')).toHaveAttribute('aria-checked', 'true');
-    await expect(sheet.locator('[data-choice="post"]')).toContainText('Anyone can see it');
+    await expect(sheet.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.locator('[data-feed-toggle-line]')).toContainText('Anyone can see it');
     await expect(sheet.locator('[data-record-save]')).toHaveText('Post');
     // The decision is one tap away on a phone — no scrolling to reach it.
     await expect(sheet.locator('[data-record-save]')).toBeInViewport({ ratio: 1 });
@@ -397,22 +397,31 @@ test('Finish is a review: Post it by default posts the run; Only me keeps it in 
     const { data: p1 } = await admin.from('posts').select('visibility, caption, status').eq('id', a1!.post_id!).single();
     expect(p1).toMatchObject({ visibility: 'public', caption, status: 'published' });
 
-    // A PRIVATE account: the line says approved fans; Only me posts nothing.
+    // A PRIVATE account: the line says approved fans. The switch OFF posts
+    // nothing — the run still stands in Training (269: never "only me" at
+    // the Finish; hiding is the page's later door), and the choice is
+    // remembered for the next activity on this device.
     // (The first run goes first: a second recording within a minute of the
     // same length is the SAME activity to the dedupe rule — dedupe.ts.)
     await cleanup();
     await admin.from('profiles').update({ visibility: 'private' }).eq('id', user.id);
     await recordARun(page);
-    await expect(sheet.locator('[data-choice="post"]')).toContainText('approved fans');
-    await sheet.locator('[data-choice="only_me"]').click();
-    await expect(sheet.locator('[data-choice="only_me"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.locator('[data-feed-toggle-line]')).toContainText('approved fans');
+    await sheet.locator('[data-feed-toggle="on"]').click();
+    await expect(sheet.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'false');
+    await expect(sheet.locator('[data-feed-toggle-line]')).toContainText('Not on the feed');
     await expect(sheet.locator('[data-record-caption]')).toHaveCount(0);
-    await expect(sheet.locator('[data-record-save]')).toHaveText('Save for me');
+    await expect(sheet.locator('[data-record-save]')).toHaveText('Save');
     await sheet.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const kept = page.url().split('/').pop()!;
     const { data: a2 } = await admin.from('activities').select('post_id, only_me').eq('id', kept).single();
-    expect(a2).toMatchObject({ only_me: true, post_id: null });
+    expect(a2).toMatchObject({ only_me: false, post_id: null });
+    // The owner's page offers Post to feed (no post yet) and Hide from my profile.
+    await expect(page.locator('[data-activity-share]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-activity-only-me]')).toHaveText(/Hide from my profile/);
+    expect(await page.evaluate(() => localStorage.getItem('ea:post:feed:v1'))).toContain('"activity":false');
+    await page.evaluate(() => localStorage.removeItem('ea:post:feed:v1'));
   } finally {
     await ctx.close();
     await cleanup();
@@ -436,7 +445,7 @@ test('a steady 6:00/km jog saves its moving time and pace @mobile', async ({ bro
     await page.waitForTimeout(20_000);
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;

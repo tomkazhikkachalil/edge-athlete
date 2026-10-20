@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Lock, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
+import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
-import PostChoicePicker from '@/components/posts/PostChoicePicker';
-import { DEFAULT_CHOICE, type PostChoice } from '@/lib/posts/audience';
+import FeedToggle from '@/components/posts/FeedToggle';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { celebratePR } from '@/lib/celebrate';
 import {
   formatDuration,
@@ -298,7 +298,8 @@ interface ShareStepProps {
   sharing: boolean;
   error: string;
   onShare: () => void;
-  onKeepPrivate: () => void;
+  /** The switch is OFF: records, then leaves — the workout already stands in Training (269). */
+  onDone: () => void;
 }
 
 const CLIP_ICON_BUTTON =
@@ -400,21 +401,21 @@ export function ShareStep({
   sharing,
   error,
   onShare,
-  onKeepPrivate,
+  onDone,
 }: ShareStepProps) {
-  const [choice, setChoice] = useState<PostChoice>(DEFAULT_CHOICE);
-  const posting = choice === 'post';
+  const [onFeed, setOnFeed] = useState(() => readFeedDefault('workout'));
+  const posting = onFeed;
   const totalClips = clips.selected.length + clips.rest.length;
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5">
       <div className="text-center">
         <h1 className="text-2xl font-bold text-primary">Nice workout!</h1>
-        <p className="text-muted mt-1">Post it, or keep it to yourself.</p>
+        <p className="text-muted mt-1">It’s in your Training. Post it to the feed too?</p>
       </div>
 
-      {/* The one decision (src/lib/posts/audience.ts): Post it — who sees it
-          follows the account — or Only me, kept in your training history. */}
-      <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your training history" disabled={sharing} />
+      {/* The one decision (src/lib/posts/audience.ts, 269): Post to feed on —
+          who sees it follows the account — or off, kept in your training history. */}
+      <FeedToggle on={onFeed} onChange={setOnFeed} kind="workout" place="in your training history" disabled={sharing} />
 
       {/* The clips, in the order they will carousel: tap a thumbnail to
           include or exclude, the arrows set the order, the pencil opens the
@@ -482,19 +483,19 @@ export function ShareStep({
 
       <button
         type="button"
-        onClick={posting ? onShare : onKeepPrivate}
+        onClick={posting ? onShare : onDone}
         disabled={sharing}
         className="w-full flex items-center justify-center gap-2 py-3 bg-brand text-white rounded-xl font-bold text-base hover:bg-brand-hover transition-colors disabled:opacity-60"
-        data-share-done={choice}
+        data-share-done={posting ? 'post' : 'done'}
       >
         {sharing ? (
           <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
         ) : posting ? (
           <Globe className="w-5 h-5" aria-hidden="true" />
         ) : (
-          <Lock className="w-5 h-5" aria-hidden="true" />
+          <Check className="w-5 h-5" aria-hidden="true" />
         )}
-        {posting ? 'Post' : 'Save for me'}
+        {posting ? 'Post' : 'Done'}
       </button>
     </div>
   );

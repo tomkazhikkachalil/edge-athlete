@@ -6,9 +6,9 @@ import { UNIT_METRES, formatDistance, formatDuration, formatPace, type DistanceU
 import { encodePolyline, type LatLng } from '@/lib/activities/polyline';
 import { routeSvg } from '@/lib/activities/route-svg';
 import { requiresManualDistance, type RecordingPhoto } from '@/lib/activities/record/recording';
-import { DEFAULT_CHOICE, type PostChoice } from '@/lib/posts/audience';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
-import PostChoicePicker from '@/components/posts/PostChoicePicker';
+import FeedToggle from '@/components/posts/FeedToggle';
 import FinishDetailsForm, { type FinishFormValue } from '@/components/activities/FinishDetailsForm';
 import type { Details } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
@@ -17,7 +17,8 @@ import type { TimerFormat } from '@/lib/activities/record/round-timer';
 export interface FinishDetails {
   name: string;
   manualDistanceM: number | null;
-  choice: PostChoice;
+  /** Post to feed (269): a switch, not an audience — off = saved to Training, no post row. */
+  onFeed: boolean;
   caption: string;
   /** Post it as this sport's result; null = the training card. */
   sport: SportKey | null;
@@ -75,7 +76,7 @@ export default function FinishSheet({
   const [name, setName] = useState(defaultName);
   const [distance, setDistance] = useState('');
   const [distUnit, setDistUnit] = useState<DistanceUnit | 'm'>(def.recording === 'timer' && (type === 'swim' || type === 'row') ? 'm' : unit);
-  const [choice, setChoice] = useState<PostChoice>(DEFAULT_CHOICE);
+  const [onFeed, setOnFeed] = useState(() => readFeedDefault('activity'));
   const [caption, setCaption] = useState('');
   const [answers, setAnswers] = useState<FinishFormValue>((): FinishFormValue => ({
     effort: null,
@@ -111,7 +112,7 @@ export default function FinishSheet({
   const drawing = useMemo(() => (route.length >= 2 ? routeSvg(encodePolyline(route), 320, 120, 10) : null), [route]);
   const showDistance = !needsDistance && summary.distanceM > 0;
   const pace = showDistance ? formatPace(summary.distanceM, summary.movingS, type, unit) : null;
-  const posting = choice === 'post';
+  const posting = onFeed;
   const sportName = sportOption ? getSportDefinition(sportOption).display_name : null;
   const label = def.label.toLowerCase();
 
@@ -177,9 +178,9 @@ export default function FinishSheet({
           />
         </div>
 
-        {/* The one decision. */}
+        {/* The one decision: Post to feed on / off (269). Off still lands in Training. */}
         <div className="mt-4">
-          <PostChoicePicker value={choice} onChange={setChoice} onlyMePlace="in your Training" accountVisibility={accountVisibility} disabled={saving} />
+          <FeedToggle on={onFeed} onChange={setOnFeed} kind="activity" place="in Training" accountVisibility={accountVisibility} disabled={saving} />
         </div>
 
         {posting && (
@@ -237,7 +238,7 @@ export default function FinishSheet({
               onSave({
                 name: name.trim(),
                 manualDistanceM: parsedDistance(),
-                choice,
+                onFeed,
                 caption,
                 sport: posting && shareAs === 'sport' ? sportOption : null,
                 answers,
@@ -246,9 +247,9 @@ export default function FinishSheet({
             disabled={saving || pending > 0 || failed > 0 || (distanceRequired && parsedDistance() === null) || sportMissing}
             className="ea-cta min-h-[48px] flex-1 rounded-lg text-base font-semibold text-white disabled:opacity-50"
             data-record-save=""
-            data-record-save-choice={choice}
+            data-record-save-feed={onFeed ? 'on' : 'off'}
           >
-            {saving ? (posting ? 'Posting…' : 'Saving…') : error ? 'Retry' : posting ? 'Post' : 'Save for me'}
+            {saving ? (posting ? 'Posting…' : 'Saving…') : error ? 'Retry' : posting ? 'Post' : 'Save'}
           </button>
         </div>
       </div>

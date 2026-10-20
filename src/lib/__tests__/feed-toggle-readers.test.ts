@@ -69,12 +69,12 @@ describe('training is Training\'s; nothing leaks (269)', () => {
     expect(one).toMatch(/session\.status !== 'completed' \|\| session\.profile_hidden_at/);
     expect(one).toMatch(/updates\.profile_hidden_at = body\.hidden \? new Date\(\)\.toISOString\(\) : null/);
     expect(one).toMatch(/if \(!session\.share_decided_at\) updates\.share_decided_at = new Date\(\)\.toISOString\(\);/);
-    expect(one).toMatch(/const legacyKeepPrivate = body\.keepPrivate === true && Object\.keys\(body\)\.length === 1;/);
-    expect(one).not.toMatch(/updates\.share_decided_at = new Date\(\)\.toISOString\(\);\s*\}\s*if \(body\.keepPrivate/);
+    expect(one).not.toMatch(/body\.keepPrivate/);
     const drafts = code('src/lib/drafts/list.ts');
     expect(drafts).not.toMatch(/isWorkoutDraft|WORKOUT_DRAFTS_SINCE|share=1/);
-    // Only me at save stays honoured in C2 — the deployed Finish sheet still offers the card; C3 removes both.
+    // C3: the Finish sheet's card is gone and so is the branch — nothing at save decides the profile.
     const act = code('src/app/api/activities/route.ts');
-    expect(act).toMatch(/if \(onlyMe === true\) \{/);
+    expect(act).not.toMatch(/onlyMe === true/);
+    expect(act).not.toMatch(/\.update\(\{ only_me: true \}\)/);
   });
 });

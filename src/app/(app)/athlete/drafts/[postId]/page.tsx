@@ -12,7 +12,8 @@ import { backOr } from '@/lib/nav-back';
 import { COPY } from '@/lib/copy';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import { refreshDrafts } from '@/hooks/useDrafts';
-import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
+import FeedToggle from '@/components/posts/FeedToggle';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { POST_VISIBILITY } from '@/lib/posts/audience';
 
 // ── The review screen (Drafts round, Oct 2026) ───────────────────────────────
@@ -44,6 +45,8 @@ export default function DraftReviewPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [caption, setCaption] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  // Post to feed (269): a switch, remembered for sport results on this device.
+  const [onFeed, setOnFeed] = useState(() => readFeedDefault('sport'));
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [busy, setBusy] = useState<'post' | 'delete' | 'finish' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -121,7 +124,7 @@ export default function DraftReviewPage() {
       if (timerRef.current) clearTimeout(timerRef.current);
       // Posting writes it public: the account's privacy decides who sees it.
       if (!(await save({ caption, visibility: POST_VISIBILITY }))) { showError('Could not save your notes', 'Please try again.'); return; }
-      const res = await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId, action: 'post' }) });
+      const res = await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId, action: 'post', onFeed }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not post it', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
       void refreshDrafts();
@@ -252,9 +255,9 @@ export default function DraftReviewPage() {
               {saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Saved' : saved === 'failed' ? 'Not saved — check your connection' : 'Saved as you type'}
             </p>
           </div>
-          {/* Who sees it is the ACCOUNT's call (src/lib/posts/audience.ts) —
-              said here, never a per-post choice. */}
-          {isOwner && <AccountAudienceLine />}
+          {/* Who sees it is the ACCOUNT's call (src/lib/posts/audience.ts);
+              the one choice is the feed switch (269) — off, it still stands in Stats. */}
+          {isOwner && <FeedToggle on={onFeed} onChange={setOnFeed} kind="sport" place="in Stats" disabled={busy !== null} />}
           <div className="flex flex-wrap gap-3 pt-2">
             <button type="button" onClick={() => void handlePost()} disabled={busy !== null || !isOwner} className="px-5 py-2 min-h-[44px] rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover disabled:opacity-50" data-draft-post="">
               {busy === 'post' ? 'Posting…' : 'Post'}

@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_CHOICE, POST_VISIBILITY, isPrivateAccount, onlyMeLine, whoSeesPost } from '../audience';
+import { POST_VISIBILITY, feedOffLine, isPrivateAccount, whoSeesPost } from '../audience';
 
 describe('audience', () => {
-  it('defaults to posting, always written public (the account decides)', () => {
-    expect(DEFAULT_CHOICE).toBe('post');
+  it('a post is always written public (the account decides)', () => {
     expect(POST_VISIBILITY).toBe('public');
   });
 
@@ -18,8 +17,9 @@ describe('audience', () => {
     expect(whoSeesPost(undefined)).toMatch(/approved fans/);
   });
 
-  it('names where an Only me item is kept', () => {
-    expect(onlyMeLine()).toBe('Not on the feed — only you can see it');
-    expect(onlyMeLine('in your Training')).toBe('Not on the feed — only you can see it, in your Training');
+  it('the OFF line names where the item stands — never "only you" (269: off-feed is still on the profile)', () => {
+    expect(feedOffLine()).toBe('Not on the feed — stays on your profile');
+    expect(feedOffLine('in Training')).toBe('Not on the feed — stays on your profile, in Training');
+    expect(feedOffLine()).not.toMatch(/only you/i);
   });
 });

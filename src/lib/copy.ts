@@ -358,13 +358,13 @@ export const COPY = {
   // account, anyone; a private one, your approved fans. Per item the only
   // choice is Post it or Only me. Never a per-post "followers only".
   // src/lib/posts/audience.ts reads these.
+  // The feed is a switch (269, Oct 19 2026): "Post to feed" on / off; who
+  // sees it is the account's call either way. "Only me" is gone (Tom).
   AUDIENCE: {
-    QUESTION: 'Who sees it?',
-    POST_IT: 'Post it',
-    ONLY_ME: 'Only me',
+    FEED_TOGGLE: 'Post to feed',
     WHO_PUBLIC: 'Anyone can see it — on the feed and your profile',
     WHO_PRIVATE: 'Only your approved fans can see it — your account is private',
-    ONLY_ME_LINE: 'Not on the feed — only you can see it',
+    FEED_OFF_LINE: 'Not on the feed — stays on your profile',
     LEGACY_FANS_ONLY: 'Only your fans see this post',
     CHANGE: 'Change',
   },

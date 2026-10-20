@@ -28,9 +28,6 @@ test('workout drafts: a finished workout is decided, not a draft; a live one →
     await page.goto('/athlete/drafts');
     await expect(page.getByRole('heading', { name: 'Ready to post' })).toHaveCount(0);
     await expect(page.locator(`[data-draft-row="workout:${undecided}"]`)).toHaveCount(0);
-    // `keepPrivate` from an older client is accepted and changes nothing.
-    const legacy = await api.patch(`/api/workouts/${undecided}`, { data: { keepPrivate: true } });
-    expect(legacy.ok(), await readErrorBody(legacy)).toBe(true);
     // The owner's later Hide: a visitor no longer sees it; Show brings it back.
     const hidden = await api.patch(`/api/workouts/${undecided}`, { data: { hidden: true } });
     expect(hidden.ok(), await readErrorBody(hidden)).toBe(true);
@@ -39,7 +36,7 @@ test('workout drafts: a finished workout is decided, not a draft; a live one →
     expect(shown.ok(), await readErrorBody(shown)).toBe(true);
     expect((await (await api.get(`/api/workouts/${undecided}`)).json()).session.profile_hidden_at).toBeNull();
 
-    // A live workout: Finish from the reopen prompt → the share step → Only me.
+    // A live workout: Finish from the reopen prompt → the share step → the switch off → Done.
     const live = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(live.status(), await readErrorBody(live)).toBe(201);
     const liveId = (await live.json()).session.id as string;
@@ -56,10 +53,13 @@ test('workout drafts: a finished workout is decided, not a draft; a live one →
     await expect(prompt).toBeVisible({ timeout: 20_000 });
     await prompt.locator('[data-reopen-finish]').click();
     await page.waitForURL(`**/app/workout/${liveId}?share=1`, { timeout: 20_000 });
-    // Only me (not on the feed — the share decision recorded), then Save for me.
-    await page.locator('[data-choice="only_me"]').click();
-    await page.locator('[data-share-done="only_me"]').click();
-    await page.waitForURL('**/athlete', { timeout: 20_000 });
+    // The switch is on by default; off → Done leaves with no post and no draft (Finish decided).
+    await expect(page.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('[data-feed-toggle="on"]').click();
+    await expect(page.locator('[data-share-done="done"]')).toHaveText('Done');
+    await page.locator('[data-share-done="done"]').click();
+    await page.waitForURL('**/athlete?tab=training', { timeout: 20_000 });
+    await page.evaluate(() => localStorage.removeItem('ea:post:feed:v1'));
     await expect.poll(async () => (await (await api.get(`/api/workouts/${liveId}`)).json()).session.share_decided_at ?? null, { timeout: 15_000 }).toBeTruthy();
     const drafts = await api.get('/api/drafts');
     expect(drafts.ok(), await readErrorBody(drafts)).toBe(true);

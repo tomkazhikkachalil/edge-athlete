@@ -56,6 +56,14 @@ async function buckets(browser: Browser) {
     const lineId = (await res.json()).post.id as string;
     created.push(lineId);
 
+    // (c) A posted training entry (269): Training's, never Media or Stats.
+    res = await api.post('/api/posts', {
+      data: { caption: `Weight ${stamp}`, visibility: 'public', postType: 'general', postCategory: 'training', stats_data: { type: 'vitals_entry', metric_key: 'weight', metric_label: 'Weight', value: 80, value_display: '80 kg', unit: 'kg' } },
+    });
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+    const trainingId = (await res.json()).post.id as string;
+    created.push(trainingId);
+
     // The API: the sets and the badges agree.
     const counts = (await (await api.post(`/api/profile/${alpha.id}/media`)).json()) as { all: number; stats: number };
     const statsItems = ((await (await api.get(`/api/profile/${alpha.id}/media?tab=stats&limit=100`)).json()).items as { id: string }[]).map(i => i.id);
@@ -64,6 +72,11 @@ async function buckets(browser: Browser) {
     expect(statsItems).not.toContain(plainId);
     expect(allItems).toContain(lineId);
     expect(allItems).toContain(plainId);
+    expect(statsItems).not.toContain(trainingId);
+    expect(allItems).not.toContain(trainingId);
+    const training = await api.get(`/api/vitals?profileId=${alpha.id}`);
+    expect(training.ok(), await readErrorBody(training)).toBe(true);
+    expect(((await training.json()).trainingPosts as Array<{ id: string }>).map(p => p.id)).toContain(trainingId);
     if (statsItems.length < 100) expect(counts.stats).toBe(statsItems.length);
     if (allItems.length < 100) expect(counts.all).toBe(allItems.length);
 

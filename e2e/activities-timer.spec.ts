@@ -42,7 +42,7 @@ test('a HIIT intervals timer marks its rounds; Recent shows HIIT first @mobile',
 
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;
@@ -75,7 +75,7 @@ test('an elliptical saves without a distance @mobile', async ({ browser }) => {
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     await expect(page.getByText('Distance (optional)')).toBeVisible();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });

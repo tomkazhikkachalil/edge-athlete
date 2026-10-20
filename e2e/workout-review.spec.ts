@@ -105,8 +105,8 @@ test('the review step edits a clip in place, orders the carousel, removes a clip
     await expect.poll(async () => (await setUrlsNow()).length, { timeout: 20_000 }).toBe(2);
 
     // Share: the post carries the two clips in the chosen order, the edited one first.
-    // Post it is preselected (the one choice — src/lib/posts/audience.ts); Post.
-    await expect(page.locator('[data-post-choice] [data-choice="post"]')).toHaveAttribute('aria-checked', 'true');
+    // Post to feed is on by default (the one switch — src/lib/posts/audience.ts, 269); Post.
+    await expect(page.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'true');
     await page.locator('[data-share-done="post"]').click();
     // The FACT first (the session carries its post), the navigation after —
     // under load the profile page can take longer than the share did.

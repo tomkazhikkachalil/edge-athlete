@@ -42,7 +42,7 @@ test('a soccer practice: saved with its sport, read back as "Soccer · Practice"
     await form.locator('[data-detail-field="session_kind"] [data-detail-option="practice"]').click();
     await form.locator('[data-detail-field="minutes_played"] input').fill('60');
     await form.locator('[data-effort="6"]').click();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
