@@ -40,10 +40,13 @@ test('seen beacon: the signup row, one bump per day, nothing for a stranger @mob
     expect(Number(row!.days_mask)).toBe(3);
 
     // A second load sends nothing (the device remembers the day); a direct second POST is a cookie-dedup 204 and the row is unchanged.
+    // No `networkidle` here: production's feed keeps connections busy and never reaches it (the Oct 19 prod probe hung on it) —
+    // the app shell is hydrated once the header renders; two more seconds is the beacon's whole window.
     let posted = 0;
     page.on('request', r => { if (r.url().endsWith('/api/seen')) posted++; });
     await page.goto('/feed');
-    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /Toggle mobile menu|Account menu/ }).first().waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(2000);
     expect(posted).toBe(0);
     const again = await ctx.request.post('/api/seen');
     expect(again.status()).toBe(204);
