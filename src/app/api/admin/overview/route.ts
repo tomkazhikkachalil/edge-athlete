@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
 import { computeToday } from '@/lib/platform-stats/rollup-server';
+import { sentryLast24h } from '@/lib/platform-stats/sentry-server';
 import { dayUTC, yesterdayUTC } from '@/lib/platform-stats/metrics';
 import {
   SAMPLE_EVERY_MS, cohorts, dayList, dimsOf, healthWindow, jobViews, pooledRetention, samplerState, seriesFor, shiftDay, windows,
@@ -31,13 +32,14 @@ export async function GET(request: NextRequest) {
     const from = shiftDay(to, -(days * 2 - 1)); // this window and the one before it
     const cohortFrom = shiftDay(to, -(days + 31)); // a cohort's D30 lands 30 days after it
 
-    const [rowsRes, samplesRes, jobsRes, estRes, cronRes, today] = await Promise.all([
+    const [rowsRes, samplesRes, jobsRes, estRes, cronRes, today, errors24h] = await Promise.all([
       admin.from('platform_stats_daily').select('day, metric, dim, value').gte('day', cohortFrom).lte('day', to).limit(days * 2 * 80 + 400),
       admin.from('platform_health_samples').select('at, db_ms, ok').gte('at', new Date(nowMs - 7 * 86_400_000).toISOString()).order('at', { ascending: false }).limit(2200),
       admin.from('platform_jobs').select('job, last_started_at, last_finished_at, ok, duration_ms'),
       admin.rpc('platform_table_estimates'),
       admin.rpc('platform_cron_runs'),
       computeToday(admin, now),
+      sentryLast24h(nowMs),
     ]);
     if (rowsRes.error) {
       if (NOT_LIVE.has(rowsRes.error.code)) return NextResponse.json({ supported: false }, { headers: NO_STORE });
@@ -113,6 +115,7 @@ export async function GET(request: NextRequest) {
       platform: {
         storage: { objects: latestDim('storage.objects', 'bucket:'), bytes: latestDim('storage.bytes', 'bucket:') },
         errors: stat('errors.sentry'),
+        errors24h,
         jobs: jobViews(jobs, nowMs),
         cronRuns,
         health: {

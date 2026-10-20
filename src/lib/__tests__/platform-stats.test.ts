@@ -243,3 +243,35 @@ describe('the Overview model (H2)', () => {
     expect(v[0].ranAgoMs).toBe(3_590_000);
   });
 });
+
+describe('Sentry stats (H3)', () => {
+  it('folds stats_v2 into one count per UTC day; malformed input is an empty list', async () => {
+    const { parseSentryStats, sentryStatsUrl } = await import('../platform-stats/sentry');
+    const json = {
+      intervals: ['2026-10-17T00:00:00Z', '2026-10-18T00:00:00Z', '2026-10-19T00:00:00Z'],
+      groups: [
+        { by: { outcome: 'accepted' }, series: { 'sum(quantity)': [3, 0, 7] } },
+        { by: { outcome: 'accepted' }, series: { 'sum(quantity)': [1, 2, 'x'] } },
+      ],
+    };
+    expect(parseSentryStats(json)).toEqual([{ day: '2026-10-17', count: 4 }, { day: '2026-10-18', count: 2 }, { day: '2026-10-19', count: 7 }]);
+    expect(parseSentryStats(null)).toEqual([]);
+    expect(parseSentryStats({ intervals: 'no' })).toEqual([]);
+    const url = sentryStatsUrl('edge athlete', '12345', 14);
+    expect(url).toContain('/organizations/edge%20athlete/stats_v2/');
+    expect(url).toContain('statsPeriod=14d');
+    expect(url).toContain('category=error');
+  });
+  it('the config needs all three values and the migration 268 schedules both jobs through the urgent-emails bearer', async () => {
+    const { sentryStatsConfig } = await import('../platform-stats/sentry-server');
+    expect(sentryStatsConfig({})).toBeNull();
+    expect(sentryStatsConfig({ SENTRY_ORG: 'o', SENTRY_PROJECT_ID: '1' })).toBeNull();
+    expect(sentryStatsConfig({ SENTRY_ORG: 'o', SENTRY_PROJECT_ID: '1', SENTRY_STATS_TOKEN: 't' })).toEqual({ org: 'o', projectId: '1', token: 't' });
+    const sched = readFileSync(resolve(__dirname, '../../../database/migrations/268_platform_schedules.sql'), 'utf8');
+    expect(sched).toContain("cron.schedule('platform-health-sample', '*/5 * * * *'");
+    expect(sched).toContain("cron.schedule('platform-rollup', '10 0 * * *'");
+    expect(sched).toContain("FROM cron.job WHERE jobname = 'urgent-emails'");
+    expect(sched).toContain("VALUES (268, '268_platform_schedules.sql')");
+    expect(sched).not.toMatch(/INSERT INTO public\.platform/);
+  });
+});
