@@ -146,7 +146,12 @@ export interface ActivityView {
   /** 265: the per-type answers, read through the type's own table. */
   details: Details;
   /** The athlete's own controls, present for the owner audience only. */
-  owner: { onlyMe: boolean; updatedAt: string } | null;
+  owner: {
+    onlyMe: boolean;
+    updatedAt: string;
+    /** 269: the feed post's switch (null = no post / not read). The detail route fills it for the owner. */
+    postOnFeed?: boolean | null;
+  } | null;
 }
 
 export interface ActivityDetailView extends ActivityView {

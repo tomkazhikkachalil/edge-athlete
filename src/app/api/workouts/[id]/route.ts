@@ -231,11 +231,9 @@ export async function PATCH(
       updates.post_id = body.postId;
       updates.share_decided_at = new Date().toISOString();
     }
-    // keepPrivate (253) is accepted and ignored since 269: Finish is the
-    // decision, and a workout is never kept off the owner's profile by a
-    // share choice — hiding is `hidden` below. A deployed client's bare
-    // `{ keepPrivate: true }` still answers 200 (never "No fields to update").
-    const legacyKeepPrivate = body.keepPrivate === true && Object.keys(body).length === 1;
+    // keepPrivate (253) is gone since 269: Finish is the decision, and a
+    // workout is never kept off the owner's profile by a share choice —
+    // hiding is `hidden` below.
     if (body.hidden !== undefined) {
       if (typeof body.hidden !== 'boolean') return NextResponse.json({ error: 'hidden must be a boolean' }, { status: 400 });
       updates.profile_hidden_at = body.hidden ? new Date().toISOString() : null;
@@ -262,7 +260,6 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      if (legacyKeepPrivate) return NextResponse.json({ session: { ...session, id } }, { status: 200 });
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 

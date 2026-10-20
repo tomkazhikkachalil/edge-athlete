@@ -43,7 +43,7 @@ test('a pool swim keeps its effort, pool and stroke; the next swim pre-fills the
     const box = await form.locator('[data-effort="10"]').boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;

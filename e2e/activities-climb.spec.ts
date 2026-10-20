@@ -52,7 +52,7 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     await form.locator('[data-detail-field="setting"] [data-detail-option="indoor"]').click();
     await form.locator('[data-detail-field="style"] [data-detail-option="bouldering"]').click();
     await form.locator('[data-effort="7"]').click();
-    await page.locator('[data-choice="only_me"]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const id = page.url().split('/').pop()!;

@@ -51,7 +51,13 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     const athlete = p
       ? { id: p.id as string, name: (p.full_name as string | null) || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Athlete', handle: (p.handle as string | null) ?? null }
       : null;
-    return NextResponse.json({ activity: projectActivityDetail(read.row, stream, read.audience, media), athlete }, { headers: NO_STORE });
+    const activity = projectActivityDetail(read.row, stream, read.audience, media);
+    // 269: the owner's page offers "Remove from feed" / "Show on feed" — one small read, owner only.
+    if (activity.owner && read.row.post_id) {
+      const { data: post } = await admin.from('posts').select('on_feed').eq('id', read.row.post_id).maybeSingle();
+      activity.owner.postOnFeed = post ? post.on_feed !== false : null;
+    }
+    return NextResponse.json({ activity, athlete }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[activities/[id]] GET error:', error);

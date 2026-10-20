@@ -770,21 +770,35 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     }
   };
 
-  const handleKeepPrivate = async () => {
+  // The switch is OFF (269): Finish already decided; the workout stands in
+  // Training per the account's privacy. Records, then leave — nothing to write.
+  const handleDone = async () => {
     if (sharing) return;
     setSharing(true);
-    // The decision is a fact (253): without it a finished workout is a DRAFT
-    // and Drafts keeps offering Share / Keep private.
-    if (finishedSessionId) {
-      await fetch(`/api/workouts/${finishedSessionId}`, {
+    await recordPRs(null);
+    router.push('/athlete?tab=training');
+  };
+
+  // 269: the owner's later Hide — a visitor's Training no longer lists it; Show brings it back.
+  const [profileHidden, setProfileHidden] = useState<boolean>(!!session?.profile_hidden_at);
+  const [hideBusy, setHideBusy] = useState(false);
+  const toggleProfileHidden = async () => {
+    if (!session || hideBusy) return;
+    setHideBusy(true);
+    try {
+      const res = await fetch(`/api/workouts/${session.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ keepPrivate: true }),
-      }).catch(() => undefined);
+        body: JSON.stringify({ hidden: !profileHidden }),
+      });
+      if (!res.ok) throw new Error('Could not change that');
+      setProfileHidden(h => !h);
+    } catch {
+      showError('Not saved', 'Please try again.');
+    } finally {
+      setHideBusy(false);
     }
-    await recordPRs(null);
-    router.push('/athlete');
   };
 
   const handleDiscard = async () => {
@@ -857,7 +871,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           sharing={sharing}
           error={shareError}
           onShare={handleShare}
-          onKeepPrivate={handleKeepPrivate}
+          onDone={handleDone}
         />
         {shareEditor && (
           <MediaEditor
@@ -908,6 +922,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
                     { key: 'hide-timer', label: timerHidden ? 'Show timer' : 'Hide timer', icon: timerHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: toggleTimerHidden, testId: 'workout-menu-hide-timer' },
                     { key: 'timed', label: timed ? "Don't time this workout" : 'Time this workout', icon: 'fa-stopwatch', onSelect: () => void patchClock({ timed: !timed }, 'Could not change the timer'), disabled: clockBusy, testId: 'workout-menu-timed' },
                   ]
+                : []),
+              ...(mode === 'review' && session
+                ? [{ key: 'hide', label: profileHidden ? 'Show on my profile' : 'Hide from my profile', icon: profileHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: () => void toggleProfileHidden(), disabled: hideBusy, testId: profileHidden ? 'workout-menu-show-profile' : 'workout-menu-hide-profile' }]
                 : []),
               { key: 'discard', label: mode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
             ]}

@@ -6,6 +6,9 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
+import FeedToggle from '@/components/posts/FeedToggle';
+import { POST_VISIBILITY } from '@/lib/posts/audience';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { MediaEditor } from '@/components/media-editor';
 import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
@@ -68,7 +71,8 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
   });
   const [mode, setMode] = useState<SubmitMode>('metric_only');
   const [caption, setCaption] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  // Post to feed (269): a switch; the account decides who sees it. A body-metric post is training.
+  const [onFeed, setOnFeed] = useState(() => readFeedDefault('workout'));
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -98,7 +102,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
       setForm({ categoryKey: '', metricKey: '', rawValue: '', notes: '', recordedAt: today() });
       setMode('metric_only');
       setCaption('');
-      setVisibility('public');
+      setOnFeed(readFeedDefault('workout'));
       setMediaFiles([]);
       setError('');
     }
@@ -263,7 +267,8 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
             postType: 'general',
             postCategory: 'training',
             caption: postCaption,
-            visibility,
+            visibility: POST_VISIBILITY,
+            onFeed,
             media: uploadedMedia,
             stats_data: {
               type: 'vitals_entry',
@@ -572,26 +577,9 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                 />
               </div>
 
-              {/* Visibility */}
-              <div>
-                <label className="block text-sm font-semibold text-secondary mb-1.5">Visibility</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['public', 'private'] as const).map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setVisibility(v)}
-                      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                        visibility === v
-                          ? 'border-violet-500 bg-brand-soft text-brand-fg-strong'
-                          : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
-                      }`}
-                    >
-                      <i className={`fas ${v === 'public' ? 'fa-globe' : 'fa-lock'} text-xs`}></i>
-                      {v.charAt(0).toUpperCase() + v.slice(1)}
-                    </button>
-                  ))}
-                </div>
+              {/* The feed switch (269): off, the entry still stands in Training. */}
+              <div data-body-metric-feed="">
+                <FeedToggle on={onFeed} onChange={setOnFeed} kind="workout" place="in Training" disabled={saving} />
               </div>
             </>
           )}

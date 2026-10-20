@@ -41,10 +41,18 @@ test('open a recording, share it, delete it @mobile', async ({ browser }) => {
     // Who sees it is the account's call — said above Post, no per-post switch.
     await expect(page.locator('[data-activity-share-panel] [data-account-audience]')).toBeVisible();
     await page.locator('[data-activity-share-post]').click();
-    await expect(page.getByText('On your feed')).toBeVisible({ timeout: 15_000 });
-    const { data: post } = await adminClient().from('posts').select('id, caption, stats_data').eq('profile_id', u.id).single();
+    await expect(page.locator('[data-activity-feed="on"]')).toBeVisible({ timeout: 15_000 });
+    const { data: post } = await adminClient().from('posts').select('id, caption, stats_data, on_feed').eq('profile_id', u.id).single();
     expect(post!.caption).toBe('Felt good');
     expect(post!.stats_data).toMatchObject({ type: 'activity', activity_id: id });
+    expect(post!.on_feed).toBe(true);
+    // The feed is a switch (269): Remove from feed keeps the post (and the activity) on the profile; Show on feed flips it back.
+    await page.locator('[data-activity-feed-remove]').click();
+    await expect(page.locator('[data-activity-feed="off"]')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await adminClient().from('posts').select('on_feed').eq('id', post!.id).single()).data?.on_feed, { timeout: 10_000 }).toBe(false);
+    await page.locator('[data-activity-feed="off"]').click();
+    await expect(page.locator('[data-activity-feed="on"]')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await adminClient().from('posts').select('on_feed').eq('id', post!.id).single()).data?.on_feed, { timeout: 10_000 }).toBe(true);
 
     // Delete, confirmed: the activity and its post go; the page lands on the profile tab.
     await page.getByRole('button', { name: 'Delete' }).click();

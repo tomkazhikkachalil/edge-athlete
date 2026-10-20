@@ -41,9 +41,13 @@ describe('runWorkoutSweep', () => {
     expect(route).not.toMatch(/finalizeStaleActives|effectiveSessionStatus|staleFinalizeFields/);
     expect(read('src/app/api/cron/daily/route.ts')).toMatch(/summary\.workouts = await runWorkoutSweep\(admin\)/);
   });
-  it('Share and Keep private both record the decision (253)', () => {
+  it('Post and Finish both record the decision (253 → 269: Finish IS the decision; Keep private is gone)', () => {
     const route = read('src/app/api/workouts/[id]/route.ts');
     expect(route.match(/updates\.share_decided_at = new Date\(\)\.toISOString\(\)/g)?.length).toBe(2);
-    expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toMatch(/body: JSON\.stringify\(\{ keepPrivate: true \}\)/);
+    expect(route).toMatch(/if \(!session\.share_decided_at\) updates\.share_decided_at = new Date\(\)\.toISOString\(\);/);
+    const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
+    expect(editor).not.toMatch(/keepPrivate/);
+    // The switch OFF (Done) writes nothing: records, then leaves.
+    expect(editor).toMatch(/const handleDone = async \(\) => \{\s*if \(sharing\) return;\s*setSharing\(true\);\s*await recordPRs\(null\);\s*router\.push\('\/athlete\?tab=training'\);\s*\};/);
   });
 });

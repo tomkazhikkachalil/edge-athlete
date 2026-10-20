@@ -42,7 +42,8 @@ import { uploadingLine } from '@/lib/media/upload-progress';
 import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
-import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
+import FeedToggle from '@/components/posts/FeedToggle';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { POST_VISIBILITY, isPrivateAccount } from '@/lib/posts/audience';
 
 interface CreatePostModalProps {
@@ -198,6 +199,9 @@ export default function CreatePostModal({
   // above only ever sees the FIRST defaultSportKey. Re-apply it on each open
   // transition (ref-guarded so a prop change mid-composition can't clobber
   // what the user picked).
+  // Post to feed (269): a switch, not an audience; remembered per kind on this device.
+  const feedKind = defaultPostCategory === 'training' ? 'workout' : 'sport';
+  const [onFeed, setOnFeed] = useState(() => readFeedDefault(feedKind));
   const wasOpenRef = useRef(false);
   // Crash-recovery draft (dummy-proofing round): offered back as a notice on
   // open, never silently applied. Deliberate exits (discard confirm, post)
@@ -211,9 +215,10 @@ export default function CreatePostModal({
       setPostType(defaultSportKey);
       setShowSportSelector(Boolean(openSportPicker));
       setAvailableDraft(loadComposerDraft());
+      setOnFeed(readFeedDefault(defaultPostCategory === 'training' ? 'workout' : 'sport'));
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, defaultSportKey, openSportPicker]);
+  }, [isOpen, defaultSportKey, openSportPicker, defaultPostCategory]);
 
   // Stat-line sports (ice hockey, volleyball, …) — schema-driven stat entry
   const [statLineData, setStatLineData] = useState<StatLineData | null>(null);
@@ -834,8 +839,9 @@ export default function CreatePostModal({
         caption: caption.trim(),
         tags: selectedTags,
         hashtags,
-        // The account decides who sees it (src/lib/posts/audience.ts).
+        // The account decides who sees it (src/lib/posts/audience.ts); the feed is a switch (269).
         visibility: POST_VISIBILITY,
+        onFeed,
         media: uploadedMedia.map((file, index) => ({
           url: file.url,
           type: file.type,
@@ -1462,11 +1468,12 @@ export default function CreatePostModal({
             )}
           </div>
 
-          {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — said, never a
-              per-post switch. A guardian posting as an athlete sees the
-              athlete's account; the Change link is the poster's own settings. */}
+          {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — never a
+              per-post audience. The one switch is the feed (269): off, the
+              post still stands on the profile. A guardian posting as an
+              athlete sees the athlete's account. */}
           <div className="mb-6" data-composer-audience="">
-            <AccountAudienceLine accountVisibility={(activeProfile ?? profile)?.visibility ?? null} hideChange={!!activeProfile} />
+            <FeedToggle on={onFeed} onChange={setOnFeed} kind={feedKind} place={defaultPostCategory === 'training' ? 'in Training' : undefined} accountVisibility={(activeProfile ?? profile)?.visibility ?? null} />
           </div>
         </div>
 

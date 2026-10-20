@@ -17,7 +17,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `play.md` | Play: badges, rivalries, cheers, challenges |
 | `activities.md` | Activities: imported, connected, live-recorded |
 | `install-and-push.md` | Download the app, push notifications, the icon badge |
-| `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience |
+| `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch |
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes |
@@ -71,3 +71,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 47 | A sign-up or inquiry is a contact row, a mail to ONE setting, and a confirmation the person reads | `contacts-and-admin.md` |
 | 48 | The admin console is its own door: its own sign-in, its own cookie, the app session never grants it | `contacts-and-admin.md` |
 | 49 | Every number on the Overview is read from a SMALL table: counted once a night over an index, estimated where exact would be a scan, sampled where it is a probe | `platform-overview.md` |
+| 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |

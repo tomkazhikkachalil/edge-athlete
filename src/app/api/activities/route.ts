@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
-    const { activity, targetProfileId, onlyMe, finish } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown; onlyMe?: unknown; finish?: unknown };
+    const { activity, targetProfileId, finish } = (body ?? {}) as { activity?: unknown; targetProfileId?: unknown; finish?: unknown };
 
     const gate = await resolveActingProfile(
       user.id,
@@ -77,27 +77,10 @@ export async function POST(request: NextRequest) {
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     const applied = await applyFinishAnswers(admin, gate.actorId, outcome.id, answers.value);
     if (!applied.ok) return NextResponse.json({ error: applied.error }, { status: 500 });
-    // The recorder's review chose Only me (Oct 9 2026): private from the
-    // moment it exists — set here, not by a second call that could fail and
-    // leave it on the profile. Idempotent, so a retried save (the same
-    // live:<recordingId>, a duplicate) lands Only me too; never on an
-    // activity that is already on the feed.
-    // 269 (Oct 19 2026, Tom: "Only me" is dropped): the Finish sheet's card
-    // goes in the next PR and this branch with it — kept until then so the
-    // card on the deployed client keeps its promise. After that the only
-    // doors are "Post to feed" at the Finish and Hide on the activity page.
-    if (onlyMe === true) {
-      const { error: omErr } = await admin
-        .from('activities')
-        .update({ only_me: true })
-        .eq('id', outcome.id)
-        .eq('profile_id', gate.actorId)
-        .is('post_id', null);
-      if (omErr) {
-        reportRouteError('[activities] only-me on save failed:', omErr);
-        return NextResponse.json({ error: 'Could not save the activity as Only me. Try again.' }, { status: 500 });
-      }
-    }
+    // 269 (Oct 19 2026, Tom: "Only me" is dropped): nothing at save decides
+    // the profile — every finished activity stands in Training per the
+    // account's privacy. The feed is the client's next call (a post row);
+    // hiding is the owner's later PATCH { onlyMe } on the activity page.
     return NextResponse.json({ id: outcome.id, duplicate: outcome.duplicate }, { status: outcome.duplicate ? 200 : 201 });
   } catch (error) {
     if (error instanceof Response) return error;
