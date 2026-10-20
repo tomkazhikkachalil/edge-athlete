@@ -53,7 +53,8 @@ describe('a round is born a draft; nothing auto-posts; one writer publishes', ()
     expect(code('src/lib/golf/round-status.ts')).not.toMatch(/created_at: new Date\(\)/);
     expect(code('src/app/api/group-posts/[id]/route.ts')).not.toMatch(/created_at: new Date\(\)/);
     const writer = code('src/lib/posts/publish-server.ts');
-    expect(writer).toMatch(/\.update\(\{ status: 'published', created_at: now \}\)[\s\S]*?\.eq\('status', 'draft'\)/);
+    // 269 adds the feed switch to the same write (`...(input.onFeed !== undefined ? { on_feed } : {})`); the shape stays one update guarded on draft.
+    expect(writer).toMatch(/\.update\(\{ status: 'published', created_at: now[\s\S]*?\.eq\('status', 'draft'\)/);
   });
   it('publish-server.ts is the only place that writes draft → published', () => {
     const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap(d => {

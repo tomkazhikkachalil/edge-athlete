@@ -88,17 +88,9 @@ export function countWorkoutSets(sets: DraftWorkoutRow['sets']): number {
   return n;
 }
 
-/** Sessions finished before the Drafts round never had a share decision
- *  recorded (253 added the column, Oct 6 2026) — they are history, not
- *  drafts. Only what finishes from here on can be a draft. */
-export const WORKOUT_DRAFTS_SINCE = '2026-10-06T00:00:00Z';
-
-/** A finished workout whose owner never chose Share or Keep private. */
-export function isWorkoutDraft(w: DraftWorkoutRow): boolean {
-  if (w.status !== 'completed' || w.post_id || w.share_decided_at) return false;
-  const ended = ts(w.ended_at ?? w.last_activity_at ?? null);
-  return ended >= Date.parse(WORKOUT_DRAFTS_SINCE);
-}
+/** Since 269 (Oct 19 2026) a finished workout is never a draft: Finish is
+ *  the decision and the only post-time choice is the feed switch. The owner's
+ *  later door is /app/workout/[id]?share=1, reached from the workout itself. */
 
 export interface DraftRecordingLike {
   id: string;
@@ -185,9 +177,6 @@ export function buildDraftsList(input: {
     };
     if (w.status === 'active') {
       inProgress.push({ ...base, state: 'in_progress', href: `/app/workout/${w.id}` });
-    } else if (isWorkoutDraft(w)) {
-      // The share step of the finished workout: Share or Keep private.
-      drafts.push({ ...base, state: 'draft', href: `/app/workout/${w.id}?share=1` });
     }
   }
 

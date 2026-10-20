@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
             .in('id', ids);
           // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
           // inversion); posts.status exists since migration 051.
-          postQuery = postQuery.eq('status', 'published');
+          postQuery = postQuery.eq('status', 'published').eq('on_feed', true); // 269: an off-feed post is not a search result
           if (sport) {
             postQuery = postQuery.eq('sport_key', sport);
           }
@@ -368,7 +368,7 @@ export async function GET(request: NextRequest) {
 
               // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
               // inversion); posts.status exists since migration 051.
-              postQuery = postQuery.eq('status', 'published');
+              postQuery = postQuery.eq('status', 'published').eq('on_feed', true); // 269: an off-feed post is not a search result
 
               // Apply filters
               if (sport) {
@@ -422,7 +422,7 @@ export async function GET(request: NextRequest) {
 
         // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
         // inversion); posts.status exists since migration 051.
-        postQuery = postQuery.eq('status', 'published');
+        postQuery = postQuery.eq('status', 'published').eq('on_feed', true); // 269: an off-feed post is not a search result
 
         if (sport) {
           postQuery = postQuery.eq('sport_key', sport);

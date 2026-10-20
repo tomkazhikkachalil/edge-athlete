@@ -73,7 +73,7 @@ describe('planPause / planResume — compare-and-set plans, the client clock', (
     expect(route).toMatch(/\.eq\('status', 'active'\)\.is\('paused_at', null\)\.select\('\*'\)/);
     expect(route).toMatch(/\.eq\('paused_at', plan\.expectPausedAt\)\.select\('\*'\)/);
     expect(route).toMatch(/updates\.paused_at = null;/);
-    expect(route).toMatch(/select\('profile_id, status, started_at, timed, paused_seconds, paused_at'\)/);
+    expect(route).toMatch(/select\('profile_id, status, started_at, timed, paused_seconds, paused_at, share_decided_at'\)/);
   });
 });
 

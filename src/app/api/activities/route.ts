@@ -82,6 +82,10 @@ export async function POST(request: NextRequest) {
     // leave it on the profile. Idempotent, so a retried save (the same
     // live:<recordingId>, a duplicate) lands Only me too; never on an
     // activity that is already on the feed.
+    // 269 (Oct 19 2026, Tom: "Only me" is dropped): the Finish sheet's card
+    // goes in the next PR and this branch with it — kept until then so the
+    // card on the deployed client keeps its promise. After that the only
+    // doors are "Post to feed" at the Finish and Hide on the activity page.
     if (onlyMe === true) {
       const { error: omErr } = await admin
         .from('activities')

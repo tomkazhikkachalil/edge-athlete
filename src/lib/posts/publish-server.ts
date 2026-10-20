@@ -41,7 +41,7 @@ const refuse = (reason: PublishRefusal): PublishOutcome => ({ ok: false, reason,
  * status = 'draft' so two taps post once; a round's post needs the round
  * completed.
  */
-export async function publishDraftPost(admin: Admin, input: { postId: string }): Promise<PublishOutcome> {
+export async function publishDraftPost(admin: Admin, input: { postId: string; onFeed?: boolean }): Promise<PublishOutcome> {
   const { data: post, error } = await admin
     .from('posts')
     .select('id, profile_id, status, group_post_id')
@@ -62,7 +62,7 @@ export async function publishDraftPost(admin: Admin, input: { postId: string }):
   const now = new Date().toISOString();
   const { data: updated, error: updateError } = await admin
     .from('posts')
-    .update({ status: 'published', created_at: now })
+    .update({ status: 'published', created_at: now, ...(input.onFeed !== undefined ? { on_feed: input.onFeed } : {}) })
     .eq('id', post.id)
     .eq('status', 'draft')
     .select('id')
