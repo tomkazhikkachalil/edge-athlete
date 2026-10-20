@@ -61,6 +61,8 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
   await card.getByText('Set level', { exact: true }).click();
   await page.waitForURL('**/athlete?edit=sport', { timeout: 15_000 });
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 20_000 });
+  // …on the Sports tab (Program D): one tab, the setup as steps.
+  await expect(page.getByRole('dialog', { name: 'Edit Profile', exact: true }).locator('[data-sports-tab]')).toBeVisible({ timeout: 15_000 });
 
   // Back on the feed the card is still offered (not yet dismissed)… — in a
   // FRESH page of the same context (the dismiss key is localStorage, shared

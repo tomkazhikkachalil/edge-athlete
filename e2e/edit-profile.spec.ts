@@ -138,13 +138,15 @@ test('a private profile\'s Privacy tab opens on Private @mobile', async ({ page 
   await expect(pressed.getByRole('heading', { name: 'Private' })).toBeVisible();
 });
 
-test('the deep link opens the sport tab; unsaved typing in another tab survives a save; Discard discards @mobile', async ({ page }) => {
+test('the deep link opens the Sports tab; unsaved typing in another tab survives a save; Discard discards @mobile', async ({ page }) => {
   const alpha = loadQaUser('user.json');
   const admin = adminClient();
 
-  // A COLD load of the deep link: the modal mounts already open.
+  // A COLD load of the deep link: the modal mounts already open, on the ONE
+  // Sports tab (Program D — there is no tab per sport any more).
   await page.goto('/athlete?edit=sport');
-  await expect(tab(page, 'Golf')).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+  await expect(tab(page, 'Sports')).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+  await expect(tab(page, 'Golf')).toHaveCount(0);
 
   // Type in Training, then save Basic.
   await tab(page, 'Body Metrics').click();
@@ -349,4 +351,92 @@ test('the phone menu opens Edit Profile in place; leaving the page closes it @mo
   await page.waitForURL('**/feed', { timeout: 20_000 });
   expect(await page.evaluate(() => (window as unknown as { __eaSameDocument?: boolean }).__eaSameDocument)).toBe(true);
   await expect(editDialog(page)).toBeHidden();
+});
+
+// Program D (Oct 2026): a sport's setup is a few short steps from the Sports
+// tab — Set up → Step 1 of N · About you in Golf → … → Review → Save, one
+// save, the row's summary line the truth of what was set. Closing mid-flow
+// asks first.
+test('the Sports tab: Set up walks golf through its steps and saves once; the row sums it up; closing mid-flow asks @mobile', async ({ page }) => {
+  const alpha = loadQaUser('user.json');
+  const admin = adminClient();
+  const dialog = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+  const flow = page.locator('[data-sport-setup="golf"]');
+  try {
+    await admin.from('sport_settings').upsert([{ profile_id: alpha.id, sport_key: 'golf', settings: {} }], { onConflict: 'profile_id,sport_key' });
+    await page.goto('/athlete?edit=sport');
+    await expect(tab(page, 'Sports')).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+    const row = dialog.locator('[data-sport-row="golf"]');
+    await expect(row).toHaveAttribute('data-sport-row-state', 'empty', { timeout: 20_000 });
+    await expect(row.locator('[data-sport-row-line]')).toHaveText('Not set up yet');
+    await row.locator('[data-sport-setup-open="golf"]').click();
+
+    // Step 1 of N · About you in Golf — the handicap, the home course, the tee.
+    await expect(flow).toBeVisible();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/^Step 1 of \d · About you in Golf$/);
+    await expect(flow.locator('[data-step-back]')).toBeDisabled();
+    await flow.locator('#golf-handicap').fill('12.4');
+    await flow.locator('#golf-tee_preference').selectOption('blue');
+    await flow.locator('[data-step-next]').click();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/^Step 2 of \d · Competitive profile$/);
+    await flow.locator('#golf-competitive_level').selectOption('club_events');
+    // The last step is Review: every field, set or "Not set", then Save.
+    while (await flow.locator('[data-step-next]').count()) await flow.locator('[data-step-next]').click();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/Review$/);
+    await expect(flow.locator('[data-review-field="handicap"]')).toContainText('12.4');
+    await expect(flow.locator('[data-review-field="home_course"]')).toContainText('Not set');
+    await expect(flow.locator('[data-step-finish]')).toHaveText('Save');
+    await flow.locator('[data-step-finish]').click();
+    await expect(flow).toHaveCount(0, { timeout: 15_000 });
+
+    // ONE save: the row sums it up and the stored row carries it.
+    await expect(row).toHaveAttribute('data-sport-row-state', 'set');
+    await expect(row.locator('[data-sport-row-line]')).toContainText('12.4');
+    await expect(row.locator('[data-sport-setup-open="golf"]')).toHaveText('Edit');
+    await expect.poll(async () => (await admin.from('sport_settings').select('settings').eq('profile_id', alpha.id).eq('sport_key', 'golf').single()).data?.settings, { timeout: 15_000 })
+      .toMatchObject({ handicap: 12.4, tee_preference: 'blue', competitive_level: 'club_events' });
+
+    // Edit → change, then close mid-flow: the confirm names the sport; Discard leaves the stored value alone.
+    await row.locator('[data-sport-setup-open="golf"]').click();
+    await expect(flow.locator('#golf-handicap')).toHaveValue('12.4');
+    await flow.locator('#golf-handicap').fill('9');
+    await flow.locator('[data-sport-setup-close]').click();
+    await expect(page.getByText('Discard your Golf setup?')).toBeVisible();
+    await page.getByRole('button', { name: 'Discard', exact: true }).click();
+    await expect(flow).toHaveCount(0);
+    await expect(row.locator('[data-sport-row-line]')).toContainText('12.4');
+    // The editor itself has nothing unsaved: Close closes without asking.
+    await page.getByRole('button', { name: 'Close modal' }).click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+  } finally {
+    await admin.from('sport_settings').upsert([{ profile_id: alpha.id, sport_key: 'golf', settings: {} }], { onConflict: 'profile_id,sport_key' });
+  }
+});
+
+test('track & field: Competitive profile, Personal bests, Review — the PBs land on step 2 @mobile', async ({ page }) => {
+  const alpha = loadQaUser('user.json');
+  const admin = adminClient();
+  const dialog = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+  const flow = page.locator('[data-sport-setup="track_field"]');
+  try {
+    await admin.from('sport_settings').upsert([{ profile_id: alpha.id, sport_key: 'track_field', settings: {} }], { onConflict: 'profile_id,sport_key' });
+    await page.goto('/athlete?edit=sport');
+    await expect(tab(page, 'Sports')).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+    await dialog.locator('[data-sport-setup-open="track_field"]').click();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/^Step 1 of 3 · Competitive profile$/);
+    await expect(flow.locator('[data-step-dot]')).toHaveCount(3);
+    await flow.locator('[data-step-next]').click();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/^Step 2 of 3 · Personal bests$/);
+    await expect(flow.locator('[data-settings-field^="pb_"]')).toHaveCount(5);
+    await flow.locator('#track_field-pb_400m').fill('58.2');
+    await flow.locator('[data-step-next]').click();
+    await expect(flow.locator('[data-step-header]')).toHaveText(/^Step 3 of 3 · Review$/);
+    await expect(flow.locator('[data-review-field="pb_400m"]')).toContainText('58.2');
+    await flow.locator('[data-step-finish]').click();
+    await expect(flow).toHaveCount(0, { timeout: 15_000 });
+    await expect.poll(async () => (await admin.from('sport_settings').select('settings').eq('profile_id', alpha.id).eq('sport_key', 'track_field').single()).data?.settings, { timeout: 15_000 })
+      .toMatchObject({ pb_400m: 58.2 });
+  } finally {
+    await admin.from('sport_settings').delete().eq('profile_id', alpha.id).eq('sport_key', 'track_field');
+  }
 });

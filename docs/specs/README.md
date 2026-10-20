@@ -20,7 +20,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch |
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen |
-| `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes |
+| `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes; the sport setup as steps (51) |
 | `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026) |
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
@@ -72,3 +72,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 48 | The admin console is its own door: its own sign-in, its own cookie, the app session never grants it | `contacts-and-admin.md` |
 | 49 | Every number on the Overview is read from a SMALL table: counted once a night over an index, estimated where exact would be a scan, sampled where it is a probe | `platform-overview.md` |
 | 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
+| 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |
