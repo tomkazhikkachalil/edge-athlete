@@ -198,9 +198,9 @@ export async function GET(request: NextRequest) {
       .order('started_at', { ascending: false })
       .limit(limit);
 
-    // Non-owners never see in-progress sessions
+    // Non-owners never see in-progress sessions, nor one the owner hid (269).
     if (!isOwner) {
-      query = query.eq('status', 'completed');
+      query = query.eq('status', 'completed').is('profile_hidden_at', null);
     } else if (statusFilter === 'active') {
       query = query.eq('status', 'active');
     }

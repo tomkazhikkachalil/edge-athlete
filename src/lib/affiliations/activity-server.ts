@@ -44,6 +44,7 @@ export async function orgActivityGET(
     .in('profile_id', memberIds)
     .eq('visibility', 'public')
     .eq('status', 'published')
+    .eq('on_feed', true) // 269: the org activity page is a feed-side reader
     .order('created_at', { ascending: false })
     .limit(LIMIT * 3);
   if (postsError) {

@@ -1,34 +1,43 @@
 import { test, expect } from './helpers/test';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
-// Drafts round PR 5 (Oct 2026): workouts follow the same rule. No 6 h
-// auto-complete; an unfinished workout stays in progress (the prompt, Drafts);
-// a finished workout with no share decision is a DRAFT — Drafts offers Share
-// and Keep private; either records the decision and the draft is gone.
+// Drafts round PR 5 (Oct 2026): no 6 h auto-complete; an unfinished workout
+// stays in progress (the prompt, Drafts). Flow changes C2 (269, Oct 19 2026):
+// Finish IS the share decision — a finished workout is never a draft, Drafts
+// has no "Ready to post" row for it, and it stands on the Training tab per
+// the account's privacy; the owner hides one later from its page.
 
-test('workout drafts: finished-undecided in Drafts → Keep private; a live one → Finish from the prompt → the share step', { tag: '@mobile' }, async ({ page }) => {
+test('workout drafts: a finished workout is decided, not a draft; a live one → Finish from the prompt → the share step', { tag: '@mobile' }, async ({ page }) => {
   test.setTimeout(150_000);
   const api = await apiAs('state.json');
   const ids: string[] = [];
   try {
-    // A finished workout nobody decided on: a draft.
+    // A finished workout is decided the moment it finishes: no draft row anywhere.
     const started = await api.post('/api/workouts', { data: { mode: 'live' } });
     expect(started.status(), await readErrorBody(started)).toBe(201);
     const undecided = (await started.json()).session.id as string;
     ids.push(undecided);
     const done = await api.patch(`/api/workouts/${undecided}`, { data: { title: `QA Draft Workout ${Date.now()}`, finish: { endedAt: new Date().toISOString() } } });
     expect(done.ok(), await readErrorBody(done)).toBe(true);
-
-    await page.goto('/athlete/drafts');
-    const row = page.locator(`[data-draft-row="workout:${undecided}"]`);
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toHaveAttribute('data-draft-state', 'draft');
-    await expect(row.locator('[data-draft-share]')).toBeVisible();
-    await row.locator('[data-draft-keep-private]').click();
-    await expect(row).toHaveCount(0, { timeout: 15_000 });
     const read = await api.get(`/api/workouts/${undecided}`);
     expect(read.ok(), await readErrorBody(read)).toBe(true);
-    expect((await read.json()).session.share_decided_at).toBeTruthy();
+    expect((await read.json()).session.share_decided_at, 'Finish stamps the decision').toBeTruthy();
+    const list = await api.get('/api/drafts');
+    expect(list.ok(), await readErrorBody(list)).toBe(true);
+    expect(JSON.stringify(await list.json())).not.toContain(undecided);
+    await page.goto('/athlete/drafts');
+    await expect(page.getByRole('heading', { name: 'Ready to post' })).toHaveCount(0);
+    await expect(page.locator(`[data-draft-row="workout:${undecided}"]`)).toHaveCount(0);
+    // `keepPrivate` from an older client is accepted and changes nothing.
+    const legacy = await api.patch(`/api/workouts/${undecided}`, { data: { keepPrivate: true } });
+    expect(legacy.ok(), await readErrorBody(legacy)).toBe(true);
+    // The owner's later Hide: a visitor no longer sees it; Show brings it back.
+    const hidden = await api.patch(`/api/workouts/${undecided}`, { data: { hidden: true } });
+    expect(hidden.ok(), await readErrorBody(hidden)).toBe(true);
+    expect((await (await api.get(`/api/workouts/${undecided}`)).json()).session.profile_hidden_at).toBeTruthy();
+    const shown = await api.patch(`/api/workouts/${undecided}`, { data: { hidden: false } });
+    expect(shown.ok(), await readErrorBody(shown)).toBe(true);
+    expect((await (await api.get(`/api/workouts/${undecided}`)).json()).session.profile_hidden_at).toBeNull();
 
     // A live workout: Finish from the reopen prompt → the share step → Only me.
     const live = await api.post('/api/workouts', { data: { mode: 'live' } });

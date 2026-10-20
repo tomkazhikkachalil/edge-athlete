@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     // UNCONDITIONAL — never flag-gate a publish filter (Wave 1 inversion);
     // posts.status exists since migration 051.
-    postQuery = postQuery.eq('status', 'published');
+    postQuery = postQuery.eq('status', 'published').eq('on_feed', true); // 269: an off-feed post is not a discovery result
 
     const athletesPromise = searching
       ? searchPeople({ query: q, visibleIds: [], includePublic: true, limit, location }).then(people => {

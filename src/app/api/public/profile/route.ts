@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { STRANGER_VIEW, getProfileOrganizations } from '@/lib/affiliations/server';
 import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { isStatementPost } from '@/lib/statements';
+import { isStatementPost, isTrainingPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     // media-only counts.all. Statements are subtracted via the PostgREST
     // null-embed (anti-join) pattern; if that count errors it degrades to
     // subtracting 0 (total count) rather than breaking the page.
-    const [{ count: postsCount }, { count: statementsTotal }] = await Promise.all([
+    const [{ count: postsCount }, { count: statementsTotal }, { count: trainingTotal }] = await Promise.all([
       supabase
         .from('posts')
         .select('id', { count: 'exact', head: true })
@@ -112,6 +112,15 @@ export async function GET(request: NextRequest) {
         .is('round_id', null)
         .is('group_post_id', null)
         .or('stats_data.is.null,stats_data.eq."{}"'),
+      // 269: training posts are Training's — they leave the media count here
+      // exactly as the profile RPCs' counts leave them out.
+      supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', profile.id)
+        .eq('visibility', 'public')
+        .eq('status', 'published')
+        .or('post_category.eq.training,stats_data->>type.eq.activity'),
     ]);
 
     // Fetch recent public posts. Over-fetch, then split into media posts
@@ -128,6 +137,7 @@ export async function GET(request: NextRequest) {
         likes_count,
         comments_count,
         stats_data,
+        post_category,
         round_id,
         group_post_id,
         shared_post_id,
@@ -139,13 +149,16 @@ export async function GET(request: NextRequest) {
       `)
       .eq('profile_id', profile.id)
       .eq('visibility', 'public')
+      // Published only (269): this read had no status filter — a draft or a
+      // hidden post could reach the CDN-cached page.
+      .eq('status', 'published')
       .order('created_at', { ascending: false })
       .limit(24);
 
     // Classification fields (stats_data/round_id/group_post_id) stay server-
     // side — the wire shapes don't grow.
     const recentPosts = (rawRecentPosts || [])
-      .filter(p => !isStatementPost(p))
+      .filter(p => !isStatementPost(p) && !isTrainingPost(p))
       .slice(0, 6)
       .map(p => ({
         id: p.id,
@@ -252,7 +265,7 @@ export async function GET(request: NextRequest) {
         cover: coverProxyUrl(profile.id, coverUrlCol),
         followersCount: followersCountCol ?? 0,
         followingCount: followingCountCol ?? 0,
-        postsCount: Math.max((postsCount || 0) - (statementsTotal || 0), 0)
+        postsCount: Math.max((postsCount || 0) - (statementsTotal || 0) - (trainingTotal || 0), 0)
       },
       recentPosts,
       statements,

@@ -140,7 +140,12 @@ export async function POST(request: NextRequest) {
       stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
       sharedPostId = null, // Repost: the post being shared (075)
       postCategory: rawPostCategory = null, // Cross-cutting category (077): 'training'
+      onFeed: rawOnFeed = true, // The feed switch (269): false = profile only
     } = body;
+    if (typeof rawOnFeed !== 'boolean') {
+      return NextResponse.json({ error: 'onFeed must be a boolean' }, { status: 400 });
+    }
+    const onFeed: boolean = rawOnFeed;
 
     // Category normalization — also maps the pre-077 legacy shape
     // (postType 'training') onto {general + training}.
@@ -152,8 +157,11 @@ export async function POST(request: NextRequest) {
     // An activity shared from Training is a TRAINING post (Oct 1 2026) — it
     // lists under Training → Training Activity like a shared workout. The
     // client need not say so.
+    // ONLY a general post (269): an activity posted AS a sport result (a stat
+    // line with a sport_key) is a SPORT post and belongs in Stats — the
+    // category used to stamp it training and evict it (Convention 47).
     const postCategory =
-      identity.postCategory ?? (isActivityShareRequest(incomingStatsData) ? ('training' as const) : null);
+      identity.postCategory ?? (isActivityShareRequest(incomingStatsData) && postType === 'general' ? ('training' as const) : null);
 
     // Content owner: the session user, or — guardian-profiles — a managed
     // athlete via targetProfileId. The shared gate (guardian-gate.ts) is
@@ -353,8 +361,11 @@ export async function POST(request: NextRequest) {
       post_category?: string;
       created_by_user_id?: string;
       event_id?: string;
+      on_feed: boolean;
     } = {
       profile_id: userId,
+      // The feed switch (269): never an audience — the account decides who sees it.
+      on_feed: onFeed,
       sport_key: postType, // Use postType as sport_key for our unified approach
       caption: caption,
       visibility: visibility,
@@ -1359,6 +1370,13 @@ export async function GET(request: NextRequest) {
           ? `status.eq.published,and(profile_id.eq.${currentUserId},status.neq.draft)`  // hardening-ok: session UUID
           : `status.eq.published,and(profile_id.eq.${currentUserId},status.not.in.(profile_hidden,draft))`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
+    // The feed is a SWITCH (269, Convention 47): every feed-side lens — the
+    // default feed, the following lens, the org lens, a contest — lists
+    // on-feed posts only. A profile list (?userId=) and the pinned strip are
+    // profile-side and ignore it: an off-feed post stays on the profile.
+    if (!userId) {
+      query = query.eq('on_feed', true);
+    }
 
     if (pinnedOnly) {
       query = query.eq('is_pinned', true);
@@ -1855,7 +1873,8 @@ export async function PATCH(request: NextRequest) {
     // reviewed it and chosen to publish. Finish and Post are two actions —
     // the round must be completed first; the writer refuses otherwise.
     if (action === 'post') {
-      const outcome = await publishDraftPost(supabase, { postId });
+      // The feed switch rides the Post (269): the draft's review decided it.
+      const outcome = await publishDraftPost(supabase, { postId, onFeed: typeof body.onFeed === 'boolean' ? body.onFeed : undefined });
       if (!outcome.ok) {
         return NextResponse.json({ error: outcome.error, reason: outcome.reason }, { status: outcome.status });
       }
@@ -1985,6 +2004,9 @@ export async function PUT(request: NextRequest) {
       .update({
         caption: caption,
         ...(visibility !== undefined ? { visibility } : {}),
+        // The feed switch (269): "Show on feed" / "Remove from feed" — not a
+        // visibility change (Convention 39: an edit never changes visibility).
+        ...(typeof body.onFeed === 'boolean' ? { on_feed: body.onFeed } : {}),
         hashtags: hashtags,
         updated_at: new Date().toISOString(),
         // tags = tagged people IDs. Only overwrite when the caller explicitly

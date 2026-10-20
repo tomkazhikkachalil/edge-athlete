@@ -62,7 +62,8 @@ export async function GET(
 
     const isOwner = currentUserId === session.profile_id;
     if (!isOwner) {
-      if (session.status !== 'completed') {
+      // In progress, or hidden by its owner (269): nothing to see — the same 404 as "no such workout".
+      if (session.status !== 'completed' || session.profile_hidden_at) {
         return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
       }
       const { data: profile } = await supabase
@@ -153,7 +154,7 @@ export async function PATCH(
 
     const { data: session, error: fetchError } = await supabase
       .from('workout_sessions')
-      .select('profile_id, status, started_at, timed, paused_seconds, paused_at')
+      .select('profile_id, status, started_at, timed, paused_seconds, paused_at, share_decided_at')
       .eq('id', id)
       .single();
 
@@ -230,8 +231,14 @@ export async function PATCH(
       updates.post_id = body.postId;
       updates.share_decided_at = new Date().toISOString();
     }
-    if (body.keepPrivate === true) {
-      updates.share_decided_at = new Date().toISOString();
+    // keepPrivate (253) is accepted and ignored since 269: Finish is the
+    // decision, and a workout is never kept off the owner's profile by a
+    // share choice — hiding is `hidden` below. A deployed client's bare
+    // `{ keepPrivate: true }` still answers 200 (never "No fields to update").
+    const legacyKeepPrivate = body.keepPrivate === true && Object.keys(body).length === 1;
+    if (body.hidden !== undefined) {
+      if (typeof body.hidden !== 'boolean') return NextResponse.json({ error: 'hidden must be a boolean' }, { status: 400 });
+      updates.profile_hidden_at = body.hidden ? new Date().toISOString() : null;
     }
     if (body.finish) {
       // Re-finishing a completed session would recompute duration_seconds
@@ -247,12 +254,15 @@ export async function PATCH(
       // excluded, NULL when untimed; the finish closes any open pause.
       const plan = finishDuration({ ...session, timed: updates.timed === undefined ? session.timed : (updates.timed as boolean) }, requestedMs);
       updates.status = 'completed';
+      // Finish IS the share decision (269): the post-time choice is only "Post to feed" — nothing waits in a Drafts list.
+      if (!session.share_decided_at) updates.share_decided_at = new Date().toISOString();
       updates.ended_at = new Date(plan.endedMs).toISOString();
       updates.duration_seconds = plan.durationSeconds;
       updates.paused_at = null;
     }
 
     if (Object.keys(updates).length === 0) {
+      if (legacyKeepPrivate) return NextResponse.json({ session: { ...session, id } }, { status: 200 });
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 

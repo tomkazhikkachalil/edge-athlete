@@ -146,6 +146,10 @@ export async function GET(request: NextRequest) {
       `)
       .eq('profile_id', profileId)
       .eq('post_category', 'training')
+      // Published only, owner included (269): the owner's hidden results are
+      // listed by results/hidden-list.ts, never here; a draft or a moderated
+      // post has no place in Training Activity.
+      .eq('status', 'published')
       .order('created_at', { ascending: false })
       .limit(20);
 
