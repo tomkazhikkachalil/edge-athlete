@@ -10,6 +10,7 @@
  */
 
 import type { SettingsFieldDef, SettingsFormValues, SportSettingsSchema } from '@/lib/sports/settings-schemas';
+import SportSettingsField from '@/components/SportSettingsField';
 
 interface SportSettingsFormProps {
   schema: SportSettingsSchema;
@@ -20,9 +21,6 @@ interface SportSettingsFormProps {
   disabled?: boolean;
 }
 
-const CONTROL_CLASS =
-  'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:bg-surface-sunken disabled:text-muted';
-
 export default function SportSettingsForm({
   schema,
   values,
@@ -30,66 +28,20 @@ export default function SportSettingsForm({
   onChange,
   disabled = false,
 }: SportSettingsFormProps) {
-  const renderField = (field: SettingsFieldDef) => {
-    const inputId = `${schema.sport_key}-${field.key}`;
-    const error = errors[field.key];
-    const describedBy = error ? `${inputId}-error` : field.hint ? `${inputId}-hint` : undefined;
-    const borderClass = error ? 'border-red-500' : 'border-border-strong';
-
-    // Free text needs the full row; compact controls pair up on wider screens.
-    const spanClass = field.kind === 'text' ? 'md:col-span-2' : '';
-
-    return (
-      <div key={field.key} className={spanClass}>
-        <label htmlFor={inputId} className="block text-sm font-medium text-secondary mb-1">
-          {field.label}
-        </label>
-
-        {field.kind === 'select' ? (
-          <select
-            id={inputId}
-            value={values[field.key] ?? field.defaultValue}
-            onChange={event => onChange(field.key, event.target.value)}
-            disabled={disabled}
-            aria-describedby={describedBy}
-            aria-invalid={error ? true : undefined}
-            className={`${CONTROL_CLASS} ${borderClass}`}
-          >
-            {field.options.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            id={inputId}
-            type={field.kind === 'number' ? 'number' : 'text'}
-            value={values[field.key] ?? ''}
-            onChange={event => onChange(field.key, event.target.value)}
-            disabled={disabled}
-            placeholder={field.placeholder}
-            aria-describedby={describedBy}
-            aria-invalid={error ? true : undefined}
-            {...(field.kind === 'number'
-              ? { step: field.step, min: field.min, max: field.max }
-              : { maxLength: field.maxLength })}
-            className={`${CONTROL_CLASS} ${borderClass}`}
-          />
-        )}
-
-        {error ? (
-          <p id={`${inputId}-error`} className="mt-1 text-xs text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        ) : field.hint ? (
-          <p id={`${inputId}-hint`} className="mt-1 text-xs text-muted">
-            {field.hint}
-          </p>
-        ) : null}
-      </div>
-    );
-  };
+  // The field itself is SportSettingsField (shared with the step flow — Program D).
+  // Free text needs the full row; compact controls pair up on wider screens.
+  const renderField = (field: SettingsFieldDef) => (
+    <SportSettingsField
+      key={field.key}
+      sportKey={schema.sport_key}
+      field={field}
+      values={values}
+      error={errors[field.key]}
+      onChange={onChange}
+      disabled={disabled}
+      className={field.kind === 'text' ? 'md:col-span-2' : ''}
+    />
+  );
 
   // Preferences vs competitive profile: same schema, two visually separated
   // sections. Competitive entries are self-reported credentials that render
