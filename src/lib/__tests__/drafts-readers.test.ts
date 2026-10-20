@@ -29,8 +29,9 @@ describe('a draft is a status every list skips — the owner arms too', () => {
     const src = code('src/app/api/posts/route.ts');
     expect(src).toMatch(/!\(post\.status === 'draft' && \(await viewerIsParticipant\(\)\)\)/);
   });
-  it('the five profile RPCs exclude a draft from the owner\'s own tiles (253, verbatim re-declarations)', () => {
-    const sql = read('database/migrations/253_drafts.sql');
+  it('the five profile RPCs exclude a draft from the owner\'s own tiles (253, re-declared verbatim by 269 with the training predicate)', () => {
+    // 269 is the LAST declaration — check:schema compares the live bodies to it; the 253 arms must all survive there.
+    const sql = read('database/migrations/269_feed_switch_training_buckets.sql');
     const names = ['get_profile_tagged_media', 'get_profile_stats_media', 'get_profile_statements_media', 'get_profile_all_media', 'get_profile_media_counts'];
     for (const n of names) expect(sql).toMatch(new RegExp(`CREATE OR REPLACE FUNCTION public\\.${n}\\(`));
     expect(sql.match(/CREATE OR REPLACE FUNCTION public\.get_profile_/g)?.length).toBe(5);
@@ -38,7 +39,8 @@ describe('a draft is a status every list skips — the owner arms too', () => {
     expect(sql.match(/OR \(viewer_id IS NOT NULL AND viewer_id = p\.profile_id AND p\.status <> 'draft'\)\)/g)?.length).toBe(8);
     // And no owner arm was left behind.
     expect(sql.match(/OR \(viewer_id IS NOT NULL AND viewer_id = p\.profile_id\)\)/g)).toBeNull();
-    expect(sql).toMatch(/posts_status_check[\s\S]*'draft'/);
+    // The CHECK that made 'draft' a status is 253's own DDL (269 re-declares only the readers).
+    expect(read('database/migrations/253_drafts.sql')).toMatch(/posts_status_check[\s\S]*'draft'/);
   });
 });
 
