@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import type { ActivityType } from '@/lib/activities/catalog';
-import { detailFieldsFor, fieldVisible, NOTES_MAX, optionsFor, splitFields, type DetailField, type Details } from '@/lib/activities/details';
+import { fieldVisible, NOTES_MAX, optionsFor, splitFields, withDetail, type DetailField, type Details } from '@/lib/activities/details';
 import { fromInput, QUANTITY_UNITS, toDisplay, type UnitSystem } from '@/lib/activities/units';
 import { isClimbScale, SCALES_FOR_STYLE, type Climb, type ClimbStyle } from '@/lib/activities/climbing';
 import ClimbLog from './ClimbLog';
@@ -123,6 +123,9 @@ export default function FinishDetailsForm({
   sys,
   disabled,
   showNotes = true,
+  showEffort = true,
+  only,
+  omit,
 }: {
   type: ActivityType;
   value: FinishFormValue;
@@ -131,20 +134,25 @@ export default function FinishDetailsForm({
   disabled?: boolean;
   /** The activity page's edit form keeps its own notes field. */
   showNotes?: boolean;
+  /** Program E: the set-up card asks the type's questions before Start, never the effort. */
+  showEffort?: boolean;
+  /** Program E: render only these keys (a `showIf` child follows its parent); default = every field. */
+  only?: readonly string[];
+  /** Program E: leave these keys out (the Details sheet omits a climb's scale — the log owns it). */
+  omit?: readonly string[];
 }) {
-  const { shown, more } = splitFields(type);
+  const wanted = (f: DetailField) => {
+    const key = f.showIf ? f.showIf.key : f.key;
+    if (omit && (omit.includes(f.key) || omit.includes(key))) return false;
+    return !only || only.includes(f.key) || only.includes(key);
+  };
+  const split = splitFields(type);
+  const shown = split.shown.filter(wanted);
+  const more = split.more.filter(wanted);
   const answeredMore = more.some(f => value.details[f.key] !== undefined);
   const [moreOpen, setMoreOpen] = useState(answeredMore);
-  const setDetail = (key: string, v: Details[string] | undefined) => {
-    const next = { ...value.details };
-    if (v === undefined) delete next[key];
-    else next[key] = v;
-    // An answer its parent no longer offers goes (a new style's scales).
-    for (const f of detailFieldsFor(type)) {
-      if (f.filterBy && next[f.key] !== undefined && !optionsFor(f, next).some(o => o.value === next[f.key])) delete next[f.key];
-    }
-    onChange({ ...value, details: next });
-  };
+  // One cleanup rule for every writer (details.ts): delete on undefined, prune what a parent no longer offers.
+  const setDetail = (key: string, v: Details[string] | undefined) => onChange({ ...value, details: withDetail(type, value.details, key, v) });
   const render = (f: DetailField) => {
     if (!fieldVisible(f, value.details)) return null;
     // A8: a climbing session's scale is chosen with its climbs (the log owns both).
@@ -153,7 +161,7 @@ export default function FinishDetailsForm({
   };
   return (
     <fieldset className="space-y-4" disabled={disabled} data-finish-details={type}>
-      <EffortChips value={value.effort} onChange={effort => onChange({ ...value, effort })} />
+      {showEffort && <EffortChips value={value.effort} onChange={effort => onChange({ ...value, effort })} />}
       {shown.map(render)}
       {more.length > 0 && (
         <div>

@@ -1,21 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  admitFix,
-  elapsedS,
-  lastGapS,
-  liveTotals,
-  newId,
-  MAX_ACCURACY_M,
-  newRecording,
-  recordsGps,
-  reduce,
-  requiresManualDistance,
-  restoreRecording,
-  GAP_ENDS_RECORDING_MS,
-  takesManualDistance,
-  toRecordingWire,
-  type RecordingState,
-} from '../record/recording';
+import { admitFix, elapsedS, lastGapS, liveTotals, newId, MAX_ACCURACY_M, newRecording, recordsGps, reduce, requiresManualDistance, restoreRecording, GAP_ENDS_RECORDING_MS, takesManualDistance, toRecordingWire, type RecordingState, recordingAnswers, ANSWERS_DETAILS_MAX_CHARS, LENGTHS_MAX } from '../record/recording';
 import { flushDue, FLUSH_EVERY_MS, FLUSH_EVERY_POINTS, isExpired, metaOf, RECORDING_TTL_MS } from '../record/storage';
 import { parseWireActivity } from '../wire-schema';
 import { fromWire } from '../wire';
@@ -358,5 +342,85 @@ describe('a sport session’s map (A9)', () => {
     expect(reduce(started, { type: 'setMap', on: false }).mapOn).toBe(true); // too late to change
     expect(reduce(newRecording(REC_ID, 'p1', 'yoga'), { type: 'setMap', on: true }).mapOn).toBeUndefined();
     expect(recordsGpsFor(newRecording(REC_ID, 'p1', 'run'))).toBe(true);
+  });
+});
+
+describe('set up before Start (Program E, Oct 2026)', () => {
+  const t0 = 1_700_000_000_000;
+  it('answers land in ANY status, shape-checked; a climb\'s scale routes to the recording\'s own scale', () => {
+    let s = newRecording('e1', 'p', 'yoga');
+    s = reduce(s, { type: 'setAnswers', answers: { effort: null, notes: 'x'.repeat(3000), details: { style: 'vinyasa', heated: true } } });
+    expect(s.answers).toEqual({ effort: null, notes: 'x'.repeat(2000), details: { style: 'vinyasa', heated: true } });
+    s = reduce(s, { type: 'start', now: t0 });
+    s = reduce(s, { type: 'setAnswers', answers: { effort: 6, notes: 'good', details: { style: 'yin' } } });
+    expect(s.answers).toEqual({ effort: 6, notes: 'good', details: { style: 'yin' } });
+    // Effort outside 1–10 is null; a details blob past the database's cap is refused whole.
+    expect(reduce(s, { type: 'setAnswers', answers: { effort: 11, notes: '', details: {} } }).answers?.effort).toBeNull();
+    const huge = { effort: null, notes: '', details: { poses: 'p'.repeat(ANSWERS_DETAILS_MAX_CHARS) } };
+    expect(reduce(s, { type: 'setAnswers', answers: huge }).answers).toEqual(s.answers);
+    // A climb: scale → climbScale (one owner per fact), climbs never stored in answers.
+    let c = newRecording('e2', 'p', 'climb');
+    c = reduce(c, { type: 'setAnswers', answers: { effort: null, notes: '', details: { setting: 'indoor', style: 'bouldering', scale: 'v', climbs: [{ grade: 'V3', sent: true }] } } });
+    expect(c.climbScale).toBe('v');
+    expect(c.answers).toEqual({ effort: null, notes: '', details: { setting: 'indoor', style: 'bouldering' } });
+    expect(recordingAnswers(c).details).toEqual({ setting: 'indoor', style: 'bouldering', scale: 'v' });
+    c = reduce(c, { type: 'start', now: t0 });
+    c = reduce(c, { type: 'climbLogged', now: t0 + 60_000, climb: { grade: 'V3', sent: true } });
+    expect(recordingAnswers(c).details.climbs).toHaveLength(1);
+  });
+  it('prefill lands once and fills only what is unset', () => {
+    let s = newRecording('e3', 'p', 'yoga');
+    s = reduce(s, { type: 'setAnswers', answers: { effort: null, notes: '', details: { style: 'yin' } } });
+    s = reduce(s, { type: 'prefill', details: { style: 'vinyasa', guided: 'class' } });
+    expect(s.prefilled).toBe(true);
+    expect(s.answers?.details).toEqual({ style: 'yin', guided: 'class' });
+    expect(reduce(s, { type: 'prefill', details: { heated: true } }).answers?.details).toEqual({ style: 'yin', guided: 'class' });
+    // An old meta without the new fields reduces as before.
+    const old = newRecording('e4', 'p', 'run');
+    expect(recordingAnswers(old)).toEqual({ effort: null, notes: '', details: {} });
+    expect(reduce(old, { type: 'start', now: t0 }).timer).toBeUndefined();
+  });
+  it('a timer armed before Start runs from the first second; arming is idle-only; timerStart keeps its rule', () => {
+    let s = newRecording('e5', 'p', 'hiit');
+    s = reduce(s, { type: 'timerSet', spec: { format: 'tabata', rounds: 8, workS: 20, restS: 10, warmupS: 0, cooldownS: 0 } });
+    expect(s.timerArmed?.format).toBe('tabata');
+    s = reduce(s, { type: 'timerSet', spec: null });
+    expect(s.timerArmed).toBeNull();
+    s = reduce(s, { type: 'timerSet', spec: { format: 'tabata', rounds: 8, workS: 20, restS: 10, warmupS: 0, cooldownS: 0 } });
+    s = reduce(s, { type: 'start', now: t0 });
+    expect(s.timer).toMatchObject({ startS: 0, stopS: null, amrapTapsS: [] });
+    expect(s.timer?.spec.format).toBe('tabata');
+    expect(s.timerArmed).toBeNull();
+    expect(reduce(s, { type: 'timerSet', spec: null })).toBe(s);
+  });
+  it('a pool swim counts lengths while recording; the live distance is lengths × the pool', () => {
+    let s = newRecording('e6', 'p', 'swim');
+    expect(reduce(s, { type: 'lengthsSet', lengths: 4 })).toBe(s); // not before Start
+    s = reduce(s, { type: 'setAnswers', answers: { effort: null, notes: '', details: { pool: '25m' } } });
+    s = reduce(s, { type: 'start', now: t0 });
+    s = reduce(s, { type: 'lengthsSet', lengths: 4 });
+    expect(s.lengths).toBe(4);
+    expect(reduce(s, { type: 'lengthsSet', lengths: LENGTHS_MAX + 1 }).lengths).toBe(4);
+    const live = liveTotals(s, t0 + 120_000, null);
+    expect(live.distanceM).toBe(100);
+    expect(live.movingS).toBe(120);
+    expect(reduce(newRecording('e7', 'p', 'run'), { type: 'lengthsSet', lengths: 1 }).lengths).toBeUndefined();
+  });
+  it('the descent is counted live, symmetric to the gain', () => {
+    // A 1 Hz track at a steady 1.4 m/s (the filter admits it): up 30 m over two
+    // minutes, then down 30 m over the next two.
+    let s = newRecording('e8', 'p', 'ski');
+    s = reduce(s, { type: 'start', now: t0 });
+    for (let n = 1; n <= 240; n++) {
+      const ele = n <= 120 ? 1000 + n * 0.25 : 1030 - (n - 120) * 0.25;
+      s = reduce(s, { type: 'fix', fix: { t: t0 + n * 1000, lat: 45 + (n * 1.4) / 111_195, lng: -75, ele, accuracy: 8 } });
+    }
+    // The filter settles over the first fixes (gps-filter.ts), so the exact
+    // metres depend on it; what this pins is the SYMMETRY — the descent is
+    // counted the way the gain always was.
+    const live = liveTotals(s, t0 + 240_000, null);
+    expect(live.elevGainM).toBeGreaterThanOrEqual(15);
+    expect(live.elevLossM).toBeGreaterThanOrEqual(15);
+    expect(Math.abs((live.elevGainM ?? 0) - (live.elevLossM ?? 0))).toBeLessThanOrEqual(5);
   });
 });

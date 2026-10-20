@@ -269,6 +269,22 @@ export function detailsFromRow(type: ActivityType, raw: unknown): Details {
   return withoutHiddenAnswers(type, out);
 }
 
+/**
+ * ONE answer written into the details (Program E): `undefined` deletes it,
+ * and an answer whose parent no longer offers it goes (a new climbing
+ * style's scales — `filterBy`). The form, the set-up card and the Details
+ * sheet all write through this, so the cleanup cannot drift.
+ */
+export function withDetail(type: ActivityType, details: Details, key: string, value: DetailValue | undefined): Details {
+  const next: Details = { ...details };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  for (const f of detailFieldsFor(type)) {
+    if (f.filterBy && next[f.key] !== undefined && !optionsFor(f, next).some(o => o.value === next[f.key])) delete next[f.key];
+  }
+  return next;
+}
+
 /** A sub-answer whose question no longer holds goes (a room temperature without "Heated"). */
 export function withoutHiddenAnswers(type: ActivityType, details: Details): Details {
   const out = { ...details };

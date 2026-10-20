@@ -20,6 +20,8 @@ import { normalizeSegments, SEGMENT_MIN_S, type ActivitySegment, type SegmentKin
 import { normalizeSpec, timerSegments, totalS, type TimerSpec } from './round-timer';
 import { CLIMBS_MAX, climbsFrom, validClimb, type Climb, type ClimbScale } from '../climbing';
 import { toWire } from '../wire';
+import { isPoolLength, POOL_LENGTH_M } from '../pool';
+import type { Details } from '../details';
 import { liveRouteGrowing } from '../gps-filter';
 import type { ActivityPoint } from '../types';
 import type { WireActivity } from '../wire';
@@ -99,7 +101,28 @@ export interface RecordingState {
   climbScale?: ClimbScale | null;
   /** A9: a sport session's "Map my movement" — chosen before the start. */
   mapOn?: boolean;
+  /** Program E (Oct 2026): the answers — effort, notes, the type's own
+   *  questions — given before, during or after; the Finish reads them.
+   *  A climb's scale and climbs live in climbScale / climbs, never here. */
+  answers?: RecordingAnswers | null;
+  /** The last session's answers landed once (`prefill`). */
+  prefilled?: boolean;
+  /** A round timer chosen BEFORE Start: it runs from second 0 (`start`). */
+  timerArmed?: TimerSpec | null;
+  /** A pool swim's lengths, counted while recording (F5's counter). */
+  lengths?: number;
 }
+
+export interface RecordingAnswers {
+  effort: number | null;
+  notes: string;
+  details: Details;
+}
+
+export const ANSWERS_NOTES_MAX = 2000;
+/** The database's own cap on the details JSON (265). */
+export const ANSWERS_DETAILS_MAX_CHARS = 8000;
+export const LENGTHS_MAX = 1000;
 
 export interface RecordingTimer {
   spec: TimerSpec;
@@ -136,6 +159,14 @@ export type RecordingEvent =
   | { type: 'climbLogged'; now: number; climb: { grade: string; sent: boolean; attempts?: number } }
   | { type: 'climbEdited'; index: number; climb: { grade: string; sent: boolean; attempts?: number } }
   | { type: 'climbRemoved'; index: number }
+  /** Program E: the answers, in ANY status (shape-checked; a climb's scale routes to climbScale). */
+  | { type: 'setAnswers'; answers: RecordingAnswers }
+  /** Program E: the last session's answers, once, filling only unset keys. */
+  | { type: 'prefill'; details: Details }
+  /** Program E: arm (or disarm) a round timer before Start — idle only. */
+  | { type: 'timerSet'; spec: TimerSpec | null }
+  /** Program E: a pool swim's lengths (recording or paused). */
+  | { type: 'lengthsSet'; lengths: number }
   | { type: 'finish'; now: number };
 
 /** A v4 UUID — the one minter (`src/lib/ids.ts`), re-exported for the recorder's callers. */
@@ -184,6 +215,27 @@ export function requiresManualDistance(type: ActivityType): boolean {
   return takesManualDistance(type) && !DISTANCE_OPTIONAL_TYPES.has(type);
 }
 
+/** The answers as a Finish form value: the stored ones plus a climb's scale and climbs (one reader). */
+export function recordingAnswers(state: Pick<RecordingState, 'type' | 'answers' | 'climbScale' | 'climbs'>): RecordingAnswers {
+  const base = state.answers ?? { effort: null, notes: '', details: {} };
+  if (state.type !== 'climb') return { ...base, details: { ...base.details } };
+  const details: Details = { ...base.details };
+  if (state.climbScale) details.scale = state.climbScale;
+  if (state.climbs && state.climbs.length > 0) details.climbs = state.climbs;
+  return { ...base, details };
+}
+
+/** The answers, shape-checked: effort 1–10 or null, notes capped, details an object within the database's cap. */
+function sanitizeAnswers(a: RecordingAnswers): RecordingAnswers | null {
+  if (!a || typeof a !== 'object' || !a.details || typeof a.details !== 'object' || Array.isArray(a.details)) return null;
+  const effort = typeof a.effort === 'number' && Number.isInteger(a.effort) && a.effort >= 1 && a.effort <= 10 ? a.effort : null;
+  const notes = typeof a.notes === 'string' ? a.notes.slice(0, ANSWERS_NOTES_MAX) : '';
+  const details: Details = {};
+  for (const [k, v] of Object.entries(a.details)) if (v !== undefined && v !== null) details[k] = v as Details[string];
+  if (JSON.stringify(details).length > ANSWERS_DETAILS_MAX_CHARS) return null;
+  return { effort, notes, details };
+}
+
 /** The recording second the timer stops at: where it was stopped, or its schedule's end. */
 export function timerEndS(timer: RecordingTimer): number {
   const natural = timer.startS + totalS(timer.spec);
@@ -216,7 +268,14 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
   switch (event.type) {
     case 'start': {
       if (state.status !== 'idle') return state;
-      return { ...state, status: 'recording', startedAt: event.now };
+      // An armed timer runs from the first second (Program E).
+      const armed = state.timerArmed ?? null;
+      return {
+        ...state,
+        status: 'recording',
+        startedAt: event.now,
+        ...(armed ? { timer: { spec: armed, startS: 0, stopS: null, amrapTapsS: [] }, timerArmed: null } : {}),
+      };
     }
     case 'fix': {
       if (state.status !== 'recording') return state;
@@ -318,6 +377,40 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
     }
     case 'climbRemoved':
       return { ...state, climbs: (state.climbs ?? []).filter((_, i) => i !== event.index) };
+    case 'setAnswers': {
+      const a = sanitizeAnswers(event.answers);
+      if (!a) return state;
+      if (state.type !== 'climb') return { ...state, answers: a };
+      // One owner per fact: a climb's scale and climbs are the recording's own.
+      const { scale, climbs: _c, ...rest } = a.details;
+      void _c;
+      const next: RecordingState = { ...state, answers: { ...a, details: rest } };
+      if (typeof scale === 'string' && scale !== state.climbScale) {
+        const sc = scale as ClimbScale;
+        return { ...next, climbScale: sc, climbs: climbsFrom(sc, state.climbs ?? []) };
+      }
+      return next;
+    }
+    case 'prefill': {
+      if (state.prefilled) return state;
+      const current = state.answers ?? { effort: null, notes: '', details: {} };
+      const details: Details = { ...current.details };
+      for (const [k, v] of Object.entries(event.details)) {
+        if (details[k] === undefined && v !== undefined) details[k] = v;
+      }
+      const a = sanitizeAnswers({ ...current, details });
+      return { ...state, prefilled: true, ...(a ? { answers: a } : {}) };
+    }
+    case 'timerSet': {
+      if (state.status !== 'idle') return state;
+      return { ...state, timerArmed: event.spec ? normalizeSpec(event.spec) : null };
+    }
+    case 'lengthsSet': {
+      if ((state.status !== 'recording' && state.status !== 'paused') || state.type !== 'swim') return state;
+      const n = Math.round(event.lengths);
+      if (!Number.isFinite(n) || n < 0 || n > LENGTHS_MAX) return state;
+      return { ...state, lengths: n };
+    }
     case 'finish': {
       if (state.status !== 'recording' && state.status !== 'paused') return state;
       let next = state;
@@ -396,6 +489,8 @@ export interface LiveTotals {
   distanceM: number;
   movingS: number;
   elevGainM: number | null;
+  /** Program E: the descent — snow and mountain bike read it live (symmetric to the gain). */
+  elevLossM: number | null;
   /** Seconds per metre over the last PACE_WINDOW_S of points (null when still). */
   currentPaceSPerM: number | null;
   avgPaceSPerM: number | null;
@@ -408,15 +503,16 @@ export interface LiveTotals {
   gpsSettling: boolean;
 }
 
-const sumsByRoute = new WeakMap<readonly ActivityPoint[], { movingSpeed: number; distanceM: number; movingS: number; gain: number | null }>();
+const sumsByRoute = new WeakMap<readonly ActivityPoint[], { movingSpeed: number; distanceM: number; movingS: number; gain: number | null; loss: number | null }>();
 
-function routeSums(pts: readonly ActivityPoint[], movingSpeed: number): { distanceM: number; movingS: number; gain: number | null } {
+function routeSums(pts: readonly ActivityPoint[], movingSpeed: number): { distanceM: number; movingS: number; gain: number | null; loss: number | null } {
   const hit = sumsByRoute.get(pts);
   if (hit && hit.movingSpeed === movingSpeed) return hit;
   const d = cumulativeDistances(pts);
   const distanceM = d[d.length - 1];
   let movingS = 0;
   let gain: number | null = null;
+  let loss: number | null = null;
   let anchor: number | null = null;
   for (let i = 1; i < pts.length; i++) {
     const dt = (pts[i].t - pts[i - 1].t) / 1000;
@@ -429,15 +525,19 @@ function routeSums(pts: readonly ActivityPoint[], movingSpeed: number): { distan
     if (anchor === null) {
       anchor = p.ele;
       gain = 0;
+      loss = 0;
       continue;
     }
     const delta = p.ele - anchor;
     if (delta >= 3) {
       gain = (gain ?? 0) + delta;
       anchor = p.ele;
-    } else if (delta <= -3) anchor = p.ele;
+    } else if (delta <= -3) {
+      loss = (loss ?? 0) - delta;
+      anchor = p.ele;
+    }
   }
-  const sums = { movingSpeed, distanceM, movingS, gain };
+  const sums = { movingSpeed, distanceM, movingS, gain, loss };
   sumsByRoute.set(pts, sums);
   return sums;
 }
@@ -455,8 +555,15 @@ export function liveTotals(state: RecordingState, now: number, heightCm: number 
   let distanceM = 0;
   let movingS = 0;
   let gain: number | null = null;
+  let loss: number | null = null;
+  // A pool swim's lengths × the pool (Program E): the live distance while recording.
+  const pool = state.type === 'swim' ? state.answers?.details.pool : undefined;
+  const lengthsM = state.type === 'swim' && typeof state.lengths === 'number' && state.lengths > 0 && isPoolLength(pool) ? state.lengths * POOL_LENGTH_M[pool] : null;
   if (pts.length >= 2) {
-    ({ distanceM, movingS, gain } = routeSums(pts, def.movingSpeed));
+    ({ distanceM, movingS, gain, loss } = routeSums(pts, def.movingSpeed));
+  } else if (lengthsM !== null) {
+    distanceM = lengthsM;
+    movingS = elapsed;
   } else if (state.manualDistanceM !== null) {
     distanceM = state.manualDistanceM;
     movingS = elapsed;
@@ -491,6 +598,7 @@ export function liveTotals(state: RecordingState, now: number, heightCm: number 
     distanceM: Math.round(distanceM * 10) / 10,
     movingS,
     elevGainM: gain === null ? null : Math.round(gain * 10) / 10,
+    elevLossM: loss === null ? null : Math.round(loss * 10) / 10,
     currentPaceSPerM: currentPace,
     avgPaceSPerM: avgPace,
     currentSpeedMps: currentSpeed,
