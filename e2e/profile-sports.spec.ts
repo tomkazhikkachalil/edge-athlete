@@ -31,6 +31,13 @@ test('sports: every sport shows, pins lead, /u/ agrees without controls, no spor
     await page.goto('/athlete');
     await expect(page.locator('#sports [data-sports-empty]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('#sports').getByText('No sports yet')).toBeVisible();
+    // Add sports opens Edit Profile on the Sports tab (Program D), where the picker lives now.
+    await page.locator('#sports [data-sports-empty]').click();
+    const dialog = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+    await expect(dialog.getByRole('navigation', { name: 'Profile sections' }).getByRole('button', { name: 'Sports', exact: true })).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+    await expect(dialog.locator('[data-sports-tab]')).toBeVisible();
+    await page.getByRole('button', { name: 'Close modal' }).click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
 
     // (b) golf + basketball declared (the onboarding / picker shape): both rows, no pins
     await admin.from('profiles').update({ sport: 'Golf' }).eq('id', a.id);

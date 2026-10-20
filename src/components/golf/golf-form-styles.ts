@@ -1,7 +1,7 @@
 /**
  * Golf's form vocabulary — ONE set of control classes for both composer
  * paths (solo GolfScorecardForm + shared GolfComposerSection), matching the
- * app convention (see SportSettingsForm's CONTROL_CLASS).
+ * app convention (see SportSettingsField's SETTINGS_CONTROL_CLASS).
  *
  * NO focus classes here or on any golf control: the app-wide :focus-visible
  * ring (globals.css) owns focus. Golf-green remains an ACCENT (headers,

@@ -21,7 +21,6 @@ import ProfilePhotoDoor from '@/components/profile/ProfilePhotoDoor';
 import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import PostDetailModal from '@/components/PostDetailModal';
-import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
 
 // Heavy / rarely-open modals — split into their own chunks. Cuts First Load
@@ -227,8 +226,8 @@ export default function AthleteProfilePage() {
   // so the key={mediaRefreshKey} remounts restore the current chip.
   const [deepLinkSport, setDeepLinkSport] = useState<string | null>(null);
   // ?edit=sport deep link (GetStartedCard "Set level →"): opens Edit Profile
-  // on the primary sport tab. Held pending until the profile is known so the
-  // right tab can be resolved.
+  // on the Sports tab (Program D — one tab, the setup as steps). Held
+  // pending until the profile is known so the editor seeds from it.
   const [pendingEditDeepLink, setPendingEditDeepLink] = useState(false);
   const [editInitialTab, setEditInitialTab] = useState<string | null>(null);
 
@@ -271,7 +270,7 @@ export default function AthleteProfilePage() {
   // state sync (house idiom, cf. EditProfileTabs' profile seeding).
   if (pendingEditDeepLink && profile) {
     setPendingEditDeepLink(false);
-    setEditInitialTab(resolveSportKey(profile.sport) ?? 'basic');
+    setEditInitialTab('sports');
     setIsEditModalOpen(true);
   }
 
@@ -758,7 +757,7 @@ export default function AthleteProfilePage() {
                           // #334 pin scroll, landing the viewer on the hub.
                           setMediaRefreshKey(k => k + 1);
                         }}
-                        onAddSports={() => setIsEditModalOpen(true)}
+                        onAddSports={() => { setEditInitialTab('sports'); setIsEditModalOpen(true); }}
                       />
                     </div>
                   )}

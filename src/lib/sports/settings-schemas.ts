@@ -1,6 +1,6 @@
 /**
  * Per-sport ATHLETE SETTINGS schemas — single source of truth for the
- * sport tabs in Edit Profile (`EditProfileTabs` → `SportSettingsForm`).
+ * sport setup in Edit Profile (`EditProfileTabs` → Sports tab → `SportSetupFlow`).
  *
  * Data model ("build for today, architect for tomorrow"):
  * Every sport's settings live as one JSONB object in `sport_settings`
@@ -192,7 +192,7 @@ const competitiveFields = (levelOptions: SettingsSelectOption[]): SettingsFieldD
 // to be reworded, stored values are forever.
 /**
  * Schemas by sport key. A sport absent from this map is not broken — its tab
- * renders an explicit "coming soon" panel (see `SportSettingsForm`'s caller).
+ * shows "Nothing to set up yet" on its Sports-tab row (see `EditProfileTabs`).
  */
 export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchema>> = {
   golf: {

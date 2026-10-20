@@ -26,14 +26,16 @@ import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import {
   getSportSettingsSchema,
   settingsToFormValues,
+  formValuesToSettings,
   mergeSettingsForSave,
   validateSettingsValues,
   emptySettingsValues,
   type SettingsFormValues,
 } from '@/lib/sports/settings-schemas';
-import SportSettingsForm from './SportSettingsForm';
+import SportSetupFlow, { type SportSetupSaveResult } from './SportSetupFlow';
+import { summaryLine } from '@/lib/sports/settings-steps';
 import SportMultiSelect from './SportMultiSelect';
-import { COPY, getComingSoonMessage } from '@/lib/copy';
+import { COPY } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { GENDERS, GENDER_LABEL, NICKNAME_MAX, PHONE_MAX, POSTAL_CODE_MAX } from '@/lib/profiles/private-details';
@@ -63,13 +65,12 @@ interface EditProfileTabsProps {
 }
 
 /**
- * Sport tabs are keyed by `SportKey` itself rather than a hand-listed union.
- * The old union named only golf/ice_hockey/volleyball while `generateTabs`
- * cast every registered sport into it, so a sport with no `case` compiled
- * fine and rendered a blank tab. Widening the type is what makes the
- * fallthrough visible to TypeScript instead of silent.
+ * Five fixed tabs (Program D, Oct 2026). There used to be ONE TAB PER
+ * REGISTERED SPORT (≈ 15, every sport in the app, most of them not the
+ * athlete's); the Sports tab now holds the picker and a row per sport the
+ * athlete plays, each opening its setup as short steps (SportSetupFlow).
  */
-type TabId = 'basic' | 'body_metrics' | 'socials' | 'recruiting' | SportKey;
+type TabId = 'basic' | 'sports' | 'body_metrics' | 'socials' | 'recruiting';
 
 interface TabConfig {
   id: TabId;
@@ -83,6 +84,8 @@ interface TabConfig {
 const generateTabs = (): TabConfig[] => {
   const baseTabs: TabConfig[] = [
     { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
+    // Your sports + each sport's setup (Program D): the picker moved here from Basic.
+    { id: 'sports', label: 'Sports', icon: 'fas fa-medal', enabled: true },
     // Height, weight, grad year… — "Body Metrics" since Oct 14 2026 (it was
     // "Training"; Training is the workouts + activities section).
     { id: 'body_metrics', label: 'Body Metrics', icon: 'fas fa-chart-line', enabled: true },
@@ -93,19 +96,6 @@ const generateTabs = (): TabConfig[] => {
     { id: 'recruiting', label: 'Recruiting', icon: 'fas fa-graduation-cap', enabled: true },
   ];
 
-  // Add sport-specific tabs
-  const allSports = getAllSports();
-  allSports.forEach(adapter => {
-    const sportDef = getSportDefinition(adapter.sportKey);
-    baseTabs.push({
-      id: adapter.sportKey,
-      label: sportDef.display_name,
-      icon: sportDef.icon_id,
-      enabled: adapter.isEnabled(),
-      comingSoon: !adapter.isEnabled()
-    });
-  });
-
   // NOTE: there is deliberately no Equipment tab here. Gear is a first-class
   // sport-agnostic feature backed by `athlete_equipment` (profile Equipment
   // tab, `AddEquipmentModal`). This modal used to carry a second, golf-only
@@ -114,11 +104,6 @@ const generateTabs = (): TabConfig[] => {
 
   return baseTabs;
 };
-
-/** Sport tabs are exactly the tabs whose id is a registered sport key. */
-const SPORT_TAB_IDS = new Set<string>(getAllSports().map(adapter => adapter.sportKey));
-
-const isSportTab = (tabId: TabId): tabId is SportKey => SPORT_TAB_IDS.has(tabId);
 
 /** Snapshot key for one sport's dirty-close baseline. */
 const sportSnapKey = (sportKey: SportKey) => `settings:${sportKey}`;
@@ -134,7 +119,7 @@ export default function EditProfileTabs({
   initialTab
 }: EditProfileTabsProps) {
   const { user, refreshProfile } = useAuth();
-  const { showError, showNotice } = useToast();
+  const { showError } = useToast();
   const actingAs = !!targetProfileId;
   // The visibility toggle is honest only for unsupervised self-edits: the
   // server strips it for supervised profiles (child AND guardian — safety
@@ -147,7 +132,8 @@ export default function EditProfileTabs({
   // Recruiting (Oct 4 2026): the athlete's door is Settings → Recruiting; this
   // dialog carries the tab only for a guardian acting as a supervised athlete
   // (recruiting is the guardian's decision there).
-  const visibleTabs = TABS.filter(t => (actingAs ? !isSportTab(t.id) : true) && (t.id !== 'recruiting' || actingAs));
+  // Acting-as never edits sports (/api/sport-settings is session-anchored: it would write the GUARDIAN's own).
+  const visibleTabs = TABS.filter(t => (actingAs ? t.id !== 'sports' : true) && (t.id !== 'recruiting' || actingAs));
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   // The editor stays open after a save (the host decides), so the result has
@@ -229,14 +215,6 @@ export default function EditProfileTabs({
   // no schema declares (see `mergeSettingsForSave`). Held in a ref because
   // nothing renders from it.
   const storedSportSettingsRef = useRef<Partial<Record<SportKey, Record<string, unknown>>>>({});
-
-  const setSportField = (sportKey: SportKey, fieldKey: string, value: string) => {
-    setSportSettings(prev => {
-      const schema = getSportSettingsSchema(sportKey);
-      const current = prev[sportKey] ?? (schema ? emptySettingsValues(schema) : {});
-      return { ...prev, [sportKey]: { ...current, [fieldKey]: value } };
-    });
-  };
 
   // Dirty-close support: per-group snapshots of the last loaded/saved
   // values (loads write them directly with local values; successful tab
@@ -403,7 +381,7 @@ export default function EditProfileTabs({
       showError('Authentication Error', 'Please log in again.');
       return;
     }
-    if (tabId === 'basic' && !actingAs && !sportRemovalOkRef.current) {
+    if (tabId === 'sports' && !actingAs && !sportRemovalOkRef.current) {
       const removed = initialSports.filter(k => !selectedSports.includes(k));
       if (removed.length > 0) {
         setConfirmRemoveSports(removed);
@@ -474,31 +452,6 @@ export default function EditProfileTabs({
             }
           }
 
-          // Sport selection: primary → profiles.sport (display name; '' clears);
-          // added sports get an empty sport_settings row, removed sports lose
-          // theirs. Diffed against the loaded baseline. SKIPPED in acting-as
-          // mode: /api/sport-settings is session-anchored and would silently
-          // write the GUARDIAN's own sports (the picker is hidden there too).
-          // Skipped too while the selection has not loaded (see sportsLoaded).
-          if (!actingAs && sportsLoaded) {
-            const added = selectedSports.filter(k => !initialSports.includes(k));
-            const removed = initialSports.filter(k => !selectedSports.includes(k));
-            await Promise.all([
-              ...added.map(key =>
-                fetch('/api/sport-settings', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ sport: key, settings: {} }),
-                })
-              ),
-              ...removed.map(key =>
-                fetch(`/api/sport-settings?sport=${key}`, { method: 'DELETE' })
-              ),
-            ]);
-            if (added.length > 0 || removed.length > 0) wrote = true;
-            setInitialSports(selectedSports);
-          }
-
           // Empty strings are sent intentionally — the server converts '' to
           // null, which is the only way a user can CLEAR a field. (Sending
           // `undefined` drops the key from JSON and the value can never be
@@ -520,12 +473,38 @@ export default function EditProfileTabs({
                 }
               : {}),
             ...(hideVisibility ? {} : { visibility: basicForm.visibility }),
-            ...(actingAs || !sportsLoaded
-              ? {}
-              : { sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '' }),
+            // The sports choice (and the primary) saves from the Sports tab (Program D).
           };
           hasChanges = true;
           break;
+
+        case 'sports': {
+          // Sport selection: primary → profiles.sport (display name; '' clears);
+          // added sports get an empty sport_settings row, removed sports lose
+          // theirs. Diffed against the loaded baseline. Never in acting-as
+          // mode (the tab is hidden there) and never before the selection
+          // has loaded (see sportsLoaded).
+          if (actingAs || !sportsLoaded) return;
+          const added = selectedSports.filter(k => !initialSports.includes(k));
+          const removed = initialSports.filter(k => !selectedSports.includes(k));
+          await Promise.all([
+            ...added.map(key =>
+              fetch('/api/sport-settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sport: key, settings: {} }),
+              })
+            ),
+            ...removed.map(key =>
+              fetch(`/api/sport-settings?sport=${key}`, { method: 'DELETE' })
+            ),
+          ]);
+          if (added.length > 0 || removed.length > 0) wrote = true;
+          setInitialSports(selectedSports);
+          updateData = { sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '' };
+          hasChanges = true;
+          break;
+        }
 
         case 'body_metrics':
           // Save body metrics
@@ -624,61 +603,7 @@ export default function EditProfileTabs({
         }
 
         default:
-          // Every remaining tab is a sport tab. Saving is driven entirely by
-          // the sport's schema, so a newly enabled sport saves correctly with
-          // no code change here. Previously this switch had a `case` per
-          // sport and anything unlisted fell through to the profiles PUT with
-          // `hasChanges` false — no request, no toast, a Save button that
-          // silently did nothing for basketball, soccer and baseball.
-          {
-            if (!isSportTab(tabId)) {
-              // Unreachable: the union is exhausted above. Kept so a future
-              // non-sport tab cannot silently no-op the way sports did.
-              throw new Error(`No save handler for tab: ${tabId}`);
-            }
-
-            const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
-            const schema = getSportSettingsSchema(tabId);
-
-            if (!schema) {
-              // Registered sport with no settings schema yet — the tab shows
-              // the same "coming soon" panel, so this matches what is on screen.
-              showNotice(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
-              return;
-            }
-
-            const values = sportSettings[tabId] ?? emptySettingsValues(schema);
-            const fieldErrors = validateSettingsValues(schema, values);
-            if (Object.keys(fieldErrors).length > 0) {
-              setErrors(fieldErrors);
-              showError('Save Failed', Object.values(fieldErrors)[0]);
-              return;
-            }
-
-            const merged = mergeSettingsForSave(
-              schema,
-              storedSportSettingsRef.current[tabId],
-              values
-            );
-
-            const response = await fetch('/api/sport-settings', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sport: tabId, settings: merged }),
-            });
-
-            if (!response.ok) {
-              throw new Error(`Failed to save ${sportName.toLowerCase()} settings`);
-            }
-
-            // Saved state becomes the new baseline for both dirty-tracking
-            // and the next merge, so two saves in one session stay correct.
-            storedSportSettingsRef.current[tabId] = merged;
-            snapRef.current[sportSnapKey(tabId)] = serializeSportSettings(tabId);
-            wrote = true;
-            saved = true;
-          }
-          return; // Exit early - don't update profiles table
+          throw new Error(`No save handler for tab: ${tabId}`);
       }
 
       if (hasChanges) {
@@ -709,6 +634,7 @@ export default function EditProfileTabs({
         // saved and the modal closed on them without asking.
         if (tabId === 'basic') {
           snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_photo: null, cover_photo: null });
+        } else if (tabId === 'sports') {
           snapRef.current.sports = serializeGroup.sports();
         } else if (tabId === 'body_metrics') {
           snapRef.current.bodyMetrics = serializeGroup.bodyMetrics();
@@ -738,6 +664,30 @@ export default function EditProfileTabs({
         onSave();
       }
     }
+  };
+
+  // A sport's setup (Program D): the ONE save — validate → merge → PUT —
+  // then this editor's values and that sport's dirty snapshot follow, so the
+  // editor's own isDirty stays truthful. The flow never writes on its own.
+  const [setupSport, setSetupSport] = useState<SportKey | null>(null);
+  const saveSportSetup = async (sportKey: SportKey, values: SettingsFormValues): Promise<SportSetupSaveResult> => {
+    const schema = getSportSettingsSchema(sportKey);
+    if (!schema) return { ok: false, errors: {}, message: 'Nothing to set up yet.' };
+    const fieldErrors = validateSettingsValues(schema, values);
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, errors: fieldErrors, message: Object.values(fieldErrors)[0] };
+    const merged = mergeSettingsForSave(schema, storedSportSettingsRef.current[sportKey], values);
+    const response = await fetch('/api/sport-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sport: sportKey, settings: merged }),
+    });
+    if (!response.ok) return { ok: false, errors: {}, message: `Could not save your ${getSportDefinition(sportKey).display_name} setup. Try again.` };
+    storedSportSettingsRef.current[sportKey] = merged;
+    setSportSettings(prev => ({ ...prev, [sportKey]: values }));
+    snapRef.current[sportSnapKey(sportKey)] = JSON.stringify(values);
+    setJustSaved(true);
+    onSave();
+    return { ok: true };
   };
 
   // The picture and the cover upload the same way (Oct 14 2026): the slot's
@@ -1103,19 +1053,66 @@ export default function EditProfileTabs({
       </div>
       )}
 
-      {/* Sports — primary drives profile/feed/composer defaults. Hidden in
-          acting-as mode (sport-settings writes are session-anchored). */}
-      {!actingAs && (
+    </div>
+  );
+
+  /**
+   * The Sports tab (Program D): the picker (primary first — it drives the
+   * profile, feed and composer defaults), then a row per sport the athlete
+   * plays with its one-line summary and Set up / Edit → the steps.
+   */
+  const renderSportsTab = () => (
+    <div className="space-y-6" data-sports-tab="">
+      {selectedSports.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-2">
+            Your sports
+          </label>
+          <ul className="divide-y divide-border-subtle rounded-lg border border-border" aria-label="Your sports' setup">
+            {selectedSports.map(sportKey => {
+              const def = getSportDefinition(sportKey);
+              const schema = getSportSettingsSchema(sportKey);
+              const line = schema ? summaryLine(schema, formValuesToSettings(schema, sportSettings[sportKey] ?? emptySettingsValues(schema))) : '';
+              const unsaved = !initialSports.includes(sportKey);
+              return (
+                <li key={sportKey} className="flex items-center gap-3 px-3 py-3" data-sport-row={sportKey} data-sport-row-state={schema ? (line ? 'set' : 'empty') : 'none'}>
+                  <i className={`${def.icon_id} w-6 text-center text-lg text-brand-fg`} aria-hidden="true" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-primary">
+                      {def.display_name}
+                      {selectedSports[0] === sportKey && <span className="ml-2 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white align-middle">PRIMARY</span>}
+                    </span>
+                    <span className="block text-sm text-secondary truncate" data-sport-row-line="">
+                      {schema ? (line || (unsaved ? 'Save your sports, then set it up' : 'Not set up yet')) : 'Nothing to set up yet'}
+                    </span>
+                  </span>
+                  {schema && (
+                    <button
+                      type="button"
+                      onClick={() => setSetupSport(sportKey)}
+                      disabled={isSubmitting || unsaved}
+                      title={unsaved ? 'Save your sports first' : undefined}
+                      className="ea-interactive min-h-[44px] rounded-lg border border-border px-3 text-sm font-semibold text-primary disabled:opacity-50"
+                      data-sport-setup-open={sportKey}
+                    >
+                      {line ? 'Edit' : 'Set up'}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-secondary mb-2">
-          Your sports
+          {selectedSports.length > 0 ? 'Add or remove sports' : 'Your sports'}
         </label>
         <SportMultiSelect selected={selectedSports} onChange={setSelectedSports} />
         <p className="mt-2 text-xs text-muted">
-          Removing a sport clears its settings.
+          The first is your primary sport. Removing a sport clears its settings. Save Sports keeps the change.
         </p>
       </div>
-      )}
     </div>
   );
 
@@ -1222,42 +1219,6 @@ export default function EditProfileTabs({
     </div>
   );
 
-  /**
-   * One sport tab, rendered from its schema. Sports without a schema get an
-   * explicit "coming soon" panel — never a blank one.
-   */
-  const renderSportTab = (sportKey: SportKey) => {
-    const schema = getSportSettingsSchema(sportKey);
-    const sportDef = getSportDefinition(sportKey);
-    const label = TABS.find(t => t.id === sportKey)?.label || sportDef.display_name;
-
-    if (!schema) {
-      return (
-        <div className="text-center py-12 text-muted">
-          <i className={`${sportDef.icon_id} text-4xl text-gray-300 dark:text-faint mb-4`} aria-hidden="true"></i>
-          <h3 className="text-lg font-medium mb-2">{label} Settings</h3>
-          <p>{getComingSoonMessage(sportKey, 'settings')}</p>
-          <div className="mt-4 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md inline-block">
-            <div className="flex items-center justify-center">
-              <i className="fas fa-clock text-amber-600 dark:text-amber-400 mr-2" aria-hidden="true"></i>
-              <span className="text-sm text-amber-800 dark:text-amber-200 font-medium">{COPY.TABS.COMING_SOON_INDICATOR}</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <SportSettingsForm
-        schema={schema}
-        values={sportSettings[sportKey] ?? emptySettingsValues(schema)}
-        errors={errors}
-        onChange={(fieldKey, value) => setSportField(sportKey, fieldKey, value)}
-        disabled={isSubmitting}
-      />
-    );
-  };
-
   const renderSocialsTab = () => (
     <div className="space-y-6">
       <div>
@@ -1343,6 +1304,8 @@ export default function EditProfileTabs({
     switch (activeTab) {
       case 'basic':
         return renderBasicTab();
+      case 'sports':
+        return renderSportsTab();
       case 'body_metrics':
         return renderBodyMetricsTab();
       case 'socials':
@@ -1350,10 +1313,7 @@ export default function EditProfileTabs({
       case 'recruiting':
         return renderRecruitingTab();
       default:
-        // Every remaining tab is a sport tab, rendered from its schema.
-        // This used to be `return null`, which is exactly why basketball,
-        // soccer and baseball rendered an empty panel.
-        return isSportTab(activeTab) ? renderSportTab(activeTab) : null;
+        return null;
     }
   };
 
@@ -1381,7 +1341,7 @@ export default function EditProfileTabs({
         onConfirm={() => {
           sportRemovalOkRef.current = true;
           setConfirmRemoveSports(null);
-          void saveTab('basic');
+          void saveTab('sports');
         }}
         onCancel={() => {
           // "I didn't mean to" — put the unchecked sports back.
@@ -1392,6 +1352,19 @@ export default function EditProfileTabs({
           setConfirmRemoveSports(null);
         }}
       />
+      {setupSport && (() => {
+        const schema = getSportSettingsSchema(setupSport);
+        return schema ? (
+          <SportSetupFlow
+            sportKey={setupSport}
+            sportName={getSportDefinition(setupSport).display_name}
+            schema={schema}
+            values={sportSettings[setupSport] ?? emptySettingsValues(schema)}
+            onSave={values => saveSportSetup(setupSport, values)}
+            onClose={() => setSetupSport(null)}
+          />
+        ) : null;
+      })()}
       <div className="flex items-center justify-center h-full p-4">
         {/* Backdrop */}
         <div 
