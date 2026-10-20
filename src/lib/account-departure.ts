@@ -247,6 +247,8 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'post_tags.created_by_profile_id': 'goes',
   'post_tags.tagged_profile_id': 'goes',
   'privacy_settings.profile_id': 'goes',
+  // The seen mark (267): one row of days per account, counts only — nothing to keep behind a tombstone.
+  'profile_seen.profile_id': 'goes',
   'profile_transfers.profile_id': 'goes',
   'push_subscriptions.profile_id': 'goes',
   'registrations.profile_id': 'goes',
