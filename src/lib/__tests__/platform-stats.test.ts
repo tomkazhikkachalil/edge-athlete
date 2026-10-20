@@ -154,3 +154,92 @@ describe('the metric registry mirrors the SQL (267) and the day arithmetic holds
     expect(r.ran).toEqual([]);
   });
 });
+
+describe('the Overview model (H2)', () => {
+  it('a series is 0 on a rolled-up day with no row and null before the first rollup', async () => {
+    const { seriesFor, dayList, sum, last } = await import('../platform-stats/overview');
+    const rows = [
+      { day: '2026-10-17', metric: 'posts.new', dim: '', value: 4 },
+      { day: '2026-10-18', metric: 'users.new', dim: '', value: 1 }, // rolled, but no posts row that day
+    ];
+    const days = dayList('2026-10-18', 4); // 15, 16, 17, 18
+    expect(days).toEqual(['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
+    expect(seriesFor(rows, days, 'posts.new')).toEqual([null, null, 4, 0]);
+    expect(sum(seriesFor(rows, days, 'posts.new'))).toBe(4);
+    expect(last(seriesFor(rows, days, 'posts.new'))).toBe(0);
+  });
+  it('windows and deltas compare this range with the one before, null when the earlier one is unknown', async () => {
+    const { windows, periodDelta } = await import('../platform-stats/overview');
+    const rows = [
+      { day: '2026-10-16', metric: 'posts.new', dim: '', value: 2 },
+      { day: '2026-10-17', metric: 'posts.new', dim: '', value: 3 },
+      { day: '2026-10-18', metric: 'posts.new', dim: '', value: 5 },
+    ];
+    expect(windows(rows, '2026-10-18', 2, 'posts.new')).toEqual({ current: 8, previous: 2 });
+    expect(windows(rows, '2026-10-18', 3, 'posts.new').previous).toBeNull();
+    expect(periodDelta(8, 2)).toBe(3);
+    expect(periodDelta(8, 0)).toBeNull();
+    expect(periodDelta(8, null)).toBeNull();
+  });
+  it('numbers read for people', async () => {
+    const { compact, pct, bytes, ago } = await import('../platform-stats/overview');
+    expect(compact(0)).toBe('0');
+    expect(compact(1284)).toBe('1,284');
+    expect(compact(12_900)).toBe('12.9K');
+    expect(compact(4_200_000)).toBe('4.2M');
+    expect(compact(1_000_000_000)).toBe('1B');
+    expect(compact(null)).toBe('—');
+    expect(pct(0.1234, 1)).toBe('12.3%');
+    expect(bytes(1536)).toBe('1.5 KB');
+    expect(bytes(5)).toBe('5 B');
+    expect(ago(30_000)).toBe('just now');
+    expect(ago(5 * 60_000)).toBe('5 min ago');
+    expect(ago(3 * 3_600_000)).toBe('3 h ago');
+  });
+  it('health: percentiles over ok samples, uptime against EXPECTED slots (a missing slot is down), the absent sampler', async () => {
+    const { healthWindow, samplerState, percentile } = await import('../platform-stats/overview');
+    const now = Date.parse('2026-10-19T12:00:00Z');
+    const at = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
+    // 12 slots expected in the hour; 10 samples ok, 1 failed, 1 missing.
+    const samples = [
+      ...[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((m, i) => ({ at: at(m), db_ms: 50 + i * 10, ok: true })),
+      { at: at(55), db_ms: 0, ok: false },
+    ];
+    const w = healthWindow(samples, now, 60 * 60_000);
+    expect(w.expected).toBe(12);
+    expect(w.samples).toBe(11);
+    expect(w.uptime).toBeCloseTo(10 / 12, 5);
+    expect(w.p50).toBe(90);
+    expect(w.p95).toBe(140);
+    expect(healthWindow([], now, 60 * 60_000).uptime).toBeNull();
+    expect(percentile([1, 2, 3, 4], 50)).toBe(2);
+    expect(samplerState(samples, now)).toBe('ok');
+    expect(samplerState(samples, now + 31 * 60_000)).toBe('absent');
+    expect(samplerState([], now)).toBe('absent');
+  });
+  it('cohorts and pooled retention', async () => {
+    const { cohorts, pooledRetention } = await import('../platform-stats/overview');
+    const rows = [
+      { day: '2026-10-18', metric: 'cohort.size', dim: 'cohort:2026-10-17', value: 10 },
+      { day: '2026-10-18', metric: 'cohort.d1', dim: 'cohort:2026-10-17', value: 4 },
+      { day: '2026-10-18', metric: 'cohort.size', dim: 'cohort:2026-10-11', value: 20 },
+      { day: '2026-10-18', metric: 'cohort.d7', dim: 'cohort:2026-10-11', value: 5 },
+    ];
+    const c = cohorts(rows);
+    expect(c.map(x => x.cohort)).toEqual(['2026-10-17', '2026-10-11']);
+    expect(pooledRetention(c, 'd1')).toEqual({ rate: 0.4, cohorts: 1 });
+    expect(pooledRetention(c, 'd7')).toEqual({ rate: 0.25, cohorts: 1 });
+    expect(pooledRetention(c, 'd30')).toEqual({ rate: null, cohorts: 0 });
+  });
+  it('jobs: running means started lately and not finished; sorted by name', async () => {
+    const { jobViews } = await import('../platform-stats/overview');
+    const now = Date.parse('2026-10-19T12:00:00Z');
+    const v = jobViews([
+      { job: 'daily', last_started_at: new Date(now - 60_000).toISOString(), last_finished_at: null, ok: null, duration_ms: null },
+      { job: 'ab', last_started_at: new Date(now - 3_600_000).toISOString(), last_finished_at: new Date(now - 3_590_000).toISOString(), ok: true, duration_ms: 10_000 },
+    ], now);
+    expect(v.map(x => x.job)).toEqual(['ab', 'daily']);
+    expect(v[1].running).toBe(true);
+    expect(v[0].ranAgoMs).toBe(3_590_000);
+  });
+});

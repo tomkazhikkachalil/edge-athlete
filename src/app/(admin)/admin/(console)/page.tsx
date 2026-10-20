@@ -17,6 +17,7 @@ import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel'
 import { FEATURE_FLAGS } from '@/lib/features';
 import SupportQueueTile from '@/components/admin/SupportQueueTile';
 import ContactsTile from '@/components/admin/ContactsTile';
+import OverviewPanel from '@/components/admin/overview/OverviewPanel';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -189,6 +190,9 @@ export default function AdminDashboardPage() {
           <i className="fas fa-shield-alt mr-2 text-brand-fg"></i>
           Admin
         </h1>
+
+        {/* The Overview (H2): health, growth, activity, community, platform — every number from the small tables. */}
+        <OverviewPanel />
 
         {/* Queues — dedicated admin pages */}
         <section className="grid sm:grid-cols-2 gap-4">
