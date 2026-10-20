@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-16T19:59:00.768595+00:00 from server 17.6 by
+-- Generated 2026-10-20T12:05:06.74178+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 265.
+-- public.schema_dump() (migration 227). Ledger head at generation: 269.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (115; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (121; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -293,6 +293,29 @@ BEGIN
   END LOOP;
   RETURN v_bumped;
 END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.bump_profile_seen(p_profile uuid, p_day date)
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  WITH w AS (
+    INSERT INTO public.profile_seen AS s (profile_id, first_day, last_day, days_mask)
+    VALUES (p_profile, p_day, p_day, 1)
+    ON CONFLICT (profile_id) DO UPDATE
+      SET last_day  = EXCLUDED.last_day,
+          days_mask = CASE
+                        WHEN EXCLUDED.last_day - s.last_day >= 64 THEN 1::bigint
+                        ELSE (s.days_mask << (EXCLUDED.last_day - s.last_day)) | 1::bigint
+                      END
+      WHERE s.last_day < EXCLUDED.last_day
+    RETURNING 1
+  )
+  SELECT EXISTS (SELECT 1 FROM w);
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -875,7 +898,9 @@ CREATE OR REPLACE FUNCTION public.feed_following(p_viewer uuid, p_limit integer,
 AS $function$
   SELECT p.id
     FROM public.posts p
-   WHERE (p.profile_id = p_viewer
+   WHERE p.on_feed
+     -- 269: the feed is a SWITCH (Convention 47) — an off-feed post stays on the profile and off every lens.
+     AND (p.profile_id = p_viewer
           OR EXISTS (SELECT 1 FROM public.follows f
                       WHERE f.follower_id = p_viewer
                         AND f.following_id = p.profile_id
@@ -1413,6 +1438,9 @@ BEGIN
       OR p.group_post_id IS NOT NULL
       OR EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)
     )
+    -- 269: training is Training's, not Media's (Convention 47)
+    AND p.post_category IS DISTINCT FROM 'training'
+    AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
     AND (
       p.visibility = 'public'
       OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -1480,6 +1508,9 @@ BEGIN
         OR p.group_post_id IS NOT NULL
         OR EXISTS (SELECT 1 FROM public.post_media pm WHERE pm.post_id = p.id)
       )
+      -- 269: must match get_profile_all_media above (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
       AND (
         p.visibility = 'public'
         OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -1529,6 +1560,9 @@ BEGIN
         -- grid disagree — the exact drift 068 was written to fix.
         OR p.group_post_id IS NOT NULL
       )
+      -- 269: must match get_profile_stats_media above (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
       AND (
         p.visibility = 'public'
         OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -1774,6 +1808,9 @@ BEGIN
         -- round_id; their scores live in golf_scorecard_data.
         OR p.group_post_id IS NOT NULL
       )
+      -- 269: training is Training's, not Stats' (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
     )
     AND (
       p.visibility = 'public'
@@ -2613,6 +2650,164 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.platform_cron_runs()
+ RETURNS TABLE(jobname text, schedule text, active boolean, last_start timestamp with time zone, last_status text, runs_24h integer, failed_24h integer)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    RETURN;
+  END IF;
+  RETURN QUERY EXECUTE $q$
+    SELECT j.jobname::text, j.schedule::text, j.active,
+           (SELECT max(d.start_time) FROM cron.job_run_details d WHERE d.jobid = j.jobid),
+           (SELECT d.status::text FROM cron.job_run_details d WHERE d.jobid = j.jobid ORDER BY d.start_time DESC LIMIT 1),
+           (SELECT count(*)::int FROM cron.job_run_details d WHERE d.jobid = j.jobid AND d.start_time >= now() - interval '24 hours'),
+           (SELECT count(*)::int FROM cron.job_run_details d WHERE d.jobid = j.jobid AND d.start_time >= now() - interval '24 hours' AND d.status <> 'succeeded')
+    FROM cron.job j
+    ORDER BY j.jobname
+  $q$;
+END $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.platform_rollup_day(p_day date, p_group text, p_partial boolean DEFAULT false)
+ RETURNS TABLE(metric text, dim text, value bigint)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_start timestamptz := (p_day::timestamp AT TIME ZONE 'UTC');
+  v_end   timestamptz := CASE WHEN p_partial THEN now() ELSE ((p_day + 1)::timestamp AT TIME ZONE 'UTC') END;
+  v_keys  text[];
+BEGIN
+  IF p_day > (now() AT TIME ZONE 'UTC')::date THEN
+    RAISE EXCEPTION 'platform_rollup_day: % is in the future', p_day;
+  END IF;
+  CREATE TEMP TABLE IF NOT EXISTS tmp_rollup (metric text, dim text, value bigint) ON COMMIT DROP;
+  -- TRUNCATE, not DELETE: the service role's session runs the safe-update guard, which refuses a DELETE without WHERE.
+  TRUNCATE tmp_rollup;
+
+  IF p_group = 'users' THEN
+    v_keys := ARRAY['users.new', 'users.departed', 'users.deletion_requested', 'users.dau', 'users.wau', 'users.mau'];
+    INSERT INTO tmp_rollup SELECT 'users.new', '', count(*) FROM profile_seen WHERE first_day = p_day;
+    INSERT INTO tmp_rollup
+      SELECT 'users.new', 'type:' || coalesce(p.user_type, 'unknown'), count(*)
+      FROM profile_seen s JOIN profiles p ON p.id = s.profile_id
+      WHERE s.first_day = p_day GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'users.departed', '', count(*) FROM profiles WHERE departed_at >= v_start AND departed_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'users.deletion_requested', '', count(*) FROM profiles WHERE deletion_requested_at >= v_start AND deletion_requested_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'users.dau', '', count(*) FROM profile_seen WHERE last_day = p_day;
+    INSERT INTO tmp_rollup SELECT 'users.wau', '', count(*) FROM profile_seen WHERE last_day BETWEEN p_day - 6 AND p_day;
+    INSERT INTO tmp_rollup SELECT 'users.mau', '', count(*) FROM profile_seen WHERE last_day BETWEEN p_day - 29 AND p_day;
+
+  ELSIF p_group = 'cohorts' THEN
+    -- Keyed by the COHORT day C = p_day - n: how many of C's signups were seen ON day p_day (strict Dn).
+    v_keys := ARRAY['cohort.size', 'cohort.d1', 'cohort.d7', 'cohort.d30'];
+    IF p_partial THEN RETURN; END IF;
+    INSERT INTO tmp_rollup
+      SELECT k.metric, k.dim, k.value FROM (
+        SELECT 'cohort.size' AS metric, 'cohort:' || (p_day - n.n)::text AS dim, count(*) AS value
+        FROM (VALUES (1), (7), (30)) n(n)
+        JOIN profile_seen s ON s.first_day = p_day - n.n
+        GROUP BY n.n
+        UNION ALL
+        SELECT 'cohort.d' || n.n::text, 'cohort:' || (p_day - n.n)::text,
+               count(*) FILTER (WHERE s.last_day >= p_day AND s.last_day - p_day <= 63 AND ((s.days_mask >> (s.last_day - p_day)) & 1::bigint) = 1)
+        FROM (VALUES (1), (7), (30)) n(n)
+        JOIN profile_seen s ON s.first_day = p_day - n.n
+        GROUP BY n.n
+      ) k;
+
+  ELSIF p_group = 'content' THEN
+    v_keys := ARRAY['posts.new', 'activities.new', 'workouts.new'];
+    INSERT INTO tmp_rollup SELECT 'posts.new', '', count(*) FROM posts WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'posts.new', 'status:' || status, count(*) FROM posts WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'activities.new', '', count(*) FROM activities WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'activities.new', 'type:' || activity_type, count(*) FROM activities WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'workouts.new', '', count(*) FROM workout_sessions WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'workouts.new', 'status:completed', count(*) FROM workout_sessions WHERE created_at >= v_start AND created_at < v_end AND status = 'completed';
+
+  ELSIF p_group = 'community' THEN
+    v_keys := ARRAY['orgs.new', 'orgs.total', 'tickets.new', 'tickets.closed', 'tickets.open', 'contacts.new'];
+    INSERT INTO tmp_rollup SELECT 'orgs.new', 'kind:' || kind, count(*) FROM organizations WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    -- Orgs are few next to accounts: a grouped count holds; past a million it becomes an estimate.
+    INSERT INTO tmp_rollup SELECT 'orgs.total', 'kind:' || kind, count(*) FROM organizations GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'tickets.new', '', count(*) FROM tickets WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'tickets.new', 'type:' || type, count(*) FROM tickets WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'tickets.closed', '', count(*) FROM tickets WHERE closed_at >= v_start AND closed_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'tickets.open', '', count(*) FROM tickets WHERE status IN ('new', 'in_review', 'waiting_on_user');
+    INSERT INTO tmp_rollup SELECT 'contacts.new', 'source:' || source, count(*) FROM contacts WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+
+  ELSIF p_group = 'totals' THEN
+    v_keys := ARRAY['total'];
+    INSERT INTO tmp_rollup SELECT 'total', 'table:' || e.relname, e.reltuples FROM platform_table_estimates() e;
+
+  ELSIF p_group = 'storage' THEN
+    v_keys := ARRAY['storage.objects', 'storage.bytes'];
+    IF p_partial THEN RETURN; END IF;
+    INSERT INTO tmp_rollup SELECT 'storage.objects', 'bucket:' || b.bucket, b.objects FROM platform_storage_by_bucket() b;
+    INSERT INTO tmp_rollup SELECT 'storage.bytes',   'bucket:' || b.bucket, b.bytes   FROM platform_storage_by_bucket() b;
+
+  ELSIF p_group = 'site' THEN
+    v_keys := ARRAY['site.views', 'site.visitors'];
+    INSERT INTO tmp_rollup SELECT 'site.views', '', coalesce(sum(views), 0) FROM org_site_stats_daily WHERE day = p_day;
+    INSERT INTO tmp_rollup SELECT 'site.visitors', '', coalesce(sum(visitors), 0) FROM org_site_stats_daily WHERE day = p_day;
+
+  ELSE
+    RAISE EXCEPTION 'platform_rollup_day: unknown group %', p_group;
+  END IF;
+
+  IF NOT p_partial THEN
+    DELETE FROM platform_stats_daily d WHERE d.day = p_day AND d.metric = ANY (v_keys);
+    INSERT INTO platform_stats_daily (day, metric, dim, value)
+      SELECT p_day, t.metric, t.dim, t.value FROM tmp_rollup t;
+  END IF;
+
+  RETURN QUERY SELECT t.metric, t.dim, t.value FROM tmp_rollup t ORDER BY 1, 2;
+END $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.platform_storage_by_bucket()
+ RETURNS TABLE(bucket text, objects bigint, bytes bigint)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT o.bucket_id::text,
+         count(*)::bigint,
+         coalesce(sum(nullif(o.metadata->>'size', '')::bigint), 0)::bigint
+  FROM storage.objects o
+  GROUP BY o.bucket_id
+  ORDER BY o.bucket_id;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.platform_table_estimates()
+ RETURNS TABLE(relname text, reltuples bigint, last_analyze timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.relname::text,
+         greatest(c.reltuples, 0)::bigint,
+         greatest(s.last_analyze, s.last_autoanalyze)
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+  LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+  WHERE c.relkind = 'r'
+    AND c.relname IN ('profiles', 'posts', 'activities', 'workout_sessions', 'follows', 'messages',
+                      'notifications', 'organizations', 'sport_events', 'athlete_performances', 'profile_seen')
+  ORDER BY c.relname;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.posts_search_vector_update()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2624,6 +2819,21 @@ BEGIN
     setweight(to_tsvector('english', COALESCE(array_to_string(NEW.hashtags, ' '), '')), 'B');
   RETURN NEW;
 END; $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.profile_seen_on_profile_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  INSERT INTO public.profile_seen (profile_id, first_day, last_day, days_mask)
+  VALUES (NEW.id, (NEW.created_at AT TIME ZONE 'UTC')::date, (NEW.created_at AT TIME ZONE 'UTC')::date, 1)
+  ON CONFLICT (profile_id) DO NOTHING;
+  RETURN NEW;
+END $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
@@ -4232,7 +4442,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (132) ──────────────────────────────────────────────────────────────
+-- ── Tables (138) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -4317,6 +4527,13 @@ CREATE TABLE IF NOT EXISTS public.affiliations (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   decided_at timestamp with time zone,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key text NOT NULL,
+  value text,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_by uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.approved_contacts (
@@ -4579,6 +4796,19 @@ CREATE TABLE IF NOT EXISTS public.contact_messages (
   message text NOT NULL,
   delivered boolean DEFAULT false NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.contacts (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  email text NOT NULL,
+  name text,
+  source text NOT NULL,
+  message text,
+  marketing_consent boolean DEFAULT false NOT NULL,
+  consent_text text,
+  user_type text,
+  user_agent text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.contest_media (
@@ -5480,6 +5710,29 @@ CREATE TABLE IF NOT EXISTS public.platform_admins (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.platform_health_samples (
+  at timestamp with time zone NOT NULL,
+  db_ms integer NOT NULL,
+  ok boolean NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_jobs (
+  job text NOT NULL,
+  last_started_at timestamp with time zone NOT NULL,
+  last_finished_at timestamp with time zone,
+  ok boolean,
+  duration_ms integer,
+  summary jsonb
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_stats_daily (
+  day date NOT NULL,
+  metric text NOT NULL,
+  dim text DEFAULT ''::text NOT NULL,
+  value bigint NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.post_comments (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   post_id uuid NOT NULL,
@@ -5581,7 +5834,8 @@ CREATE TABLE IF NOT EXISTS public.posts (
   hidden_ticket_id uuid,
   profile_hidden_at timestamp with time zone,
   views_count integer DEFAULT 0 NOT NULL,
-  plays_count integer DEFAULT 0 NOT NULL
+  plays_count integer DEFAULT 0 NOT NULL,
+  on_feed boolean DEFAULT true NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.privacy_settings (
@@ -5614,6 +5868,13 @@ CREATE TABLE IF NOT EXISTS public.profile_access_audit (
   new_role text,
   actor_id uuid,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.profile_seen (
+  profile_id uuid NOT NULL,
+  first_day date NOT NULL,
+  last_day date NOT NULL,
+  days_mask bigint DEFAULT 1 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.profile_transfers (
@@ -6223,7 +6484,8 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
   timed boolean DEFAULT true NOT NULL,
   paused_seconds integer DEFAULT 0 NOT NULL,
   paused_at timestamp with time zone,
-  effort smallint
+  effort smallint,
+  profile_hidden_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_sets (
@@ -6268,6 +6530,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'affiliations_pkey' AND conrelid = 'public.affiliations'::regclass) THEN
     ALTER TABLE public.affiliations ADD CONSTRAINT affiliations_pkey PRIMARY KEY (org_id, parent_org_id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_settings_pkey' AND conrelid = 'public.app_settings'::regclass) THEN
+    ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_pkey PRIMARY KEY (key);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6363,6 +6630,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contact_messages_pkey' AND conrelid = 'public.contact_messages'::regclass) THEN
     ALTER TABLE public.contact_messages ADD CONSTRAINT contact_messages_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_pkey' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6656,6 +6928,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_health_samples_pkey' AND conrelid = 'public.platform_health_samples'::regclass) THEN
+    ALTER TABLE public.platform_health_samples ADD CONSTRAINT platform_health_samples_pkey PRIMARY KEY (at);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_jobs_pkey' AND conrelid = 'public.platform_jobs'::regclass) THEN
+    ALTER TABLE public.platform_jobs ADD CONSTRAINT platform_jobs_pkey PRIMARY KEY (job);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_stats_daily_pkey' AND conrelid = 'public.platform_stats_daily'::regclass) THEN
+    ALTER TABLE public.platform_stats_daily ADD CONSTRAINT platform_stats_daily_pkey PRIMARY KEY (day, metric, dim);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_comments_pkey' AND conrelid = 'public.post_comments'::regclass) THEN
     ALTER TABLE public.post_comments ADD CONSTRAINT post_comments_pkey PRIMARY KEY (id);
   END IF;
@@ -6698,6 +6985,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_access_audit_pkey' AND conrelid = 'public.profile_access_audit'::regclass) THEN
     ALTER TABLE public.profile_access_audit ADD CONSTRAINT profile_access_audit_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_seen_pkey' AND conrelid = 'public.profile_seen'::regclass) THEN
+    ALTER TABLE public.profile_seen ADD CONSTRAINT profile_seen_pkey PRIMARY KEY (profile_id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7525,6 +7817,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_settings_key_check' AND conrelid = 'public.app_settings'::regclass) THEN
+    ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_key_check CHECK ((key ~ '^[a-z][a-z0-9_]{1,60}$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_settings_value_check' AND conrelid = 'public.app_settings'::regclass) THEN
+    ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_value_check CHECK (((value IS NULL) OR (length(value) <= 2000)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'approved_contacts_source_check' AND conrelid = 'public.approved_contacts'::regclass) THEN
     ALTER TABLE public.approved_contacts ADD CONSTRAINT approved_contacts_source_check CHECK ((source = ANY (ARRAY['grandfathered'::text, 'guardian'::text, 'follow'::text, 'child_initiated'::text, 'guardian_decision'::text])));
   END IF;
@@ -7757,6 +8059,41 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'consent_records_method_check' AND conrelid = 'public.consent_records'::regclass) THEN
     ALTER TABLE public.consent_records ADD CONSTRAINT consent_records_method_check CHECK ((method = ANY (ARRAY['signed_form'::text, 'card_charge'::text, 'id_verification'::text, 'video_call'::text, 'email_plus'::text, 'typed_signature'::text, 'drawn_signature'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_consent_text_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_consent_text_check CHECK (((consent_text IS NULL) OR ((length(consent_text) >= 1) AND (length(consent_text) <= 500))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_email_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_email_check CHECK (((email = lower(email)) AND ((length(email) >= 3) AND (length(email) <= 320))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_message_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_message_check CHECK (((message IS NULL) OR ((length(message) >= 1) AND (length(message) <= 5000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_name_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_name_check CHECK (((name IS NULL) OR ((length(name) >= 1) AND (length(name) <= 100))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_source_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_source_check CHECK ((source = ANY (ARRAY['notify_signup'::text, 'inquiry'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_user_agent_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_user_agent_check CHECK (((user_agent IS NULL) OR (length(user_agent) <= 400)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_user_type_check' AND conrelid = 'public.contacts'::regclass) THEN
+    ALTER TABLE public.contacts ADD CONSTRAINT contacts_user_type_check CHECK (((user_type IS NULL) OR (user_type = ANY (ARRAY['club'::text, 'league'::text, 'fan'::text, 'guest'::text, 'athlete'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8450,6 +8787,31 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_health_samples_db_ms_check' AND conrelid = 'public.platform_health_samples'::regclass) THEN
+    ALTER TABLE public.platform_health_samples ADD CONSTRAINT platform_health_samples_db_ms_check CHECK ((db_ms >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_jobs_duration_ms_check' AND conrelid = 'public.platform_jobs'::regclass) THEN
+    ALTER TABLE public.platform_jobs ADD CONSTRAINT platform_jobs_duration_ms_check CHECK (((duration_ms IS NULL) OR (duration_ms >= 0)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_jobs_job_check' AND conrelid = 'public.platform_jobs'::regclass) THEN
+    ALTER TABLE public.platform_jobs ADD CONSTRAINT platform_jobs_job_check CHECK ((job ~ '^[a-z][a-z0-9-]{1,60}$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_stats_daily_dim_check' AND conrelid = 'public.platform_stats_daily'::regclass) THEN
+    ALTER TABLE public.platform_stats_daily ADD CONSTRAINT platform_stats_daily_dim_check CHECK ((length(dim) <= 80));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'platform_stats_daily_metric_check' AND conrelid = 'public.platform_stats_daily'::regclass) THEN
+    ALTER TABLE public.platform_stats_daily ADD CONSTRAINT platform_stats_daily_metric_check CHECK ((metric ~ '^[a-z0-9_.]+$'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'post_comments_status_check' AND conrelid = 'public.post_comments'::regclass) THEN
     ALTER TABLE public.post_comments ADD CONSTRAINT post_comments_status_check CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text, 'hidden'::text])));
   END IF;
@@ -8542,6 +8904,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_access_audit_action_check' AND conrelid = 'public.profile_access_audit'::regclass) THEN
     ALTER TABLE public.profile_access_audit ADD CONSTRAINT profile_access_audit_action_check CHECK ((action = ANY (ARRAY['granted'::text, 'revoked'::text, 'role_changed'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_seen_order_check' AND conrelid = 'public.profile_seen'::regclass) THEN
+    ALTER TABLE public.profile_seen ADD CONSTRAINT profile_seen_order_check CHECK ((first_day <= last_day));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10292,6 +10659,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_seen_profile_id_fkey' AND conrelid = 'public.profile_seen'::regclass) THEN
+    ALTER TABLE public.profile_seen ADD CONSTRAINT profile_seen_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_transfers_initiator_user_id_fkey' AND conrelid = 'public.profile_transfers'::regclass) THEN
     ALTER TABLE public.profile_transfers ADD CONSTRAINT profile_transfers_initiator_user_id_fkey FOREIGN KEY (initiator_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -10771,6 +11143,8 @@ CREATE INDEX IF NOT EXISTS idx_connection_suggestions_suggested_profile_id ON pu
 CREATE INDEX IF NOT EXISTS idx_consent_records_guardian_user_id ON public.consent_records USING btree (guardian_user_id);
 CREATE INDEX IF NOT EXISTS idx_consent_records_profile ON public.consent_records USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON public.contact_messages USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contacts_created_at ON public.contacts USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contacts_email ON public.contacts USING btree (email, source, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contest_media_contest ON public.contest_media USING btree (contest_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contest_media_uploaded_by ON public.contest_media USING btree (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_contest_media_tags_media ON public.contest_media_tags USING btree (media_id);
@@ -11034,6 +11408,8 @@ CREATE INDEX IF NOT EXISTS idx_profile_access_guardians ON public.profile_access
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_access_one_self_role ON public.profile_access USING btree (profile_id) WHERE (role = ANY (ARRAY['owner'::text, 'supervised'::text]));
 CREATE INDEX IF NOT EXISTS idx_profile_access_profile_role ON public.profile_access USING btree (profile_id, role);
 CREATE INDEX IF NOT EXISTS idx_profile_access_audit_profile ON public.profile_access_audit USING btree (profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_seen_first_day ON public.profile_seen USING btree (first_day);
+CREATE INDEX IF NOT EXISTS idx_profile_seen_last_day ON public.profile_seen USING btree (last_day);
 CREATE INDEX IF NOT EXISTS idx_profile_transfers_cron ON public.profile_transfers USING btree (state) WHERE (state = ANY (ARRAY['cooling_off'::text, 'executing'::text, 'requested'::text, 'credentials_pending'::text, 'dual_confirm'::text]));
 CREATE INDEX IF NOT EXISTS idx_profile_transfers_initiator_user_id ON public.profile_transfers USING btree (initiator_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_transfers_one_active ON public.profile_transfers USING btree (profile_id) WHERE (state <> ALL (ARRAY['completed'::text, 'cancelled'::text, 'expired'::text, 'aborted'::text]));
@@ -11209,7 +11585,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (115) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (121) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -11437,6 +11813,27 @@ BEGIN
   END LOOP;
   RETURN v_bumped;
 END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.bump_profile_seen(p_profile uuid, p_day date)
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  WITH w AS (
+    INSERT INTO public.profile_seen AS s (profile_id, first_day, last_day, days_mask)
+    VALUES (p_profile, p_day, p_day, 1)
+    ON CONFLICT (profile_id) DO UPDATE
+      SET last_day  = EXCLUDED.last_day,
+          days_mask = CASE
+                        WHEN EXCLUDED.last_day - s.last_day >= 64 THEN 1::bigint
+                        ELSE (s.days_mask << (EXCLUDED.last_day - s.last_day)) | 1::bigint
+                      END
+      WHERE s.last_day < EXCLUDED.last_day
+    RETURNING 1
+  )
+  SELECT EXISTS (SELECT 1 FROM w);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text)
@@ -11985,7 +12382,9 @@ CREATE OR REPLACE FUNCTION public.feed_following(p_viewer uuid, p_limit integer,
 AS $function$
   SELECT p.id
     FROM public.posts p
-   WHERE (p.profile_id = p_viewer
+   WHERE p.on_feed
+     -- 269: the feed is a SWITCH (Convention 47) — an off-feed post stays on the profile and off every lens.
+     AND (p.profile_id = p_viewer
           OR EXISTS (SELECT 1 FROM public.follows f
                       WHERE f.follower_id = p_viewer
                         AND f.following_id = p.profile_id
@@ -12503,6 +12902,9 @@ BEGIN
       OR p.group_post_id IS NOT NULL
       OR EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)
     )
+    -- 269: training is Training's, not Media's (Convention 47)
+    AND p.post_category IS DISTINCT FROM 'training'
+    AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
     AND (
       p.visibility = 'public'
       OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -12568,6 +12970,9 @@ BEGIN
         OR p.group_post_id IS NOT NULL
         OR EXISTS (SELECT 1 FROM public.post_media pm WHERE pm.post_id = p.id)
       )
+      -- 269: must match get_profile_all_media above (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
       AND (
         p.visibility = 'public'
         OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -12617,6 +13022,9 @@ BEGIN
         -- grid disagree — the exact drift 068 was written to fix.
         OR p.group_post_id IS NOT NULL
       )
+      -- 269: must match get_profile_stats_media above (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
       AND (
         p.visibility = 'public'
         OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
@@ -12856,6 +13264,9 @@ BEGIN
         -- round_id; their scores live in golf_scorecard_data.
         OR p.group_post_id IS NOT NULL
       )
+      -- 269: training is Training's, not Stats' (Convention 47)
+      AND p.post_category IS DISTINCT FROM 'training'
+      AND (p.stats_data->>'type') IS DISTINCT FROM 'activity'
     )
     AND (
       p.visibility = 'public'
@@ -13631,6 +14042,156 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.platform_cron_runs()
+ RETURNS TABLE(jobname text, schedule text, active boolean, last_start timestamp with time zone, last_status text, runs_24h integer, failed_24h integer)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    RETURN;
+  END IF;
+  RETURN QUERY EXECUTE $q$
+    SELECT j.jobname::text, j.schedule::text, j.active,
+           (SELECT max(d.start_time) FROM cron.job_run_details d WHERE d.jobid = j.jobid),
+           (SELECT d.status::text FROM cron.job_run_details d WHERE d.jobid = j.jobid ORDER BY d.start_time DESC LIMIT 1),
+           (SELECT count(*)::int FROM cron.job_run_details d WHERE d.jobid = j.jobid AND d.start_time >= now() - interval '24 hours'),
+           (SELECT count(*)::int FROM cron.job_run_details d WHERE d.jobid = j.jobid AND d.start_time >= now() - interval '24 hours' AND d.status <> 'succeeded')
+    FROM cron.job j
+    ORDER BY j.jobname
+  $q$;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.platform_rollup_day(p_day date, p_group text, p_partial boolean DEFAULT false)
+ RETURNS TABLE(metric text, dim text, value bigint)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_start timestamptz := (p_day::timestamp AT TIME ZONE 'UTC');
+  v_end   timestamptz := CASE WHEN p_partial THEN now() ELSE ((p_day + 1)::timestamp AT TIME ZONE 'UTC') END;
+  v_keys  text[];
+BEGIN
+  IF p_day > (now() AT TIME ZONE 'UTC')::date THEN
+    RAISE EXCEPTION 'platform_rollup_day: % is in the future', p_day;
+  END IF;
+  CREATE TEMP TABLE IF NOT EXISTS tmp_rollup (metric text, dim text, value bigint) ON COMMIT DROP;
+  -- TRUNCATE, not DELETE: the service role's session runs the safe-update guard, which refuses a DELETE without WHERE.
+  TRUNCATE tmp_rollup;
+
+  IF p_group = 'users' THEN
+    v_keys := ARRAY['users.new', 'users.departed', 'users.deletion_requested', 'users.dau', 'users.wau', 'users.mau'];
+    INSERT INTO tmp_rollup SELECT 'users.new', '', count(*) FROM profile_seen WHERE first_day = p_day;
+    INSERT INTO tmp_rollup
+      SELECT 'users.new', 'type:' || coalesce(p.user_type, 'unknown'), count(*)
+      FROM profile_seen s JOIN profiles p ON p.id = s.profile_id
+      WHERE s.first_day = p_day GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'users.departed', '', count(*) FROM profiles WHERE departed_at >= v_start AND departed_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'users.deletion_requested', '', count(*) FROM profiles WHERE deletion_requested_at >= v_start AND deletion_requested_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'users.dau', '', count(*) FROM profile_seen WHERE last_day = p_day;
+    INSERT INTO tmp_rollup SELECT 'users.wau', '', count(*) FROM profile_seen WHERE last_day BETWEEN p_day - 6 AND p_day;
+    INSERT INTO tmp_rollup SELECT 'users.mau', '', count(*) FROM profile_seen WHERE last_day BETWEEN p_day - 29 AND p_day;
+
+  ELSIF p_group = 'cohorts' THEN
+    -- Keyed by the COHORT day C = p_day - n: how many of C's signups were seen ON day p_day (strict Dn).
+    v_keys := ARRAY['cohort.size', 'cohort.d1', 'cohort.d7', 'cohort.d30'];
+    IF p_partial THEN RETURN; END IF;
+    INSERT INTO tmp_rollup
+      SELECT k.metric, k.dim, k.value FROM (
+        SELECT 'cohort.size' AS metric, 'cohort:' || (p_day - n.n)::text AS dim, count(*) AS value
+        FROM (VALUES (1), (7), (30)) n(n)
+        JOIN profile_seen s ON s.first_day = p_day - n.n
+        GROUP BY n.n
+        UNION ALL
+        SELECT 'cohort.d' || n.n::text, 'cohort:' || (p_day - n.n)::text,
+               count(*) FILTER (WHERE s.last_day >= p_day AND s.last_day - p_day <= 63 AND ((s.days_mask >> (s.last_day - p_day)) & 1::bigint) = 1)
+        FROM (VALUES (1), (7), (30)) n(n)
+        JOIN profile_seen s ON s.first_day = p_day - n.n
+        GROUP BY n.n
+      ) k;
+
+  ELSIF p_group = 'content' THEN
+    v_keys := ARRAY['posts.new', 'activities.new', 'workouts.new'];
+    INSERT INTO tmp_rollup SELECT 'posts.new', '', count(*) FROM posts WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'posts.new', 'status:' || status, count(*) FROM posts WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'activities.new', '', count(*) FROM activities WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'activities.new', 'type:' || activity_type, count(*) FROM activities WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'workouts.new', '', count(*) FROM workout_sessions WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'workouts.new', 'status:completed', count(*) FROM workout_sessions WHERE created_at >= v_start AND created_at < v_end AND status = 'completed';
+
+  ELSIF p_group = 'community' THEN
+    v_keys := ARRAY['orgs.new', 'orgs.total', 'tickets.new', 'tickets.closed', 'tickets.open', 'contacts.new'];
+    INSERT INTO tmp_rollup SELECT 'orgs.new', 'kind:' || kind, count(*) FROM organizations WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    -- Orgs are few next to accounts: a grouped count holds; past a million it becomes an estimate.
+    INSERT INTO tmp_rollup SELECT 'orgs.total', 'kind:' || kind, count(*) FROM organizations GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'tickets.new', '', count(*) FROM tickets WHERE created_at >= v_start AND created_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'tickets.new', 'type:' || type, count(*) FROM tickets WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+    INSERT INTO tmp_rollup SELECT 'tickets.closed', '', count(*) FROM tickets WHERE closed_at >= v_start AND closed_at < v_end;
+    INSERT INTO tmp_rollup SELECT 'tickets.open', '', count(*) FROM tickets WHERE status IN ('new', 'in_review', 'waiting_on_user');
+    INSERT INTO tmp_rollup SELECT 'contacts.new', 'source:' || source, count(*) FROM contacts WHERE created_at >= v_start AND created_at < v_end GROUP BY 2;
+
+  ELSIF p_group = 'totals' THEN
+    v_keys := ARRAY['total'];
+    INSERT INTO tmp_rollup SELECT 'total', 'table:' || e.relname, e.reltuples FROM platform_table_estimates() e;
+
+  ELSIF p_group = 'storage' THEN
+    v_keys := ARRAY['storage.objects', 'storage.bytes'];
+    IF p_partial THEN RETURN; END IF;
+    INSERT INTO tmp_rollup SELECT 'storage.objects', 'bucket:' || b.bucket, b.objects FROM platform_storage_by_bucket() b;
+    INSERT INTO tmp_rollup SELECT 'storage.bytes',   'bucket:' || b.bucket, b.bytes   FROM platform_storage_by_bucket() b;
+
+  ELSIF p_group = 'site' THEN
+    v_keys := ARRAY['site.views', 'site.visitors'];
+    INSERT INTO tmp_rollup SELECT 'site.views', '', coalesce(sum(views), 0) FROM org_site_stats_daily WHERE day = p_day;
+    INSERT INTO tmp_rollup SELECT 'site.visitors', '', coalesce(sum(visitors), 0) FROM org_site_stats_daily WHERE day = p_day;
+
+  ELSE
+    RAISE EXCEPTION 'platform_rollup_day: unknown group %', p_group;
+  END IF;
+
+  IF NOT p_partial THEN
+    DELETE FROM platform_stats_daily d WHERE d.day = p_day AND d.metric = ANY (v_keys);
+    INSERT INTO platform_stats_daily (day, metric, dim, value)
+      SELECT p_day, t.metric, t.dim, t.value FROM tmp_rollup t;
+  END IF;
+
+  RETURN QUERY SELECT t.metric, t.dim, t.value FROM tmp_rollup t ORDER BY 1, 2;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.platform_storage_by_bucket()
+ RETURNS TABLE(bucket text, objects bigint, bytes bigint)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT o.bucket_id::text,
+         count(*)::bigint,
+         coalesce(sum(nullif(o.metadata->>'size', '')::bigint), 0)::bigint
+  FROM storage.objects o
+  GROUP BY o.bucket_id
+  ORDER BY o.bucket_id;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.platform_table_estimates()
+ RETURNS TABLE(relname text, reltuples bigint, last_analyze timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.relname::text,
+         greatest(c.reltuples, 0)::bigint,
+         greatest(s.last_analyze, s.last_autoanalyze)
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+  LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+  WHERE c.relkind = 'r'
+    AND c.relname IN ('profiles', 'posts', 'activities', 'workout_sessions', 'follows', 'messages',
+                      'notifications', 'organizations', 'sport_events', 'athlete_performances', 'profile_seen')
+  ORDER BY c.relname;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.posts_search_vector_update()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -13642,6 +14203,19 @@ BEGIN
     setweight(to_tsvector('english', COALESCE(array_to_string(NEW.hashtags, ' '), '')), 'B');
   RETURN NEW;
 END; $function$;
+
+CREATE OR REPLACE FUNCTION public.profile_seen_on_profile_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  INSERT INTO public.profile_seen (profile_id, first_day, last_day, days_mask)
+  VALUES (NEW.id, (NEW.created_at AT TIME ZONE 'UTC')::date, (NEW.created_at AT TIME ZONE 'UTC')::date, 1)
+  ON CONFLICT (profile_id) DO NOTHING;
+  RETURN NEW;
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.profiles_search_vector_update()
  RETURNS trigger
@@ -15335,6 +15909,8 @@ DROP TRIGGER IF EXISTS auto_split_full_name ON public.profiles;
 CREATE TRIGGER auto_split_full_name BEFORE INSERT OR UPDATE OF full_name ON public.profiles FOR EACH ROW EXECUTE FUNCTION split_full_name();
 DROP TRIGGER IF EXISTS handle_updated_at_profiles ON public.profiles;
 CREATE TRIGGER handle_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS profile_seen_on_insert ON public.profiles;
+CREATE TRIGGER profile_seen_on_insert AFTER INSERT ON public.profiles FOR EACH ROW EXECUTE FUNCTION profile_seen_on_profile_insert();
 DROP TRIGGER IF EXISTS profiles_search_doc ON public.profiles;
 CREATE TRIGGER profiles_search_doc AFTER INSERT OR UPDATE OF first_name, last_name, full_name, handle, location, city, region, region_code, country, country_code, place_id, lat, lng, visibility, avatar_url, search_vector, departed_at ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_doc_sync_athlete();
 DROP TRIGGER IF EXISTS profiles_search_doc_delete ON public.profiles;
@@ -15393,6 +15969,7 @@ ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approved_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_claim_invites ENABLE ROW LEVEL SECURITY;
@@ -15412,6 +15989,7 @@ ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.connection_suggestions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.consent_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contest_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contest_media_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contest_participants ENABLE ROW LEVEL SECURITY;
@@ -15470,6 +16048,9 @@ ALTER TABLE public.performances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.place_aliases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.places ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_health_samples ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_stats_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_media ENABLE ROW LEVEL SECURITY;
@@ -15479,6 +16060,7 @@ ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.privacy_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_access_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profile_seen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
@@ -16694,6 +17276,10 @@ REVOKE ALL ON TABLE public.activity_media FROM anon, authenticated, service_role
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.activity_media TO service_role;
 REVOKE ALL ON TABLE public.affiliations FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.affiliations TO service_role;
+REVOKE ALL ON TABLE public.app_settings FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.app_settings TO anon;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.app_settings TO authenticated;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.app_settings TO service_role;
 REVOKE ALL ON TABLE public.approved_contacts FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.approved_contacts TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.approved_contacts TO authenticated;
@@ -16748,6 +17334,10 @@ GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE pub
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.consent_records TO service_role;
 REVOKE ALL ON TABLE public.contact_messages FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.contact_messages TO service_role;
+REVOKE ALL ON TABLE public.contacts FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.contacts TO anon;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.contacts TO authenticated;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.contacts TO service_role;
 REVOKE ALL ON TABLE public.contest_media FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.contest_media TO service_role;
 REVOKE ALL ON TABLE public.contest_media_tags FROM anon, authenticated, service_role;
@@ -16924,6 +17514,12 @@ GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE pub
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.places TO service_role;
 REVOKE ALL ON TABLE public.platform_admins FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.platform_admins TO service_role;
+REVOKE ALL ON TABLE public.platform_health_samples FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.platform_health_samples TO service_role;
+REVOKE ALL ON TABLE public.platform_jobs FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.platform_jobs TO service_role;
+REVOKE ALL ON TABLE public.platform_stats_daily FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.platform_stats_daily TO service_role;
 REVOKE ALL ON TABLE public.post_comments FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_comments TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.post_comments TO authenticated;
@@ -16958,6 +17554,8 @@ REVOKE ALL ON TABLE public.profile_access_audit FROM anon, authenticated, servic
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO service_role;
+REVOKE ALL ON TABLE public.profile_seen FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_seen TO service_role;
 REVOKE ALL ON TABLE public.profile_transfers FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_transfers TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_transfers TO authenticated;
@@ -17110,6 +17708,8 @@ REVOKE EXECUTE ON FUNCTION public.bump_hole_score_version() FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION public.bump_hole_score_version() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_post_views(p_day date, p_items jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.bump_post_views(p_day date, p_items jsonb) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.bump_profile_seen(p_profile uuid, p_day date) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.bump_profile_seen(p_profile uuid, p_day date) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_golf_participant_totals() FROM PUBLIC, anon, authenticated, service_role;
@@ -17234,8 +17834,18 @@ REVOKE EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) FROM PUBLIC, ano
 GRANT EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.places_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.places_search_vector_update() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.platform_cron_runs() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.platform_cron_runs() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.platform_rollup_day(p_day date, p_group text, p_partial boolean) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.platform_rollup_day(p_day date, p_group text, p_partial boolean) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.platform_storage_by_bucket() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.platform_storage_by_bucket() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.platform_table_estimates() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.platform_table_estimates() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.posts_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.posts_search_vector_update() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.profile_seen_on_profile_insert() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.profile_seen_on_profile_insert() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.profiles_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.profiles_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.provenance_inventory() FROM PUBLIC, anon, authenticated, service_role;
@@ -17334,6 +17944,7 @@ COMMENT ON COLUMN public.activity_media.processing_at IS 'As post_media.processi
 COMMENT ON COLUMN public.activity_media.blur_hash IS 'As post_media.blur_hash (261).';
 COMMENT ON COLUMN public.activity_media.transcode_source_url IS 'As post_media.transcode_source_url (261).';
 COMMENT ON TABLE public.affiliations IS 'One edge per (child org, parent org) — Round 5 D-ii (236). A club in a league: org_id = the club, parent_org_id = the league. A league under a parent league: org_id = the child league. initiated_by is which END asked (child | parent). Replaces league_clubs + league_affiliations (dropped in 237).';
+COMMENT ON TABLE public.app_settings IS 'Server-only key → value settings (266). notify_inbox_email: where sign-ups and inquiries are mailed (falls back to CONTACT_EMAIL, then EMAIL_FROM).';
 COMMENT ON COLUMN public.athlete_equipment.acquired_on IS 'User-editable "in bag since" date; added_at remains the server audit timestamp.';
 COMMENT ON COLUMN public.athlete_equipment.retired_on IS 'User-editable retirement date; NULL while status = active.';
 COMMENT ON COLUMN public.athlete_equipment.group_label IS 'Optional custom set name ("Tournament bag"). NULL = automatic category grouping only. App-capped at 60 chars.';
@@ -17347,6 +17958,8 @@ COMMENT ON COLUMN public.competition_entries.name IS 'An AD-HOC entry''s label (
 COMMENT ON COLUMN public.competition_entries.source_ref IS 'The bridge''s idempotency key (219): sport_event_side:<id> — an event''s side minted once as an entry.';
 COMMENT ON COLUMN public.competition_entries.affiliation_team_id IS 'A meet athlete''s team for the roll-up (219): snapshotted at entry, organizer-editable; NULL = unattached. Never a second entrant kind.';
 COMMENT ON TABLE public.competition_entry_members IS 'Who plays on an entry (219): an ad-hoc side''s members; a team entry may carry members too. Posture A.';
+COMMENT ON TABLE public.contacts IS 'The contact list (266): one row per notification sign-up or inquiry. Server-only; src/lib/contacts/contacts-server.ts recordContact is the ONE writer.';
+COMMENT ON COLUMN public.contacts.marketing_consent IS 'Express consent to marketing mail (266) — unchecked by default; consent_text holds the words agreed to.';
 COMMENT ON COLUMN public.contest_media.uploaded_by IS 'Who uploaded it (225: nullable, SET NULL on their deletion).';
 COMMENT ON COLUMN public.contest_media_tags.tagged_by IS 'Who tagged (225: nullable, SET NULL on their deletion).';
 COMMENT ON COLUMN public.contest_stat_lines.entered_by IS 'Who entered the line (225: nullable, SET NULL on their deletion — the record survives the person).';
@@ -17430,6 +18043,7 @@ COMMENT ON COLUMN public.organizations.kind IS 'What the org calls itself and it
 COMMENT ON COLUMN public.organizations.sport_key IS 'leagues.sport_key or clubs.primary_sport; nullable (a multi-sport club).';
 COMMENT ON COLUMN public.organizations.location IS 'clubs'' legacy free-text location; superseded by the place block; carried so nothing is lost.';
 COMMENT ON TABLE public.platform_admins IS 'Platform admin roles (222): owner | moderator. The env allowlist stays OWNER; a moderator row admits the support queue only. Written by owners only (API-enforced).';
+COMMENT ON TABLE public.platform_stats_daily IS 'The Overview''s one table (267): one row per UTC day, metric and dimension, written a group at a time by platform_rollup_day.';
 COMMENT ON COLUMN public.post_comments.mentions IS 'Profile ids @mentioned in content, resolved server-side at POST from the author''s taggable set (public + accepted follows). Render-side, tokens are matched against these profiles'' CURRENT handles — a renamed handle degrades to plain text by design.';
 COMMENT ON COLUMN public.post_comments.review_note IS 'Guardian send-back note (129). Set with status=changes_requested; cleared when the author resubmits via the scoped edit action.';
 COMMENT ON COLUMN public.post_comments.approval_nudged_at IS '48h approval-nudge dedupe stamp (129). Non-null = guardians were re-belled once for this pending item.';
@@ -17459,6 +18073,8 @@ COMMENT ON COLUMN public.posts.hidden_ticket_id IS 'The ticket that hid it (223)
 COMMENT ON COLUMN public.posts.profile_hidden_at IS 'The owner hid this result from their profile (241): status = ''profile_hidden''. The dataset row stays; unhide restores published.';
 COMMENT ON COLUMN public.posts.views_count IS 'Impact (252): people who saw this post, one per person per day (a hashed daily mark in post_view_marks — never who). Shown to everyone. The owner''s own views never count.';
 COMMENT ON COLUMN public.posts.plays_count IS 'Impact (252): people who played this post''s video for 3 s or more, one per person per day.';
+COMMENT ON COLUMN public.posts.on_feed IS 'The feed switch (269): true = also on the feed. Never an audience — the account decides who sees the post; this only says whether the feed lists it. Profile readers ignore it.';
+COMMENT ON TABLE public.profile_seen IS 'One row per account (267): the signup day, the last day the app was opened signed in, and a 63-day bitmap of those days. Counts only; never shown per person.';
 COMMENT ON COLUMN public.profile_transfers.age_preset_prompt IS 'Wave 4 rider on the eligible_notified row: pending = a guardian older-preset differed at crossing time; applied/kept = guardian decision; none = no differing preset at crossing. NULL = row predates Wave 4 — never prompt retroactively.';
 COMMENT ON COLUMN public.profile_transfers.handover_prompted_at IS 'Handover-moment stamp (migration 138): set once by the sweep when a supervised athlete reaches adulthood with the transfer still parked at eligible_notified. Dedup only — never a state.';
 COMMENT ON COLUMN public.profiles.first_name IS 'User''s first/given name';
@@ -17550,10 +18166,11 @@ COMMENT ON COLUMN public.workout_sessions.timed IS 'The clock runs (260). false:
 COMMENT ON COLUMN public.workout_sessions.paused_seconds IS 'Closed pauses so far, seconds (260). The clock = now − started_at − paused_seconds − an open pause.';
 COMMENT ON COLUMN public.workout_sessions.paused_at IS 'A live pause (260); NULL otherwise. Only an active session may be paused — every finish writes NULL.';
 COMMENT ON COLUMN public.workout_sessions.effort IS 'How hard the session felt, 1–10, asked at the finish (265).';
+COMMENT ON COLUMN public.workout_sessions.profile_hidden_at IS 'The owner hid this workout from their profile (269; 241''s shape). Viewers'' Training lists skip it; the owner keeps it.';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
-COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak; the route applies the privacy filter. Service-role only.';
+COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230 + 269: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak, on-feed posts only (269); the route applies the privacy filter. Service-role only.';
 COMMENT ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) IS 'Generates personalized connection suggestions based on sport, school, location, and common connections.
 Excludes: profiles already followed, pending requests, and dismissed suggestions.
 Returns: suggested_id, suggested_name, suggested_avatar, suggested_sport, suggested_school, suggested_location, similarity_score, reason';
@@ -17981,7 +18598,12 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (262, '262_media_jobs_schedule.sql', 'rebuild-000'),
   (263, '263_sport_pins.sql', 'rebuild-000'),
   (264, '264_profile_photo_sources.sql', 'rebuild-000'),
-  (265, '265_activity_details_effort.sql', 'rebuild-000')
+  (265, '265_activity_details_effort.sql', 'rebuild-000'),
+  (266, '266_contacts.sql', 'rebuild-000'),
+  (267, '267_platform_stats.indexes.sql', 'rebuild-000'),
+  (267, '267_platform_stats.sql', 'rebuild-000'),
+  (268, '268_platform_schedules.sql', 'rebuild-000'),
+  (269, '269_feed_switch_training_buckets.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -17990,12 +18612,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 132 | 115 | 173 | 265
+-- Expected: 000 REBUILT | 138 | 121 | 173 | 269
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_132,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_115,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_121,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_265;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_269;
 
