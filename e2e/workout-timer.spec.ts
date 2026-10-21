@@ -90,6 +90,9 @@ test('pause excludes the paused time and survives a reload; the pill stands; hid
     await page.getByRole('button', { name: 'Finish' }).click();
     await expect(page.getByRole('heading', { name: /Workout Complete|./ }).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-summary-duration]')).toHaveAttribute('data-summary-duration', 'untimed', { timeout: 20_000 });
+    // Oct 21 2026 (item 2): no time is shown at all — two tiles, no Duration tile.
+    await expect(page.locator('[data-summary-duration] > div')).toHaveCount(2);
+    await expect(page.locator('[data-summary-duration]')).not.toContainText('Duration');
     const done = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session;
     expect(done.status).toBe('completed');
     expect(done.duration_seconds).toBeNull();

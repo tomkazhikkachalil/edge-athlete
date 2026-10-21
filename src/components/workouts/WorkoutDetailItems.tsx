@@ -21,6 +21,12 @@ import type { EntryExercise } from '@/lib/workouts/entries';
 //    the round (GroupDetailCard);
 //  - a tap on any image opens the app's own viewer over the post (close,
 //    Escape, swipe through every image of the workout) — never a new window.
+// Oct 21 2026 (Training fixes, item 3 — Tom chose "uniform set bubbles"):
+// every set is a BUBBLE; in an exercise that carries any media every bubble
+// is the thumb's height (64 px) and the thumb sits at its right (an empty
+// 64 px slot keeps the lines aligned on a set without media), so the sets
+// stack with the same gap whether or not a set has a photo. An exercise
+// with no media keeps compact bubbles. The viewer's order is unchanged.
 
 interface Props {
   exercises: EntryExercise[];
@@ -39,6 +45,8 @@ export default function WorkoutDetailItems({ exercises, tone }: Props) {
   const cardClass = tone === 'post'
     ? 'border-violet-200/70 dark:border-violet-800/60 bg-violet-50/30 dark:bg-violet-950/20'
     : 'border-border bg-surface';
+  // The set bubble: a shade deeper than its card (the post is violet; the history card is neutral).
+  const bubbleClass = tone === 'post' ? 'bg-violet-100/60 dark:bg-violet-900/30' : 'bg-surface-muted';
 
   return (
     <>
@@ -48,15 +56,22 @@ export default function WorkoutDetailItems({ exercises, tone }: Props) {
         <div key={item.index} className={`rounded-lg border ${cardClass} p-2`} data-post-exercise-card="">
           <ExerciseName as="p" name={item.exercise.name} className={`text-xs font-bold ${nameClass}`} />
           {item.exercise.notes && <p className="text-xs text-muted italic">{item.exercise.notes}</p>}
-          <div className="mt-1 space-y-1">
-            {item.exercise.sets.map((set, setIndex) => (
-              <div key={setIndex} className="flex items-center gap-2" data-post-set-row={set.setNumber}>
-                <p className="flex-1 min-w-0 text-xs text-tertiary">
-                  <span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}
-                </p>
-                <SetImageStack media={set.media} onOpen={() => open(setMediaId(item.exercise.clientId, setIndex, 0))} />
-              </div>
-            ))}
+          <div className="mt-1 space-y-1" data-post-set-bubbles={item.exercise.sets.some(s => s.media.length > 0) ? 'media' : 'plain'}>
+            {item.exercise.sets.map((set, setIndex) => {
+              const withMedia = item.exercise.sets.some(s => s.media.length > 0);
+              return (
+                <div key={setIndex} className="flex items-stretch gap-2" data-post-set-row={set.setNumber}>
+                  <p className={`flex flex-1 min-w-0 items-center rounded-lg px-2.5 text-xs text-tertiary ${bubbleClass} ${withMedia ? 'min-h-16' : 'py-1.5'}`}>
+                    <span className="min-w-0 truncate"><span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}</span>
+                  </p>
+                  {set.media.length > 0 ? (
+                    <SetImageStack media={set.media} onOpen={() => open(setMediaId(item.exercise.clientId, setIndex, 0))} />
+                  ) : withMedia ? (
+                    <span className="w-16 shrink-0" aria-hidden="true" data-post-set-slot="" />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

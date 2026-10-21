@@ -63,3 +63,44 @@ describe('set images open the in-app viewer (Oct 17 2026)', () => {
     expect(host).toMatch(/createPortal\(/);
   });
 });
+
+// ── Training fixes, Oct 21 2026 (items 1–3): the posted workout's look ───────
+describe('the posted workout\'s look (Oct 21 2026)', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+  it('item 1: inside the expanded post the fill is the page background; the card, bar and exercise cards stay violet', () => {
+    const post = read('src/components/workouts/WorkoutPostCard.tsx');
+    expect(post).toMatch(/data-post-workout-details=""/);
+    expect(post).toMatch(/border-violet-100 dark:border-violet-900 bg-canvas space-y-3/);
+    expect(post).not.toMatch(/bg-surface\/60/);
+    expect(post).toMatch(/bg-brand-soft\/60 overflow-hidden/);
+    const items = read('src/components/workouts/WorkoutDetailItems.tsx');
+    expect(items).toMatch(/bg-violet-50\/30 dark:bg-violet-950\/20/);
+  });
+  it('item 2: an untimed workout shows two tiles and no "Not timed" — the post and the summary alike', () => {
+    const post = read('src/components/workouts/WorkoutPostCard.tsx');
+    expect(post).toMatch(/durationSeconds === null \? 'grid-cols-2' : 'grid-cols-3'/);
+    expect(post).toMatch(/\{durationSeconds !== null && \(/);
+    expect(post).not.toMatch(/Not timed/);
+    const flow = read('src/components/workouts/FinishFlow.tsx');
+    expect(flow).toMatch(/durationSeconds === null \? 'grid-cols-2' : 'grid-cols-3'/);
+    expect(flow).not.toMatch(/Not timed/);
+    // The specs read ONE [data-summary-duration]: it lives on the grid, not on a tile.
+    expect(flow.match(/data-summary-duration=/g)?.length).toBe(1);
+    expect(flow).toMatch(/gap-3 \$\{durationSeconds === null \? 'grid-cols-2' : 'grid-cols-3'\}`\} data-summary-duration=\{durationSeconds \?\? 'untimed'\}/);
+  });
+  it('item 3: every set is a bubble; a 64 px thumb at its right; an empty slot keeps the lines aligned; one thumb size', () => {
+    const items = read('src/components/workouts/WorkoutDetailItems.tsx');
+    expect(items).toMatch(/data-post-set-bubbles=/);
+    expect(items).toMatch(/flex items-stretch gap-2" data-post-set-row=/);
+    expect(items).toMatch(/withMedia \? 'min-h-16' : 'py-1\.5'/);
+    expect(items).toMatch(/<span className="w-16 shrink-0" aria-hidden="true" data-post-set-slot="" \/>/);
+    const stack = read('src/components/workouts/SetImageStack.tsx');
+    expect(stack).toMatch(/'w-16 h-16' : 'w-16 h-16'/);
+    expect(stack).not.toMatch(/w-14|w-12/);
+    const group = read('src/components/workouts/GroupDetailCard.tsx');
+    expect(group).toMatch(/data-post-round-member=/);
+    expect(group).toMatch(/'data-post-round-images': k \+ 1/);
+    expect(group).not.toMatch(/const roundImages/);
+    expect(group).toMatch(/withMedia \? 'min-h-16' : 'py-1\.5'/);
+  });
+});

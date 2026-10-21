@@ -38,34 +38,38 @@ export default function GroupDetailCard({ kind, rounds, members, tone = 'post', 
   const count = Math.max(1, rounds);
   const nameClass = tone === 'post' ? 'text-primary' : 'text-secondary';
 
-  /** Every member's images for round k, in member order. */
-  const roundImages = (k: number) => {
-    const shots = members.flatMap(m => (m.sets[k]?.media ?? []).map((media, i) => ({ media, id: setMediaId(m.clientId, k, i) })));
-    if (shots.length === 0) return null;
+  // Oct 21 2026 (Training fixes, item 3 — "uniform set bubbles"): a round is
+  // a bubble per member; a member's images for that round sit at its bubble's
+  // right as one stack (the viewer opens at the first), every bubble the
+  // thumb's height when the round carries any media. `data-post-round-images`
+  // marks a round that has images (the specs count its stacks).
+  const roundLines = (k: number) => {
+    const withMedia = members.some(m => (m.sets[k]?.media.length ?? 0) > 0);
     return (
-      <div className="mt-1.5 flex flex-wrap gap-1.5" data-post-round-images={k + 1}>
-        {shots.map(shot => (
-          <SetImageStack key={shot.id} media={[shot.media]} size="round" onOpen={() => onOpenMedia(shot.id)} />
-        ))}
+      <div className="space-y-1" {...(withMedia ? { 'data-post-round-images': k + 1 } : {})}>
+        {members.map(m => {
+          const set = m.sets[k];
+          const media = set?.media ?? [];
+          return (
+            <div key={m.clientId} className="flex items-stretch gap-2" data-post-round-member={m.clientId}>
+              <p className={`flex flex-1 min-w-0 items-center rounded-lg bg-violet-100/60 px-2.5 text-xs text-tertiary dark:bg-violet-900/30 ${withMedia ? 'min-h-16' : 'py-1.5'}`}>
+                <span className="min-w-0 truncate">
+                  <span className={`font-bold ${nameClass}`}>{m.name}</span>
+                  {' · '}
+                  {set ? formatSetLine(set) : '—'}
+                </span>
+              </p>
+              {media.length > 0 ? (
+                <SetImageStack media={media} size="round" onOpen={() => onOpenMedia(setMediaId(m.clientId, k, 0))} />
+              ) : withMedia ? (
+                <span className="w-16 shrink-0" aria-hidden="true" data-post-set-slot="" />
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     );
   };
-
-  const roundLines = (k: number) => (
-    <div className="space-y-1 px-0.5">
-      {members.map(m => {
-        const set = m.sets[k];
-        return (
-          <p key={m.clientId} className="text-xs text-tertiary">
-            <span className={`font-bold ${nameClass}`}>{m.name}</span>
-            {' · '}
-            {set ? formatSetLine(set) : '—'}
-          </p>
-        );
-      })}
-      {roundImages(k)}
-    </div>
-  );
 
   return (
     <div className="rounded-lg border border-violet-200/70 dark:border-violet-800/60 bg-violet-50/30 dark:bg-violet-950/20 p-2" data-post-group-card={kind} data-post-group-expanded={expanded ? 'true' : 'false'}>

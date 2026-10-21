@@ -65,6 +65,12 @@ async function setImages(page: Page, context: BrowserContext) {
     const row = (await bench.locator('[data-post-set-row="3"]').boundingBox())!;
     const box = (await stack.boundingBox())!;
     expect(box.x + box.width, 'the stack sits at the row\'s right edge').toBeGreaterThan(row.x + row.width - 4);
+    // Oct 21 2026 (item 3): every set is a bubble of ONE height — a set without
+    // media is as tall as one with — and the thumb is 64 px, filling it.
+    const heights = await Promise.all([1, 2, 3].map(async n => (await bench.locator(`[data-post-set-row="${n}"]`).boundingBox())!.height));
+    expect(Math.max(...heights) - Math.min(...heights), `set rows ${heights.join('/')} px are one height`).toBeLessThanOrEqual(1);
+    expect(Math.round(box.height), 'the thumb is 64 px').toBe(64);
+    expect(Math.round(heights[2]), 'the bubble is the thumb\'s height').toBe(64);
 
     // The circuit: each round's images under the round, inside the card.
     const circuit = card.locator('[data-post-group-card="circuit"]');

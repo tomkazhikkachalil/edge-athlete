@@ -90,13 +90,15 @@ export function FinishSummary({
         </p>
       </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="text-center tr-card p-4">
-          <Timer className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
-          <div className="text-xl font-bold text-primary" data-summary-duration={durationSeconds ?? 'untimed'}>{durationSeconds === null ? 'Not timed' : formatDuration(durationSeconds)}</div>
-          <div className="text-xs font-semibold text-muted uppercase tracking-wide">Duration</div>
-        </div>
+      {/* Stat tiles — an untimed workout shows no time at all (Oct 21 2026, item 2): two tiles. */}
+      <div className={`grid gap-3 ${durationSeconds === null ? 'grid-cols-2' : 'grid-cols-3'}`} data-summary-duration={durationSeconds ?? 'untimed'}>
+        {durationSeconds !== null && (
+          <div className="text-center tr-card p-4">
+            <Timer className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
+            <div className="text-xl font-bold text-primary">{formatDuration(durationSeconds)}</div>
+            <div className="text-xs font-semibold text-muted uppercase tracking-wide">Duration</div>
+          </div>
+        )}
         <div className="text-center tr-card p-4">
           <Dumbbell className="w-4 h-4 text-violet-500 mx-auto mb-1" aria-hidden="true" />
           <div className="text-xl font-bold text-primary">
