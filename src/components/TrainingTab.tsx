@@ -7,7 +7,8 @@ import { BODY_METRIC_CATEGORIES } from '@/lib/body-metrics-config';
 import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, MapPin } from 'lucide-react';
 import AddBodyMetricModal from './AddBodyMetricModal';
 import CreatePostModal from './CreatePostModal';
-import PostCard from './PostCard';
+import MediaGridItem from './media/MediaGridItem';
+import { toMediaItem } from '@/lib/training/media-item';
 import PostDetailModal from './PostDetailModal';
 import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
@@ -56,6 +57,8 @@ interface PostMedia {
   media_url: string;
   media_type: 'image' | 'video';
   display_order: number;
+  thumbnail_url?: string | null;
+  blur_hash?: string | null;
 }
 
 interface TrainingPost {
@@ -106,6 +109,9 @@ interface HeroProfile {
 // Shared look for the two responsive placements of the settings gear.
 // Display classes (flex/hidden) stay per-instance — a display value in a
 // shared string is the .ea-icon-btn lg:hidden trap.
+/** The Training Activity grid shows this many tiles before "Show all" (two rows on a phone, one on a wide screen). */
+const ACTIVITY_TILES_FIRST = 6;
+
 const TRAINING_GEAR_CLASSES =
   'tr-pill items-center justify-center p-2.5 border border-border-strong text-secondary rounded-full hover:bg-surface-muted transition-colors';
 
@@ -143,6 +149,11 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const [showTrainingSettings, setShowTrainingSettings] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
+  // Training fixes PR 2 (Oct 21 2026): the Training Activity posts are the
+  // Stats / Media tile grid; a tile opens the post detail modal at its index
+  // (prev / next walk the shown tiles). A workout card's "Shared" tag still
+  // opens the modal by id (`linkedPostId`), without navigation.
+  const [activityIndex, setActivityIndex] = useState<number | null>(null);
   const [metricOverlayKey, setMetricOverlayKey] = useState<string | null>(null);
   const [showWorkoutsOverlay, setShowWorkoutsOverlay] = useState(false);
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
@@ -218,6 +229,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const activeDays = useMemo(() => sessionsActiveDays(sessions), [sessions]);
   const pbSpotlight = useMemo(() => latestPB(bodyMetrics), [bodyMetrics]);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const shownActivityPosts = showAllActivity ? trainingPosts : trainingPosts.slice(0, ACTIVITY_TILES_FIRST);
 
   // The weekly-activity bubble's bars — last 8 weeks, sessions per week.
   // Labels only on the first and current bars; more reads as clutter at
@@ -625,14 +637,21 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           />
         ) : (
           <div className="space-y-4">
-            {(showAllActivity ? trainingPosts : trainingPosts.slice(0, 3)).map(post => (
-              <PostCard
-                key={post.id}
-                post={post as Parameters<typeof PostCard>[0]['post']}
-                currentUserId={currentUserId}
-              />
-            ))}
-            {!showAllActivity && trainingPosts.length > 3 && (
+            {/* The tile grid the Stats and Media tabs use (Tom, Oct 21 2026: a
+                full post card showed its media ~800 px wide on a desktop
+                profile); the tile carries [data-post-id] and a "+N" badge, a
+                tap opens the post. The first six tiles, then Show all. */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2" data-training-activity-grid={shownActivityPosts.length}>
+              {shownActivityPosts.map((post, index) => (
+                <MediaGridItem
+                  key={post.id}
+                  item={toMediaItem(post, currentUserId)}
+                  viewerId={currentUserId}
+                  onClick={() => setActivityIndex(index)}
+                />
+              ))}
+            </div>
+            {!showAllActivity && trainingPosts.length > ACTIVITY_TILES_FIRST && (
               <button
                 onClick={() => setShowAllActivity(true)}
                 className="ea-interactive tr-pill w-full flex items-center justify-center gap-2 py-3 rounded-full border border-border text-sm font-semibold text-brand-fg-strong"
@@ -751,9 +770,20 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       )}
 
       <PostDetailModal
-        postId={linkedPostId}
-        isOpen={linkedPostId !== null}
-        onClose={() => setLinkedPostId(null)}
+        postId={linkedPostId ?? (activityIndex !== null ? shownActivityPosts[activityIndex]?.id ?? null : null)}
+        isOpen={linkedPostId !== null || activityIndex !== null}
+        onClose={() => {
+          setLinkedPostId(null);
+          setActivityIndex(null);
+        }}
+        onNavigate={direction => {
+          setActivityIndex(i => {
+            if (i === null) return i;
+            if (direction === 'prev') return Math.max(0, i - 1);
+            return Math.min(shownActivityPosts.length - 1, i + 1);
+          });
+        }}
+        showNavigation={linkedPostId === null && shownActivityPosts.length > 1}
         currentUserId={currentUserId}
       />
     </div>
