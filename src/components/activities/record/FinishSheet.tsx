@@ -8,6 +8,7 @@ import { routeSvg } from '@/lib/activities/route-svg';
 import { requiresManualDistance, type RecordingPhoto } from '@/lib/activities/record/recording';
 import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { isClimbScale, summarizeClimbs, type Climb } from '@/lib/activities/climbing';
 import FeedToggle from '@/components/posts/FeedToggle';
 import FinishDetailsForm, { type FinishFormValue } from '@/components/activities/FinishDetailsForm';
 import { unitSystemOf } from '@/lib/activities/units';
@@ -111,6 +112,12 @@ export default function FinishSheet({
   const showDistance = !needsDistance && summary.distanceM > 0;
   const pace = showDistance ? formatPace(summary.distanceM, summary.movingS, type, unit) : null;
   const posting = onFeed;
+  // F3: a climbing session's review says what was climbed (the recording's own climbs).
+  const climbsLine = (() => {
+    if (type !== 'climb' || !isClimbScale(answers.details.scale) || !Array.isArray(answers.details.climbs)) return null;
+    const sum = summarizeClimbs(answers.details.scale, answers.details.climbs as Climb[]);
+    return sum.climbs > 0 ? `${sum.climbs} · ${sum.sends} sent` : null;
+  })();
   const sportName = sportOption ? getSportDefinition(sportOption).display_name : null;
   const label = def.label.toLowerCase();
 
@@ -141,6 +148,12 @@ export default function FinishSheet({
               <div>
                 <dt className="text-xs text-muted">{pace.label}</dt>
                 <dd className="text-base font-bold text-primary">{pace.value}</dd>
+              </div>
+            )}
+            {climbsLine && (
+              <div>
+                <dt className="text-xs text-muted">Climbs</dt>
+                <dd className="text-base font-bold text-primary" data-record-review-climbs="">{climbsLine}</dd>
               </div>
             )}
           </dl>

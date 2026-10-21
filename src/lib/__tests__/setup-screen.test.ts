@@ -57,6 +57,12 @@ describe('set up before Start — the screen', () => {
     expect(code('src/components/activities/record/LiveStats.tsx')).toMatch(/data-record-calm-line=""/);
     expect(code('src/components/activities/record/RecorderControls.tsx')).toMatch(/\{mark && \(/);
   });
+  it('F3 — climb: the set-up card offers the grade scale (narrowed by the style) and the Finish sums the climbs', () => {
+    expect(card).toMatch(/layout\.setup\.includes\('climbScale'\)/);
+    expect(card).toMatch(/SCALES_FOR_STYLE\[style\] : CLIMB_SCALES/);
+    expect(card).toMatch(/dispatch\(\{ type: 'climbScale', scale: s \}\)/);
+    expect(finish).toMatch(/data-record-review-climbs=""/);
+  });
   it('the new screens obey the recorder\'s import ban', () => {
     for (const src of [card, sheet]) expect(src).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
   });

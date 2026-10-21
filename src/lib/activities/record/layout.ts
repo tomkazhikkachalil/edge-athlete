@@ -109,10 +109,11 @@ export const RECORD_LAYOUT_BY_TYPE: Readonly<Record<ActivityType, RecordLayout>>
   martial_arts: { ...ROUNDS, setupFields: ['discipline', 'session'], timerDefault: 'rounds' },
   other: ROUNDS,
   climb: {
-    setup: ['name'],
+    // F3: the scale is chosen on the set-up card (filtered by the style); the log leads the live area.
+    setup: ['climbScale', 'name'],
     setupFields: ['setting', 'style'],
     records: ['time', 'climbs', 'photos'],
-    live: ['stats', 'climbs', 'timer', 'details', 'photos'],
+    live: ['climbs', 'stats', 'timer', 'details', 'photos'],
     liveStats: [],
     timerDefault: null,
   },

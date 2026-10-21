@@ -67,6 +67,9 @@ describe('the recorder layout table', () => {
     expect(recordLayout('other').timerDefault).toBeNull();
     expect(detailFieldsFor('other').map(f => f.key)).toEqual(['what']);
     expect(recordLayout('martial_arts').setupFields).toEqual(['discipline', 'session']);
+    // F3 — climb: the scale is set up before Start; the log leads the live area.
+    expect(recordLayout('climb').setup).toContain('climbScale');
+    expect(recordLayout('climb').live[0]).toBe('climbs');
     for (const t of ['yoga', 'pilates', 'stretch', 'dance'] as const) expect(recordLayout(t).calm, t).toBe(true);
     expect(recordLayout('sport_session').setupFields).toEqual(['sport', 'session_kind']);
     expect(recordLayout('swim').setupFields).toEqual(['pool', 'stroke']);
