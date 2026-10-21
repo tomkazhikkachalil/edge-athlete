@@ -33,11 +33,31 @@ test('a pool swim keeps its effort, pool and stroke; the next swim pre-fills the
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
   try {
     const page = await ctx.newPage();
-    await recordSwimToFinish(page);
+    // F5: the pool and the stroke are set up before Start; the lengths are counted as they
+    // happen and the Finish's distance is lengths × the pool, editable.
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="swim"]').click({ timeout: 20_000 });
+    const card = page.locator('[data-record-ready]');
+    await card.locator('[data-detail-field="pool"] [data-detail-option="25m"]').click();
+    await card.locator('[data-detail-field="stroke"] [data-detail-option="freestyle"]').click();
+    await expect(card.locator('[data-record-records-item="lengths"]')).toBeVisible();
+    await page.locator('[data-record-start]').click();
+    const counter = page.locator('[data-record-lengths]');
+    await expect(counter.locator('[data-record-lengths-pool]')).toHaveText('25 m pool');
+    await expect(counter.locator('[data-record-length-undo]')).toBeDisabled();
+    await page.waitForTimeout(20_000); // long enough that 50 m is a plausible swim (the server refuses > 3 m/s)
+    await counter.locator('[data-record-length-add]').click();
+    await counter.locator('[data-record-length-add]').click();
+    await expect(counter.locator('[data-record-lengths-count]')).toHaveText('2');
+    await expect(counter.locator('[data-record-lengths-distance]')).toHaveAttribute('data-record-lengths-distance', '50');
+    await expect(page.locator('[data-record-distance]')).toHaveAttribute('data-record-distance', '50');
+    await page.locator('[data-record-finish]').click();
+    await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    await expect(page.locator('[data-record-distance-input]')).toHaveValue('50');
+    await expect(page.locator('[data-record-review-lengths]')).toHaveText('2');
     const form = page.locator('[data-finish-details="swim"]');
     await form.locator('[data-effort="7"]').click();
-    await form.locator('[data-detail-field="pool"] [data-detail-option="25m"]').click();
-    await form.locator('[data-detail-field="stroke"] [data-detail-option="freestyle"]').click();
+    await expect(form.locator('[data-detail-field="pool"] [data-detail-option="25m"]')).toHaveAttribute('aria-pressed', 'true');
     await form.locator('[data-finish-notes]').fill('Easy lanes');
     // Every chip is a real tap target.
     const box = await form.locator('[data-effort="10"]').boundingBox();
@@ -52,7 +72,9 @@ test('a pool swim keeps its effort, pool and stroke; the next swim pre-fills the
     expect(row).toEqual({ effort: 7, details: { pool: '25m', stroke: 'freestyle' }, notes: 'Easy lanes' });
     await expect(page.locator('[data-activity-details]')).toHaveText('Pool 25 m · Freestyle');
     await expect(page.locator('[data-activity-tile="effort"]')).toContainText('7 / 10');
-    await expect(page.locator('[data-activity-tile="lengths"]')).toContainText('1');
+    await expect(page.locator('[data-activity-tile="lengths"]')).toContainText('2');
+    // The distance saved is the prefilled lengths × pool (the tile formats it in the athlete's units).
+    expect((await admin.from('activities').select('distance_m').eq('id', id).single()).data?.distance_m).toBe(50);
 
     // The next swim: the pool and the stroke are chosen, the effort is not.
     await recordSwimToFinish(page);

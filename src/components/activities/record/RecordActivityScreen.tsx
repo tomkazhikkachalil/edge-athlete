@@ -36,6 +36,7 @@ import { detailLine, type Details } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
 import SetupCard from './SetupCard';
 import DetailsSheet from './DetailsSheet';
+import LengthsCounter from './LengthsCounter';
 import { hasWakeLock } from '@/lib/device/wake-lock';
 import { queryGeoPermission } from '@/lib/activities/record/geolocation';
 import type { SegmentKind } from '@/lib/activities/segments';
@@ -422,8 +423,10 @@ export default function RecordActivityScreen() {
                   </ul>
                 ) : null;
               case 'lengths':
-                // F5 brings the counter; the reducer already keeps the count.
-                return null;
+                // F5: a pool swim counts its lengths; the distance is lengths × the pool (the reducer's own count).
+                return state.type === 'swim' && live ? (
+                  <LengthsCounter key="lengths" lengths={state.lengths ?? 0} pool={answers?.details.pool} movingS={totals.movingS} unit={unit} disabled={saving} onChange={n => dispatch({ type: 'lengthsSet', lengths: n })} />
+                ) : null;
               default:
                 return null;
             }
@@ -468,6 +471,7 @@ export default function RecordActivityScreen() {
             elapsedS: totals?.elapsedS ?? 0,
             movingS: totals?.movingS ?? 0,
             route: reviewRoute,
+            lengths: state.type === 'swim' ? state.lengths ?? 0 : 0,
           }}
           sportOption={sportOption}
           accountVisibility={accountVisibility}
