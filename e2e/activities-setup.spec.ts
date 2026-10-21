@@ -125,3 +125,32 @@ test('elliptical: Details while recording — effort and a note — survive a re
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
   }
 });
+
+test('F7 — a ride asks its bike before Start and offers the indoor twin; switching leaves no orphan on the device @mobile', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="ride"]').click({ timeout: 20_000 });
+    const card = page.locator('[data-record-ready]');
+    await card.locator('[data-detail-field="bike"] [data-detail-option="gravel"]').click();
+    await expect(page.locator('[data-record-setup-line]')).toHaveText('Gravel');
+    await expect(card.locator('[data-record-records-item="elevation"]')).toBeVisible();
+    // Doing this indoors? The twin's set-up replaces the ride's row (nothing orphaned: a reload shows the twin).
+    await card.locator('[data-record-indoor-twin="indoor_ride"]').click();
+    await expect(page.getByRole('heading', { name: 'Record · Indoor ride' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-record-ready] [data-detail-field="platform"]')).toBeVisible();
+    await expect(page.locator('[data-record-indoor-twin]')).toHaveCount(0);
+    await page.waitForTimeout(800);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Record · Indoor ride' })).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-record-choose-another]').click();
+    await expect(page.locator('[data-record-type="ride"]')).toBeVisible({ timeout: 15_000 });
+    await page.reload();
+    await expect(page.locator('[data-record-type="ride"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-record-ready]')).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
+});

@@ -3,6 +3,7 @@
 import { ACTIVITY_TYPE_DEFS, STEP_TYPES, type ActivityType } from '@/lib/activities/catalog';
 import { formatDistance, formatDuration, formatElevation, formatPace, type DistanceUnit } from '@/lib/activities/format';
 import type { LiveTotals } from '@/lib/activities/record/recording';
+import type { LiveStat } from '@/lib/activities/record/layout';
 
 function hms(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -12,7 +13,8 @@ function hms(seconds: number): string {
 }
 
 /** What the screen shows while recording — the server recomputes every number at Finish. */
-export default function LiveStats({ type, totals, unit, gps, line = null }: { type: ActivityType; totals: LiveTotals; unit: DistanceUnit; gps: { status: string; accuracy: number | null; stale: boolean } | null; /** F2: a calm session's answers under the clock ("Vinyasa · Heated · Class"). */ line?: string | null }) {
+export default function LiveStats({ type, totals, unit, gps, line = null, stats }: { type: ActivityType; totals: LiveTotals; unit: DistanceUnit; gps: { status: string; accuracy: number | null; stale: boolean } | null; /** F2: a calm session's answers under the clock ("Vinyasa · Heated · Class"). */ line?: string | null; /** F7: the layout's tiles — descent for snow and mountain bike, elevation only where listed. */ stats?: readonly LiveStat[] }) {
+  const wants = (s: LiveStat) => !stats || stats.includes(s);
   const def = ACTIVITY_TYPE_DEFS[type];
   // A sport session shows distance only when its map is on (A9).
   const showDistance = def.recording === 'gps' || def.recording === 'timer' || (def.recording === 'gps_optional' && gps !== null);
@@ -53,10 +55,18 @@ export default function LiveStats({ type, totals, unit, gps, line = null }: { ty
             <dt className="text-xs text-secondary">{avg?.label ?? (def.paceStyle === 'speed' ? 'Avg speed' : 'Avg pace')}</dt>
             <dd className="text-xl font-semibold tabular-nums text-primary">{avg?.value ?? '—'}</dd>
           </div>
-          <div className="ea-surface rounded-lg p-3">
-            <dt className="text-xs text-secondary">Elevation</dt>
-            <dd className="text-xl font-semibold tabular-nums text-primary">{totals.elevGainM !== null ? formatElevation(totals.elevGainM, unit) : '—'}</dd>
-          </div>
+          {wants('elevation') && (
+            <div className="ea-surface rounded-lg p-3">
+              <dt className="text-xs text-secondary">Elevation</dt>
+              <dd className="text-xl font-semibold tabular-nums text-primary">{totals.elevGainM !== null ? formatElevation(totals.elevGainM, unit) : '—'}</dd>
+            </div>
+          )}
+          {wants('descent') && (
+            <div className="ea-surface rounded-lg p-3">
+              <dt className="text-xs text-secondary">Descent</dt>
+              <dd className="text-xl font-semibold tabular-nums text-primary" data-record-descent={totals.elevLossM ?? ''}>{totals.elevLossM !== null ? formatElevation(totals.elevLossM, unit) : '—'}</dd>
+            </div>
+          )}
         </dl>
       )}
       {STEP_TYPES.has(type) && totals.steps !== null && (

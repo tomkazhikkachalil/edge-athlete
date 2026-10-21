@@ -95,6 +95,8 @@ export const DETAIL_FIELDS_BY_TYPE: Readonly<Partial<Record<ActivityType, readon
     { key: 'climbed', kind: 'number', label: 'Climbed', min: 1, max: 20000, integer: true },
     { key: 'climbed_unit', kind: 'choice', label: 'Counted in', options: opts(['floors', 'Floors'], ['steps', 'Steps']) },
   ],
+  // F7 (Oct 20 2026): a ride names its bike — a choice, so it is asked before Start.
+  ride: [{ key: 'bike', kind: 'choice', label: 'Bike', options: opts(['road', 'Road'], ['gravel', 'Gravel'], ['e_bike', 'E-bike']) }],
   paddle: [{ key: 'craft', kind: 'choice', label: 'Craft', options: opts(['kayak', 'Kayak'], ['sup', 'SUP'], ['canoe', 'Canoe']) }],
   skate: [{ key: 'surface', kind: 'choice', label: 'Surface', options: opts(['ice', 'Ice'], ['inline', 'Inline']) }],
   // ── A7: the duration types, snow and hikes ──

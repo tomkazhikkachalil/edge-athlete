@@ -361,7 +361,7 @@ export default function RecordActivityScreen() {
               case 'stats':
                 return (
                   <div key="stats" className="mt-4">
-                    <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} line={layout.calm ? setupLine : null} />
+                    <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} line={layout.calm ? setupLine : null} stats={layout.liveStats} />
                   </div>
                 );
               case 'climbs':
