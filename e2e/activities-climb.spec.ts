@@ -59,6 +59,7 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     await expect(form.locator('[data-detail-field="style"] [data-detail-option="bouldering"]')).toHaveAttribute('aria-pressed', 'true');
     await form.locator('[data-detail-field="setting"] [data-detail-option="indoor"]').click();
     await form.locator('[data-effort="7"]').click();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -94,7 +95,7 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     await expect(next.locator('[data-climb-scale="v"]')).toHaveAttribute('aria-checked', 'true');
     await expect(next.locator('[data-climb]')).toHaveCount(0);
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');

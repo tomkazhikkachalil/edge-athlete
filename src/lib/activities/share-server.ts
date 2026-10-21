@@ -11,7 +11,7 @@ import { isUuid } from '@/lib/uuid';
 import { isActivityType } from './catalog';
 import { DERIVED_BY_TYPE, deriveAll } from './derived';
 import { answersOf } from './details';
-import type { ActivityPostStats } from './post-card';
+import { composeActivityPostStats, type ActivityPostStats } from './post-card';
 import { segmentsFromRow } from './segments';
 import { segmentStats } from './stream';
 import { readStream } from './read-server';
@@ -70,30 +70,30 @@ export async function buildActivityPostStats(
   }
   const answers = answersOf(type, a);
   const { count: photoCount } = await admin.from('activity_media').select('id', { count: 'exact', head: true }).eq('activity_id', activityId);
+  // ONE composition (post-card.ts) — the recorder's preview builds the same shape from its own totals (Training fixes PR 6).
   return {
     ok: true,
     activityId,
-    statsData: {
-      type: 'activity',
-      activity_id: activityId,
-      activity_type: type,
+    statsData: composeActivityPostStats({
+      activityId,
+      type,
       name: a.name as string,
-      occurred_on: a.occurred_on as string,
-      distance_m: num(a.distance_m),
-      moving_s: a.moving_s as number | null,
-      elapsed_s: a.elapsed_s as number,
-      elev_gain_m: num(a.elev_gain_m),
-      elev_loss_m: num(a.elev_loss_m),
-      ...derived,
-      avg_hr: a.avg_hr as number | null,
-      route_preview: supervised ? null : ((a.route_preview as string | null) ?? null),
+      occurredOn: a.occurred_on as string,
+      distanceM: num(a.distance_m),
+      movingS: a.moving_s as number | null,
+      elapsedS: a.elapsed_s as number,
+      elevGainM: num(a.elev_gain_m),
+      elevLossM: num(a.elev_loss_m),
+      avgHr: a.avg_hr as number | null,
+      routePreview: supervised ? null : ((a.route_preview as string | null) ?? null),
       credit: sourceCredit(a.source as string),
-      ...(segmentLines.length > 0 ? { segments: segmentLines } : {}),
-      ...(typeof a.steps === 'number' ? { steps: a.steps } : {}),
-      ...(photoCount ? { photo_count: photoCount } : {}),
-      ...(typeof a.effort === 'number' ? { effort: a.effort } : {}),
-      ...(Object.keys(answers).length > 0 ? { details: answers } : {}),
-    },
+      segments: segmentLines,
+      steps: typeof a.steps === 'number' ? a.steps : null,
+      photoCount: photoCount ?? 0,
+      effort: typeof a.effort === 'number' ? a.effort : null,
+      details: answers,
+      derived,
+    }),
   };
 }
 

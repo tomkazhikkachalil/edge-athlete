@@ -41,6 +41,7 @@ test('indoor ride: the platform before Start, no map, the distance optional at t
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     await expect(page.getByText('Distance (optional)')).toBeVisible();
     await expect(page.locator('[data-finish-details="indoor_ride"] [data-detail-field="platform"] [data-detail-option="zwift"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();
