@@ -107,6 +107,27 @@ export default function WorkoutCard({
                 <h4 className="text-sm font-bold text-primary truncate">
                   {session.title || 'Workout'}
                 </h4>
+                {/* Unposted (Training fixes PR 4): finished, Post or Done not reached — the tag opens the preview step. */}
+                {!session.post_id && !session.share_decided_at && isOwnProfile && onShare && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onShare();
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                        onShare();
+                      }
+                    }}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                    data-workout-finish-posting={session.id}
+                  >
+                    Finish posting
+                  </span>
+                )}
                 {session.post_id && (
                   <span
                     role="button"
@@ -178,7 +199,7 @@ export default function WorkoutCard({
                   className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
                 >
                   <Globe className="w-3.5 h-3.5" aria-hidden="true" />
-                  Share to Feed
+                  {session.share_decided_at ? 'Share to Feed' : 'Finish posting'}
                 </button>
               )}
               {entries.length > 0 && (

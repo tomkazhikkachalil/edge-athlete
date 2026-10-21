@@ -461,6 +461,12 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
                         <span className="truncate">{session.title}</span>
                         {sportLine && <span className="truncate text-xs font-normal text-muted" data-session-sport={session.sportKey}>{sportLine}</span>}
                       </span>
+                      {/* Unposted (Training fixes PR 4): finished, Post or Done not reached — the diary's card opens the preview step. */}
+                      {session.unposted && isOwnProfile && (
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200" data-training-finish-posting={session.id}>
+                          Finish posting
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs text-muted whitespace-nowrap shrink-0">
                       {new Date(session.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -743,7 +749,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           isOwnProfile={isOwnProfile}
           onOpenPost={postId => setLinkedPostId(postId)}
           onEdit={id => router.push(`/app/workout/${id}`)}
-          onShare={id => router.push(`/app/workout/${id}?share=1`)}
+          onShare={id => router.push(`/app/workout/${id}?step=preview`)}
           onDeleted={id => {
             setWorkouts(ws => ws.filter(w => w.id !== id));
             fetchDataRef.current();

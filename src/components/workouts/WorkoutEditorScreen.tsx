@@ -30,7 +30,7 @@ import { addRound, addToGroup, copyRound, deleteRound, GROUP_HINT, GROUP_LABEL, 
 import type { GroupView } from '@/lib/workouts/rounds-view';
 import { newId } from '@/lib/ids';
 import type { ExerciseGroupKind } from '@/lib/workouts/entries';
-import { FinishSummary, ShareStep } from './FinishFlow';
+import { FinishSummary, PreviewStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import { ensureClientIds, MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
@@ -59,10 +59,13 @@ import { bestsOf, formatPr, newPRs, PR_LABELS, workoutUnit, type ExerciseBests, 
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { localDayKey } from '@/lib/calendar/grid';
 import { refreshDrafts } from '@/hooks/useDrafts';
+import PostCard, { type PostCardPost } from '@/components/PostCard';
+import { useAuth } from '@/lib/auth';
+import { clearFinishDraft, readFinishDraft, writeFinishDraft, type FinishStep } from '@/lib/workouts/finish-draft';
 import { publishProgress } from '@/lib/sessions/progress-store';
 import { useWakeLock } from '@/lib/device/wake-lock';
 
-type Phase = 'editing' | 'summary' | 'share';
+type Phase = FinishStep;
 
 const SYNC_DEBOUNCE_MS = 2000;
 const KEEPALIVE_BODY_LIMIT = 60_000; // fetch keepalive shares a 64KiB in-flight cap
@@ -75,13 +78,16 @@ interface WorkoutEditorScreenProps {
   /** Required for live/review mode; the loaded session. */
   session?: ServerWorkoutSession;
   currentUserId: string;
-  /** review only: 'share' deep-links straight to the share step (?share=1). */
-  initialPhase?: 'editing' | 'share';
+  /** The step the URL asks for (`?step=summary|preview`; `?share=1` = preview) — the phase's source of
+   *  truth (Training fixes PR 4, Oct 21 2026): Back and Forward move one step, a reload keeps the step.
+   *  Honoured only once the session is finished; a live session is always editing. */
+  step?: FinishStep;
 }
 
-export default function WorkoutEditorScreen({ mode, session, currentUserId, initialPhase }: WorkoutEditorScreenProps) {
+export default function WorkoutEditorScreen({ mode, session, currentUserId, step = 'editing' }: WorkoutEditorScreenProps) {
   const router = useRouter();
   const { showError, showNotice } = useToast();
+  const { profile: ownProfile } = useAuth();
 
   // live + review both edit a persisted server session (draft keyed by id,
   // debounced entries PUT); manual is client-local until its one atomic POST.
@@ -104,12 +110,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   // 260: every exercise carries its stable id — a draft written before it is minted one here.
   const [exercises, setExercises] = useState<EntryExercise[]>(() => ensureClientIds(initial.exercises));
   const [title, setTitle] = useState<string>(initial.title ?? session?.title ?? '');
-  const [phase, setPhase] = useState<Phase>(
-    mode === 'review' && initialPhase === 'share' ? 'share' : 'editing'
-  );
-  // The screen stays on while the workout runs (paused included, as the
-  // recorder does); Finish, discard or leaving the screen lets it sleep again.
-  useWakeLock(mode === 'live' && phase === 'editing');
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   // PR 3: the sheet's purpose — one exercise, a new superset / circuit (optionally seeded from an existing exercise), or more members for a group.
   const [addMode, setAddMode] = useState<{ kind: 'single' } | { kind: ExerciseGroupKind; seed?: string } | { kind: 'addTo'; groupId: string }>({ kind: 'single' });
@@ -128,6 +128,28 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [finishedSessionId, setFinishedSessionId] = useState<string | null>(
     session?.status === 'completed' ? session.id : null
   );
+  // ── The step (Training fixes PR 4) ─────────────────────────────────────
+  // The URL is the phase: `?step=summary` (the questionnaire), `?step=preview`
+  // (preview and post), nothing = the editor. A step is honoured only once
+  // the session is finished — a live session is always editing, whatever the
+  // URL says. After Finish the page's `session.status` is stale, so everything
+  // keyed on the mode reads `effectiveMode`: the finished workout is in REVIEW
+  // (Done, no clock, no wake lock, no live rest rule) even before a reload.
+  const phase: Phase = finishedSessionId ? step : 'editing';
+  const effectiveMode: 'live' | 'manual' | 'review' = mode === 'live' && finishedSessionId ? 'review' : mode;
+  const goStep = (next: FinishStep) => {
+    const id = finishedSessionId ?? session?.id;
+    if (!id) return;
+    router.push(next === 'editing' ? `/app/workout/${id}` : `/app/workout/${id}?step=${next}`);
+  };
+  // The screen stays on while the workout runs (paused included, as the
+  // recorder does); Finish, discard or leaving the screen lets it sleep again.
+  useWakeLock(effectiveMode === 'live' && phase === 'editing');
+  // What only this screen knew — the step, the caption, the confirmed PRs, the
+  // clips' order — is kept on the device until Post, Done or Delete, so a tab
+  // switch, a reload or a closed app returns to the step as it was.
+  const [finishDraft] = useState(() => (isServerSession && session?.status === 'completed' ? readFinishDraft(session.id) : null));
+  const draftCheckedRef = useRef<string[] | null>(finishDraft?.checkedPRs ?? null);
   // NULL = an untimed workout (260): the summary says "Not timed", the post carries no duration.
   const [finishedDuration, setFinishedDuration] = useState<number | null>(session ? (session.timed === false ? null : session.duration_seconds ?? 0) : 0);
   // ── The clock's facts (260) — SERVER facts seeded from the session, applied from every PATCH ──
@@ -141,7 +163,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     writeGroupView(next);
   };
   // ── The rest timer and the stopwatch (PR 4): screen state, kept on the device ──
-  const [timers, setTimers] = useState<TimersState>(() => (mode === 'live' ? readTimers(draftId) : TIMERS_IDLE));
+  const [timers, setTimers] = useState<TimersState>(() => (effectiveMode === 'live' ? readTimers(draftId) : TIMERS_IDLE));
   const [lastEditedClientId, setLastEditedClientId] = useState<string | null>(null);
   const persistTimers = (next: TimersState) => {
     setTimers(next);
@@ -151,14 +173,14 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
   // A10 (Oct 16 2026): this session's records for EVERY exercise, against all earlier sessions.
   const [exercisePRs, setExercisePRs] = useState<PrHit[]>([]);
-  const [effort, setEffort] = useState<number | null>(null);
-  const [checkedPRs, setCheckedPRs] = useState<Set<string>>(new Set());
-  const [caption, setCaption] = useState('');
+  const [effort, setEffort] = useState<number | null>(session?.effort ?? null);
+  const [checkedPRs, setCheckedPRs] = useState<Set<string>>(() => new Set(finishDraft?.checkedPRs ?? []));
+  const [caption, setCaption] = useState(() => finishDraft?.caption ?? '');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
   // The post's carousel IS this order (workout capture round PR 2): clip URLs,
   // never indices — an edit swaps a URL in place, a removal prunes it.
-  const [shareOrder, setShareOrder] = useState<string[]>([]);
+  const [shareOrder, setShareOrder] = useState<string[]>(() => finishDraft?.shareOrder ?? []);
   /** The share step's pencil: the clip being edited, and the editor's asset. */
   const [shareEditor, setShareEditor] = useState<{ clip: CollectedMedia; assets: MediaAsset[] } | null>(null);
   const [shareClipBusy, setShareClipBusy] = useState(false);
@@ -283,7 +305,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const flushRef = useRef<() => void>(() => {});
   useEffect(() => {
     flushRef.current = () => {
-      if (!isServerSession || !session || phase !== 'editing') return;
+      if (!isServerSession || !session || phase !== 'editing' || effectiveMode !== 'live') return;
       const body = JSON.stringify({ savedAt: Date.now(), exercises: stripPendingMedia(stateRef.current.exercises) });
       if (body.length > KEEPALIVE_BODY_LIMIT) return; // draft covers; next debounce syncs
       fetch(`/api/workouts/${session.id}/entries`, {
@@ -351,7 +373,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     (clientId: string, next: EntryExercise) => {
       const prev = exercises.find(e => e.clientId === clientId);
       let patched = next;
-      if (mode === 'live' && prev) {
+      if (effectiveMode === 'live' && prev) {
         const idx = completedSetDiff(prev, next);
         const seconds = idx === null ? null : restForCompletedSet(timers.rest, Date.now());
         if (idx !== null && seconds !== null) {
@@ -364,7 +386,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       setLastEditedClientId(clientId);
       mutate(exercises.map(e => (e.clientId === clientId ? patched : e)));
     },
-    [exercises, mode, timers, draftId, mutate]
+    [exercises, effectiveMode, timers, draftId, mutate]
   );
   const saveStopwatch = useCallback(
     (target: SetTarget, elapsedMs: number) => {
@@ -438,7 +460,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       const data = response.ok ? await response.json() : { vitals: [] };
       const candidates = detectPRs(finalExercises, data.vitals || []);
       setPrCandidates(candidates);
-      setCheckedPRs(new Set(candidates.map(c => c.metricKey)));
+      const kept = draftCheckedRef.current;
+      draftCheckedRef.current = null;
+      setCheckedPRs(new Set(kept ? candidates.filter(c => kept.includes(c.metricKey)).map(c => c.metricKey) : candidates.map(c => c.metricKey)));
     } catch {
       setPrCandidates([]);
     }
@@ -451,27 +475,42 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   // matches the one at finish time; once recorded, detectPRs finds no
   // improvement and the list is empty (self-limiting, no double-record).
   useEffect(() => {
-    if (mode !== 'review' || session?.status !== 'completed') return;
+    if (!session || session.status !== 'completed') return;
     // setTimeout(0) recipe — the recompute sets state, which the lint
-    // forbids synchronously inside an effect.
+    // forbids synchronously inside an effect. Both lists (Training fixes
+    // PR 4): a later Post used to leave the exercise records off the post.
     const timer = setTimeout(() => {
       void loadPRs(initial.exercises);
+      void loadExercisePRs(initial.exercises, session.id);
     }, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresh/close from summary/share with candidates still unrecorded →
-  // the native prompt (the SiteBlockEditor beforeunload recipe; in-app
-  // nav is not guarded — those exits go through Share / Keep private).
+  // A fresh landing on an UNPOSTED finished workout with no step in the URL
+  // (the Training card's old link, a bookmark) goes to the step the device
+  // remembers, else the preview. Mount only: Back from a step to the plain
+  // URL changes no mount, so it is the editor (Edit workout) as it should be.
   useEffect(() => {
-    if ((phase !== 'summary' && phase !== 'share') || prCandidates.length === 0) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [phase, prCandidates.length]);
+    if (step !== 'editing' || !session || session.status !== 'completed' || session.post_id || session.share_decided_at) return;
+    const remembered = finishDraft?.step ?? 'preview';
+    if (remembered === 'editing') return;
+    router.replace(`/app/workout/${session.id}?step=${remembered}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A DECIDED workout (posted, or Done) has no steps: an old history entry of
+  // `?step=…` (Back after Post) opens the editor instead — never a second Post.
+  useEffect(() => {
+    if (step === 'editing' || !session || !(session.post_id || session.share_decided_at)) return;
+    router.replace(`/app/workout/${session.id}`);
+  }, [step, session, router]);
+
+  // The device draft follows every change of what only this screen knows.
+  useEffect(() => {
+    if (!isServerSession || !finishedSessionId) return;
+    writeFinishDraft(finishedSessionId, { step: phase, caption, checkedPRs: [...checkedPRs], shareOrder });
+  }, [isServerSession, finishedSessionId, phase, caption, checkedPRs, shareOrder]);
 
   const finishLive = async () => {
     if (!session || finishing) return;
@@ -501,7 +540,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       setFinishedSessionId(session.id);
       setFinishedDuration(data.session?.duration_seconds ?? (timed ? elapsedNow() : null));
       await Promise.all([loadPRs(exercises), loadExercisePRs(exercises, session.id)]);
-      setPhase('summary');
+      router.push(`/app/workout/${session.id}?step=summary`);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to finish workout');
     } finally {
@@ -538,10 +577,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       const data = await response.json();
       clearDraft(draftId);
       uploads.clearStash();
-      setFinishedSessionId(data.session.id);
-      setFinishedDuration(data.session.duration_seconds ?? durationMin * 60);
-      await Promise.all([loadPRs(exercises), loadExercisePRs(exercises, data.session.id)]);
-      setPhase('summary');
+      void refreshDrafts();
+      router.replace(`/app/workout/${data.session.id}?step=summary`);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
     } finally {
@@ -574,7 +611,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
       if (session.post_id) {
         router.push('/athlete');
       } else {
-        setPhase('share');
+        goStep('summary');
       }
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
@@ -642,16 +679,16 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   // The resume pill's number: sets with something in them, published as they
   // change so the pill is right the moment you leave this screen.
   useEffect(() => {
-    if (mode === 'live' && session) publishProgress('workout', session.id, { setsCompleted: summary.totalSets });
-  }, [mode, session, summary.totalSets]);
+    if (effectiveMode === 'live' && session) publishProgress('workout', session.id, { setsCompleted: summary.totalSets });
+  }, [effectiveMode, session, summary.totalSets]);
   // A clip still uploading never reaches the share step's list (Finish waits
   // for the queue; this covers a review-mode attach that is mid-flight).
   const mediaOptions = useMemo(() => collectWorkoutMedia(exercises).filter(m => !isPendingMedia(m)), [exercises]);
 
   // Default the share selection to the first MAX_POST_MEDIA clips
-  const mediaDefaultedRef = useRef(false);
+  const mediaDefaultedRef = useRef((finishDraft?.shareOrder.length ?? 0) > 0);
   useEffect(() => {
-    if (phase !== 'share' || mediaDefaultedRef.current) return;
+    if (phase !== 'preview' || mediaDefaultedRef.current) return;
     mediaDefaultedRef.current = true;
     setShareOrder(defaultShareOrder(mediaOptions, MAX_POST_MEDIA));
   }, [phase, mediaOptions]);
@@ -763,21 +800,87 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         body: JSON.stringify({ postId }),
       });
       await recordPRs(postId);
-      router.push('/athlete');
+      clearFinishDraft(finishedSessionId);
+      void refreshDrafts();
+      router.replace('/athlete');
     } catch (err) {
       setShareError(err instanceof Error ? err.message : 'Failed to share workout');
       setSharing(false);
     }
   };
 
-  // The switch is OFF (269): Finish already decided; the workout stands in
-  // Training per the account's privacy. Records, then leave — nothing to write.
+  // The switch is OFF: Done IS the decision (Training fixes PR 4) — the
+  // workout stands in Training per the account's privacy, nothing is posted,
+  // and `share_decided_at` is stamped so nothing offers "Finish posting" again.
   const handleDone = async () => {
-    if (sharing) return;
+    if (!finishedSessionId || sharing) return;
     setSharing(true);
-    await recordPRs(null);
-    router.push('/athlete?tab=training');
+    setShareError('');
+    try {
+      const res = await fetch(`/api/workouts/${finishedSessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ decided: true }),
+      });
+      if (!res.ok) throw new Error('Could not save that — check your connection and try again.');
+      await recordPRs(null);
+      clearFinishDraft(finishedSessionId);
+      void refreshDrafts();
+      router.replace('/athlete?tab=training');
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Could not save that');
+      setSharing(false);
+    }
   };
+
+  // The preview, exactly as the feed will show it: the same PostCard over the
+  // post the Post tap would create (no row exists yet; the workout's details
+  // open from the card because the SESSION holds them).
+  const previewPost = useMemo<PostCardPost>(() => {
+    const base = {
+      id: `preview-${finishedSessionId ?? 'workout'}`,
+      caption: caption.trim() || null,
+      sport_key: null,
+      visibility: POST_VISIBILITY,
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+      comments_count: 0,
+      saves_count: 0,
+      status: 'published',
+      post_category: 'training',
+      profile: {
+        id: currentUserId,
+        first_name: ownProfile?.first_name ?? null,
+        last_name: ownProfile?.last_name ?? null,
+        full_name: ownProfile?.full_name ?? null,
+        avatar_url: ownProfile?.avatar_url ?? null,
+        handle: ownProfile?.handle ?? null,
+      },
+      media: shareClips.selected.slice(0, MAX_POST_MEDIA).map((m, i) => ({
+        id: `preview-media-${i}`,
+        media_url: m.url,
+        media_type: m.type,
+        thumbnail_url: m.thumbnailUrl ?? null,
+        blur_hash: m.blurHash ?? null,
+        display_order: i,
+      })),
+      likes: [],
+      stats_data: finishedSessionId
+        ? buildWorkoutStatsData({
+            sessionId: finishedSessionId,
+            title,
+            durationSeconds: finishedDuration,
+            summary,
+            prs: [
+              ...prCandidates.filter(pr => checkedPRs.has(pr.metricKey)).map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
+              ...exercisePRs.map(pr => ({ label: `${pr.name} · ${PR_LABELS[pr.kind]}`, display: formatPr(pr.kind, pr.value, workoutUnit(exercises)) })),
+            ],
+          })
+        : null,
+    };
+    return base as unknown as PostCardPost;
+  }, [finishedSessionId, caption, currentUserId, ownProfile, shareClips.selected, title, finishedDuration, summary, prCandidates, checkedPRs, exercisePRs, exercises]);
 
   // 269: the owner's later Hide — a visitor's Training no longer lists it; Show brings it back.
   const [profileHidden, setProfileHidden] = useState<boolean>(!!session?.profile_hidden_at);
@@ -807,17 +910,38 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     clearTimers(draftId);
     uploads.clearStash();
     if (isServerSession && session) {
+      clearFinishDraft(session.id);
       try {
         await fetch(`/api/workouts/${session.id}`, { method: 'DELETE', credentials: 'include' });
       } catch { /* draft cleared; the sweep settles the session if the delete failed */ }
       void refreshDrafts();
     }
-    router.push('/athlete');
+    router.replace(finishedSessionId ? '/athlete?tab=training' : '/athlete');
   };
+
+  // Delete asks first, on every step (Tom: "Delete this workout? This can't be undone.").
+  const discardModal = (
+    <ConfirmModal
+      isOpen={discardOpen}
+      title={finishedSessionId ? 'Delete this workout?' : effectiveMode === 'review' ? 'Delete Workout' : 'Discard Workout'}
+      message={
+        finishedSessionId
+          ? `This can't be undone. The workout and every set you logged are deleted.${session?.post_id ? ' Your shared post stays on the feed.' : ''}`
+          : effectiveMode === 'review'
+            ? `This permanently deletes this workout and everything you logged. This cannot be undone.${session?.post_id ? ' Your shared post stays on the feed.' : ''}`
+            : 'This workout and everything you logged so far will be deleted. This cannot be undone.'
+      }
+      confirmText={finishedSessionId || effectiveMode === 'review' ? 'Delete' : 'Discard'}
+      cancelText="Keep it"
+      onConfirm={handleDiscard}
+      onCancel={() => setDiscardOpen(false)}
+    />
+  );
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (phase === 'summary') {
     return (
+      <>
       <FinishSummary
         title={title}
         durationSeconds={finishedDuration}
@@ -836,7 +960,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             return next;
           })
         }
-        onContinue={() => setPhase('share')}
+        onContinue={() => goStep('preview')}
+        onEditWorkout={() => goStep('editing')}
         routineSave={
           exercises.length > 0
             ? {
@@ -852,14 +977,19 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
               }
             : null
         }
-      />
+        />
+        {discardModal}
+      </>
     );
   }
 
-  if (phase === 'share') {
+  if (phase === 'preview') {
     return (
       <>
-        <ShareStep
+        <PreviewStep
+          preview={<PostCard post={previewPost} currentUserId={currentUserId} showActions={false} inReview />}
+          onEdit={() => goStep('summary')}
+          onDelete={() => setDiscardOpen(true)}
           caption={caption}
           onCaptionChange={setCaption}
           clips={shareClips}
@@ -873,6 +1003,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           onShare={handleShare}
           onDone={handleDone}
         />
+        {discardModal}
         {shareEditor && (
           <MediaEditor
             assets={shareEditor.assets}
@@ -899,7 +1030,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   }
 
   return (
-    <div className={`max-w-md mx-auto px-4 ${mode === 'live' ? 'ea-bar-clearance' : 'pb-28'}`}>
+    <div className={`max-w-md mx-auto px-4 ${effectiveMode === 'live' ? 'ea-bar-clearance' : 'pb-28'}`}>
       {/* Sticky header: timer / manual fields + finish */}
       <div className="sticky top-0 z-10 bg-canvas pt-4 pb-3 border-b border-border mb-4">
         <div className="flex items-center gap-2 mb-3">
@@ -917,16 +1048,16 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             triggerTestAttr="workout-menu"
             trigger={<MoreVertical className="w-5 h-5" aria-hidden="true" />}
             items={[
-              ...(mode === 'live' && session
+              ...(effectiveMode === 'live' && session
                 ? [
                     { key: 'hide-timer', label: timerHidden ? 'Show timer' : 'Hide timer', icon: timerHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: toggleTimerHidden, testId: 'workout-menu-hide-timer' },
                     { key: 'timed', label: timed ? "Don't time this workout" : 'Time this workout', icon: 'fa-stopwatch', onSelect: () => void patchClock({ timed: !timed }, 'Could not change the timer'), disabled: clockBusy, testId: 'workout-menu-timed' },
                   ]
                 : []),
-              ...(mode === 'review' && session
+              ...(effectiveMode === 'review' && session
                 ? [{ key: 'hide', label: profileHidden ? 'Show on my profile' : 'Hide from my profile', icon: profileHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: () => void toggleProfileHidden(), disabled: hideBusy, testId: profileHidden ? 'workout-menu-show-profile' : 'workout-menu-hide-profile' }]
                 : []),
-              { key: 'discard', label: mode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
+              { key: 'discard', label: effectiveMode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
             ]}
           />
         </div>
@@ -936,7 +1067,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             button was pushed ~19px past the container (3px past the viewport,
             producing a horizontally scrolling page). */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {mode === 'live' && session ? (
+          {effectiveMode === 'live' && session ? (
             <div className="flex items-center gap-3 min-w-0" data-workout-timer={!timed ? 'off' : timerHidden ? 'hidden' : clock.pausedAt ? 'paused' : 'running'}>
               {timed && !timerHidden && (
                 <>
@@ -960,7 +1091,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
               {/* Autosave is silent (Tom): a message only when a save fails. */}
               {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400" data-workout-save-error="">Offline — kept locally</span>}
             </div>
-          ) : mode === 'review' ? (
+          ) : effectiveMode === 'review' ? (
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex items-center gap-1.5 text-brand-fg-strong">
                 <Timer className="w-5 h-5" aria-hidden="true" />
@@ -1003,7 +1134,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
 
           <button
             type="button"
-            onClick={mode === 'live' ? finishLive : mode === 'review' ? doneReview : saveManual}
+            onClick={effectiveMode === 'live' ? finishLive : effectiveMode === 'review' ? doneReview : saveManual}
             disabled={finishing}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors disabled:opacity-60 shrink-0"
           >
@@ -1014,7 +1145,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             )}
             {finishing && uploads.pendingCount > 0
               ? `Saving ${uploads.pendingCount} ${uploads.pendingCount === 1 ? 'clip' : 'clips'}…`
-              : mode === 'live' ? 'Finish' : mode === 'review' ? 'Done' : 'Save Workout'}
+              : effectiveMode === 'live' ? 'Finish' : effectiveMode === 'review' ? 'Done' : 'Save Workout'}
           </button>
         </div>
       </div>
@@ -1057,9 +1188,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         {exercises.length === 0 && (
           <div className="text-center py-10 border border-dashed border-border-strong rounded-xl">
             <p className="text-sm text-muted">
-              {mode === 'live'
+              {effectiveMode === 'live'
                 ? 'Timer is running — add your first exercise.'
-                : mode === 'review'
+                : effectiveMode === 'review'
                   ? 'Add exercises or clips to this workout.'
                   : 'Add the exercises you did.'}
             </p>
@@ -1088,7 +1219,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         </div>
       </div>
 
-      {mode === 'live' && session && (
+      {effectiveMode === 'live' && session && (
         <WorkoutControls
           exercises={exercises}
           rest={timers.rest}
@@ -1125,18 +1256,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
         }
       />
 
-      <ConfirmModal
-        isOpen={discardOpen}
-        title={mode === 'review' ? 'Delete Workout' : 'Discard Workout'}
-        message={
-          mode === 'review'
-            ? `This permanently deletes this workout and everything you logged. This cannot be undone.${session?.post_id ? ' Your shared post stays on the feed.' : ''}`
-            : "This deletes the session and everything you've logged. This cannot be undone."
-        }
-        confirmText={mode === 'review' ? 'Delete' : 'Discard'}
-        onConfirm={handleDiscard}
-        onCancel={() => setDiscardOpen(false)}
-      />
+      {discardModal}
     </div>
   );
 }

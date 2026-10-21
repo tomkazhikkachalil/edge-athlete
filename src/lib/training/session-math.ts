@@ -34,6 +34,8 @@ export interface TrainingSession {
   sessionKind?: string | null;
   /** 265 (A11): how hard it felt, 1–10 — absent or null when not rated. */
   effort?: number | null;
+  /** Training fixes PR 4 (Oct 21 2026): a finished workout whose Post or Done was never reached — "Finish posting". Workouts only. */
+  unposted?: boolean;
 }
 
 export interface WeekTotals {

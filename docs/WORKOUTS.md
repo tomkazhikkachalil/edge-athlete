@@ -85,8 +85,17 @@ Rest, the target chip, Stopwatch with Save to set; the screen owns its bottom ed
 `/app/workout/` hides the tab bar; **the bar publishes its height as
 `--ea-workout-bar-h`** and the editor's `.ea-bar-clearance` follows it, so the open
 stopwatch panel — always mounted, animating `max-height` — takes its own space
-instead of covering the Add buttons), `FinishFlow` (the summary tiles, then Share /
-Keep private).
+instead of covering the Add buttons), `FinishFlow` (the summary — Tom's questionnaire — then **Preview and post**).
+
+**The finish flow (Training fixes PR 4, Oct 21 2026):** Finish records (`status = 'completed'`)
+and pushes `?step=summary`; Continue pushes `?step=preview`; the URL is the phase, so Back and
+Forward move one step and a reload keeps it (`finish-draft.ts stepFromSearch`; `?share=1` is the
+preview's alias). Post or Done (`PATCH { decided: true }`) is the DECISION (`share_decided_at`);
+until then the workout is UNPOSTED — in the owner's Training with a "Finish posting" tag, hidden
+from visitors, and offered by the pill, the reopen prompt, Drafts and the start screen. What only
+the screen knew (the step, the caption, the confirmed records, the clips' order) lives on the
+device under `ea:workout-finish:v1:<id>` until Post, Done or Delete. `useStartWorkout` replaces the
+start screen with the editor, so Back never offers a new workout over an unposted one.
 
 ## What counts where
 

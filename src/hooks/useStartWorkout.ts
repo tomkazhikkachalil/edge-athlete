@@ -68,7 +68,8 @@ export function useStartWorkout(enabled: boolean) {
       if (response.status === 409 && data?.activeSessionId) {
         showError('Workout in progress', 'Resuming your workout in progress.');
         void refreshDrafts();
-        router.push(`/app/workout/${data.activeSessionId}`);
+        // replace (Training fixes PR 4): the start screen leaves history — Back from the editor goes where Start was opened from, never "start another".
+        router.replace(`/app/workout/${data.activeSessionId}`);
         return;
       }
       if (routineId && response.status === 404) {
@@ -81,7 +82,7 @@ export function useStartWorkout(enabled: boolean) {
       if (!response.ok) throw new Error(data?.error || 'Failed to start workout');
       // The session exists: the resume pill and the Drafts count learn it now.
       void refreshDrafts();
-      router.push(`/app/workout/${data.session.id}`);
+      router.replace(`/app/workout/${data.session.id}`);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
       setStarting(false);

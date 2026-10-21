@@ -107,6 +107,7 @@ test('a superset and a three-round circuit: every round saves with its group; un
     // Finish this workout first (one live session at a time), then start from the routine.
     const fin = await api.patch(`/api/workouts/${workoutId}`, { data: { finish: { endedAt: new Date().toISOString() } } });
     expect(fin.ok(), await readErrorBody(fin)).toBe(true);
+    await api.patch(`/api/workouts/${workoutId}`, { data: { decided: true } }); // decided: no "Finish posting" prompt (PR 4)
     const second = await api.post('/api/workouts', { data: { mode: 'live', routineId } });
     expect(second.ok(), await readErrorBody(second)).toBe(true);
     secondId = (await second.json()).session.id as string;

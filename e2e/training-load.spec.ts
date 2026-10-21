@@ -25,7 +25,7 @@ test('the week reads Load = Σ minutes × effort over its rated sessions, "2 of 
     ] } });
     expect(w.ok(), await readErrorBody(w)).toBe(true);
     const workoutId = (await w.json()).session.id as string;
-    expect((await api.patch(`/api/workouts/${workoutId}`, { data: { effort: 8 } })).status()).toBe(200);
+    expect((await api.patch(`/api/workouts/${workoutId}`, { data: { effort: 8, decided: true } })).status()).toBe(200); // decided: no "Finish posting" prompt (PR 4)
 
     // The expected load from what was stored: the activity's moving (else elapsed) minutes × 6, the workout's 40 × 8.
     const { data: acts } = await admin.from('activities').select('moving_s, elapsed_s, effort').eq('profile_id', u.id).not('effort', 'is', null);
