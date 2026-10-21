@@ -67,8 +67,14 @@ function DurationField({ label, value, onChange, min = 0, field }: { label: stri
   );
 }
 
-function Setup({ type, onStart, onClose }: { type: ActivityType; onStart: (spec: TimerSpec) => void; onClose: () => void }) {
-  const [spec, setSpec] = useState<TimerSpec>(() => rememberedSpec(type));
+/**
+ * The timer's set-up. Mid-session (the panel below) its button STARTS the
+ * timer and arms the bell in that tap; on the set-up card (Program E) it
+ * ARMS a spec for Start — `arm` names that mode, and the Start tap arms the
+ * bell instead.
+ */
+export function TimerSetup({ type, onStart, onClose, initial, arm = false }: { type: ActivityType; onStart: (spec: TimerSpec) => void; onClose: () => void; initial?: TimerSpec | null; arm?: boolean }) {
+  const [spec, setSpec] = useState<TimerSpec>(() => initial ?? rememberedSpec(type));
   const pickFormat = (f: TimerFormat) => setSpec(TIMER_PRESETS[f][0].spec);
   const edit = (patch: Partial<TimerSpec>) => setSpec(s => normalizeSpec({ ...s, ...patch }));
   const f = spec.format;
@@ -122,14 +128,14 @@ function Setup({ type, onStart, onClose }: { type: ActivityType; onStart: (spec:
       <button
         type="button"
         onClick={() => {
-          armBell();
+          if (!arm) armBell();
           rememberSpec(type, spec);
           onStart(spec);
         }}
         className="ea-cta mt-4 min-h-[48px] w-full rounded-lg text-base font-semibold text-white"
         data-timer-start=""
       >
-        Start the timer
+        {arm ? 'Use this timer' : 'Start the timer'}
       </button>
     </div>
   );
@@ -179,7 +185,7 @@ export default function RoundTimerPanel({
   }, [t, timer, live, sched]);
 
   if (!timer) {
-    if (setupOpen) return <Setup type={state.type} onStart={spec => { setSetupOpen(false); onStart(spec); }} onClose={() => setSetupOpen(false)} />;
+    if (setupOpen) return <TimerSetup type={state.type} onStart={spec => { setSetupOpen(false); onStart(spec); }} onClose={() => setSetupOpen(false)} />;
     return (
       <div className="mx-4 mt-4">
         <button type="button" onClick={() => setSetupOpen(true)} className="ea-interactive ea-surface flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-primary" data-record-timer-open="">

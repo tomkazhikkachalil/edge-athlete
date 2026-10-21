@@ -398,8 +398,8 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
       for (const [k, v] of Object.entries(event.details)) {
         if (details[k] === undefined && v !== undefined) details[k] = v;
       }
-      const a = sanitizeAnswers({ ...current, details });
-      return { ...state, prefilled: true, ...(a ? { answers: a } : {}) };
+      // Through setAnswers: the same shape check, and a climb's scale lands on climbScale.
+      return { ...reduce(state, { type: 'setAnswers', answers: { ...current, details } }), prefilled: true };
     }
     case 'timerSet': {
       if (state.status !== 'idle') return state;
