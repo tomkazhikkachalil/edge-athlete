@@ -5,7 +5,7 @@ import {
   WHEEL_ITEM_H,
   WHEEL_HEIGHT,
   WHEEL_PAD,
-  clampToRange,
+  snapToStep,
   wheelValues,
   valueForScrollTop,
   scrollTopForValue,
@@ -50,6 +50,10 @@ export interface NumberWheelProps {
   /** Colour of the selected row — golf green for strokes, brand for putts. */
   tone?: 'green' | 'brand';
   disabled?: boolean;
+  /** Every `step` from `min` (the rest picker's seconds go by 5). Default 1. */
+  step?: number;
+  /** How a value reads on the wheel and to assistive tech ("05"). Default: the number. */
+  format?: (value: number) => string;
 }
 
 const prefersReducedMotion = () =>
@@ -65,11 +69,13 @@ export default function NumberWheel({
   onChange,
   tone = 'green',
   disabled = false,
+  step: stepSize = 1,
+  format = String,
 }: NumberWheelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
-  const values = wheelValues(min, max);
-  const resting = value ?? defaultValue;
+  const values = wheelValues(min, max, stepSize);
+  const resting = snapToStep(value ?? defaultValue, min, max, stepSize);
 
   // Typed digits accumulate briefly so "1" then "2" reaches 12.
   const typeBuffer = useRef({ text: '', at: 0 });
@@ -82,14 +88,14 @@ export default function NumberWheel({
     if (!el) return;
     programmatic.current = true;
     el.scrollTo({
-      top: scrollTopForValue(v, min, max),
+      top: scrollTopForValue(v, min, max, WHEEL_ITEM_H, stepSize),
       // The global prefers-reduced-motion block forces CSS scroll-behavior to
       // auto, but it CANNOT reach this JS argument — so check it by hand.
       behavior: smooth && !prefersReducedMotion() ? 'smooth' : 'auto',
     });
     // Let the scroll settle before listening again.
     window.setTimeout(() => { programmatic.current = false; }, smooth ? 320 : 60);
-  }, [min, max]);
+  }, [min, max, stepSize]);
 
   // Keep the wheel under the value it is showing. Position is derived state,
   // not an effect that fights the user: it only runs when `resting` changes.
@@ -115,7 +121,7 @@ export default function NumberWheel({
     settleTimer.current = setTimeout(() => {
       const el = listRef.current;
       if (!el) return;
-      commit(valueForScrollTop(el.scrollTop, min, max));
+      commit(valueForScrollTop(el.scrollTop, min, max, WHEEL_ITEM_H, stepSize));
     }, 120);
   };
 
@@ -129,7 +135,7 @@ export default function NumberWheel({
     if (settleTimer.current) clearTimeout(settleTimer.current);
     const el = listRef.current;
     if (!el) return;
-    commit(valueForScrollTop(el.scrollTop, min, max));
+    commit(valueForScrollTop(el.scrollTop, min, max, WHEEL_ITEM_H, stepSize));
   };
 
   // ±1 precision fallback for when scrolling by exactly one is fiddly on a
@@ -139,7 +145,7 @@ export default function NumberWheel({
   // here for safety.
   const step = (delta: 1 | -1) => {
     if (disabled) return;
-    const next = clampToRange(resting + delta, min, max);
+    const next = snapToStep(resting + delta * stepSize, min, max, stepSize);
     scrollTo(next, true);
     commit(next);
   };
@@ -148,7 +154,7 @@ export default function NumberWheel({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
-    const stepped = nextValueForKey(resting, e.key, min, max);
+    const stepped = nextValueForKey(resting, e.key, min, max, stepSize);
     if (stepped !== null) {
       e.preventDefault();
       scrollTo(stepped, true);
@@ -161,8 +167,9 @@ export default function NumberWheel({
     if (typed) {
       e.preventDefault();
       typeBuffer.current = { text: typed.buffer, at: now };
-      scrollTo(typed.value, true);
-      commit(typed.value);
+      const snapped = snapToStep(typed.value, min, max, stepSize);
+      scrollTo(snapped, true);
+      commit(snapped);
     }
   };
 
@@ -229,7 +236,7 @@ export default function NumberWheel({
           // Omitted while nothing is entered — the value shown is a suggestion,
           // and announcing it as the current value would be a lie.
           {...(value !== null ? { 'aria-valuenow': value } : {})}
-          aria-valuetext={value !== null ? String(value) : `Not entered, showing ${resting}`}
+          aria-valuetext={value !== null ? format(value) : `Not entered, showing ${format(resting)}`}
           aria-disabled={disabled || undefined}
           // shrink-0 + a fixed height: see the note at the top of this file.
           // overscroll-contain: an end-of-range fling must not chain to the
@@ -254,7 +261,7 @@ export default function NumberWheel({
                   }`}
                   style={{ height: WHEEL_ITEM_H }}
                 >
-                  {v}
+                  {format(v)}
                 </div>
               );
             })}

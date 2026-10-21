@@ -135,6 +135,10 @@ view (`swipe` default | `list`) and the one-time hint are device
 preferences in `timer-prefs.ts`. A spec that logs rounds by row index asks
 for LIST view in `addInitScript` (`workout-groups.spec`).
 
+### Oct 21 2026 — A custom rest target, saved as a preset (Training fixes PR 3)
+
+- The rest target sheet shows the built-in five (`REST_TARGET_PRESETS_S`) and the athlete's saved presets together, ascending, then Off and **Custom…** — two wheels (golf's `NumberWheel` with `step` / `format`: Minutes 0–10, Seconds by five), **Use** sets the target, **Save as preset** keeps it on the device (`timer-prefs.ts REST_PRESETS_KEY`, a JSON list; the rules pure in `rest.ts`: 5 s–1 h whole seconds, at most six saved, newest first, never a built-in; a saved chip carries a remove). The target itself stays `REST_TARGET_KEY`. Pinned by `workout-rest.test.ts`, `wheel.test.ts`, `e2e/workout-rest-stopwatch.spec.ts`.
+
 ### Oct 16 2026 — Strength training is the Workout: records for every exercise, effort (activities details A10)
 
 - **Strength is not an activity type** (Tom approved, Oct 16): the recorder's picker carries a **Strength training** tile in its Indoor group that opens the Workout (`useStartWorkout` — its routines sheet when there are routines). A second set-and-rep logger would record one session twice. Hidden while a guardian acts for an athlete (workouts are the athlete's own).

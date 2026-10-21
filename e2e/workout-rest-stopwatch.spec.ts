@@ -131,3 +131,61 @@ test('the open stopwatch never covers the Add buttons on a large screen', async 
     await api.dispose();
   }
 });
+
+// Training fixes PR 3 (Oct 21 2026): a custom rest time from two wheels,
+// saved as a preset beside the built-in five, remembered on the device.
+test('a custom rest target from the wheels, saved as a preset, survives a reload and can be removed @mobile', { tag: '@mobile' }, async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await apiAs('state.json');
+  let workoutId = '';
+  try {
+    const started = await api.post('/api/workouts', { data: { mode: 'live' } });
+    expect(started.ok(), await readErrorBody(started)).toBe(true);
+    workoutId = (await started.json()).session.id as string;
+    await page.goto(`/app/workout/${workoutId}`);
+    await expect(page.locator('[data-workout-rest]')).toBeVisible({ timeout: 20_000 });
+
+    // The target chip opens the sheet: the built-in five, Off, Custom.
+    await page.locator('[data-workout-rest-target]').click();
+    const sheet = page.locator('[data-workout-rest-target-sheet]');
+    await expect(sheet).toHaveAttribute('data-workout-rest-target-sheet', 'presets');
+    await expect(sheet.locator('[data-workout-rest-preset]')).toHaveCount(6);
+    await sheet.locator('[data-workout-rest-custom]').click();
+    await expect(sheet).toHaveAttribute('data-workout-rest-target-sheet', 'custom');
+    // The wheels rest on 1:30 (no target yet); the seconds wheel goes by five.
+    await expect(sheet.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '90');
+    const seconds = sheet.getByRole('spinbutton', { name: 'Seconds' });
+    await seconds.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(sheet.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '95');
+    await expect(sheet.locator('[data-workout-rest-custom-value]')).toContainText('1:35');
+    // Save as preset: the target is 1:35 and the chip is saved on the device.
+    await sheet.locator('[data-workout-rest-custom-save]').click();
+    await expect(sheet).toHaveCount(0);
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95');
+    await expect(page.locator('[data-workout-rest-target]')).toHaveText('1:35');
+
+    await page.reload();
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95', { timeout: 20_000 });
+    await page.locator('[data-workout-rest-target]').click();
+    const chip = page.locator('[data-workout-rest-preset="95"]');
+    await expect(chip).toHaveAttribute('data-workout-rest-preset-saved', 'true');
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    // The built-in 1:30 carries no remove; the saved one does, and goes.
+    await expect(page.locator('[data-workout-rest-preset-remove="90"]')).toHaveCount(0);
+    await page.locator('[data-workout-rest-preset-remove="95"]').click();
+    await expect(page.locator('[data-workout-rest-preset="95"]')).toHaveCount(0);
+    await expect(page.locator('[data-workout-rest-preset]')).toHaveCount(6);
+    // Use without saving: a plain custom target, no new chip.
+    await page.locator('[data-workout-rest-custom]').click();
+    await page.locator('[data-workout-rest-custom-use]').click();
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95');
+    await page.locator('[data-workout-rest-target]').click();
+    await expect(page.locator('[data-workout-rest-preset]')).toHaveCount(6);
+    await page.locator('[data-workout-rest-preset="off"]').click();
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', 'off');
+  } finally {
+    if (workoutId) await api.delete(`/api/workouts/${workoutId}`);
+    await api.dispose();
+  }
+});

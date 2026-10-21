@@ -140,3 +140,36 @@ describe('valueForTypedDigit', () => {
     expect(valueForTypedDigit('0', '', 1, 15)).toEqual({ value: 1, buffer: '0' });
   });
 });
+
+// ── A step (Training fixes PR 3, Oct 21 2026): the rest picker's seconds go by five ──
+import { snapToStep } from '../wheel';
+
+describe('a stepped wheel (step 5, the rest picker\'s seconds)', () => {
+  it('offers every step from min; a step of 1 is the old list', () => {
+    expect(wheelValues(0, 55, 5)).toEqual([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]);
+    expect(wheelValues(0, 57, 5)).toEqual([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]);
+    expect(wheelValues(1, 4)).toEqual([1, 2, 3, 4]);
+    expect(wheelValues(0, 10, 0)).toEqual(wheelValues(0, 10));
+  });
+  it('snaps a value to the grid and the range', () => {
+    expect(snapToStep(7, 0, 55, 5)).toBe(5);
+    expect(snapToStep(8, 0, 55, 5)).toBe(10);
+    expect(snapToStep(99, 0, 55, 5)).toBe(55);
+    expect(snapToStep(57, 0, 57, 5)).toBe(55);
+    expect(snapToStep(3, 1, 15)).toBe(3);
+  });
+  it('maps scroll offsets to stepped values and back', () => {
+    expect(valueForScrollTop(2 * WHEEL_ITEM_H, 0, 55, WHEEL_ITEM_H, 5)).toBe(10);
+    expect(scrollTopForValue(10, 0, 55, WHEEL_ITEM_H, 5)).toBe(2 * WHEEL_ITEM_H);
+    expect(scrollTopForValue(12, 0, 55, WHEEL_ITEM_H, 5)).toBe(2 * WHEEL_ITEM_H);
+    expect(valueForScrollTop(99 * WHEEL_ITEM_H, 0, 55, WHEEL_ITEM_H, 5)).toBe(55);
+  });
+  it('the keys move by one step, a page by five, and End lands on the grid', () => {
+    expect(nextValueForKey(10, 'ArrowDown', 0, 55, 5)).toBe(15);
+    expect(nextValueForKey(10, 'ArrowUp', 0, 55, 5)).toBe(5);
+    expect(nextValueForKey(10, 'PageDown', 0, 55, 5)).toBe(35);
+    expect(nextValueForKey(0, 'ArrowUp', 0, 55, 5)).toBe(0);
+    expect(nextValueForKey(10, 'End', 0, 57, 5)).toBe(55);
+    expect(nextValueForKey(3, 'ArrowDown', 1, 15)).toBe(4);
+  });
+});
