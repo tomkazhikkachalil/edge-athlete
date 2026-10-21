@@ -28,7 +28,7 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
   const [detail, setDetail] = useState<DetailState>({ status: 'collapsed' });
 
   const title = (statsData.title as string) || 'Workout';
-  // 260: an untimed workout's post carries no duration key — say so, never "1 min".
+  // 260: an untimed workout's post carries no duration key — no tile for it (Oct 21 2026), never "1 min".
   const durationSeconds = typeof statsData.duration_seconds === 'number' && statsData.duration_seconds > 0 ? statsData.duration_seconds : null;
   const exerciseCount = (statsData.exercise_count as number) || 0;
   const totalSets = (statsData.total_sets as number) || 0;
@@ -106,14 +106,17 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
-            <div className="flex items-center justify-center gap-1 text-sm font-bold text-primary">
-              <Timer className="w-3 h-3 text-violet-500" aria-hidden="true" />
-              {durationSeconds === null ? 'Not timed' : formatDuration(durationSeconds)}
+        {/* Oct 21 2026 (item 2): an untimed workout posts no time — two tiles, no placeholder block. */}
+        <div className={`grid gap-2 ${durationSeconds === null ? 'grid-cols-2' : 'grid-cols-3'}`} data-post-workout-tiles={durationSeconds === null ? 'untimed' : 'timed'}>
+          {durationSeconds !== null && (
+            <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
+              <div className="flex items-center justify-center gap-1 text-sm font-bold text-primary">
+                <Timer className="w-3 h-3 text-violet-500" aria-hidden="true" />
+                {formatDuration(durationSeconds)}
+              </div>
+              <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Duration</div>
             </div>
-            <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Duration</div>
-          </div>
+          )}
           <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
             <div className="text-sm font-bold text-primary">
               {exerciseCount} · {totalSets}
@@ -144,18 +147,20 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
       )}
 
       {/* Expanded details — lazy-fetched once */}
+      {/* Oct 21 2026 (item 1): inside the expanded post the fill is the PAGE background (bg-canvas);
+          the header, the violet exercise cards and set bubbles, and the Hide details bar stay purple. */}
       {detail.status === 'loading' && (
-        <div className="flex justify-center py-4 border-t border-violet-100 dark:border-violet-900">
+        <div className="flex justify-center py-4 border-t border-violet-100 dark:border-violet-900 bg-canvas">
           <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-violet-500" aria-hidden="true" />
         </div>
       )}
       {detail.status === 'unavailable' && (
-        <p className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 text-xs text-muted">
+        <p className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 bg-canvas text-xs text-muted">
           Full details unavailable.
         </p>
       )}
       {detail.status === 'loaded' && (
-        <div className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 bg-surface/60 space-y-3">
+        <div className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 bg-canvas space-y-3" data-post-workout-details="">
           {detail.exercises.length === 0 && (
             <p className="text-xs text-muted">No exercises logged.</p>
           )}
