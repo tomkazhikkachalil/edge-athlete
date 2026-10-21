@@ -94,7 +94,8 @@ export const RECORD_LAYOUT_BY_TYPE: Readonly<Record<ActivityType, RecordLayout>>
   snowboard: { ...SNOW, setupFields: ['terrain'] },
   skate: { ...GPS_SPEED, setupFields: ['surface'] },
   // indoor — a timer, distance typed at finish
-  swim: { ...TIMER, setupFields: ['pool', 'stroke'], records: ['time', 'lengths', 'distance', 'pace', 'photos'] },
+  // F5: the lengths counter under the clock; the live distance is lengths × the pool.
+  swim: { ...TIMER, setupFields: ['pool', 'stroke'], records: ['time', 'lengths', 'distance', 'pace', 'photos'], live: ['stats', 'lengths', 'details', 'photos', 'segments'] },
   row: { ...TIMER, setupFields: ['setting'] },
   indoor_ride: { ...TIMER, setupFields: ['platform'], records: ['time', 'distance', 'speed', 'photos'], liveStats: ['distance', 'speed', 'avgSpeed'] },
   treadmill: { ...TIMER, records: ['time', 'distance', 'pace', 'steps', 'photos'], liveStats: ['distance', 'pace', 'avgPace', 'steps'] },

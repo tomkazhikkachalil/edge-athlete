@@ -63,6 +63,15 @@ describe('set up before Start — the screen', () => {
     expect(card).toMatch(/dispatch\(\{ type: 'climbScale', scale: s \}\)/);
     expect(finish).toMatch(/data-record-review-climbs=""/);
   });
+  it('F5 — swim: the lengths counter writes the reducer\'s count; the Finish prefills the distance from it', () => {
+    expect(screen).toMatch(/<LengthsCounter[^>]*onChange=\{n => dispatch\(\{ type: 'lengthsSet', lengths: n \}\)\}/);
+    expect(screen).toMatch(/lengths: state\.type === 'swim' \? state\.lengths \?\? 0 : 0,/);
+    expect(finish).toMatch(/data-record-review-lengths=\{summary\.lengths\}/);
+    const counter = code('src/components/activities/record/LengthsCounter.tsx');
+    expect(counter).toMatch(/data-record-length-add=""/);
+    expect(counter).toMatch(/min-h-\[56px\]/);
+    expect(counter).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
+  });
   it('the new screens obey the recorder\'s import ban', () => {
     for (const src of [card, sheet]) expect(src).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
   });

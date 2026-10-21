@@ -56,7 +56,7 @@ export default function FinishSheet({
   saving: boolean;
   error: string | null;
   /** The recorder's own totals and the drawn (filtered) route. */
-  summary: { distanceM: number; elapsedS: number; movingS: number; route: LatLng[] };
+  summary: { distanceM: number; elapsedS: number; movingS: number; route: LatLng[]; /** F5: a pool swim's counted lengths. */ lengths?: number };
   /** The stat-line sport this type may be posted as (sport-bridge.ts), if enabled. */
   sportOption: SportKey | null;
   /** The POSTING account's visibility (self, or the athlete a guardian acts for). */
@@ -72,7 +72,8 @@ export default function FinishSheet({
 }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   const [name, setName] = useState(defaultName);
-  const [distance, setDistance] = useState('');
+  // F5: a pool swim's distance is prefilled from its counted lengths × the pool (editable).
+  const [distance, setDistance] = useState(() => (def.recording === 'timer' && (summary.lengths ?? 0) > 0 && summary.distanceM > 0 ? String(Math.round(summary.distanceM)) : ''));
   const [distUnit, setDistUnit] = useState<DistanceUnit | 'm'>(def.recording === 'timer' && (type === 'swim' || type === 'row') ? 'm' : unit);
   const [onFeed, setOnFeed] = useState(() => readFeedDefault('activity'));
   const [caption, setCaption] = useState('');
@@ -148,6 +149,12 @@ export default function FinishSheet({
               <div>
                 <dt className="text-xs text-muted">{pace.label}</dt>
                 <dd className="text-base font-bold text-primary">{pace.value}</dd>
+              </div>
+            )}
+            {(summary.lengths ?? 0) > 0 && (
+              <div>
+                <dt className="text-xs text-muted">Lengths</dt>
+                <dd className="text-base font-bold text-primary" data-record-review-lengths={summary.lengths}>{summary.lengths}</dd>
               </div>
             )}
             {climbsLine && (

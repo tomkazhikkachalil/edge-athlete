@@ -70,6 +70,8 @@ describe('the recorder layout table', () => {
     // F3 — climb: the scale is set up before Start; the log leads the live area.
     expect(recordLayout('climb').setup).toContain('climbScale');
     expect(recordLayout('climb').live[0]).toBe('climbs');
+    // F5 — swim: the lengths counter sits under the clock.
+    expect(recordLayout('swim').live.slice(0, 2)).toEqual(['stats', 'lengths']);
     for (const t of ['yoga', 'pilates', 'stretch', 'dance'] as const) expect(recordLayout(t).calm, t).toBe(true);
     expect(recordLayout('sport_session').setupFields).toEqual(['sport', 'session_kind']);
     expect(recordLayout('swim').setupFields).toEqual(['pool', 'stroke']);
