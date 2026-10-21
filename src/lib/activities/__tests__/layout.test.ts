@@ -54,6 +54,15 @@ describe('the recorder layout table', () => {
   it('the family defaults Tom named: hiit arms Tabata, martial arts Rounds, the calm four, the sport session asks its sport', () => {
     expect(recordLayout('hiit').timerDefault).toBe('tabata');
     expect(recordLayout('martial_arts').timerDefault).toBe('rounds');
+    // F1 — the rounds family: the timer leads the live area (phase + remaining), the clock after it;
+    // "other" offers a timer without preselecting one, and asks what it was.
+    for (const t of ['hiit', 'martial_arts', 'other'] as const) {
+      expect(recordLayout(t).live.slice(0, 2), t).toEqual(['timer', 'stats']);
+      expect(recordLayout(t).setup, t).toContain('timer');
+    }
+    expect(recordLayout('other').timerDefault).toBeNull();
+    expect(detailFieldsFor('other').map(f => f.key)).toEqual(['what']);
+    expect(recordLayout('martial_arts').setupFields).toEqual(['discipline', 'session']);
     for (const t of ['yoga', 'pilates', 'stretch', 'dance'] as const) expect(recordLayout(t).calm, t).toBe(true);
     expect(recordLayout('sport_session').setupFields).toEqual(['sport', 'session_kind']);
     expect(recordLayout('swim').setupFields).toEqual(['pool', 'stroke']);

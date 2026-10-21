@@ -28,8 +28,10 @@ describe('set up before Start — the screen', () => {
     expect(card).toMatch(/<TimerSetup[\s\S]*arm[\s\S]*dispatch\(\{ type: 'timerSet', spec \}\)/);
     expect(card).toMatch(/data-record-indoor-twin=\{twin\}/);
     expect(card).toMatch(/data-record-choose-another=""/);
-    // Nothing is preselected in E1b: an armed timer is the athlete's tap (F1 preselects per type).
-    expect(card).not.toMatch(/timerDefault/);
+    // F1: the family's timer is preselected ONCE per recording (undefined = undecided; null = removed, stays removed).
+    expect(card).toMatch(/const timerDefault = layout\.timerDefault;/);
+    expect(card).toMatch(/const undecided = state\.timerArmed === undefined;/);
+    expect(card).toMatch(/dispatch\(\{ type: 'timerSet', spec: TIMER_PRESETS\[timerDefault\]\[0\]\.spec \}\)/);
   });
   it('the live area is the layout\'s order; the Details row opens the sheet, which writes the same answers (debounced) and never asks a climb\'s scale', () => {
     expect(screen).toMatch(/layout\.live\.map\(\(panel: LivePanel\) => \{/);

@@ -22,9 +22,12 @@ test('a HIIT intervals timer marks its rounds; Recent shows HIIT first @mobile',
     const page = await ctx.newPage();
     await page.goto('/activities/record');
     await page.locator('[data-record-type="hiit"]').click({ timeout: 20_000 });
-    await page.locator('[data-record-start]').click();
-
-    await page.locator('[data-record-timer-open]').click();
+    // F1 (Program E/F, Oct 20 2026): HIIT arms a Tabata on the set-up card before Start;
+    // Change → Intervals, "Use this timer", and the Start tap runs it from second 0.
+    const card = page.locator('[data-record-ready]');
+    await expect(card.locator('[data-record-timer-armed="tabata"]')).toBeVisible({ timeout: 15_000 });
+    await expect(card.locator('[data-record-timer-armed-line]')).toHaveText('Tabata · 8 × 0:20 / 0:10');
+    await card.locator('[data-record-timer-change]').click();
     await page.locator('[data-timer-format="intervals"]').click();
     await expect(page.locator('[data-record-timer-setup="intervals"]')).toBeVisible();
     await page.locator('[data-timer-rounds]').fill('2');
@@ -33,7 +36,11 @@ test('a HIIT intervals timer marks its rounds; Recent shows HIIT first @mobile',
       await f.getByLabel(/minutes/).fill('0');
       await f.getByLabel(/seconds/).fill(s);
     }
+    await expect(page.locator('[data-timer-start]')).toHaveText('Use this timer');
     await page.locator('[data-timer-start]').click();
+    await expect(card.locator('[data-record-timer-armed="intervals"]')).toBeVisible();
+    await expect(page.locator('[data-record-start]')).toBeInViewport({ ratio: 1 });
+    await page.locator('[data-record-start]').click();
     await expect(page.locator('[data-record-timer="work"]')).toBeVisible();
     await expect(page.locator('[data-record-timer-line]')).toHaveText('Intervals · Round 1 of 2');
     await expect(page.locator('[data-record-timer="rest"]')).toBeVisible({ timeout: 10_000 });
@@ -88,5 +95,40 @@ test('an elliptical saves without a distance @mobile', async ({ browser }) => {
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
+
+test('martial arts arms Rounds 3 × 3:00 / 1:00 and asks the discipline before Start; Remove keeps it removed; "other" offers a timer without one armed @mobile', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="martial_arts"]').click({ timeout: 20_000 });
+    const card = page.locator('[data-record-ready]');
+    await expect(card.locator('[data-record-timer-armed="rounds"]')).toBeVisible({ timeout: 15_000 });
+    await expect(card.locator('[data-record-timer-armed-line]')).toHaveText('Rounds · 3 × 3:00 / 1:00');
+    await expect(card.locator('[data-detail-field="discipline"]')).toBeVisible();
+    await expect(card.locator('[data-detail-field="session"]')).toBeVisible();
+    // Removed stays removed — a reload does not arm it again.
+    await card.locator('[data-record-timer-remove]').click();
+    await expect(card.locator('[data-record-timer-armed="none"]')).toBeVisible();
+    await page.waitForTimeout(800);
+    await page.reload();
+    await expect(page.locator('[data-record-ready] [data-record-timer-armed="none"]')).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-record-choose-another]').click();
+    // "other": a timer is offered, none armed; the old mid-session door still opens the set-up.
+    await page.locator('[data-record-type="other"]').click({ timeout: 20_000 });
+    await expect(page.locator('[data-record-ready] [data-record-timer-armed="none"]')).toBeVisible();
+    await expect(page.locator('[data-record-timer-arm]')).toBeVisible();
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await page.locator('[data-record-timer-open]').click();
+    await expect(page.locator('[data-record-timer-setup]')).toBeVisible();
+    await page.locator('[data-record-finish]').click();
+    await page.locator('[data-record-discard]').click();
+    await page.getByRole('button', { name: 'Discard' }).last().click();
+  } finally {
+    await ctx.close();
   }
 });
