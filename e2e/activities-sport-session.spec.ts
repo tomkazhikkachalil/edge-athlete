@@ -126,3 +126,43 @@ test('the server refuses a sport session without its sport, and a retype clears 
     await api.dispose();
   }
 });
+
+test('F4 — the sport and the kind are set up before Start; the header says "Soccer · Practice" from the first second; the Finish needs nothing more @mobile', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="sport_session"]').click({ timeout: 20_000 });
+    const card = page.locator('[data-record-ready]');
+    await card.locator('[data-detail-field="sport"] [data-detail-option="soccer"]').click();
+    await card.locator('[data-detail-field="session_kind"] [data-detail-option="practice"]').click();
+    // Minutes played and the position are Finish questions, never asked before.
+    await expect(card.locator('[data-detail-field="minutes_played"]')).toHaveCount(0);
+    await expect(page.locator('[data-record-setup-line]')).toHaveText('Soccer · Practice');
+    // The map is off: the card says time and photos, no map or distance.
+    await expect(card.locator('[data-record-records-item="map"]')).toHaveCount(0);
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await expect(page.locator('[data-record-setup-line]')).toHaveText('Soccer · Practice');
+    await expect(page.locator('[data-record-map]')).toHaveCount(0);
+    await page.waitForTimeout(6_000);
+    await page.locator('[data-record-finish]').click();
+    const form = page.locator('[data-finish-details="sport_session"]');
+    await expect(form.locator('[data-detail-field="sport"] [data-detail-option="soccer"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-record-sport-needed]')).toHaveCount(0);
+    await page.locator('[data-feed-toggle="on"]').click();
+    await expect(page.locator('[data-record-save]')).toBeEnabled();
+    await page.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const id = page.url().split('/').pop()!;
+    const { data: row } = await admin.from('activities').select('sport_key, session_kind').eq('id', id).single();
+    expect(row).toEqual({ sport_key: 'soccer', session_kind: 'practice' });
+  } finally {
+    await ctx.close();
+    await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
