@@ -360,7 +360,7 @@ export default function RecordActivityScreen() {
               case 'stats':
                 return (
                   <div key="stats" className="mt-4">
-                    <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} />
+                    <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} line={layout.calm ? setupLine : null} />
                   </div>
                 );
               case 'climbs':
@@ -442,6 +442,7 @@ export default function RecordActivityScreen() {
               onResume={() => dispatch({ type: 'resume', now: Date.now() })}
               onMark={onMark}
               onFinish={onFinish}
+              mark={layout?.mark !== false}
             />
           )}
         </main>

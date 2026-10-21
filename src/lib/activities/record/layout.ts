@@ -34,6 +34,8 @@ export interface RecordLayout {
   liveStats: readonly LiveStat[];
   /** A big clock and the answers line, no stat grid, no Mark (yoga, pilates, stretch, dance). */
   calm?: true;
+  /** The controls bar offers Mark (a segment) — not on a calm session. */
+  mark?: false;
   /** Preselected on the set-up card's timer (hiit → Tabata, martial arts → Rounds). */
   timerDefault: TimerFormat | null;
 }
@@ -73,6 +75,7 @@ const CALM: RecordLayout = {
   live: ['stats', 'timer', 'details', 'photos'],
   liveStats: [],
   calm: true,
+  mark: false,
   timerDefault: null,
 };
 

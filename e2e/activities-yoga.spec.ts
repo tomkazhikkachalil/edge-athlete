@@ -70,3 +70,28 @@ test('a yoga session keeps its style, heat, class and effort; the next one pre-f
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
   }
 });
+
+test('F2 — a calm session: the style line under the clock, no distance tile, no Mark @mobile', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="yoga"]').click({ timeout: 20_000 });
+    const card = page.locator('[data-record-ready]');
+    await card.locator('[data-detail-field="style"] [data-detail-option="yin"]').click();
+    await card.locator('[data-detail-field="guided"] [data-detail-option="self"]').click();
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await expect(page.locator('[data-record-timer]')).toBeVisible();
+    await expect(page.locator('[data-record-calm-line]')).toHaveText('Yin · Self-guided');
+    await expect(page.locator('[data-record-distance]')).toHaveCount(0);
+    await expect(page.locator('[data-record-mark]')).toHaveCount(0);
+    await expect(page.locator('[data-record-pause]')).toBeVisible();
+    await page.locator('[data-record-finish]').click();
+    await page.locator('[data-record-discard]').click();
+    await page.getByRole('button', { name: 'Discard' }).last().click();
+  } finally {
+    await ctx.close();
+  }
+});

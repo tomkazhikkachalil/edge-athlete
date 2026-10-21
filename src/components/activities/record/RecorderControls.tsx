@@ -12,6 +12,7 @@ export default function RecorderControls({
   onResume,
   onMark,
   onFinish,
+  mark = true,
 }: {
   status: RecordingStatus;
   /** Seconds the open segment has run, or null when none is open. */
@@ -22,6 +23,8 @@ export default function RecorderControls({
   onResume: () => void;
   onMark: () => void;
   onFinish: () => void;
+  /** F2: a calm session (yoga, pilates, stretch, dance) has no segments to mark. */
+  mark?: boolean;
 }) {
   const btn = 'inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold disabled:opacity-50';
   return (
@@ -37,6 +40,7 @@ export default function RecorderControls({
             <button type="button" onClick={onPause} disabled={busy} className={`${btn} ea-interactive border border-border-strong text-primary`} data-record-pause="">
               <i className="fas fa-pause" aria-hidden="true"></i> Pause
             </button>
+            {mark && (
             <button
               type="button"
               onClick={onMark}
@@ -48,6 +52,7 @@ export default function RecorderControls({
               <i className="fas fa-flag" aria-hidden="true"></i>
               {openSegment !== null ? `End · ${Math.floor(openSegment / 60)}:${String(openSegment % 60).padStart(2, '0')}` : 'Mark'}
             </button>
+            )}
             <button type="button" onClick={onFinish} disabled={busy} className={`${btn} ea-cta text-white`} data-record-finish="">
               <i className="fas fa-stop" aria-hidden="true"></i> Finish
             </button>
