@@ -6,6 +6,7 @@ import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 import { clampAt, finishDuration, planPause, planResume } from '@/lib/workouts/timing';
+import { refreshWorkoutPostStats } from '@/lib/workouts/post-stats-server';
 
 const SESSION_SELECT = `
   *,
@@ -283,6 +284,9 @@ export async function PATCH(
       reportRouteError('Error updating workout:', updateError);
       return NextResponse.json({ error: 'Failed to update workout' }, { status: 500 });
     }
+
+    // Training fixes PR 5 (Oct 21 2026): a posted workout's summary follows its title.
+    if (body.title !== undefined && updated?.post_id && updated.status === 'completed') await refreshWorkoutPostStats(supabase, id);
 
     return NextResponse.json({ session: updated });
   } catch (error) {
