@@ -1,5 +1,11 @@
 # Development Log
 
+## October 20, 2026 — Flow changes F4: the sport session — the sport and the kind before Start (zero DDL, no code change)
+
+The fourth family, one type, and the table already said it (E1a): the set-up card asks **the sport and the kind of session** (the server's prefill brings last time's), offers **Map my movement** and an optional round timer, and the header reads **"Soccer · Practice" from the first second**; the live area is the clock, the map and the distance only when the map is on, the Details row, photos and segments; **minutes played and the position stay Finish questions**; the "no sport → Save disabled" guard stays for a session started without one. Nothing in the code moved for this PR — it is the family's proof: `activities-sport-session` gains the set-up case (the sport and the kind chosen before Start, the header line, no map or distance chips while the map is off, the Finish needing nothing more, the row carrying `sport_key` and `session_kind`).
+
+Proof: `npm run verify` exit 0 (5,278 tests); staging e2e on the built server — activities-sport-session (with its new set-up case) mobile 3/3, android 3/3.
+
 ## October 20, 2026 — Flow changes F3: climb — the scale before Start, the log first, the review sums the climbs (zero DDL)
 
 The third family, one type. **The grade scale is chosen on the set-up card** (`SetupCard`'s `climbScale` control: the log's own chips, narrowed by the style the athlete picked — `SCALES_FOR_STYLE` — a `climbScale` event, one owner per fact), so the log is ready to take a climb at Start; the previous session's style and scale pre-fill there (E1b's `prefill` already routed the scale to `climbScale`; today's card shows it). The live log still offers the scale while no climb is logged (an unchanged door), and a new scale still drops climbs that are not grades on it. **The live area leads with the log**, the clock after it. **The review sums the climbs** — "3 · 2 sent" (`data-record-review-climbs`, `summarizeClimbs` over the recording's own climbs). `activities-climb` changes: the first session picks the style and the scale on the card and finds Add enabled at Start; the second session's pre-fill assertions move to the card.
