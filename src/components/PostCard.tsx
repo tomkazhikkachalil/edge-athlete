@@ -812,6 +812,7 @@ function PostCard({
               pinBusy={pinBusy}
               onTogglePin={handleTogglePin}
               onEdit={() => onEdit?.(post.id)}
+              onEditWorkout={typeof post.stats_data?.workout_session_id === 'string' && post.stats_data.type === 'workout_session' ? () => router.push(`/app/workout/${post.stats_data!.workout_session_id as string}`) : undefined}
               onDelete={onDelete && !isProfileHidden && (!hidesInstead || offersHide) ? handleDeleteClick : undefined}
               deleteLabel={hidesInstead ? COPY.FORMS.HIDE_RESULT_LABEL : undefined}
               onDeleteForGood={onDelete && offersDeleteForGood ? handleDeleteForGoodClick : undefined}
