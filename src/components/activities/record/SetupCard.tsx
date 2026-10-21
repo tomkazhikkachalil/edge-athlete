@@ -12,12 +12,12 @@
  * (session-retention.test.ts).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ACTIVITY_TYPE_DEFS, indoorTwin, type ActivityType } from '@/lib/activities/catalog';
 import type { DistanceUnit } from '@/lib/activities/format';
 import { recordingAnswers, type RecordingEvent, type RecordingState } from '@/lib/activities/record/recording';
 import type { RecordLayout, Recorded } from '@/lib/activities/record/layout';
-import { clock, TIMER_FORMAT_LABELS, type TimerSpec } from '@/lib/activities/record/round-timer';
+import { clock, TIMER_FORMAT_LABELS, TIMER_PRESETS, type TimerSpec } from '@/lib/activities/record/round-timer';
 import { unitSystemOf } from '@/lib/activities/units';
 import FinishDetailsForm from '@/components/activities/FinishDetailsForm';
 import { TimerSetup } from './RoundTimerPanel';
@@ -71,6 +71,16 @@ export default function SetupCard({
   const twin = layout.setup.includes('indoorTwin') ? indoorTwin(state.type) : null;
   const [timerOpen, setTimerOpen] = useState(false);
   const answers = recordingAnswers(state);
+  // F1: the family's timer is preselected ONCE per recording (hiit → Tabata,
+  // martial arts → Rounds 3 × 3:00 / 1:00) — `timerArmed` undefined means
+  // nobody decided yet; null means the athlete removed it, and it stays removed.
+  const timerDefault = layout.timerDefault;
+  const undecided = state.timerArmed === undefined;
+  const recordingId = state.id;
+  useEffect(() => {
+    if (!timerDefault || !undecided) return;
+    dispatch({ type: 'timerSet', spec: TIMER_PRESETS[timerDefault][0].spec });
+  }, [timerDefault, undecided, recordingId, dispatch]);
   // A sport session records a map and a distance only when its map is on.
   const recorded = layout.records.filter(r => !((r === 'map' || r === 'distance') && def.recording === 'gps_optional' && state.mapOn !== true));
 

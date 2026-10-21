@@ -146,6 +146,8 @@ export const DETAIL_FIELDS_BY_TYPE: Readonly<Partial<Record<ActivityType, readon
     { key: 'position', kind: 'text', label: 'Position', more: true, max: 40, placeholder: 'Midfield, goalie, point guard…' },
   ],
   // ── A8: climbing — the session's answers; the climbs themselves are `details.climbs` (climbing.ts) ──
+  // F1 (Oct 20 2026): an "Activity" names itself — one short answer, asked at the Finish or in Details.
+  other: [{ key: 'what', kind: 'text', label: 'What was it', max: 60, placeholder: 'Rowing drills, sparring, a hike…' }],
   climb: [
     { key: 'setting', kind: 'choice', label: 'Where', options: opts(['indoor', 'Indoor'], ['outdoor', 'Outdoor']) },
     { key: 'style', kind: 'choice', label: 'Style', options: opts(['bouldering', 'Bouldering'], ['top_rope', 'Top rope'], ['lead', 'Lead']) },
