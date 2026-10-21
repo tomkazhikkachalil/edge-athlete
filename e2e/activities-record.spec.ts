@@ -113,6 +113,8 @@ test('record a run: fixes draw, a segment is marked, a reload keeps recording, F
     await page.goto('/activities/record');
     await page.locator('[data-record-type="run"]').click({ timeout: 20_000 });
     await expect(page.locator('[data-record-ready]')).toBeVisible();
+    // F7: a GPS type offers its indoor twin instead of a "no map" switch.
+    await expect(page.locator('[data-record-indoor-twin="treadmill"]')).toBeVisible();
     await page.locator('[data-record-start]').click();
     await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
     // Distance climbs as the fixes arrive; the timer runs.

@@ -85,7 +85,7 @@ export const RECORD_LAYOUT_BY_TYPE: Readonly<Record<ActivityType, RecordLayout>>
   trail_run: FOOT,
   walk: FOOT,
   hike: FOOT,
-  ride: { ...GPS_SPEED, setup: ['indoorTwin', 'name'] },
+  ride: { ...GPS_SPEED, setup: ['indoorTwin', 'name'], setupFields: ['bike'] },
   mountain_bike: { ...GPS_SPEED, records: ['time', 'map', 'distance', 'speed', 'elevation', 'descent', 'photos'], liveStats: ['distance', 'speed', 'avgSpeed', 'elevation', 'descent'] },
   open_water_swim: { ...GPS_PACE, setup: ['indoorTwin', 'name'], setupFields: ['wetsuit'], records: ['time', 'map', 'distance', 'pace', 'photos'], liveStats: ['distance', 'pace', 'avgPace'] },
   paddle: { ...GPS_SPEED, setupFields: ['craft'] },

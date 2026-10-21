@@ -72,6 +72,13 @@ describe('set up before Start — the screen', () => {
     expect(counter).toMatch(/min-h-\[56px\]/);
     expect(counter).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
   });
+  it('F7 — the live tiles follow the layout: a descent tile where it is listed, elevation only where it is', () => {
+    expect(screen).toMatch(/stats=\{layout\.liveStats\}/);
+    const stats = code('src/components/activities/record/LiveStats.tsx');
+    expect(stats).toMatch(/const wants = \(s: LiveStat\) => !stats \|\| stats\.includes\(s\);/);
+    expect(stats).toMatch(/\{wants\('descent'\) && \(/);
+    expect(stats).toMatch(/data-record-descent=/);
+  });
   it('the new screens obey the recorder\'s import ban', () => {
     for (const src of [card, sheet]) expect(src).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
   });

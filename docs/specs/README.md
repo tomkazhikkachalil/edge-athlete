@@ -15,7 +15,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `events.md` | Events: phases 1–4, competition formats, leftovers |
 | `support.md` | Support and reporting |
 | `play.md` | Play: badges, rivalries, cheers, challenges |
-| `activities.md` | Activities: imported, connected, live-recorded |
+| `activities.md` | Activities: imported, connected, live-recorded; set up before Start and the per-type layout table (Programs E and F, Oct 20 2026) |
 | `install-and-push.md` | Download the app, push notifications, the icon badge |
 | `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch |
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |

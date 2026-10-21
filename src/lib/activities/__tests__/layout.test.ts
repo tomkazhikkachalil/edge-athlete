@@ -72,6 +72,15 @@ describe('the recorder layout table', () => {
     expect(recordLayout('climb').live[0]).toBe('climbs');
     // F5 — swim: the lengths counter sits under the clock.
     expect(recordLayout('swim').live.slice(0, 2)).toEqual(['stats', 'lengths']);
+    // F7 — foot · wheel · snow: the descent live on snow and mountain bike; snow shows no elevation tile;
+    // the twin on run, ride and open-water swim only; a ride names its bike.
+    for (const t of ['ski', 'snowboard', 'mountain_bike'] as const) expect(recordLayout(t).liveStats, t).toContain('descent');
+    for (const t of ['ski', 'snowboard'] as const) expect(recordLayout(t).liveStats, t).not.toContain('elevation');
+    expect(recordLayout('mountain_bike').liveStats).toContain('elevation');
+    expect(ACTIVITY_TYPES.filter(t => recordLayout(t).setup.includes('indoorTwin')).sort()).toEqual(['open_water_swim', 'ride', 'run']);
+    expect(recordLayout('ride').setupFields).toEqual(['bike']);
+    expect(detailFieldsFor('ride').map(f => f.key)).toEqual(['bike']);
+    for (const t of ['run', 'walk', 'hike', 'trail_run', 'treadmill'] as const) expect(recordLayout(t).liveStats, t).toContain('steps');
     for (const t of ['yoga', 'pilates', 'stretch', 'dance'] as const) expect(recordLayout(t).calm, t).toBe(true);
     expect(recordLayout('sport_session').setupFields).toEqual(['sport', 'session_kind']);
     expect(recordLayout('swim').setupFields).toEqual(['pool', 'stroke']);
