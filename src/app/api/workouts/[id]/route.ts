@@ -64,7 +64,8 @@ export async function GET(
     const isOwner = currentUserId === session.profile_id;
     if (!isOwner) {
       // In progress, or hidden by its owner (269): nothing to see — the same 404 as "no such workout".
-      if (session.status !== 'completed' || session.profile_hidden_at) {
+      // An unposted finished workout (share_decided_at NULL) is the owner's draft — a visitor never sees it (Training fixes PR 4).
+      if (session.status !== 'completed' || session.profile_hidden_at || !session.share_decided_at) {
         return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
       }
       const { data: profile } = await supabase
@@ -123,12 +124,13 @@ export async function GET(
 
 /**
  * PATCH /api/workouts/[id] — owner only.
- * Body: { title?, notes?, postId?, keepPrivate?: true, finish?: { endedAt },
+ * Body: { title?, notes?, postId?, decided?: true, hidden?: boolean, finish?: { endedAt },
  *         pause?: { at }, resume?: { at }, timed?: boolean, effort?: 1–10 | null }
  * effort (265, Oct 16 2026): how hard the session felt, asked on the summary.
- * postId and keepPrivate both stamp share_decided_at (Drafts round, 253):
- * a completed session without it is a DRAFT — the owner never reached the
- * share decision.
+ * postId (Post) and decided (Done) stamp share_decided_at (253; Training
+ * fixes PR 4, Oct 21 2026): a completed session without it is UNPOSTED —
+ * the owner has not reached the preview step's Post or Done yet; Finish
+ * records, it never decides.
  * finish completes a live session (endedAt clamped to started_at..now+5min;
  * never before an open pause; the pauses excluded; NULL duration when
  * untimed — workouts/timing.ts).
@@ -232,9 +234,14 @@ export async function PATCH(
       updates.post_id = body.postId;
       updates.share_decided_at = new Date().toISOString();
     }
-    // keepPrivate (253) is gone since 269: Finish is the decision, and a
-    // workout is never kept off the owner's profile by a share choice —
+    // Done (Training fixes PR 4): the feed switch OFF — the workout stays in
+    // Training, nothing is posted, and the decision is stamped so nothing
+    // offers "Finish posting" again. keepPrivate (253) is gone since 269;
     // hiding is `hidden` below.
+    if (body.decided !== undefined) {
+      if (body.decided !== true) return NextResponse.json({ error: 'decided must be true' }, { status: 400 });
+      if (!session.share_decided_at) updates.share_decided_at = new Date().toISOString();
+    }
     if (body.hidden !== undefined) {
       if (typeof body.hidden !== 'boolean') return NextResponse.json({ error: 'hidden must be a boolean' }, { status: 400 });
       updates.profile_hidden_at = body.hidden ? new Date().toISOString() : null;
@@ -253,8 +260,10 @@ export async function PATCH(
       // excluded, NULL when untimed; the finish closes any open pause.
       const plan = finishDuration({ ...session, timed: updates.timed === undefined ? session.timed : (updates.timed as boolean) }, requestedMs);
       updates.status = 'completed';
-      // Finish IS the share decision (269): the post-time choice is only "Post to feed" — nothing waits in a Drafts list.
-      if (!session.share_decided_at) updates.share_decided_at = new Date().toISOString();
+      // Training fixes PR 4 (Oct 21 2026): Finish is the RECORD, not the decision —
+      // the workout stands in Training at once, and `share_decided_at` stays NULL
+      // ("Finish posting": the pill, the prompt, Drafts and the start screen keep
+      // offering the preview step) until Post (`postId`) or Done (`decided`).
       updates.ended_at = new Date(plan.endedMs).toISOString();
       updates.duration_seconds = plan.durationSeconds;
       updates.paused_at = null;

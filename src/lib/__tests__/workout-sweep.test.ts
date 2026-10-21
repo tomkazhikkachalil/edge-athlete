@@ -41,13 +41,15 @@ describe('runWorkoutSweep', () => {
     expect(route).not.toMatch(/finalizeStaleActives|effectiveSessionStatus|staleFinalizeFields/);
     expect(read('src/app/api/cron/daily/route.ts')).toMatch(/summary\.workouts = await runWorkoutSweep\(admin\)/);
   });
-  it('Post and Finish both record the decision (253 → 269: Finish IS the decision; Keep private is gone)', () => {
+  it('Post and Done record the decision; Finish never does (253 → 269 → Training fixes PR 4, Oct 21 2026); Keep private is gone', () => {
     const route = read('src/app/api/workouts/[id]/route.ts');
     expect(route.match(/updates\.share_decided_at = new Date\(\)\.toISOString\(\)/g)?.length).toBe(2);
-    expect(route).toMatch(/if \(!session\.share_decided_at\) updates\.share_decided_at = new Date\(\)\.toISOString\(\);/);
+    expect(route).toMatch(/if \(body\.decided !== undefined\)/);
+    expect(route).toMatch(/updates\.status = 'completed';\s*\/\/ Training fixes PR 4/);
     const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(editor).not.toMatch(/keepPrivate/);
-    // The switch OFF (Done) writes nothing: records, then leaves.
-    expect(editor).toMatch(/const handleDone = async \(\) => \{\s*if \(sharing\) return;\s*setSharing\(true\);\s*await recordPRs\(null\);\s*router\.push\('\/athlete\?tab=training'\);\s*\};/);
+    // The switch OFF (Done) stamps the decision, records, clears the device draft, then leaves by replace.
+    expect(editor).toMatch(/body: JSON\.stringify\(\{ decided: true \}\)/);
+    expect(editor).toMatch(/await recordPRs\(null\);\s*clearFinishDraft\(finishedSessionId\);\s*void refreshDrafts\(\);\s*router\.replace\('\/athlete\?tab=training'\);/);
   });
 });

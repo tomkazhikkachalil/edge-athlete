@@ -54,6 +54,8 @@ export interface ServerWorkoutSession {
   paused_at?: string | null;
   /** 269: the owner hid it from their profile (visitors never receive a hidden session). */
   profile_hidden_at?: string | null;
+  /** 253 / Training fixes PR 4 (Oct 21 2026): when the owner chose Post or Done. NULL on a completed session = unposted ("Finish posting"). */
+  share_decided_at?: string | null;
 }
 
 export function serverToEntries(session: ServerWorkoutSession): EntryExercise[] {

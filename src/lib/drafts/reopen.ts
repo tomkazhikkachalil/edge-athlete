@@ -46,6 +46,8 @@ export function reopenActions(item: DraftItem): ReopenActions {
     };
   }
   if (item.kind === 'workout') {
+    // Unposted (Training fixes PR 4): finished, waiting for its Post or Done — Resume opens the preview step; Delete asks first.
+    if (item.state === 'draft') return { resume: true, finish: false, discard: true, line: 'A finished workout is waiting to be posted.' };
     return { resume: true, finish: true, discard: true, line: 'A workout is still in progress.' };
   }
   return { resume: true, finish: true, discard: true, line: 'A recording is waiting on this phone.' };

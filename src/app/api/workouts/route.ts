@@ -198,9 +198,11 @@ export async function GET(request: NextRequest) {
       .order('started_at', { ascending: false })
       .limit(limit);
 
-    // Non-owners never see in-progress sessions, nor one the owner hid (269).
+    // Non-owners never see in-progress sessions, one the owner hid (269), nor
+    // an UNPOSTED finished one (Training fixes PR 4: share_decided_at NULL =
+    // the owner has not reached Post or Done — their draft).
     if (!isOwner) {
-      query = query.eq('status', 'completed').is('profile_hidden_at', null);
+      query = query.eq('status', 'completed').is('profile_hidden_at', null).not('share_decided_at', 'is', null);
     } else if (statusFilter === 'active') {
       query = query.eq('status', 'active');
     }

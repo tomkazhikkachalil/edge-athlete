@@ -54,7 +54,8 @@ export default function ReopenPromptHost() {
       decidedRef.current = true;
       if (seen) return;
       const phone = recording ? buildDraftsList({ rounds: [], workouts: [], recording }).inProgress : [];
-      const candidate = pickReopenCandidate({ inProgress: [...phone, ...drafts.inProgress].sort((a, b) => Date.parse(b.lastActivityAt ?? b.startedAt ?? '') - Date.parse(a.lastActivityAt ?? a.startedAt ?? '')), drafts: [] });
+      // An unposted finished workout (Training fixes PR 4) is the fallback when nothing is in progress.
+      const candidate = pickReopenCandidate({ inProgress: [...phone, ...drafts.inProgress].sort((a, b) => Date.parse(b.lastActivityAt ?? b.startedAt ?? '') - Date.parse(a.lastActivityAt ?? a.startedAt ?? '')), drafts: drafts.drafts });
       if (!candidate) return;
       try { sessionStorage.setItem(reopenSeenKey(user.id), '1'); } catch { /* best-effort */ }
       setItem(candidate);
@@ -66,6 +67,8 @@ export default function ReopenPromptHost() {
 
   if (!item) return null;
   const actions = reopenActions(item);
+  // An unposted finished workout (Training fixes PR 4): the primary is "Finish posting" (the preview step), the danger door is "Delete".
+  const unposted = item.kind === 'workout' && item.state === 'draft';
   const close = () => setItem(null);
 
   const resume = () => { close(); router.push(item.href); };
@@ -87,7 +90,8 @@ export default function ReopenPromptHost() {
         if (!res.ok && res.status !== 409) { showError('Could not finish the workout', typeof body.error === 'string' ? body.error : 'Please try again.'); return; }
         void refreshDrafts();
         close();
-        router.push(`/app/workout/${item.id}?share=1`);
+        // Finish records; the summary (the questionnaire) is the next step (Training fixes PR 4).
+        router.push(`/app/workout/${item.id}?step=summary`);
       } else {
         close();
         router.push('/activities/record?finish=1');
@@ -129,12 +133,12 @@ export default function ReopenPromptHost() {
         <div className="p-4 sm:p-6">
           <p className="text-secondary">{actions.line}</p>
           <p className="mt-1 font-semibold text-primary" data-reopen-prompt-item="">{item.title}</p>
-          <p className="mt-2 text-sm text-tertiary">{COPY.FORMS.REOPEN_BODY}</p>
+          <p className="mt-2 text-sm text-tertiary">{unposted ? 'It is in your Training. Finish posting to preview and post it — or keep it off the feed with Done — or delete it.' : COPY.FORMS.REOPEN_BODY}</p>
         </div>
         <div className="p-4 sm:p-6 border-t border-border flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
           {actions.discard && (
             <button type="button" onClick={() => setConfirmDiscard(true)} disabled={busy !== null} className={`${btn} sm:mr-auto text-red-600 dark:text-red-400`} data-reopen-discard="">
-              {busy === 'discard' ? 'Discarding…' : 'Discard'}
+              {busy === 'discard' ? (unposted ? 'Deleting…' : 'Discarding…') : unposted ? 'Delete' : 'Discard'}
             </button>
           )}
           <button type="button" onClick={close} className={btn} data-reopen-later="">Not now</button>
@@ -144,15 +148,15 @@ export default function ReopenPromptHost() {
             </button>
           )}
           <button type="button" onClick={resume} className="px-4 py-2 min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover" data-reopen-resume="">
-            Resume
+            {unposted ? 'Finish posting' : 'Resume'}
           </button>
         </div>
       </div>
       <ConfirmModal
         isOpen={confirmDiscard}
-        title={COPY.FORMS.REOPEN_DISCARD_TITLE}
-        message={COPY.FORMS[reopenDiscardKey(item)]}
-        confirmText={COPY.FORMS.REOPEN_DISCARD_ACTION}
+        title={unposted ? 'Delete this workout?' : COPY.FORMS.REOPEN_DISCARD_TITLE}
+        message={unposted ? "This can't be undone. The workout and every set you logged are deleted." : COPY.FORMS[reopenDiscardKey(item)]}
+        confirmText={unposted ? 'Delete' : COPY.FORMS.REOPEN_DISCARD_ACTION}
         cancelText="Keep it"
         overlayZClass="z-[70]"
         onConfirm={() => void discard()}

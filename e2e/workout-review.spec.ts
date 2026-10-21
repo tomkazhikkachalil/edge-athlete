@@ -56,8 +56,11 @@ test('the review step edits a clip in place, orders the carousel, removes a clip
     expect(created.ok(), await readErrorBody(created)).toBe(true);
     workoutId = (await created.json()).session.id as string;
 
+    // ?share=1 is the Oct 2026 alias of the preview step (Training fixes PR 4).
     await page.goto(`/app/workout/${workoutId}?share=1`);
-    await expect(page.getByRole('heading', { name: 'Nice workout!' })).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(/\?share=1/);
+    await expect(page.locator('[data-finish-preview]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Preview and post' })).toBeVisible({ timeout: 20_000 });
     const rows = page.locator('[data-share-clip]');
     await expect(rows).toHaveCount(3);
     const positions = () => rows.evaluateAll(els => els.map(el => el.getAttribute('data-share-position')));

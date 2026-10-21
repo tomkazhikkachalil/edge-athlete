@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
 import FeedToggle from '@/components/posts/FeedToggle';
@@ -42,6 +42,8 @@ interface FinishSummaryProps {
   checkedPRs: Set<string>;
   onTogglePR: (metricKey: string) => void;
   onContinue: () => void;
+  /** Training fixes PR 4 (Oct 21 2026): back into the editor to change the sets — the workout is finished, its clock stands. */
+  onEditWorkout?: () => void;
   routineSave: RoutineSaveProps | null;
 }
 
@@ -57,6 +59,7 @@ export function FinishSummary({
   checkedPRs,
   onTogglePR,
   onContinue,
+  onEditWorkout,
   routineSave,
 }: FinishSummaryProps) {
   const anyPR = prCandidates.length > 0 || exercisePRs.length > 0;
@@ -276,14 +279,31 @@ export function FinishSummary({
         type="button"
         onClick={onContinue}
         className="tr-pill w-full py-3 bg-brand text-white rounded-full font-bold text-base hover:bg-brand-hover transition-colors"
+        data-finish-continue=""
       >
         Continue
       </button>
+      {onEditWorkout && (
+        <button
+          type="button"
+          onClick={onEditWorkout}
+          className="ea-interactive tr-pill w-full min-h-[44px] rounded-full border border-border-strong text-sm font-semibold text-secondary"
+          data-finish-edit-workout=""
+        >
+          Edit workout
+        </button>
+      )}
     </div>
   );
 }
 
-interface ShareStepProps {
+interface PreviewStepProps {
+  /** The post exactly as the feed will show it (the host renders the feed's own card). */
+  preview: ReactNode;
+  /** Back one step — the questionnaire (the editor is one more step back). */
+  onEdit: () => void;
+  /** Delete the workout — the host asks first ("Delete this workout? This can't be undone."). */
+  onDelete: () => void;
   caption: string;
   onCaptionChange: (next: string) => void;
   /** The workout's clips: the selected ones in CAROUSEL order, then the rest
@@ -391,7 +411,15 @@ function ShareClipRow({
   );
 }
 
-export function ShareStep({
+// ── Preview and post (Training fixes PR 4, Oct 21 2026) ─────────────────────
+// Tom's step 2 after the questionnaire: "a preview of the post exactly as it
+// will appear" — add a caption, check the layout, Edit to go back, Delete
+// (asks first), Post. The feed switch (269) stays the one decision; OFF reads
+// Done. The clips' controls are unchanged (workout capture round PR 2).
+export function PreviewStep({
+  preview,
+  onEdit,
+  onDelete,
   caption,
   onCaptionChange,
   clips,
@@ -404,20 +432,38 @@ export function ShareStep({
   error,
   onShare,
   onDone,
-}: ShareStepProps) {
+}: PreviewStepProps) {
   const [onFeed, setOnFeed] = useState(() => readFeedDefault('workout'));
   const posting = onFeed;
   const totalClips = clips.selected.length + clips.rest.length;
   return (
-    <div className="max-w-md mx-auto px-4 py-8 space-y-5">
+    <div className="max-w-md mx-auto px-4 py-8 space-y-5" data-finish-preview="">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-primary">Nice workout!</h1>
-        <p className="text-muted mt-1">It’s in your Training. Post it to the feed too?</p>
+        <h1 className="text-2xl font-bold text-primary">Preview and post</h1>
+        <p className="text-muted mt-1">It’s in your Training. This is how it will look on the feed.</p>
       </div>
 
       {/* The one decision (src/lib/posts/audience.ts, 269): Post to feed on —
           who sees it follows the account — or off, kept in your training history. */}
       <FeedToggle on={onFeed} onChange={setOnFeed} kind="workout" place="in your training history" disabled={sharing} />
+
+      {posting && (
+        <textarea
+          value={caption}
+          onChange={e => onCaptionChange(e.target.value.slice(0, 2000))}
+          rows={2}
+          placeholder="How did it go? (optional caption)"
+          className="w-full px-4 py-3 border border-border-strong rounded-xl text-base resize-none"
+          data-share-caption=""
+        />
+      )}
+
+      {/* The preview: the feed's own card, nothing interactive but its details. */}
+      {posting && (
+        <div className="-mx-4 sm:mx-0" data-finish-preview-card="">
+          {preview}
+        </div>
+      )}
 
       {/* The clips, in the order they will carousel: tap a thumbnail to
           include or exclude, the arrows set the order, the pencil opens the
@@ -466,17 +512,6 @@ export function ShareStep({
         </div>
       )}
 
-      {posting && (
-        <textarea
-          value={caption}
-          onChange={e => onCaptionChange(e.target.value.slice(0, 2000))}
-          rows={3}
-          placeholder="How did it go? (optional caption)"
-          className="w-full px-4 py-3 border border-border-strong rounded-xl text-base resize-none"
-          data-share-caption=""
-        />
-      )}
-
       {error && (
         <div className="px-3 py-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
           {error}
@@ -499,6 +534,29 @@ export function ShareStep({
         )}
         {posting ? 'Post' : 'Done'}
       </button>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          disabled={sharing}
+          className="ea-interactive flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border-strong text-sm font-semibold text-secondary disabled:opacity-50"
+          data-finish-edit=""
+        >
+          <Pencil className="w-4 h-4" aria-hidden="true" />
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={sharing}
+          className="ea-interactive flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border-strong text-sm font-semibold text-red-600 dark:text-red-400 disabled:opacity-50"
+          data-finish-delete=""
+        >
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+          Delete
+        </button>
+      </div>
     </div>
   );
 }

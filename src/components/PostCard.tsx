@@ -161,6 +161,9 @@ function SportGlyph({ sportKey, color }: { sportKey: string; color: string }) {
   return createElement(getSportIcon(sportKey), { size: 14, style: { color } });
 }
 
+/** The card's post row — exported for a PREVIEW built on the screen (the workout's preview step, Training fixes PR 4). */
+export type PostCardPost = Post;
+
 interface PostCardProps {
   post: Post;
   currentUserId?: string;

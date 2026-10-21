@@ -6,26 +6,30 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import WorkoutEditorScreen from '@/components/workouts/WorkoutEditorScreen';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
+import { stepFromSearch, type FinishStep } from '@/lib/workouts/finish-draft';
 
 /**
  * /app/workout/[id] — the workout editor. Active sessions get the live
  * editor (timer + finish flow); completed sessions open in REVIEW mode
- * (edit sets/media after the fact, share if unshared — ?share=1 deep-links
- * straight to the share step). Owner-only; everyone else is sent back to
+ * (edit sets/media after the fact). The finish flow's steps live in the
+ * URL — ?step=summary, ?step=preview (?share=1 is its alias) — so Back
+ * and Forward move one step. Owner-only; everyone else is sent back to
  * the profile.
  */
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
-// honours ?share=1 so the workout card's Share action (and the Drafts
-// round's reopen prompt / Drafts list) can deep-link. It reports BOTH
-// answers: the editor mounts only once the param is known, because its
-// phase is a useState initialiser — mounting first and learning about
-// ?share=1 a tick later used to leave it on the editing step (Oct 2026).
-function ShareParamReader({ onRead }: { onRead: (share: boolean) => void }) {
+// reports the STEP the URL asks for (Training fixes PR 4, Oct 21 2026):
+// `?step=summary` (the questionnaire), `?step=preview` (preview and post),
+// the Oct 2026 alias `?share=1` (the preview), nothing = the editor. It is
+// the phase's source of truth: a step change is a history entry, so Back
+// and Forward move one step, and a reload keeps the step. The editor mounts
+// once the first answer is known and is never un-mounted on a later change
+// (Back to the plain URL keeps its state).
+function StepParamReader({ onRead }: { onRead: (step: FinishStep) => void }) {
   const searchParams = useSearchParams();
-  const requested = searchParams.get('share');
+  const requested = searchParams.toString();
   useEffect(() => {
-    onRead(requested === '1');
+    onRead(stepFromSearch(requested));
   }, [requested, onRead]);
   return null;
 }
@@ -39,9 +43,9 @@ export default function WorkoutSessionPage() {
   const [session, setSession] = useState<ServerWorkoutSession | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  /** null until the ?share= param has been read (see ShareParamReader). */
-  const [wantShare, setWantShare] = useState<boolean | null>(null);
-  const handleShareParam = useCallback((share: boolean) => setWantShare(share), []);
+  /** null until the URL's step has been read once (see StepParamReader); follows every later change. */
+  const [step, setStep] = useState<FinishStep | null>(null);
+  const handleStepParam = useCallback((next: FinishStep) => setStep(next), []);
   const userId = user?.id ?? null;
 
   // Signed out → the sign-in page, WITH the way back (workout capture round
@@ -107,7 +111,7 @@ export default function WorkoutSessionPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Suspense fallback={null}>
-        <ShareParamReader onRead={handleShareParam} />
+        <StepParamReader onRead={handleStepParam} />
       </Suspense>
       <AppHeader showSearch={false} />
       <main>
@@ -121,12 +125,12 @@ export default function WorkoutSessionPage() {
               Back to profile
             </button>
           </div>
-        ) : wantShare === null ? null : (
+        ) : step === null ? null : (
           <WorkoutEditorScreen
             mode={mode}
             session={session}
             currentUserId={user.id}
-            initialPhase={mode === 'review' && wantShare ? 'share' : 'editing'}
+            step={step}
           />
         )}
       </main>
