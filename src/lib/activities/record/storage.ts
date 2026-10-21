@@ -19,6 +19,9 @@ import type { RecordingState } from './recording';
 export const DB_NAME = 'ea-activity-recorder';
 export const DB_VERSION = 1;
 export const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** An IDLE set-up (chosen, answered, never started — Program E) is kept a day, not a week:
+ *  it is a page the athlete left, not a session (recording-like.ts never lists it). */
+export const IDLE_SETUP_TTL_MS = 24 * 60 * 60 * 1000;
 /** A points batch closes at this many fixes. Since Oct 12 2026 the engine
  *  writes the OPEN batch on every fix (`appendPoints` is a put under the
  *  batch's key), so nothing waits for a count or a timer any more. */
@@ -39,9 +42,11 @@ export function flushDue(pendingPoints: number, lastFlushAt: number, now: number
   return pendingPoints >= FLUSH_EVERY_POINTS || (pendingPoints > 0 && now - lastFlushAt >= FLUSH_EVERY_MS);
 }
 
-/** A saved recording older than the TTL is gone. */
-export function isExpired(meta: { savedAt: number }, now: number): boolean {
-  return now - meta.savedAt > RECORDING_TTL_MS;
+/** A saved recording older than its TTL is gone: a day for an idle set-up, a week otherwise
+ *  (a meta without a status — a shape from before — keeps the week). */
+export function isExpired(meta: { savedAt: number; status?: RecordingState['status'] }, now: number): boolean {
+  const ttl = meta.status === 'idle' ? IDLE_SETUP_TTL_MS : RECORDING_TTL_MS;
+  return now - meta.savedAt > ttl;
 }
 
 export function hasIndexedDb(): boolean {
@@ -126,7 +131,8 @@ export function openRecordingStore(): RecordingStore | null {
     async findUnfinished(profileId, now) {
       const db = await dbp;
       const all = (await tx<RecordingMeta[]>(db, 'recordings', 'readonly', s => s.getAll() as IDBRequest<RecordingMeta[]>)) ?? [];
-      const mine = all.filter(m => m.profileId === profileId && m.status !== 'idle' && !isExpired(m, now));
+      // An idle set-up is restored too (Program E): expiry, not status, decides — a day for idle.
+      const mine = all.filter(m => m.profileId === profileId && !isExpired(m, now));
       mine.sort((a, b) => b.savedAt - a.savedAt);
       return mine[0] ?? null;
     },

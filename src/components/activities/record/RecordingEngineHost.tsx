@@ -289,6 +289,9 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
 
   const start = useCallback(
     (type: ActivityType) => {
+      // Program E: a previous row (an idle set-up, "Choose another activity") goes — never an orphan.
+      const prev = stateRef.current;
+      if (prev) void store?.clear(prev.id).catch(() => undefined);
       const fresh = newRecording(newId(), profileId, type);
       flushedRef.current = 0;
       seqRef.current = 0;
@@ -297,7 +300,7 @@ export default function RecordingEngineHost({ profileId, restore, takePendingSta
       setLastTouchedAt(Date.now());
       persistMeta(fresh);
     },
-    [profileId, persistMeta]
+    [profileId, persistMeta, store]
   );
   const clear = useCallback(async () => {
     const s = stateRef.current;

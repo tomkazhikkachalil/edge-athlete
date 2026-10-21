@@ -152,6 +152,18 @@ export function activityTypesInGroup(group: ActivityGroup): ActivityType[] {
  *  indoor rides show none. */
 export const DISTANCE_OPTIONAL_TYPES: ReadonlySet<ActivityType> = new Set<ActivityType>(['elliptical', 'stair_climber', 'indoor_ride']);
 
+/**
+ * A GPS type's indoor twin (Program E, Oct 2026): the set-up offers "Doing
+ * this indoors? Switch to Treadmill" instead of a "no map" switch — a run
+ * that needs a typed distance IS a treadmill. Nothing else; a type without a
+ * twin offers no switch.
+ */
+export const INDOOR_TWIN: Readonly<Partial<Record<ActivityType, ActivityType>>> = { run: 'treadmill', ride: 'indoor_ride', open_water_swim: 'swim' };
+
+export function indoorTwin(type: ActivityType): ActivityType | null {
+  return INDOOR_TWIN[type] ?? null;
+}
+
 /** The types whose distance is walked or run — the only ones steps are estimated for. */
 export const STEP_TYPES: ReadonlySet<ActivityType> = new Set<ActivityType>(['walk', 'hike', 'run', 'trail_run', 'treadmill']);
 
