@@ -63,6 +63,7 @@ test('a pool swim keeps its effort, pool and stroke; the next swim pre-fills the
     const box = await form.locator('[data-effort="10"]').boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -84,7 +85,7 @@ test('a pool swim keeps its effort, pool and stroke; the next swim pre-fills the
     await expect(next.locator('[data-effort][aria-checked="true"]')).toHaveCount(0);
     await expect(next.locator('[data-finish-notes]')).toHaveValue('');
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');

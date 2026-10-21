@@ -42,6 +42,7 @@ test('yoga: style and heated before Start, Start in the viewport, the Finish sho
     await expect(sheet).toBeVisible();
     await expect(sheet.locator('[data-detail-field="style"] [data-detail-option="vinyasa"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(sheet.locator('[data-detail-field="heated"] [data-detail-option="true"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -114,6 +115,7 @@ test('elliptical: Details while recording — effort and a note — survive a re
     await expect(finish).toBeVisible();
     await expect(finish.locator('[data-finish-effort]')).toHaveAttribute('data-finish-effort', '6');
     await expect(finish.locator('[data-finish-notes]')).toHaveValue('Easy spin');
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });

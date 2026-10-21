@@ -44,6 +44,7 @@ test('a yoga session keeps its style, heat, class and effort; the next one pre-f
     await expect(form.locator('[data-detail-field="focus"]')).toHaveCount(0);
     await form.locator('[data-finish-more]').click();
     await form.locator('[data-detail-field="focus"] [data-detail-option="hips"]').click();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -64,7 +65,7 @@ test('a yoga session keeps its style, heat, class and effort; the next one pre-f
     await expect(next.locator('[data-detail-field="room_temp_c"] input')).toHaveValue('');
     await expect(next.locator('[data-effort][aria-checked="true"]')).toHaveCount(0);
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
@@ -90,7 +91,7 @@ test('F2 — a calm session: the style line under the clock, no distance tile, n
     await expect(page.locator('[data-record-pause]')).toBeVisible();
     await page.locator('[data-record-finish]').click();
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
   }

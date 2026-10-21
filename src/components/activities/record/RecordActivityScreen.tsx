@@ -29,7 +29,11 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '@/lib/activities/catalog'
 import type { ActivityPoint } from '@/lib/activities/types';
 import { defaultActivityName } from '@/lib/activities/normalize';
 import { readUnitPreference } from '@/lib/activities/format';
-import { elapsedS, recordingAnswers, recordsGpsFor, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
+import { elapsedS, recordingAnswers, recordsGpsFor, reviewOf, toRecordingWire, type RecordingState, type ReviewStep } from '@/lib/activities/record/recording';
+import { previewActivityPostStats } from '@/lib/activities/record/preview';
+import ActivityPostCard from '@/components/activities/ActivityPostCard';
+import { readFeedDefault } from '@/lib/posts/feed-memory';
+import { localDayKey } from '@/lib/calendar/grid';
 import { recordLayout, type LivePanel } from '@/lib/activities/record/layout';
 import { armBell } from '@/lib/activities/record/bell';
 import { detailLine, type Details } from '@/lib/activities/details';
@@ -142,6 +146,35 @@ export default function RecordActivityScreen() {
   }, [engine, state]);
 
   const dispatch = engine?.dispatch ?? (() => undefined);
+
+  // ── The finish flow's steps (Training fixes PR 6, Oct 21 2026) ────────────
+  // `review.step` on the recording is the truth; the URL mirrors it so Back
+  // and Forward move one step (this page has no Suspense boundary for
+  // useSearchParams — the window's own history does the job, as ?finish=1 above).
+  const finished = state?.status === 'finished';
+  const review = state ? reviewOf(state, readFeedDefault('activity')) : null;
+  const goStep = (next: ReviewStep) => {
+    dispatch({ type: 'setReview', review: { step: next } });
+    try { window.history.pushState(null, '', `?step=${next}`); } catch { /* best-effort mirror */ }
+  };
+  useEffect(() => {
+    if (!finished || !review) return;
+    // Landed finished (a reload, a return) with no step in the URL: mirror the recording's step without a history entry.
+    try {
+      const current = new URLSearchParams(window.location.search).get('step');
+      if (current !== review.step) window.history.replaceState(null, '', `?step=${review.step}`);
+    } catch { /* best-effort */ }
+    const onPop = () => {
+      try {
+        const step = new URLSearchParams(window.location.search).get('step');
+        if (step === 'details' || step === 'preview') dispatch({ type: 'setReview', review: { step } });
+      } catch { /* best-effort */ }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // The listener reads the URL; the recording's step changes through it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, review?.step]);
   // A10: the picker's "Strength training" opens the Workout's start screen (E2).
   // Workouts are the athlete's own (a guardian acting for an athlete records activities only).
   const ownWorkouts = !!user && (!targetProfileId || targetProfileId === user.id);
@@ -480,6 +513,29 @@ export default function RecordActivityScreen() {
           onDropFailed={dropFailed}
           initial={recordingAnswers(state)}
           timerFormat={state.timer?.spec.format ?? null}
+          step={reviewOf(state).step}
+          review={reviewOf(state, readFeedDefault('activity'))}
+          onReview={next => dispatch({ type: 'setReview', review: next })}
+          onStep={goStep}
+          onAnswers={a => dispatch({ type: 'setAnswers', answers: a })}
+          onName={name => dispatch({ type: 'setName', name: name.trim() ? name : null })}
+          onDistance={m => dispatch({ type: 'setManualDistance', distanceM: m })}
+          initialDistanceM={state.manualDistanceM}
+          preview={
+            <ActivityPostCard
+              statsData={previewActivityPostStats({
+                state,
+                totals,
+                route: reviewRoute,
+                supervised: (activeProfile ?? profile)?.supervision_state === 'supervised',
+                name: state.name ?? defaultActivityName(state.type, new Date(state.startedAt ?? now).getHours()),
+                manualDistanceM: state.manualDistanceM,
+                effort: recordingAnswers(state).effort,
+                details: finishPayload(recordingAnswers(state)).details ?? {},
+                occurredOn: localDayKey(new Date(state.startedAt ?? now)),
+              })}
+            />
+          }
         />
       )}
       {detailsOpen && state && answers && (state.status === 'recording' || state.status === 'paused') && (
@@ -487,9 +543,10 @@ export default function RecordActivityScreen() {
       )}
       <ConfirmModal
         isOpen={discardOpen}
-        title="Discard this recording?"
-        message="Nothing was saved. The recording and its photos will be gone from this phone."
-        confirmText="Discard"
+        title={finished ? 'Delete this activity?' : 'Discard this recording?'}
+        message={finished ? "This can't be undone. The recording and its photos are deleted from this phone — nothing was saved." : 'Nothing was saved. The recording and its photos will be gone from this phone.'}
+        confirmText={finished ? 'Delete' : 'Discard'}
+        cancelText="Keep it"
         onConfirm={() => void discard()}
         onCancel={() => setDiscardOpen(false)}
         overlayZClass="z-[70]"
