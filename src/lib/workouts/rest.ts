@@ -26,6 +26,56 @@ export interface RestTimer {
 export const REST_IDLE: RestTimer = { startedAt: null, heldS: null };
 export const REST_TARGET_PRESETS_S = [30, 60, 90, 120, 180] as const;
 
+// ── A custom rest time, saved as a preset (Training fixes PR 3, Oct 21 2026) ──
+// Tom: "Let the user set their own rest time, not only the presets … a quick
+// scroll picker for minutes and seconds, and save the chosen time as a preset
+// they can reuse." The built-in five stay; the saved ones are a device list
+// (timer-prefs.ts) read through these rules.
+
+/** The most saved presets kept (the sheet is a 3-column grid; 5 built-in + 6 saved + Off + Custom = 13 chips). */
+export const MAX_SAVED_REST_PRESETS = 6;
+export const MIN_REST_PRESET_S = 5;
+export const MAX_REST_PRESET_S = 60 * 60;
+
+/** A whole number of seconds a rest target may be: 5 s to an hour. */
+export function isValidRestSeconds(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= MIN_REST_PRESET_S && v <= MAX_REST_PRESET_S;
+}
+
+/** A stored value → the valid, deduplicated seconds it names, at most `max`. */
+export function parseRestPresets(raw: unknown, max = MAX_SAVED_REST_PRESETS): number[] {
+  if (!Array.isArray(raw)) return [];
+  const out: number[] = [];
+  for (const v of raw) if (isValidRestSeconds(v) && !out.includes(v)) out.push(v);
+  return out.slice(0, max);
+}
+
+/** Save a time: the newest first, no duplicate, never one of the built-in five, at most `max`. */
+export function addRestPreset(saved: readonly number[], seconds: number, max = MAX_SAVED_REST_PRESETS): number[] {
+  if (!isValidRestSeconds(seconds) || (REST_TARGET_PRESETS_S as readonly number[]).includes(seconds)) return [...saved];
+  return [seconds, ...saved.filter(s => s !== seconds)].slice(0, max);
+}
+
+export function removeRestPreset(saved: readonly number[], seconds: number): number[] {
+  return saved.filter(s => s !== seconds);
+}
+
+/** The chips the sheet shows: built-in and saved together, ascending, no duplicate; `saved` says which carry a remove. */
+export function restPresetChips(saved: readonly number[]): Array<{ seconds: number; saved: boolean }> {
+  const builtIn = REST_TARGET_PRESETS_S as readonly number[];
+  const all = [...builtIn.map(s => ({ seconds: s, saved: false })), ...saved.filter(s => !builtIn.includes(s)).map(s => ({ seconds: s, saved: true }))];
+  return all.sort((a, b) => a.seconds - b.seconds);
+}
+
+/** The picker's two wheels from a number of seconds, and back. */
+export function splitRest(seconds: number): { minutes: number; seconds: number } {
+  const s = Math.max(0, Math.floor(seconds));
+  return { minutes: Math.floor(s / 60), seconds: s % 60 };
+}
+export function joinRest(minutes: number, seconds: number): number {
+  return Math.max(0, Math.floor(minutes)) * 60 + Math.max(0, Math.floor(seconds));
+}
+
 export function startRest(now: number): RestTimer {
   return { startedAt: now, heldS: null };
 }

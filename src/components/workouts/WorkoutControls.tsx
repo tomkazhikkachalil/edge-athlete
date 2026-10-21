@@ -1,14 +1,21 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer } from 'lucide-react';
+import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer, X } from 'lucide-react';
 import { useToast } from '../Toast';
+import NumberWheel from '@/components/golf/NumberWheel';
 import { haptic } from '@/lib/haptics';
 import { formatElapsed } from '@/lib/workouts/summary';
 import type { EntryExercise } from '@/lib/workouts/entries';
 import {
+  addRestPreset,
   describeTarget,
-  REST_TARGET_PRESETS_S,
+  isValidRestSeconds,
+  joinRest,
+  parseRestPresets,
+  removeRestPreset,
+  restPresetChips,
+  splitRest,
   restElapsedS,
   restTargetReached,
   startRest,
@@ -22,7 +29,7 @@ import {
   type SetTarget,
   type Stopwatch,
 } from '@/lib/workouts/rest';
-import { readRestTarget, writeRestTarget } from '@/lib/workouts/timer-prefs';
+import { readRestPresets, readRestTarget, writeRestPresets, writeRestTarget } from '@/lib/workouts/timer-prefs';
 
 // ── The bottom control bar (workout screen PR 4, Oct 12 2026) ───────────────
 // Tom: "a small control bar at the bottom of the workout screen with Rest …
@@ -37,6 +44,12 @@ import { readRestTarget, writeRestTarget } from '@/lib/workouts/timer-prefs';
 // the number brand, vibrates where the phone can (Android; iOS has no web
 // vibration) and shows one toast. Stopwatch: Start / Stop / Reset; "Save to
 // set" writes whole seconds into the target set's duration.
+//
+// A custom target (Training fixes PR 3, Oct 21 2026): the target sheet's
+// Custom opens two wheels — minutes, and seconds by five (the golf
+// NumberWheel with a `step`) — Use sets it, Save as preset keeps it on the
+// device beside the built-in five (rest.ts rules, timer-prefs.ts storage;
+// a saved chip carries a remove).
 //
 // The bar takes its own space (Tom, Oct 13 2026 — the open stopwatch covered
 // the Add buttons at the foot of the list): its MEASURED height is published
@@ -78,6 +91,11 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   const { showNotice } = useToast();
   const [targetS, setTargetS] = useState<number | null>(() => readRestTarget());
   const [targetSheet, setTargetSheet] = useState(false);
+  const [savedPresets, setSavedPresets] = useState<number[]>(() => readRestPresets(parseRestPresets));
+  const [custom, setCustom] = useState(false);
+  const [customMin, setCustomMin] = useState(0);
+  const [customSec, setCustomSec] = useState(0);
+  const customS = joinRest(customMin, customSec);
   const [stopwatchOpen, setStopwatchOpen] = useState(false);
   const [pickTarget, setPickTarget] = useState(false);
   const [chosenTarget, setChosenTarget] = useState<SetTarget | null>(null);
@@ -119,6 +137,23 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
     writeRestTarget(s);
     setTargetS(s);
     setTargetSheet(false);
+    setCustom(false);
+  };
+  const openCustom = () => {
+    const from = splitRest(targetS ?? 90);
+    setCustomMin(Math.min(10, from.minutes));
+    setCustomSec(from.seconds - (from.seconds % 5));
+    setCustom(true);
+  };
+  const savePreset = (s: number) => {
+    const next = addRestPreset(savedPresets, s);
+    writeRestPresets(next);
+    setSavedPresets(next);
+  };
+  const removePreset = (s: number) => {
+    const next = removeRestPreset(savedPresets, s);
+    writeRestPresets(next);
+    setSavedPresets(next);
   };
 
   return (
@@ -201,19 +236,68 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
       {targetSheet && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40" role="dialog" aria-modal="true" aria-label="Rest target">
           <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={() => setTargetSheet(false)} />
-          <div className="relative w-full rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-rest-target-sheet="">
+          <div className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-rest-target-sheet={custom ? 'custom' : 'presets'}>
             <p className="text-base font-bold text-primary">Rest target</p>
             <p className="mt-1 text-xs text-secondary">The number turns purple when the rest is up, with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice.</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {REST_TARGET_PRESETS_S.map(s => (
-                <button key={s} type="button" onClick={() => setTarget(s)} aria-pressed={targetS === s} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === s ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset={s}>
-                  {formatElapsed(s)}
+            {custom ? (
+              <div className="mt-3" data-workout-rest-custom-panel="">
+                <div className="flex items-start justify-center gap-3">
+                  <NumberWheel label="Minutes" min={0} max={10} value={customMin} defaultValue={1} onChange={setCustomMin} tone="brand" />
+                  <NumberWheel label="Seconds" min={0} max={55} step={5} value={customSec} defaultValue={30} onChange={setCustomSec} tone="brand" format={v => String(v).padStart(2, '0')} />
+                </div>
+                <p className="mt-2 text-center text-sm text-secondary" data-workout-rest-custom-value={customS}>
+                  {isValidRestSeconds(customS) ? `Rest ${formatElapsed(customS)}` : 'At least 5 seconds'}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => setCustom(false)} className="ea-interactive min-h-[48px] rounded-lg border border-border-strong px-4 text-sm font-semibold text-secondary" data-workout-rest-custom-back="">
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isValidRestSeconds(customS)) return;
+                      savePreset(customS);
+                      setTarget(customS);
+                    }}
+                    disabled={!isValidRestSeconds(customS)}
+                    className="ea-interactive min-h-[48px] flex-1 rounded-lg border border-border-strong px-3 text-sm font-semibold text-primary disabled:opacity-50"
+                    data-workout-rest-custom-save=""
+                  >
+                    Save as preset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { if (isValidRestSeconds(customS)) setTarget(customS); }}
+                    disabled={!isValidRestSeconds(customS)}
+                    className="ea-cta min-h-[48px] flex-1 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
+                    data-workout-rest-custom-use=""
+                  >
+                    Use
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {restPresetChips(savedPresets).map(chip => (
+                  <div key={chip.seconds} className="relative">
+                    <button type="button" onClick={() => setTarget(chip.seconds)} aria-pressed={targetS === chip.seconds} className={`min-h-[48px] w-full rounded-lg text-sm font-semibold ${targetS === chip.seconds ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset={chip.seconds} data-workout-rest-preset-saved={chip.saved ? 'true' : undefined}>
+                      {formatElapsed(chip.seconds)}
+                    </button>
+                    {chip.saved && (
+                      <button type="button" onClick={() => removePreset(chip.seconds)} className="ea-interactive absolute -right-1 -top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-secondary" aria-label={`Remove the ${formatElapsed(chip.seconds)} preset`} data-workout-rest-preset-remove={chip.seconds}>
+                        <X className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={() => setTarget(null)} aria-pressed={targetS === null} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === null ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset="off">
+                  Off
                 </button>
-              ))}
-              <button type="button" onClick={() => setTarget(null)} aria-pressed={targetS === null} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === null ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset="off">
-                Off
-              </button>
-            </div>
+                <button type="button" onClick={openCustom} className="ea-interactive min-h-[48px] rounded-lg border border-dashed border-border-strong text-sm font-semibold text-primary" data-workout-rest-custom="">
+                  Custom…
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

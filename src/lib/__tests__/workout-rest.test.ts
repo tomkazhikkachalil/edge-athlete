@@ -124,3 +124,61 @@ describe('the screen', () => {
     expect(css).toMatch(/\.ea-bar-clearance \{\s*padding-bottom: calc\(var\(--ea-workout-bar-h, 11rem\) \+ 1rem\);\s*transition: padding-bottom 200ms ease;/);
   });
 });
+
+// ── A custom rest time, saved as a preset (Training fixes PR 3, Oct 21 2026) ──
+import { addRestPreset, isValidRestSeconds, joinRest, MAX_SAVED_REST_PRESETS, parseRestPresets, removeRestPreset, REST_TARGET_PRESETS_S, restPresetChips, splitRest } from '../workouts/rest';
+import { readRestPresets, REST_PRESETS_KEY, writeRestPresets } from '../workouts/timer-prefs';
+
+describe('custom rest presets', () => {
+  it('a valid rest is a whole number of seconds from 5 s to an hour', () => {
+    expect(isValidRestSeconds(5)).toBe(true);
+    expect(isValidRestSeconds(3600)).toBe(true);
+    expect(isValidRestSeconds(4)).toBe(false);
+    expect(isValidRestSeconds(3601)).toBe(false);
+    expect(isValidRestSeconds(7.5)).toBe(false);
+    expect(isValidRestSeconds('90')).toBe(false);
+  });
+  it('parses a stored list: valid, deduplicated, capped; garbage is empty', () => {
+    expect(parseRestPresets([75, 75, 4, 'x', 105, 3601])).toEqual([75, 105]);
+    expect(parseRestPresets(null)).toEqual([]);
+    expect(parseRestPresets('[75]')).toEqual([]);
+    expect(parseRestPresets([5, 10, 15, 20, 25, 35, 40, 45])).toHaveLength(MAX_SAVED_REST_PRESETS);
+  });
+  it('save puts the newest first without duplicates and never a built-in; remove drops it', () => {
+    expect(addRestPreset([75], 105)).toEqual([105, 75]);
+    expect(addRestPreset([105, 75], 75)).toEqual([75, 105]);
+    expect(addRestPreset([75], 90)).toEqual([75]);
+    expect(addRestPreset([75], 4)).toEqual([75]);
+    expect(addRestPreset([5, 10, 15, 20, 25, 35], 40)).toEqual([40, 5, 10, 15, 20, 25]);
+    expect(removeRestPreset([105, 75], 75)).toEqual([105]);
+  });
+  it('the chips are the built-in five and the saved ones together, ascending; only the saved carry a remove', () => {
+    const chips = restPresetChips([105, 75, 60]);
+    expect(chips.map(c => c.seconds)).toEqual([30, 60, 75, 90, 105, 120, 180]);
+    expect(chips.filter(c => c.saved).map(c => c.seconds)).toEqual([75, 105]);
+    expect(restPresetChips([]).map(c => c.seconds)).toEqual([...REST_TARGET_PRESETS_S]);
+  });
+  it('the two wheels split and join a time', () => {
+    expect(splitRest(105)).toEqual({ minutes: 1, seconds: 45 });
+    expect(joinRest(1, 45)).toBe(105);
+    expect(joinRest(0, 0)).toBe(0);
+  });
+  it('the device list is a JSON array under its own key, fail-open', () => {
+    expect(REST_PRESETS_KEY).toBe('ea:workout:rest-presets:v1');
+    // No localStorage in node: the reader answers [] and the writer is silent.
+    expect(readRestPresets(parseRestPresets)).toEqual([]);
+    expect(() => writeRestPresets([75])).not.toThrow();
+  });
+  it('the sheet: the chips, Off, Custom; the two wheels (seconds by five); Use and Save as preset; a saved chip removes', () => {
+    const src = read('src/components/workouts/WorkoutControls.tsx');
+    expect(src).toMatch(/restPresetChips\(savedPresets\)\.map/);
+    expect(src).toMatch(/data-workout-rest-preset="off"/);
+    expect(src).toMatch(/data-workout-rest-custom=""/);
+    expect(src).toMatch(/<NumberWheel label="Minutes" min=\{0\} max=\{10\}/);
+    expect(src).toMatch(/<NumberWheel label="Seconds" min=\{0\} max=\{55\} step=\{5\}/);
+    expect(src).toMatch(/data-workout-rest-custom-use=""/);
+    expect(src).toMatch(/data-workout-rest-custom-save=""/);
+    expect(src).toMatch(/data-workout-rest-preset-remove=\{chip\.seconds\}/);
+    expect(src).not.toMatch(/REST_TARGET_PRESETS_S\.map/);
+  });
+});
