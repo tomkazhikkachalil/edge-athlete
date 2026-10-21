@@ -46,6 +46,8 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     }
     const shared = await api.post('/api/posts', { data: { postType: 'general', caption: 'Hills!', visibility: 'public', stats_data: { type: 'activity', activity_id: ids[1] } } });
     expect(shared.status(), await readErrorBody(shared)).toBeLessThan(300);
+    const sharedJson = (await shared.json()) as { post?: { id?: string }; id?: string };
+    const sharedPostId = (sharedJson.post?.id ?? sharedJson.id) as string;
     // A shared activity is a TRAINING post — it lists in Training like a shared workout.
     const { data: post } = await admin.from('posts').select('post_category').eq('profile_id', a.id).single();
     expect(post?.post_category).toBe('training');
@@ -67,8 +69,16 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     await expect(pageB.getByRole('img', { name: 'Active 1 of 7 days this week' })).toBeVisible();
     await expect(pageB.locator('[data-training-recent-sessions] [data-session-kind="activity"]')).toHaveCount(2);
     await expect(pageB.locator('[data-training-recent-sessions]')).toContainText('Hill repeats');
-    // …and the shared one sits under Training Activity.
-    await expect(pageB.locator(`[data-activity-post-card="${ids[1]}"]`).first()).toBeVisible();
+    // …and the shared one sits under Training Activity — as a tile (the Stats /
+    // Media grid, Training fixes PR 2); a tap opens the post with its card.
+    const grid = pageB.locator('[data-training-activity-grid]');
+    await expect(grid).toBeVisible({ timeout: 20_000 });
+    await expect(grid.locator(`[data-post-id="${sharedPostId}"]`)).toBeVisible();
+    await grid.locator(`[data-post-id="${sharedPostId}"]`).click();
+    await expect(pageB.locator('[data-post-detail]')).toBeVisible({ timeout: 20_000 });
+    await expect(pageB.locator(`[data-post-detail] [data-activity-post-card="${ids[1]}"]`).first()).toBeVisible();
+    await pageB.keyboard.press('Escape');
+    await expect(pageB.locator('[data-post-detail]')).toHaveCount(0);
     // The same on /athlete/[id].
     await pageB.goto(`/athlete/${a.id}?tab=activities`);
     await expect(pageB.locator('[data-activity-item]')).toHaveCount(2, { timeout: 20_000 });

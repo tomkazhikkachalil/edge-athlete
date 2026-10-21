@@ -138,7 +138,9 @@ export async function GET(request: NextRequest) {
           id,
           media_url,
           media_type,
-          display_order
+          display_order,
+          thumbnail_url,
+          blur_hash
         ),
         likes:post_likes (
           profile_id
