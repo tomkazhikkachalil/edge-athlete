@@ -5,6 +5,7 @@ import { validateEntriesPayload } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
 import { entriesWriteIsStale, entriesWriteStampsActivity } from '@/lib/workouts/entries-stale';
 import { reportRouteError } from '@/lib/observability/report';
+import { refreshWorkoutPostStats } from '@/lib/workouts/post-stats-server';
 
 /**
  * PUT /api/workouts/[id]/entries — owner only.
@@ -57,7 +58,7 @@ export async function PUT(
 
     const { data: session, error: fetchError } = await supabase
       .from('workout_sessions')
-      .select('profile_id, status, last_activity_at')
+      .select('profile_id, status, last_activity_at, post_id')
       .eq('id', id)
       .single();
 
@@ -82,7 +83,11 @@ export async function PUT(
     });
     if (!rpcError) {
       const result = (replaced ?? {}) as { ok?: boolean; stale?: boolean; error?: string };
-      if (result.ok) return NextResponse.json({ ok: true, savedAt });
+      if (result.ok) {
+        // Training fixes PR 5 (Oct 21 2026): a posted workout's summary follows its sets.
+        if (session.status === 'completed' && session.post_id) await refreshWorkoutPostStats(getSupabaseAdmin(), id);
+        return NextResponse.json({ ok: true, savedAt });
+      }
       if (result.stale) return NextResponse.json({ stale: true, savedAt });
       if (result.error === 'not_found') return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
       reportRouteError('Entries replace: unexpected RPC result:', result);
@@ -174,6 +179,7 @@ export async function PUT(
         .eq('id', id);
     }
 
+    if (session.status === 'completed' && session.post_id) await refreshWorkoutPostStats(getSupabaseAdmin(), id);
     return NextResponse.json({ ok: true, savedAt });
   } catch (error) {
     if (error instanceof Response) return error;
