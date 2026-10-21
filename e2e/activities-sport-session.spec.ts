@@ -35,13 +35,14 @@ test('a soccer practice: saved with its sport, read back as "Soccer · Practice"
     const page = await ctx.newPage();
     await sessionToFinish(page);
     // Never saved without its sport.
-    await expect(page.locator('[data-record-save]')).toBeDisabled();
+    await expect(page.locator('[data-record-continue]')).toBeDisabled();
     await expect(page.locator('[data-record-sport-needed]')).toBeVisible();
     const form = page.locator('[data-finish-details="sport_session"]');
     await form.locator('[data-detail-field="sport"] [data-detail-option="soccer"]').click();
     await form.locator('[data-detail-field="session_kind"] [data-detail-option="practice"]').click();
     await form.locator('[data-detail-field="minutes_played"] input').fill('60');
     await form.locator('[data-effort="6"]').click();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();
@@ -63,7 +64,7 @@ test('a soccer practice: saved with its sport, read back as "Soccer · Practice"
     await expect(next.locator('[data-detail-field="sport"] [data-detail-option="soccer"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
     await expect(next.locator('[data-detail-field="minutes_played"] input')).toHaveValue('');
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
@@ -85,7 +86,7 @@ test('"Map my movement" draws a route for a game @mobile', async ({ browser }) =
     await expect(page.locator('[data-record-distance]')).toBeVisible();
     await page.locator('[data-record-finish]').click();
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
     await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
@@ -154,6 +155,7 @@ test('F4 — the sport and the kind are set up before Start; the header says "So
     const form = page.locator('[data-finish-details="sport_session"]');
     await expect(form.locator('[data-detail-field="sport"] [data-detail-option="soccer"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-record-sport-needed]')).toHaveCount(0);
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();

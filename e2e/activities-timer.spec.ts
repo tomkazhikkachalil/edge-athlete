@@ -49,6 +49,7 @@ test('a HIIT intervals timer marks its rounds; Recent shows HIIT first @mobile',
 
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -82,6 +83,7 @@ test('an elliptical saves without a distance @mobile', async ({ browser }) => {
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     await expect(page.getByText('Distance (optional)')).toBeVisible();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await expect(page.locator('[data-record-save]')).toBeEnabled();
     await page.locator('[data-record-save]').click();
@@ -127,7 +129,7 @@ test('martial arts arms Rounds 3 × 3:00 / 1:00 and asks the discipline before S
     await expect(page.locator('[data-record-timer-setup]')).toBeVisible();
     await page.locator('[data-record-finish]').click();
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
   } finally {
     await ctx.close();
   }
