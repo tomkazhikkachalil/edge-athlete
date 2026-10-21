@@ -256,6 +256,10 @@ export async function POST(request: NextRequest) {
 
     if (body.mode === 'live') {
       // Malformed requests fail before any state checks
+      // Program E2: the start screen decides the clock BEFORE the row exists (260's column).
+      if (body.timed !== undefined && typeof body.timed !== 'boolean') {
+        return NextResponse.json({ error: 'timed must be a boolean' }, { status: 400 });
+      }
       if (body.routineId !== undefined && body.eventId !== undefined) {
         return NextResponse.json(
           { error: 'Provide routineId or eventId, not both' },
@@ -357,6 +361,7 @@ export async function POST(request: NextRequest) {
           source: 'live',
           started_at: now,
           last_activity_at: now,
+          ...(typeof body.timed === 'boolean' ? { timed: body.timed } : {}),
         })
         .select()
         .single();
