@@ -29,7 +29,13 @@ import { ACTIVITY_TYPE_DEFS, type ActivityType } from '@/lib/activities/catalog'
 import type { ActivityPoint } from '@/lib/activities/types';
 import { defaultActivityName } from '@/lib/activities/normalize';
 import { readUnitPreference } from '@/lib/activities/format';
-import { elapsedS, recordsGpsFor, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
+import { elapsedS, recordingAnswers, recordsGpsFor, toRecordingWire, type RecordingState } from '@/lib/activities/record/recording';
+import { recordLayout, type LivePanel } from '@/lib/activities/record/layout';
+import { armBell } from '@/lib/activities/record/bell';
+import { detailLine, type Details } from '@/lib/activities/details';
+import { unitSystemOf } from '@/lib/activities/units';
+import SetupCard from './SetupCard';
+import DetailsSheet from './DetailsSheet';
 import { hasWakeLock } from '@/lib/device/wake-lock';
 import { queryGeoPermission } from '@/lib/activities/record/geolocation';
 import type { SegmentKind } from '@/lib/activities/segments';
@@ -44,7 +50,6 @@ import ClimbLog from '@/components/activities/ClimbLog';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import StartWorkoutSheet from '@/components/workouts/StartWorkoutSheet';
 import { finishPayload } from '@/components/activities/FinishDetailsForm';
-import type { Details } from '@/lib/activities/details';
 import RecorderPhotos from './RecorderPhotos';
 import FinishSheet, { type FinishDetails } from './FinishSheet';
 import { postActivity } from '@/lib/activities/share-client';
@@ -84,6 +89,8 @@ export default function RecordActivityScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [geoPermission, setGeoPermission] = useState<PermissionState | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Program E: the Details sheet (effort, notes, the type's questions) while recording.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // The recorder is mid-start: the engine chunk is loading (a first start).
   // Cleared by the handlers that empty the state (Discard, "Choose another").
   const [startingType, setStartingType] = useState<ActivityType | null>(null);
@@ -236,26 +243,32 @@ export default function RecordActivityScreen() {
   const accountVisibility = (activeProfile ?? profile)?.visibility ?? null;
   const gapNotice = engine?.gapNotice ?? null;
 
-  // The Finish's starting answers: this type's last CHOICES, read once per
-  // review from the server (so they follow the athlete across devices).
-  const finishedType = state?.status === 'finished' ? state.type : null;
-  const [prefill, setPrefill] = useState<Details | null>(null);
+  // The last session's CHOICES land in the recording ONCE, as soon as it
+  // exists (Program E — the set-up card shows them pre-chosen; until Oct 20
+  // 2026 they arrived only at the Finish). Read from the server so they
+  // follow the athlete across devices; a failure still marks the recording
+  // prefilled (with nothing) so nothing asks twice.
+  const prefillFor = state && !state.prefilled ? state.id : null;
+  const prefillType = state?.type ?? null;
   useEffect(() => {
-    if (!finishedType) return;
+    if (!prefillFor || !prefillType || !engine) return;
     let cancelled = false;
-    const q = new URLSearchParams({ type: finishedType, ...(targetProfileId ? { targetProfileId } : {}) });
+    const q = new URLSearchParams({ type: prefillType, ...(targetProfileId ? { targetProfileId } : {}) });
     fetch(`/api/activities/last-details?${q}`, { credentials: 'include' })
       .then(r => (r.ok ? r.json() : { details: {} }))
       .then((j: { details?: Details }) => {
-        if (!cancelled) setPrefill(j.details ?? {});
+        if (!cancelled) engine.dispatch({ type: 'prefill', details: j.details ?? {} });
       })
       .catch(() => {
-        if (!cancelled) setPrefill({});
+        if (!cancelled) engine.dispatch({ type: 'prefill', details: {} });
       });
     return () => {
       cancelled = true;
     };
-  }, [finishedType, targetProfileId]);
+  }, [prefillFor, prefillType, targetProfileId, engine]);
+  const layout = state ? recordLayout(state.type) : null;
+  const answers = state ? recordingAnswers(state) : null;
+  const setupLine = state && answers ? detailLine(state.type, answers.details, unitSystemOf(unit)) : null;
 
   if (!initialAuthCheckComplete || !user) return null;
 
@@ -266,7 +279,10 @@ export default function RecordActivityScreen() {
         <button type="button" onClick={() => backOr(router, '/athlete?tab=activities')} className="ea-icon-btn inline-flex items-center justify-center text-primary" aria-label="Back" data-record-back="">
           <i className="fas fa-arrow-left text-lg" aria-hidden="true"></i>
         </button>
-        <h1 className="flex-1 truncate text-base font-bold text-primary">{def ? `Record · ${def.label}` : 'Record an activity'}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="truncate text-base font-bold text-primary">{def ? `Record · ${def.label}` : 'Record an activity'}</h1>
+          {setupLine && state?.status !== 'finished' && <p className="truncate text-xs text-secondary" data-record-setup-line="">{setupLine}</p>}
+        </div>
         {running && gpsType && engine && (
           <span className="text-xs text-muted" aria-live="polite" data-record-gps-state={totals?.gpsSettling ? 'settling' : 'tracking'}>
             {totals?.gpsSettling ? 'Finding GPS…' : engine.wakeHeld ? 'Screen stays on' : hasWakeLock() ? '' : 'Keep your screen on'}
@@ -296,44 +312,25 @@ export default function RecordActivityScreen() {
 
       {state && def && totals && engine && (
         <main className="mx-auto max-w-xl">
-          {state.status === 'idle' && (
-            <div className="mx-4 mt-4 rounded-xl border border-border bg-surface p-4 text-sm text-secondary" data-record-ready="">
-              {def.recording === 'gps_optional' ? (
-                // A9: the sport session keeps its toggle whichever way it is set (it can be turned back off).
-                <>
-                  <p className="font-semibold text-primary">A timer runs; you pick the sport when you finish.</p>
-                  <label className="mt-2 flex min-h-[44px] items-center justify-between gap-3" data-record-map-toggle="">
-                    <span>
-                      <span className="block text-primary font-medium">Map my movement</span>
-                      <span className="block text-xs text-muted">Distance and a map of where you went — a run-heavy practice, a long game.</span>
-                    </span>
-                    <input type="checkbox" className="h-6 w-6 shrink-0" checked={state.mapOn === true} onChange={e => dispatch({ type: 'setMap', on: e.target.checked })} />
-                  </label>
-                  {gpsType && <p className="mt-1">{GPS_NOTE}{' '}{geoNote}</p>}
-                </>
-              ) : gpsType ? (
-                <>
-                  <p className="font-semibold text-primary">Ready when you are.</p>
-                  <p className="mt-1">
-                    {GPS_NOTE}{' '}{geoNote}
-                  </p>
-                </>
-              ) : def.recording === 'timer' ? (
-                <p>A timer runs; you type the distance when you finish.</p>
-              ) : (
-                <p>A timer runs for this one.</p>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setStartingType(null);
-                  void engine.clear();
-                }}
-                className="mt-2 text-sm font-medium text-brand underline"
-              >
-                Choose another activity
-              </button>
-            </div>
+          {state.status === 'idle' && layout && (
+            <SetupCard
+              state={state}
+              layout={layout}
+              unit={unit}
+              gpsType={gpsType}
+              gpsNote={GPS_NOTE}
+              geoNote={geoNote}
+              dispatch={dispatch}
+              onChooseAnother={() => {
+                setStartingType(null);
+                void engine.clear();
+              }}
+              onIndoorTwin={twin => {
+                // The engine's start clears this set-up's row first (E1a).
+                setStartingType(twin);
+                rec.start(twin);
+              }}
+            />
           )}
           {gapNotice && state.status !== 'finished' && (
             <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100" role="status" data-record-gap-note={gapNotice.seconds}>
@@ -345,63 +342,103 @@ export default function RecordActivityScreen() {
               </button>
             </div>
           )}
-          {gpsType && state.status !== 'idle' && (
-            <LiveRouteMap
-              points={drawnRoute}
-              startedAt={state.startedAt}
-              segments={state.segments}
-              openSegmentFromS={state.openSegmentFromS}
-              photos={state.photos.map(p => ({ localId: p.localId, atS: p.atS }))}
-              accuracy={engine.lastAccuracy}
-              gaps={state.gaps}
-            />
-          )}
-          <div className="mt-4">
-            <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} />
-          </div>
-          {state.type === 'climb' && (state.status === 'recording' || state.status === 'paused') && (
-            // A8: each climb is logged as it happens — in the stored recording at once.
-            <div className="mx-4 mt-4 rounded-xl border border-border bg-surface p-4" data-record-climbs="">
-              <ClimbLog
-                scale={state.climbScale ?? null}
-                climbs={state.climbs ?? []}
-                onScale={scale => dispatch({ type: 'climbScale', scale })}
-                onAdd={climb => dispatch({ type: 'climbLogged', now: Date.now(), climb })}
-                onEdit={(index, climb) => dispatch({ type: 'climbEdited', index, climb })}
-                onRemove={index => dispatch({ type: 'climbRemoved', index })}
-              />
-            </div>
-          )}
-          {(state.status === 'recording' || state.status === 'paused') && (
-            <RoundTimerPanel
-              state={state}
-              wakeHeld={engine.wakeHeld}
-              onStart={spec => dispatch({ type: 'timerStart', now: Date.now(), spec })}
-              onStop={() => dispatch({ type: 'timerStop', now: Date.now() })}
-              onAmrapTap={() => dispatch({ type: 'amrapTap', now: Date.now() })}
-            />
-          )}
-          {state.status !== 'idle' && (
-            <div className="mt-4">
-              <RecorderPhotos photos={state.photos} previews={engine.previews} disabled={state.status === 'finished'} onFiles={files => engine.addFiles(files)} onRemove={engine.removePhoto} onRetry={engine.retryPhoto} />
-            </div>
-          )}
-          {state.segments.length > 0 && (
-            <ul className="mx-4 mt-4 space-y-1 text-sm" data-record-segments={state.segments.length}>
-              {state.segments.map(seg => (
-                <li key={seg.id} className="flex justify-between rounded-lg bg-surface-muted px-3 py-2 text-secondary">
-                  <span className="font-medium text-primary">{seg.label ?? seg.kind.charAt(0).toUpperCase() + seg.kind.slice(1)}</span>
-                  <span className="tabular-nums">{Math.floor(seg.from_s / 60)}:{String(seg.from_s % 60).padStart(2, '0')} – {Math.floor(seg.to_s / 60)}:{String(seg.to_s % 60).padStart(2, '0')}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {layout && state.status !== 'idle' && layout.live.map((panel: LivePanel) => {
+            const live = state.status === 'recording' || state.status === 'paused';
+            switch (panel) {
+              case 'map':
+                return gpsType ? (
+                  <LiveRouteMap
+                    key="map"
+                    points={drawnRoute}
+                    startedAt={state.startedAt}
+                    segments={state.segments}
+                    openSegmentFromS={state.openSegmentFromS}
+                    photos={state.photos.map(p => ({ localId: p.localId, atS: p.atS }))}
+                    accuracy={engine.lastAccuracy}
+                    gaps={state.gaps}
+                  />
+                ) : null;
+              case 'stats':
+                return (
+                  <div key="stats" className="mt-4">
+                    <LiveStats type={state.type} totals={totals} unit={unit} gps={gpsType ? { status: engine.geoStatus, accuracy: engine.lastAccuracy, stale } : null} />
+                  </div>
+                );
+              case 'climbs':
+                return state.type === 'climb' && live ? (
+                  // A8: each climb is logged as it happens — in the stored recording at once.
+                  <div key="climbs" className="mx-4 mt-4 rounded-xl border border-border bg-surface p-4" data-record-climbs="">
+                    <ClimbLog
+                      scale={state.climbScale ?? null}
+                      climbs={state.climbs ?? []}
+                      onScale={scale => dispatch({ type: 'climbScale', scale })}
+                      onAdd={climb => dispatch({ type: 'climbLogged', now: Date.now(), climb })}
+                      onEdit={(index, climb) => dispatch({ type: 'climbEdited', index, climb })}
+                      onRemove={index => dispatch({ type: 'climbRemoved', index })}
+                    />
+                  </div>
+                ) : null;
+              case 'timer':
+                return live ? (
+                  <RoundTimerPanel
+                    key="timer"
+                    state={state}
+                    wakeHeld={engine.wakeHeld}
+                    onStart={spec => dispatch({ type: 'timerStart', now: Date.now(), spec })}
+                    onStop={() => dispatch({ type: 'timerStop', now: Date.now() })}
+                    onAmrapTap={() => dispatch({ type: 'amrapTap', now: Date.now() })}
+                  />
+                ) : null;
+              case 'details':
+                // Program E: the answers, any time — the same questions the Finish asks.
+                return live ? (
+                  <div key="details" className="mx-4 mt-4">
+                    <button type="button" onClick={() => setDetailsOpen(true)} className="ea-interactive ea-surface flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 text-left text-sm" data-record-details-open="">
+                      <i className="fas fa-pen-to-square text-brand-fg" aria-hidden="true"></i>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-primary">Details</span>
+                        <span className="block truncate text-xs text-secondary" data-record-details-line="">
+                          {[answers?.effort ? `Effort ${answers.effort}` : null, setupLine, answers?.notes.trim() ? 'Notes' : null].filter(Boolean).join(' · ') || 'Add effort, notes and more'}
+                        </span>
+                      </span>
+                      <i className="fas fa-chevron-right text-xs text-faint" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                ) : null;
+              case 'photos':
+                return (
+                  <div key="photos" className="mt-4">
+                    <RecorderPhotos photos={state.photos} previews={engine.previews} disabled={state.status === 'finished'} onFiles={files => engine.addFiles(files)} onRemove={engine.removePhoto} onRetry={engine.retryPhoto} />
+                  </div>
+                );
+              case 'segments':
+                return state.segments.length > 0 ? (
+                  <ul key="segments" className="mx-4 mt-4 space-y-1 text-sm" data-record-segments={state.segments.length}>
+                    {state.segments.map(seg => (
+                      <li key={seg.id} className="flex justify-between rounded-lg bg-surface-muted px-3 py-2 text-secondary">
+                        <span className="font-medium text-primary">{seg.label ?? seg.kind.charAt(0).toUpperCase() + seg.kind.slice(1)}</span>
+                        <span className="tabular-nums">{Math.floor(seg.from_s / 60)}:{String(seg.from_s % 60).padStart(2, '0')} – {Math.floor(seg.to_s / 60)}:{String(seg.to_s % 60).padStart(2, '0')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null;
+              case 'lengths':
+                // F5 brings the counter; the reducer already keeps the count.
+                return null;
+              default:
+                return null;
+            }
+          })}
           {state.status !== 'finished' && (
             <RecorderControls
               status={state.status}
               openSegment={state.openSegmentFromS !== null ? Math.max(0, elapsedS(state, now) - state.openSegmentFromS) : null}
               busy={saving}
-              onStart={() => dispatch({ type: 'start', now: Date.now() })}
+              onStart={() => {
+                // An armed round timer runs from the first second; the bell is armed inside THIS tap (iOS needs the gesture).
+                if (state.timerArmed) armBell();
+                dispatch({ type: 'start', now: Date.now() });
+              }}
               onPause={() => dispatch({ type: 'pause', now: Date.now() })}
               onResume={() => dispatch({ type: 'resume', now: Date.now() })}
               onMark={onMark}
@@ -437,14 +474,12 @@ export default function RecordActivityScreen() {
           onSave={save}
           onDiscard={() => setDiscardOpen(true)}
           onDropFailed={dropFailed}
-          prefill={prefill}
+          initial={recordingAnswers(state)}
           timerFormat={state.timer?.spec.format ?? null}
-          initialDetails={
-            state.type === 'climb' && state.climbScale
-              ? { scale: state.climbScale, ...((state.climbs ?? []).length > 0 ? { climbs: state.climbs! } : {}) }
-              : null
-          }
         />
+      )}
+      {detailsOpen && state && answers && (state.status === 'recording' || state.status === 'paused') && (
+        <DetailsSheet type={state.type} value={answers} unit={unit} onChange={a => dispatch({ type: 'setAnswers', answers: a })} onClose={() => setDetailsOpen(false)} />
       )}
       {startWorkout.showStartSheet && (
         <StartWorkoutSheet

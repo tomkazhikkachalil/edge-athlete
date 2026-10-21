@@ -10,7 +10,6 @@ import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import FeedToggle from '@/components/posts/FeedToggle';
 import FinishDetailsForm, { type FinishFormValue } from '@/components/activities/FinishDetailsForm';
-import type { Details } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
 import type { TimerFormat } from '@/lib/activities/record/round-timer';
 
@@ -46,9 +45,8 @@ export default function FinishSheet({
   onSave,
   onDiscard,
   onDropFailed,
-  prefill,
+  initial,
   timerFormat = null,
-  initialDetails = null,
 }: {
   type: ActivityType;
   defaultName: string;
@@ -65,12 +63,11 @@ export default function FinishSheet({
   onSave: (details: FinishDetails) => void;
   onDiscard: () => void;
   onDropFailed: () => void;
-  /** The last answers of this type (choices only — /api/activities/last-details); null while loading. */
-  prefill: Details | null;
+  /** Program E: the recording's answers (recordingAnswers — the set-up's, the Details sheet's,
+   *  the last session's prefill, a climb's scale and climbs). Re-seeds while nothing was touched here. */
+  initial: FinishFormValue;
   /** The round timer's format, when one ran — a HIIT's "Format" starts there (A7). */
   timerFormat?: TimerFormat | null;
-  /** What the recording already holds (A8: a climbing session's scale and climbs). */
-  initialDetails?: Details | null;
 }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   const [name, setName] = useState(defaultName);
@@ -78,22 +75,23 @@ export default function FinishSheet({
   const [distUnit, setDistUnit] = useState<DistanceUnit | 'm'>(def.recording === 'timer' && (type === 'swim' || type === 'row') ? 'm' : unit);
   const [onFeed, setOnFeed] = useState(() => readFeedDefault('activity'));
   const [caption, setCaption] = useState('');
-  const [answers, setAnswers] = useState<FinishFormValue>((): FinishFormValue => ({
-    effort: null,
-    notes: '',
-    // The timer knows the format better than last time's answer does (Rounds reads as Intervals).
+  const seed = (from: FinishFormValue): FinishFormValue => ({
+    effort: from.effort,
+    notes: from.notes,
+    // The timer knows the format better than an earlier answer does (Rounds reads as Intervals).
     details: {
+      ...from.details,
       ...(type === 'hiit' && timerFormat ? { format: timerFormat === 'rounds' ? 'intervals' : String(timerFormat) } : {}),
-      ...(initialDetails ?? {}),
     },
-  }));
+  });
+  const [answers, setAnswers] = useState<FinishFormValue>(() => seed(initial));
   const sportMissing = type === 'sport_session' && typeof answers.details.sport !== 'string';
-  // The last answers land once, and only before the athlete touched a question.
+  // A late prefill (the last session's choices still arriving) lands only before the athlete touched a question.
   const [touched, setTouched] = useState(false);
-  const [seededFrom, setSeededFrom] = useState<Details | null>(null);
-  if (prefill && prefill !== seededFrom && !touched) {
-    setSeededFrom(prefill);
-    setAnswers(a => ({ ...a, details: { ...prefill, ...a.details } }));
+  const [seededFrom, setSeededFrom] = useState<FinishFormValue>(initial);
+  if (initial !== seededFrom && !touched) {
+    setSeededFrom(initial);
+    setAnswers(seed(initial));
   }
   const [shareAs, setShareAs] = useState<'training' | 'sport'>('training');
   const needsDistance = def.recording === 'timer';
