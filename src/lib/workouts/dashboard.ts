@@ -89,6 +89,8 @@ export function workoutToSession(session: ServerWorkoutSession): TrainingSession
     title: session.title || 'Workout',
     ...(distanceM !== null ? { distanceM } : {}),
     ...(typeof session.effort === 'number' ? { effort: session.effort } : {}),
+    // Unposted (Training fixes PR 4): the owner's Training says "Finish posting" on the row.
+    ...(session.status === 'completed' && !session.post_id && !session.share_decided_at ? { unposted: true } : {}),
   };
 }
 

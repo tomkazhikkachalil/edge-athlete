@@ -62,7 +62,10 @@ test('a workout hidden from the profile: absent for a visitor, 404 by id, still 
     id = (await started.json()).session.id as string;
     const done = await apiA.patch(`/api/workouts/${id}`, { data: { title: `QA Hidden ${Date.now()}`, finish: { endedAt: new Date().toISOString() } } });
     expect(done.ok(), await readErrorBody(done)).toBe(true);
-    // Finished = decided, visible to a visitor of a public account.
+    // Training fixes PR 4: a finished workout is UNPOSTED until Post or Done — a visitor's 404 — then visible on a public account.
+    expect((await apiB.get(`/api/workouts/${id}`)).status()).toBe(404);
+    const decided = await apiA.patch(`/api/workouts/${id}`, { data: { decided: true } });
+    expect(decided.ok(), await readErrorBody(decided)).toBe(true);
     expect((await apiB.get(`/api/workouts/${id}`)).status()).toBe(200);
     const listed = await apiB.get(`/api/workouts?profileId=${alpha.id}&limit=50`);
     expect(listed.ok(), await readErrorBody(listed)).toBe(true);

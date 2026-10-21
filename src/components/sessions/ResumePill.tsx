@@ -42,7 +42,8 @@ export default function ResumePill() {
 
   const signedIn = initialAuthCheckComplete && !!user;
   const candidates = recordingItems.length > 0 ? [...recordingItems, ...drafts.inProgress].sort(newestFirst) : drafts.inProgress;
-  const item = signedIn ? pickPillSession(candidates) : null;
+  // An unposted finished workout rides the pill when nothing is in progress (Training fixes PR 4).
+  const item = signedIn ? pickPillSession(candidates, drafts.drafts) : null;
   if (!item || !pillShows({ pathname, signedIn })) return null;
   const href = item.kind === 'recording' ? '/activities/record' : item.href;
   return <Pill item={item} onOpen={() => router.push(href)} distance={item.kind === 'recording' ? now => rec.engine?.totals(now, null)?.distanceM ?? null : undefined} />;

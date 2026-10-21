@@ -46,6 +46,11 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
       },
     });
     expect(res.ok(), await readErrorBody(res)).toBe(true);
+    // Training fixes PR 4: a finished workout is UNPOSTED until Post or Done — a seed decides (Done), or the
+    // reopen prompt ("A finished workout is waiting") covers every page of this and every later spec.
+    const seededId = (await res.json()).session.id as string;
+    const decided = await api.patch(`/api/workouts/${seededId}`, { data: { decided: true } });
+    expect(decided.ok(), await readErrorBody(decided)).toBe(true);
   } finally {
     await api.dispose();
   }

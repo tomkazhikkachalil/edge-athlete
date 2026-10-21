@@ -71,5 +71,5 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 47 | A sign-up or inquiry is a contact row, a mail to ONE setting, and a confirmation the person reads | `contacts-and-admin.md` |
 | 48 | The admin console is its own door: its own sign-in, its own cookie, the app session never grants it | `contacts-and-admin.md` |
 | 49 | Every number on the Overview is read from a SMALL table: counted once a night over an index, estimated where exact would be a scan, sampled where it is a probe | `platform-overview.md` |
-| 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
+| 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience (amended Oct 21 2026: a workout's Finish records, Post or Done decides) | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
 | 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |

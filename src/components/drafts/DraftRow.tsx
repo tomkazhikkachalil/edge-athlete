@@ -35,6 +35,20 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
   const { showError } = useToast();
   const [busy, setBusy] = useState<'finish' | 'discard' | 'post' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /** An unposted workout's Delete (Training fixes PR 4): the row IS the workout — it goes, sets and all. */
+  const [confirmDeleteWorkout, setConfirmDeleteWorkout] = useState(false);
+
+  const deleteWorkout = async () => {
+    setConfirmDeleteWorkout(false);
+    setBusy('discard');
+    try {
+      const res = await fetch(`/api/workouts/${item.id}`, { method: 'DELETE' });
+      if (!res.ok) { showError('Could not delete the workout', 'Please try again.'); return; }
+      onChanged();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const finishRound = async () => {
     setBusy('finish');
@@ -78,7 +92,7 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
   const date = when(item.lastActivityAt) || when(item.startedAt);
   const stateLine = item.state === 'in_progress'
     ? (item.kind === 'recording' ? 'Waiting on this phone' : item.kind === 'workout' ? 'Workout in progress' : item.isCreator ? 'Being played' : 'Being played · you are a player')
-    : (item.kind === 'workout' ? 'Finished' : 'Finished · not posted');
+    : (item.kind === 'workout' ? 'Finished · not posted' : 'Finished · not posted');
 
   return (
     <li className="flex flex-col sm:flex-row sm:items-center gap-3 p-4" data-draft-row={`${item.kind}:${item.id}`} data-draft-state={item.state}>
@@ -105,9 +119,13 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
             )}
           </>
         ) : item.kind === 'workout' ? (
-          // 269: a finished workout is decided at Finish and never listed here; the
-          // branch stays for a row an older list might still hand over.
-          <Link href={item.href} className={cta} data-draft-share="">Open</Link>
+          // Unposted (Training fixes PR 4): Finish posting opens the preview step; Delete asks first.
+          <>
+            <Link href={item.href} className={cta} data-draft-share="">Finish posting</Link>
+            <button type="button" className={btn} disabled={busy !== null} onClick={() => setConfirmDeleteWorkout(true)} data-draft-delete-workout="">
+              {busy === 'discard' ? 'Deleting…' : 'Delete'}
+            </button>
+          </>
         ) : (
           <>
             <Link href={item.href} className={btn} data-draft-review="">Review</Link>
@@ -117,6 +135,15 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
           </>
         )}
       </div>
+      <ConfirmModal
+        isOpen={confirmDeleteWorkout}
+        title="Delete this workout?"
+        message={COPY.FORMS.REOPEN_DISCARD_WORKOUT}
+        confirmText="Delete"
+        cancelText="Keep it"
+        onConfirm={() => void deleteWorkout()}
+        onCancel={() => setConfirmDeleteWorkout(false)}
+      />
       <ConfirmModal
         isOpen={confirmDiscard}
         title={COPY.FORMS.DELETE_ROUND_TITLE}
