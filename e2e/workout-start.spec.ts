@@ -46,7 +46,10 @@ test('Create → Start a workout is a start screen; nothing exists until Start; 
     await page.goBack();
     await expect(page).toHaveURL(/\/feed/, { timeout: 20_000 });
     await expect(page).not.toHaveURL(/\/app\/workout\/start/);
-    await page.waitForLoadState('networkidle').catch(() => undefined); // WebKit: let the restored feed settle before the next goto
+    // The feed asks about the live workout we just started (the reopen prompt — expected); dismiss it rather than
+    // wait for "networkidle", which production's feed never reaches (the Oct 21 prod probe hung here for 150 s).
+    const later = page.locator('[data-reopen-later]');
+    await later.waitFor({ state: 'visible', timeout: 8_000 }).then(() => later.click()).catch(() => undefined);
 
     // With an open session the start screen says so and Resume goes to it; the choice was remembered.
     await page.goto('/app/workout/start');
