@@ -81,3 +81,25 @@ export function writeSwipeHintSeen(): void {
     /* best-effort */
   }
 }
+
+// ── "Time this workout" — the start screen's default (Program E2, Oct 2026) ──
+// Someone who runs untimed sessions does not want to switch the clock off
+// every time: the last choice on the start screen is the next one's default.
+export const TIMED_DEFAULT_KEY = 'ea:workout:timed-default:v1';
+
+export function readTimedDefault(): boolean {
+  try {
+    return !(typeof localStorage !== 'undefined' && localStorage.getItem(TIMED_DEFAULT_KEY) === '0');
+  } catch {
+    return true;
+  }
+}
+
+export function writeTimedDefault(timed: boolean): void {
+  try {
+    if (timed) localStorage.removeItem(TIMED_DEFAULT_KEY);
+    else localStorage.setItem(TIMED_DEFAULT_KEY, '0');
+  } catch {
+    /* best-effort */
+  }
+}

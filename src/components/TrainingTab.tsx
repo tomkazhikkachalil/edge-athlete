@@ -37,7 +37,6 @@ import WeeklyActivityOverlay from './training/WeeklyActivityOverlay';
 import BodyDetailOverlay from './training/BodyDetailOverlay';
 import RoundedBarChart from './training/RoundedBarChart';
 import TrainingSettingsModal from './training/TrainingSettingsModal';
-import StartWorkoutSheet from './workouts/StartWorkoutSheet';
 import WorkoutRoutinesModal from './workouts/WorkoutRoutinesModal';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './training/category-colors';
@@ -204,15 +203,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // ONE start path, shared with the header's Create → Record Activity →
   // Start a workout (useStartWorkout, Oct 13 2026): the same POST, the same
   // 409 → resume, the same refreshDrafts(), the same screen.
-  const {
-    routines,
-    refreshRoutines,
-    starting: startingWorkout,
-    showStartSheet,
-    setShowStartSheet,
-    start: handleStartWorkout,
-    open: openStartWorkout,
-  } = useStartWorkout(isOwnProfile);
+  const { refreshRoutines, starting: startingWorkout, open: openStartWorkout } = useStartWorkout(isOwnProfile);
 
   // Dashboard headline stats — all-time on purpose: the year filter now
   // lives inside the workouts overlay, and "this week" / PBs must never lie.
@@ -692,15 +683,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             setShowRoutinesModal(false);
             refreshRoutines();
           }}
-        />
-      )}
-
-      {showStartSheet && (
-        <StartWorkoutSheet
-          routines={routines}
-          starting={startingWorkout}
-          onStart={routineId => handleStartWorkout(routineId)}
-          onClose={() => setShowStartSheet(false)}
         />
       )}
 

@@ -61,7 +61,7 @@ all of them or it is silently dropped.
 
 ## The screen (`src/components/workouts/`)
 
-**Starting one (Oct 13 2026):** `src/hooks/useStartWorkout.ts` is the ONE start path — Training's Start Workout and the header's Create → Record Activity → Start a workout both call it (`POST /api/workouts { mode: 'live', routineId? }`, 409 → resume, `refreshDrafts()`, `/app/workout/<id>`; the routine picker when the person has routines). A new door calls the hook; it never POSTs on its own.
+**Starting one (Oct 13 2026; the start screen Oct 20 2026 — Program E2):** `src/hooks/useStartWorkout.ts` is the ONE start path — Training's Start Workout, the header's Create → Record Activity → Start a workout and the recorder's Strength training all call its `open()`, which is the START SCREEN `/app/workout/start` (`WorkoutStartScreen`: the title, the routine — an empty workout or a saved one — "Time this workout" remembered on the device (`TIMED_DEFAULT_KEY`), what will be recorded, a banner with Resume when one is in progress). **Nothing is written before its Start** — no draft, no row; the Start tap is the one `POST /api/workouts { mode: 'live', routineId?, title?, timed? }` (`timed` validated before any state check), 409 → resume, `refreshDrafts()`, `/app/workout/<id>`. The old routine picker sheet is gone. A new door calls the hook; it never POSTs on its own.
 
 `WorkoutEditorScreen` (the sticky header: the title, the house `ActionMenu` with Hide
 timer · Don't time this workout · Discard; `LiveClock` with Start/Pause beside it;

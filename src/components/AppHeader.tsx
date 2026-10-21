@@ -18,7 +18,6 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
 import { useDrafts } from '@/hooks/useDrafts';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
-import StartWorkoutSheet from '@/components/workouts/StartWorkoutSheet';
 import { useTheme } from '@/lib/use-theme';
 import { useEditProfile } from '@/components/EditProfileHost';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
@@ -99,7 +98,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
   // Events program: the header's Create button opens a two-door sheet (Post | Event).
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   // Create → Record Activity → Start a workout: the SAME start path as
-  // Training's Start Workout (useStartWorkout) — the routine picker renders here.
+  // Training's Start Workout (useStartWorkout) — every door lands on /app/workout/start (E2).
   const startWorkout = useStartWorkout(!!user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   // Orgs the user manages (phase 1) — LAZY on first menu open so the
@@ -866,14 +865,6 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
         />
       )}
 
-      {startWorkout.showStartSheet && (
-        <StartWorkoutSheet
-          routines={startWorkout.routines}
-          starting={startWorkout.starting}
-          onStart={routineId => startWorkout.start(routineId)}
-          onClose={() => startWorkout.setShowStartSheet(false)}
-        />
-      )}
 
       {/* Mobile Menu Drawer */}
       <div

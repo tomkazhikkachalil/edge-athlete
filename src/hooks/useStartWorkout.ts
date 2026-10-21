@@ -13,18 +13,17 @@ import type { WorkoutRoutine } from '@/lib/workouts/routines';
  * `POST /api/workouts { mode: 'live', routineId? }`, the same 409 → resume
  * the workout in progress, the same `refreshDrafts()` (the resume pill and
  * the Drafts count learn the session now), the same `/app/workout/<id>`.
- * With saved routines `open()` shows the picker (`StartWorkoutSheet`,
- * rendered by the caller from `showStartSheet`); without, one-tap start.
- *
- * `enabled` gates the routines read (Training: the owner's own profile; the
- * header: a signed-in person) — a failure just degrades to the one-tap start.
+ * Program E2 (Oct 2026): every door's `open()` is the start SCREEN
+ * (`/app/workout/start` — the title, the routine, the clock, the records
+ * line, an in-progress banner) and nothing is written until its Start;
+ * `start(routineId, { title, timed })` is the one POST. The routines read
+ * feeds that screen (`enabled` gates it; a failure just hides the list).
  */
 export function useStartWorkout(enabled: boolean) {
   const router = useRouter();
   const { showError } = useToast();
   const [starting, setStarting] = useState(false);
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
-  const [showStartSheet, setShowStartSheet] = useState(false);
 
   // Saved routines feed the Start Workout picker. Inlined cancellable IIFE
   // (not a callback call) so it stays out of the set-state-in-effect warning
@@ -49,15 +48,21 @@ export function useStartWorkout(enabled: boolean) {
   }, [enabled, routinesReload]);
   const refreshRoutines = () => setRoutinesReload(k => k + 1);
 
-  const start = async (routineId: string | null = null) => {
+  const start = async (routineId: string | null = null, opts: { title?: string; timed?: boolean } = {}) => {
     if (starting) return;
     setStarting(true);
     try {
+      const title = opts.title?.trim();
       const response = await fetch('/api/workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ mode: 'live', ...(routineId ? { routineId } : {}) }),
+        body: JSON.stringify({
+          mode: 'live',
+          ...(routineId ? { routineId } : {}),
+          ...(title ? { title } : {}),
+          ...(typeof opts.timed === 'boolean' ? { timed: opts.timed } : {}),
+        }),
       });
       const data = await response.json().catch(() => null);
       if (response.status === 409 && data?.activeSessionId) {
@@ -69,7 +74,6 @@ export function useStartWorkout(enabled: boolean) {
       if (routineId && response.status === 404) {
         // Deleted between opening the sheet and tapping it
         showError('Routine not found', 'That routine no longer exists.');
-        setShowStartSheet(false);
         refreshRoutines();
         setStarting(false);
         return;
@@ -84,11 +88,8 @@ export function useStartWorkout(enabled: boolean) {
     }
   };
 
-  // With saved routines the door opens the picker; without, one-tap start.
-  const open = () => {
-    if (routines.length > 0) setShowStartSheet(true);
-    else void start();
-  };
+  // Every door lands on the start screen (nothing starts until its Start).
+  const open = () => router.push('/app/workout/start');
 
-  return { routines, refreshRoutines, starting, showStartSheet, setShowStartSheet, start, open };
+  return { routines, refreshRoutines, starting, start, open };
 }

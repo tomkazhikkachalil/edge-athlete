@@ -52,10 +52,10 @@ test('a workout started from Create is the one Training starts: same session, sa
   // `mode` is the POST's parameter, not a column: a live session is an ACTIVE row.
   const shape = (s: Record<string, unknown>) => ({ status: s.status, routine_id: s.routine_id ?? null, keys: Object.keys(s).sort() });
   const idFromUrl = () => page.url().match(/\/app\/workout\/([0-9a-f-]{36})/)![1];
-  // The shared QA user may have a routine: the picker then opens — take "Empty workout".
+  // Every door lands on the start screen (Program E2): Start is the tap that makes the row.
   const throughPicker = async () => {
-    const empty = page.getByRole('button', { name: /empty workout/i });
-    if (await empty.isVisible({ timeout: 2_000 }).catch(() => false)) await empty.click();
+    await page.waitForURL('**/app/workout/start', { timeout: 20_000 });
+    await page.locator('[data-workout-start]').click();
   };
   // Once a session is in progress the next page load asks "Pick up where you
   // left off?" over the page (the reopen prompt, once per app open — it waits

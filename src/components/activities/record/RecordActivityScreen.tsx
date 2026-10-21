@@ -48,7 +48,6 @@ import SegmentSheet from './SegmentSheet';
 import RoundTimerPanel from './RoundTimerPanel';
 import ClimbLog from '@/components/activities/ClimbLog';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
-import StartWorkoutSheet from '@/components/workouts/StartWorkoutSheet';
 import { finishPayload } from '@/components/activities/FinishDetailsForm';
 import RecorderPhotos from './RecorderPhotos';
 import FinishSheet, { type FinishDetails } from './FinishSheet';
@@ -142,7 +141,7 @@ export default function RecordActivityScreen() {
   }, [engine, state]);
 
   const dispatch = engine?.dispatch ?? (() => undefined);
-  // A10: the picker's "Strength training" opens the Workout (its routines picker when there are routines).
+  // A10: the picker's "Strength training" opens the Workout's start screen (E2).
   // Workouts are the athlete's own (a guardian acting for an athlete records activities only).
   const ownWorkouts = !!user && (!targetProfileId || targetProfileId === user.id);
   const startWorkout = useStartWorkout(ownWorkouts);
@@ -480,14 +479,6 @@ export default function RecordActivityScreen() {
       )}
       {detailsOpen && state && answers && (state.status === 'recording' || state.status === 'paused') && (
         <DetailsSheet type={state.type} value={answers} unit={unit} onChange={a => dispatch({ type: 'setAnswers', answers: a })} onClose={() => setDetailsOpen(false)} />
-      )}
-      {startWorkout.showStartSheet && (
-        <StartWorkoutSheet
-          routines={startWorkout.routines}
-          starting={startWorkout.starting}
-          onStart={routineId => void startWorkout.start(routineId)}
-          onClose={() => startWorkout.setShowStartSheet(false)}
-        />
       )}
       <ConfirmModal
         isOpen={discardOpen}

@@ -62,9 +62,11 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     await expect(records.locator('[data-exercise-record="deadlift"]')).toContainText('315');
     await expect(records).toContainText('Heaviest (lbs)');
 
-    // The recorder's picker: Strength training opens a workout.
+    // The recorder's picker: Strength training opens the Workout's start screen (E2); Start makes the row.
     await page.goto('/activities/record');
     await page.locator('[data-record-strength]').click({ timeout: 20_000 });
+    await page.waitForURL('**/app/workout/start', { timeout: 30_000 });
+    await page.locator('[data-workout-start]').click();
     await page.waitForURL(/\/app\/workout\/[0-9a-f-]{36}/, { timeout: 30_000 });
   } finally {
     await ctx.close();

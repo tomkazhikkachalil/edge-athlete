@@ -107,4 +107,11 @@ test('header Create → Record Activity is a second step: Start a workout | Reco
   await page.locator('[data-create-recording]').click();
   await expect(page).toHaveURL(/\/activities\/record$/, { timeout: 15_000 });
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
+  // Start a workout is the start SCREEN (Program E2) — nothing starts until its Start.
+  await page.goto('/messages');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.locator('[data-create-record-activity]').click();
+  await page.locator('[data-create-workout]').click();
+  await expect(page).toHaveURL(/\/app\/workout\/start$/, { timeout: 15_000 });
+  await expect(page.locator('[data-workout-start]')).toBeVisible({ timeout: 20_000 });
 });
