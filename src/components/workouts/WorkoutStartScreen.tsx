@@ -26,6 +26,8 @@ export default function WorkoutStartScreen() {
   // Start is disabled until React owns the page: a pre-hydration tap must never be swallowed.
   const hydrated = useHydrated();
   const inProgress = drafts.inProgress.find(d => d.kind === 'workout') ?? null;
+  /** Unposted (Training fixes PR 4): a finished workout whose Post or Done was never reached — never "start another" over it unknowingly. */
+  const unposted = inProgress ? null : drafts.drafts.find(d => d.kind === 'workout' && d.state === 'draft') ?? null;
   const [title, setTitle] = useState('');
   const [routineId, setRoutineId] = useState<string | null>(null);
   const [timed, setTimed] = useState<boolean>(() => readTimedDefault());
@@ -46,6 +48,17 @@ export default function WorkoutStartScreen() {
       </header>
 
       <main className="mx-auto max-w-xl px-4 py-4 space-y-5">
+        {unposted && (
+          <div className="flex items-center gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100" role="status" data-workout-start-unposted={unposted.id}>
+            <div className="min-w-0 flex-1">
+              <span className="block font-semibold">A finished workout is waiting to be posted</span>
+              <span className="block truncate">{unposted.title}</span>
+            </div>
+            <Link href={unposted.href} className="ea-interactive shrink-0 rounded-lg border border-amber-700/40 px-3 py-2 text-sm font-semibold" data-workout-start-finish-posting="">
+              Finish posting
+            </Link>
+          </div>
+        )}
         {inProgress && (
           <div className="flex items-center gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100" role="status" data-workout-start-in-progress={inProgress.id}>
             <span className="min-w-0 flex-1">

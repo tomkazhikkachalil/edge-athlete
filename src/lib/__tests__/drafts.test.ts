@@ -39,7 +39,7 @@ describe('buildDraftsList', () => {
   it('a completed round without a post is not a draft (nothing to review)', () => {
     expect(buildDraftsList({ rounds: [round({ status: 'completed', post_id: null })], workouts: [] }).drafts).toEqual([]);
   });
-  it('workouts: an active session is in progress; a finished one with no decision is a DRAFT (Share / Keep private); a decided or shared one is nothing', () => {
+  it('workouts: an active session is in progress; a finished one with no decision is UNPOSTED — a draft whose door is the preview step (Training fixes PR 4); a decided or shared one is nothing', () => {
     const list = buildDraftsList({ rounds: [], workouts: [
       workout({}),
       workout({ id: 'undecided', status: 'completed', ended_at: '2026-10-07T09:00:00Z' }),
@@ -47,8 +47,8 @@ describe('buildDraftsList', () => {
       workout({ id: 'shared', status: 'completed', ended_at: '2026-10-07T09:00:00Z', post_id: 'p9' }),
     ] });
     expect(list.inProgress.map(i => [i.kind, i.id, i.href, i.title])).toEqual([['workout', 'w1', '/app/workout/w1', 'Legs']]);
-    // Since 269 a finished workout is never a draft: Finish is the decision (Convention 47).
-    expect(list.drafts).toEqual([]);
+    // Oct 21 2026: Finish is the record, Post or Done is the decision — until then the workout waits for "Finish posting".
+    expect(list.drafts.map(i => [i.kind, i.id, i.state, i.href, i.clockStartAt])).toEqual([['workout', 'undecided', 'draft', '/app/workout/undecided?step=preview', null]]);
   });
   it('the recording on this phone is an in-progress row to the recorder', () => {
     const list = buildDraftsList({ rounds: [], workouts: [], recording: { id: 'rec', label: 'Walk', savedAt: Date.parse('2026-10-06T09:00:00Z') } });

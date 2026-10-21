@@ -41,6 +41,12 @@ test('Create → Start a workout is a start screen; nothing exists until Start; 
     await expect(page.locator('[data-workout-untimed]')).toBeVisible({ timeout: 20_000 });
     const row = (await (await api.get(`/api/workouts/${id}`)).json()).session;
     expect(row).toMatchObject({ status: 'active', timed: false, title: 'Leg day' });
+    // Training fixes PR 4: Start REPLACES the start screen in history — Back from the
+    // editor goes where the start screen was opened from, never "start another".
+    await page.goBack();
+    await expect(page).toHaveURL(/\/feed/, { timeout: 20_000 });
+    await expect(page).not.toHaveURL(/\/app\/workout\/start/);
+    await page.waitForLoadState('networkidle').catch(() => undefined); // WebKit: let the restored feed settle before the next goto
 
     // With an open session the start screen says so and Resume goes to it; the choice was remembered.
     await page.goto('/app/workout/start');

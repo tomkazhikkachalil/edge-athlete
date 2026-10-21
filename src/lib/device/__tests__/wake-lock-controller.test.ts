@@ -84,6 +84,7 @@ describe('every session keeps the screen on through the one hook', () => {
   const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
   it('the recorder (activities, sport sessions, the round timer) and the live workout', () => {
     expect(read('src/components/activities/record/RecordingEngineHost.tsx')).toMatch(/useWakeLock\(!!running\)/);
-    expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toMatch(/useWakeLock\(mode === 'live' && phase === 'editing'\)/);
+    // The EFFECTIVE mode (Training fixes PR 4): a finished workout is in review the moment Finish lands, even before a reload.
+    expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
   });
 });

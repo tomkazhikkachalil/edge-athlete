@@ -97,7 +97,7 @@ test('reopen: a scoreless round offers Discard (no Finish); Discard removes it',
   }
 });
 
-test('reopen: a live workout → Finish lands on the share step; a partner is only offered Resume', { tag: '@mobile' }, async ({ page, browser }) => {
+test('reopen: a live workout → Finish lands on the summary step; a partner is only offered Resume', { tag: '@mobile' }, async ({ page, browser }) => {
   test.setTimeout(120_000);
   const bravo = loadQaUser('user-b.json');
   const apiA = await apiAs('state.json');
@@ -111,7 +111,9 @@ test('reopen: a live workout → Finish lands on the share step; a partner is on
     const prompt = page.locator(`[data-reopen-prompt="workout:${workoutId}"]`);
     await expect(prompt).toBeVisible({ timeout: 20_000 });
     await prompt.locator('[data-reopen-finish]').click();
-    await page.waitForURL(`**/app/workout/${workoutId}?share=1`, { timeout: 20_000 });
+    // Training fixes PR 4: Finish records; the questionnaire (the summary) is the next step.
+    await page.waitForURL(`**/app/workout/${workoutId}?step=summary`, { timeout: 20_000 });
+    await expect(page.locator('[data-finish-continue]')).toBeVisible({ timeout: 20_000 });
     await expect.poll(async () => ((await (await apiA.get(`/api/workouts/${workoutId}`)).json()).session?.status ?? null), { timeout: 15_000 }).toBe('completed');
 
     // A partner on a round started by alpha: Resume only.

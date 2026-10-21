@@ -12,9 +12,9 @@ import { showsTabBar } from '@/lib/tab-bar';
 import { isSessionScreen } from './paths';
 import type { SessionProgress } from './progress-store';
 
-/** The ONE thing the pill shows: the most recently touched in-progress item (the list is already newest-first). */
-export function pickPillSession(inProgress: ReadonlyArray<DraftItem>): DraftItem | null {
-  return inProgress.find(i => i.state === 'in_progress') ?? null;
+/** The ONE thing the pill shows: the most recently touched in-progress item (the list is already newest-first) — else, from `drafts`, an unposted workout waiting for its Post (Training fixes PR 4, Oct 21 2026). */
+export function pickPillSession(inProgress: ReadonlyArray<DraftItem>, drafts: ReadonlyArray<DraftItem> = []): DraftItem | null {
+  return inProgress.find(i => i.state === 'in_progress') ?? drafts.find(d => d.kind === 'workout' && d.state === 'draft') ?? null;
 }
 
 /**
@@ -40,7 +40,9 @@ export function pillElapsedS(clockStartAt: string | null, now: number, clockPaus
 }
 
 /** The one metric beside the clock, or null when there is nothing honest to say. */
-export function pillMetric(item: Pick<DraftItem, 'kind'>, progress: SessionProgress | null, formatDistance?: (m: number) => string): string | null {
+export function pillMetric(item: Pick<DraftItem, 'kind'> & Partial<Pick<DraftItem, 'state'>>, progress: SessionProgress | null, formatDistance?: (m: number) => string): string | null {
+  // An unposted workout: finished, waiting for its Post — the one thing to say.
+  if (item.kind === 'workout' && item.state === 'draft') return 'Finish posting';
   if (item.kind === 'round') {
     const thru = progress?.holesCompleted;
     if (typeof thru !== 'number') return null;
@@ -67,5 +69,6 @@ export const PILL_KIND_ICON: Readonly<Record<DraftItem['kind'], string>> = {
 /** The accessible name: what it is, how long, how far. */
 export function pillLabel(item: Pick<DraftItem, 'kind' | 'title'>, elapsed: string | null, metric: string | null): string {
   const what = item.kind === 'round' ? `your round at ${item.title}` : item.kind === 'workout' ? `your workout${item.title && item.title !== 'Workout' ? ` ${item.title}` : ''}` : `your ${item.title.replace(/ \(on this phone\)$/, '').toLowerCase()}`;
-  return ['Resume ' + what, elapsed, metric].filter(Boolean).join(' · ');
+  const verb = metric === 'Finish posting' ? 'Finish posting ' : 'Resume ';
+  return [verb + what, elapsed, metric === 'Finish posting' ? null : metric].filter(Boolean).join(' · ');
 }

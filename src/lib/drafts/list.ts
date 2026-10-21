@@ -88,9 +88,14 @@ export function countWorkoutSets(sets: DraftWorkoutRow['sets']): number {
   return n;
 }
 
-/** Since 269 (Oct 19 2026) a finished workout is never a draft: Finish is
- *  the decision and the only post-time choice is the feed switch. The owner's
- *  later door is /app/workout/[id]?share=1, reached from the workout itself. */
+/** Training fixes PR 4 (Oct 21 2026): a finished workout nobody has Posted or
+ *  Done (`share_decided_at` NULL, no post) is UNPOSTED — a draft item whose
+ *  door is the preview step. 269's "Finish is the decision" stood for two
+ *  days; Tom: a finished workout must never be lost. */
+export const WORKOUT_PREVIEW_STEP = 'preview';
+export function workoutStepHref(id: string, step: 'summary' | 'preview'): string {
+  return `/app/workout/${id}?step=${step}`;
+}
 
 export interface DraftRecordingLike {
   id: string;
@@ -177,6 +182,9 @@ export function buildDraftsList(input: {
     };
     if (w.status === 'active') {
       inProgress.push({ ...base, state: 'in_progress', href: `/app/workout/${w.id}` });
+    } else if (w.status === 'completed' && !w.post_id && !w.share_decided_at) {
+      // Unposted: the pill shows no running clock (it is finished), the door is the preview step.
+      drafts.push({ ...base, state: 'draft', clockStartAt: null, clockPausedAt: null, href: workoutStepHref(w.id, WORKOUT_PREVIEW_STEP) });
     }
   }
 
@@ -204,9 +212,9 @@ export function buildDraftsList(input: {
   return { inProgress, drafts };
 }
 
-/** The ONE thing the reopen prompt asks about: the most recently touched in-progress item. */
+/** The ONE thing the reopen prompt asks about: the most recently touched in-progress item — else an unposted workout waiting for its Post (Training fixes PR 4). */
 export function pickReopenCandidate(list: DraftsList): DraftItem | null {
-  return list.inProgress[0] ?? null;
+  return list.inProgress[0] ?? list.drafts.find(d => d.kind === 'workout') ?? null;
 }
 
 export function draftsCount(list: DraftsList): number {
