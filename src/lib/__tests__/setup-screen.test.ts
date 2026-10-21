@@ -51,6 +51,12 @@ describe('set up before Start — the screen', () => {
     expect(finish).not.toMatch(/prefill: Details \| null|initialDetails\?:/);
     expect(screen).toMatch(/data-record-setup-line=""/);
   });
+  it('F2 — a calm session: the answers line under the clock, no stat grid, no Mark', () => {
+    expect(screen).toMatch(/line=\{layout\.calm \? setupLine : null\}/);
+    expect(screen).toMatch(/mark=\{layout\?\.mark !== false\}/);
+    expect(code('src/components/activities/record/LiveStats.tsx')).toMatch(/data-record-calm-line=""/);
+    expect(code('src/components/activities/record/RecorderControls.tsx')).toMatch(/\{mark && \(/);
+  });
   it('the new screens obey the recorder\'s import ban', () => {
     for (const src of [card, sheet]) expect(src).not.toMatch(/purgeExpired|openRecordingStore|useWatchPosition|useWakeLock|useDirtyClose/);
   });

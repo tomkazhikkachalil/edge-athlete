@@ -12,7 +12,7 @@ function hms(seconds: number): string {
 }
 
 /** What the screen shows while recording — the server recomputes every number at Finish. */
-export default function LiveStats({ type, totals, unit, gps }: { type: ActivityType; totals: LiveTotals; unit: DistanceUnit; gps: { status: string; accuracy: number | null; stale: boolean } | null }) {
+export default function LiveStats({ type, totals, unit, gps, line = null }: { type: ActivityType; totals: LiveTotals; unit: DistanceUnit; gps: { status: string; accuracy: number | null; stale: boolean } | null; /** F2: a calm session's answers under the clock ("Vinyasa · Heated · Class"). */ line?: string | null }) {
   const def = ACTIVITY_TYPE_DEFS[type];
   // A sport session shows distance only when its map is on (A9).
   const showDistance = def.recording === 'gps' || def.recording === 'timer' || (def.recording === 'gps_optional' && gps !== null);
@@ -23,6 +23,11 @@ export default function LiveStats({ type, totals, unit, gps }: { type: ActivityT
       <p className="text-center text-[56px] leading-none font-bold tabular-nums text-primary" data-record-timer="">
         {hms(totals.elapsedS)}
       </p>
+      {line && (
+        <p className="mt-2 text-center text-base text-secondary" data-record-calm-line="">
+          {line}
+        </p>
+      )}
       {gps && (
         <p className="mt-1 text-center text-xs" data-record-gps={gps.status}>
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${gps.stale || gps.status === 'denied' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-surface-muted text-secondary'}`}>

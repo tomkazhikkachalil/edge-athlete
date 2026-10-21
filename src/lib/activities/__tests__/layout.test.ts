@@ -46,7 +46,11 @@ describe('the recorder layout table', () => {
       if (l.setup.includes('climbScale') || l.live.includes('climbs')) expect(t).toBe('climb');
       if (l.live.includes('lengths') || l.records.includes('lengths')) expect(t).toBe('swim');
       if (l.live.includes('map') || l.records.includes('map')) expect(['gps', 'gps_optional'], t).toContain(rec);
-      if (l.calm) expect(l.liveStats, t).toEqual([]);
+      if (l.calm) {
+        expect(l.liveStats, t).toEqual([]);
+        expect(l.mark, t).toBe(false); // F2: no segments on a calm session
+      }
+      if (l.mark === false) expect(l.calm, t).toBe(true);
       if (l.timerDefault) expect(l.setup, t).toContain('timer');
     }
     expect(INDOOR_TWIN).toEqual({ run: 'treadmill', ride: 'indoor_ride', open_water_swim: 'swim' });
