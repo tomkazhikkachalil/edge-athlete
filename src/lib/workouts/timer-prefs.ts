@@ -26,6 +26,27 @@ export function writeRestTarget(seconds: number | null): void {
   }
 }
 
+/** The rest targets the athlete saved from the picker (Training fixes PR 3, Oct 21 2026) — a JSON list of seconds, validated by rest.ts. */
+export const REST_PRESETS_KEY = 'ea:workout:rest-presets:v1';
+
+export function readRestPresets(parse: (raw: unknown) => number[]): number[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(REST_PRESETS_KEY) : null;
+    return parse(raw === null ? [] : JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+export function writeRestPresets(list: readonly number[]): void {
+  try {
+    if (list.length === 0) localStorage.removeItem(REST_PRESETS_KEY);
+    else localStorage.setItem(REST_PRESETS_KEY, JSON.stringify(list));
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function readTimerHidden(): boolean {
   try {
     return typeof localStorage !== 'undefined' && localStorage.getItem(TIMER_HIDDEN_KEY) === '1';

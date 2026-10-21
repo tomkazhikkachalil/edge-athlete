@@ -25,10 +25,19 @@ export function clampToRange(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Every value the wheel offers, low to high. */
-export function wheelValues(min: number, max: number): number[] {
+/** Every value the wheel offers, low to high — every `step` from `min` (the rest picker's seconds go by 5; golf steps by 1). */
+export function wheelValues(min: number, max: number, step = 1): number[] {
   if (max < min) return [min];
-  return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  const s = step > 0 ? step : 1;
+  return Array.from({ length: Math.floor((max - min) / s) + 1 }, (_, i) => min + i * s);
+}
+
+/** The nearest value on the wheel's grid, clamped to its range (a step of 1 is the plain clamp). */
+export function snapToStep(value: number, min: number, max: number, step = 1): number {
+  const s = step > 0 ? step : 1;
+  const clamped = clampToRange(value, min, max);
+  const snapped = min + Math.round((clamped - min) / s) * s;
+  return Math.min(snapped, min + Math.floor((max - min) / s) * s);
 }
 
 /** Which value is centred at this scroll offset. Rounds, so a half-scrolled
@@ -37,10 +46,11 @@ export function valueForScrollTop(
   scrollTop: number,
   min: number,
   max: number,
-  itemHeight: number = WHEEL_ITEM_H
+  itemHeight: number = WHEEL_ITEM_H,
+  step = 1
 ): number {
   if (itemHeight <= 0) return min;
-  return clampToRange(min + Math.round(scrollTop / itemHeight), min, max);
+  return snapToStep(min + Math.round(scrollTop / itemHeight) * (step > 0 ? step : 1), min, max, step);
 }
 
 /** Where to scroll so `value` sits on the centre line. Inverse of the above. */
@@ -48,9 +58,10 @@ export function scrollTopForValue(
   value: number,
   min: number,
   max: number,
-  itemHeight: number = WHEEL_ITEM_H
+  itemHeight: number = WHEEL_ITEM_H,
+  step = 1
 ): number {
-  return (clampToRange(value, min, max) - min) * itemHeight;
+  return ((snapToStep(value, min, max, step) - min) / (step > 0 ? step : 1)) * itemHeight;
 }
 
 /**
@@ -64,18 +75,20 @@ export function nextValueForKey(
   current: number,
   key: string,
   min: number,
-  max: number
+  max: number,
+  step = 1
 ): number | null {
-  const at = clampToRange(current, min, max);
+  const s = step > 0 ? step : 1;
+  const at = snapToStep(current, min, max, step);
   switch (key) {
     // Up on a wheel means "smaller number rises into view" — matching the
     // visual order, where lower values sit above.
-    case 'ArrowUp':   return clampToRange(at - 1, min, max);
-    case 'ArrowDown': return clampToRange(at + 1, min, max);
-    case 'PageUp':    return clampToRange(at - 5, min, max);
-    case 'PageDown':  return clampToRange(at + 5, min, max);
+    case 'ArrowUp':   return snapToStep(at - s, min, max, step);
+    case 'ArrowDown': return snapToStep(at + s, min, max, step);
+    case 'PageUp':    return snapToStep(at - 5 * s, min, max, step);
+    case 'PageDown':  return snapToStep(at + 5 * s, min, max, step);
     case 'Home':      return min;
-    case 'End':       return max;
+    case 'End':       return snapToStep(max, min, max, step);
     default:          return null;
   }
 }
