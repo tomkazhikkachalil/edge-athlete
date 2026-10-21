@@ -111,6 +111,25 @@ export interface RecordingState {
   timerArmed?: TimerSpec | null;
   /** A pool swim's lengths, counted while recording (F5's counter). */
   lengths?: number;
+  /** Training fixes PR 6 (Oct 21 2026): the finish flow's own state — the step
+   *  (the questionnaire or the preview), the caption, the feed switch and
+   *  "post as" — kept ON the recording so a tab switch, a reload or a closed
+   *  app returns to the step as it was. Absent on recordings stored before
+   *  (= the questionnaire). The answers themselves live in `answers`. */
+  review?: RecordingReview | null;
+}
+
+export type ReviewStep = 'details' | 'preview';
+export interface RecordingReview {
+  step: ReviewStep;
+  caption: string;
+  onFeed: boolean;
+  shareAs: 'training' | 'sport';
+}
+
+/** The review as the screen reads it: a recording stored before PR 6 starts on the questionnaire. */
+export function reviewOf(state: Pick<RecordingState, 'review'>, defaultOnFeed = true): RecordingReview {
+  return state.review ?? { step: 'details', caption: '', onFeed: defaultOnFeed, shareAs: 'training' };
 }
 
 export interface RecordingAnswers {
@@ -167,6 +186,8 @@ export type RecordingEvent =
   | { type: 'timerSet'; spec: TimerSpec | null }
   /** Program E: a pool swim's lengths (recording or paused). */
   | { type: 'lengthsSet'; lengths: number }
+  /** Training fixes PR 6: the finish flow's step, caption, switch and "post as" — finished only. */
+  | { type: 'setReview'; review: Partial<RecordingReview> }
   | { type: 'finish'; now: number };
 
 /** A v4 UUID — the one minter (`src/lib/ids.ts`), re-exported for the recorder's callers. */
@@ -377,6 +398,18 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
     }
     case 'climbRemoved':
       return { ...state, climbs: (state.climbs ?? []).filter((_, i) => i !== event.index) };
+    case 'setReview': {
+      if (state.status !== 'finished') return state;
+      const current = reviewOf(state);
+      const r = event.review ?? {};
+      const next: RecordingReview = {
+        step: r.step === 'preview' || r.step === 'details' ? r.step : current.step,
+        caption: typeof r.caption === 'string' ? r.caption.slice(0, 2000) : current.caption,
+        onFeed: typeof r.onFeed === 'boolean' ? r.onFeed : current.onFeed,
+        shareAs: r.shareAs === 'sport' || r.shareAs === 'training' ? r.shareAs : current.shareAs,
+      };
+      return { ...state, review: next };
+    }
     case 'setAnswers': {
       const a = sanitizeAnswers(event.answers);
       if (!a) return state;

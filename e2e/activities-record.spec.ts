@@ -140,6 +140,7 @@ test('record a run: fixes draw, a segment is marked, a reload keeps recording, F
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -228,7 +229,7 @@ test('leaving the recorder keeps recording: the pill on the feed shows the dista
     // Discard through the finish sheet: the pill goes with it.
     await page.locator('[data-record-finish]').click();
     await page.locator('[data-record-discard]').click();
-    await page.getByRole('button', { name: 'Discard' }).last().click();
+    await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
     await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 10_000 });
   } finally {
     await ctx.close();
@@ -265,6 +266,7 @@ test('a jittery phone: standing still adds nothing, a walk reads close to its tr
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
     const shown = await distance();
     // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -301,7 +303,7 @@ test('a TIMEOUT keeps recording; PERMISSION_DENIED says where to turn it on @mob
       // Discard through the finish sheet, so the next case starts clean.
       await page.locator('[data-record-finish]').click();
       await page.locator('[data-record-discard]').click();
-      await page.getByRole('button', { name: 'Discard' }).last().click();
+      await page.getByRole('button', { name: 'Delete' }).last().click(); // PR 6: the confirm reads Delete once finished
       await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 10_000 });
     } finally {
       await ctx.close();
@@ -325,9 +327,10 @@ test('a timer type: start, finish, type the distance, save @mobile', async ({ br
     await page.waitForTimeout(12_000);
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
-    await expect(page.locator('[data-record-save]')).toBeDisabled(); // no distance yet
+    await expect(page.locator('[data-record-continue]')).toBeDisabled(); // no distance yet
     await page.locator('[data-record-distance-input]').fill('25');
     // These cases test the recording, not posting: keep it to me.
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -383,6 +386,7 @@ test('Finish is a review: Post to feed is on by default and posts the run; off s
     await expect(sheet.getByRole('heading', { name: 'Nice run!' })).toBeVisible();
     await expect(sheet.locator('[data-record-review-summary]')).toContainText('Distance');
     await expect(sheet.locator('[data-record-review-route]')).toBeVisible();
+    await sheet.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await expect(sheet.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'true');
     await expect(sheet.locator('[data-feed-toggle-line]')).toContainText('Anyone can see it');
     await expect(sheet.locator('[data-record-save]')).toHaveText('Post');
@@ -408,6 +412,7 @@ test('Finish is a review: Post to feed is on by default and posts the run; off s
     await cleanup();
     await admin.from('profiles').update({ visibility: 'private' }).eq('id', user.id);
     await recordARun(page);
+    await sheet.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await expect(sheet.locator('[data-feed-toggle-line]')).toContainText('approved fans');
     await sheet.locator('[data-feed-toggle="on"]').click();
     await expect(sheet.locator('[data-feed-toggle]')).toHaveAttribute('aria-checked', 'false');
@@ -447,6 +452,7 @@ test('a steady 6:00/km jog saves its moving time and pace @mobile', async ({ bro
     await page.waitForTimeout(20_000);
     await page.locator('[data-record-finish]').click();
     await expect(page.locator('[data-record-finish-sheet]')).toBeVisible();
+    await page.locator('[data-record-continue]').click(); // PR 6: the questionnaire → preview and post
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
     await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });

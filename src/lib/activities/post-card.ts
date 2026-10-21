@@ -44,6 +44,55 @@ export interface ActivityPostStats {
   details?: Details;
 }
 
+/** What the composition needs, already resolved (the server reads the row and the stream; the recorder's preview hands its own totals — Training fixes PR 6, Oct 21 2026). */
+export interface ActivityPostStatsInput {
+  activityId: string;
+  type: ActivityType;
+  name: string;
+  occurredOn: string;
+  distanceM: number | null;
+  movingS: number | null;
+  elapsedS: number;
+  elevGainM: number | null;
+  elevLossM: number | null;
+  avgHr: number | null;
+  routePreview: string | null;
+  /** The provider credit (connections.ts sourceCredit), already resolved. */
+  credit: string | null;
+  /** The segments as the card shows them — empty for none. */
+  segments: Array<{ kind: string; label: string | null; distance_m: number; seconds: number }>;
+  steps: number | null;
+  photoCount: number;
+  effort: number | null;
+  details: Details;
+  derived: Pick<ActivityPostStats, 'max_speed_mps' | 'runs'>;
+}
+
+/** The ONE composition of a card's snapshot — the server (share-server.ts) and the recorder's preview build the same shape. */
+export function composeActivityPostStats(i: ActivityPostStatsInput): ActivityPostStats {
+  return {
+    type: 'activity',
+    activity_id: i.activityId,
+    activity_type: i.type,
+    name: i.name,
+    occurred_on: i.occurredOn,
+    distance_m: i.distanceM,
+    moving_s: i.movingS,
+    elapsed_s: i.elapsedS,
+    elev_gain_m: i.elevGainM,
+    elev_loss_m: i.elevLossM,
+    ...i.derived,
+    avg_hr: i.avgHr,
+    route_preview: i.routePreview,
+    credit: i.credit,
+    ...(i.segments.length > 0 ? { segments: i.segments } : {}),
+    ...(typeof i.steps === 'number' ? { steps: i.steps } : {}),
+    ...(i.photoCount ? { photo_count: i.photoCount } : {}),
+    ...(typeof i.effort === 'number' ? { effort: i.effort } : {}),
+    ...(Object.keys(i.details).length > 0 ? { details: i.details } : {}),
+  };
+}
+
 /** A composer's request to share an activity: `{ type: 'activity', activity_id }`. */
 export function isActivityShareRequest(v: unknown): v is { type: 'activity'; activity_id: string } {
   return !!v && typeof v === 'object' && (v as { type?: unknown }).type === 'activity';
