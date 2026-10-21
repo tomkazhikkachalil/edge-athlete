@@ -16,6 +16,9 @@ describe('the recorder layout table', () => {
       expect(l.records.length, t).toBeGreaterThan(0);
       expect(l.live.length, t).toBeGreaterThan(0);
       expect(l.records, t).toContain('time');
+      // The elapsed clock lives in the 'stats' panel: every type shows it (Oct 20 2026 — the first
+      // table left it off the rounds, calm and climb families and the clock vanished on production).
+      expect(l.live, t).toContain('stats');
     }
     expect(Object.keys(RECORD_LAYOUT_BY_TYPE).sort()).toEqual([...ACTIVITY_TYPES].sort());
   });

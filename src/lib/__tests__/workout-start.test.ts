@@ -28,6 +28,9 @@ describe('the Workout starts from /app/workout/start', () => {
     expect(screen).toMatch(/writeTimedDefault\(timed\);\s*void start\(routineId, \{ title, timed \}\);/);
     expect(screen).toMatch(/data-workout-start-in-progress=\{inProgress\.id\}/);
     expect(screen).toMatch(/data-workout-start-timed=\{timed \? 'on' : 'off'\}/);
+    // Start waits for hydration (Oct 20 2026: a pre-hydration tap on production did nothing).
+    expect(screen).toMatch(/disabled=\{starting \|\| !hydrated\}/);
+    expect(code('src/hooks/useHydrated.ts')).toMatch(/useSyncExternalStore\(subscribe, \(\) => true, \(\) => false\)/);
     expect(TIMED_DEFAULT_KEY).toBe('ea:workout:timed-default:v1');
   });
   it('the live branch validates `timed` before any state check and writes it on the insert', () => {
