@@ -1,5 +1,11 @@
 # Development Log
 
+## October 20, 2026 — Flow changes F3: climb — the scale before Start, the log first, the review sums the climbs (zero DDL)
+
+The third family, one type. **The grade scale is chosen on the set-up card** (`SetupCard`'s `climbScale` control: the log's own chips, narrowed by the style the athlete picked — `SCALES_FOR_STYLE` — a `climbScale` event, one owner per fact), so the log is ready to take a climb at Start; the previous session's style and scale pre-fill there (E1b's `prefill` already routed the scale to `climbScale`; today's card shows it). The live log still offers the scale while no climb is logged (an unchanged door), and a new scale still drops climbs that are not grades on it. **The live area leads with the log**, the clock after it. **The review sums the climbs** — "3 · 2 sent" (`data-record-review-climbs`, `summarizeClimbs` over the recording's own climbs). `activities-climb` changes: the first session picks the style and the scale on the card and finds Add enabled at Start; the second session's pre-fill assertions move to the card.
+
+Proof: `layout.test.ts` (the scale in `setup`, the log first), `setup-screen.test.ts` (the card's scale chips narrowed by the style; the review line); `npm run verify` exit 0 (5,278 tests); staging e2e on the built server — activities-climb (both sessions through the card) · activities-setup · activities-yoga mobile 6/6, activities-climb · activities-setup android 4/4.
+
 ## October 20, 2026 — Flow changes F2: the calm family — yoga, pilates, stretching, dance (zero DDL)
 
 The second family: a session nobody measures. The live screen is **the big clock and the answers line under it** ("Yin · Self-guided", from `recordingAnswers` through `detailLine` — `LiveStats` gains a `line` prop, rendered only when the layout says `calm`), **no stat grid** (a duration type never had a distance tile; now that is the rule, not an accident), and **no Mark** — the controls bar's Mark is optional (`RecorderControls` `mark`, the layout's `mark: false` on the calm four; Pause and Finish stay). The set-up questions are the family's (yoga: style, heated, how; pilates: type, how, focus; stretching: areas, purpose; dance: how). Nothing else moved.

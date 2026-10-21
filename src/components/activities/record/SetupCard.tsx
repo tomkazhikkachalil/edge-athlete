@@ -21,6 +21,7 @@ import { clock, TIMER_FORMAT_LABELS, TIMER_PRESETS, type TimerSpec } from '@/lib
 import { unitSystemOf } from '@/lib/activities/units';
 import FinishDetailsForm from '@/components/activities/FinishDetailsForm';
 import { TimerSetup } from './RoundTimerPanel';
+import { CLIMB_SCALE_LABELS, CLIMB_SCALES, SCALES_FOR_STYLE, type ClimbStyle } from '@/lib/activities/climbing';
 
 const RECORDED_LABEL: Record<Recorded, string> = {
   time: 'Time',
@@ -112,6 +113,33 @@ export default function SetupCard({
           />
         </div>
       )}
+
+      {layout.setup.includes('climbScale') && (() => {
+        // F3: the grade scale before the first climb — the style narrows the choice (climbing.ts).
+        const style = typeof answers.details.style === 'string' && answers.details.style in SCALES_FOR_STYLE ? (answers.details.style as ClimbStyle) : null;
+        const scales = style ? SCALES_FOR_STYLE[style] : CLIMB_SCALES;
+        return (
+          <fieldset data-record-climb-scale={state.climbScale ?? 'none'}>
+            <legend className="text-sm font-medium text-secondary">Grade scale</legend>
+            <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Grade scale" data-climb-scales="">
+              {scales.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={state.climbScale === s}
+                  onClick={() => dispatch({ type: 'climbScale', scale: s })}
+                  className={`ea-interactive min-h-[44px] rounded-lg border px-2 text-sm font-semibold ${state.climbScale === s ? 'border-brand bg-brand-soft text-brand-fg' : 'border-border text-primary'}`}
+                  data-climb-scale={s}
+                >
+                  {CLIMB_SCALE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted">Chosen once — a new scale drops climbs that are not grades on it.</p>
+          </fieldset>
+        );
+      })()}
 
       {layout.setup.includes('map') && (
         // A9: the sport session keeps its toggle whichever way it is set (it can be turned back off).

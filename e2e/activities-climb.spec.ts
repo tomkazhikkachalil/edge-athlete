@@ -34,10 +34,15 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     const page = await ctx.newPage();
     await page.goto('/activities/record');
     await page.locator('[data-record-type="climb"]').click({ timeout: 20_000 });
+    // F3: the scale is chosen on the set-up card, narrowed by the style; the log is ready at Start.
+    const card = page.locator('[data-record-ready]');
+    await card.locator('[data-detail-field="style"] [data-detail-option="bouldering"]').click();
+    await expect(card.locator('[data-climb-scale="yds"]')).toHaveCount(0);
+    await card.locator('[data-climb-scale="v"]').click();
+    await expect(card.locator('[data-record-climb-scale="v"]')).toBeVisible();
     await page.locator('[data-record-start]').click();
     const log = page.locator('[data-record-climbs]');
-    await expect(log.locator('[data-climb-add]')).toBeDisabled();
-    await log.locator('[data-climb-scale="v"]').click();
+    await expect(log.locator('[data-climb-add]')).toBeEnabled();
     await logClimb(page, 'V3', true);
     await logClimb(page, 'V5', false);
     await logClimb(page, 'V4', true, 2);
@@ -49,8 +54,10 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     await page.locator('[data-record-finish]').click();
     const form = page.locator('[data-finish-details="climb"]');
     await expect(form.locator('[data-climb]')).toHaveCount(3);
+    // The review sums the climbs; the style chosen at set-up is already pressed.
+    await expect(page.locator('[data-record-review-climbs]')).toHaveText('3 · 2 sent');
+    await expect(form.locator('[data-detail-field="style"] [data-detail-option="bouldering"]')).toHaveAttribute('aria-pressed', 'true');
     await form.locator('[data-detail-field="setting"] [data-detail-option="indoor"]').click();
-    await form.locator('[data-detail-field="style"] [data-detail-option="bouldering"]').click();
     await form.locator('[data-effort="7"]').click();
     await page.locator('[data-feed-toggle="on"]').click();
     await page.locator('[data-record-save]').click();
@@ -71,10 +78,15 @@ test('a bouldering session logs V3 sent, V5 attempt, V4 sent in 2 → Climbs 3, 
     await expect(page.locator('[data-activity-climb="2"]')).toHaveText(/V4 · Sent · 2 tries/);
     await expect(page.locator('[data-activity-details]')).toHaveText('Indoor · Bouldering · V-scale');
 
-    // The next climbing session: the style and the scale pre-fill; no climbs carry over.
+    // The next climbing session: the style and the scale pre-fill ON THE SET-UP CARD (F3);
+    // the log is ready at Start; no climbs carry over.
     await page.goto('/activities/record');
     await page.locator('[data-record-type="climb"]').click({ timeout: 20_000 });
+    const nextCard = page.locator('[data-record-ready]');
+    await expect(nextCard.locator('[data-detail-field="style"] [data-detail-option="bouldering"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
+    await expect(nextCard.locator('[data-record-climb-scale="v"]')).toBeVisible();
     await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-climbs] [data-climb-add]')).toBeEnabled();
     await page.waitForTimeout(2_000);
     await page.locator('[data-record-finish]').click();
     const next = page.locator('[data-finish-details="climb"]');
