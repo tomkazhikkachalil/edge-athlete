@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { backOr } from '@/lib/nav-back';
 import { useDrafts } from '@/hooks/useDrafts';
+import { useHydrated } from '@/hooks/useHydrated';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import { readTimedDefault, writeTimedDefault } from '@/lib/workouts/timer-prefs';
 
@@ -22,6 +23,8 @@ export default function WorkoutStartScreen() {
   const router = useRouter();
   const { routines, starting, start } = useStartWorkout(true);
   const drafts = useDrafts(true);
+  // Start is disabled until React owns the page: a pre-hydration tap must never be swallowed.
+  const hydrated = useHydrated();
   const inProgress = drafts.inProgress.find(d => d.kind === 'workout') ?? null;
   const [title, setTitle] = useState('');
   const [routineId, setRoutineId] = useState<string | null>(null);
@@ -132,7 +135,7 @@ export default function WorkoutStartScreen() {
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-xl">
-          <button type="button" onClick={go} disabled={starting} className="ea-cta inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl text-base font-semibold text-white disabled:opacity-50" data-workout-start="">
+          <button type="button" onClick={go} disabled={starting || !hydrated} className="ea-cta inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl text-base font-semibold text-white disabled:opacity-50" data-workout-start="" data-workout-start-ready={hydrated ? 'yes' : 'no'}>
             <i className="fas fa-play" aria-hidden="true"></i> {starting ? 'Starting…' : inProgress ? 'Start another' : 'Start'}
           </button>
         </div>

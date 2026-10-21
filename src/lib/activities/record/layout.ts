@@ -61,7 +61,8 @@ const ROUNDS: RecordLayout = {
   setup: ['timer', 'name'],
   setupFields: [],
   records: ['time', 'rounds', 'photos'],
-  live: ['timer', 'details', 'photos', 'segments'],
+  // The clock ('stats') is on EVERY type — the live area shows nothing else of the time.
+  live: ['timer', 'stats', 'details', 'photos', 'segments'],
   liveStats: [],
   timerDefault: null,
 };
@@ -69,7 +70,7 @@ const CALM: RecordLayout = {
   setup: ['name'],
   setupFields: [],
   records: ['time', 'photos'],
-  live: ['timer', 'details', 'photos'],
+  live: ['stats', 'timer', 'details', 'photos'],
   liveStats: [],
   calm: true,
   timerDefault: null,
@@ -108,7 +109,7 @@ export const RECORD_LAYOUT_BY_TYPE: Readonly<Record<ActivityType, RecordLayout>>
     setup: ['name'],
     setupFields: ['setting', 'style'],
     records: ['time', 'climbs', 'photos'],
-    live: ['climbs', 'timer', 'details', 'photos'],
+    live: ['stats', 'climbs', 'timer', 'details', 'photos'],
     liveStats: [],
     timerDefault: null,
   },
