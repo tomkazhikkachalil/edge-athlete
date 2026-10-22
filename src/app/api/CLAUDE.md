@@ -119,3 +119,7 @@ export async function POST(request: NextRequest) {
   re-verification (`'Unauthorized'` / `'Invalid password'` bodies): destructive
   flows, deliberately not folded into the standard pattern.
 - **Cron routes** authenticate with `CRON_SECRET`, not cookies.
+
+## The general write limit
+
+Every POST/PUT/PATCH/DELETE through `requireAuth` (and its wrappers) first spends one hit of the per-account `write-general` bucket (120 a minute) — inline, before your handler; while the bucket is SHADOW a hit over budget is recorded (console + Sentry by account and route) and the request proceeds; once real, `requireAuth` throws the 429 and your `instanceof Response` catch returns it. A route on `getServerAuth` is NOT covered (see HARDENING.md). Never call the bucket yourself.

@@ -1,4 +1,4 @@
-import { after, NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { parseCookieHeader } from './cookies';
@@ -142,21 +142,19 @@ export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}
   return { supabase, user, error };
 }
 
-/** Every authenticated write counts against the SHADOW 'write-general'
- *  bucket — AFTER the response (`after`), so it costs the request nothing,
- *  and it never refuses (rate-limit-core.ts). Imported lazily: rate-limit.ts
- *  imports this module. Outside a request scope (a unit test) it does nothing. */
-function observeWrite(request: NextRequest, userId: string): void {
+/** Every authenticated write counts against the 'write-general' bucket —
+ *  INLINE, before the handler (Oct 22 2026; it ran after the response from
+ *  Oct 10, which could count but never refuse): one rate_limit_hit RPC,
+ *  fail-open as every bucket. While the bucket is SHADOW the call records
+ *  and returns null; once it is real, the 429 it returns is thrown like the
+ *  401 above and the route's `instanceof Response` catch returns it.
+ *  Imported lazily: rate-limit.ts imports this module. */
+async function enforceWrite(request: NextRequest, userId: string): Promise<void> {
   const method = request.method?.toUpperCase?.() ?? 'GET';
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
-  try {
-    after(async () => {
-      const { enforceRateLimit } = await import('@/lib/rate-limit');
-      await enforceRateLimit(request, 'write-general', { userId });
-    });
-  } catch {
-    /* no request scope — nothing to observe */
-  }
+  const { enforceRateLimit } = await import('@/lib/rate-limit');
+  const refused = await enforceRateLimit(request, 'write-general', { userId });
+  if (refused) throw refused;
 }
 
 export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) {
@@ -170,7 +168,7 @@ export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) 
       );
     }
 
-    observeWrite(request, user.id);
+    await enforceWrite(request, user.id);
     return user;
   } catch (err) {
     if (err instanceof Response) {

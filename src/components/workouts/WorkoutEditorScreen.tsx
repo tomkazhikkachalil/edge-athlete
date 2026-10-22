@@ -33,6 +33,7 @@ import type { ExerciseGroupKind } from '@/lib/workouts/entries';
 import { FinishSummary, PreviewStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
+import { SLOW_DOWN_MESSAGE, retryAfterMs } from '@/lib/rate-limit-retry';
 import { ensureClientIds, MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
 import { isTimed, workoutElapsedS } from '@/lib/workouts/timing';
 import { readGroupView, readTimerHidden, writeGroupView, writeTimerHidden } from '@/lib/workouts/timer-prefs';
@@ -253,6 +254,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
   const pendingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // A 429 on the entries PUT (the general write bucket, real since Oct 22
+  // 2026 once its shadow days are over): the sets are still in state and in
+  // the device draft; one re-send is scheduled after Retry-After (capped) and
+  // the person is told once per screen.
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slowDownShownRef = useRef(false);
 
   const syncNow = useCallback(async (): Promise<boolean> => {
     if (!isServerSession || !session) return true;
@@ -282,6 +289,16 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
           });
           ok = response.ok;
           setSyncState(ok ? 'saved' : 'error');
+          if (response.status === 429 && !retryTimerRef.current) {
+            if (!slowDownShownRef.current) {
+              slowDownShownRef.current = true;
+              showError('Slow down', SLOW_DOWN_MESSAGE);
+            }
+            retryTimerRef.current = setTimeout(() => {
+              retryTimerRef.current = null;
+              void syncNow();
+            }, retryAfterMs(response.headers.get('Retry-After')));
+          }
         } catch {
           setSyncState('error');
           ok = false;
@@ -293,7 +310,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
     } finally {
       inFlightRef.current = false;
     }
-  }, [isServerSession, session]);
+  }, [isServerSession, session, showError]);
 
   const scheduleSync = useCallback(() => {
     if (!isServerSession) return;

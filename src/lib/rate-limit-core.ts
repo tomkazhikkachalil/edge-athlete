@@ -84,7 +84,10 @@ export const RATE_LIMITS = {
 
   // ── Authenticated (user-keyed): spam-shaped or expensive writes ─────────
   'account-delete': { max: 5, windowSeconds: 900, keyBy: 'user', message: ATTEMPTS_MESSAGE },
-  upload: { max: 60, windowSeconds: 3600, keyBy: 'user' },
+  // 240 an hour (Oct 22 2026, was 60): a photo every 15 s for an hour — the
+  // bucket a photo-heavy workout actually meets (one photo = one intent here
+  // + one complete), raised before write-general goes real (Tom's rule).
+  upload: { max: 240, windowSeconds: 3600, keyBy: 'user' },
   'post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // Results-kept (241): hide / show a result on your own profile — cheap and reversible, not unbounded.
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
@@ -239,7 +242,11 @@ export const RATE_LIMITS = {
   // per account, in SHADOW — logged, never refused (maintenance pass, Oct 10
   // 2026). Generous on purpose: two writes a second for a whole minute is
   // far beyond a person; the log says whether anyone real comes near it.
-  'write-general': { max: 120, windowSeconds: 60, keyBy: 'user', shadow: true },
+  // Since Oct 22 2026 the check runs INLINE in requireAuth (before the
+  // handler) and every would-block is recorded in Sentry by account and
+  // route; it goes real (shadow off) once a few days of that show nobody
+  // legitimate near it — Tom's rule. The 429, when it comes, says so plainly.
+  'write-general': { max: 120, windowSeconds: 60, keyBy: 'user', shadow: true, message: 'Slow down — try again in a moment.' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;
@@ -288,4 +295,17 @@ export function validateRateLimitConfig(
     }
   }
   return violations;
+}
+
+/**
+ * The route a write hit, as a tag: `METHOD /api/path` with the dynamic
+ * segments collapsed (a UUID or a number → `[id]`), so Sentry groups a
+ * route's would-blocks instead of one per row (Oct 22 2026).
+ */
+export function routeLabel(method: string, pathname: string): string {
+  const path = pathname
+    .split('/')
+    .map(seg => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg) || /^\d+$/.test(seg) ? '[id]' : seg))
+    .join('/');
+  return `${(method || 'GET').toUpperCase()} ${path}`;
 }
