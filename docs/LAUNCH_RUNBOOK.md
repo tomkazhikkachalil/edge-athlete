@@ -50,10 +50,14 @@ default) — that list is the opening announcement's audience.
       product runs on Pro (US$20 a month), which also unlocks Skew Protection
       (§5b) and longer function limits. Supabase is already Pro (Micro since
       Oct 19 2026).
-- [ ] **Rate limits** [Tom decides, Claude one line]. `write-general` (120 a
-      minute per account) has run in SHADOW since Oct 10 2026 — logged, never
-      refused. Read the `[RATE-LIMIT]` lines in the Vercel logs; none fired by
-      Oct 10. Decide real or shadow at launch (recommendation: real).
+- [ ] **Rate limits** [Tom reads, Claude one line]. `write-general` (120 a
+      minute per account) runs INLINE and in SHADOW since Oct 22 2026, every
+      would-block recorded in Sentry by account and route (the Vercel console
+      line lasts an hour; Sentry keeps the answer). After a few days of normal
+      use: Sentry → Issues → `[RATE-LIMIT] would-block` → the `account` and
+      `route` tag breakdown. Nobody legitimate near it → the one-line flip
+      (`shadow: false`); someone near it → raise that action's bucket first.
+      If launch is under a few days away: enforce at once at ~300 a minute.
 - [ ] **Robots, sitemap, indexing** [Tom]. Both flip with the flag:
       `src/app/robots.ts` allows `/` and disallows `/api/` and `/app/`; the
       sitemap lists `/clubs`, `/leagues`, public `/u/<handle>` profiles and

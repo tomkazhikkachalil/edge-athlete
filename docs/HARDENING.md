@@ -38,6 +38,22 @@ DB scale-readiness). That audit's findings seed the backlog below.
     admin/cron media-jobs status bodies that carry `planBackfill`'s own
     error text (admin-only, Bearer/console auth) are deliberate and outside
     the regex.
+  - **The general write limit (Oct 22 2026):** `write-general` (120 writes
+    a minute per account) now runs INLINE in `requireAuth` — before the
+    handler, thrown like the 401 — and every would-block or block is
+    recorded in Sentry (`[RATE-LIMIT] <outcome> "<action>"`, tags
+    `account` = the user id, `route` = `METHOD /api/path` with ids
+    collapsed, `action`, `outcome`; one per account+route per 10 min per
+    instance, with the hits since). It stays SHADOW until a few days of
+    normal use show nobody legitimate near it (Tom's rule); the flip is a
+    one-line PR. `upload` went 60 → 240 an hour first (a photo every 15 s;
+    the bucket a photo-heavy workout meets). A 429 reads "Slow down — try
+    again in a moment." with `Retry-After`; the workout editor re-sends its
+    entries after it and the recorder retries its save once, nothing lost.
+    **Next hardening item:** ~49 write routes gate on `getServerAuth`
+    rather than `requireAuth` (comments, scorecards, sport-events,
+    group-posts, posts/save, settings/theme…) and so never meet
+    `write-general` — move them or give them buckets.
 
 ## Part B — periodic manual sweep (this runbook)
 

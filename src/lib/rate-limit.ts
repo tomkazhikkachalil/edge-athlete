@@ -25,7 +25,7 @@ import {
   clampRetryAfter,
   firstForwardedIp,
   type RateLimitAction,
-  type RateLimitRule,
+  type RateLimitRule, routeLabel,
 } from '@/lib/rate-limit-core';
 
 export * from '@/lib/rate-limit-core';
@@ -77,6 +77,37 @@ export function logLimitHit(action: string, outcome: 'blocked' | 'would-block', 
   return true;
 }
 
+/** The durable record (Oct 22 2026, Tom: "record every would-block and block
+ *  in Sentry… show me the count by account and action"): one Sentry warning
+ *  per account + route + outcome per ten minutes per instance, carrying the
+ *  hits since the last one. Vercel keeps the console line about an hour, so
+ *  the line alone could never answer the question. Pure over the module map,
+ *  exported for the test. */
+const LIMIT_REPORT_MS = 10 * 60_000;
+const limitReports = new Map<string, { at: number; count: number }>();
+
+export function shouldReportLimit(key: string, now: number): { report: boolean; count: number } {
+  const entry = limitReports.get(key) ?? { at: 0, count: 0 };
+  entry.count += 1;
+  limitReports.set(key, entry);
+  if (now - entry.at < LIMIT_REPORT_MS) return { report: false, count: entry.count };
+  const count = entry.count;
+  entry.at = now;
+  entry.count = 0;
+  return { report: true, count };
+}
+
+function recordLimitHit(action: string, outcome: 'blocked' | 'would-block', account: string | null, route: string, now: number): void {
+  const { report, count } = shouldReportLimit(`${action}:${outcome}:${account ?? 'ip'}:${route}`, now);
+  if (!report) return;
+  Sentry.captureMessage(`[RATE-LIMIT] ${outcome} "${action}"`, {
+    level: 'warning',
+    // The account is the pseudonymous user id — never an e-mail or a name.
+    tags: { area: 'rate-limit', action, outcome, account: account ?? 'ip', route },
+    extra: { hits_since_last_report: count },
+  });
+}
+
 /**
  * Check-and-consume one hit against the named action's budget.
  * Returns a ready 429 NextResponse when over the limit, null otherwise.
@@ -120,9 +151,13 @@ export async function enforceRateLimit(
     const row = data as { allowed: boolean; retry_after_seconds: number };
     if (row.allowed) return null;
 
-    // Over the budget: always on the record (throttled per action), and a
-    // SHADOW bucket stops there — it never refuses anyone.
-    logLimitHit(action, rule.shadow ? 'would-block' : 'blocked', Date.now());
+    // Over the budget: always on the record — the console line (throttled
+    // per action) and the Sentry record (per account + route) — and a SHADOW
+    // bucket stops there: it never refuses anyone.
+    const outcome = rule.shadow ? 'would-block' : 'blocked';
+    const now = Date.now();
+    logLimitHit(action, outcome, now);
+    recordLimitHit(action, outcome, rule.keyBy === 'user' ? identifier : null, routeLabel(request.method, request.nextUrl.pathname), now);
     if (rule.shadow) return null;
 
     return NextResponse.json(

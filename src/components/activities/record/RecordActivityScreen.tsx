@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { retryAfterMs } from '@/lib/rate-limit-retry';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
@@ -208,7 +209,7 @@ export default function RecordActivityScreen() {
       const latest = engine.getState() ?? s0;
       const trimmedName = name && name.trim() ? name.trim().slice(0, 120) : null;
       const wire = toRecordingWire({ ...latest, name: trimmedName, manualDistanceM: manualDistanceM ?? latest.manualDistanceM }, localZone());
-      const res = await fetch('/api/activities', {
+      const post = () => fetch('/api/activities', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -219,6 +220,18 @@ export default function RecordActivityScreen() {
           ...(targetProfileId ? { targetProfileId } : {}),
         }),
       });
+      let res = await post();
+      if (res.status === 429) {
+        // The general write bucket (real since Oct 22 2026 once its shadow
+        // days are over). The recording is still on the device: wait what the
+        // server asks (capped), say so, and try once more before giving the
+        // person the message with Post enabled again.
+        const wait = retryAfterMs(res.headers.get('Retry-After'));
+        setSaveError(`Slow down — retrying in ${Math.ceil(wait / 1000)} s…`);
+        await new Promise(r => setTimeout(r, wait));
+        setSaveError(null);
+        res = await post();
+      }
       const json = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok || !json.id) throw new Error(json.error || 'Could not save the activity.');
       for (const p of latest.photos) {
