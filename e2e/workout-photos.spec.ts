@@ -85,6 +85,13 @@ test('a set photo shows after upload and after an edit, and the stored URL stays
     expect(forged.status()).toBe(400);
     expect((await forged.json()).error).toMatch(/media URL/i);
 
+    // A finished workout nobody has posted or marked done opens on its
+    // Preview step since Oct 21 2026 (Training fixes PR 4) — this spec is
+    // about the EDITOR's tile, so the workout is marked decided first (the
+    // seeds' rule) and the plain URL is the editor in review.
+    const decided = await api.patch(`/api/workouts/${workoutId}`, { data: { decided: true } });
+    expect(decided.ok(), await decided.text()).toBe(true);
+
     // The review screen draws the thumbnail (unoptimized, through the proxy
     // with the viewer's cookie) and offers the pencil.
     await page.goto(`/app/workout/${workoutId}`);
