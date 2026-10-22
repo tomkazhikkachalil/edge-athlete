@@ -83,6 +83,39 @@ version, missing prerequisite). It is wrong for a post-change check.
    ```sql
    INSERT INTO public.schema_migrations (number, name) VALUES (NNN, 'NNN_short_name.sql') ON CONFLICT (number) DO NOTHING;
    ```
+   **Table grants (Supabase, from Oct 30 2026 — every migration ≥ 270):** Supabase no
+   longer grants the Data API roles on a NEW table in `public` automatically.
+   A table created without its grants answers `permission denied for table X`
+   to supabase-js / PostgREST / GraphQL — for the server too. So **every
+   `CREATE TABLE public.X` ships its grants in the SAME file**, one of two
+   postures (`src/lib/__tests__/migration-grants.test.ts` fails the gate on a
+   file ≥ 270 that creates a table without them):
+   ```sql
+   -- Posture A — the server's table: RLS on, ZERO policies, service_role only
+   -- (the app reaches it through supabaseAdmin; anon / authenticated never do).
+   ALTER TABLE public.x ENABLE ROW LEVEL SECURITY;
+   REVOKE ALL ON TABLE public.x FROM PUBLIC, anon, authenticated;
+   GRANT ALL ON TABLE public.x TO service_role;
+
+   -- A policy table — anon / authenticated read or write it THROUGH its
+   -- policies (the policies are the security layer; the grant only opens the
+   -- door the policies then guard). Grant exactly what the policies allow.
+   ALTER TABLE public.y ENABLE ROW LEVEL SECURITY;
+   GRANT SELECT ON TABLE public.y TO anon;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.y TO authenticated;
+   GRANT ALL ON TABLE public.y TO service_role;
+   -- a serial / identity column: GRANT USAGE, SELECT ON SEQUENCE public.y_id_seq TO authenticated, service_role;
+   ```
+   A `REVOKE … FROM anon, authenticated` with no `GRANT … TO service_role` after
+   it (71 older tables were written that way, when the automatic grant still
+   covered the server) is the shape the test refuses by name: after Oct 30 that
+   table would be unreachable. Existing tables keep their grants; the baseline
+   (`database/baseline/000_rebuild.sql`) emits every table's grants explicitly
+   (`emitTableGrants`, from `schema_dump()`'s `has_table_privilege` reads since
+   228), so a rebuild is complete. `npm run check:schema` also runs
+   `scripts/check-table-grants.mjs`: a live table with no service_role
+   privilege is an error; a zero-policy table still holding anon / authenticated
+   privileges is listed (hygiene, see `docs/HARDENING.md` B7).
 2. Run it in the Supabase SQL editor (the file records itself in the ledger).
 3. Verify against the live DB (the established pattern: query via PostgREST with
    the service-role key; for DDL that drops columns, scan `pg_proc` for function

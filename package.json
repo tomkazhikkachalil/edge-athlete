@@ -20,10 +20,10 @@
     "check:syntax": "node scripts/check-browser-syntax.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
     "verify:media-privacy": "node scripts/verify-media-privacy.mjs",
-    "check:schema": "node scripts/schema-inventory.mjs",
+    "check:schema": "node scripts/schema-inventory.mjs && node scripts/check-table-grants.mjs",
     "migrate:mark": "node scripts/migrate-mark.mjs",
     "build:baseline": "TARGET_ENV=prod node scripts/build-rebuild-baseline.mjs",
-    "check:schema:prod": "TARGET_ENV=prod node scripts/schema-inventory.mjs",
+    "check:schema:prod": "TARGET_ENV=prod node scripts/schema-inventory.mjs && TARGET_ENV=prod node scripts/check-table-grants.mjs",
     "migrate:mark:prod": "TARGET_ENV=prod node scripts/migrate-mark.mjs"
   },
   "browserslist": [

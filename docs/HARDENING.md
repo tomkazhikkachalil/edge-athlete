@@ -256,6 +256,32 @@ anon RPC the server can call with its own key is revoked from `anon` /
 `authenticated`. Leaked-password protection is ON (Authentication → Attack
 Protection).
 
+### B7. Table grants — the Oct 30 2026 rule (Supabase stops auto-granting new tables)
+
+From Oct 30 2026 a new table in `public` gets NO Data API grants unless its
+migration grants them (existing tables keep theirs). The project's answer, in
+three layers: (1) **the rule in the template** — `database/MIGRATIONS.md`
+"Workflow for a new migration": posture A (RLS on, zero policies, `REVOKE ALL
+… FROM PUBLIC, anon, authenticated` + `GRANT ALL … TO service_role`) or a
+policy table (grants to anon / authenticated exactly as its policies allow,
+plus service_role); (2) **the gate** — `src/lib/__tests__/migration-grants.test.ts`
+fails any migration ≥ 270 that creates a `public` table without a
+`GRANT … TO service_role` in the same file, that revokes anon / authenticated
+without granting service_role, or that declares a policy for a role it never
+granted; (3) **the live check** — `scripts/check-table-grants.mjs` (run by
+`npm run check:schema` / `:prod`): a table where `service_role` holds no
+privilege is an ERROR (the app cannot reach it); a table with RLS on, zero
+policies and still-open anon / authenticated privileges is listed as hygiene.
+**The hygiene backlog (Oct 21 2026, 14 tables, harmless — zero policies deny
+every row):** `app_settings`, `approved_contacts`, `calendar_feed_tokens`,
+`consent_records`, `contacts`, `event_guests`, `event_series`, `events`,
+`guardian_invites`, `pending_profiles`, `profile_transfers`, `risk_signals`,
+`safety_settings_audit`, `waitlist` — one REVOKE-only migration on both
+databases makes them posture A; not urgent. The baseline already emits every
+table's grants (`emitTableGrants`), so a rebuild after Oct 30 is complete.
+Sweep: `npm run check:schema` and `check:schema:prod` show zero ERROR lines
+from the grants check.
+
 ## Backlog (Tier 2) — scheduled, not yet done
 
 **From the Sep 2026 phase-3 R5 close (public-segment perf, accepted for now)**
