@@ -1,8 +1,14 @@
 // ── A posted workout's images, in the order a person reads them (Oct 17 2026)
-// Pure. Tom: tapping a set's image opens the app's own viewer over the post
+// Pure. Tom: tapping an image opens the app's own viewer over the post
 // (never a new window), and swiping walks every image of the workout. The
 // list follows the detail view: single exercises set by set; a superset /
 // circuit round by round, each round's members in order.
+// Training: three changes (Oct 22 2026, item 3): on the post a clip belongs
+// to the EXERCISE, not to the set it was taken during — `exerciseMedia` and
+// `roundMedia` gather a card's clips for ONE strip, the caption names the
+// exercise (a group's keeps the round: the round is the group's shape, not a
+// set). Storage is unchanged (the set still carries its clips, Convention 37),
+// so every existing post reads the same way.
 
 import type { EntryExercise, SetMedia } from './entries';
 import { GROUP_LABEL, renderItems } from './groups';
@@ -13,7 +19,7 @@ export interface WorkoutMediaItem {
   url: string;
   kind: 'image' | 'video';
   thumbnailUrl: string | null;
-  /** "Bench Press · Set 2" / "Circuit · Round 3 · Squat" — the viewer's caption. */
+  /** "Bench Press" / "Circuit · Round 3 · Squat" — the viewer's caption. */
   label: string;
 }
 
@@ -32,7 +38,7 @@ export function workoutCollageItems(exercises: EntryExercise[]): WorkoutMediaIte
     if (entry.type === 'single') {
       const ex = entry.exercise;
       ex.sets.forEach((set, s) =>
-        set.media.forEach((m, i) => out.push(item(m, setMediaId(ex.clientId, s, i), `${ex.name} · Set ${set.setNumber}`))),
+        set.media.forEach((m, i) => out.push(item(m, setMediaId(ex.clientId, s, i), ex.name))),
       );
       continue;
     }
@@ -49,7 +55,44 @@ export function workoutCollageItems(exercises: EntryExercise[]): WorkoutMediaIte
   return out;
 }
 
-/** The badge on a set's stack: "+2" for three images, nothing for one. */
+/** The badge on a strip that shows `shown` of `total` clips: "+2" for four clips over two tiles, nothing when every clip has a tile. */
+export function moreBadge(total: number, shown: number): string | null {
+  return total > shown ? `+${total - shown}` : null;
+}
+
+/** The badge on a one-tile stack: "+2" for three images, nothing for one. */
 export function stackBadge(count: number): string | null {
-  return count > 1 ? `+${count - 1}` : null;
+  return moreBadge(count, 1);
+}
+
+/** All of an exercise's clips, set by set — the post's ONE strip per exercise (Oct 22 2026). */
+export function exerciseMedia(ex: EntryExercise): SetMedia[] {
+  return ex.sets.flatMap(set => set.media);
+}
+
+/** The viewer id of an exercise's clip at `index` in `exerciseMedia` order; null past the end. */
+export function exerciseMediaIdAt(ex: EntryExercise, index: number): string | null {
+  let n = index;
+  for (let s = 0; s < ex.sets.length; s++) {
+    const len = ex.sets[s].media.length;
+    if (n < len) return n >= 0 ? setMediaId(ex.clientId, s, n) : null;
+    n -= len;
+  }
+  return null;
+}
+
+/** A round's clips across a group's members, member by member — the round's ONE strip. */
+export function roundMedia(members: EntryExercise[], round: number): SetMedia[] {
+  return members.flatMap(m => m.sets[round]?.media ?? []);
+}
+
+/** The viewer id of a round's clip at `index` in `roundMedia` order; null past the end. */
+export function roundMediaIdAt(members: EntryExercise[], round: number, index: number): string | null {
+  let n = index;
+  for (const m of members) {
+    const len = m.sets[round]?.media.length ?? 0;
+    if (n < len) return n >= 0 ? setMediaId(m.clientId, round, n) : null;
+    n -= len;
+  }
+  return null;
 }

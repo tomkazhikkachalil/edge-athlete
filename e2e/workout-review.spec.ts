@@ -102,7 +102,8 @@ test('the review step edits a clip in place, orders the carousel, removes a clip
     await rows.nth(2).getByRole('button', { name: /^Remove .* clip$/ }).click();
     const confirm = page.getByRole('dialog').filter({ hasText: 'Remove this clip?' });
     await expect(confirm).toBeVisible();
-    await expect(confirm.getByText(/deleted from Bench Press set 2/)).toBeVisible();
+    // Oct 22 2026: a clip belongs to the exercise — the confirm names it, not the set.
+    await expect(confirm.getByText(/deleted from Bench Press and from this workout/)).toBeVisible();
     await confirm.getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(rows).toHaveCount(2, { timeout: 20_000 });
     await expect.poll(async () => (await setUrlsNow()).length, { timeout: 20_000 }).toBe(2);
