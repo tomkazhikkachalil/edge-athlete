@@ -169,6 +169,11 @@ installs Xcode when disk allows. Optional, inside normal rounds and only if
 cheap that day: the `native` install mode (one rule + test) and the
 location-source interface in the recorder (pure refactor). Neither is owed.
 
+**Tom, Oct 22 2026 (later that day): "let's plan to do this within the next
+few months."** The window is set: the native round starts within the next
+few months, after the web updates in hand, on the trigger above — iPhone
+first, then Android.
+
 ## 3. Watch and app connections — BUILT, PAUSED, hidden in production
 
 Fix round part 3 (#1027–#1032, migration 247) built Connected apps: Settings →
