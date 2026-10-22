@@ -105,7 +105,8 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
     await pageB.getByRole('button', { name: /training/i }).first().click();
     await expect(pageB.getByText('Latest personal best')).toBeVisible({ timeout: 15_000 });
     await expect(pageB.getByText('Bench Press · 225 lbs')).toBeVisible();
-    await expect(pageB.getByRole('button', { name: 'Start Workout' })).toHaveCount(0);
+    await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
+    await expect(pageB.getByRole('button', { name: 'Start', exact: true })).toHaveCount(0);
     await expect(pageB.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
 
     // Training privacy: the owner hides the section via the real settings API;

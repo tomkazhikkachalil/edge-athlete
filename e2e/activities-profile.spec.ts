@@ -118,7 +118,10 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     // Training, not in the section, not in the Create sheet (Oct 13 2026).
     const pageA = await ctxA.newPage();
     await pageA.goto(`/athlete/${a.id}?tab=activities`);
-    await expect(pageA.locator('[data-training-record-activity]')).toBeVisible({ timeout: 20_000 });
+    // Oct 22 2026: the Record door is Start → Activity (StartSessionSheet).
+    await pageA.locator('[data-training-start]').first().click();
+    await expect(pageA.locator('[data-larger-window="start-session"] [data-training-record-activity]')).toBeVisible({ timeout: 20_000 });
+    await pageA.keyboard.press('Escape');
     await expect(pageA.locator('[data-training-import-activity]')).toHaveCount(0);
     await expect(pageA.locator('[data-activities-import-link]')).toHaveCount(0);
     await expect(pageA.getByText(/import/i)).toHaveCount(0);

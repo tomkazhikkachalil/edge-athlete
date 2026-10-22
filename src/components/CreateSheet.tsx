@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import LargerWindow from '@/components/bubbles/LargerWindow';
+import StartSessionRows from '@/components/workouts/StartSessionRows';
 
 /**
  * The header's Create sheet (Create menu redesign, Oct 13 2026): the house
@@ -11,9 +12,10 @@ import LargerWindow from '@/components/bubbles/LargerWindow';
  * the sport picker already open; picking golf is the live-round setup),
  * Event (the wizard) and Record Activity, which is a SECOND STEP in the same
  * window: Start a workout (the ONE start path Training uses — useStartWorkout)
- * or Record activity (the GPS recorder, the same door as Training'). The icons
- * of the second step are the resume pill's (PILL_KIND_ICON), so the menu and
- * the pill agree. The drawer opens this same sheet; it is the one Create
+ * or Record activity (the GPS recorder, the same door as Training'). The two
+ * rows are StartSessionRows — Training's Start opens the SAME pair (Oct 22
+ * 2026) — and their icons are the resume pill's (PILL_KIND_ICON), so the
+ * menu, Training and the pill agree. The drawer opens this same sheet; it is the one Create
  * menu at every width.
  */
 export default function CreateSheet({ onPost, onSport, onEvent, onWorkout, onRecording, onClose }: { onPost: () => void; onSport: () => void; onEvent: () => void; onWorkout: () => void; onRecording: () => void; onClose: () => void }) {
@@ -28,20 +30,7 @@ export default function CreateSheet({ onPost, onSport, onEvent, onWorkout, onRec
           <button type="button" onClick={() => setStep('root')} className="ea-icon-btn text-secondary mb-1" aria-label="Back" data-create-back="">
             <i className="fas fa-arrow-left" aria-hidden="true"></i>
           </button>
-          <button type="button" onClick={onWorkout} className={row} data-create-workout="">
-            <span className={icon}><i className="fas fa-dumbbell" aria-hidden="true"></i></span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-primary">Start a workout</span>
-              <span className="block text-xs text-muted">The timer, exercises, supersets and circuits.</span>
-            </span>
-          </button>
-          <button type="button" onClick={onRecording} className={row} data-create-recording="">
-            <span className={icon}><i className="fas fa-person-walking" aria-hidden="true"></i></span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-primary">Record activity</span>
-              <span className="block text-xs text-muted">A walk, run, ride or swim, live with a map.</span>
-            </span>
-          </button>
+          <StartSessionRows onWorkout={onWorkout} onActivity={onRecording} />
         </div>
       </LargerWindow>
     );

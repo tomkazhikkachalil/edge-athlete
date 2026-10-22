@@ -4,7 +4,7 @@ import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BODY_METRIC_CATEGORIES } from '@/lib/body-metrics-config';
-import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock, MapPin } from 'lucide-react';
+import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock } from 'lucide-react';
 import AddBodyMetricModal from './AddBodyMetricModal';
 import CreatePostModal from './CreatePostModal';
 import MediaGridItem from './media/MediaGridItem';
@@ -39,6 +39,7 @@ import BodyDetailOverlay from './training/BodyDetailOverlay';
 import RoundedBarChart from './training/RoundedBarChart';
 import TrainingSettingsModal from './training/TrainingSettingsModal';
 import WorkoutRoutinesModal from './workouts/WorkoutRoutinesModal';
+import StartSessionSheet from './workouts/StartSessionSheet';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './training/category-colors';
 import { useTheme } from '@/lib/use-theme';
@@ -159,6 +160,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
   const [showRoutinesModal, setShowRoutinesModal] = useState(false);
+  // Training: three changes (Oct 22 2026) — Start offers Workout or Activity.
+  const [showStartSheet, setShowStartSheet] = useState(false);
 
 
   // Loader defined inside the effect and published on a ref — four handlers
@@ -361,17 +364,20 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           </div>
           {isOwnProfile && (
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Training: three changes (Oct 22 2026) — ONE Start: Workout or Activity (StartSessionSheet). */}
               <button
-                onClick={openStartWorkout}
+                onClick={() => setShowStartSheet(true)}
                 disabled={startingWorkout}
+                aria-haspopup="dialog"
                 className="tr-pill flex items-center gap-2 min-h-[44px] px-5 bg-brand text-white rounded-full font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
+                data-training-start=""
               >
                 {startingWorkout ? (
                   <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />
                 ) : (
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse" aria-hidden="true" />
                 )}
-                Start Workout
+                Start
               </button>
               <button
                 onClick={() => router.push('/app/workout/new')}
@@ -379,14 +385,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
               >
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
-              </button>
-              <button
-                onClick={() => router.push('/activities/record')}
-                className="tr-pill flex items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted hover:text-primary transition-colors"
-                data-training-record-activity
-              >
-                <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
-                Record Activity
               </button>
               <button
                 type="button"
@@ -480,7 +478,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             </div>
             <div className="mt-3 text-xs font-bold text-brand-fg-strong">
               {completedWorkouts.length > 0
-                ? `See all ${completedWorkouts.length} workout${completedWorkouts.length !== 1 ? 's' : ''}`
+                ? `See all ${completedWorkouts.length} workout${completedWorkouts.length !== 1 ? 's' : ''}${activitySessions.length > 0 ? ' and activities' : ''}`
                 : 'See activities'}
             </div>
           </StatBubbleCard>
@@ -488,16 +486,18 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           <StatBubbleCard span="md" icon={Dumbbell} label="Recent sessions" staggerIndex={1}>
             <p className="text-sm text-muted mb-3">
               {isOwnProfile
-                ? 'Record live — exercises, sets, reps, and weight as you go.'
+                ? 'Record live — a workout with sets, reps and weight, or an activity with a timer or a map.'
                 : "This athlete hasn't recorded a session yet."}
             </p>
             {isOwnProfile && (
               <button
-                onClick={openStartWorkout}
+                onClick={() => setShowStartSheet(true)}
                 disabled={startingWorkout}
+                aria-haspopup="dialog"
                 className="tr-pill px-4 py-2 bg-brand text-white rounded-full text-xs font-bold hover:bg-brand-hover transition-colors disabled:opacity-60"
+                data-training-start=""
               >
-                Start Your First Workout
+                Start your first session
               </button>
             )}
           </StatBubbleCard>
@@ -699,6 +699,14 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             setShowTrainingSettings(false);
             setShowRoutinesModal(true);
           }}
+        />
+      )}
+
+      {showStartSheet && (
+        <StartSessionSheet
+          onClose={() => setShowStartSheet(false)}
+          onWorkout={() => { setShowStartSheet(false); openStartWorkout(); }}
+          onActivity={() => { setShowStartSheet(false); router.push('/activities/record'); }}
         />
       )}
 

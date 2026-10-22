@@ -58,7 +58,7 @@ test('training @mobile: deep links reach the dashboard at phone width', async ({
     await pageB.goto(`/u/@${handle}?tab=training`);
     await expect(pageB.getByText('Sessions this week')).toBeVisible({ timeout: 15_000 });
     // Read-only for a visitor: no owner actions at phone width either.
-    await expect(pageB.getByRole('button', { name: 'Start Workout' })).toHaveCount(0);
+    await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
   } finally {
     await ctxB.close();
     await admin.from('profiles').update({ visibility: priorVisibility }).eq('id', userA.id);

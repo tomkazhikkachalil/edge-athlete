@@ -21,6 +21,28 @@ describe('the Workout starts from /app/workout/start', () => {
       expect(code(f), f).not.toMatch(/StartWorkoutSheet/);
     }
   });
+  // Training: three changes (Oct 22 2026) — Training's Start offers Workout or
+  // Activity; the rows are the Create sheet's, so the two doors cannot differ.
+  it('Training\'s Start opens the Workout | Activity sheet; its rows are the Create sheet\'s; Workout is the route, Activity the recorder', () => {
+    const rows = code('src/components/workouts/StartSessionRows.tsx');
+    expect(rows).toMatch(/data-create-workout=""/);
+    expect(rows).toMatch(/data-create-recording=""/);
+    expect(rows).toMatch(/'data-training-record-activity': ''/);
+    expect(rows).toMatch(/>Workout<\/span>/);
+    expect(rows).toMatch(/>Activity<\/span>/);
+    const sheet = code('src/components/workouts/StartSessionSheet.tsx');
+    expect(sheet).toMatch(/windowKey="start-session"/);
+    expect(sheet).toMatch(/<StartSessionRows onWorkout=\{onWorkout\} onActivity=\{onActivity\} trainingDoor \/>/);
+    const create = code('src/components/CreateSheet.tsx');
+    expect(create).toMatch(/<StartSessionRows onWorkout=\{onWorkout\} onActivity=\{onRecording\} \/>/);
+    expect(create).not.toMatch(/Start a workout|Record activity</);
+    const training = code('src/components/TrainingTab.tsx');
+    expect(training).toMatch(/onWorkout=\{\(\) => \{ setShowStartSheet\(false\); openStartWorkout\(\); \}\}/);
+    expect(training).toMatch(/onActivity=\{\(\) => \{ setShowStartSheet\(false\); router\.push\('\/activities\/record'\); \}\}/);
+    // The one Start: no separate Record Activity pill, no direct start door.
+    expect(training).not.toMatch(/Record Activity\s*<\/button>|Start Workout\s*<\/button>|Start Your First Workout/);
+    expect((training.match(/data-training-start=""/g) ?? []).length).toBe(2);
+  });
   it('the screen writes nothing before Start: no fetch of its own but the hook\'s; the CTA is fixed; the clock choice is remembered', () => {
     const screen = code('src/components/workouts/WorkoutStartScreen.tsx');
     expect(screen).not.toMatch(/fetch\(/);
