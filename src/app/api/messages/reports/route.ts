@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: ticket.id, number: formatTicketNumber(ticket.number), severity: ticket.severity }, { status: 201, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers }); // hardening-ok: TicketsNotLive carries a fixed string, never a database error
     reportRouteError('POST /api/messages/reports error:', error);
     return NextResponse.json({ error: 'Failed to file report' }, { status: 500, headers });
   }

@@ -1,6 +1,6 @@
 import { purgePost } from './helpers/results';
 import { test, expect } from './helpers/test';
-import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, qaEmail } from './helpers/qa-user';
 
 // Data foundation F6 (Sep 13 2026): the scout search reads
 // athlete_performances. A hockey stat line makes alpha findable with
@@ -21,7 +21,7 @@ test('scout search: performance filters — since, verified only, a headline flo
   const api = await apiAs('state.json');
   const { data: prior } = await admin.from('profiles').select('visibility, sport').eq('id', alpha.id).single();
   const rand = Math.random().toString(36).slice(2, 10);
-  const scoutEmail = `edgeqa-scout-${rand}@example.com`;
+  const scoutEmail = qaEmail(`scout-${rand}`);
   const scoutPassword = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
   const verifiedKey = `contest_stat_line:e2e-${rand}`;
   let scoutId: string | null = null;

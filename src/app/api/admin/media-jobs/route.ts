@@ -53,7 +53,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, dryRun, wouldRetry: count ?? 0 });
       }
       const { data, error } = await admin.from('media_jobs').update({ status: 'queued', attempts: 0, run_after: new Date().toISOString(), error: null, finished_at: null }).eq('status', 'failed').select('id');
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('[ADMIN-MEDIA-JOBS] retry failed:', error.message);
+        return NextResponse.json({ error: 'The failed jobs could not be re-queued. Try again in a moment.' }, { status: 500 });
+      }
       return NextResponse.json({ ok: true, dryRun, retried: (data ?? []).length });
     }
     const summary = await runMediaJobsTick(admin, defaultJobDeps(admin), { dryRun });

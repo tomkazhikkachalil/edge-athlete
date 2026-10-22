@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, qaEmail } from './helpers/qa-user';
 
 // Recruiting skeleton R4 — "Find athletes". Scout-only by construction: an
 // athlete's session gets 403 from the route and the not-for-you screen on
@@ -35,7 +35,7 @@ test('scout search: athletes are refused; a scout finds open athletes by name an
   const api = await apiAs('state.json');
   const { data: prior } = await admin.from('profiles').select('visibility, class_year').eq('id', alpha.id).single();
   const rand = Math.random().toString(36).slice(2, 10);
-  const scoutEmail = `edgeqa-scout-${rand}@example.com`;
+  const scoutEmail = qaEmail(`scout-${rand}`);
   const scoutPassword = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
   let scoutId: string | null = null;
   try {

@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { adminClient, deleteQaUser, guardianFlagOn, loadQaUser } from './helpers/qa-user';
+import { adminClient, deleteQaUser, guardianFlagOn, loadQaUser, qaEmail } from './helpers/qa-user';
 
 // Club sign-up, part 1 (phase 7 C1): the door. The login page's Club and
 // League buttons no longer end in a waitlist popup: the account comes
@@ -24,7 +24,7 @@ test('the Club door: existing-account question â†’ organizer account (no DOB) â†
   // door is a signed-out flow, so it runs in its own anonymous context.
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const page = await anon.newPage();
-  const email = `edgeqa-door-${rand()}@example.com`;
+  const email = qaEmail(`door-${rand()}`);
   const password = `Qa!${rand()}${rand()}9`;
   let createdId: string | null = null;
 

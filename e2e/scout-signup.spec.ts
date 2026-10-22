@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { adminClient, deleteQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, deleteQaUser, mintStorageState, readErrorBody, resetRateBucket, qaEmail } from './helpers/qa-user';
 
 // Recruiting skeleton R2 — the scout account. POST /api/signup with
 // actorRole 'scout' mints user_type 'scout' (server-decided, never the
@@ -31,7 +31,7 @@ test('scout signup: the actor branch mints a scout, lands on /app/scout; athlete
   test.skip(!!probe.error, `profiles.scout_affiliation missing — run migration 182 (${probe.error?.message})`);
 
   const rand = Math.random().toString(36).slice(2, 10);
-  const email = `edgeqa-scout-${rand}@example.com`;
+  const email = qaEmail(`scout-${rand}`);
   const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
   let scoutId: string | null = null;
   try {

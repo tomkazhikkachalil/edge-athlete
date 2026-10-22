@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  QA_ORG_NAME_RE, QA_ORG_NAME_SQL, SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, isQaOrgName, isQaUserEmail, isRetryableDbError, isShadowEmail, isStale,
+  QA_EMAIL_DOMAIN, QA_USER_EMAIL_RE, QA_USER_EMAIL_SQL, QA_ORG_NAME_RE, QA_ORG_NAME_SQL, SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, isQaOrgName, isQaUserEmail, isRetryableDbError, isShadowEmail, isStale,
   staleQaOrgs, staleShadows, staleQaTombstones, DEPARTED_EMAIL_LIKE,
 } from '../../../e2e/helpers/qa-sweep-rules';
 import { DEPARTED_EMAIL_DOMAIN } from '../account-departure';
@@ -33,13 +33,31 @@ describe('the QA org name', () => {
     const script = readFileSync(join(__dirname, '..', '..', '..', 'scripts', 'staging-sweep.mjs'), 'utf8');
     expect(script).toContain(QA_ORG_NAME_SQL);
   });
+  it('the SQL twin of the user rule is in the bulk script too', () => {
+    expect(QA_USER_EMAIL_SQL).toBe('^edgeqa-[a-z0-9-]+@(edgeathlete[.]ca|example[.]com)$'); // bracketed dots: the same text inside a JS template and in SQL
+    expect(QA_USER_EMAIL_RE.source).toBe('^edgeqa-[a-z0-9-]+@(edgeathlete\\.ca|example\\.com)$');
+    const script = readFileSync(join(__dirname, '..', '..', '..', 'scripts', 'staging-sweep.mjs'), 'utf8');
+    expect(script).toContain(QA_USER_EMAIL_SQL);
+    const helper = readFileSync(join(__dirname, '..', '..', '..', 'e2e', 'helpers', 'qa-user.ts'), 'utf8');
+    expect(helper).not.toContain('@example.com`');
+    for (const spec of ['scout-signup', 'scout-search', 'scout-search-performance', 'club-signup-door']) {
+      const src = readFileSync(join(__dirname, '..', '..', '..', 'e2e', `${spec}.spec.ts`), 'utf8');
+      expect(src, spec).toContain('qaEmail(');
+      expect(src, spec).not.toContain('@example.com`');
+    }
+  });
 });
 
 describe('users and shadows', () => {
   it('recognises the e2e users and the shadow users', () => {
-    expect(isQaUserEmail('edgeqa-fzdprvdk@example.com')).toBe(true);
+    expect(QA_EMAIL_DOMAIN).toBe('edgeathlete.ca'); // the apex: it resolves (Supabase checks DNS on signUp)
+    expect(isQaUserEmail(`edgeqa-fzdprvdk@${QA_EMAIL_DOMAIN}`)).toBe(true);
+    expect(isQaUserEmail(`edgeqa-scout-fzdprvdk@${QA_EMAIL_DOMAIN}`)).toBe(true); // a tagged address (the real sign-up specs)
+    expect(isQaUserEmail('edgeqa-fzdprvdk@example.com')).toBe(true);       // the leftovers of runs before Oct 22 2026
     expect(isQaUserEmail('edgeqa-fzdprvdk@example.org')).toBe(false);
     expect(isQaUserEmail('tom@example.com')).toBe(false);
+    expect(isQaUserEmail('tom@edgeathlete.ca')).toBe(false);                 // the prefix is part of the rule — a real address on our domain is never swept
+    expect(isQaUserEmail(`edgeqa-@${QA_EMAIL_DOMAIN}`)).toBe(false);
     expect(isShadowEmail('80c622ed-2ecb-4852-b35b-85efdfd5960f@stubs.invalid')).toBe(true);
     expect(isShadowEmail('pending-ab12@minors.invalid')).toBe(true);
     expect(isShadowEmail('seed-0001@staging.invalid')).toBe(false);

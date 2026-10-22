@@ -9,13 +9,97 @@ saved.
 
 ---
 
-## 0. The launch gate (Sep 30 2026) — until the doors open
+## 0. Opening the gate — the checklist (Oct 22 2026)
 
-Production is gated: `NEXT_PUBLIC_LAUNCH_GATE=1` in Vercel (Production; a
-real build) sends every signed-out visitor to `/auth/coming-soon` and
-refuses `/api/signup`; Supabase → Authentication → "Allow new users to sign
-up" is OFF (covers Google). To open: turn the Supabase switch on, remove the
-flag, build. `src/lib/launch-gate.ts` holds the rule; DEVLOG Sep 30 2026.
+Production is gated: `NEXT_PUBLIC_LAUNCH_GATE=1` in Vercel Production is
+baked into the build (`src/lib/launch-gate.ts`), so every signed-out visitor
+is sent to `/auth/coming-soon` except the doors (`/?signin=1`, `/auth/*`,
+`/forgot-password`, `/reset-password`, `/privacy`, `/terms`, `/admin`,
+static files); `/robots.txt` answers `Disallow: /`, `/sitemap.xml` 404,
+`POST /api/signup` 403, and the login page shows "Sign-ups are closed".
+Supabase → Authentication → "Allow new users to sign up" is OFF (it covers
+Google too). APIs and the pg_cron jobs are never gated. The coming-soon page
+collects names and e-mails into `contacts` (marketing consent unticked by
+default) — that list is the opening announcement's audience.
+
+**Before the switch — blocking.** Owner in brackets; every line ends in a probe.
+
+- [ ] **E-mail** (§1 + §2) [Tom: Resend + Vercel + Supabase dashboards; Claude:
+      the probe specs]. Parked since Sep 27 2026 by decision ("until we go
+      public") — this is that step. Resend → Domains → `edgeathlete.ca` →
+      Verify (the DNS records are in GoDaddy since Sep 29); `SMTP_HOST`,
+      `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` in Vercel
+      Production; Supabase custom SMTP on prod (password reset and sign-up
+      confirmation use Supabase's own sender, a handful an hour otherwise);
+      raise the auth e-mail rate limit. While `SMTP_*` is unset every sender
+      skips quietly and the urgent / digest crons leave their rows unstamped,
+      so nothing is lost — it sends once configured. Probe: the prod contact
+      form lands in a real inbox; Forgot password arrives and the link opens
+      `/reset-password`; a guardian invite arrives.
+- [ ] **Sign-up path** [Tom]. Supabase sign-up switch ON. E-mail confirmations
+      are OFF today (verified live): decide — keep OFF (the account signs in
+      at once after sign-up; the `signup` bucket is 5 an hour per IP) or ON
+      (needs e-mail first). `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1` in
+      Production so an under-age sign-up parks in `pending_profiles` with a
+      guardian invite. Google sign-up human round-trip (§3). Probe: an athlete
+      sign-up lands in `/onboarding`; a parent sign-up creates a PARENT.
+- [ ] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging confirmations are ON with the built-in sender at 2 mails an hour, so at most two real sign-up specs pass per hour there]:
+      the three real-sign-up specs (`scout-signup`, `scout-search`,
+      `scout-search-performance`) guard the door again.
+- [ ] **Vercel plan** [Tom, cost]. Hobby's terms are non-commercial; a public
+      product runs on Pro (US$20 a month), which also unlocks Skew Protection
+      (§5b) and longer function limits. Supabase is already Pro (Micro since
+      Oct 19 2026).
+- [ ] **Rate limits** [Tom decides, Claude one line]. `write-general` (120 a
+      minute per account) has run in SHADOW since Oct 10 2026 — logged, never
+      refused. Read the `[RATE-LIMIT]` lines in the Vercel logs; none fired by
+      Oct 10. Decide real or shadow at launch (recommendation: real).
+- [ ] **Robots, sitemap, indexing** [Tom]. Both flip with the flag:
+      `src/app/robots.ts` allows `/` and disallows `/api/` and `/app/`; the
+      sitemap lists `/clubs`, `/leagues`, public `/u/<handle>` profiles and
+      published org pages. Still unchecked from `GO_LIVE_EDGEATHLETE_CA.md`:
+      the Supabase Site URL and Google Search Console. Probe after the
+      switch: `/robots.txt` allows, `/sitemap.xml` 200.
+- [ ] **Legal and the visitor doors** [Tom reviews, Claude one line].
+      `/privacy` and `/terms` read "Last updated: July 2026" — review the
+      wording for a public launch. `/help` and `/contact` are NOT on the open
+      list, so a signed-out visitor is sent to coming-soon: add them to
+      `OPEN_PREFIXES` so the public has a support door (one line +
+      `launch-gate.test`). No cookie banner exists and none is planned: the
+      app sets first-party cookies only, disclosed on the privacy page.
+
+**Decide before, not blocking.**
+
+- [ ] **Feed cold load on a mid-range Android** (Oct 10 2026: LCP 5.2 s, CLS
+      0.35). The Get Started card appears after its fetch and pushes the feed
+      246 px. Layout decision: reserve its space from the profile we already
+      hold, or render it below the scope chips. One small PR.
+- [ ] **Capacity.** Micro has been clean since Oct 19 2026. Measure
+      production's number once in a quiet window (Tom's OK first); the
+      compute add-on only if CPU binds. The first thing to break is the
+      signed-in feed's uncached per-viewer read (`docs/HARDENING.md`,
+      Scaling).
+- [ ] **The native app shell** (`docs/ROADMAP_2026-10.md` §2). Decision of Oct 9
+      2026: before the doors open to the general public, iPhone first.
+      Prerequisites on the Mac: Xcode (~20 GB), the Apple Developer Program
+      (US$99 a year). Either a go-public date sets the native start, or the
+      web app opens the doors alone (it installs to the home screen today).
+- [ ] **Launch-day watch.** Sentry carries the environment (10 % traces, no
+      PII); the latency watcher during probes; Vercel logs for 500s and
+      `[RATE-LIMIT]`; Supabase Reports → RAM / SWAP; the admin console's
+      Support queue (reports are tickets; suspend and ban are ticket actions).
+- [ ] **The announcement.** The coming-soon contacts with marketing consent
+      TRUE get the opening e-mail once e-mail is green; Admin → Contacts
+      exports the CSV.
+
+**The switch itself.** Supabase sign-up ON → remove `NEXT_PUBLIC_LAUNCH_GATE`
+from Vercel Production → a REAL build (not a redeploy — the flag is inlined)
+→ probes: `/` serves the landing with the sign-up column, `/robots.txt`
+allows, `/sitemap.xml` 200, `POST /api/signup` no longer 403s → the
+`launch-gate` spec stops applying and the signed-out prod specs (share cards,
+`/u/`, org sites, landing, `stats-hub-mobile`) return to the prod probe set →
+the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
+2026 (the gate), Oct 22 2026 (this checklist).
 
 ## 1. Email deliverability — BLOCKING (every app email 550s today)
 
