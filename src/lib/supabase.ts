@@ -88,6 +88,8 @@ export interface Profile {
   location_source?: string | null;
   user_type: 'athlete' | OrgKind | 'fan' | 'parent' | 'organizer' | 'scout';
   onboarded_at?: string | null; // null = first-run onboarding not yet completed
+  /** Trigger-maintained counters (mig 229) — on every `select('*')`, read by the Get Started card before its API answers. */
+  following_count?: number;
   created_at: string;
   updated_at: string;
   // Extended athlete profile fields

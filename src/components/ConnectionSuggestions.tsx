@@ -120,12 +120,15 @@ export default function ConnectionSuggestions({
 
   if (loading) {
     return (
-      <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`}>
+      <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="loading">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 dark:bg-stone-800 rounded w-3/4 mb-4"></div>
+          {/* As many rows as the list will hold, each the resolved row's height
+              (min-h-[72px] below), so the skeleton and the list are the same
+              size and nothing under the sidebar moves when it resolves. */}
           <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="flex items-center gap-3">
+            {Array.from({ length: limit }, (_, i) => (
+              <div key={i} className="flex items-center gap-3 min-h-[72px]">
                 <div className="w-12 h-12 bg-gray-200 dark:bg-stone-800 rounded-full"></div>
                 <div className="flex-1">
                   <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-3/4 mb-2"></div>
@@ -144,7 +147,7 @@ export default function ConnectionSuggestions({
   }
 
   return (
-    <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`}>
+    <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="ready">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className={`font-bold text-primary ${compact ? 'text-base' : 'text-lg'}`}>

@@ -92,6 +92,64 @@ test('@mobile the first-run checklist is usable at phone width', { tag: '@smoke'
   await expect(feed.getByTestId('get-started-card')).toHaveCount(0);
 });
 
+// Decisions round (Oct 22 2026), Tom: "reserve its space". On a cold load the
+// card used to appear only when its steps API answered (~2.3 s on a mid-range
+// Android) and pushed the whole feed down (CLS 0.35). Now the client decides
+// from the profile it already holds and the card is on screen from the first
+// paint, resolving; the API fills the rows in inside a box that keeps its
+// height. Layout shift is read off the page itself (PerformanceObserver —
+// Chromium only; WebKit reports no layout-shift entries).
+test('@mobile the checklist holds its place: on screen before its API answers, and nothing under it moves', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'layout-shift entries are a Chromium metric');
+  await page.setViewportSize({ width: 375, height: 812 });
+  type ClsWindow = Window & { __cls: number; __clsLog: string[] };
+  await page.addInitScript(() => {
+    const w = window as unknown as ClsWindow;
+    w.__cls = 0;
+    w.__clsLog = [];
+    new PerformanceObserver(list => {
+      for (const e of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean; sources?: Array<{ node?: Element | null }> }>) {
+        if (e.hadRecentInput) continue;
+        // The suggestions block is its own story: with nothing to suggest it
+        // collapses by design (no empty state), which an account with an
+        // empty feed sees in the same viewport. Not this card's shift.
+        const sources = e.sources ?? [];
+        if (sources.length > 0 && sources.every(src => !!(src.node as Element | null)?.closest?.('[data-feed-suggestions]'))) continue;
+        w.__cls += e.value;
+        w.__clsLog.push(`${e.value.toFixed(3)} @${Math.round(e.startTime)}ms ${(e.sources ?? []).map(src => (src.node as Element | null)?.outerHTML?.slice(0, 70).replace(/\s+/g, ' ') ?? '?').join(' | ')}`);
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  let answered = false;
+  await page.route('**/api/profile/getting-started', async route => {
+    await new Promise(r => setTimeout(r, 2500));
+    answered = true;
+    await route.fulfill({ json: STUBBED_STEPS });
+  });
+
+  await page.goto('/feed');
+  const card = page.getByTestId('get-started-card');
+  // On screen while the API is still out, with its rows already drawn.
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  expect(answered, 'the card showed before its API answered').toBe(false);
+  await expect(card).toHaveAttribute('data-get-started', 'resolving');
+  await expect(card.locator('li')).toHaveCount(4);
+  const before = await card.boundingBox();
+  // From here on: the shift the CARD's resolution causes (the page's own
+  // loader-to-feed swap before this point is not this card's).
+  await page.evaluate(() => { const w = window as unknown as ClsWindow; w.__cls = 0; w.__clsLog = []; });
+
+  // The answer lands: the rows resolve in place, the box does not move or shrink.
+  await expect(card).toHaveAttribute('data-get-started', 'resolved', { timeout: 15_000 });
+  await expect(card.getByText('Follow 3 athletes (1/3)')).toBeVisible();
+  const after = await card.boundingBox();
+  expect(after!.y).toBe(before!.y);
+  expect(after!.height).toBeGreaterThanOrEqual(before!.height - 1);
+  await page.waitForTimeout(1000);
+  const { cls, log } = await page.evaluate(() => { const w = window as unknown as ClsWindow; return { cls: w.__cls, log: w.__clsLog }; });
+  expect(cls, `layout shift after the card showed:\n${log.join('\n')}`).toBeLessThan(0.1);
+});
+
 // Quick fixes, PR 3 (Oct 2026). Tom: "If the user closes the suggestions,
 // they should stay closed." The X was remembered in one browser's
 // localStorage, so any fresh storage — a second device, a private window, the
