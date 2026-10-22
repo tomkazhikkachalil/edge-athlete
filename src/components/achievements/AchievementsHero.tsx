@@ -22,7 +22,7 @@ function Tile({
   return (
     <div className="bg-surface rounded-lg border border-border p-4 text-center">
       <div className="flex items-center justify-center gap-1.5 mb-1">
-        <Icon className="w-4 h-4 text-faint" aria-hidden="true" />
+        <Icon className="w-4 h-4 text-decor" aria-hidden="true" />
         <span className="text-2xl font-bold text-primary tabular-nums">{value}</span>
       </div>
       <div className="text-xs text-muted uppercase tracking-wide">{label}</div>

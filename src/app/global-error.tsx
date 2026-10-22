@@ -9,8 +9,8 @@ import { THEME_RESOLVED_COOKIE } from '@/lib/theme-cookie';
 // user. It reads the resolved theme the app last wrote (the cookie the
 // manifest also reads) and paints the matching hexes of globals.css by hand.
 const PALETTE = {
-  light: { canvas: '#f9fafb', surface: '#ffffff', primary: '#111827', secondary: '#374151', tertiary: '#4b5563', faint: '#9ca3af', border: '#d1d5db', dangerFg: '#b91c1c', dangerSoft: '#fef2f2', dangerBorder: '#fee2e2' },
-  dark: { canvas: '#171310', surface: '#1f1a16', primary: '#e9e5e1', secondary: '#c8c1ba', tertiary: '#a9a29b', faint: '#78716c', border: '#4a423b', dangerFg: '#f87171', dangerSoft: '#2e1a18', dangerBorder: '#5e2d2a' },
+  light: { canvas: '#f9fafb', surface: '#ffffff', primary: '#111827', secondary: '#374151', tertiary: '#4b5563', faint: '#676e7c', border: '#d1d5db', dangerFg: '#b91c1c', dangerSoft: '#fef2f2', dangerBorder: '#fee2e2' },
+  dark: { canvas: '#171310', surface: '#1f1a16', primary: '#e9e5e1', secondary: '#c8c1ba', tertiary: '#a9a29b', faint: '#948e88', border: '#4a423b', dangerFg: '#f87171', dangerSoft: '#2e1a18', dangerBorder: '#5e2d2a' },
 } as const;
 
 const noSubscribe = () => () => {};

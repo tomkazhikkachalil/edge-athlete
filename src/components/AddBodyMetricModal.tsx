@@ -523,7 +523,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                           <img src={f.preview} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="fas fa-play-circle text-2xl text-faint"></i>
+                            <i className="fas fa-play-circle text-2xl text-decor"></i>
                           </div>
                         )}
                         <button

@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
         <AdminHeader />
         <div className="flex items-center justify-center py-20">
           <div className="text-center px-4">
-            <i className="fas fa-lock text-4xl text-gray-300 dark:text-faint mb-4"></i>
+            <i className="fas fa-lock text-4xl text-gray-300 dark:text-decor mb-4"></i>
             <h1 className="text-xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
           </div>

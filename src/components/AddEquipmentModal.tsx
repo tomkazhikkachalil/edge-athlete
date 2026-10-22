@@ -504,7 +504,7 @@ export default function AddEquipmentModal({
                     autoComplete="off"
                   />
                   {hasBrandCatalog && (
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-faint pointer-events-none" />
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-decor pointer-events-none" />
                   )}
                 </div>
                 {showBrandDropdown && brandSuggestions.length > 0 && (

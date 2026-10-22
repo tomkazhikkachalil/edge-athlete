@@ -100,7 +100,7 @@ export default function MediaTile({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-stone-800">
-          <i className="fas fa-image text-faint text-lg" aria-hidden="true"></i>
+          <i className="fas fa-image text-decor text-lg" aria-hidden="true"></i>
         </div>
       )}
 

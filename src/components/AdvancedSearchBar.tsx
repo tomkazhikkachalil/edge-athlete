@@ -246,7 +246,7 @@ export default function AdvancedSearchBar() {
              local override here fought the app-wide :focus-visible ring. */
           className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg outline-none transition-all"
         />
-        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
+        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
 
         {/* Filter Toggle Button - Positioned inside search bar */}
         <button
@@ -550,7 +550,7 @@ export default function AdvancedSearchBar() {
                         </div>
                       </div>
                       {athlete.visibility === 'private' && (
-                        <i className="fas fa-lock text-faint text-sm"></i>
+                        <i className="fas fa-lock text-decor text-sm"></i>
                       )}
                     </div>
                   ))}

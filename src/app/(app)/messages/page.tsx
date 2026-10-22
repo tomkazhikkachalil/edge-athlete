@@ -49,7 +49,7 @@ function MessagesContent() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
+        <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
       </div>
     );
   }
@@ -97,7 +97,7 @@ function MessagesContent() {
           <div className="hidden lg:flex flex-1 items-center justify-center bg-surface-muted">
             <div className="text-center">
               <div className="w-16 h-16 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-comment-alt text-faint text-2xl"></i>
+                <i className="fas fa-comment-alt text-decor text-2xl"></i>
               </div>
               <p className="text-sm font-semibold text-secondary mb-1">Your Messages</p>
               <p className="text-xs text-faint mb-4">Select a conversation or start a new one</p>
@@ -139,7 +139,7 @@ export default function MessagesPage() {
       <div className="flex-1 min-h-0">
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">
-            <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
+            <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
           </div>
         }>
           <MessagesContent />

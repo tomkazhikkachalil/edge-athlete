@@ -134,7 +134,7 @@ export default function SharedRoundQuickView({
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <i className="fas fa-users text-faint text-base"></i>
+            <i className="fas fa-users text-decor text-base"></i>
             <span className="font-bold text-primary text-base">{golf_data.course_name}</span>
 
             {/* Round lifecycle badge: LIVE while scores are streaming in,

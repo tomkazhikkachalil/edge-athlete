@@ -72,7 +72,7 @@ function AchievementRow({
           {tier ? (
             <Medal className={`w-5 h-5 ${accent.text}`} aria-hidden="true" />
           ) : (
-            <Trophy className="w-5 h-5 text-faint" aria-hidden="true" />
+            <Trophy className="w-5 h-5 text-decor" aria-hidden="true" />
           )}
         </div>
         <div className="min-w-0 flex-1">

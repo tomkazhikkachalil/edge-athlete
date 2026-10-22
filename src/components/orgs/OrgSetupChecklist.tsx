@@ -76,7 +76,7 @@ export default function OrgSetupChecklist({
         {steps.map(step => (
           <li key={step.key} className="flex items-start gap-2">
             <i
-              className={`fas ${step.done ? 'fa-circle-check text-emerald-600' : 'fa-circle text-faint'} mt-0.5 text-sm`}
+              className={`fas ${step.done ? 'fa-circle-check text-emerald-600' : 'fa-circle text-decor'} mt-0.5 text-sm`}
               aria-hidden="true"
             ></i>
             <div className="min-w-0">

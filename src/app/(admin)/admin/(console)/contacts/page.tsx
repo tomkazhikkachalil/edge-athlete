@@ -51,7 +51,7 @@ export default function ContactsAdminPage() {
         )}
         {state === 'forbidden' && (
           <div className="text-center px-4 py-20">
-            <i className="fas fa-lock text-4xl text-faint mb-4" aria-hidden="true"></i>
+            <i className="fas fa-lock text-4xl text-decor mb-4" aria-hidden="true"></i>
             <h2 className="text-xl font-bold text-primary mb-2">Admin access required</h2>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
           </div>

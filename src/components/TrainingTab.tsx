@@ -299,7 +299,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   if (loading) {
     return (
       <div className="py-16 flex items-center justify-center">
-        <Loader2 className="w-7 h-7 text-faint animate-spin" aria-label="Loading" />
+        <Loader2 className="w-7 h-7 text-decor animate-spin" aria-label="Loading" />
       </div>
     );
   }

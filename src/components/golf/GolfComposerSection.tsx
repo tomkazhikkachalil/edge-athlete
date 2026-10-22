@@ -843,7 +843,7 @@ export default function GolfComposerSection({
                       </div>
                     )}
                     {!searchLoading && sharedRoundDetails.courseName && (
-                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
+                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
                     )}
                   </div>
                   {/* Near me — the ONLY place the composer asks for the

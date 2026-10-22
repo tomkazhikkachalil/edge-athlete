@@ -196,7 +196,7 @@ export default function SharePostModal({
         {/* Search */}
         <div className="px-4 py-3 border-b border-border-subtle">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-sm"></i>
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm"></i>
             <input
               type="text"
               value={search}

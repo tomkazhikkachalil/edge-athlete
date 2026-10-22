@@ -75,6 +75,12 @@ Not started; a program of its own, after the fix round.
   the free community background-geolocation plugin feeding the existing
   recorder (`src/lib/activities/gps-filter.ts`), since the app's server routes
   cannot be bundled.
+- **Decided (Tom, Oct 22 2026): the shell is Capacitor with native
+  background location for the recorder, and the native app does NOT gate the
+  public opening** — the web app opens the doors first and the iPhone app
+  follows. Until then outdoor recording relies on the screen wake lock the
+  web recorder already holds (`RecordingEngineHost`). The prerequisites and
+  costs below stand; the start date is set by the go-public date.
 - **Costs to plan for:** Apple Developer Program US$99 / year, Google Play
   US$25 once; a Mac with Xcode, a real iPhone and Watch to test on; App Store
   and Play review; a third surface to keep working beside web and phone-width

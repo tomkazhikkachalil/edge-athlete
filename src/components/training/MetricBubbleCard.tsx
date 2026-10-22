@@ -40,7 +40,7 @@ export default function MetricBubbleCard({ metricKey, entries, staggerIndex = 0,
           <span className="text-xs text-faint shrink-0">{metric.unit}</span>
           {trend !== '—' && <span className={`text-xs font-bold ${trendColor}`}>{trend}</span>}
         </div>
-        <ChevronRight className="w-4 h-4 text-faint shrink-0" aria-hidden="true" />
+        <ChevronRight className="w-4 h-4 text-decor shrink-0" aria-hidden="true" />
       </div>
 
       <div className="text-2xl sm:text-3xl font-bold text-primary tabular-nums mb-1.5">

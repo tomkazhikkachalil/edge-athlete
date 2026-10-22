@@ -235,7 +235,7 @@ export default function AdminLeaguesPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-faint" aria-hidden="true"></i>
+              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>

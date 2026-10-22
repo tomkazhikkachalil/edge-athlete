@@ -59,13 +59,17 @@
   --surface-raised: #ffffff;  /* dropdowns/popovers/toasts (= surface in light, +1 step in dark) */
   --surface-inverse: #111827; /* the rare dark-on-light chrome, e.g. chart tooltip */
 
-  /* Text: five tiers, exact old grays. faint is decorative-only (icons,
-   * timestamps) — it is deliberately below AA body contrast in both themes. */
+  /* Text: five tiers. Every tier is READABLE text — faint and muted included —
+   * and clears 4.5:1 on every surface of its theme (contrast-tokens.test pins
+   * it; Oct 22 2026, Tom: fix both themes). The grey for non-text — dividers,
+   * borders, decorative icons, separator glyphs — is --decor below, the old
+   * faint value, where it belongs. */
   --text-primary: #111827;    /* was text-gray-900 */
   --text-secondary: #374151;  /* was text-gray-700 */
   --text-tertiary: #4b5563;   /* was text-gray-600 */
-  --text-muted: #6b7280;      /* was text-gray-500 */
-  --text-faint: #9ca3af;      /* was text-gray-400 */
+  --text-muted: #5f6673;      /* 5.25:1 on --surface-sunken (was #6b7280, 4.39:1) */
+  --text-faint: #676e7c;      /* 4.66:1 on --surface-sunken (was #9ca3af, 2.31:1) */
+  --decor: #9ca3af;           /* non-text only: dividers, borders, decorative icons */
   --text-inverse: #ffffff;    /* text on --surface-inverse */
 
   --border-default: #e5e7eb;  /* was border-gray-200 */
@@ -207,6 +211,7 @@
   --color-tertiary: var(--text-tertiary);
   --color-muted: var(--text-muted);
   --color-faint: var(--text-faint);
+  --color-decor: var(--decor);
   --color-inverse: var(--text-inverse);
 
   --color-border: var(--border-default);
@@ -363,8 +368,9 @@ body {
   --text-primary: #e9e5e1;   /* ~13:1 on --surface */
   --text-secondary: #c8c1ba; /* ~9:1 */
   --text-tertiary: #a9a29b;  /* ~6:1 */
-  --text-muted: #98918a;     /* ~5:1 */
-  --text-faint: #78716c;     /* decorative only */
+  --text-muted: #98918a;     /* 4.94:1 on --surface-raised */
+  --text-faint: #948e88;     /* 4.74:1 on --surface-raised (was #78716c, 3.20:1) */
+  --decor: #78716c;          /* non-text only: dividers, borders, decorative icons */
   --text-inverse: #1f1a16;
 
   --border-default: #332d27;
@@ -1485,7 +1491,7 @@ html:not([data-theme="dark"]) .dark-theme-only {
 }
 [data-theme="dark"] .leaflet-bar a.leaflet-disabled {
   background-color: var(--surface);
-  color: var(--text-faint);
+  color: var(--decor);
 }
 [data-theme="dark"] .leaflet-container a.leaflet-popup-close-button {
   color: var(--text-muted);

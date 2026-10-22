@@ -24,7 +24,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
       <div className="bg-surface rounded-lg shadow-sm border border-border p-6 sm:p-12 text-center">
         {/* Lock Icon */}
         <div className="w-20 h-20 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-6">
-          <i className="fas fa-lock text-3xl text-faint"></i>
+          <i className="fas fa-lock text-3xl text-decor"></i>
         </div>
 
         {/* Heading */}

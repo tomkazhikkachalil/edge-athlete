@@ -68,7 +68,7 @@ export default function InvitePage() {
 
           {state === 'invalid' && (
             <div className="text-center py-4">
-              <i className="fas fa-link-slash text-faint text-3xl mb-4"></i>
+              <i className="fas fa-link-slash text-decor text-3xl mb-4"></i>
               <h2 className="text-xl font-bold text-primary mb-2">This link isn&apos;t valid anymore</h2>
               <p className="text-sm text-tertiary mb-6">
                 Guardian invite links are single-use and expire after 7 days.

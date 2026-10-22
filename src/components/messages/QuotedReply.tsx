@@ -53,7 +53,7 @@ export default function QuotedReply({ replyTo, isOwn, onScrollToMessage }: Props
 
   const barStyle = isOwn
     ? 'bg-brand-hover/30 border-l-2 border-violet-300 dark:border-violet-700'
-    : 'bg-surface-sunken border-l-2 border-faint';
+    : 'bg-surface-sunken border-l-2 border-decor';
 
   return (
     <button

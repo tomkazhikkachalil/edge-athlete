@@ -54,7 +54,7 @@ export default function GoodbyePage() {
             <ul className="space-y-2 text-sm text-secondary">
               {COPY.ACCOUNT.DELETE_GOES.map(text => (
                 <li key={text} className="flex items-start gap-2">
-                  <i className="fas fa-circle text-xs text-faint mt-1.5" aria-hidden="true"></i>
+                  <i className="fas fa-circle text-xs text-decor mt-1.5" aria-hidden="true"></i>
                   <span>{text}</span>
                 </li>
               ))}

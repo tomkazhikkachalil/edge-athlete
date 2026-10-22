@@ -156,7 +156,7 @@ export default function DockPanel({
           {/* Search — same markup as the full messages page's list search. */}
           <div className="px-3 py-2 border-b border-border-subtle shrink-0">
             <div className="relative">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
+              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
               <input
                 type="text"
                 value={filter}
@@ -217,7 +217,7 @@ export default function DockPanel({
               <div className="px-4 py-8 text-center">
                 {filter ? (
                   <>
-                    <i className="fas fa-search text-gray-300 dark:text-faint text-2xl mb-2"></i>
+                    <i className="fas fa-search text-gray-300 dark:text-decor text-2xl mb-2"></i>
                     <p className="text-sm text-muted">
                       No conversations match &ldquo;{filter}&rdquo;
                     </p>
@@ -225,7 +225,7 @@ export default function DockPanel({
                 ) : (
                   <>
                     <span className="w-12 h-12 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i className="fas fa-comment-alt text-faint text-lg"></i>
+                      <i className="fas fa-comment-alt text-decor text-lg"></i>
                     </span>
                     <p className="text-sm font-semibold text-secondary">No conversations yet</p>
                     <p className="text-xs text-muted mb-4">

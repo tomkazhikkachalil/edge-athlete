@@ -379,7 +379,7 @@ function FollowersContent() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
           <div className="text-center py-12">
-            <i className="fas fa-spinner fa-spin text-3xl text-faint mb-3"></i>
+            <i className="fas fa-spinner fa-spin text-3xl text-decor mb-3"></i>
             <p className="text-tertiary">Loading...</p>
           </div>
         ) : (
@@ -533,7 +533,7 @@ export default function FollowersPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-canvas flex items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-3xl text-faint"></i>
+        <i className="fas fa-spinner fa-spin text-3xl text-decor"></i>
       </div>
     }>
       <FollowersContent />

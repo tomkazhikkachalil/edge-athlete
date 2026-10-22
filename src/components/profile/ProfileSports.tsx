@@ -88,7 +88,7 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onAddSports
           <span className="text-sm font-semibold text-secondary flex items-center gap-2">
             <i className="fas fa-medal" aria-hidden="true"></i>
             No sports yet — Add sports
-            <i className="fas fa-chevron-right text-xs text-faint ml-auto" aria-hidden="true"></i>
+            <i className="fas fa-chevron-right text-xs text-decor ml-auto" aria-hidden="true"></i>
           </span>
         </button>
       </section>
@@ -185,7 +185,7 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onAddSports
                     <span className="text-sm font-semibold text-primary shrink-0">{card.sportLabel}</span>
                     <span className="ml-auto flex items-baseline gap-1.5 min-w-0">
                       {headlineOf(card, false)}
-                      <i className="fas fa-chevron-right text-xs text-faint shrink-0" aria-hidden="true"></i>
+                      <i className="fas fa-chevron-right text-xs text-decor shrink-0" aria-hidden="true"></i>
                     </span>
                   </button>
                 ) : (

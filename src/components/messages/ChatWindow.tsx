@@ -649,7 +649,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-surface items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
+        <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
       </div>
     );
   }
@@ -865,7 +865,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           {hasMore && (
             <div ref={sentinelRef} className="flex items-center justify-center py-4">
               {loadingMore ? (
-                <i className="fas fa-spinner fa-spin text-faint"></i>
+                <i className="fas fa-spinner fa-spin text-decor"></i>
               ) : (
                 <div className="h-4" />
               )}
@@ -905,7 +905,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           {messages.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
-                <i className="fas fa-comment-alt text-faint text-xl"></i>
+                <i className="fas fa-comment-alt text-decor text-xl"></i>
               </div>
               <p className="text-sm font-semibold text-secondary mb-1">No messages yet</p>
               <p className="text-xs text-faint">Send the first message!</p>

@@ -113,7 +113,7 @@ export default function NotificationBell() {
           <div className="overflow-y-auto flex-1">
             {recentNotifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
-                <i className="fas fa-bell-slash text-4xl text-gray-300 dark:text-faint mb-2"></i>
+                <i className="fas fa-bell-slash text-4xl text-gray-300 dark:text-decor mb-2"></i>
                 <p className="text-muted text-sm">No new notifications</p>
               </div>
             ) : (

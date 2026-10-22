@@ -209,7 +209,7 @@ export default function NewConversationModal({ onClose }: Props) {
 
           {/* Search */}
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
             <input
               type="text"
               value={searchQuery}

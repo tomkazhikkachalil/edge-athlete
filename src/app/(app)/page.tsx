@@ -550,12 +550,12 @@ export default function Home() {
                           className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 pr-10"
                           placeholder="Enter postal code"
                         />
-                        <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-faint sm:hidden">
+                        <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-decor sm:hidden">
                           <i className="fas fa-location-dot text-sm"></i>
                         </span>
                       </div>
                     </div>
-                    <span aria-hidden="true" className="pointer-events-none hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-faint">
+                    <span aria-hidden="true" className="pointer-events-none hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-decor">
                       <i className="fas fa-location-dot"></i>
                     </span>
                   </div>

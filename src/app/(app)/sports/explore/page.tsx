@@ -178,7 +178,7 @@ function ExploreInner() {
             Near me. Guest-safe — the endpoint serves public profiles only. */}
         <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-faint" aria-hidden="true"></i>
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-decor" aria-hidden="true"></i>
             <input
               type="search"
               value={qInput}

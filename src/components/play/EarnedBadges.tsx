@@ -64,7 +64,7 @@ const TIER_LOOK: Record<BadgeTier, { circle: string; icon: string; chip: string 
   silver: { circle: 'bg-slate-100 dark:bg-slate-800 ring-2 ring-slate-300 dark:ring-slate-600', icon: 'text-slate-600 dark:text-slate-200', chip: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' },
   bronze: { circle: 'bg-orange-50 dark:bg-orange-950/50 ring-2 ring-orange-200 dark:ring-orange-800', icon: 'text-orange-700 dark:text-orange-300', chip: 'bg-orange-50 dark:bg-orange-950/50 text-orange-900 dark:text-orange-100' },
 };
-const LOCKED_LOOK = { circle: 'border-2 border-dashed border-border', icon: 'text-faint' };
+const LOCKED_LOOK = { circle: 'border-2 border-dashed border-border', icon: 'text-decor' };
 
 const sportName = (key: string | null) => (key === null ? 'Across sports' : SPORT_NAMES[key] ?? key);
 

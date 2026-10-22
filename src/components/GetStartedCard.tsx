@@ -172,7 +172,7 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
         {steps.map(step => (
           <li key={step.key} className="flex items-start gap-3">
             <i
-              className={`fas ${step.done ? 'fa-circle-check text-green-600 dark:text-green-400' : 'fa-circle text-faint'} mt-0.5`}
+              className={`fas ${step.done ? 'fa-circle-check text-green-600 dark:text-green-400' : 'fa-circle text-decor'} mt-0.5`}
               aria-hidden="true"
             ></i>
             <div className="min-w-0 flex-1 sm:flex sm:items-start sm:gap-3">

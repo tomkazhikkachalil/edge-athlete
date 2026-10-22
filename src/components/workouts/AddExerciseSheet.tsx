@@ -109,7 +109,7 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd, multi = null 
             </div>
           )}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-decor pointer-events-none" />
             <input
               ref={inputRef}
               type="text"

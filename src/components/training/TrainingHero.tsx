@@ -55,7 +55,7 @@ function Stat({
   return (
     <div className="text-center">
       <div className="flex items-center justify-center gap-1.5 mb-1">
-        <Icon className="w-4 h-4 text-faint" aria-hidden="true" />
+        <Icon className="w-4 h-4 text-decor" aria-hidden="true" />
         <span className="text-2xl sm:text-3xl font-bold text-primary tabular-nums whitespace-nowrap">{value}</span>
         <DeltaGlyph now={delta.now} prior={delta.prior} />
       </div>
@@ -193,7 +193,7 @@ export default function TrainingHero({
       {/* PB spotlight — the newest all-time best, front and center */}
       <div className="mt-6 flex items-center gap-3 rounded-2xl bg-surface-muted p-4">
         <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${pb ? accent.chip : 'bg-surface-sunken'}`}>
-          <Trophy className={`w-5 h-5 ${pb ? accent.text : 'text-faint'}`} aria-hidden="true" />
+          <Trophy className={`w-5 h-5 ${pb ? accent.text : 'text-decor'}`} aria-hidden="true" />
         </div>
         {pb ? (
           <div className="min-w-0">
