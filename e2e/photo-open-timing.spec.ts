@@ -52,11 +52,18 @@ async function stageReady(page: Page) {
  *  choosing): the clock starts when the file arrives, as the person sees it. */
 const PICKER_MS = 1500;
 
-async function timedPick(page: Page, input: string): Promise<number> {
+async function timedPick(page: Page, input: string, opts: { expectOpening: boolean }): Promise<number> {
   await page.waitForTimeout(PICKER_MS);
   const started = Date.now();
   await page.locator(input).first().setInputFiles({ name: 'IMG_0001.jpg', mimeType: 'image/jpeg', buffer: photo });
+  // While the picture decodes the stage says so (Oct 22 2026): the spinner and
+  // "Opening photo…" over the stage, gone with the first visible frame. Seen
+  // for sure only where the decode is slowed (the throttled Chromium run); an
+  // unthrottled WebKit may be ready before the poll looks.
+  const opening = page.locator('[data-editor-opening]');
+  if (opts.expectOpening) await expect(opening).toBeVisible({ timeout: 10_000 });
   await stageReady(page);
+  await expect(opening).toBeHidden({ timeout: 10_000 });
   return Date.now() - started;
 }
 
@@ -79,11 +86,12 @@ test('@mobile a library photo reaches the editor quickly — composer and profil
     await page.goto('/feed');
     await page.getByRole('button', { name: /create a post/i }).click();
     await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible({ timeout: 30_000 });
-    const composer = await timedPick(page, LIBRARY);
+    const throttled = testInfo.project.use.browserName !== 'webkit' && testInfo.project.use.browserName !== 'firefox';
+    const composer = await timedPick(page, LIBRARY, { expectOpening: throttled });
 
     await page.goto('/athlete');
     await page.getByRole('button', { name: 'Add profile picture', exact: true }).click({ timeout: 30_000 });
-    const avatar = await timedPick(page, '[data-photo-door="avatar"] input[aria-label="Choose a profile photo"]');
+    const avatar = await timedPick(page, '[data-photo-door="avatar"] input[aria-label="Choose a profile photo"]', { expectOpening: throttled });
 
     for (const [name, ms] of [['composer pick → editor', composer], ['profile picture pick → editor', avatar]] as const) {
       testInfo.annotations.push({ type: 'timing', description: `${testInfo.project.name} · ${name}: ${ms} ms` });

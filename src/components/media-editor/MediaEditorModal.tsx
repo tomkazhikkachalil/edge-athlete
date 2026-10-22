@@ -95,6 +95,17 @@ export interface MediaEditorModalProps {
   onCancel: () => void;
 }
 
+/** The house spinner on the black stage with one line under it (the
+ *  dynamic-import shell in index.tsx draws the same for "Opening editor…"). */
+function StageOpening({ label }: { label: string }) {
+  return (
+    <div aria-live="polite" className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+      <p className="text-label text-white/80">{label}</p>
+    </div>
+  );
+}
+
 export default function MediaEditorModal({ assets: initialAssets, config, onDone, onCancel }: MediaEditorModalProps) {
   useBodyScrollLock(true);
   const { showError } = useToast();
@@ -117,6 +128,12 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const isDesktop = useIsDesktop();
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
+  // The asset whose stage has painted its first visible frame. Until the
+  // active one has (a 12 MP photo decodes for ~0.6 s on a mid-range phone; a
+  // HEIC converts first), the stage shows the spinner and "Opening photo…"
+  // instead of black (Oct 22 2026, Tom: keep the full-resolution decode, show
+  // that it is happening). Each stage reports through onReady.
+  const [readyFor, setReadyFor] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
   // Hold-to-compare: while pressed, the stage renders the untouched source.
@@ -606,12 +623,20 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           math NaN and loops componentDidUpdate into "Maximum update depth
           exceeded". Never render media elements until the URL exists. */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div className="relative flex-1 min-h-0 flex flex-col">
+      {/* Over the stage (never the header or the tools) until the active
+          picture's first visible frame: the image is mounted at opacity 0
+          until its load, the canvas invisible until its first draw. */}
+      {activeUrl && !isVideo && !isGif && !preparing.has(active.id) && readyFor !== active.id && (
+        <div className="absolute inset-0 z-10 bg-black flex items-center justify-center" data-editor-opening="">
+          <StageOpening label="Opening photo…" />
+        </div>
+      )}
       {!activeUrl || preparing.has(active.id) ? (
         // Also while a HEIC the browser cannot paint is converted for the
         // stage (useEditorSession) — said, so the stage is not just black.
-        <div className="flex-1 min-h-0 flex items-center justify-center" data-editor-preparing={preparing.has(active.id) || undefined}>
-          {preparing.has(active.id) && <p className="text-label text-white/80">Preparing photo…</p>}
+        <div className="flex-1 min-h-0 flex items-center justify-center" data-editor-preparing={preparing.has(active.id) || undefined} data-editor-opening="">
+          <StageOpening label={preparing.has(active.id) ? 'Preparing photo…' : 'Opening photo…'} />
         </div>
       ) : isVideo && videoRecipe ? (
         activeTool === 'crop' ? (
@@ -649,6 +674,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                 config={config}
                 cssFilter={liveFilter}
                 onPatch={patch => patchRecipe(active.id, patch)}
+                onReady={() => setReadyFor(active.id)}
               />
             ) : (
               <FreeCropStage
@@ -658,6 +684,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                 config={config}
                 cssFilter={liveFilter}
                 onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+                onReady={() => setReadyFor(active.id)}
               />
             )
           ) : (
@@ -672,6 +699,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                   recipe={imageRecipe}
                   fallbackUrl={activeUrl}
                   showOriginal={comparing}
+                  onReady={() => setReadyFor(active.id)}
                 />
                 {/* The round frame on every tab, not only Crop: a profile
                     picture is shown as a circle, so text or a mask near a

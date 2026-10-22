@@ -24,6 +24,8 @@ interface CropStageProps {
   /** Live adjustments+filter preview on the cropper media. */
   cssFilter: string;
   onPatch: (patch: Partial<ImageRecipe>) => void;
+  /** The picture has its first visible frame — the editor drops its "Opening photo…" overlay (Oct 22 2026). */
+  onReady?: () => void;
 }
 
 /**
@@ -37,7 +39,7 @@ interface CropStageProps {
  * (The ratio chips and the 'free' = "Original" branch below are unreachable
  * from those surfaces; they stay so the component is still whole on its own.)
  */
-export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch }: CropStageProps) {
+export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch, onReady }: CropStageProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
@@ -163,6 +165,7 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
           onMediaLoaded={size => {
             naturalSizeRef.current = { width: size.naturalWidth, height: size.naturalHeight };
             setNaturalAspect(size.naturalWidth / size.naturalHeight);
+            onReady?.();
           }}
           style={{ mediaStyle: cssFilter ? { filter: cssFilter } : undefined }}
         />
