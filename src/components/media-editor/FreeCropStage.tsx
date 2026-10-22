@@ -50,6 +50,8 @@ interface FreeCropStageProps {
   /** Live adjustments+filter preview on the picture. */
   cssFilter: string;
   onPatch: (patch: Partial<ImageRecipe>, keys?: string) => void;
+  /** The picture has its first visible frame — the editor drops its "Opening photo…" overlay (Oct 22 2026). */
+  onReady?: () => void;
 }
 
 export default function FreeCropStage({
@@ -58,6 +60,7 @@ export default function FreeCropStage({
   config,
   cssFilter,
   onPatch,
+  onReady,
 }: FreeCropStageProps) {
   const [natural, setNatural] = useState<Size | null>(null);
   // The crop WE last derived from the whole picture (none, or the box that
@@ -149,6 +152,7 @@ export default function FreeCropStage({
               };
               if (size.width === 0 || size.height === 0) return;
               setNatural(size);
+              onReady?.();
               // A surface whose FIRST ratio is a real one (equipment: 1:1)
               // opens already cropped to it — the box on screen must be the
               // box that exports.

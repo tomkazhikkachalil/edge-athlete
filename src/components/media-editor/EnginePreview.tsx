@@ -34,9 +34,11 @@ interface EnginePreviewProps {
   fallbackUrl: string;
   /** Hold-to-compare: true renders the untouched source. */
   showOriginal?: boolean;
+  /** The first visible frame is drawn — the editor drops its "Opening photo…" overlay (Oct 22 2026). */
+  onReady?: () => void;
 }
 
-export default function EnginePreview({ file, recipe, fallbackUrl, showOriginal }: EnginePreviewProps) {
+export default function EnginePreview({ file, recipe, fallbackUrl, showOriginal, onReady }: EnginePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const rafRef = useRef(0);
@@ -46,6 +48,13 @@ export default function EnginePreview({ file, recipe, fallbackUrl, showOriginal 
   const recipeRef = useRef(recipe);
   const [fallback, setFallback] = useState(false);
   const [ready, setReady] = useState(false);
+  // Read through a ref inside the decode effect so a new callback identity
+  // never re-runs the (expensive) decode (kept current in an effect — a ref
+  // is never written during render).
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   // Geometry identity — texture re-upload only when this changes.
   const geometryKey = JSON.stringify([
@@ -106,6 +115,7 @@ export default function EnginePreview({ file, recipe, fallbackUrl, showOriginal 
         if (!cancelled) {
           engine.draw(paramsRef.current, { showOriginal: showOriginalRef.current });
           setReady(true);
+          onReadyRef.current?.();
         }
       } catch (err) {
         console.warn('Engine preview decode failed, using image fallback:', err);
@@ -142,6 +152,7 @@ export default function EnginePreview({ file, recipe, fallbackUrl, showOriginal 
         alt="Preview"
         style={filter && !showOriginal ? { filter } : undefined}
         className="max-w-full max-h-full object-contain"
+        onLoad={() => onReady?.()}
       />
     );
   }
