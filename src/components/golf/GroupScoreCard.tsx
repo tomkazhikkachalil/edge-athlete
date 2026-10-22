@@ -329,7 +329,7 @@ function HoleRow({ hole, par, conceded = false, cols, sel, entries, valueAt, onS
             data-gsc-cell={`${c.participant.profile_id}:${hole}`}
             data-gsc-state={state}
           >
-            {typeof v?.strokes === 'number' ? v.strokes : <span className="text-faint">·</span>}
+            {typeof v?.strokes === 'number' ? v.strokes : <span className="text-decor">·</span>}
             {typeof v?.strokes === 'number' && <span className={`absolute right-1 top-1 w-1.5 h-1.5 rounded-full ${DOT[state]}`} aria-hidden="true" />}
           </button>
         );

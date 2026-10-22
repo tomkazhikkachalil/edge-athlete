@@ -434,7 +434,7 @@ export default function RecordActivityScreen() {
                           {[answers?.effort ? `Effort ${answers.effort}` : null, setupLine, answers?.notes.trim() ? 'Notes' : null].filter(Boolean).join(' · ') || 'Add effort, notes and more'}
                         </span>
                       </span>
-                      <i className="fas fa-chevron-right text-xs text-faint" aria-hidden="true"></i>
+                      <i className="fas fa-chevron-right text-xs text-decor" aria-hidden="true"></i>
                     </button>
                   </div>
                 ) : null;

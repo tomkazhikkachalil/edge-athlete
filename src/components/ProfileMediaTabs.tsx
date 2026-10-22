@@ -626,7 +626,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           {!loading && items.length === 0 && (
         <div className="text-center py-16 px-4">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-sunken flex items-center justify-center">
-            <Camera className="w-10 h-10 text-faint" />
+            <Camera className="w-10 h-10 text-decor" />
           </div>
 
           <h3 className="text-xl font-bold text-primary mb-2">No media yet</h3>

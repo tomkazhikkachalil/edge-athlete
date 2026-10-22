@@ -315,7 +315,7 @@ export default function SavedPostsPage() {
           {/* Saved Posts List */}
         {savedPosts.length === 0 ? (
           <div className="text-center py-12">
-            <i className="far fa-bookmark text-6xl text-gray-300 dark:text-faint mb-4"></i>
+            <i className="far fa-bookmark text-6xl text-gray-300 dark:text-decor mb-4"></i>
             <h2 className="text-xl font-semibold text-secondary mb-2">No saved posts yet</h2>
             <p className="text-muted">
               Posts you save will appear here. Tap the bookmark icon on any post to save it.

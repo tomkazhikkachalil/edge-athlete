@@ -81,7 +81,7 @@ export default function ConversationList({
       {/* Search */}
       <div className="px-4 py-2 border-b border-border-subtle">
         <div className="relative">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
+          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
           <input
             type="text"
             value={search}
@@ -96,19 +96,19 @@ export default function ConversationList({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <i className="fas fa-spinner fa-spin text-faint text-xl"></i>
+            <i className="fas fa-spinner fa-spin text-decor text-xl"></i>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             {search ? (
               <>
-                <i className="fas fa-search text-gray-300 dark:text-faint text-3xl mb-3"></i>
+                <i className="fas fa-search text-gray-300 dark:text-decor text-3xl mb-3"></i>
                 <p className="text-sm text-muted">No conversations match &ldquo;{search}&rdquo;</p>
               </>
             ) : (
               <>
                 <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
-                  <i className="fas fa-comment-alt text-faint text-xl"></i>
+                  <i className="fas fa-comment-alt text-decor text-xl"></i>
                 </div>
                 <p className="text-sm font-semibold text-secondary mb-1">No conversations yet</p>
                 <p className="text-xs text-muted mb-4">Start a conversation with another athlete.</p>
@@ -135,7 +135,7 @@ export default function ConversationList({
             ))}
             {hasMoreConversations && !search && (
               <div ref={sentinelRef} className="flex items-center justify-center py-3">
-                <i className="fas fa-spinner fa-spin text-faint text-sm" aria-label="Loading more conversations"></i>
+                <i className="fas fa-spinner fa-spin text-decor text-sm" aria-label="Loading more conversations"></i>
               </div>
             )}
           </div>

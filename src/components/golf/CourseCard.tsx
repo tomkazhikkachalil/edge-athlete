@@ -52,7 +52,7 @@ export default function CourseCard({
           </div>
         </div>
         <i
-          className={`fas fa-chevron-${expanded ? 'up' : 'down'} text-xs text-faint mt-1`}
+          className={`fas fa-chevron-${expanded ? 'up' : 'down'} text-xs text-decor mt-1`}
           aria-hidden="true"
         ></i>
       </div>

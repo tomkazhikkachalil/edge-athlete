@@ -60,7 +60,7 @@ export default function FilterBar({
       <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-muted border border-border rounded-lg" data-filter-status="">
         <div className="flex items-center gap-2 text-sm">
           <Filter
-            className={`w-4 h-4 ${hasActive ? 'text-brand-fg' : 'text-faint'}`}
+            className={`w-4 h-4 ${hasActive ? 'text-brand-fg' : 'text-decor'}`}
             aria-hidden="true"
           />
           <span className={hasActive ? 'font-medium text-primary' : 'text-muted'}>

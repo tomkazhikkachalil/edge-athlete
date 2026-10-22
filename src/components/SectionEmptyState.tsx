@@ -19,7 +19,7 @@ export default function SectionEmptyState({ icon: Icon, title, body, cta }: Sect
   return (
     <div className="text-center py-10 px-4 border border-dashed border-border rounded-lg">
       <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-surface-sunken flex items-center justify-center">
-        <Icon className="w-6 h-6 text-faint" />
+        <Icon className="w-6 h-6 text-decor" />
       </div>
       <h4 className="text-sm font-bold text-primary mb-1">{title}</h4>
       <p className="text-xs text-muted max-w-sm mx-auto">{body}</p>

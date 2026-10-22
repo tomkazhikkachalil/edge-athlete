@@ -352,7 +352,7 @@ export default function EventDetailModal({
               {when!.secondary && <p className="text-muted text-xs">{when!.secondary}</p>}
               {event.location && (
                 <p className="text-secondary">
-                  <i className="fas fa-location-dot text-faint mr-1.5"></i>
+                  <i className="fas fa-location-dot text-decor mr-1.5"></i>
                   {event.location}
                 </p>
               )}
@@ -362,14 +362,14 @@ export default function EventDetailModal({
               </p>
               {event.series && (
                 <p className="text-muted text-xs">
-                  <i className="fas fa-arrows-rotate text-faint mr-1"></i>
+                  <i className="fas fa-arrows-rotate text-decor mr-1"></i>
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
               {(event.league_id || event.club_id || event.division_id || event.team_id) &&
                 event.org_name && (
                   <p className="text-muted text-xs">
-                    <i className="fas fa-people-group text-faint mr-1"></i>
+                    <i className="fas fa-people-group text-decor mr-1"></i>
                     {event.league_id
                       ? 'League event'
                       : event.club_id
@@ -533,7 +533,7 @@ export default function EventDetailModal({
             {myGuestRow && !cancelled && (
               <div className="border-t border-border-subtle pt-3 flex items-center gap-2 flex-wrap">
                 <label htmlFor="ev-reminder" className="text-sm font-semibold text-primary">
-                  <i className="fas fa-bell text-faint mr-1.5"></i>
+                  <i className="fas fa-bell text-decor mr-1.5"></i>
                   Remind me
                 </label>
                 <select
@@ -573,7 +573,7 @@ export default function EventDetailModal({
                     <div key={guest.id} className="flex items-center gap-2">
                       <span className="relative w-7 h-7 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
                         {guest.invited_email ? (
-                          <i className="fas fa-envelope text-faint text-xs"></i>
+                          <i className="fas fa-envelope text-decor text-xs"></i>
                         ) : guest.profiles?.avatar_url ? (
                           <Image
                             src={guest.profiles.avatar_url}

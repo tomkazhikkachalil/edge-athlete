@@ -1213,9 +1213,9 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 changing the visual size of the links themselves. */}
             <div className="flex items-center justify-center gap-1 text-xs mb-2">
               <Link href="/terms" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Terms</Link>
-              <span className="text-gray-300 dark:text-faint">·</span>
+              <span className="text-gray-300 dark:text-decor">·</span>
               <Link href="/privacy" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Privacy</Link>
-              <span className="text-gray-300 dark:text-faint">·</span>
+              <span className="text-gray-300 dark:text-decor">·</span>
               <Link href="/help" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Help</Link>
               <Link href="/contact" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Contact</Link>
             </div>

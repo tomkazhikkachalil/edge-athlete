@@ -231,7 +231,7 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
                               {holeYards(line) ? <span className="text-xs text-muted">≈ {holeYards(line)} yds</span> : null}
                             </span>
                           ) : (
-                            <span className="text-xs text-faint">—</span>
+                            <span className="text-xs text-decor">—</span>
                           )}
                         </td>
                       )}
@@ -248,7 +248,7 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
                               data-hole-photo={h.number}
                             />
                           ) : (
-                            <span className="text-xs text-faint">—</span>
+                            <span className="text-xs text-decor">—</span>
                           )}
                         </td>
                       )}

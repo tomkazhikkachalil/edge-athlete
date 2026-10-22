@@ -146,7 +146,7 @@ export default function EquipmentImageUpload({
               disabled={uploading}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-border-strong rounded-lg hover:border-violet-500 hover:bg-brand-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CameraIcon className="w-5 h-5 text-faint" />
+              <CameraIcon className="w-5 h-5 text-decor" />
               <span className="text-sm font-medium text-secondary">Take Photo</span>
             </button>
             {/* Upload Button */}
@@ -163,7 +163,7 @@ export default function EquipmentImageUpload({
                 </>
               ) : (
                 <>
-                  <Upload className="w-5 h-5 text-faint" />
+                  <Upload className="w-5 h-5 text-decor" />
                   <span className="text-sm font-medium text-secondary">
                     {value ? 'Change Image' : 'Upload Image'}
                   </span>

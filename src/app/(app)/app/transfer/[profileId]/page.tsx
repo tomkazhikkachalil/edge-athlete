@@ -209,7 +209,7 @@ export default function TransferPage() {
         { who: isGuardian ? 'You' : 'Your guardian', done: bothConfirmView.guardian },
       ].map(row => (
         <div key={row.who} className="flex items-center gap-2 py-1">
-          <i className={`fas ${row.done ? 'fa-circle-check text-brand-fg' : 'fa-clock text-faint'}`}></i>
+          <i className={`fas ${row.done ? 'fa-circle-check text-brand-fg' : 'fa-clock text-decor'}`}></i>
           <span className="text-primary">{row.who}</span>
           <span className="text-muted">{row.done ? 'confirmed' : 'waiting'}</span>
         </div>
@@ -262,7 +262,7 @@ export default function TransferPage() {
                     is acknowledged instead of silently looping back here. */}
                 {lastTransfer && terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised') && (
                   <div className="bg-surface-muted border border-border rounded-md px-4 py-3 text-sm text-secondary mb-4">
-                    <i className="fas fa-circle-info text-faint mr-2"></i>
+                    <i className="fas fa-circle-info text-decor mr-2"></i>
                     {terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised')}
                   </div>
                 )}

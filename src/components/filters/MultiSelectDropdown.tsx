@@ -154,7 +154,7 @@ export default function MultiSelectDropdown<T extends string | number>({
           {/* Search input — auto-focused on open */}
           <div className="relative border-b border-border-subtle">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-decor pointer-events-none"
               aria-hidden="true"
             />
             <input

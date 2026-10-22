@@ -102,7 +102,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {conversation.my_participant?.is_muted && (
-              <i className="fas fa-bell-slash text-faint" style={{ fontSize: '10px' }}></i>
+              <i className="fas fa-bell-slash text-decor" style={{ fontSize: '10px' }}></i>
             )}
             <span className="text-xs text-faint">{getRelativeTime(timestamp)}</span>
           </div>

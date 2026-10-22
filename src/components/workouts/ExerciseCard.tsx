@@ -296,7 +296,7 @@ function SetRow({ set, inputMode, onChange, onDelete, uploads, exerciseName, exe
         {(inputMode === 'duration' || inputMode === 'distance_duration') && (
           <div className="flex items-center gap-1">
             {numberInput(durationMin, v => setDuration(v, durationSec), 'min', 1440, 'w-14')}
-            <span className="text-faint text-sm">:</span>
+            <span className="text-decor text-sm">:</span>
             {numberInput(durationSec, v => setDuration(durationMin, v === null ? null : Math.min(v, 59)), 'sec', 59, 'w-14')}
           </div>
         )}

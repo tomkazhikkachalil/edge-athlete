@@ -43,7 +43,7 @@ default) — that list is the opening announcement's audience.
       Production so an under-age sign-up parks in `pending_profiles` with a
       guardian invite. Google sign-up human round-trip (§3). Probe: an athlete
       sign-up lands in `/onboarding`; a parent sign-up creates a PARENT.
-- [ ] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging confirmations are ON with the built-in sender at 2 mails an hour, so at most two real sign-up specs pass per hour there]:
+- [ ] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging's auth used to confirm by e-mail with the built-in sender at 2 mails an hour, so at most two real sign-up specs passed per hour there — **staging, and only staging, auto-confirms since Oct 22 2026** (Tom's call; management API `mailer_autoconfirm: true`, the prod ref refused by the script), mirroring production, where confirmations are off]:
       the three real-sign-up specs (`scout-signup`, `scout-search`,
       `scout-search-performance`) guard the door again.
 - [ ] **Vercel plan** [Tom, cost]. Hobby's terms are non-commercial; a public

@@ -38,7 +38,7 @@ export default function LazyImage({
         // A decorative image (empty alt) is hidden from assistive tech; a named one keeps its name.
         {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}
       >
-        <i className="fas fa-image text-faint" aria-hidden="true"></i>
+        <i className="fas fa-image text-decor" aria-hidden="true"></i>
       </div>
     );
   }

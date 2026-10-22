@@ -58,7 +58,7 @@ export default function BubbleCard({
         </span>
         <span className="text-xs font-bold text-muted uppercase tracking-wide truncate">{label}</span>
       </div>
-      {onOpen && <ChevronRight className="w-4 h-4 text-faint shrink-0" aria-hidden="true" />}
+      {onOpen && <ChevronRight className="w-4 h-4 text-decor shrink-0" aria-hidden="true" />}
     </div>
   );
 

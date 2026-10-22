@@ -275,7 +275,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
             <div>
               <label className="block text-sm font-semibold text-secondary mb-2">Add Members</label>
               <div className="relative">
-                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
+                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
                 <input
                   type="text"
                   value={searchQuery}

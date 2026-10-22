@@ -102,7 +102,7 @@ export default function GuestPicker({
               chip.kind === 'email' ? 'bg-surface-sunken text-secondary' : 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong'
             }`}
           >
-            {chip.kind === 'email' && <i className="fas fa-envelope text-faint"></i>}
+            {chip.kind === 'email' && <i className="fas fa-envelope text-decor"></i>}
             {chip.label}
             <button
               type="button"
@@ -164,7 +164,7 @@ export default function GuestPicker({
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-brand-soft border-t border-border-subtle"
             >
               <span className="w-7 h-7 rounded-full bg-surface-sunken flex items-center justify-center shrink-0">
-                <i className="fas fa-envelope text-faint text-xs"></i>
+                <i className="fas fa-envelope text-decor text-xs"></i>
               </span>
               <span className="text-sm text-primary">Invite {emailCandidate} by email</span>
             </button>

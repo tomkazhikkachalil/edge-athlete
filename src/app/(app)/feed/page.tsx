@@ -528,15 +528,15 @@ export default function FeedPage() {
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
                 <div className="flex items-center gap-2 sm:gap-4">
                   <button onClick={() => openComposer()} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-image text-faint transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400"></i>
+                    <i className="fas fa-image text-decor transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
                   <button onClick={() => openComposer()} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-chart-line text-faint transition-colors duration-[150ms] group-hover:text-brand-fg"></i>
+                    <i className="fas fa-chart-line text-decor transition-colors duration-[150ms] group-hover:text-brand-fg"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
                   <button onClick={() => openComposer()} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-trophy text-faint transition-colors duration-[150ms] group-hover:text-amber-500"></i>
+                    <i className="fas fa-trophy text-decor transition-colors duration-[150ms] group-hover:text-amber-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
                 </div>

@@ -177,7 +177,7 @@ export default function TagPeopleModal({
               placeholder="Search people..."
               className="w-full px-4 py-2 pl-10 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
-            <i className="fas fa-search absolute left-3 top-3 text-faint"></i>
+            <i className="fas fa-search absolute left-3 top-3 text-decor"></i>
           </div>
         </div>
 
@@ -214,7 +214,7 @@ export default function TagPeopleModal({
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading && (
             <div className="p-8 text-center">
-              <i className="fas fa-spinner fa-spin text-2xl text-faint"></i>
+              <i className="fas fa-spinner fa-spin text-2xl text-decor"></i>
             </div>
           )}
 

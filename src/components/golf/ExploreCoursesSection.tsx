@@ -205,7 +205,7 @@ export default function ExploreCoursesSection({ initialCourseId = null }: { init
         </h2>
         <div className="relative w-full sm:w-80">
           <i
-            className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-sm"
+            className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm"
             aria-hidden="true"
           ></i>
           <input

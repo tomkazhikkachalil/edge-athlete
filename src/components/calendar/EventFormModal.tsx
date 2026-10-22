@@ -629,7 +629,7 @@ export default function EventFormModal({
           {editing ? (
             editing.series && (
               <p className="text-sm text-muted">
-                <i className="fas fa-arrows-rotate text-faint mr-1.5"></i>
+                <i className="fas fa-arrows-rotate text-decor mr-1.5"></i>
                 {describeRecurrence(editing.series, editing.timezone)}
                 <span className="block text-xs text-faint mt-0.5">
                   The repeat schedule can&apos;t be changed — cancel the series and

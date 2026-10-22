@@ -171,7 +171,7 @@ export default function SportActivityDetailPage() {
         ) : (
           <div className="bg-surface rounded-lg shadow-sm p-base">
             <div className="text-center py-12">
-              <i className={`${sportDef.icon_id} text-6xl text-gray-300 dark:text-faint mb-6`}></i>
+              <i className={`${sportDef.icon_id} text-6xl text-gray-300 dark:text-decor mb-6`}></i>
               <h1 className="text-3xl font-bold text-primary mb-4">
                 {sportDef.display_name} Activity Details
               </h1>

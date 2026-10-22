@@ -84,7 +84,7 @@ export default function DraftsPage() {
         <div className="max-w-2xl mx-auto space-y-8">
           {total === 0 && (
             <div className="text-center py-12" data-drafts-empty="">
-              <i className="far fa-pen-to-square text-6xl text-gray-300 dark:text-faint mb-4"></i>
+              <i className="far fa-pen-to-square text-6xl text-gray-300 dark:text-decor mb-4"></i>
               <h2 className="text-xl font-semibold text-secondary mb-2">No drafts</h2>
               <p className="text-muted">
                 A round you are playing, or one you finished but have not posted, waits here. Nothing is posted until you tap Post.

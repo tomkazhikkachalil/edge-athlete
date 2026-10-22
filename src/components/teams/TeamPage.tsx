@@ -113,7 +113,7 @@ export default function TeamPage({ side }: { side: OrgKind }) {
         <AppHeader showSearch={false} />
         <div className="max-w-md mx-auto px-4 py-20 text-center">
           <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-faint" />
+            <Shield className="w-8 h-8 text-decor" />
           </div>
           <h1 className="text-2xl font-bold text-primary mb-2">Team not found</h1>
           <p className="text-tertiary mb-6">This team does not exist or is not available to you.</p>

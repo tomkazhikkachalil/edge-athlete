@@ -224,7 +224,7 @@ export default function GolfRoundsListPage() {
           </div>
         ) : rounds.length === 0 ? (
           <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
-            <i className="fas fa-golf-ball text-4xl text-gray-300 dark:text-faint mb-4"></i>
+            <i className="fas fa-golf-ball text-4xl text-gray-300 dark:text-decor mb-4"></i>
             <h2 className="text-lg font-semibold text-primary mb-2">
               {courseSearch || holesFilter !== 'all' ? 'No rounds match those filters' : 'No rounds logged yet'}
             </h2>
@@ -273,7 +273,7 @@ export default function GolfRoundsListPage() {
                       </p>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-tertiary">
                         {round.total_putts !== null && round.total_putts > 0 && (
-                          <span><i className="fas fa-flag mr-1 text-faint"></i>{round.total_putts} putts</span>
+                          <span><i className="fas fa-flag mr-1 text-decor"></i>{round.total_putts} putts</span>
                         )}
                         {round.fir_percentage !== null && round.fir_percentage > 0 && (
                           <span>FIR {Math.round(round.fir_percentage)}%</span>

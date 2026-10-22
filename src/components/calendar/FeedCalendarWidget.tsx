@@ -76,7 +76,7 @@ function EventRow({ event, onClick }: { event: EventListItem; onClick: () => voi
         <span className="block text-sm text-primary truncate">
           {event.my_status === 'maybe' && <span className="font-bold mr-0.5">?</span>}
           {event.title}
-          {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] text-faint"></i>}
+          {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] text-decor"></i>}
         </span>
         <span className="block text-xs text-muted">
           {event.all_day ? format(start, 'EEE, MMM d') : format(start, 'EEE, MMM d · h:mm a')}
@@ -507,7 +507,7 @@ export default function FeedCalendarWidget() {
                               ? 'bg-brand text-white font-bold'
                               : inMonth
                                 ? 'text-primary'
-                                : 'text-gray-300 dark:text-faint'
+                                : 'text-faint'
                           }`}
                         >
                           {day.getDate()}
