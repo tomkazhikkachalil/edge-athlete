@@ -272,15 +272,17 @@ granted; (3) **the live check** — `scripts/check-table-grants.mjs` (run by
 `npm run check:schema` / `:prod`): a table where `service_role` holds no
 privilege is an ERROR (the app cannot reach it); a table with RLS on, zero
 policies and still-open anon / authenticated privileges is listed as hygiene.
-**The hygiene backlog (Oct 21 2026, 14 tables, harmless — zero policies deny
-every row):** `app_settings`, `approved_contacts`, `calendar_feed_tokens`,
+**The hygiene list is closed (migration 270, Oct 21 2026):** the 14 tables
+that had RLS on, zero policies and still-open default anon / authenticated
+privileges (`app_settings`, `approved_contacts`, `calendar_feed_tokens`,
 `consent_records`, `contacts`, `event_guests`, `event_series`, `events`,
 `guardian_invites`, `pending_profiles`, `profile_transfers`, `risk_signals`,
-`safety_settings_audit`, `waitlist` — one REVOKE-only migration on both
-databases makes them posture A; not urgent. The baseline already emits every
-table's grants (`emitTableGrants`), so a rebuild after Oct 30 is complete.
-Sweep: `npm run check:schema` and `check:schema:prod` show zero ERROR lines
-from the grants check.
+`safety_settings_audit`, `waitlist`) are posture A on both databases — one
+REVOKE-only migration, behaviour-neutral (every app read of them goes through
+`supabaseAdmin`; zero policies already denied the API roles every row). The
+baseline already emits every table's grants (`emitTableGrants`), so a rebuild
+after Oct 30 is complete. Sweep: `npm run check:schema` and `check:schema:prod`
+show zero ERROR lines AND no hygiene list from the grants check.
 
 ## Backlog (Tier 2) — scheduled, not yet done
 
