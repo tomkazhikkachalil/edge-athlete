@@ -1,29 +1,42 @@
 import { test, expect } from './helpers/test';
 import { apiAs, loadQaUser } from './helpers/qa-user';
 
-// The doors to the recorder (Live Activities PR 6): Training's header pill, the
+// The doors to the recorder (Live Activities PR 6): Training's Start, the
 // Activities section's link, the header's Create sheet. Reachability at
 // phone width is part of parity — a surface behind a desktop-only entry
 // has not shipped on mobile. Create menu redesign (Oct 13 2026): Create →
 // Record Activity is a second step (Start a workout | Record activity), and a
 // workout started there must be the one Training starts — proven below.
+// Training: three changes (Oct 22 2026): Training's one Start opens the SAME
+// two rows (Workout | Activity) in a sheet; the Activity row is the recorder
+// door (`data-training-record-activity`), the Workout row the start screen.
 
 test('the recorder is reachable from Training and from Create @mobile', async ({ page }) => {
   test.setTimeout(90_000);
   const user = loadQaUser('user.json');
   await page.goto(`/athlete/${user.id}?tab=training`);
-  const pill = page.locator('[data-training-record-activity]');
-  await expect(pill).toBeVisible({ timeout: 20_000 });
+  const start = page.locator('[data-training-start]').first();
+  await expect(start).toBeVisible({ timeout: 20_000 });
+  await start.click();
+  const sheet = page.locator('[data-larger-window="start-session"]');
+  await expect(sheet).toBeVisible();
+  // Exactly two rows: Workout and Activity.
+  await expect(sheet.locator('[data-create-workout]')).toHaveText(/Workout/);
+  await expect(sheet.locator('[data-create-recording]')).toHaveText(/Activity/);
+  const pill = sheet.locator('[data-training-record-activity]');
+  await expect(pill).toBeVisible();
   await pill.click();
   await expect(page).toHaveURL(/\/activities\/record$/);
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
 
-  // ?tab=activities opens Training at its Activities section: the header's pill
-  // is the one Record door on that screen (Oct 9 2026 — the section's
-  // duplicate link was retired).
+  // ?tab=activities opens Training at its Activities section: the header's
+  // Start is the one Record door on that screen (Oct 9 2026 — the section's
+  // duplicate link was retired; Oct 22 2026 — the Record Activity pill
+  // folded into Start).
   await page.goto(`/athlete/${user.id}?tab=activities`);
-  await expect(page.locator('[data-training-record-activity]')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('[data-training-start]').first()).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-activities-record-link]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Record Activity' })).toHaveCount(0);
 
   await page.goto('/feed');
   await page.getByRole('button', { name: 'Create' }).first().click();
@@ -56,6 +69,11 @@ test('a workout started from Create is the one Training starts: same session, sa
   const throughPicker = async () => {
     await page.waitForURL('**/app/workout/start', { timeout: 20_000 });
     await page.locator('[data-workout-start]').click();
+  };
+  // Training's door (Oct 22 2026): Start → the sheet → Workout.
+  const trainingStartWorkout = async () => {
+    await page.locator('[data-training-start]').first().click();
+    await page.locator('[data-larger-window="start-session"] [data-create-workout]').click();
   };
   // Once a session is in progress the next page load asks "Pick up where you
   // left off?" over the page (the reopen prompt, once per app open — it waits
@@ -91,14 +109,14 @@ test('a workout started from Create is the one Training starts: same session, sa
     // Training resumes the same one too (the 409 rule is shared), then — once
     // it is gone — starts a fresh session of the same shape.
     await page.goto(`/athlete/${user.id}?tab=training`);
-    await page.getByRole('button', { name: 'Start Workout', exact: true }).click();
+    await trainingStartWorkout();
     await throughPicker();
     await page.waitForURL(new RegExp(`/app/workout/${fromCreate}$`), { timeout: 30_000 });
     expect((await api.delete(`/api/workouts/${fromCreate}`)).ok()).toBe(true);
     started.pop();
 
     await page.goto(`/athlete/${user.id}?tab=training`);
-    await page.getByRole('button', { name: 'Start Workout', exact: true }).click();
+    await trainingStartWorkout();
     await throughPicker();
     await page.waitForURL(/\/app\/workout\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const fromTraining = idFromUrl();
