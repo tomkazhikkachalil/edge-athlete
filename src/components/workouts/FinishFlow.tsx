@@ -327,8 +327,27 @@ interface PreviewStepProps {
 const CLIP_ICON_BUTTON =
   'inline-flex h-10 w-10 items-center justify-center rounded-lg text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
+// Training: three changes (Oct 22 2026, item 3): a clip belongs to its
+// EXERCISE, not to the set it was taken during — the row names the exercise
+// and, when it has several clips, which one ("Bench Press · clip 2").
+function clipOrdinals(clips: CollectedMedia[]): Map<string, { n: number; of: number }> {
+  const byExercise = new Map<number, CollectedMedia[]>();
+  for (const clip of clips) {
+    const list = byExercise.get(clip.exerciseIndex) ?? [];
+    list.push(clip);
+    byExercise.set(clip.exerciseIndex, list);
+  }
+  const out = new Map<string, { n: number; of: number }>();
+  for (const list of byExercise.values()) {
+    list.sort((a, b) => a.setIndex - b.setIndex || a.mediaIndex - b.mediaIndex);
+    list.forEach((clip, i) => out.set(clip.url, { n: i + 1, of: list.length }));
+  }
+  return out;
+}
+
 function ShareClipRow({
   clip,
+  ordinal,
   position,
   total,
   busy,
@@ -338,6 +357,8 @@ function ShareClipRow({
   onRemove,
 }: {
   clip: CollectedMedia;
+  /** This clip's place among its exercise's clips. */
+  ordinal: { n: number; of: number } | undefined;
   /** 1-based place in the carousel, or null when excluded. */
   position: number | null;
   total: number;
@@ -348,7 +369,7 @@ function ShareClipRow({
   onRemove: () => void;
 }) {
   const selected = position !== null;
-  const label = `${clip.exerciseName} set ${clip.setNumber}`;
+  const label = ordinal && ordinal.of > 1 ? `${clip.exerciseName} · clip ${ordinal.n}` : clip.exerciseName;
   return (
     <li
       data-share-clip={clip.url}
@@ -436,6 +457,7 @@ export function PreviewStep({
   const [onFeed, setOnFeed] = useState(() => readFeedDefault('workout'));
   const posting = onFeed;
   const totalClips = clips.selected.length + clips.rest.length;
+  const ordinals = clipOrdinals([...clips.selected, ...clips.rest]);
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5" data-finish-preview="">
       <div className="text-center">
@@ -481,6 +503,7 @@ export function PreviewStep({
               <ShareClipRow
                 key={clip.url}
                 clip={clip}
+                ordinal={ordinals.get(clip.url)}
                 position={i + 1}
                 total={clips.selected.length}
                 busy={clipsBusy}
@@ -494,6 +517,7 @@ export function PreviewStep({
               <ShareClipRow
                 key={clip.url}
                 clip={clip}
+                ordinal={ordinals.get(clip.url)}
                 position={null}
                 total={clips.selected.length}
                 busy={clipsBusy}

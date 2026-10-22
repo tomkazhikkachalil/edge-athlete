@@ -1034,7 +1034,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
           title="Remove this clip?"
           message={
             removeClip
-              ? `It is deleted from ${removeClip.exerciseName} set ${removeClip.setNumber} and from this workout, and your post will not include it. This cannot be undone.`
+              ? `It is deleted from ${removeClip.exerciseName} and from this workout, and your post will not include it. This cannot be undone.`
               : ''
           }
           confirmText="Remove"

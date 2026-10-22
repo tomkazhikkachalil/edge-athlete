@@ -155,7 +155,8 @@ test('a set clip is a tile at once, survives a reload mid-upload, a failed uploa
     await page.getByRole('button', { name: 'Finish' }).click();
     await page.getByRole('button', { name: 'Continue' }).click({ timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Preview and post' })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('button', { name: /Bench Press set 1 media/ })).toHaveCount(expected);
+    // Oct 22 2026: the rows name the exercise (and "clip N"), never the set.
+    await expect(page.getByRole('button', { name: /^(Include|Exclude) Bench Press( · clip \d+)? media$/ })).toHaveCount(expected);
 
     // What landed in storage, for the teardown.
     const { data: rows } = await admin.from('workout_sets').select('media, workout_exercises!inner(session_id)').eq('workout_exercises.session_id', workoutId);

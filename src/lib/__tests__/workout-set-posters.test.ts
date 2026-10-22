@@ -66,7 +66,7 @@ describe('source pins — the workout clips on the house queue', () => {
     expect(hook).toMatch(/export type SetMediaStatus = 'pending' \| 'failed' \| 'processing';/);
     expect(read('src/components/workouts/ExerciseCard.tsx')).toMatch(/thumbnailUrl=\{media\.thumbnailUrl\}/);
     expect(read('src/components/workouts/FinishFlow.tsx')).toMatch(/thumbnailUrl=\{clip\.thumbnailUrl\}/);
-    expect(read('src/components/workouts/SetImageStack.tsx')).toMatch(/thumbnailUrl=\{first\.thumbnailUrl\}/);
+    expect(read('src/components/workouts/ExerciseMediaStrip.tsx')).toMatch(/thumbnailUrl=\{m\.thumbnailUrl\}/);
     expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toMatch(/sortOrder: order, thumbnailUrl: media\.thumbnailUrl/);
     expect(read('src/lib/storage-sweep.ts')).toMatch(/thumbnailUrl\?: unknown/);
     // Edit post uploads through the queue too.
