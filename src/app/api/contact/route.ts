@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, number: formatTicketNumber(ticket.number), message: 'Thanks — we got your message and will reply by email.' }, { status: 201, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers }); // hardening-ok: TicketsNotLive carries a fixed string, never a database error
     reportRouteError('Contact form error:', error);
     return NextResponse.json({ error: 'Could not send your message. Please try again.' }, { status: 500, headers });
   }

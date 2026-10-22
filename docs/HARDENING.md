@@ -29,6 +29,15 @@ DB scale-readiness). That audit's findings seed the backlog below.
     deliberate case. Since #491 the `.or()` and raw-error scans honor it and
     every pre-existing hit is audited + annotated, so those two advisories
     read **0** — an unannotated hit is a NEW site needing review, not noise.
+    Re-audited Oct 22 2026 (17 unannotated hits had accrued): 15 were the
+    `*NotLive` 503 bodies (fixed strings — annotated), 1 the admin contacts
+    search `.or()` (its `searchPattern` escapes — annotated), 1 real: the
+    admin media-jobs `retry` returned Supabase's `error.message` (now a
+    friendly string, the raw in `console.error`). The `.select` count
+    (108) is informational and stays as the one standing advisory; the
+    admin/cron media-jobs status bodies that carry `planBackfill`'s own
+    error text (admin-only, Bearer/console auth) are deliberate and outside
+    the regex.
 
 ## Part B — periodic manual sweep (this runbook)
 

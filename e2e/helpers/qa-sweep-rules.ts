@@ -29,8 +29,19 @@ export function isRetryableDbError(message: string | null | undefined): boolean 
  *  in the background when the statement was cancelled; the next try has less to do). */
 export const DB_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000];
 
-/** The e2e users: `edgeqa-<rand>@example.com` (createQaUser). */
-export const QA_USER_EMAIL_RE = /^edgeqa-[a-z0-9]+@example\.com$/;
+/** The e2e users' domain (Oct 22 2026, Tom): our own apex. Supabase Auth
+ *  refuses `@example.com` on signUp ("Example and test domains are currently
+ *  not supported") and it also checks the domain in DNS — a subdomain with no
+ *  record (`edgeqa.edgeathlete.ca`) came back "invalid" on two of four
+ *  sign-ups — so the apex it is: it resolves, and no `edgeqa-` mailbox exists
+ *  there (a confirmation mail bounces; admin createUser never sends one). */
+export const QA_EMAIL_DOMAIN = 'edgeathlete.ca';
+/** The e2e users: `edgeqa-<tag>@edgeathlete.ca` (createQaUser, qaEmail) —
+ *  and the `@example.com` leftovers of every run before Oct 22 2026, so the
+ *  sweep still reaches them. The tag may carry hyphens (`edgeqa-scout-x`). */
+export const QA_USER_EMAIL_RE = /^edgeqa-[a-z0-9-]+@(edgeathlete\.ca|example\.com)$/;
+/** The SQL twin of QA_USER_EMAIL_RE, for the bulk script (POSIX regex). */
+export const QA_USER_EMAIL_SQL = '^edgeqa-[a-z0-9-]+@(edgeathlete[.]ca|example[.]com)$';
 /** Roster stubs (`<uuid>@stubs.invalid`) and supervised minors
  *  (`<uuid>@minors.invalid`, `pending-<hex>@minors.invalid`) — shadow auth
  *  users the flows mint; QA runs leave them behind with their guardians. */

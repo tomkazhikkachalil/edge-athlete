@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, number: formatTicketNumber(ticket.number) }, { status: 201, headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE }); // hardening-ok: TicketsNotLive carries a fixed string, never a database error
     reportRouteError('[POST /api/tickets/guest]', error);
     return NextResponse.json({ error: 'Could not send your request. Please try again.' }, { status: 500, headers: NO_STORE });
   }

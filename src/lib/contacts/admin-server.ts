@@ -27,7 +27,7 @@ export async function listContacts(admin: SupabaseClient, filter: ContactsFilter
   if (filter.consent === false) q = q.eq('marketing_consent', false);
   if (filter.q && filter.q.trim()) {
     const p = searchPattern(filter.q);
-    q = q.or(`email.ilike.${p},name.ilike.${p}`);
+    q = q.or(`email.ilike.${p},name.ilike.${p}`); // hardening-ok: searchPattern escapes the PostgREST metacharacters above
   }
   const [pageRes, allRes, signupRes, inquiryRes, consentedRes] = await Promise.all([
     q,

@@ -43,7 +43,7 @@ async function sql(query) {
 }
 
 // The stale QA users (the auth listing is the source of truth for e2e; here the profiles' emails are).
-const STALE_USERS = `SELECT id FROM public.profiles WHERE email ~ '^edgeqa-[a-z0-9]+@example\\.com$' AND created_at <= ${CUTOFF_SQL}`;
+const STALE_USERS = `SELECT id FROM public.profiles WHERE email ~ '^edgeqa-[a-z0-9-]+@(edgeathlete[.]ca|example[.]com)$' AND created_at <= ${CUTOFF_SQL}`;
 const STALE_ORGS = `SELECT id FROM public.organizations WHERE name ~ '${QA_ORG_NAME_SQL}' AND created_at <= ${CUTOFF_SQL} AND (owner_profile_id IS NULL OR owner_profile_id IN (${STALE_USERS}))`;
 // A shadow is swept when no access row is held by a live holder: one that is not a stale QA user, not a shadow itself, not the profile's own row.
 const STALE_SHADOWS = `SELECT p.id FROM public.profiles p WHERE p.email ~ '@(stubs|minors)\\.invalid$' AND p.created_at <= ${CUTOFF_SQL}

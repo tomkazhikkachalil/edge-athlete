@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, into: outcome.into }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE }); // hardening-ok: TicketsNotLive carries a fixed string, never a database error
     reportRouteError('[POST /api/admin/tickets/[id]/merge]', error);
     return NextResponse.json({ error: 'Could not merge' }, { status: 500, headers: NO_STORE });
   }

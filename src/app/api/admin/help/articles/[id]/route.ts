@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ article: outcome.article }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
+    if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE }); // hardening-ok: HelpNotLive carries a fixed string, never a database error
     reportRouteError('[PATCH /api/admin/help/articles/[id]]', error);
     return NextResponse.json({ error: 'Could not update the article' }, { status: 500, headers: NO_STORE });
   }
@@ -37,7 +37,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
+    if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE }); // hardening-ok: HelpNotLive carries a fixed string, never a database error
     reportRouteError('[DELETE /api/admin/help/articles/[id]]', error);
     return NextResponse.json({ error: 'Could not delete the article' }, { status: 500, headers: NO_STORE });
   }

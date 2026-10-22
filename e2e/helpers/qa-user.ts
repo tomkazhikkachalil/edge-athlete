@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { RateLimitAction } from '@/lib/rate-limit-core';
-import { SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, DEPARTED_EMAIL_LIKE, isQaUserEmail, isRetryableDbError, isShadowEmail, staleQaOrgs, staleQaTombstones, staleShadows, type AccessRow, type OrgRow, type ShadowRow, type TombstoneRow } from './qa-sweep-rules';
+import { QA_EMAIL_DOMAIN, SWEEP_CUTOFF_MS, DB_RETRY_DELAYS_MS, DEPARTED_EMAIL_LIKE, isQaUserEmail, isRetryableDbError, isShadowEmail, staleQaOrgs, staleQaTombstones, staleShadows, type AccessRow, type OrgRow, type ShadowRow, type TombstoneRow } from './qa-sweep-rules';
 import { deleteQaOrgs } from './org';
 import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
@@ -11,7 +11,7 @@ import { randomBytes } from 'crypto';
  * Disposable QA user machinery for the smoke suite.
  *
  * The suite runs against the real Supabase project (no staging exists), so
- * every run creates a unique `edgeqa-<rand>@example.com` user with a PRIVATE
+ * every run creates a unique `edgeqa-<rand>@edgeathlete.ca` user with a PRIVATE
  * profile and deletes it in teardown. Golf fixtures block the auth-user
  * cascade (deleting the user 500s while a group_posts round exists), so
  * deletion walks the chain child-first — the order is load-bearing.
@@ -223,7 +223,7 @@ const THEME_MIRROR_KEY = 'ea:theme:v1';
  * `E2E_ADMIN_EMAIL`, unset by default. The admin-positive specs skip without
  * it (the allowlist is a server env; the QA users can never join it). Set it
  * to an address that (a) the target build lists in ADMIN_EMAILS and (b) no
- * real account owns — `edgeqa-admin@example.com` keeps it inside the sweep's
+ * real account owns — `edgeqa-admin@edgeathlete.ca` keeps it inside the sweep's
  * prefix. Never a real person's address: the spec creates AND deletes the
  * user.
  */
@@ -313,13 +313,20 @@ export async function createQaChild(
   return childId;
 }
 
+/** A QA address the sweep recognises: `edgeqa-<tag>@` the QA domain. A spec
+ *  that signs up for real (POST /api/signup) mints its address here too —
+ *  Supabase refuses the old example.com there (Oct 4 2026). */
+export function qaEmail(tag: string): string {
+  return `edgeqa-${tag}@${QA_EMAIL_DOMAIN}`;
+}
+
 export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {
   const displayName = opts.displayName ?? 'Edge QA';
   const firstName = opts.firstName ?? 'Edge';
   const lastName = opts.lastName ?? 'QA';
   const admin = adminClient();
   const rand = Math.random().toString(36).slice(2, 10);
-  const email = opts.email ?? `edgeqa-${rand}@example.com`;
+  const email = opts.email ?? qaEmail(rand);
   const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
 
   // A NAMED QA address (the admin-positive specs' E2E_ADMIN_EMAIL) can be left
