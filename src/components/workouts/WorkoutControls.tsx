@@ -52,11 +52,15 @@ import { readRestPresets, readRestTarget, writeRestPresets, writeRestTarget } fr
 // seconds after; the tap that ends the rest resets it all. With the target
 // Off the rest is purple throughout — still timed, still counted.
 //
-// A custom target (Training fixes PR 3, Oct 21 2026): the target sheet's
-// Custom opens two wheels — minutes, and seconds by five (the golf
-// NumberWheel with a `step`) — Use sets it, Save as preset keeps it on the
-// device beside the built-in five (rest.ts rules, timer-prefs.ts storage;
-// a saved chip carries a remove).
+// The rest target is a PANEL (Rest timer round, Oct 22 2026 — Tom: "the same
+// kind of popup as the stopwatch, with the same smooth transition"): always
+// mounted, its height animates, the bar's measured height carries the
+// clearance; opening it closes the stopwatch's and vice versa. It opens on
+// the two wheels — minutes, and seconds by five (the golf NumberWheel with a
+// `step`) — Use for this workout sets the target, Save as preset keeps it on
+// the device (rest.ts rules, timer-prefs.ts storage); the chips are the
+// athlete's saved times ONLY (no built-in presets), each with a remove; Off
+// keeps timing and counting every rest with no target.
 //
 // The bar takes its own space (Tom, Oct 13 2026 — the open stopwatch covered
 // the Add buttons at the foot of the list): its MEASURED height is published
@@ -97,9 +101,8 @@ function useNow(active: boolean): number {
 export default function WorkoutControls({ exercises, rest, onRest, stopwatch, onStopwatch, lastEditedClientId, onSaveStopwatch }: Props) {
   const { showNotice } = useToast();
   const [targetS, setTargetS] = useState<number | null>(() => readRestTarget());
-  const [targetSheet, setTargetSheet] = useState(false);
+  const [targetOpen, setTargetOpen] = useState(false);
   const [savedPresets, setSavedPresets] = useState<number[]>(() => readRestPresets(parseRestPresets));
-  const [custom, setCustom] = useState(false);
   const [customMin, setCustomMin] = useState(0);
   const [customSec, setCustomSec] = useState(0);
   const customS = joinRest(customMin, customSec);
@@ -150,15 +153,25 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   const setTarget = (s: number | null) => {
     writeRestTarget(s);
     setTargetS(s);
-    setTargetSheet(false);
-    setCustom(false);
+    setTargetOpen(false);
   };
-  const openCustom = () => {
+  // One panel at a time: the rest target or the stopwatch takes the space.
+  const toggleTargetPanel = () => {
+    if (targetOpen) {
+      setTargetOpen(false);
+      return;
+    }
     const from = splitRest(targetS ?? 90);
     setCustomMin(Math.min(10, from.minutes));
     setCustomSec(from.seconds - (from.seconds % 5));
-    setCustom(true);
+    setStopwatchOpen(false);
+    setTargetOpen(true);
   };
+  const toggleStopwatchPanel = () => {
+    setTargetOpen(false);
+    setStopwatchOpen(o => !o);
+  };
+  const chips = restPresetChips(savedPresets);
   const savePreset = (s: number) => {
     const next = addRestPreset(savedPresets, s);
     writeRestPresets(next);
@@ -174,6 +187,70 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
     <>
       <div ref={rootRef} className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]" data-workout-controls={rest.startedAt !== null ? 'resting' : rest.heldS !== null ? 'rest-held' : 'idle'}>
         <div className="mx-auto max-w-md">
+          {/* The rest target panel (Oct 22 2026): the stopwatch panel's recipe — always mounted, its height animates, inert while closed. */}
+          <div
+            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${targetOpen ? 'max-h-[30rem] opacity-100 mb-2' : 'max-h-0 opacity-0'}`}
+            aria-hidden={!targetOpen}
+            data-workout-rest-target-open={targetOpen ? 'true' : 'false'}
+          >
+            <div className="rounded-xl border border-border bg-surface p-3" data-workout-rest-target-panel="" {...(targetOpen ? {} : { inert: true })}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-primary">Rest target</p>
+                <button type="button" onClick={() => setTargetOpen(false)} className="ea-icon-btn text-secondary" aria-label="Close the rest target" data-workout-rest-target-close="">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-secondary">Purple while you rest, yellow five seconds before the target, red when it is up — with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice. Off still times every rest.</p>
+              <div className="mt-3 flex items-start justify-center gap-3" data-workout-rest-custom-panel="">
+                <NumberWheel label="Minutes" min={0} max={10} value={customMin} defaultValue={1} onChange={setCustomMin} tone="brand" disabled={!targetOpen} />
+                <NumberWheel label="Seconds" min={0} max={55} step={5} value={customSec} defaultValue={30} onChange={setCustomSec} tone="brand" format={v => String(v).padStart(2, '0')} disabled={!targetOpen} />
+              </div>
+              <p className="mt-2 text-center text-sm text-secondary" data-workout-rest-custom-value={customS}>
+                {isValidRestSeconds(customS) ? `Rest ${formatElapsed(customS)}` : 'At least 5 seconds'}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isValidRestSeconds(customS)) return;
+                    savePreset(customS);
+                    setTarget(customS);
+                  }}
+                  disabled={!isValidRestSeconds(customS)}
+                  className="ea-interactive min-h-[44px] flex-1 rounded-lg border border-border-strong px-3 text-sm font-semibold text-primary disabled:opacity-50"
+                  data-workout-rest-custom-save=""
+                >
+                  Save as preset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (isValidRestSeconds(customS)) setTarget(customS); }}
+                  disabled={!isValidRestSeconds(customS)}
+                  className="ea-cta min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
+                  data-workout-rest-custom-use=""
+                >
+                  Use for this workout
+                </button>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Your presets</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2" data-workout-rest-presets={chips.length}>
+                {chips.map(chip => (
+                  <div key={chip.seconds} className="relative">
+                    <button type="button" onClick={() => setTarget(chip.seconds)} aria-pressed={targetS === chip.seconds} className={`min-h-[40px] rounded-lg px-4 text-sm font-semibold ${targetS === chip.seconds ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset={chip.seconds} data-workout-rest-preset-saved="true">
+                      {formatElapsed(chip.seconds)}
+                    </button>
+                    <button type="button" onClick={() => removePreset(chip.seconds)} className="ea-interactive absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-secondary" aria-label={`Remove the ${formatElapsed(chip.seconds)} preset`} data-workout-rest-preset-remove={chip.seconds}>
+                      <X className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+                {chips.length === 0 && <p className="text-xs text-muted" data-workout-rest-presets-empty="">Save a time above to keep it here.</p>}
+                <button type="button" onClick={() => setTarget(null)} aria-pressed={targetS === null} className={`ml-auto min-h-[40px] rounded-lg px-4 text-sm font-semibold ${targetS === null ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset="off">
+                  Off
+                </button>
+              </div>
+            </div>
+          </div>
           {/* Always mounted; its height animates (max-height works on the iOS 15 floor) so the bar's measured height — and the clearance above it — slide rather than jump. */}
           <div
             className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${stopwatchOpen ? 'max-h-48 opacity-100 mb-2' : 'max-h-0 opacity-0'}`}
@@ -221,7 +298,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
               onClick={() => onRest(rest.startedAt !== null ? stopRest(rest, Date.now()) : startRest(rest, Date.now()))}
               onContextMenu={e => {
                 e.preventDefault();
-                setTargetSheet(true);
+                toggleTargetPanel();
               }}
               aria-pressed={rest.startedAt !== null}
               className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${restClass}`}
@@ -237,85 +314,16 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                 'Rest'
               )}
             </button>
-            <button type="button" onClick={() => setTargetSheet(true)} className="ea-interactive inline-flex min-h-[52px] items-center justify-center rounded-xl border border-border-strong px-3 text-xs font-semibold text-secondary" aria-label="Rest target" data-workout-rest-target={targetS ?? 'off'}>
+            <button type="button" onClick={toggleTargetPanel} aria-pressed={targetOpen} className={`inline-flex min-h-[52px] items-center justify-center rounded-xl border px-3 text-xs font-semibold ${targetOpen ? 'border-brand text-brand-fg-strong' : 'ea-interactive border-border-strong text-secondary'}`} aria-label="Rest target" data-workout-rest-target={targetS ?? 'off'}>
               {targetS ? formatElapsed(targetS) : 'Target'}
             </button>
-            <button type="button" onClick={() => setStopwatchOpen(o => !o)} aria-pressed={stopwatchOpen} className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${stopwatch.runningSince !== null ? 'bg-brand text-white' : 'ea-interactive border border-border-strong text-primary'}`} data-workout-stopwatch={stopwatch.runningSince !== null ? 'running' : swMs > 0 ? 'stopped' : 'idle'}>
+            <button type="button" onClick={toggleStopwatchPanel} aria-pressed={stopwatchOpen} className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${stopwatch.runningSince !== null ? 'bg-brand text-white' : 'ea-interactive border border-border-strong text-primary'}`} data-workout-stopwatch={stopwatch.runningSince !== null ? 'running' : swMs > 0 ? 'stopped' : 'idle'}>
               <Timer className="w-4 h-4" aria-hidden="true" />
               {stopwatch.runningSince !== null || swMs > 0 ? <span className="tabular-nums">{formatElapsed(Math.floor(swMs / 1000))}</span> : 'Stopwatch'}
             </button>
           </div>
         </div>
       </div>
-
-      {targetSheet && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/40" role="dialog" aria-modal="true" aria-label="Rest target">
-          <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={() => setTargetSheet(false)} />
-          <div className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-rest-target-sheet={custom ? 'custom' : 'presets'}>
-            <p className="text-base font-bold text-primary">Rest target</p>
-            <p className="mt-1 text-xs text-secondary">Purple while you rest, yellow five seconds before the target, red when it is up — with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice. Off still times every rest.</p>
-            {custom ? (
-              <div className="mt-3" data-workout-rest-custom-panel="">
-                <div className="flex items-start justify-center gap-3">
-                  <NumberWheel label="Minutes" min={0} max={10} value={customMin} defaultValue={1} onChange={setCustomMin} tone="brand" />
-                  <NumberWheel label="Seconds" min={0} max={55} step={5} value={customSec} defaultValue={30} onChange={setCustomSec} tone="brand" format={v => String(v).padStart(2, '0')} />
-                </div>
-                <p className="mt-2 text-center text-sm text-secondary" data-workout-rest-custom-value={customS}>
-                  {isValidRestSeconds(customS) ? `Rest ${formatElapsed(customS)}` : 'At least 5 seconds'}
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={() => setCustom(false)} className="ea-interactive min-h-[48px] rounded-lg border border-border-strong px-4 text-sm font-semibold text-secondary" data-workout-rest-custom-back="">
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isValidRestSeconds(customS)) return;
-                      savePreset(customS);
-                      setTarget(customS);
-                    }}
-                    disabled={!isValidRestSeconds(customS)}
-                    className="ea-interactive min-h-[48px] flex-1 rounded-lg border border-border-strong px-3 text-sm font-semibold text-primary disabled:opacity-50"
-                    data-workout-rest-custom-save=""
-                  >
-                    Save as preset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { if (isValidRestSeconds(customS)) setTarget(customS); }}
-                    disabled={!isValidRestSeconds(customS)}
-                    className="ea-cta min-h-[48px] flex-1 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
-                    data-workout-rest-custom-use=""
-                  >
-                    Use
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {restPresetChips(savedPresets).map(chip => (
-                  <div key={chip.seconds} className="relative">
-                    <button type="button" onClick={() => setTarget(chip.seconds)} aria-pressed={targetS === chip.seconds} className={`min-h-[48px] w-full rounded-lg text-sm font-semibold ${targetS === chip.seconds ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset={chip.seconds} data-workout-rest-preset-saved={chip.saved ? 'true' : undefined}>
-                      {formatElapsed(chip.seconds)}
-                    </button>
-                    {chip.saved && (
-                      <button type="button" onClick={() => removePreset(chip.seconds)} className="ea-interactive absolute -right-1 -top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-secondary" aria-label={`Remove the ${formatElapsed(chip.seconds)} preset`} data-workout-rest-preset-remove={chip.seconds}>
-                        <X className="h-3 w-3" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button type="button" onClick={() => setTarget(null)} aria-pressed={targetS === null} className={`min-h-[48px] rounded-lg text-sm font-semibold ${targetS === null ? 'bg-brand text-white' : 'ea-interactive ea-surface text-primary'}`} data-workout-rest-preset="off">
-                  Off
-                </button>
-                <button type="button" onClick={openCustom} className="ea-interactive min-h-[48px] rounded-lg border border-dashed border-border-strong text-sm font-semibold text-primary" data-workout-rest-custom="">
-                  Custom…
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {pickTarget && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40" role="dialog" aria-modal="true" aria-label="Save the stopwatch to">

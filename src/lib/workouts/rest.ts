@@ -61,15 +61,18 @@ export function restTotalS(rest: RestTimer, exercises: ReadonlyArray<Pick<EntryE
   for (const e of exercises) for (const s of e.sets) if (typeof s.restSeconds === 'number' && s.restSeconds > 0) total += s.restSeconds;
   return total;
 }
-export const REST_TARGET_PRESETS_S = [30, 60, 90, 120, 180] as const;
+// Rest timer round (Oct 22 2026): there are NO built-in rest presets — every
+// time is the athlete's own (the wheels), used for this workout or saved as
+// a preset that stays until deleted.
 
 // ── A custom rest time, saved as a preset (Training fixes PR 3, Oct 21 2026) ──
 // Tom: "Let the user set their own rest time, not only the presets … a quick
 // scroll picker for minutes and seconds, and save the chosen time as a preset
-// they can reuse." The built-in five stay; the saved ones are a device list
-// (timer-prefs.ts) read through these rules.
+// they can reuse." The saved ones are a device list (timer-prefs.ts) read
+// through these rules. Oct 22 2026: the built-in five are gone — the panel
+// opens on the wheels, and the chips are the athlete's saved times only.
 
-/** The most saved presets kept (the sheet is a 3-column grid; 5 built-in + 6 saved + Off + Custom = 13 chips). */
+/** The most saved presets kept. */
 export const MAX_SAVED_REST_PRESETS = 6;
 export const MIN_REST_PRESET_S = 5;
 export const MAX_REST_PRESET_S = 60 * 60;
@@ -87,9 +90,9 @@ export function parseRestPresets(raw: unknown, max = MAX_SAVED_REST_PRESETS): nu
   return out.slice(0, max);
 }
 
-/** Save a time: the newest first, no duplicate, never one of the built-in five, at most `max`. */
+/** Save a time: the newest first, no duplicate, at most `max`. */
 export function addRestPreset(saved: readonly number[], seconds: number, max = MAX_SAVED_REST_PRESETS): number[] {
-  if (!isValidRestSeconds(seconds) || (REST_TARGET_PRESETS_S as readonly number[]).includes(seconds)) return [...saved];
+  if (!isValidRestSeconds(seconds)) return [...saved];
   return [seconds, ...saved.filter(s => s !== seconds)].slice(0, max);
 }
 
@@ -97,11 +100,9 @@ export function removeRestPreset(saved: readonly number[], seconds: number): num
   return saved.filter(s => s !== seconds);
 }
 
-/** The chips the sheet shows: built-in and saved together, ascending, no duplicate; `saved` says which carry a remove. */
+/** The chips the panel shows: the athlete's saved times, ascending, no duplicate; every one carries a remove. */
 export function restPresetChips(saved: readonly number[]): Array<{ seconds: number; saved: boolean }> {
-  const builtIn = REST_TARGET_PRESETS_S as readonly number[];
-  const all = [...builtIn.map(s => ({ seconds: s, saved: false })), ...saved.filter(s => !builtIn.includes(s)).map(s => ({ seconds: s, saved: true }))];
-  return all.sort((a, b) => a.seconds - b.seconds);
+  return [...new Set(saved)].sort((a, b) => a - b).map(s => ({ seconds: s, saved: true }));
 }
 
 /** The picker's two wheels from a number of seconds, and back. */

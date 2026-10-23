@@ -183,9 +183,11 @@ test('the open stopwatch never covers the Add buttons on a large screen', async 
   }
 });
 
-// Training fixes PR 3 (Oct 21 2026): a custom rest time from two wheels,
-// saved as a preset beside the built-in five, remembered on the device.
-test('a custom rest target from the wheels, saved as a preset, survives a reload and can be removed @mobile', { tag: '@mobile' }, async ({ page }) => {
+// Rest timer round (Oct 22 2026): the rest target is a PANEL like the
+// stopwatch's — it opens on the wheels, there are no built-in presets, a time
+// is used for this workout or saved as a preset that stays until removed,
+// Off stays; one panel at a time; the bar's height carries the clearance.
+test('the rest target panel: the wheels, Use, Save as preset, a saved chip that survives a reload and removes, Off; one panel at a time @mobile', { tag: '@mobile' }, async ({ page }) => {
   test.setTimeout(120_000);
   const api = await apiAs('state.json');
   let workoutId = '';
@@ -195,26 +197,39 @@ test('a custom rest target from the wheels, saved as a preset, survives a reload
     workoutId = (await started.json()).session.id as string;
     await page.goto(`/app/workout/${workoutId}`);
     await expect(page.locator('[data-workout-rest]')).toBeVisible({ timeout: 20_000 });
+    const open = page.locator('[data-workout-rest-target-open]');
+    const panel = page.locator('[data-workout-rest-target-panel]');
+    const barH = async () => parseFloat(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ea-workout-bar-h')));
 
-    // The target chip opens the sheet: the built-in five, Off, Custom.
+    // Closed: the panel is inert and takes no space. The chip opens it in place — the bar grows, like the stopwatch's.
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'false');
+    const closedH = await barH();
     await page.locator('[data-workout-rest-target]').click();
-    const sheet = page.locator('[data-workout-rest-target-sheet]');
-    await expect(sheet).toHaveAttribute('data-workout-rest-target-sheet', 'presets');
-    await expect(sheet.locator('[data-workout-rest-preset]')).toHaveCount(6);
-    await sheet.locator('[data-workout-rest-custom]').click();
-    await expect(sheet).toHaveAttribute('data-workout-rest-target-sheet', 'custom');
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'true');
+    await expect.poll(barH, { timeout: 5_000 }).toBeGreaterThan(closedH + 100);
+    // No built-in presets: nothing saved yet, so no chips — the empty line and Off only.
+    await expect(panel.locator('[data-workout-rest-presets]')).toHaveAttribute('data-workout-rest-presets', '0');
+    await expect(panel.locator('[data-workout-rest-presets-empty]')).toBeVisible();
+    await expect(panel.locator('[data-workout-rest-preset]')).toHaveCount(1); // Off
     // The wheels rest on 1:30 (no target yet); the seconds wheel goes by five.
-    await expect(sheet.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '90');
-    const seconds = sheet.getByRole('spinbutton', { name: 'Seconds' });
+    await expect(panel.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '90');
+    const seconds = panel.getByRole('spinbutton', { name: 'Seconds' });
     await seconds.focus();
     await page.keyboard.press('ArrowDown');
-    await expect(sheet.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '95');
-    await expect(sheet.locator('[data-workout-rest-custom-value]')).toContainText('1:35');
-    // Save as preset: the target is 1:35 and the chip is saved on the device.
-    await sheet.locator('[data-workout-rest-custom-save]').click();
-    await expect(sheet).toHaveCount(0);
+    await expect(panel.locator('[data-workout-rest-custom-value]')).toHaveAttribute('data-workout-rest-custom-value', '95');
+    await expect(panel.locator('[data-workout-rest-custom-value]')).toContainText('1:35');
+    // Use for this workout: the target is 1:35, the panel closes, nothing saved.
+    await panel.locator('[data-workout-rest-custom-use]').click();
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'false');
     await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95');
     await expect(page.locator('[data-workout-rest-target]')).toHaveText('1:35');
+    await expect.poll(barH, { timeout: 5_000 }).toBeLessThan(closedH + 8);
+    await page.locator('[data-workout-rest-target]').click();
+    await expect(panel.locator('[data-workout-rest-presets]')).toHaveAttribute('data-workout-rest-presets', '0');
+    // Save as preset: the chip is saved on the device and is the target.
+    await panel.locator('[data-workout-rest-custom-save]').click();
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'false');
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95');
 
     await page.reload();
     await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95', { timeout: 20_000 });
@@ -222,18 +237,21 @@ test('a custom rest target from the wheels, saved as a preset, survives a reload
     const chip = page.locator('[data-workout-rest-preset="95"]');
     await expect(chip).toHaveAttribute('data-workout-rest-preset-saved', 'true');
     await expect(chip).toHaveAttribute('aria-pressed', 'true');
-    // The built-in 1:30 carries no remove; the saved one does, and goes.
-    await expect(page.locator('[data-workout-rest-preset-remove="90"]')).toHaveCount(0);
+    await expect(panel.locator('[data-workout-rest-presets]')).toHaveAttribute('data-workout-rest-presets', '1');
+    await expect(panel.locator('[data-workout-rest-presets-empty]')).toHaveCount(0);
+    // One panel at a time: the stopwatch closes it, and it closes the stopwatch.
+    await page.locator('[data-workout-stopwatch]').click();
+    await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'true');
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'false');
+    await page.locator('[data-workout-rest-target]').click();
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'true');
+    await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'false');
+    // The chip removes; Off keeps timing with no target.
     await page.locator('[data-workout-rest-preset-remove="95"]').click();
     await expect(page.locator('[data-workout-rest-preset="95"]')).toHaveCount(0);
-    await expect(page.locator('[data-workout-rest-preset]')).toHaveCount(6);
-    // Use without saving: a plain custom target, no new chip.
-    await page.locator('[data-workout-rest-custom]').click();
-    await page.locator('[data-workout-rest-custom-use]').click();
-    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '95');
-    await page.locator('[data-workout-rest-target]').click();
-    await expect(page.locator('[data-workout-rest-preset]')).toHaveCount(6);
+    await expect(panel.locator('[data-workout-rest-presets-empty]')).toBeVisible();
     await page.locator('[data-workout-rest-preset="off"]').click();
+    await expect(open).toHaveAttribute('data-workout-rest-target-open', 'false');
     await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', 'off');
   } finally {
     if (workoutId) await api.delete(`/api/workouts/${workoutId}`);
