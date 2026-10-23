@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestsOf, epley, foldBests, formatPr, newPRs, workoutUnit } from '../workouts/prs';
+import { bestsOf, epley, foldBests, formatHold, formatPr, holdRecord, isHoldExercise, newPRs, workoutUnit } from '../workouts/prs';
 import type { EntryExercise, EntrySet } from '../workouts/entries';
 
 const set = (reps: number | null, weight: number | null, unit: 'lbs' | 'kg' | null = 'lbs'): EntrySet => ({
@@ -64,5 +64,47 @@ describe('bests and records', () => {
     expect(formatPr('reps', 12, 'kg')).toBe('12 reps');
     expect(workoutUnit([ex('Squat', 'squat', [set(5, 100, 'kg'), set(5, 100, 'kg'), set(5, 225, 'lbs')])])).toBe('kg');
     expect(workoutUnit([])).toBe('lb');
+  });
+});
+
+// ── Longest hold (Stopwatch additions, Oct 23 2026) ──────────────────────────
+describe('longest hold', () => {
+  const hold = (name: string, key: string | null, seconds: number[]): EntryExercise => ex(name, key, seconds.map(d => ({ ...set(null, null), durationSeconds: d })));
+  it('a hold is a catalog duration exercise outside cardio; a machine, a distance exercise or a free-text name never is', () => {
+    expect(isHoldExercise({ exerciseKey: 'plank' })).toBe(true);
+    expect(isHoldExercise({ exerciseKey: 'stretching' })).toBe(true);
+    expect(isHoldExercise({ exerciseKey: 'elliptical' })).toBe(false);
+    expect(isHoldExercise({ exerciseKey: 'run' })).toBe(false);
+    expect(isHoldExercise({ exerciseKey: 'bench_press' })).toBe(false);
+    expect(isHoldExercise({ exerciseKey: null })).toBe(false);
+  });
+  it('the longest hold is a best; a longer one later is a record; equal or shorter is not; the first ever is a baseline; a machine has none', () => {
+    const lastWeek = bestsOf([hold('Plank', 'plank', [60, 90]), hold('Elliptical', 'elliptical', [1200])]);
+    expect(lastWeek.get('plank')).toMatchObject({ duration: 90, heaviest: null, reps: null });
+    expect(lastWeek.get('elliptical')!.duration).toBeNull();
+    const history = foldBests([lastWeek, bestsOf([hold('Plank', 'plank', [75])])]);
+    expect(history.get('plank')!.duration).toBe(90);
+    expect(newPRs(bestsOf([hold('Plank', 'plank', [130])]), history)).toEqual([{ exerciseId: 'plank', name: 'Plank', kind: 'duration', value: 130, previous: 90 }]);
+    expect(newPRs(bestsOf([hold('Plank', 'plank', [90])]), history)).toEqual([]);
+    expect(newPRs(bestsOf([hold('Plank', 'plank', [85])]), history)).toEqual([]);
+    expect(newPRs(bestsOf([hold('Wall sit', null, [200])]), history)).toEqual([]);
+    expect(newPRs(bestsOf([hold('Elliptical', 'elliptical', [2000])]), history)).toEqual([]);
+  });
+  it('reads as the clock does', () => {
+    expect(formatHold(130)).toBe('2:10');
+    expect(formatHold(3723)).toBe('1:02:03');
+    expect(formatPr('duration', 130, 'lb')).toBe('2:10');
+    expect(formatPr('duration', 130, 'kg', true)).toBe('2:10');
+  });
+  it('the live check: against the history AND this session\'s earlier sets; the first ever is a baseline', () => {
+    const history = bestsOf([hold('Plank', 'plank', [90])]);
+    const plank = hold('Plank', 'plank', [100]);
+    const session = [plank, ex('Bench', 'bench_press', [set(5, 185)])];
+    expect(holdRecord(history, session, plank, 130)).toBe('pr');
+    expect(holdRecord(history, session, plank, 95)).toBe('no'); // this session already held 100
+    expect(holdRecord(null, session, plank, 101)).toBe('pr');
+    expect(holdRecord(null, [], plank, 40)).toBe('baseline');
+    expect(holdRecord(history, session, session[1], 40)).toBe('no');
+    expect(holdRecord(history, session, plank, 0)).toBe('no');
   });
 });

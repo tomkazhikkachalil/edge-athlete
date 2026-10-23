@@ -171,6 +171,26 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
       return next;
     });
   };
+  // Longest-hold records (Stopwatch additions, Oct 23 2026): the athlete's bests BEFORE this session, read once when a live session mounts, so the bar's Save to set can say "New PR".
+  const [historyBests, setHistoryBests] = useState<ReadonlyMap<string, ExerciseBests> | null>(null);
+  const liveSessionId = effectiveMode === 'live' && session ? session.id : null;
+  useEffect(() => {
+    if (!liveSessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/workouts/prs?exclude=${liveSessionId}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = (await res.json()) as { bests?: Record<string, ExerciseBests> };
+        if (!cancelled) setHistoryBests(new Map(Object.entries(data.bests ?? {})));
+      } catch {
+        /* the pill is a nicety; the Finish reads the records again */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveSessionId]);
   const [clockBusy, setClockBusy] = useState(false);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
   // A10 (Oct 16 2026): this session's records for EVERY exercise, against all earlier sessions.
@@ -1249,6 +1269,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
           onStopwatch={(stopwatch: Stopwatch) => persistTimers({ stopwatch })}
           lastEditedClientId={lastEditedClientId}
           onSaveStopwatch={saveStopwatch}
+          historyBests={historyBests}
         />
       )}
 

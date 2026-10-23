@@ -228,7 +228,7 @@ describe('the screen', () => {
   // Stopwatch additions (Oct 23 2026).
   it('the stopwatch: the bell is armed in the Start tap, a running rest ends on start, Save to set auto-rests only with a target; the modes, the wheels and the lead-in switch; the bar button carries the time; the screen stays awake for the live workout', () => {
     const bar = read('src/components/workouts/WorkoutControls.tsx');
-    expect(bar).toMatch(/const startStopwatch = \(\) => \{\s*const at = Date\.now\(\);\s*armBell\(\);\s*if \(rest\.startedAt !== null\) onRest\(stopRest\(rest, at\)\);\s*onStopwatch\(stopwatchStart\(stopwatch, at, leadIn \? STOPWATCH_LEAD_IN_MS : 0\)\);/);
+    expect(bar).toMatch(/const startStopwatch = \(\) => \{\s*const at = Date\.now\(\);\s*(setSavedPr\(null\);\s*)?armBell\(\);\s*if \(rest\.startedAt !== null\) onRest\(stopRest\(rest, at\)\);\s*onStopwatch\(stopwatchStart\(stopwatch, at, leadIn \? STOPWATCH_LEAD_IN_MS : 0\)\);/);
     expect(bar).toMatch(/if \(targetS !== null\) onRest\(startRest\(rest, at\)\);/);
     expect(bar).toMatch(/ringBell\('end'\);\s*haptic\(\);/);
     expect(bar).toMatch(/stopwatchSettle\(stopwatch, now\)/);

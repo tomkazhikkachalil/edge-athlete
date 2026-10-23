@@ -20,6 +20,8 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
       data: { mode: 'manual', startedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(), durationSeconds: 2400, title: 'Last week', exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 185)] },
         { name: 'Pull-Ups', exerciseKey: 'pull_ups', category: 'strength', notes: null, sets: [set(1, 10, null)] },
+        // A 1 s plank last week: today's stopwatch hold of a few seconds beats it (Stopwatch additions, Oct 23 2026).
+        { name: 'Plank', exerciseKey: 'plank', category: 'mobility', notes: null, sets: [{ ...set(1, null, null), durationSeconds: 1 }] },
       ] },
     });
     expect(past.ok(), await readErrorBody(past)).toBe(true);
@@ -36,6 +38,7 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5, 195)] },
         { name: 'Pull-Ups', exerciseKey: 'pull_ups', category: 'strength', notes: null, sets: [set(1, 12, null)] },
         { name: 'Deadlift', exerciseKey: 'deadlift', category: 'strength', notes: null, sets: [set(1, 5, 315)] },
+        { name: 'Plank', exerciseKey: 'plank', category: 'mobility', notes: null, sets: [{ ...set(1, null, null), completedAt: null }] },
       ] },
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
@@ -44,12 +47,30 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     const page = await ctx.newPage();
     await page.goto(`/app/workout/${id}`);
     await expect(page.locator('[data-exercise-name]').first()).toBeVisible({ timeout: 30_000 });
+
+    // The stopwatch's Save to set: a hold longer than the athlete's best is a New PR on the panel, at once (the lead-in switched off for a short hold).
+    await page.locator('[data-workout-stopwatch]').click();
+    await expect(page.locator('[data-workout-stopwatch-target]')).toContainText('Plank · set 1');
+    await page.locator('[data-workout-stopwatch-leadin]').click();
+    await expect(page.locator('[data-workout-stopwatch-leadin]')).toHaveAttribute('data-workout-stopwatch-leadin', 'off');
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await page.waitForTimeout(2_500);
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await page.locator('[data-workout-stopwatch-save]').click();
+    const pill = page.locator('[data-workout-stopwatch-pr]');
+    await expect(pill).toHaveAttribute('data-workout-stopwatch-pr', 'pr');
+    await expect(pill).toContainText(/New PR · Plank · 0:0[2-4]/);
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${id}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Plank').sets[0].duration_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+    await page.locator('[data-workout-stopwatch]').click(); // close the panel
+
     await page.getByRole('button', { name: 'Finish' }).click();
     const prs = page.locator('[data-workout-prs]');
     await expect(prs).toBeVisible({ timeout: 30_000 });
-    for (const key of ['bench_press:heaviest', 'bench_press:e1rm', 'bench_press:volume', 'pull_ups:reps']) await expect(prs.locator(`[data-workout-pr="${key}"]`)).toBeVisible();
+    for (const key of ['bench_press:heaviest', 'bench_press:e1rm', 'bench_press:volume', 'pull_ups:reps', 'plank:duration']) await expect(prs.locator(`[data-workout-pr="${key}"]`)).toBeVisible();
     await expect(prs.locator('[data-workout-pr^="deadlift"]')).toHaveCount(0);
     await expect(prs.locator('[data-workout-pr="bench_press:heaviest"]')).toContainText('195 lbs');
+    await expect(prs.locator('[data-workout-pr="plank:duration"]')).toContainText(/Longest hold/);
+    await expect(prs.locator('[data-workout-pr="plank:duration"]')).toContainText(/0:0[2-4]/);
 
     await page.locator('[data-workout-effort] [data-effort="8"]').click();
     await expect.poll(async () => (await (await api.get(`/api/workouts/${id}`)).json()).session.effort, { timeout: 15_000 }).toBe(8);
@@ -61,6 +82,9 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     await expect(records.locator('[data-exercise-record="bench_press"]')).toContainText('195');
     await expect(records.locator('[data-exercise-record="deadlift"]')).toContainText('315');
     await expect(records).toContainText('Heaviest (lbs)');
+    // A hold has a row with its longest time (Oct 23 2026).
+    await expect(records).toContainText('Longest');
+    await expect(records.locator('[data-exercise-record="plank"] [data-exercise-record-duration]')).toHaveText(/0:0[2-4]/);
 
     // The recorder's picker: Strength training opens the Workout's start screen (E2); Start makes the row.
     await page.goto('/activities/record');
