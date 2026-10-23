@@ -411,6 +411,8 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                     }
                     onSaveStopwatch(target, swMs);
                     onStopwatch(stopwatchReset(stopwatch));
+                    // A set picked by hand is for ONE save: the next target is the rule's again (the first open set), never the same set twice.
+                    setChosenTarget(null);
                     // The auto-rest (Tom): a rest target set → the rest starts; Off → nothing.
                     if (targetS !== null) onRest(startRest(rest, at));
                   }}

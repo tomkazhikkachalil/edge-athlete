@@ -254,6 +254,8 @@ describe('the screen', () => {
     expect(bar).toMatch(/data-workout-stopwatch-leadin-left=\{leadLeft \?\? ''\}/);
     expect(bar).toMatch(/data-workout-stopwatch-button-time=""/);
     expect(bar).toMatch(/onStopwatch\(stopwatchReset\(stopwatch\)\)/);
+    // A set picked by hand is for one save (Oct 23 2026): the chosen target clears on Save to set.
+    expect(bar).toMatch(/onStopwatch\(stopwatchReset\(stopwatch\)\);\s*setChosenTarget\(null\);/);
     // Item 4 (already true, pinned): the editor holds the wake lock for the whole live workout, the one mode the bar mounts in.
     const screen = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(screen).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
