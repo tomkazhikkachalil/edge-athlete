@@ -194,7 +194,7 @@ describe('the screen', () => {
 });
 
 // ── A custom rest time, saved as a preset (Training fixes PR 3, Oct 21 2026) ──
-import { addRestPreset, isValidRestSeconds, joinRest, MAX_SAVED_REST_PRESETS, parseRestPresets, removeRestPreset, REST_TARGET_PRESETS_S, restPresetChips, splitRest } from '../workouts/rest';
+import { addRestPreset, isValidRestSeconds, joinRest, MAX_SAVED_REST_PRESETS, parseRestPresets, removeRestPreset, restPresetChips, splitRest } from '../workouts/rest';
 import { readRestPresets, REST_PRESETS_KEY, writeRestPresets } from '../workouts/timer-prefs';
 
 describe('custom rest presets', () => {
@@ -212,19 +212,21 @@ describe('custom rest presets', () => {
     expect(parseRestPresets('[75]')).toEqual([]);
     expect(parseRestPresets([5, 10, 15, 20, 25, 35, 40, 45])).toHaveLength(MAX_SAVED_REST_PRESETS);
   });
-  it('save puts the newest first without duplicates and never a built-in; remove drops it', () => {
+  it('save puts the newest first without duplicates — any valid time, there are no built-ins (Oct 22 2026); remove drops it', () => {
     expect(addRestPreset([75], 105)).toEqual([105, 75]);
     expect(addRestPreset([105, 75], 75)).toEqual([75, 105]);
-    expect(addRestPreset([75], 90)).toEqual([75]);
+    expect(addRestPreset([75], 90)).toEqual([90, 75]);
+    expect(addRestPreset([], 60)).toEqual([60]);
     expect(addRestPreset([75], 4)).toEqual([75]);
     expect(addRestPreset([5, 10, 15, 20, 25, 35], 40)).toEqual([40, 5, 10, 15, 20, 25]);
     expect(removeRestPreset([105, 75], 75)).toEqual([105]);
   });
-  it('the chips are the built-in five and the saved ones together, ascending; only the saved carry a remove', () => {
-    const chips = restPresetChips([105, 75, 60]);
-    expect(chips.map(c => c.seconds)).toEqual([30, 60, 75, 90, 105, 120, 180]);
-    expect(chips.filter(c => c.saved).map(c => c.seconds)).toEqual([75, 105]);
-    expect(restPresetChips([]).map(c => c.seconds)).toEqual([...REST_TARGET_PRESETS_S]);
+  it('the chips are the saved times only, ascending, every one with a remove; none saved, none shown (Oct 22 2026)', () => {
+    const chips = restPresetChips([105, 75, 60, 75]);
+    expect(chips.map(c => c.seconds)).toEqual([60, 75, 105]);
+    expect(chips.every(c => c.saved)).toBe(true);
+    expect(restPresetChips([])).toEqual([]);
+    expect(read('src/lib/workouts/rest.ts')).not.toMatch(/REST_TARGET_PRESETS_S/);
   });
   it('the two wheels split and join a time', () => {
     expect(splitRest(105)).toEqual({ minutes: 1, seconds: 45 });
@@ -237,16 +239,25 @@ describe('custom rest presets', () => {
     expect(readRestPresets(parseRestPresets)).toEqual([]);
     expect(() => writeRestPresets([75])).not.toThrow();
   });
-  it('the sheet: the chips, Off, Custom; the two wheels (seconds by five); Use and Save as preset; a saved chip removes', () => {
+  it('the panel (Oct 22 2026): the stopwatch\'s recipe, opens on the wheels (seconds by five), Use / Save as preset, the saved chips with a remove, Off; one panel at a time; no sheet, no built-ins', () => {
     const src = read('src/components/workouts/WorkoutControls.tsx');
-    expect(src).toMatch(/restPresetChips\(savedPresets\)\.map/);
+    expect(src).toMatch(/data-workout-rest-target-open=\{targetOpen \? 'true' : 'false'\}/);
+    expect(src).toMatch(/data-workout-rest-target-panel="" \{\.\.\.\(targetOpen \? \{\} : \{ inert: true \}\)\}/);
+    expect((src.match(/transition-\[max-height,opacity\] duration-200 ease-out/g) ?? []).length).toBe(2);
+    expect(src).not.toMatch(/data-workout-rest-target-sheet|targetSheet|data-workout-rest-custom=""|REST_TARGET_PRESETS_S|role="dialog" aria-modal="true" aria-label="Rest target"/);
+    expect(src).toMatch(/const chips = restPresetChips\(savedPresets\);/);
+    expect(src).toMatch(/data-workout-rest-presets=\{chips\.length\}/);
+    expect(src).toMatch(/data-workout-rest-presets-empty=""/);
     expect(src).toMatch(/data-workout-rest-preset="off"/);
-    expect(src).toMatch(/data-workout-rest-custom=""/);
     expect(src).toMatch(/<NumberWheel label="Minutes" min=\{0\} max=\{10\}/);
     expect(src).toMatch(/<NumberWheel label="Seconds" min=\{0\} max=\{55\} step=\{5\}/);
     expect(src).toMatch(/data-workout-rest-custom-use=""/);
     expect(src).toMatch(/data-workout-rest-custom-save=""/);
     expect(src).toMatch(/data-workout-rest-preset-remove=\{chip\.seconds\}/);
-    expect(src).not.toMatch(/REST_TARGET_PRESETS_S\.map/);
+    // One panel at a time: opening either closes the other.
+    expect(src).toMatch(/setStopwatchOpen\(false\);\s*setTargetOpen\(true\);/);
+    expect(src).toMatch(/const toggleStopwatchPanel = \(\) => \{\s*setTargetOpen\(false\);\s*setStopwatchOpen\(o => !o\);/);
+    expect(src).toMatch(/onClick=\{toggleTargetPanel\}/);
+    expect(src).toMatch(/onClick=\{toggleStopwatchPanel\}/);
   });
 });
