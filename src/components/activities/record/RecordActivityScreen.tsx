@@ -507,7 +507,7 @@ export default function RecordActivityScreen() {
       {state && state.status === 'finished' && (
         <FinishSheet
           type={state.type}
-          defaultName={state.name ?? defaultActivityName(state.type, new Date(state.startedAt ?? now).getHours())}
+          defaultName={state.name?.trim() ? state.name : defaultActivityName(state.type, new Date(state.startedAt ?? now).getHours())}
           unit={unit}
           photos={state.photos}
           saving={saving}
@@ -531,7 +531,7 @@ export default function RecordActivityScreen() {
           onReview={next => dispatch({ type: 'setReview', review: next })}
           onStep={goStep}
           onAnswers={a => dispatch({ type: 'setAnswers', answers: a })}
-          onName={name => dispatch({ type: 'setName', name: name.trim() ? name : null })}
+          onName={name => dispatch({ type: 'setName', name })}
           onDistance={m => dispatch({ type: 'setManualDistance', distanceM: m })}
           initialDistanceM={state.manualDistanceM}
           preview={
@@ -541,7 +541,7 @@ export default function RecordActivityScreen() {
                 totals,
                 route: reviewRoute,
                 supervised: (activeProfile ?? profile)?.supervision_state === 'supervised',
-                name: state.name ?? defaultActivityName(state.type, new Date(state.startedAt ?? now).getHours()),
+                name: state.name?.trim() ? state.name.trim() : defaultActivityName(state.type, new Date(state.startedAt ?? now).getHours()),
                 manualDistanceM: state.manualDistanceM,
                 effort: recordingAnswers(state).effort,
                 details: finishPayload(recordingAnswers(state)).details ?? {},

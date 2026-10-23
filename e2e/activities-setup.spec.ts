@@ -128,6 +128,52 @@ test('elliptical: Details while recording — effort and a note — survive a re
   }
 });
 
+// Oct 23 2026 (Tom's phone): the set-up card's name could not take a SPACE —
+// the reducer trimmed on every keystroke and the controlled field read the
+// trimmed value back. Now the name is kept as typed; the wire trims.
+test('the name is kept as typed on the set-up card — spaces included — survives a reload, carries to the Finish, and is trimmed on save @mobile', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const user = loadQaUser('user.json');
+  const admin = adminClient();
+  await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
+  try {
+    const page = await ctx.newPage();
+    await page.goto('/activities/record');
+    await page.locator('[data-record-type="elliptical"]').click({ timeout: 20_000 });
+    const name = page.locator('[data-record-ready] [data-record-name]');
+    await expect(name).toBeVisible();
+    // Real keystrokes, one by one — the bug's path (a fill() lands in one change).
+    await name.click();
+    await name.pressSequentially('Morning walk', { delay: 30 });
+    await expect(name).toHaveValue('Morning walk');
+    await name.press('Space');
+    await expect(name).toHaveValue('Morning walk ');
+    await name.pressSequentially('in', { delay: 30 });
+    await expect(name).toHaveValue('Morning walk in');
+    await page.waitForTimeout(900); // the engine's put
+    await page.reload();
+    await expect(page.locator('[data-record-ready] [data-record-name]')).toHaveValue('Morning walk in', { timeout: 20_000 });
+    await page.locator('[data-record-start]').click();
+    await expect(page.locator('[data-record-screen="recording"]')).toBeVisible();
+    await page.waitForTimeout(2_500);
+    await page.locator('[data-record-finish]').click();
+    const finish = page.locator('[data-record-finish-sheet]');
+    await expect(finish).toBeVisible();
+    await expect(finish.locator('#record-name')).toHaveValue('Morning walk in');
+    await page.locator('[data-record-continue]').click();
+    await page.locator('[data-feed-toggle="on"]').click();
+    await page.locator('[data-record-save]').click();
+    await page.waitForURL(/\/activities\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const id = page.url().split('/').pop()!;
+    const { data: row } = await admin.from('activities').select('name').eq('id', id).single();
+    expect(row).toMatchObject({ name: 'Morning walk in' });
+  } finally {
+    await ctx.close();
+    await admin.from('activities').delete().eq('profile_id', user.id).eq('source', 'live');
+  }
+});
+
 test('F7 — a ride asks its bike before Start and offers the indoor twin; switching leaves no orphan on the device @mobile', async ({ browser }) => {
   test.setTimeout(90_000);
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/state.json', viewport: PHONE });
