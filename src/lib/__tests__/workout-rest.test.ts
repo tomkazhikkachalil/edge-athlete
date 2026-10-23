@@ -247,6 +247,11 @@ describe('the screen', () => {
     const screen = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(screen).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
     expect(screen).toMatch(/\{effectiveMode === 'live' && session && \(\s*<WorkoutControls/);
+    // Two writes from one tap (end the rest, start the stopwatch) must both land: the editor patches the LATEST timers, never a stale spread.
+    expect(screen).toMatch(/setTimers\(prev => \{\s*const next = \{ \.\.\.prev, \.\.\.patch \};\s*writeTimers\(draftId, next\);\s*return next;/);
+    expect(screen).toMatch(/onRest=\{\(rest: RestTimer\) => persistTimers\(\{ rest \}\)\}/);
+    expect(screen).toMatch(/onStopwatch=\{\(stopwatch: Stopwatch\) => persistTimers\(\{ stopwatch \}\)\}/);
+    expect(screen).not.toMatch(/persistTimers\(\{ \.\.\.timers/);
     const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(editor).not.toMatch(/pb-48/);
     expect(editor).toMatch(/'ea-bar-clearance'/);
