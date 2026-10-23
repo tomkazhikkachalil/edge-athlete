@@ -77,9 +77,9 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
     await expect(clockRow.locator('[data-workout-rest-total]')).toHaveCount(1);
     expect(((await clockRow.textContent()) ?? '').match(/Rest/g)?.length ?? 0).toBe(1);
     // Off keeps timing and counting: with no target the rest is purple throughout.
-    await page.evaluate(() => localStorage.removeItem('ea:workout:rest-target:v1'));
-    await page.reload();
-    await expect(restBtn).toBeVisible({ timeout: 20_000 });
+    // (Through the picker's own Off — the init script above re-seeds 7 s on every load.)
+    await page.locator('[data-workout-rest-target]').click();
+    await page.locator('[data-workout-rest-preset="off"]').click();
     await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', 'off');
     await restBtn.click();
     await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'running');
