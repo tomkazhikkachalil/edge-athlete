@@ -94,9 +94,10 @@ test('header Create shows Post, Sport, Event and Record Activity — nothing els
 
 // Oct 22 2026, Tom's iPhone: after a cold open, Create → Sport zoomed the
 // screen to the far left — the picker's search field auto-focused from the
-// composer's lazily loaded chunk, after the tap. On a touch screen the picker
-// now opens with NOTHING focused, the field at 16 px, the grid in view and
-// the page at scale 1. (Real iOS focus-zoom cannot be played in this harness;
+// composer's lazily loaded chunk, after the tap. On a touch screen (the
+// android project) the picker now opens with NOTHING focused; a fine pointer
+// (mobile / webkit-mobile, emulation off) keeps the auto-focus; everywhere the
+// field is 16 px, the grid in view and the page at scale 1. (Real iOS focus-zoom cannot be played in this harness;
 // this pins the two causes. Tom's phone is the proof.)
 test('Create → Sport on a phone: no field focused, the search at 16 px, the grid in view, scale 1 @mobile', async ({ page }) => {
   await page.goto('/messages');
@@ -115,7 +116,10 @@ test('Create → Sport on a phone: no field focused, the search at 16 px, the gr
     scale: window.visualViewport?.scale ?? 1,
     coarse: window.matchMedia('(pointer: coarse)').matches,
   }));
-  expect(state.focusedIsSearch, 'the search is not auto-focused on a phone').toBe(false);
+  // The mobile / webkit-mobile projects are phone-SIZED with emulation off (a
+  // fine pointer — overflows are measured honestly); the android project
+  // emulates touch (a coarse pointer). Each proves its own side of the rule.
+  expect(state.focusedIsSearch, state.coarse ? 'the search is not auto-focused on a touch screen' : 'a fine pointer keeps the auto-focus').toBe(!state.coarse);
   // … and 16 px whether the guard matched by width or by pointer.
   expect(state.fontSize).toBe('16px');
   expect(state.scale).toBe(1);
