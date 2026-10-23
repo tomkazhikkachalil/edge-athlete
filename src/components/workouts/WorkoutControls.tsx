@@ -17,6 +17,7 @@ import {
   restPresetChips,
   splitRest,
   restElapsedS,
+  restPhase,
   restTargetReached,
   startRest,
   stopRest,
@@ -40,10 +41,16 @@ import { readRestPresets, readRestTarget, writeRestPresets, writeRestTarget } fr
 //
 // Rest: tap starts; marking ANY set complete ends it and writes the seconds
 // to that set (the editor does the write); tap again stops it and HOLDS the
-// value for the next completed set. The target (a device preference) turns
-// the number brand, vibrates where the phone can (Android; iOS has no web
-// vibration) and shows one toast. Stopwatch: Start / Stop / Reset; "Save to
-// set" writes whole seconds into the target set's duration.
+// value for the next completed set. The target (a device preference) buzzes
+// where the phone can (Android; iOS has no web vibration) and shows one
+// toast. Stopwatch: Start / Stop / Reset; "Save to set" writes whole seconds
+// into the target set's duration.
+//
+// The rest's colour (Rest timer round, Oct 22 2026 — rest.ts restPhase):
+// PURPLE from the moment the rest starts (never red at the start), YELLOW
+// five seconds before the target, RED at the target, FLASHING red from five
+// seconds after; the tap that ends the rest resets it all. With the target
+// Off the rest is purple throughout — still timed, still counted.
 //
 // A custom target (Training fixes PR 3, Oct 21 2026): the target sheet's
 // Custom opens two wheels — minutes, and seconds by five (the golf
@@ -103,6 +110,13 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   const now = useNow(running);
   const restS = restElapsedS(rest, now);
   const reached = restTargetReached(rest, targetS, now);
+  const phase = restPhase(rest, targetS, now);
+  const restClass =
+    phase === 'running' ? 'bg-brand text-white'
+    : phase === 'warning' ? 'bg-amber-400 text-black'
+    : phase === 'reached' ? 'bg-red-600 text-white'
+    : phase === 'overdue' ? 'bg-red-600 text-white animate-pulse'
+    : 'ea-interactive border border-border-strong text-primary';
   // The alert, once per rest.
   const alertedForRef = useRef<number | null>(null);
   useEffect(() => {
@@ -204,14 +218,15 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
             {/* Rest: a toggle; the number shows while resting or held; a long-press (or the chip) sets the target. */}
             <button
               type="button"
-              onClick={() => onRest(rest.startedAt !== null ? stopRest(rest, Date.now()) : startRest(Date.now()))}
+              onClick={() => onRest(rest.startedAt !== null ? stopRest(rest, Date.now()) : startRest(rest, Date.now()))}
               onContextMenu={e => {
                 e.preventDefault();
                 setTargetSheet(true);
               }}
               aria-pressed={rest.startedAt !== null}
-              className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${rest.startedAt !== null ? (reached ? 'bg-brand text-white' : 'bg-red-600 text-white') : 'ea-interactive border border-border-strong text-primary'}`}
+              className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${restClass}`}
               data-workout-rest={rest.startedAt !== null ? 'running' : rest.heldS !== null ? 'held' : 'idle'}
+              data-workout-rest-phase={phase}
             >
               <Hourglass className="w-4 h-4" aria-hidden="true" />
               {rest.startedAt !== null ? (
@@ -238,7 +253,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
           <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={() => setTargetSheet(false)} />
           <div className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" data-workout-rest-target-sheet={custom ? 'custom' : 'presets'}>
             <p className="text-base font-bold text-primary">Rest target</p>
-            <p className="mt-1 text-xs text-secondary">The number turns purple when the rest is up, with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice.</p>
+            <p className="mt-1 text-xs text-secondary">Purple while you rest, yellow five seconds before the target, red when it is up — with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice. Off still times every rest.</p>
             {custom ? (
               <div className="mt-3" data-workout-rest-custom-panel="">
                 <div className="flex items-start justify-center gap-3">

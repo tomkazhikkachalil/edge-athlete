@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flag, Layers, MoreVertical, Pause, Play, Plus, Repeat, Timer } from 'lucide-react';
+import { Flag, Hourglass, Layers, MoreVertical, Pause, Play, Plus, Repeat, Timer } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
 import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
@@ -24,7 +24,7 @@ import {
 import AddExerciseSheet from './AddExerciseSheet';
 import ExerciseGroupCard from './ExerciseGroupCard';
 import WorkoutControls from './WorkoutControls';
-import { applyStopwatchToSet, completedSetDiff, REST_IDLE, restForCompletedSet, type RestTimer, type SetTarget, type Stopwatch } from '@/lib/workouts/rest';
+import { applyStopwatchToSet, completedSetDiff, REST_IDLE, restForCompletedSet, restTotalS, type RestTimer, type SetTarget, type Stopwatch } from '@/lib/workouts/rest';
 import { clearTimers, readTimers, writeTimers, TIMERS_IDLE, type TimersState } from '@/lib/workouts/timers-store';
 import { addRound, addToGroup, copyRound, deleteRound, GROUP_HINT, GROUP_LABEL, makeGroup, removeFromGroup, removeGroup, renderItems, setRounds, ungroup } from '@/lib/workouts/groups';
 import type { GroupView } from '@/lib/workouts/rounds-view';
@@ -47,14 +47,7 @@ import {
   resolveEntries,
   writeDraft,
 } from '@/lib/workouts/draft';
-import {
-  buildWorkoutStatsData,
-  computeSummary,
-  collectWorkoutMedia,
-  formatElapsed,
-  MAX_POST_MEDIA,
-  type CollectedMedia,
-} from '@/lib/workouts/summary';
+import { buildWorkoutStatsData, collectWorkoutMedia, computeSummary, formatElapsed, MAX_POST_MEDIA, type CollectedMedia } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { bestsOf, formatPr, newPRs, PR_LABELS, workoutUnit, type ExerciseBests, type PrHit } from '@/lib/workouts/prs';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
@@ -232,16 +225,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
     setTimerHidden(next);
   };
 
-  // Rest indicator: seconds since the most recent completed set (LiveClock shows it)
-  const lastCompletedMs = useMemo(() => {
-    let latest = 0;
-    for (const exercise of exercises) {
-      for (const set of exercise.sets) {
-        if (set.completedAt) latest = Math.max(latest, Date.parse(set.completedAt));
-      }
-    }
-    return latest;
-  }, [exercises]);
+  // The workout's total rest so far (Rest timer round, Oct 22 2026): every
+  // set's recorded rest plus what is held or banked for the next completed
+  // set — the bubble beside the clock appears when a rest ends and climbs
+  // with each later rest. (The clock's old "seconds since the last completed
+  // set" counter is gone: it was unrelated to the Rest timer.)
+  const restTotal = useMemo(() => restTotalS(timers.rest, exercises), [timers.rest, exercises]);
 
   // ── Server sync engine (live mode): debounced single-flight PUT ──────────
   // Latest exercises/title for the async sync + draft writers below. Written
@@ -1088,7 +1077,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             <div className="flex items-center gap-3 min-w-0" data-workout-timer={!timed ? 'off' : timerHidden ? 'hidden' : clock.pausedAt ? 'paused' : 'running'}>
               {timed && !timerHidden && (
                 <>
-                  <LiveClock startedAt={session.started_at} pausedSeconds={clock.pausedSeconds} pausedAt={clock.pausedAt} lastCompletedMs={lastCompletedMs} />
+                  <LiveClock startedAt={session.started_at} pausedSeconds={clock.pausedSeconds} pausedAt={clock.pausedAt} />
                   {/* Start/Pause beside the timer (Tom): a pause stops the clock, never the workout. */}
                   <button
                     type="button"
@@ -1105,6 +1094,13 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
               )}
               {timed && timerHidden && <span className="text-xs text-muted" data-workout-timer-hidden="">Timer hidden</span>}
               {!timed && <span className="text-xs text-muted" data-workout-untimed="">Not timed</span>}
+              {/* The total rest, right of the clock (Tom, Oct 22 2026): so the workout's time can be read against how much of it was rest. */}
+              {restTotal > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold tabular-nums text-secondary whitespace-nowrap" data-workout-rest-total={restTotal} title="Total rest this workout">
+                  <Hourglass className="w-3.5 h-3.5" aria-hidden="true" />
+                  Rest {formatElapsed(restTotal)}
+                </span>
+              )}
               {/* Autosave is silent (Tom): a message only when a save fails. */}
               {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400" data-workout-save-error="">Offline — kept locally</span>}
             </div>

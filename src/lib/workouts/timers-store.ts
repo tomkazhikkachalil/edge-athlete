@@ -25,6 +25,8 @@ export function parseTimers(raw: string | null): TimersState {
     const rest: RestTimer = {
       startedAt: typeof t.rest?.startedAt === 'number' ? t.rest.startedAt : null,
       heldS: typeof t.rest?.heldS === 'number' ? t.rest.heldS : null,
+      // Oct 22 2026: a device written before the bank has none.
+      bankedS: typeof t.rest?.bankedS === 'number' && t.rest.bankedS > 0 ? Math.floor(t.rest.bankedS) : 0,
     };
     const stopwatch: Stopwatch = {
       runningSince: typeof t.stopwatch?.runningSince === 'number' ? t.stopwatch.runningSince : null,
@@ -46,7 +48,7 @@ export function readTimers(sessionId: string): TimersState {
 
 export function writeTimers(sessionId: string, state: TimersState): void {
   try {
-    const idle = state.rest.startedAt === null && state.rest.heldS === null && state.stopwatch.runningSince === null && state.stopwatch.accumulatedMs === 0;
+    const idle = state.rest.startedAt === null && state.rest.heldS === null && state.rest.bankedS === 0 && state.stopwatch.runningSince === null && state.stopwatch.accumulatedMs === 0;
     if (idle) window.localStorage.removeItem(timersKey(sessionId));
     else window.localStorage.setItem(timersKey(sessionId), JSON.stringify(state));
   } catch {

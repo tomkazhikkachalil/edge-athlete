@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  applyStopwatchToSet, completedSetDiff, describeTarget, REST_IDLE, restElapsedS, restForCompletedSet, restTargetReached, startRest, stopRest,
+  applyStopwatchToSet, completedSetDiff, describeTarget, REST_IDLE, REST_OVERDUE_S, REST_WARN_S, restElapsedS, restForCompletedSet, restPhase, restTargetReached, restTotalS, startRest, stopRest,
   STOPWATCH_IDLE, stopwatchElapsedMs, stopwatchReset, stopwatchStart, stopwatchStop, stopwatchTarget,
 } from '../workouts/rest';
 import { parseTimers, TIMERS_IDLE, timersKey } from '../workouts/timers-store';
@@ -20,23 +20,64 @@ const ex = (name: string, sets: EntrySet[], over: Partial<EntryExercise> = {}): 
 
 describe('the rest timer', () => {
   it('runs from its start; a stop by hand HOLDS the seconds for the next completed set', () => {
-    const r = startRest(T0);
+    const r = startRest(REST_IDLE, T0);
     expect(restElapsedS(r, T0 + 75_000)).toBe(75);
     const held = stopRest(r, T0 + 75_000);
-    expect(held).toEqual({ startedAt: null, heldS: 75 });
+    expect(held).toEqual({ startedAt: null, heldS: 75, bankedS: 0 });
     expect(restElapsedS(held, T0 + 999_000)).toBe(75);
     expect(stopRest(REST_IDLE, T0)).toBe(REST_IDLE);
+    expect(startRest(r, T0 + 5_000)).toBe(r);
   });
   it('the set completed now takes the running rest, else the held one, else nothing', () => {
-    expect(restForCompletedSet(startRest(T0), T0 + 90_000)).toBe(90);
-    expect(restForCompletedSet({ startedAt: null, heldS: 40 }, T0)).toBe(40);
+    expect(restForCompletedSet(startRest(REST_IDLE, T0), T0 + 90_000)).toBe(90);
+    expect(restForCompletedSet({ startedAt: null, heldS: 40, bankedS: 0 }, T0)).toBe(40);
     expect(restForCompletedSet(REST_IDLE, T0)).toBeNull();
   });
+  // Rest timer round (Oct 22 2026): a held rest followed by another rest is BANKED, never dropped.
+  it('a held rest followed by a new rest is banked: it joins the next completed set and the total', () => {
+    const held = stopRest(startRest(REST_IDLE, T0), T0 + 30_000); // 30 s, held
+    const again = startRest(held, T0 + 40_000);
+    expect(again).toEqual({ startedAt: T0 + 40_000, heldS: null, bankedS: 30 });
+    expect(restForCompletedSet(again, T0 + 60_000)).toBe(50); // 20 running + 30 banked
+    const heldAgain = stopRest(again, T0 + 60_000);
+    expect(heldAgain).toEqual({ startedAt: null, heldS: 20, bankedS: 30 });
+    expect(restForCompletedSet(heldAgain, T0 + 99_000)).toBe(50);
+    expect(restForCompletedSet({ startedAt: null, heldS: null, bankedS: 30 }, T0)).toBe(30);
+  });
+  it('the total rest is every set\'s rest plus what is held or banked — a running rest is not in it until it ends', () => {
+    const exercises = [ex('A', [{ ...set(1, 5), restSeconds: 60 }, { ...set(2, 5), restSeconds: 45 }, set(3, 5)]), ex('B', [{ ...set(1, 5), restSeconds: null }])];
+    expect(restTotalS(REST_IDLE, exercises)).toBe(105);
+    expect(restTotalS(startRest(REST_IDLE, T0), exercises)).toBe(105);
+    expect(restTotalS(stopRest(startRest(REST_IDLE, T0), T0 + 12_000), exercises)).toBe(117);
+    expect(restTotalS({ startedAt: T0, heldS: null, bankedS: 30 }, exercises)).toBe(135);
+    expect(restTotalS(REST_IDLE, [])).toBe(0);
+  });
   it('the target is reached only while running and only with a target', () => {
-    expect(restTargetReached(startRest(T0), 60, T0 + 59_000)).toBe(false);
-    expect(restTargetReached(startRest(T0), 60, T0 + 60_000)).toBe(true);
-    expect(restTargetReached(startRest(T0), null, T0 + 999_000)).toBe(false);
-    expect(restTargetReached({ startedAt: null, heldS: 400 }, 60, T0)).toBe(false);
+    expect(restTargetReached(startRest(REST_IDLE, T0), 60, T0 + 59_000)).toBe(false);
+    expect(restTargetReached(startRest(REST_IDLE, T0), 60, T0 + 60_000)).toBe(true);
+    expect(restTargetReached(startRest(REST_IDLE, T0), null, T0 + 999_000)).toBe(false);
+    expect(restTargetReached({ startedAt: null, heldS: 400, bankedS: 0 }, 60, T0)).toBe(false);
+  });
+  it('the colour: purple from the start, yellow five seconds before the target, red at it, flashing five seconds after; Off is purple throughout; a tap resets', () => {
+    const r = startRest(REST_IDLE, T0);
+    expect(REST_WARN_S).toBe(5);
+    expect(REST_OVERDUE_S).toBe(5);
+    expect(restPhase(REST_IDLE, 60, T0)).toBe('idle');
+    expect(restPhase(r, 60, T0)).toBe('running');
+    expect(restPhase(r, 60, T0 + 54_000)).toBe('running');
+    expect(restPhase(r, 60, T0 + 55_000)).toBe('warning');
+    expect(restPhase(r, 60, T0 + 59_000)).toBe('warning');
+    expect(restPhase(r, 60, T0 + 60_000)).toBe('reached');
+    expect(restPhase(r, 60, T0 + 64_000)).toBe('reached');
+    expect(restPhase(r, 60, T0 + 65_000)).toBe('overdue');
+    expect(restPhase(r, 60, T0 + 999_000)).toBe('overdue');
+    // Off: no target, purple the whole way.
+    expect(restPhase(r, null, T0 + 999_000)).toBe('running');
+    // A short target never starts red: the first second is at most a warning.
+    expect(restPhase(r, 3, T0)).toBe('warning');
+    expect(restPhase(r, 7, T0)).toBe('running');
+    // The tap that ends the rest resets everything.
+    expect(restPhase(stopRest(r, T0 + 70_000), 60, T0 + 70_000)).toBe('idle');
   });
   it('completedSetDiff names the set whose completion just happened', () => {
     const before = ex('A', [set(1, 5), set(2, 5)]);
@@ -88,7 +129,9 @@ describe('the timers survive a reload under their own device key', () => {
     expect(parseTimers(null)).toBe(TIMERS_IDLE);
     expect(parseTimers('nope')).toBe(TIMERS_IDLE);
     expect(parseTimers(JSON.stringify({ v: 2 }))).toBe(TIMERS_IDLE);
-    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: T0, heldS: null }, stopwatch: { runningSince: null, accumulatedMs: 5000 } }))).toEqual({ v: 1, rest: { startedAt: T0, heldS: null }, stopwatch: { runningSince: null, accumulatedMs: 5000 } });
+    // A device written before the bank (Oct 22 2026) reads with none.
+    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: T0, heldS: null }, stopwatch: { runningSince: null, accumulatedMs: 5000 } }))).toEqual({ v: 1, rest: { startedAt: T0, heldS: null, bankedS: 0 }, stopwatch: { runningSince: null, accumulatedMs: 5000 } });
+    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: null, heldS: 20, bankedS: 30 }, stopwatch: { runningSince: null, accumulatedMs: 0 } })).rest).toEqual({ startedAt: null, heldS: 20, bankedS: 30 });
     expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: 'x' }, stopwatch: { accumulatedMs: -1 } }))).toEqual(TIMERS_IDLE);
   });
 });
@@ -109,6 +152,31 @@ describe('the screen', () => {
     expect(bar).toMatch(/haptic\(\)/);
     expect(editor).not.toMatch(/span\.tabular-nums/);
     expect(read('e2e/workout-capture.spec.ts')).toMatch(/\[data-live-clock\]/);
+  });
+  // Rest timer round (Oct 22 2026).
+  it('the rest is coloured by its phase; the clock has no rest of its own; the total rest sits beside the clock; rest never reaches a public surface', () => {
+    const bar = read('src/components/workouts/WorkoutControls.tsx');
+    expect(bar).toMatch(/const phase = restPhase\(rest, targetS, now\);/);
+    expect(bar).toMatch(/data-workout-rest-phase=\{phase\}/);
+    expect(bar).toMatch(/phase === 'running' \? 'bg-brand text-white'/);
+    expect(bar).toMatch(/phase === 'warning' \? 'bg-amber-400 text-black'/);
+    expect(bar).toMatch(/phase === 'reached' \? 'bg-red-600 text-white'\s*:/);
+    expect(bar).toMatch(/phase === 'overdue' \? 'bg-red-600 text-white animate-pulse'/);
+    expect((bar.match(/animate-pulse/g) ?? []).length).toBe(1);
+    expect(bar).toMatch(/startRest\(rest, Date\.now\(\)\)/);
+    expect(bar).not.toMatch(/reached \? 'bg-brand text-white' : 'bg-red-600 text-white'/);
+    const clock = read('src/components/workouts/LiveClock.tsx');
+    expect(clock).not.toMatch(/lastCompletedMs|Rest \{formatElapsed/);
+    const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
+    expect(editor).not.toMatch(/lastCompletedMs/);
+    expect(editor).toMatch(/restTotalS\(timers\.rest, exercises\)/);
+    expect(editor).toMatch(/data-workout-rest-total=\{restTotal\}/);
+    // Rest is personal: never on the post, the tiles' stats line, or a visitor's diary card.
+    expect(read('src/components/workouts/WorkoutPostCard.tsx')).not.toMatch(/rest_seconds|active_seconds|avg_rest_seconds|Rest \$\{/);
+    expect(read('src/lib/sports/stats-summary.ts')).not.toMatch(/num\(statsData\.rest_seconds\)|\} rest`/);
+    expect(read('src/components/workouts/WorkoutCard.tsx')).toMatch(/isOwnProfile && \(summary\.restSeconds \?\? 0\) > 0/);
+    // The owner's finish summary keeps its rest cards.
+    expect(read('src/components/workouts/FinishFlow.tsx')).toMatch(/data-summary-rest=/);
   });
   it('the bar takes its own space (Oct 13 2026): it publishes its measured height, the editor\'s clearance follows it, the panel animates in place', () => {
     const bar = read('src/components/workouts/WorkoutControls.tsx');

@@ -6,6 +6,11 @@ import { savedAfter } from './helpers/workouts';
 // on the set completed next (a held rest waits for it); the stopwatch saves
 // to the current set in one tap; the bar clears the content; the tab bar is
 // gone from the screen (it owns its bottom edge).
+// Rest timer round (Oct 22 2026): the rest is coloured by its phase against
+// the target (purple → yellow 5 s before → red at → flashing 5 s after, reset
+// by the tap that ends it); the workout's TOTAL rest sits beside the clock and
+// climbs with each ended rest; the clock's old "seconds since the last
+// completed set" counter is gone.
 
 const set = (n: number, reps: number | null) => ({ setNumber: n, reps, weight: reps === null ? null : 100, weightUnit: reps === null ? null : 'lbs', durationSeconds: null, distance: null, distanceUnit: null, completedAt: null, media: [] });
 
@@ -26,28 +31,74 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
 
+    // A 7 s target on this device, so every colour phase passes in seconds.
+    await page.addInitScript(() => { try { localStorage.setItem('ea:workout:rest-target:v1', '7'); } catch { /* storage unavailable */ } });
     await page.goto(`/app/workout/${workoutId}`);
     const bar = page.locator('[data-workout-controls]');
     await expect(bar).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-tab-bar]')).toHaveCount(0);
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '7');
+    const restBtn = page.locator('[data-workout-rest]');
+    const clockRow = page.locator('[data-workout-timer]');
+    await expect(page.locator('[data-workout-rest-total]')).toHaveCount(0);
 
-    // Rest → complete set 1: the set carries the rest.
-    await page.locator('[data-workout-rest]').click();
-    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'running');
-    await page.waitForTimeout(2_500);
+    // The colour (Oct 22 2026): purple from the start — never red — then yellow
+    // five seconds before the 7 s target, red at it, flashing red five after.
+    await restBtn.click();
+    await expect(restBtn).toHaveAttribute('data-workout-rest', 'running');
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'running');
+    await expect(restBtn).toHaveClass(/bg-brand/);
+    await expect(restBtn).not.toHaveClass(/bg-red-600|bg-amber-400/);
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'warning', { timeout: 4_000 });
+    await expect(restBtn).toHaveClass(/bg-amber-400/);
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'reached', { timeout: 7_000 });
+    await expect(restBtn).toHaveClass(/bg-red-600/);
+    await expect(restBtn).not.toHaveClass(/animate-pulse/);
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'overdue', { timeout: 7_000 });
+    await expect(restBtn).toHaveClass(/animate-pulse/);
+    // The tap that ends the rest resets it all; the total appears beside the clock with that rest.
+    await restBtn.click();
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'idle');
+    await expect(restBtn).toHaveAttribute('data-workout-rest', 'held');
+    await expect(restBtn).not.toHaveClass(/bg-red-600|bg-amber-400|bg-brand|animate-pulse/);
+    const total = page.locator('[data-workout-rest-total]');
+    await expect(total).toBeVisible();
+    const firstTotal = Number(await total.getAttribute('data-workout-rest-total'));
+    expect(firstTotal).toBeGreaterThanOrEqual(12);
+    await expect(total).toContainText(`Rest 0:${String(firstTotal).padStart(2, '0')}`);
+
+    // Completing set 1 takes the held rest; the total does not change for it.
     const bench = page.locator('[data-exercise-card]').first().locator('..');
     await bench.getByRole('button', { name: 'Mark set complete' }).first().click();
-    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'idle');
-    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Bench Press').sets[0].rest_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+    await expect(restBtn).toHaveAttribute('data-workout-rest', 'idle');
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Bench Press').sets[0].rest_seconds, { timeout: 15_000 }).toBe(firstTotal);
+    await expect(total).toHaveAttribute('data-workout-rest-total', String(firstTotal));
+    // The clock's row shows ONE rest — the total — and no counter of its own now that a set is complete.
+    await expect(clockRow.locator('[data-workout-rest-total]')).toHaveCount(1);
+    expect(((await clockRow.textContent()) ?? '').match(/Rest/g)?.length ?? 0).toBe(1);
+    // Off keeps timing and counting: with no target the rest is purple throughout.
+    await page.evaluate(() => localStorage.removeItem('ea:workout:rest-target:v1'));
+    await page.reload();
+    await expect(restBtn).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', 'off');
+    await restBtn.click();
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'running');
+    await page.waitForTimeout(2_200);
+    await expect(restBtn).toHaveAttribute('data-workout-rest-phase', 'running');
+    await expect(restBtn).toHaveClass(/bg-brand/);
+    await bench.getByRole('button', { name: 'Mark set complete' }).first().click();
+    await expect(restBtn).toHaveAttribute('data-workout-rest', 'idle');
+    // Each later rest is added to the total.
+    await expect.poll(async () => Number(await total.getAttribute('data-workout-rest-total')), { timeout: 10_000 }).toBeGreaterThanOrEqual(firstTotal + 2);
 
-    // Rest → stop by hand (held) → complete set 2: the held rest attaches there.
+    // Rest → stop by hand (held) → complete set 3: the held rest attaches there.
     await page.locator('[data-workout-rest]').click();
     await page.waitForTimeout(1_500);
     await page.locator('[data-workout-rest]').click();
     await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'held');
     await bench.getByRole('button', { name: 'Mark set complete' }).first().click();
     await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'idle');
-    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Bench Press').sets[1].rest_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Bench Press').sets[2].rest_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
 
     // The stopwatch: run ~3 s → Save to set → the plank's set 1 (the duration exercise) gets the time and is complete.
     await page.locator('[data-workout-stopwatch]').click();

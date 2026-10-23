@@ -21,9 +21,46 @@ export interface RestTimer {
   startedAt: number | null;
   /** A stopped rest's seconds, waiting for the next completed set; null when none. */
   heldS: number | null;
+  /** Rests ended by hand and then followed by another rest before a set was
+   *  completed — banked, never dropped (Oct 22 2026): they join the next
+   *  completed set's rest and the workout's total. */
+  bankedS: number;
 }
 
-export const REST_IDLE: RestTimer = { startedAt: null, heldS: null };
+export const REST_IDLE: RestTimer = { startedAt: null, heldS: null, bankedS: 0 };
+
+// ── The rest's colour (Rest timer round, Oct 22 2026) ────────────────────────
+// Tom: "Purple from the moment the user starts the rest. Never red at the
+// start. Yellow: a warning 5 seconds before the target time. Red: when the
+// target time is reached. Flashing red: from 5 seconds after the target time.
+// Everything stops and resets when the user taps the rest timer to end the
+// rest." With the target Off a rest is purple the whole way (still timed,
+// still counted — Tom's decision).
+export const REST_WARN_S = 5;
+export const REST_OVERDUE_S = 5;
+export type RestPhase = 'idle' | 'running' | 'warning' | 'reached' | 'overdue';
+
+export function restPhase(rest: RestTimer, targetS: number | null, now: number): RestPhase {
+  if (rest.startedAt === null) return 'idle';
+  if (targetS === null) return 'running';
+  const elapsed = restElapsedS(rest, now);
+  if (elapsed >= targetS + REST_OVERDUE_S) return 'overdue';
+  if (elapsed >= targetS) return 'reached';
+  if (targetS - elapsed <= REST_WARN_S) return 'warning';
+  return 'running';
+}
+
+/**
+ * The workout's total rest so far (the bubble beside the clock, Oct 22 2026):
+ * every set's recorded rest, plus what is banked or held for the next
+ * completed set. A RUNNING rest is not in it until it ends — the bubble
+ * appears when the athlete ends a rest, and each later rest is added.
+ */
+export function restTotalS(rest: RestTimer, exercises: ReadonlyArray<Pick<EntryExercise, 'sets'>>): number {
+  let total = rest.bankedS + (rest.heldS ?? 0);
+  for (const e of exercises) for (const s of e.sets) if (typeof s.restSeconds === 'number' && s.restSeconds > 0) total += s.restSeconds;
+  return total;
+}
 export const REST_TARGET_PRESETS_S = [30, 60, 90, 120, 180] as const;
 
 // ── A custom rest time, saved as a preset (Training fixes PR 3, Oct 21 2026) ──
@@ -76,14 +113,16 @@ export function joinRest(minutes: number, seconds: number): number {
   return Math.max(0, Math.floor(minutes)) * 60 + Math.max(0, Math.floor(seconds));
 }
 
-export function startRest(now: number): RestTimer {
-  return { startedAt: now, heldS: null };
+/** Start a rest; a rest held from before is BANKED (it still counts), never dropped. */
+export function startRest(rest: RestTimer, now: number): RestTimer {
+  if (rest.startedAt !== null) return rest;
+  return { startedAt: now, heldS: null, bankedS: rest.bankedS + (rest.heldS ?? 0) };
 }
 
 /** Stop by hand: the seconds are HELD for the next completed set. */
 export function stopRest(rest: RestTimer, now: number): RestTimer {
   if (rest.startedAt === null) return rest;
-  return { startedAt: null, heldS: restElapsedS(rest, now) };
+  return { startedAt: null, heldS: restElapsedS(rest, now), bankedS: rest.bankedS };
 }
 
 export function restElapsedS(rest: RestTimer, now: number): number {
@@ -91,10 +130,11 @@ export function restElapsedS(rest: RestTimer, now: number): number {
   return rest.heldS ?? 0;
 }
 
-/** The rest the set completed now carries: the running one (ended here) or the held one; null when neither. */
+/** The rest the set completed now carries: the running one (ended here) or the held one, plus what was banked; null when nothing. */
 export function restForCompletedSet(rest: RestTimer, now: number): number | null {
-  if (rest.startedAt !== null) return restElapsedS(rest, now);
-  return rest.heldS;
+  const own = rest.startedAt !== null ? restElapsedS(rest, now) : rest.heldS;
+  if (own === null && rest.bankedS === 0) return null;
+  return (own ?? 0) + rest.bankedS;
 }
 
 /** True once a running rest has reached its target (a target of null is no target). */
