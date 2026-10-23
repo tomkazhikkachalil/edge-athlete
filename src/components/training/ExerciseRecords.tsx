@@ -22,7 +22,8 @@ export default function ExerciseRecords() {
       .then((d: { bests?: Record<string, ExerciseBests>; unit?: 'lb' | 'kg' }) => {
         if (cancelled) return;
         setUnit(d.unit === 'kg' ? 'kg' : 'lb');
-        const rows = Object.entries(d.bests ?? {}).filter(([, b]) => b.heaviest !== null || b.reps !== null);
+        // A lift (heaviest / reps) or a hold (the longest time, Oct 23 2026).
+        const rows = Object.entries(d.bests ?? {}).filter(([, b]) => b.heaviest !== null || b.reps !== null || (b.duration ?? null) !== null);
         rows.sort((a, b) => a[1].name.localeCompare(b[1].name));
         setBests(rows);
       })
@@ -34,7 +35,7 @@ export default function ExerciseRecords() {
   if (!bests || bests.length === 0) return null;
   const rows = all ? bests : bests.slice(0, SHOWN);
   // The unit lives in the header, so the cells stay one short line at 375 px.
-  const cell = (b: ExerciseBests, kind: PrKind) => (b[kind] !== null ? formatPr(kind, b[kind]!, unit, true) : '—');
+  const cell = (b: ExerciseBests, kind: PrKind) => ((b[kind] ?? null) !== null ? formatPr(kind, b[kind]!, unit, true) : '—');
   const unitLabel = unit === 'kg' ? 'kg' : 'lbs';
   return (
     <section className="tr-card p-4" data-exercise-records={bests.length}>
@@ -49,7 +50,8 @@ export default function ExerciseRecords() {
               <th className="py-1 pr-3 font-semibold">Exercise</th>
               <th className="py-1 pr-3 font-semibold whitespace-nowrap">{PR_SHORT_LABELS.heaviest} ({unitLabel})</th>
               <th className="py-1 pr-3 font-semibold whitespace-nowrap">{PR_SHORT_LABELS.e1rm}</th>
-              <th className="py-1 font-semibold whitespace-nowrap">{PR_SHORT_LABELS.reps}</th>
+              <th className="py-1 pr-3 font-semibold whitespace-nowrap">{PR_SHORT_LABELS.reps}</th>
+              <th className="py-1 font-semibold whitespace-nowrap">{PR_SHORT_LABELS.duration}</th>
             </tr>
           </thead>
           <tbody>
@@ -58,7 +60,8 @@ export default function ExerciseRecords() {
                 <td className="py-1.5 pr-3 font-medium">{b.name}</td>
                 <td className="py-1.5 pr-3 whitespace-nowrap">{cell(b, 'heaviest')}</td>
                 <td className="py-1.5 pr-3 whitespace-nowrap">{cell(b, 'e1rm')}</td>
-                <td className="py-1.5 whitespace-nowrap">{cell(b, 'reps')}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap">{cell(b, 'reps')}</td>
+                <td className="py-1.5 whitespace-nowrap" data-exercise-record-duration={b.duration ?? ''}>{cell(b, 'duration')}</td>
               </tr>
             ))}
           </tbody>

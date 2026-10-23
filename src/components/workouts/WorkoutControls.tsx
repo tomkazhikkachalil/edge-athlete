@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer, X } from 'lucide-react';
+import { Award, ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer, X } from 'lucide-react';
 import { useToast } from '../Toast';
 import NumberWheel from '@/components/golf/NumberWheel';
 import { haptic } from '@/lib/haptics';
 import { armBell, ringBell } from '@/lib/activities/record/bell';
 import { formatElapsed } from '@/lib/workouts/summary';
+import { formatHold, holdRecord, type ExerciseBests } from '@/lib/workouts/prs';
 import type { EntryExercise } from '@/lib/workouts/entries';
 import {
   addRestPreset,
@@ -106,6 +107,8 @@ interface Props {
   onStopwatch: (next: Stopwatch) => void;
   lastEditedClientId: string | null;
   onSaveStopwatch: (target: SetTarget, elapsedMs: number) => void;
+  /** The athlete's bests before this session (the editor's one read) — a saved hold longer than its best is a New PR (Oct 23 2026); null while unknown. */
+  historyBests?: ReadonlyMap<string, ExerciseBests> | null;
 }
 
 function useNow(active: boolean, intervalMs = 1000): number {
@@ -127,7 +130,7 @@ function useNow(active: boolean, intervalMs = 1000): number {
   return now;
 }
 
-export default function WorkoutControls({ exercises, rest, onRest, stopwatch, onStopwatch, lastEditedClientId, onSaveStopwatch }: Props) {
+export default function WorkoutControls({ exercises, rest, onRest, stopwatch, onStopwatch, lastEditedClientId, onSaveStopwatch, historyBests = null }: Props) {
   const { showNotice } = useToast();
   const [targetS, setTargetS] = useState<number | null>(() => readRestTarget());
   const [targetOpen, setTargetOpen] = useState(false);
@@ -142,6 +145,8 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   // A quarter-second tick while the stopwatch runs (the bell at zero, the lead-in); the rest keeps its second.
   const now = useNow(running, stopwatch.runningSince !== null ? 250 : 1000);
   const [leadIn, setLeadIn] = useState<boolean>(() => readStopwatchLeadIn());
+  // The last Save to set's record: a New PR pill (cleared by the next start), or "Longest so far" for a first hold.
+  const [savedPr, setSavedPr] = useState<{ kind: 'pr' | 'baseline'; name: string; seconds: number } | null>(null);
   const [targetWheels, setTargetWheels] = useState(false);
   const [swMin, setSwMin] = useState(1);
   const [swSec, setSwSec] = useState(0);
@@ -225,6 +230,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   // Start: the bell is armed inside the tap (browsers allow sound only after a gesture), a running rest ends (held for the next set), the lead-in runs when on.
   const startStopwatch = () => {
     const at = Date.now();
+    setSavedPr(null);
     armBell();
     if (rest.startedAt !== null) onRest(stopRest(rest, at));
     onStopwatch(stopwatchStart(stopwatch, at, leadIn ? STOPWATCH_LEAD_IN_MS : 0));
@@ -395,6 +401,14 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                   onClick={() => {
                     if (!target || swMs < 1000) return;
                     const at = Date.now();
+                    // Longest hold (Oct 23 2026): a saved time against the athlete's best before this session and this session's earlier sets.
+                    const exercise = exercises.find(e => e.clientId === target.clientId);
+                    const seconds = Math.max(1, Math.round(swMs / 1000));
+                    const record = exercise ? holdRecord(historyBests, exercises, exercise, seconds) : 'no';
+                    if (exercise && record !== 'no') {
+                      setSavedPr({ kind: record, name: exercise.name, seconds });
+                      if (record === 'pr') showNotice('New PR', `${exercise.name} · longest hold ${formatHold(seconds)}`);
+                    }
                     onSaveStopwatch(target, swMs);
                     onStopwatch(stopwatchReset(stopwatch));
                     // The auto-rest (Tom): a rest target set → the rest starts; Off → nothing.
@@ -408,6 +422,12 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                   Save to set
                 </button>
               </div>
+              {savedPr && (
+                <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ${savedPr.kind === 'pr' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300' : 'bg-surface-muted text-secondary'}`} data-workout-stopwatch-pr={savedPr.kind}>
+                  <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                  {savedPr.kind === 'pr' ? `New PR · ${savedPr.name} · ${formatHold(savedPr.seconds)}` : `Longest so far · ${savedPr.name} · ${formatHold(savedPr.seconds)}`}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
