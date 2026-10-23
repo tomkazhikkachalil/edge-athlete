@@ -1,5 +1,17 @@
 # Development Log
 
+## October 23, 2026 — The activity's name is kept as typed; spaces included (#1286, zero DDL)
+
+Tom, from his phone: "When doing an activity, it asks you to name it as an option. Right now it doesn't allow you to put space when naming. It just continues as one string."
+
+**Cause:** the set-up card's "Name (optional)" field (`SetupCard.tsx`) is controlled from the recording's state — `value={state.name ?? ''}` — and the reducer's `setName` (`src/lib/activities/record/recording.ts`) trimmed on EVERY change. The engine runs the reducer synchronously and re-renders, so "Morning " became "Morning" before the next letter landed, and the next word ran on. The review step's field keeps local state and only forwards to the reducer, which is why spaces survived there. No key handler was involved; the workout title and the segment name already trimmed only on save.
+
+**What ships:** `setName` keeps the name as typed (capped at 120; an empty string is none). The trim moves to the boundary — `toRecordingWire` sends `name.trim()` or null (the API's `z.string().trim()` and the writer's default-name fallback stand) — and the readers treat a blank-after-trim name as none (`defaultName` on the Finish sheet, the preview card's name). The rule, now in `docs/specs/activities.md`: a controlled field never reads back a value that was trimmed on change; trim at the boundary, never on the keystroke.
+
+**Proof:** `recording.test.ts` +1 (spaces kept in state, the wire trimmed, a blank name is none, the cap) — 29/29; typecheck 0, lint 0; e2e `activities-setup.spec.ts` +1 — the elliptical's set-up field typed one key at a time ("Morning walk in"), read back with its spaces, surviving a reload, carried to the Finish sheet, and landing trimmed in the row; staging on the built server: `activities-setup` (the new test included) + `activities-record` + `activities-details` mobile **13/13**; CI green; the prod probe after the merge (`activities-setup` mobile) is recorded in PR #1286's thread.
+
+**Tom's phone is the proof:** name an activity "Morning walk" at set-up, with the space.
+
 ## October 22, 2026 — Rest timer round: the random rest counter is gone, the rest is coloured by its phase, the total rest sits beside the clock, the picker is a panel with no built-in presets; rest is personal (#1283, #1284, docs PR; zero DDL)
 
 Tom's refined list, pasted after the sport-picker fix: (1) "a rest counter sometimes shows up next to the workout clock at the top and counts alongside it, seemingly at random. Remove it" — and colour the running rest: "Purple from the moment the user starts the rest. Never red at the start. Yellow: a warning 5 seconds before the target time. Red: when the target time is reached. Flashing red: from 5 seconds after the target time. Everything stops and resets when the user taps the rest timer to end the rest." (2) "When the user ends a rest, a bubble appears to the right of the live workout clock showing that rest's duration. Each later rest is added to it, so the bubble shows the total rest for the workout." (3) "Tapping to set the rest time opens the same kind of popup as the stopwatch, with the same smooth transition… Remove all built-in preset times… Save as preset… Keep an Off option." **His two decisions:** Off = rests are still timed and counted, with no target and no colour changes; total rest is **personal** — "only during the workout and for the user's personal metrics. Not what is public for others to view."
