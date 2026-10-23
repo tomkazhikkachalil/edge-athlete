@@ -106,6 +106,16 @@ the next host. `e2e/profile-spacing.spec.ts` holds the RENDERED gap
 - **Label:** 14px
 - **Chip:** 12px
 
+**Touch screens: every text control is 16 px** (`globals.css`, the iOS
+focus-zoom guard — `(max-width: 640px), (pointer: coarse)`, every `input`
+that takes text, `textarea`, `select`; unlayered so it beats `text-sm`).
+iOS zooms into a focused field under 16 px. An auto-focus that can land
+OUTSIDE a tap (a field inside a lazily loaded chunk — the sport picker) focuses
+only behind `(hover: hover) and (pointer: fine)`; on a phone the screen opens
+at normal size with no keyboard (Oct 22 2026, Tom's cold-open zoom report).
+Page zoom is never disabled (`maximumScale: 5`). `input-zoom-guard.test.ts`
+pins the rule and lists every `autoFocus` site.
+
 ### Text Contrast Standards
 - **User Names**: Bold black (`text-black font-bold`)
 - **Handles/Tags**: Light gray (`text-gray-500`)
