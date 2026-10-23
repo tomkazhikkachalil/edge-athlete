@@ -5,6 +5,7 @@ import { ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer, X } from '
 import { useToast } from '../Toast';
 import NumberWheel from '@/components/golf/NumberWheel';
 import { haptic } from '@/lib/haptics';
+import { armBell, ringBell } from '@/lib/activities/record/bell';
 import { formatElapsed } from '@/lib/workouts/summary';
 import type { EntryExercise } from '@/lib/workouts/entries';
 import {
@@ -21,16 +22,34 @@ import {
   restTargetReached,
   startRest,
   stopRest,
+  clampStopwatchTargetS,
+  STOPWATCH_LEAD_IN_MS,
+  STOPWATCH_TARGET_DEFAULT_S,
+  stopwatchDisplayS,
   stopwatchElapsedMs,
+  stopwatchLeadInLeftS,
   stopwatchReset,
+  stopwatchSettle,
   stopwatchStart,
   stopwatchStop,
   stopwatchTarget,
   type RestTimer,
   type SetTarget,
   type Stopwatch,
+  type StopwatchMode,
 } from '@/lib/workouts/rest';
-import { readRestPresets, readRestTarget, writeRestPresets, writeRestTarget } from '@/lib/workouts/timer-prefs';
+import {
+  readRestPresets,
+  readRestTarget,
+  readStopwatchLeadIn,
+  readStopwatchMode,
+  readStopwatchTarget,
+  writeRestPresets,
+  writeRestTarget,
+  writeStopwatchLeadIn,
+  writeStopwatchMode,
+  writeStopwatchTarget,
+} from '@/lib/workouts/timer-prefs';
 
 // ── The bottom control bar (workout screen PR 4, Oct 12 2026) ───────────────
 // Tom: "a small control bar at the bottom of the workout screen with Rest …
@@ -62,6 +81,16 @@ import { readRestPresets, readRestTarget, writeRestPresets, writeRestTarget } fr
 // athlete's saved times ONLY (no built-in presets), each with a remove; Off
 // keeps timing and counting every rest with no target.
 //
+// Stopwatch additions (Oct 23 2026, Tom): a 3-2-1 LEAD-IN before the clock
+// starts (a device switch; it never counts), a COUNT-DOWN mode from a target
+// set with the rest picker's wheels that stops itself at zero with the round
+// timer's bell and a buzz (Save to set records the time actually held), the
+// live time on the bar's button while the panel is closed, and the rest
+// interplay — starting the stopwatch ends a running rest (held for the next
+// completed set), and Save to set starts a rest when a rest target is set
+// (never when Off). The screen stays awake through the whole live workout
+// (the editor's useWakeLock), the stopwatch included.
+//
 // The bar takes its own space (Tom, Oct 13 2026 — the open stopwatch covered
 // the Add buttons at the foot of the list): its MEASURED height is published
 // as `--ea-workout-bar-h` on <html> (the TabBar recipe), the editor's bottom
@@ -79,13 +108,13 @@ interface Props {
   onSaveStopwatch: (target: SetTarget, elapsedMs: number) => void;
 }
 
-function useNow(active: boolean): number {
+function useNow(active: boolean, intervalMs = 1000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
     const tick = () => setNow(Date.now());
     tick();
-    const id = setInterval(tick, 1000);
+    const id = setInterval(tick, intervalMs);
     const onVisible = () => {
       if (document.visibilityState === 'visible') tick();
     };
@@ -94,7 +123,7 @@ function useNow(active: boolean): number {
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [active]);
+  }, [active, intervalMs]);
   return now;
 }
 
@@ -110,7 +139,12 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   const [pickTarget, setPickTarget] = useState(false);
   const [chosenTarget, setChosenTarget] = useState<SetTarget | null>(null);
   const running = rest.startedAt !== null || stopwatch.runningSince !== null;
-  const now = useNow(running);
+  // A quarter-second tick while the stopwatch runs (the bell at zero, the lead-in); the rest keeps its second.
+  const now = useNow(running, stopwatch.runningSince !== null ? 250 : 1000);
+  const [leadIn, setLeadIn] = useState<boolean>(() => readStopwatchLeadIn());
+  const [targetWheels, setTargetWheels] = useState(false);
+  const [swMin, setSwMin] = useState(1);
+  const [swSec, setSwSec] = useState(0);
   const restS = restElapsedS(rest, now);
   const reached = restTargetReached(rest, targetS, now);
   const phase = restPhase(rest, targetS, now);
@@ -146,6 +180,55 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
   }, []);
 
   const swMs = stopwatchElapsedMs(stopwatch, now);
+  const leadLeft = stopwatchLeadInLeftS(stopwatch, now);
+  const swShownS = stopwatchDisplayS(stopwatch, now);
+  const swTargetS = stopwatch.targetMs !== null ? Math.round(stopwatch.targetMs / 1000) : STOPWATCH_TARGET_DEFAULT_S;
+  // The mode and the target are device preferences carried on the session's stopwatch while it runs: seed them once.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || stopwatch.targetMs !== null) return;
+    seededRef.current = true;
+    onStopwatch({ ...stopwatch, mode: readStopwatchMode(), targetMs: (readStopwatchTarget() ?? STOPWATCH_TARGET_DEFAULT_S) * 1000 });
+  }, [stopwatch, onStopwatch]);
+  // A count-down at its target stops itself — the bell, a buzz, a notice — once.
+  const settledForRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (stopwatch.runningSince === null) return;
+    const settled = stopwatchSettle(stopwatch, now);
+    if (settled === stopwatch || settledForRef.current === stopwatch.runningSince) return;
+    settledForRef.current = stopwatch.runningSince;
+    onStopwatch(settled);
+    ringBell('end');
+    haptic();
+    showNotice('Time', `${formatElapsed(Math.round(settled.accumulatedMs / 1000))} held — save it to the set.`);
+  }, [now, stopwatch, onStopwatch, showNotice]);
+  const setMode = (mode: StopwatchMode) => {
+    writeStopwatchMode(mode);
+    onStopwatch({ ...stopwatch, mode });
+  };
+  const openTargetWheels = () => {
+    setSwMin(Math.min(10, Math.floor(swTargetS / 60)));
+    setSwSec((swTargetS % 60) - ((swTargetS % 60) % 5));
+    setTargetWheels(true);
+  };
+  const setSwTarget = () => {
+    const seconds = clampStopwatchTargetS(joinRest(swMin, swSec));
+    writeStopwatchTarget(seconds);
+    onStopwatch({ ...stopwatch, targetMs: seconds * 1000 });
+    setTargetWheels(false);
+  };
+  const toggleLeadIn = () => {
+    const next = !leadIn;
+    writeStopwatchLeadIn(next);
+    setLeadIn(next);
+  };
+  // Start: the bell is armed inside the tap (browsers allow sound only after a gesture), a running rest ends (held for the next set), the lead-in runs when on.
+  const startStopwatch = () => {
+    const at = Date.now();
+    armBell();
+    if (rest.startedAt !== null) onRest(stopRest(rest, at));
+    onStopwatch(stopwatchStart(stopwatch, at, leadIn ? STOPWATCH_LEAD_IN_MS : 0));
+  };
   const autoTarget = stopwatchTarget(exercises, lastEditedClientId);
   const target = chosenTarget && exercises.some(e => e.clientId === chosenTarget.clientId && e.sets[chosenTarget.setIndex]) ? chosenTarget : autoTarget;
   const targetLabel = describeTarget(exercises, target);
@@ -253,22 +336,55 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
           </div>
           {/* Always mounted; its height animates (max-height works on the iOS 15 floor) so the bar's measured height — and the clearance above it — slide rather than jump. */}
           <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${stopwatchOpen ? 'max-h-48 opacity-100 mb-2' : 'max-h-0 opacity-0'}`}
+            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${stopwatchOpen ? 'max-h-[28rem] opacity-100 mb-2' : 'max-h-0 opacity-0'}`}
             aria-hidden={!stopwatchOpen}
             data-workout-stopwatch-open={stopwatchOpen ? 'true' : 'false'}
           >
             <div className="rounded-xl border border-border bg-surface p-3" data-workout-stopwatch-panel="" {...(stopwatchOpen ? {} : { inert: true })}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-2xl font-bold tabular-nums text-primary" data-workout-stopwatch-time="">{formatElapsed(Math.floor(swMs / 1000))}</span>
+                {/* The lead-in's 3 · 2 · 1, else the remaining time counting down, else the elapsed time. */}
+                <span className={`text-2xl font-bold tabular-nums ${leadLeft !== null ? 'text-brand-fg-strong' : 'text-primary'}`} data-workout-stopwatch-time="" data-workout-stopwatch-leadin-left={leadLeft ?? ''}>
+                  {leadLeft !== null ? String(leadLeft) : formatElapsed(swShownS)}
+                </span>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => onStopwatch(stopwatch.runningSince !== null ? stopwatchStop(stopwatch, Date.now()) : stopwatchStart(stopwatch, Date.now()))} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary" aria-label={stopwatch.runningSince !== null ? 'Stop the stopwatch' : 'Start the stopwatch'} data-workout-stopwatch-toggle={stopwatch.runningSince !== null ? 'running' : 'stopped'}>
+                  <button type="button" onClick={() => (stopwatch.runningSince !== null ? onStopwatch(stopwatchStop(stopwatch, Date.now())) : startStopwatch())} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary" aria-label={stopwatch.runningSince !== null ? 'Stop the stopwatch' : 'Start the stopwatch'} data-workout-stopwatch-toggle={stopwatch.runningSince !== null ? 'running' : 'stopped'}>
                     {stopwatch.runningSince !== null ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                   </button>
-                  <button type="button" onClick={() => onStopwatch(stopwatchReset())} disabled={swMs === 0} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary disabled:opacity-40" aria-label="Reset the stopwatch" data-workout-stopwatch-reset="">
+                  <button type="button" onClick={() => onStopwatch(stopwatchReset(stopwatch))} disabled={swMs === 0 && stopwatch.runningSince === null} className="ea-interactive inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border-strong text-primary disabled:opacity-40" aria-label="Reset the stopwatch" data-workout-stopwatch-reset="">
                     <RotateCcw className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
+              {/* Count up or down; the count-down's target by the rest picker's wheels; the 3-2-1 lead-in switch. */}
+              <div className="mt-2 flex flex-wrap items-center gap-2" data-workout-stopwatch-mode={stopwatch.mode}>
+                <div className="inline-flex rounded-lg border border-border p-0.5" role="group" aria-label="Count up or down">
+                  <button type="button" onClick={() => setMode('up')} aria-pressed={stopwatch.mode === 'up'} className={`min-h-[36px] rounded-md px-3 text-xs font-semibold ${stopwatch.mode === 'up' ? 'bg-brand text-white' : 'text-secondary'}`} data-workout-stopwatch-mode-set="up">
+                    Count up
+                  </button>
+                  <button type="button" onClick={() => setMode('down')} aria-pressed={stopwatch.mode === 'down'} className={`min-h-[36px] rounded-md px-3 text-xs font-semibold ${stopwatch.mode === 'down' ? 'bg-brand text-white' : 'text-secondary'}`} data-workout-stopwatch-mode-set="down">
+                    Count down
+                  </button>
+                </div>
+                {stopwatch.mode === 'down' && (
+                  <button type="button" onClick={() => (targetWheels ? setTargetWheels(false) : openTargetWheels())} aria-pressed={targetWheels} className="ea-interactive inline-flex min-h-[36px] items-center rounded-lg border border-border-strong px-3 text-xs font-semibold tabular-nums text-primary" aria-label="Count down from" data-workout-stopwatch-target-time={swTargetS}>
+                    from {formatElapsed(swTargetS)}
+                  </button>
+                )}
+                <button type="button" onClick={toggleLeadIn} aria-pressed={leadIn} className={`ml-auto inline-flex min-h-[36px] items-center rounded-lg border px-3 text-xs font-semibold ${leadIn ? 'border-brand text-brand-fg-strong' : 'ea-interactive border-border-strong text-secondary'}`} data-workout-stopwatch-leadin={leadIn ? 'on' : 'off'}>
+                  3·2·1 {leadIn ? 'on' : 'off'}
+                </button>
+              </div>
+              {stopwatch.mode === 'down' && targetWheels && (
+                <div className="mt-2" data-workout-stopwatch-target-wheels="">
+                  <div className="flex items-start justify-center gap-3">
+                    <NumberWheel label="Minutes" min={0} max={10} value={swMin} defaultValue={1} onChange={setSwMin} tone="brand" />
+                    <NumberWheel label="Seconds" min={0} max={55} step={5} value={swSec} defaultValue={0} onChange={setSwSec} tone="brand" format={v => String(v).padStart(2, '0')} />
+                  </div>
+                  <button type="button" onClick={setSwTarget} className="ea-cta mt-2 min-h-[40px] w-full rounded-lg px-3 text-sm font-semibold text-white" data-workout-stopwatch-target-set="">
+                    Count down from {formatElapsed(clampStopwatchTargetS(joinRest(swMin, swSec)))}
+                  </button>
+                </div>
+              )}
               <div className="mt-2 flex items-center gap-2">
                 <button type="button" onClick={() => setPickTarget(true)} disabled={!target} className="ea-interactive flex min-h-[40px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-border px-3 text-sm text-primary disabled:opacity-50" aria-label="Choose the set to save to" data-workout-stopwatch-target={target ? `${target.clientId}:${target.setIndex}` : ''}>
                   <span className="truncate">{targetLabel ?? 'Every set is filled'}</span>
@@ -278,8 +394,11 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                   type="button"
                   onClick={() => {
                     if (!target || swMs < 1000) return;
+                    const at = Date.now();
                     onSaveStopwatch(target, swMs);
-                    onStopwatch(stopwatchReset());
+                    onStopwatch(stopwatchReset(stopwatch));
+                    // The auto-rest (Tom): a rest target set → the rest starts; Off → nothing.
+                    if (targetS !== null) onRest(startRest(rest, at));
                   }}
                   disabled={!target || swMs < 1000}
                   className="ea-cta inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
@@ -319,7 +438,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
             </button>
             <button type="button" onClick={toggleStopwatchPanel} aria-pressed={stopwatchOpen} className={`inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold ${stopwatch.runningSince !== null ? 'bg-brand text-white' : 'ea-interactive border border-border-strong text-primary'}`} data-workout-stopwatch={stopwatch.runningSince !== null ? 'running' : swMs > 0 ? 'stopped' : 'idle'}>
               <Timer className="w-4 h-4" aria-hidden="true" />
-              {stopwatch.runningSince !== null || swMs > 0 ? <span className="tabular-nums">{formatElapsed(Math.floor(swMs / 1000))}</span> : 'Stopwatch'}
+              {stopwatch.runningSince !== null || swMs > 0 ? <span className="tabular-nums" data-workout-stopwatch-button-time="">{leadLeft !== null ? String(leadLeft) : formatElapsed(swShownS)}</span> : 'Stopwatch'}
             </button>
           </div>
         </div>

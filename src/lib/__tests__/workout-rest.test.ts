@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   applyStopwatchToSet, completedSetDiff, describeTarget, REST_IDLE, REST_OVERDUE_S, REST_WARN_S, restElapsedS, restForCompletedSet, restPhase, restTargetReached, restTotalS, startRest, stopRest,
-  STOPWATCH_IDLE, stopwatchElapsedMs, stopwatchReset, stopwatchStart, stopwatchStop, stopwatchTarget,
+  STOPWATCH_IDLE, STOPWATCH_LEAD_IN_MS, clampStopwatchTargetS, stopwatchDisplayS, stopwatchElapsedMs, stopwatchLeadInLeftS, stopwatchRemainingMs, stopwatchReset, stopwatchSettle, stopwatchStart, stopwatchStop, stopwatchTarget,
 } from '../workouts/rest';
 import { parseTimers, TIMERS_IDLE, timersKey } from '../workouts/timers-store';
 import { emptyEntrySet, type EntryExercise, type EntrySet } from '../workouts/entries';
@@ -102,6 +102,42 @@ describe('the stopwatch', () => {
     expect(stopwatchStop(STOPWATCH_IDLE, T0)).toBe(STOPWATCH_IDLE);
     expect(stopwatchReset()).toEqual(STOPWATCH_IDLE);
   });
+  // Stopwatch additions (Oct 23 2026).
+  it('the 3-2-1 lead-in never counts; stopping during it cancels it; the clock shows 3, 2, 1 then the time', () => {
+    const a = stopwatchStart(STOPWATCH_IDLE, T0, STOPWATCH_LEAD_IN_MS);
+    expect(a.leadInUntil).toBe(T0 + 3000);
+    expect(stopwatchLeadInLeftS(a, T0)).toBe(3);
+    expect(stopwatchLeadInLeftS(a, T0 + 1_001)).toBe(2);
+    expect(stopwatchLeadInLeftS(a, T0 + 2_999)).toBe(1);
+    expect(stopwatchLeadInLeftS(a, T0 + 3_000)).toBeNull();
+    expect(stopwatchElapsedMs(a, T0 + 2_000)).toBe(0);
+    expect(stopwatchElapsedMs(a, T0 + 7_200)).toBe(4_200);
+    expect(stopwatchDisplayS(a, T0 + 7_200)).toBe(4);
+    expect(stopwatchStop(a, T0 + 1_500)).toEqual({ ...STOPWATCH_IDLE, accumulatedMs: 0 });
+    expect(stopwatchStart(STOPWATCH_IDLE, T0, 0).leadInUntil).toBeNull();
+    expect(stopwatchLeadInLeftS(STOPWATCH_IDLE, T0)).toBeNull();
+  });
+  it('count-down: the clock shows the time left, the stopwatch stops itself at the target exactly once, Save gets the time held', () => {
+    const down = { ...STOPWATCH_IDLE, mode: 'down' as const, targetMs: 5_000 };
+    const r = stopwatchStart(down, T0);
+    expect(stopwatchRemainingMs(r, T0 + 1_200)).toBe(3_800);
+    expect(stopwatchDisplayS(r, T0)).toBe(5);
+    expect(stopwatchDisplayS(r, T0 + 1_200)).toBe(4);
+    expect(stopwatchSettle(r, T0 + 4_900)).toBe(r);
+    const done = stopwatchSettle(r, T0 + 5_300);
+    expect(done).toEqual({ ...down, runningSince: null, leadInUntil: null, accumulatedMs: 5_000 });
+    expect(stopwatchDisplayS(done, T0 + 99_000)).toBe(0);
+    expect(stopwatchSettle(done, T0 + 99_000)).toBe(done);
+    // Stopped early: the time actually held.
+    expect(stopwatchStop(r, T0 + 2_000).accumulatedMs).toBe(2_000);
+    // Count-up never settles; a reset keeps the mode and the target.
+    expect(stopwatchSettle(stopwatchStart(STOPWATCH_IDLE, T0), T0 + 99_000).runningSince).toBe(T0);
+    expect(stopwatchReset(done)).toEqual({ ...STOPWATCH_IDLE, mode: 'down', targetMs: 5_000 });
+    expect(stopwatchRemainingMs(STOPWATCH_IDLE, T0)).toBeNull();
+    expect(clampStopwatchTargetS(2)).toBe(5);
+    expect(clampStopwatchTargetS(601)).toBe(600);
+    expect(clampStopwatchTargetS(90.4)).toBe(90);
+  });
   it('the target set: the last-edited exercise\'s first empty set, else a duration exercise\'s, else the first empty anywhere, else none', () => {
     const plank = ex('Plank', [set(1, 5), set(2)], { exerciseKey: 'plank' });
     const bench = ex('Bench', [set(1), set(2)], { exerciseKey: 'bench_press' });
@@ -130,7 +166,10 @@ describe('the timers survive a reload under their own device key', () => {
     expect(parseTimers('nope')).toBe(TIMERS_IDLE);
     expect(parseTimers(JSON.stringify({ v: 2 }))).toBe(TIMERS_IDLE);
     // A device written before the bank (Oct 22 2026) reads with none.
-    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: T0, heldS: null }, stopwatch: { runningSince: null, accumulatedMs: 5000 } }))).toEqual({ v: 1, rest: { startedAt: T0, heldS: null, bankedS: 0 }, stopwatch: { runningSince: null, accumulatedMs: 5000 } });
+    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: T0, heldS: null }, stopwatch: { runningSince: null, accumulatedMs: 5000 } }))).toEqual({ v: 1, rest: { startedAt: T0, heldS: null, bankedS: 0 }, stopwatch: { runningSince: null, accumulatedMs: 5000, mode: 'up', targetMs: null, leadInUntil: null } });
+    // Oct 23 2026: the modes, the target and a lead-in round-trip.
+    expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: null, heldS: null }, stopwatch: { runningSince: T0 + 3000, accumulatedMs: 0, mode: 'down', targetMs: 5000, leadInUntil: T0 + 3000 } })).stopwatch).toEqual({ runningSince: T0 + 3000, accumulatedMs: 0, mode: 'down', targetMs: 5000, leadInUntil: T0 + 3000 });
+    expect(parseTimers(JSON.stringify({ v: 1, rest: {}, stopwatch: { runningSince: null, accumulatedMs: 0, mode: 'sideways', targetMs: -5 } })).stopwatch).toMatchObject({ mode: 'up', targetMs: null, leadInUntil: null });
     expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: null, heldS: 20, bankedS: 30 }, stopwatch: { runningSince: null, accumulatedMs: 0 } })).rest).toEqual({ startedAt: null, heldS: 20, bankedS: 30 });
     expect(parseTimers(JSON.stringify({ v: 1, rest: { startedAt: 'x' }, stopwatch: { accumulatedMs: -1 } }))).toEqual(TIMERS_IDLE);
   });
@@ -185,6 +224,29 @@ describe('the screen', () => {
     expect(bar).toMatch(/data-workout-stopwatch-open=\{stopwatchOpen \? 'true' : 'false'\}/);
     expect(bar).toMatch(/transition-\[max-height,opacity\]/);
     expect(bar).not.toMatch(/\{stopwatchOpen && \(/);
+  });
+  // Stopwatch additions (Oct 23 2026).
+  it('the stopwatch: the bell is armed in the Start tap, a running rest ends on start, Save to set auto-rests only with a target; the modes, the wheels and the lead-in switch; the bar button carries the time; the screen stays awake for the live workout', () => {
+    const bar = read('src/components/workouts/WorkoutControls.tsx');
+    expect(bar).toMatch(/const startStopwatch = \(\) => \{\s*const at = Date\.now\(\);\s*armBell\(\);\s*if \(rest\.startedAt !== null\) onRest\(stopRest\(rest, at\)\);\s*onStopwatch\(stopwatchStart\(stopwatch, at, leadIn \? STOPWATCH_LEAD_IN_MS : 0\)\);/);
+    expect(bar).toMatch(/if \(targetS !== null\) onRest\(startRest\(rest, at\)\);/);
+    expect(bar).toMatch(/ringBell\('end'\);\s*haptic\(\);/);
+    expect(bar).toMatch(/stopwatchSettle\(stopwatch, now\)/);
+    expect(bar).toMatch(/useNow\(running, stopwatch\.runningSince !== null \? 250 : 1000\)/);
+    expect(bar).toMatch(/data-workout-stopwatch-mode=\{stopwatch\.mode\}/);
+    expect(bar).toMatch(/data-workout-stopwatch-mode-set="up"/);
+    expect(bar).toMatch(/data-workout-stopwatch-mode-set="down"/);
+    expect(bar).toMatch(/data-workout-stopwatch-target-time=\{swTargetS\}/);
+    expect(bar).toMatch(/data-workout-stopwatch-target-wheels=""/);
+    expect(bar).toMatch(/data-workout-stopwatch-target-set=""/);
+    expect(bar).toMatch(/data-workout-stopwatch-leadin=\{leadIn \? 'on' : 'off'\}/);
+    expect(bar).toMatch(/data-workout-stopwatch-leadin-left=\{leadLeft \?\? ''\}/);
+    expect(bar).toMatch(/data-workout-stopwatch-button-time=""/);
+    expect(bar).toMatch(/onStopwatch\(stopwatchReset\(stopwatch\)\)/);
+    // Item 4 (already true, pinned): the editor holds the wake lock for the whole live workout, the one mode the bar mounts in.
+    const screen = read('src/components/workouts/WorkoutEditorScreen.tsx');
+    expect(screen).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
+    expect(screen).toMatch(/\{effectiveMode === 'live' && session && \(\s*<WorkoutControls/);
     const editor = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(editor).not.toMatch(/pb-48/);
     expect(editor).toMatch(/'ea-bar-clearance'/);
