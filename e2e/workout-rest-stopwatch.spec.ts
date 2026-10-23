@@ -216,6 +216,49 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
   }
 });
 
+// Oct 23 2026 (Tom's phone): in a lift-only workout the stopwatch had no target
+// ("Every set is filled" — a lift's set has data the moment reps are typed) and
+// was dead until a plank appeared. Now a filled set is a target too: the first
+// open set, then the last.
+test('a lift-only workout: the stopwatch aims at the first open bench set, saves into it, then moves on; the chooser lists every set @mobile', { tag: '@mobile' }, async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await apiAs('state.json');
+  let workoutId = '';
+  try {
+    const started = await api.post('/api/workouts', { data: { mode: 'live' } });
+    expect(started.ok(), await readErrorBody(started)).toBe(true);
+    const startedSession = (await started.json()).session;
+    workoutId = startedSession.id as string;
+    const seeded = await api.put(`/api/workouts/${workoutId}/entries`, { data: { savedAt: savedAfter(startedSession), exercises: [{ name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5)] }] } });
+    expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
+    await page.goto(`/app/workout/${workoutId}`);
+    await expect(page.locator('[data-workout-stopwatch]')).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-workout-stopwatch]').click();
+    const target = page.locator('[data-workout-stopwatch-target]');
+    await expect(target).toContainText('Bench Press · set 1');
+    await expect(target).toBeEnabled();
+    // The chooser lists every set, with what each holds.
+    await target.click();
+    const picker = page.locator('[data-workout-stopwatch-picker]');
+    await expect(picker.locator('[data-workout-stopwatch-pick]')).toHaveCount(3);
+    await expect(picker.locator('[data-workout-stopwatch-pick]').first()).toContainText('5 reps × 100 lbs');
+    await picker.locator('[data-workout-stopwatch-pick]').first().click();
+    // A 1.5 s hold (lead-in off) saved into set 1: its reps stay, it gains a time and is complete; the target moves to set 2.
+    await page.locator('[data-workout-stopwatch-leadin]').click();
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await page.waitForTimeout(1_600);
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await page.locator('[data-workout-stopwatch-save]').click();
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises[0].sets[0], { timeout: 15_000 }).toMatchObject({ reps: 5, completed_at: expect.any(String) });
+    const first = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises[0].sets[0];
+    expect(first.duration_seconds).toBeGreaterThanOrEqual(1);
+    await expect(target).toContainText('Bench Press · set 2');
+  } finally {
+    if (workoutId) await api.delete(`/api/workouts/${workoutId}`);
+    await api.dispose();
+  }
+});
+
 // Desktop twin (Oct 13 2026): the bar's clearance holds at 1280 too — the stopwatch open, a rest running.
 test('the open stopwatch never covers the Add buttons on a large screen', async ({ page }) => {
   test.setTimeout(120_000);

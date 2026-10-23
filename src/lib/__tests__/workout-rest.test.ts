@@ -138,14 +138,25 @@ describe('the stopwatch', () => {
     expect(clampStopwatchTargetS(601)).toBe(600);
     expect(clampStopwatchTargetS(90.4)).toBe(90);
   });
-  it('the target set: the last-edited exercise\'s first empty set, else a duration exercise\'s, else the first empty anywhere, else none', () => {
+  it('the target set: the last-edited exercise\'s first empty set, else a duration exercise\'s, else the first empty anywhere; then a filled set (Oct 23 2026)', () => {
     const plank = ex('Plank', [set(1, 5), set(2)], { exerciseKey: 'plank' });
     const bench = ex('Bench', [set(1), set(2)], { exerciseKey: 'bench_press' });
     const full = ex('Row', [set(1, 5)]);
     expect(stopwatchTarget([bench, plank], 'c-Bench')).toEqual({ clientId: 'c-Bench', setIndex: 0 });
     expect(stopwatchTarget([bench, plank], null)).toEqual({ clientId: 'c-Plank', setIndex: 1 });
     expect(stopwatchTarget([bench, full], null)).toEqual({ clientId: 'c-Bench', setIndex: 0 });
-    expect(stopwatchTarget([full], null)).toBeNull();
+    // Tom's bug: a lift-only workout whose sets all carry reps had NO target ("Every set is filled") — now the first open set.
+    expect(stopwatchTarget([full], null)).toEqual({ clientId: 'c-Row', setIndex: 0 });
+    const done = (n: number) => ({ ...set(n, 5), completedAt: 'x' });
+    const lifts = ex('Bench', [done(1), set(2, 5), set(3, 5)], { exerciseKey: 'bench_press' });
+    expect(stopwatchTarget([lifts], 'c-Bench')).toEqual({ clientId: 'c-Bench', setIndex: 1 });
+    const allDone = ex('Bench', [done(1), done(2)], { exerciseKey: 'bench_press' });
+    const squat = ex('Squat', [done(1), done(2), done(3)], { exerciseKey: 'squat' });
+    expect(stopwatchTarget([allDone, squat], 'c-Bench')).toEqual({ clientId: 'c-Bench', setIndex: 1 }); // the last set of the one touched last
+    expect(stopwatchTarget([allDone, squat], null)).toEqual({ clientId: 'c-Squat', setIndex: 2 }); // else the last set of the last exercise
+    expect(stopwatchTarget([lifts, plank], 'c-Bench')).toEqual({ clientId: 'c-Plank', setIndex: 1 }); // an empty set anywhere still wins
+    expect(stopwatchTarget([ex('Empty', [])], null)).toBeNull();
+    expect(stopwatchTarget([], null)).toBeNull();
     expect(stopwatchTarget([bench, plank], 'c-Row')).toEqual({ clientId: 'c-Plank', setIndex: 1 });
     expect(describeTarget([bench, plank], { clientId: 'c-Plank', setIndex: 1 })).toBe('Plank · set 2');
     expect(describeTarget([ex('Sq', [set(1)], { groupId: 'g', groupKind: 'circuit', groupRounds: 1 })], { clientId: 'c-Sq', setIndex: 0 })).toBe('Sq · round 1');
@@ -243,6 +254,8 @@ describe('the screen', () => {
     expect(bar).toMatch(/data-workout-stopwatch-leadin-left=\{leadLeft \?\? ''\}/);
     expect(bar).toMatch(/data-workout-stopwatch-button-time=""/);
     expect(bar).toMatch(/onStopwatch\(stopwatchReset\(stopwatch\)\)/);
+    // A set picked by hand is for one save (Oct 23 2026): the chosen target clears on Save to set.
+    expect(bar).toMatch(/onStopwatch\(stopwatchReset\(stopwatch\)\);\s*(\/\/[^\n]*\n\s*)?setChosenTarget\(null\);/);
     // Item 4 (already true, pinned): the editor holds the wake lock for the whole live workout, the one mode the bar mounts in.
     const screen = read('src/components/workouts/WorkoutEditorScreen.tsx');
     expect(screen).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
