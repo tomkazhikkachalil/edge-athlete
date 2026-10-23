@@ -357,7 +357,12 @@ export function reduce(state: RecordingState, event: RecordingEvent): RecordingS
     case 'setManualDistance':
       return { ...state, manualDistanceM: event.distanceM !== null && Number.isFinite(event.distanceM) && event.distanceM >= 0 ? event.distanceM : null };
     case 'setName':
-      return { ...state, name: event.name && event.name.trim() ? event.name.trim().slice(0, 120) : null };
+      // Kept AS TYPED (Oct 23 2026, Tom: "it doesn't allow you to put a space
+      // when naming"): the set-up card's field is controlled from this state,
+      // so a trim on every keystroke swallowed the space before the next
+      // letter landed. The wire trims (toRecordingWire); the readers treat a
+      // blank-after-trim name as none.
+      return { ...state, name: event.name ? event.name.slice(0, 120) : null };
     case 'timerStart': {
       if (state.status !== 'recording' && state.status !== 'paused') return state;
       return { ...state, timer: { spec: normalizeSpec(event.spec), startS: elapsedS(state, event.now), stopS: null, amrapTapsS: [] } };
@@ -664,7 +669,7 @@ export function toRecordingWire(state: RecordingState, tz: string | null): WireA
     {
       format: 'live',
       type: state.type,
-      name: state.name,
+      name: state.name && state.name.trim() ? state.name.trim().slice(0, 120) : null,
       points,
       device: {
         elapsedS: elapsed,

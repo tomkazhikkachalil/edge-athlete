@@ -123,6 +123,22 @@ describe('the recorder — a pure state machine', () => {
     expect(Math.abs(live.movingS - summary.movingS!)).toBeLessThanOrEqual(1);
   });
 
+  // Oct 23 2026 (Tom: a space could not be typed into the name): the state keeps
+  // the name AS TYPED — the set-up card's field reads it back — and the wire trims.
+  it('the name is kept as typed while typing (spaces included); the wire trims; blank is none', () => {
+    let s = walk(60, 1.4);
+    s = reduce(s, { type: 'setName', name: 'Morning' });
+    s = reduce(s, { type: 'setName', name: 'Morning ' });
+    expect(s.name).toBe('Morning ');
+    s = reduce(s, { type: 'setName', name: 'Morning walk ' });
+    expect(s.name).toBe('Morning walk ');
+    expect(toRecordingWire(reduce(s, { type: 'finish', now: T0 + 60_000 }), 'America/Toronto').name).toBe('Morning walk');
+    expect(reduce(s, { type: 'setName', name: ' ' }).name).toBe(' ');
+    expect(toRecordingWire(reduce(reduce(s, { type: 'setName', name: '   ' }), { type: 'finish', now: T0 + 60_000 }), 'America/Toronto').name).toBeNull();
+    expect(reduce(s, { type: 'setName', name: '' }).name).toBeNull();
+    expect(reduce(s, { type: 'setName', name: 'x'.repeat(130) }).name).toHaveLength(120);
+  });
+
   it('finish closes the open segment and the open gap, and the wire is what the server accepts', () => {
     let s = walk(600, 1.4);
     s = reduce(s, { type: 'markStart', now: T0 + 100_000 });
