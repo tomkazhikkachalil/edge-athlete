@@ -6,7 +6,7 @@ import { useToast } from '../Toast';
 import NumberWheel from '@/components/golf/NumberWheel';
 import { haptic } from '@/lib/haptics';
 import { armBell, ringBell } from '@/lib/activities/record/bell';
-import { formatElapsed } from '@/lib/workouts/summary';
+import { formatElapsed, formatSetLine, setHasData } from '@/lib/workouts/summary';
 import { formatHold, holdRecord, type ExerciseBests } from '@/lib/workouts/prs';
 import type { EntryExercise } from '@/lib/workouts/entries';
 import {
@@ -393,7 +393,7 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
               )}
               <div className="mt-2 flex items-center gap-2">
                 <button type="button" onClick={() => setPickTarget(true)} disabled={!target} className="ea-interactive flex min-h-[40px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-border px-3 text-sm text-primary disabled:opacity-50" aria-label="Choose the set to save to" data-workout-stopwatch-target={target ? `${target.clientId}:${target.setIndex}` : ''}>
-                  <span className="truncate">{targetLabel ?? 'Every set is filled'}</span>
+                  <span className="truncate">{targetLabel ?? 'Add an exercise first'}</span>
                   <ChevronDown className="w-4 h-4 shrink-0" aria-hidden="true" />
                 </button>
                 <button
@@ -483,7 +483,8 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
                       data-workout-stopwatch-pick={`${e.clientId}:${i}`}
                     >
                       <span className="truncate">{e.name} · {e.groupId ? 'round' : 'set'} {i + 1}</span>
-                      {s.durationSeconds ? <span className="text-xs text-muted tabular-nums">{formatElapsed(s.durationSeconds)}</span> : null}
+                      {/* What the set holds now, so a filled set is recognisable before its time is replaced. */}
+                      {setHasData(s) ? <span className="shrink-0 text-xs text-muted tabular-nums">{formatSetLine(s)}</span> : null}
                     </button>
                   </li>
                 )),

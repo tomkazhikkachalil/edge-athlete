@@ -242,20 +242,38 @@ export function isDurationExercise(e: Pick<EntryExercise, 'exerciseKey'>): boole
 }
 
 /**
- * "The current set" for Save to set: the first set without data of the
+ * "The current set" for Save to set: the first set WITHOUT DATA of the
  * exercise touched last, else of the first duration-mode exercise, else of
- * the first exercise with such a set; null when every set is filled.
+ * the first exercise with such a set. Then (Oct 23 2026 — Tom: the stopwatch
+ * "doesn't work and doesn't get tied to a set unless you introduce something
+ * like a plank"; a lift's set has data the moment reps are typed, and "Add
+ * set" copies the last, so a lift-only workout never had a target) the first
+ * NOT-COMPLETED set in the same order, else the last set of the exercise
+ * touched last, else the last set of the last exercise. Null only when the
+ * workout has no sets at all. A filled set takes the time as its own
+ * duration (applyStopwatchToSet keeps its reps and weight).
  */
 export function stopwatchTarget(exercises: ReadonlyArray<EntryExercise>, lastEditedClientId: string | null): SetTarget | null {
-  const firstEmpty = (e: EntryExercise): SetTarget | null => {
-    const i = e.sets.findIndex(s => !setHasData(s));
+  const firstWhere = (e: EntryExercise, ok: (s: EntrySet) => boolean): SetTarget | null => {
+    const i = e.sets.findIndex(ok);
     return i >= 0 ? { clientId: e.clientId, setIndex: i } : null;
   };
   const last = lastEditedClientId ? exercises.find(e => e.clientId === lastEditedClientId) : undefined;
-  const fromLast = last ? firstEmpty(last) : null;
+  const search = (ok: (s: EntrySet) => boolean): SetTarget | null => {
+    const fromLast = last ? firstWhere(last, ok) : null;
+    if (fromLast) return fromLast;
+    for (const e of exercises) if (isDurationExercise(e)) { const t = firstWhere(e, ok); if (t) return t; }
+    for (const e of exercises) { const t = firstWhere(e, ok); if (t) return t; }
+    return null;
+  };
+  const empty = search(s => !setHasData(s));
+  if (empty) return empty;
+  const open = search(s => !s.completedAt);
+  if (open) return open;
+  const lastOf = (e: EntryExercise | undefined): SetTarget | null => (e && e.sets.length > 0 ? { clientId: e.clientId, setIndex: e.sets.length - 1 } : null);
+  const fromLast = lastOf(last);
   if (fromLast) return fromLast;
-  for (const e of exercises) if (isDurationExercise(e)) { const t = firstEmpty(e); if (t) return t; }
-  for (const e of exercises) { const t = firstEmpty(e); if (t) return t; }
+  for (let i = exercises.length - 1; i >= 0; i--) { const t = lastOf(exercises[i]); if (t) return t; }
   return null;
 }
 
