@@ -152,7 +152,8 @@ export default function WorkoutCard({
                 {dateLabel}
                 {session.timed === false ? ' · not timed' : session.duration_seconds ? ` · ${formatDuration(session.duration_seconds)}` : ''}
                 {` · ${summary.exerciseCount} exercise${summary.exerciseCount === 1 ? '' : 's'} · ${summary.totalSets} set${summary.totalSets === 1 ? '' : 's'}`}
-                {(summary.restSeconds ?? 0) > 0 ? ` · rest ${formatDuration(summary.restSeconds ?? 0)}` : ''}
+                {/* Rest is personal (Tom, Oct 22 2026): the owner's diary says it; a visitor's does not. */}
+                {isOwnProfile && (summary.restSeconds ?? 0) > 0 ? ` · rest ${formatDuration(summary.restSeconds ?? 0)}` : ''}
               </p>
               {summary.totalVolumeLbs > 0 && (
                 <p className="text-xs text-brand-fg font-semibold mt-0.5">
