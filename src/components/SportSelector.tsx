@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAllSports, type SportKey } from '@/lib/sports/SportRegistry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -15,6 +15,21 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
   useBodyScrollLock();
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Focus the search only where a keyboard is already there (a fine pointer).
+  // Tom (Oct 22 2026, iPhone): after a cold open, Create → Sport zoomed the
+  // screen to the far left — this picker mounts inside the composer's lazy
+  // chunk, so on the first open its mount (and a bare `autoFocus`) lands
+  // AFTER the tap, outside the gesture, and iOS reveals the field by zooming
+  // to it. A phone opens the picker with the sport grid in view and no
+  // keyboard (the list is the point; search is optional); the desktop keeps
+  // typing straight away. Never fixed by disabling page zoom.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    searchRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const allSports = getAllSports();
 
@@ -66,12 +81,14 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
           <div className="relative">
             <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
             <input
+              ref={searchRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search sports..."
-              className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-              autoFocus
+              // text-base: 16 px at EVERY width — iOS zooms into a focused field under 16 px.
+              className="w-full pl-10 pr-4 py-2 text-base border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              data-sport-search=""
             />
           </div>
         </div>

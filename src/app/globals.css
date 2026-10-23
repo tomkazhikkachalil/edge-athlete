@@ -1379,19 +1379,15 @@ html:not([data-theme="dark"]) .dark-theme-only {
 /* Modal bottom-sheet helper for mobile UX — pair with `items-end sm:items-center` */
 .modal-sheet-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
-/* Better mobile form input experience — prevents iOS auto-zoom on focus */
-@media (max-width: 640px) {
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="search"],
-  input[type="tel"],
-  input[type="number"],
-  input[type="url"],
-  input[type="date"],
-  input[type="datetime-local"],
-  input[type="time"],
-  input[type="month"],
+/* The iOS focus-zoom guard: every text control is 16 px on a touch screen.
+ * iOS zooms into a focused field whose text is under 16 px. Oct 22 2026
+ * (Tom's iPhone, Create → Sport): the guard covered only typed inputs at
+ * ≤ 640 px — an <input> without a type, a dynamic type and a phone held
+ * sideways slipped through. Unlayered on purpose: it must beat text-sm /
+ * text-xs (Tailwind layers them). Desktop keeps its sizes. Never replaced by
+ * disabling page zoom (maximumScale stays 5 — accessibility). */
+@media (max-width: 640px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="hidden"]),
   textarea,
   select {
     font-size: 16px;

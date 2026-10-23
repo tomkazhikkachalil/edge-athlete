@@ -92,6 +92,43 @@ test('header Create shows Post, Sport, Event and Record Activity — nothing els
   await expect(page.getByText('Playing now')).toBeVisible();
 });
 
+// Oct 22 2026, Tom's iPhone: after a cold open, Create → Sport zoomed the
+// screen to the far left — the picker's search field auto-focused from the
+// composer's lazily loaded chunk, after the tap. On a touch screen (the
+// android project) the picker now opens with NOTHING focused; a fine pointer
+// (mobile / webkit-mobile, emulation off) keeps the auto-focus; everywhere the
+// field is 16 px, the grid in view and the page at scale 1. (Real iOS focus-zoom cannot be played in this harness;
+// this pins the two causes. Tom's phone is the proof.)
+test('Create → Sport on a phone: no field focused, the search at 16 px, the grid in view, scale 1 @mobile', async ({ page }) => {
+  await page.goto('/messages');
+  await page.getByRole('button', { name: 'Create', exact: true }).first().click();
+  await page.locator('[data-create-sport]').click();
+  await expect(page).toHaveURL(/\/feed/, { timeout: 15_000 });
+  const picker = page.locator('div[class*="z-[60]"]');
+  await expect(picker.getByRole('heading', { name: 'Select Sport' })).toBeVisible({ timeout: 15_000 });
+  const search = picker.locator('[data-sport-search]');
+  await expect(search).toBeVisible();
+  // A touch screen: the field is NOT focused (no keyboard, no reveal) …
+  await page.waitForTimeout(300);
+  const state = await page.evaluate(() => ({
+    focusedIsSearch: document.activeElement?.hasAttribute('data-sport-search') ?? false,
+    fontSize: getComputedStyle(document.querySelector('[data-sport-search]')!).fontSize,
+    scale: window.visualViewport?.scale ?? 1,
+    coarse: window.matchMedia('(pointer: coarse)').matches,
+  }));
+  // The mobile / webkit-mobile projects are phone-SIZED with emulation off (a
+  // fine pointer — overflows are measured honestly); the android project
+  // emulates touch (a coarse pointer). Each proves its own side of the rule.
+  expect(state.focusedIsSearch, state.coarse ? 'the search is not auto-focused on a touch screen' : 'a fine pointer keeps the auto-focus').toBe(!state.coarse);
+  // … and 16 px whether the guard matched by width or by pointer.
+  expect(state.fontSize).toBe('16px');
+  expect(state.scale).toBe(1);
+  // The grid is in view; a tap on the field still works.
+  await expect(picker.getByRole('button', { name: /golf/i }).first()).toBeVisible();
+  await search.fill('golf');
+  await expect(picker.getByRole('button', { name: /golf/i })).toHaveCount(1);
+});
+
 test('header Create → Record Activity is a second step: Start a workout | Record activity; Record activity opens the recorder @smoke', async ({ page }) => {
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
