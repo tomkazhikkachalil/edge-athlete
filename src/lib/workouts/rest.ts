@@ -155,26 +155,78 @@ export function completedSetDiff(prev: EntryExercise, next: EntryExercise): numb
 
 // ── The stopwatch ────────────────────────────────────────────────────────────
 
+/** The stopwatch: runs that add up, a count-up or count-down mode, a lead-in. */
+export type StopwatchMode = 'up' | 'down';
 export interface Stopwatch {
-  /** Epoch ms of the current run; null while stopped. */
+  /** Epoch ms of the current run; null while stopped. During a lead-in it is the moment the lead-in ENDS. */
   runningSince: number | null;
   /** Closed runs, ms. */
   accumulatedMs: number;
+  /** Count up from zero (the default) or down from `targetMs` (Oct 23 2026). */
+  mode: StopwatchMode;
+  /** The count-down target, ms; null when never set. */
+  targetMs: number | null;
+  /** Epoch ms the 3-2-1 lead-in ends; null when none. */
+  leadInUntil: number | null;
 }
 
-export const STOPWATCH_IDLE: Stopwatch = { runningSince: null, accumulatedMs: 0 };
+export const STOPWATCH_IDLE: Stopwatch = { runningSince: null, accumulatedMs: 0, mode: 'up', targetMs: null, leadInUntil: null };
 
-export function stopwatchStart(sw: Stopwatch, now: number): Stopwatch {
-  return sw.runningSince !== null ? sw : { ...sw, runningSince: now };
+// ── Stopwatch additions (Oct 23 2026) ────────────────────────────────────────
+// Tom: "3-2-1 lead-in: a short countdown before the clock starts, so the user
+// can get into position. Let the user turn it off. Countdown mode: a toggle
+// between count up and count down from a target time … Beep and vibrate at
+// zero. Save to set records the time actually held." The lead-in never counts;
+// a count-down stops itself at the target (the time held).
+export const STOPWATCH_LEAD_IN_MS = 3000;
+export const STOPWATCH_TARGET_MIN_S = 5;
+export const STOPWATCH_TARGET_MAX_S = 600;
+export const STOPWATCH_TARGET_DEFAULT_S = 60;
+
+/** A count-down target: whole seconds, 5 s to 10 min. */
+export function clampStopwatchTargetS(s: number): number {
+  const n = Math.round(Number.isFinite(s) ? s : STOPWATCH_TARGET_DEFAULT_S);
+  return Math.min(STOPWATCH_TARGET_MAX_S, Math.max(STOPWATCH_TARGET_MIN_S, n));
 }
+
+/** Start (or begin the lead-in): a running stopwatch is left alone. */
+export function stopwatchStart(sw: Stopwatch, now: number, leadInMs = 0): Stopwatch {
+  if (sw.runningSince !== null) return sw;
+  const lead = Math.max(0, leadInMs);
+  return { ...sw, runningSince: now + lead, leadInUntil: lead > 0 ? now + lead : null };
+}
+/** Stop: the run closes into the total; a stop during the lead-in cancels it (nothing counted). */
 export function stopwatchStop(sw: Stopwatch, now: number): Stopwatch {
-  return sw.runningSince === null ? sw : { runningSince: null, accumulatedMs: sw.accumulatedMs + Math.max(0, now - sw.runningSince) };
+  if (sw.runningSince === null) return sw;
+  return { ...sw, runningSince: null, leadInUntil: null, accumulatedMs: sw.accumulatedMs + Math.max(0, now - sw.runningSince) };
 }
-export function stopwatchReset(): Stopwatch {
-  return STOPWATCH_IDLE;
+/** Reset the time; the mode and the target are preferences and stay. */
+export function stopwatchReset(sw?: Stopwatch): Stopwatch {
+  return sw ? { ...STOPWATCH_IDLE, mode: sw.mode, targetMs: sw.targetMs } : STOPWATCH_IDLE;
 }
 export function stopwatchElapsedMs(sw: Stopwatch, now: number): number {
   return sw.accumulatedMs + (sw.runningSince !== null ? Math.max(0, now - sw.runningSince) : 0);
+}
+/** Seconds left of the lead-in (3, 2, 1); null when not leading in. */
+export function stopwatchLeadInLeftS(sw: Stopwatch, now: number): number | null {
+  if (sw.runningSince === null || sw.leadInUntil === null || now >= sw.leadInUntil) return null;
+  return Math.ceil((sw.leadInUntil - now) / 1000);
+}
+/** Count-down mode: the ms left to the target; null in count-up mode. */
+export function stopwatchRemainingMs(sw: Stopwatch, now: number): number | null {
+  if (sw.mode !== 'down' || sw.targetMs === null) return null;
+  return Math.max(0, sw.targetMs - stopwatchElapsedMs(sw, now));
+}
+/** The number on the clock: the remaining seconds counting down, else the elapsed seconds. */
+export function stopwatchDisplayS(sw: Stopwatch, now: number): number {
+  const remaining = stopwatchRemainingMs(sw, now);
+  return remaining !== null ? Math.ceil(remaining / 1000) : Math.floor(stopwatchElapsedMs(sw, now) / 1000);
+}
+/** A count-down at (or past) its target stops ITSELF at exactly the target — the time held; otherwise the same object. */
+export function stopwatchSettle(sw: Stopwatch, now: number): Stopwatch {
+  if (sw.runningSince === null || sw.mode !== 'down' || sw.targetMs === null) return sw;
+  if (stopwatchElapsedMs(sw, now) < sw.targetMs) return sw;
+  return { ...sw, runningSince: null, leadInUntil: null, accumulatedMs: sw.targetMs };
 }
 
 export interface SetTarget {

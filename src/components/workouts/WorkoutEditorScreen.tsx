@@ -159,9 +159,17 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
   // ── The rest timer and the stopwatch (PR 4): screen state, kept on the device ──
   const [timers, setTimers] = useState<TimersState>(() => (effectiveMode === 'live' ? readTimers(draftId) : TIMERS_IDLE));
   const [lastEditedClientId, setLastEditedClientId] = useState<string | null>(null);
-  const persistTimers = (next: TimersState) => {
-    setTimers(next);
-    writeTimers(draftId, next);
+  // A PATCH on the latest timers, never a spread of a stale closure (Oct 23
+  // 2026): one tap can write the rest AND the stopwatch — the stopwatch's
+  // Start ends a running rest, Save to set resets the stopwatch and starts a
+  // rest — and two `{ ...timers, x }` writes from the same render let the
+  // second undo the first. The device write rides the updater (idempotent).
+  const persistTimers = (patch: Partial<Pick<TimersState, 'rest' | 'stopwatch'>>) => {
+    setTimers(prev => {
+      const next = { ...prev, ...patch };
+      writeTimers(draftId, next);
+      return next;
+    });
   };
   const [clockBusy, setClockBusy] = useState(false);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
@@ -1236,9 +1244,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
         <WorkoutControls
           exercises={exercises}
           rest={timers.rest}
-          onRest={(rest: RestTimer) => persistTimers({ ...timers, rest })}
+          onRest={(rest: RestTimer) => persistTimers({ rest })}
           stopwatch={timers.stopwatch}
-          onStopwatch={(stopwatch: Stopwatch) => persistTimers({ ...timers, stopwatch })}
+          onStopwatch={(stopwatch: Stopwatch) => persistTimers({ stopwatch })}
           lastEditedClientId={lastEditedClientId}
           onSaveStopwatch={saveStopwatch}
         />

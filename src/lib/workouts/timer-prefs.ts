@@ -124,3 +124,64 @@ export function writeTimedDefault(timed: boolean): void {
     /* best-effort */
   }
 }
+
+// ── The stopwatch's preferences (Oct 23 2026) ───────────────────────────────
+// The 3-2-1 lead-in (on unless switched off), the count mode (up unless
+// switched to down) and the count-down target — remembered on this device;
+// the session's timers carry them while a time is running.
+export const STOPWATCH_LEAD_IN_KEY = 'ea:workout:stopwatch-leadin:v1';
+export const STOPWATCH_MODE_KEY = 'ea:workout:stopwatch-mode:v1';
+export const STOPWATCH_TARGET_KEY = 'ea:workout:stopwatch-target:v1';
+
+export function readStopwatchLeadIn(): boolean {
+  try {
+    return !(typeof localStorage !== 'undefined' && localStorage.getItem(STOPWATCH_LEAD_IN_KEY) === '0');
+  } catch {
+    return true;
+  }
+}
+
+export function writeStopwatchLeadIn(on: boolean): void {
+  try {
+    if (on) localStorage.removeItem(STOPWATCH_LEAD_IN_KEY);
+    else localStorage.setItem(STOPWATCH_LEAD_IN_KEY, '0');
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function readStopwatchMode(): 'up' | 'down' {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(STOPWATCH_MODE_KEY) === 'down' ? 'down' : 'up';
+  } catch {
+    return 'up';
+  }
+}
+
+export function writeStopwatchMode(mode: 'up' | 'down'): void {
+  try {
+    if (mode === 'down') localStorage.setItem(STOPWATCH_MODE_KEY, 'down');
+    else localStorage.removeItem(STOPWATCH_MODE_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** The count-down target in seconds; null when never set (the panel uses its default). */
+export function readStopwatchTarget(): number | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STOPWATCH_TARGET_KEY) : null;
+    const n = raw === null ? Number.NaN : Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStopwatchTarget(seconds: number): void {
+  try {
+    localStorage.setItem(STOPWATCH_TARGET_KEY, String(seconds));
+  } catch {
+    /* best-effort */
+  }
+}

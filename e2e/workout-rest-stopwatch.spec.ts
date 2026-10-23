@@ -26,7 +26,7 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
     const seeded = await api.put(`/api/workouts/${workoutId}/entries`, {
       data: { savedAt: savedAfter(startedSession), exercises: [
         { name: 'Bench Press', exerciseKey: 'bench_press', category: 'strength', notes: null, sets: [set(1, 5), set(2, 5), set(3, 5)] },
-        { name: 'Plank', exerciseKey: 'plank', category: 'strength', notes: null, sets: [set(1, null)] },
+        { name: 'Plank', exerciseKey: 'plank', category: 'strength', notes: null, sets: [set(1, null), set(2, null), set(3, null)] },
       ] },
     });
     expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
@@ -100,17 +100,79 @@ test('rest attaches to the completed set, a held rest to the next; the stopwatch
     await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'idle');
     await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Bench Press').sets[2].rest_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
 
-    // The stopwatch: run ~3 s → Save to set → the plank's set 1 (the duration exercise) gets the time and is complete.
+    // The stopwatch (Oct 23 2026 additions): a rest is running when it starts → the rest ends (held);
+    // the 3-2-1 lead-in is on by default and never counts; run ~3 s → Save to set → the plank's
+    // set 1 (the duration exercise) gets the time and is complete; the rest target is Off here, so
+    // no rest starts after the save.
+    await page.locator('[data-workout-rest]').click();
+    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'running');
     await page.locator('[data-workout-stopwatch]').click();
     await expect(page.locator('[data-workout-stopwatch-target]')).toContainText('Plank · set 1');
+    await expect(page.locator('[data-workout-stopwatch-leadin]')).toHaveAttribute('data-workout-stopwatch-leadin', 'on');
+    await expect(page.locator('[data-workout-stopwatch-mode]')).toHaveAttribute('data-workout-stopwatch-mode', 'up');
     await page.locator('[data-workout-stopwatch-toggle]').click();
+    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'held');
+    const swTime = page.locator('[data-workout-stopwatch-time]');
+    await expect(swTime).toHaveAttribute('data-workout-stopwatch-leadin-left', /^[123]$/);
+    await expect(swTime).toHaveText(/^[123]$/);
+    // The bar's button shows the same count while the panel is open or closed (item 3).
+    await expect(page.locator('[data-workout-stopwatch-button-time]')).toHaveText(/^[123]$/);
+    await expect(swTime).toHaveAttribute('data-workout-stopwatch-leadin-left', '', { timeout: 5_000 });
+    await expect(swTime).toHaveText('0:00');
     await page.waitForTimeout(3_200);
     await page.locator('[data-workout-stopwatch-toggle]').click();
+    await expect(swTime).toHaveText(/^0:0[345]$/);
     await page.locator('[data-workout-stopwatch-save]').click();
     await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Plank').sets[0], { timeout: 15_000 }).toMatchObject({ completed_at: expect.any(String) });
     const plank = (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Plank').sets[0];
     expect(plank.duration_seconds).toBeGreaterThanOrEqual(3);
     expect(plank.duration_seconds).toBeLessThan(6);
+    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'held'); // Off: no auto-rest
+
+    // Count-down from 0:05 by the wheels (lead-in off this time): the clock counts down on the panel
+    // and the bar, stops ITSELF at the target, Save to set records the time held (5 s) — and with a
+    // rest target set, the save starts a rest.
+    await page.locator('[data-workout-rest-target]').click();
+    await page.locator('[data-workout-rest-custom-use]').click(); // 1:30, the wheels' default
+    await expect(page.locator('[data-workout-rest-target]')).toHaveAttribute('data-workout-rest-target', '90');
+    await page.locator('[data-workout-stopwatch]').click();
+    await expect(page.locator('[data-workout-stopwatch-open]')).toHaveAttribute('data-workout-stopwatch-open', 'true');
+    await expect(page.locator('[data-workout-stopwatch-target]')).toContainText('Plank · set 2');
+    await page.locator('[data-workout-stopwatch-leadin]').click();
+    await expect(page.locator('[data-workout-stopwatch-leadin]')).toHaveAttribute('data-workout-stopwatch-leadin', 'off');
+    await page.locator('[data-workout-stopwatch-mode-set="down"]').click();
+    await expect(page.locator('[data-workout-stopwatch-mode]')).toHaveAttribute('data-workout-stopwatch-mode', 'down');
+    await expect(page.locator('[data-workout-stopwatch-target-time]')).toHaveAttribute('data-workout-stopwatch-target-time', '60');
+    await page.locator('[data-workout-stopwatch-target-time]').click();
+    const wheels = page.locator('[data-workout-stopwatch-target-wheels]');
+    await expect(wheels).toBeVisible();
+    await wheels.getByRole('spinbutton', { name: 'Minutes' }).focus();
+    await page.keyboard.press('ArrowUp'); // 1 → 0
+    await wheels.getByRole('spinbutton', { name: 'Seconds' }).focus();
+    await page.keyboard.press('ArrowDown'); // 0 → 5
+    await expect(wheels.locator('[data-workout-stopwatch-target-set]')).toHaveText(/0:05/);
+    await wheels.locator('[data-workout-stopwatch-target-set]').click();
+    await expect(page.locator('[data-workout-stopwatch-target-time]')).toHaveAttribute('data-workout-stopwatch-target-time', '5');
+    await expect(swTime).toHaveText('0:05');
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await expect(page.locator('[data-workout-stopwatch]')).toHaveAttribute('data-workout-stopwatch', 'running');
+    await expect(swTime).toHaveText(/^0:0[1234]$/, { timeout: 3_000 });
+    await expect(page.locator('[data-workout-stopwatch-button-time]')).toHaveText(/^0:0[01234]$/);
+    await expect(page.locator('[data-workout-stopwatch]')).toHaveAttribute('data-workout-stopwatch', 'stopped', { timeout: 8_000 });
+    await expect(swTime).toHaveText('0:00');
+    await page.locator('[data-workout-stopwatch-save]').click();
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Plank').sets[1].duration_seconds, { timeout: 15_000 }).toBe(5);
+    await expect(page.locator('[data-workout-rest]')).toHaveAttribute('data-workout-rest', 'running'); // the auto-rest
+    await expect(page.locator('[data-workout-rest-phase]')).toHaveAttribute('data-workout-rest-phase', 'running');
+    // Stopped early: the time actually held (~2 s), not the target; the clock showed the time left.
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await page.waitForTimeout(2_200);
+    await page.locator('[data-workout-stopwatch-toggle]').click();
+    await expect(swTime).toHaveText(/^0:0[23]$/);
+    await page.locator('[data-workout-stopwatch-save]').click();
+    await expect.poll(async () => (await (await api.get(`/api/workouts/${workoutId}`)).json()).session.exercises.find((e: { name: string }) => e.name === 'Plank').sets[2].duration_seconds, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+    await page.locator('[data-workout-stopwatch-mode-set="up"]').click();
+    await page.locator('[data-workout-rest]').click(); // end the auto-rest (held) before the clearance checks
 
     // The bar clears the content — with the stopwatch OPEN and a rest running
     // (Tom, Oct 13: the open stopwatch covered the Add buttons): the bar's

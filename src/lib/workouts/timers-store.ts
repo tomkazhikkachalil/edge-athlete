@@ -31,6 +31,10 @@ export function parseTimers(raw: string | null): TimersState {
     const stopwatch: Stopwatch = {
       runningSince: typeof t.stopwatch?.runningSince === 'number' ? t.stopwatch.runningSince : null,
       accumulatedMs: typeof t.stopwatch?.accumulatedMs === 'number' && t.stopwatch.accumulatedMs >= 0 ? t.stopwatch.accumulatedMs : 0,
+      // Oct 23 2026: a device written before the modes counts up with no target.
+      mode: t.stopwatch?.mode === 'down' ? 'down' : 'up',
+      targetMs: typeof t.stopwatch?.targetMs === 'number' && t.stopwatch.targetMs > 0 ? t.stopwatch.targetMs : null,
+      leadInUntil: typeof t.stopwatch?.leadInUntil === 'number' ? t.stopwatch.leadInUntil : null,
     };
     return { v: 1, rest, stopwatch };
   } catch {
@@ -48,7 +52,8 @@ export function readTimers(sessionId: string): TimersState {
 
 export function writeTimers(sessionId: string, state: TimersState): void {
   try {
-    const idle = state.rest.startedAt === null && state.rest.heldS === null && state.rest.bankedS === 0 && state.stopwatch.runningSince === null && state.stopwatch.accumulatedMs === 0;
+    // The mode and the target are preferences (timer-prefs.ts), not idleness: with no time the key goes.
+    const idle = state.rest.startedAt === null && state.rest.heldS === null && state.rest.bankedS === 0 && state.stopwatch.runningSince === null && state.stopwatch.accumulatedMs === 0 && state.stopwatch.leadInUntil === null;
     if (idle) window.localStorage.removeItem(timersKey(sessionId));
     else window.localStorage.setItem(timersKey(sessionId), JSON.stringify(state));
   } catch {
