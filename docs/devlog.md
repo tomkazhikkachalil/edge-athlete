@@ -12,7 +12,7 @@ Tom: "Without breaking anything, please run the full project maintenance checkli
 
 **Phone-width pass:** this day's own 390 px light + dark screenshots stand for it — the sport picker at normal scale, the rest's four colours and the total pill, the stopwatch panel with its wheels, the lead-in "3", a count-down on the panel and the bar (#1281, #1283, #1287) — and the mobile, WebKit, Android, Brave and Firefox waves above are the phone-width proof in motion.
 
-**Merge:** PR_NUM (`chore/maintenance-oct23`: the zod override + this entry) → MERGE_LINE
+**Merge:** #1291 (`chore/maintenance-oct23`: the zod override + this entry) merged with `merge-pr.sh` after verify, smoke and guardrails by name; production health shows the merge commit; the post-merge spot check (the mobile probe set: health · install-app · feed-post · sw-static-cache · workout-start) and the door surfaces are recorded in the PR's thread.
 
 ## October 23, 2026 — The stopwatch always has a target while the workout has a set (#1290, zero DDL)
 
