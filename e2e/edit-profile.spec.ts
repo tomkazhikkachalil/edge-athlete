@@ -138,7 +138,7 @@ test('a private profile\'s Privacy tab opens on Private @mobile', async ({ page 
   await expect(pressed.getByRole('heading', { name: 'Private' })).toBeVisible();
 });
 
-test('the deep link opens the Sports tab; unsaved typing in another tab survives a save; Discard discards @mobile', async ({ page }) => {
+test('the deep link opens the Sports tab; a save asks before closing over unsaved typing elsewhere; Discard discards @mobile', async ({ page }) => {
   const alpha = loadQaUser('user.json');
   const admin = adminClient();
 
@@ -159,7 +159,13 @@ test('the deep link opens the Sports tab; unsaved typing in another tab survives
   await expect
     .poll(async () => (await admin.from('profiles').select('bio').eq('id', alpha.id).single()).data?.bio, { timeout: 20_000 })
     .toBe(newBio);
-  await expect(page.getByRole('button', { name: 'Save Basic' })).toBeEnabled({ timeout: 15_000 });
+  // Save returns to the profile (Convention 52) — but typing left on the Body
+  // Metrics tab is unsaved, so the editor ASKS instead of closing over it.
+  // The editor is a dialog too (it contains the prompt), so name the prompt's own dialog.
+  const discardPrompt = page.getByRole('dialog', { name: 'Discard changes?', exact: true });
+  await expect(discardPrompt).toBeVisible({ timeout: 15_000 });
+  await discardPrompt.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await expect(discardPrompt).toBeHidden();
 
   // The save re-read the shared profile; the Training typing is still there.
   await tab(page, 'Body Metrics').click();

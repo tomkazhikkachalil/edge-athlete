@@ -73,3 +73,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 49 | Every number on the Overview is read from a SMALL table: counted once a night over an index, estimated where exact would be a scan, sampled where it is a probe | `platform-overview.md` |
 | 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience (amended Oct 21 2026: a workout's Finish records, Post or Done decides) | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
 | 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |
+| 52 | The profile is a profile, not a settings form: the owner sees the visitor's view plus ONE Edit Profile control; every field is edited in Edit Profile, Save and Close both return to the profile | `profile.md` |

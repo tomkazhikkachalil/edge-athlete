@@ -44,9 +44,12 @@ describe('Edit Profile: one Sports tab, the setup as steps', () => {
     expect(flow).toMatch(/overlayZClass="z-\[80\]"/);
     expect(flow).not.toMatch(/fetch\(/);
   });
-  it('the doors land on the Sports tab', () => {
+  it('the doors land on the Sports tab — ?edit=sport and the pencil; the profile itself carries no Add-sports prompt (Convention 52)', () => {
     const page = code('src/app/(app)/athlete/page.tsx');
     expect(page).toMatch(/setEditInitialTab\('sports'\);\s*setIsEditModalOpen\(true\);/);
-    expect(page).toMatch(/onAddSports=\{\(\) => \{ setEditInitialTab\('sports'\); setIsEditModalOpen\(true\); \}\}/);
+    expect(page).not.toMatch(/onAddSports/);
+    const sports = code('src/components/profile/ProfileSports.tsx');
+    expect(sports).not.toMatch(/onAddSports|data-sports-empty/);
+    expect(sports).toMatch(/if \(cards\.length === 0\) return null;/);
   });
 });

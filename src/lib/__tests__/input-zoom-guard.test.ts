@@ -61,7 +61,6 @@ describe('the iOS focus-zoom guard', () => {
 
   it('every autoFocus site is known (a new one is reviewed: inside a tap is fine; never from a lazy mount on a phone)', () => {
     const known = [
-      'src/app/(app)/athlete/page.tsx',            // the bio / handle fields, opened by a tap
       'src/components/AddBodyMetricModal.tsx',     // a modal opened by a tap
       'src/components/GifPicker.tsx',              // opened by a tap
       'src/components/chat-dock/DockComposer.tsx',

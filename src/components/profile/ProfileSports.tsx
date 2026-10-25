@@ -27,8 +27,6 @@ interface ProfileSportsProps {
   isOwner: boolean;
   /** Opens the Stats hub on this sport's layer. */
   onOpenSport: (sportKey: string) => void;
-  /** Owner empty state → Edit Profile (the Basic tab's "Your sports"). */
-  onAddSports?: () => void;
   /** Owner: the PATCH answered with fresh cards. */
   onCardsChange?: (cards: SportSkillCard[]) => void;
 }
@@ -44,7 +42,7 @@ const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
 
 type PinChange = { kind: 'pin'; key: string } | { kind: 'unpin'; key: string } | { kind: 'move'; key: string; position: number };
 
-export default function ProfileSports({ cards, isOwner, onOpenSport, onAddSports, onCardsChange }: ProfileSportsProps) {
+export default function ProfileSports({ cards, isOwner, onOpenSport, onCardsChange }: ProfileSportsProps) {
   const { showError } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const pinned = cards.filter(c => c.pinned);
@@ -75,25 +73,10 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onAddSports
     }
   };
 
-  if (cards.length === 0) {
-    if (!isOwner || !onAddSports) return null;
-    return (
-      <section id="sports" aria-label="Sports">
-        <button
-          type="button"
-          onClick={onAddSports}
-          className="ea-interactive w-full text-left bg-surface rounded-xl shadow-sm border border-dashed border-border px-4 py-3"
-          data-sports-empty=""
-        >
-          <span className="text-sm font-semibold text-secondary flex items-center gap-2">
-            <i className="fas fa-medal" aria-hidden="true"></i>
-            No sports yet — Add sports
-            <i className="fas fa-chevron-right text-xs text-decor ml-auto" aria-hidden="true"></i>
-          </span>
-        </button>
-      </section>
-    );
-  }
+  // No sport → nothing, for the owner as for a viewer (Convention 52): the
+  // profile carries no "add your …" prompt; sports are added in Edit Profile
+  // → Sports (the pencil, the header menu, ?edit=sport).
+  if (cards.length === 0) return null;
 
   const headlineOf = (card: SportSkillCard, large: boolean) =>
     card.headline ? (

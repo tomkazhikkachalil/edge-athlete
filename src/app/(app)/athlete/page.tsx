@@ -2,7 +2,7 @@
 
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { coverProxyUrl } from '@/lib/media/cover-url';
 import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
@@ -16,8 +16,8 @@ import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import ProfileSports from '@/components/profile/ProfileSports';
+import ProfileSocialLinks from '@/components/profile/ProfileSocialLinks';
 import type { SportSkillCard } from '@/lib/sports/server/types';
-import ProfilePhotoDoor from '@/components/profile/ProfilePhotoDoor';
 import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import PostDetailModal from '@/components/PostDetailModal';
@@ -29,7 +29,7 @@ const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { 
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), { ssr: false });
 const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
-import type { Performance, Profile } from '@/lib/supabase';
+import type { Performance } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import { topPills } from '@/lib/achievements/display';
@@ -37,153 +37,9 @@ import type { Achievement } from '@/lib/achievements';
 import {
   formatDisplayName,
   getInitials,
-  formatSocialHandleDisplay,
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
-import { 
-  PLACEHOLDERS,
-  getPlaceholder
-} from '@/lib/config';
 
-
-// ── InlineEdit: module-scope so its component identity is STABLE across the
-// page's renders. When it was defined inside AthleteProfilePage, every
-// keystroke created a new function identity → React unmounted/remounted the
-// whole edit popup → the caret jumped to the end (and IME input broke).
-// Shared page state flows in via context.
-interface InlineEditContextValue {
-  editingField: string | null;
-  tempValues: Record<string, string>;
-  setTempValue: (field: string, value: string) => void;
-  isSubmitting: boolean;
-  error: string | undefined;
-  startEditing: (field: string, value: string) => void;
-  cancelEditing: () => void;
-  saveInlineEdit: () => void;
-}
-const InlineEditContext = createContext<InlineEditContextValue | null>(null);
-
-function InlineEdit({
-  field,
-  value,
-  placeholder,
-  className = "",
-  multiline = false,
-  inputType = "text",
-  ariaLabel
-}: {
-  field: string;
-  value: string;
-  placeholder: string;
-  className?: string;
-  multiline?: boolean;
-  inputType?: string;
-  ariaLabel?: string;
-}) {
-  const ctx = useContext(InlineEditContext);
-  if (!ctx) return null;
-  const { editingField, tempValues, setTempValue, isSubmitting, error, startEditing, cancelEditing, saveInlineEdit } = ctx;
-
-  const isEditing = editingField === field;
-  const displayValue = value || placeholder;
-  const isEmpty = !value;
-
-  if (isEditing) {
-    return (
-      <div className="relative">
-        {/* Invisible copy of the display content keeps the field's footprint,
-            so the sm:absolute popup anchors to the FIELD (a positioned
-            ancestor) instead of resolving against the document top. */}
-        <div className={`px-2 py-1 min-h-[44px] invisible ${className}`} aria-hidden="true">
-          {displayValue}
-        </div>
-        {/* Backdrop to capture clicks outside */}
-        <div
-          className="fixed inset-0 z-40 bg-black/10"
-          onClick={cancelEditing}
-          aria-hidden="true"
-        />
-        {/* Edit box: viewport-centered on mobile, anchored to the field on sm+ */}
-        <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
-          {/* Stacked layout: full-width input on top, ✓/✕ in their own row
-              below. The old side-by-side row overflowed the bordered box on
-              narrow screens (input's intrinsic min-width + two 44px buttons
-              exceeded the max-w cap, so the buttons rendered OUTSIDE the
-              bubble) — and would have floated mid-height beside a textarea. */}
-          <div className="bg-surface border-2 border-violet-500 rounded-lg shadow-xl p-4 w-[min(320px,calc(100vw-2rem))]">
-          <div className="flex flex-col gap-2">
-            {multiline ? (
-              <textarea
-                value={tempValues[field] || ''}
-                onChange={(e) => setTempValue(field, e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
-                style={{ direction: 'ltr', unicodeBidi: 'normal' }}
-                dir="ltr"
-                rows={3}
-                autoFocus
-                aria-label={ariaLabel || `Edit ${field}`}
-                disabled={isSubmitting}
-              />
-            ) : (
-              <input
-                type={inputType}
-                value={tempValues[field] || ''}
-                onChange={(e) => setTempValue(field, e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
-                autoFocus
-                aria-label={ariaLabel || `Edit ${field}`}
-                disabled={isSubmitting}
-              />
-            )}
-            {error && (
-              <div className="text-red-600 dark:text-red-400 text-sm px-2" role="alert">
-                {error}
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={cancelEditing}
-                disabled={isSubmitting}
-                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-gray-500 text-white rounded-md text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Cancel editing"
-              >
-                ✕
-              </button>
-              <button
-                onClick={saveInlineEdit}
-                disabled={isSubmitting}
-                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Save changes"
-              >
-                {isSubmitting ? (
-                  <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                ) : (
-                  '✓'
-                )}
-              </button>
-            </div>
-          </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        className={`cursor-pointer hover:bg-brand-soft hover:outline hover:outline-2 hover:outline-violet-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-violet-500 transition-colors ${className} ${
-          isEmpty ? 'text-muted italic' : ''
-        }`}
-        onClick={() => startEditing(field, value)}
-        aria-label={ariaLabel || `Edit ${field}: ${displayValue}`}
-      >
-        {displayValue}
-      </button>
-    </div>
-  );
-}
 
 export default function AthleteProfilePage() {
   const { user, profile, loading, refreshProfile, initialAuthCheckComplete } = useAuth();
@@ -201,8 +57,6 @@ export default function AthleteProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [editingPerformance] = useState<Performance | undefined>();
-  const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const { showNotice, showError } = useToast();
   
   // Create Post Modal state
@@ -239,10 +93,6 @@ export default function AthleteProfilePage() {
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
 
-  // Inline editing states
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [tempValues, setTempValues] = useState<Record<string, string>>({});
-
   // Redirect to auth if not logged in
   useEffect(() => {
     if (!loading && !user) {
@@ -257,6 +107,7 @@ export default function AthleteProfilePage() {
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const p = sp.get('post');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a mount-only window.location read (a render-phase read breaks hydration on this prerendered page); the rule reports the first setState only
     if (p) setOpenPostId(p);
     const t = sp.get('tab');
     if (t) setDeepLinkTab(t);
@@ -274,21 +125,6 @@ export default function AthleteProfilePage() {
     setIsEditModalOpen(true);
   }
 
-  // Load athlete data
-  useEffect(() => {
-    if (user?.id) {
-      // Load critical data immediately
-      loadAthleteData(user.id);
-
-      // PERFORMANCE FIX: Defer follow stats to avoid blocking page render
-      // Use requestIdleCallback for better performance
-      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-      idleCallback(() => {
-        loadFollowStats(user.id);
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const loadAthleteData = async (profileId: string, skipLoadingState = false) => {
     try {
@@ -340,27 +176,26 @@ export default function AthleteProfilePage() {
     }
   };
 
-  // Prevent double submissions
-  const withSubmitProtection = (key: string, fn: () => Promise<void>) => {
-    return async () => {
-      if (submitStates[key]) return; // Already submitting
-      
-      setSubmitStates(prev => ({ ...prev, [key]: true }));
-      setErrors(prev => ({ ...prev, [key]: '' }));
-      
-      try {
-        await fn();
-      } catch (err) {
-        setErrors(prev => ({
-          ...prev,
-          [key]: err instanceof Error ? err.message : 'An error occurred'
-        }));
-      } finally {
-        setSubmitStates(prev => ({ ...prev, [key]: false }));
-      }
-    };
-  };
+  // Load athlete data (the loaders above are declared before this effect
+  // reads them — the compiler's immutability rule).
+  useEffect(() => {
+    if (user?.id) {
+      // Load critical data immediately. The loader is shared with the
+      // editor's onSave, the post delete and the composer (they await / call
+      // it), so it stays a handler-reachable function rather than an
+      // effect-local IIFE — the eslint.config.mjs-sanctioned shape.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the shared loader (see above)
+      loadAthleteData(user.id);
 
+      // PERFORMANCE FIX: Defer follow stats to avoid blocking page render
+      // Use requestIdleCallback for better performance
+      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+      idleCallback(() => {
+        loadFollowStats(user.id);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Performance editing temporarily disabled - keeping handlers for future use
   // const handleEditPerformance = (existingData?: Performance) => {
@@ -444,108 +279,14 @@ export default function AthleteProfilePage() {
 
   // Capture popovers off the two camera FABs (capture-everywhere round):
   // Take photo / Choose photo.
-  // Profile photos (Oct 14 2026): the upload button shows only while a slot
-  // is EMPTY; a set photo is tapped to view larger, and edited from there.
-  const [photoDoor, setPhotoDoor] = useState<ProfilePhotoSlot | null>(null);
+  // Profile photos (Oct 25 2026, Convention 52): a set photo is tapped to
+  // view larger and edited from there; an EMPTY slot shows nothing — photos
+  // are added in Edit Profile → Basic, like every other profile field.
   const [viewing, setViewing] = useState<ProfilePhotoSlot | null>(null);
 
   // Avatar picking/cropping/uploading lives in the shared AvatarUploader
   // (circle crop via the media editor); this just refreshes on success.
 
-  // Inline editing functions. Only the socials use InlineEdit since the
-  // header Training strip was removed (Aug 2026) — height/weight/location/
-  // class-year edit through Edit Profile → Body Metrics now.
-  const startEditing = (field: string, currentValue: string) => {
-    setEditingField(field);
-    const editValue =
-      !currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE ? '' : currentValue;
-    setTempValues({ [field]: editValue });
-  };
-
-  const cancelEditing = () => {
-    setEditingField(null);
-    setTempValues({});
-  };
-
-  const saveInlineEdit = withSubmitProtection('inline-edit', async () => {
-    if (!user?.id) {
-      throw new Error('User not authenticated');
-    }
-
-    const field = editingField!;
-    const newValue: string | number | null = tempValues[field];
-
-    if (field === 'full_name') {
-      // Split full_name into first_name and last_name
-      const fullNameTrimmed = (newValue as string).trim();
-      let firstName = '';
-      let lastName = '';
-
-      if (fullNameTrimmed) {
-        const nameParts = fullNameTrimmed.split(' ').filter(part => part.length > 0);
-        if (nameParts.length === 1) {
-          // Single name - treat as first name
-          firstName = nameParts[0];
-        } else if (nameParts.length >= 2) {
-          // Multiple names - first word is first name, rest is last name
-          firstName = nameParts[0];
-          lastName = nameParts.slice(1).join(' ');
-        }
-      }
-
-      // Cancel editing immediately for better UX
-      cancelEditing();
-
-      // Save all three name fields
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profileData: {
-            full_name: fullNameTrimmed || null,
-            first_name: firstName || null,
-            last_name: lastName || null
-          },
-          userId: user.id
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save changes. Please try again.');
-      }
-
-      // Refresh the data to confirm the update
-      await refreshProfile();
-      return; // Exit early since we handled the save
-    }
-
-    const updateData: Partial<Profile> = { [field]: newValue };
-    
-    // Cancel editing immediately for better UX
-    cancelEditing();
-
-    const response = await fetch('/api/profile', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        profileData: updateData,
-        userId: user.id
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to save changes. Please try again.');
-    }
-
-    // Refresh the data to confirm the update
-    await refreshProfile();
-  });
 
   // Show loading state during initial auth resolution
   if (loading || !initialAuthCheckComplete) {
@@ -580,16 +321,6 @@ export default function AthleteProfilePage() {
   }
 
   return (
-    <InlineEditContext.Provider value={{
-      editingField,
-      tempValues,
-      setTempValue: (field, value) => setTempValues(prev => ({ ...prev, [field]: value })),
-      isSubmitting: submitStates['inline-edit'],
-      error: errors['inline-edit'],
-      startEditing,
-      cancelEditing,
-      saveInlineEdit,
-    }}>
     <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader
@@ -609,22 +340,10 @@ export default function AthleteProfilePage() {
             size="lg"
             rowClassName="px-4 sm:px-6 lg:px-8 flex justify-center sm:justify-start"
             overlay={
-              <>
-                {/* The owner's corner (Oct 14 2026): Edit profile — the same
-                    editor as the header menu's entry, one tap from the cover. */}
-                <ProfileCornerControl mode="owner" onEdit={() => setIsEditModalOpen(true)} />
-                {!profile?.cover_url && (
-                  <button
-                    type="button"
-                    onClick={() => setPhotoDoor('cover')}
-                    aria-label="Add cover photo"
-                    className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg"
-                    data-add-cover=""
-                  >
-                    <i className="fas fa-camera" aria-hidden="true"></i>
-                  </button>
-                )}
-              </>
+              /* The owner's corner (Oct 14 2026): Edit profile — the same editor
+                 as the header menu's entry, one tap from the cover. The ONLY
+                 owner control on the header (Convention 52). */
+              <ProfileCornerControl mode="owner" onEdit={() => setIsEditModalOpen(true)} />
             }
             onCoverTap={profile?.cover_url ? () => setViewing('cover') : undefined}
             onAvatarTap={profile?.avatar_url ? () => setViewing('avatar') : undefined}
@@ -648,19 +367,6 @@ export default function AthleteProfilePage() {
                 </div>
               }
             />
-
-            {/* The upload button shows only while the picture is empty. */}
-            {!profile?.avatar_url && (
-              <button
-                type="button"
-                onClick={() => setPhotoDoor('avatar')}
-                aria-label="Add profile picture"
-                className="absolute -bottom-2 -right-2 w-14 h-14 bg-brand rounded-full flex items-center justify-center shadow-lg hover:bg-brand-hover transition-colors"
-                data-add-avatar=""
-              >
-                <i className="fas fa-camera text-white" aria-hidden="true"></i>
-              </button>
-            )}
           </ProfileCoverHeader>
           <div className="p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
@@ -668,7 +374,7 @@ export default function AthleteProfilePage() {
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
                   <h1 className="text-3xl sm:text-4xl font-bold text-primary mb-2 break-words">
-                    {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
+                    {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                   </h1>
                   {profile && getHandle(profile) && (
                     <p className="text-xl text-muted mb-2">
@@ -684,42 +390,11 @@ export default function AthleteProfilePage() {
                   {/* Top achievements — real athlete_achievements rows, the
                       same source as the Achievements tab (no fabricated
                       sample badges, ever) */}
-                  <div className="mb-4">
-                    <AchievementPills
-                      pills={topPills(achievements, 4)}
-                      emptyLabel={getPlaceholder('NO_ACHIEVEMENTS')}
-                    />
-                  </div>
-
-                  {/* Sport and Team Info. Single column below sm — two ~110px
-                      columns truncated nothing and just collided; truncate on
-                      each cell keeps "school • team" to one tidy line. */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm text-tertiary mb-4">
-                    {profile?.sport && (
-                      <div>
-                        <span className="font-medium text-primary">Sport:</span>
-                        <span className="ml-1">{profile.sport}</span>
-                      </div>
-                    )}
-                    {(profile?.school || profile?.team) && (
-                      <div className="min-w-0 truncate">
-                        <span className="font-medium text-primary">Team:</span>
-                        <span className="ml-1">{[profile?.school, profile?.team].filter(Boolean).join(' • ')}</span>
-                      </div>
-                    )}
-                    {profile?.position && (
-                      <div>
-                        <span className="font-medium text-primary">Position:</span>
-                        <span className="ml-1">{profile.position}</span>
-                      </div>
-                    )}
-                    {profile?.class_year && (
-                      <div>
-                        <span className="font-medium text-primary">Class:</span>
-                        <span className="ml-1">{profile.class_year}</span>
-                      </div>
-                    )}
-                  </div>
+                  {achievements.length > 0 && (
+                    <div className="mb-4">
+                      <AchievementPills pills={topPills(achievements, 4)} />
+                    </div>
+                  )}
 
                   {/* Clubs & Leagues memberships (org connections round) —
                       self-fetching, renders nothing when empty. */}
@@ -757,17 +432,14 @@ export default function AthleteProfilePage() {
                           // #334 pin scroll, landing the viewer on the hub.
                           setMediaRefreshKey(k => k + 1);
                         }}
-                        onAddSports={() => { setEditInitialTab('sports'); setIsEditModalOpen(true); }}
                       />
                     </div>
                   )}
 
-                  {/* Biography - View only, edit in modal */}
-                  <div className="text-primary leading-relaxed mb-4 block">
-                    {profile?.bio || (
-                      <span className="text-primary italic">{getPlaceholder('ADD_BIO')}</span>
-                    )}
-                  </div>
+                  {/* Biography — read-only; edited in Edit Profile → Basic */}
+                  {profile?.bio && (
+                    <div className="text-primary leading-relaxed mb-4 block">{profile.bio}</div>
+                  )}
                   
                   {/* Stats Row — Fans, Following, Posts (Tom's order) */}
                   <div className="flex items-center gap-6 text-sm">
@@ -797,51 +469,9 @@ export default function AthleteProfilePage() {
                     </div>
                   </div>
 
-                  {/* Social connections — directly under the profile info.
-                      Click-to-edit is the affordance here; visitor + /u
-                      surfaces render these as outbound links. */}
-                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4" role="list" aria-label="Social media links">
-                    <div className="flex items-center gap-2" role="listitem">
-                      <i className="fa-brands fa-x-twitter text-primary text-lg" aria-hidden="true"></i>
-                      <InlineEdit
-                        field="social_twitter"
-                        value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
-                        placeholder={getPlaceholder('ADD_TWITTER')}
-                        className="text-sm text-tertiary"
-                        ariaLabel="X handle"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2" role="listitem">
-                      <i className="fab fa-instagram text-pink-500 text-lg" aria-hidden="true"></i>
-                      <InlineEdit
-                        field="social_instagram"
-                        value={profile?.social_instagram ? formatSocialHandleDisplay(profile.social_instagram) : ''}
-                        placeholder={getPlaceholder('ADD_INSTAGRAM')}
-                        className="text-sm text-tertiary"
-                        ariaLabel="Instagram handle"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2" role="listitem">
-                      <i className="fa-brands fa-tiktok text-primary text-lg" aria-hidden="true"></i>
-                      <InlineEdit
-                        field="social_tiktok"
-                        value={profile?.social_tiktok ? formatSocialHandleDisplay(profile.social_tiktok) : ''}
-                        placeholder={getPlaceholder('ADD_TIKTOK')}
-                        className="text-sm text-tertiary"
-                        ariaLabel="TikTok handle"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2" role="listitem">
-                      <i className="fab fa-facebook text-brand-fg text-lg" aria-hidden="true"></i>
-                      <InlineEdit
-                        field="social_facebook"
-                        value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
-                        placeholder="Add Facebook"
-                        className="text-sm text-tertiary"
-                        ariaLabel="Facebook handle"
-                      />
-                    </div>
-                  </div>
+                  {/* Social links — the visitor's rendering (ProfileSocialLinks);
+                      the handles are edited in Edit Profile → Socials. */}
+                  <ProfileSocialLinks profile={profile} rowClassName="flex flex-wrap items-center gap-4 sm:gap-6 mt-4" />
                 </div>
               </div>
             </div>
@@ -925,6 +555,10 @@ export default function AthleteProfilePage() {
         }}
         initialTab={editInitialTab ?? undefined}
         profile={profile}
+        // Save returns to the read-only profile (Convention 52): the editor
+        // closes itself through its dirty check, so typing left on ANOTHER
+        // tab asks before it is lost — the same door as Close.
+        closeOnSave
         onSave={async () => {
           // The modal has already re-read the shared profile (useAuth);
           // this page's own data (stats, achievements, cards) follows.
@@ -981,19 +615,6 @@ export default function AthleteProfilePage() {
         onSave={handleSavePerformance}
       />
 
-      {photoDoor && (
-        <ProfilePhotoDoor
-          slot={photoDoor}
-          hasPhoto={photoDoor === 'avatar' ? !!profile?.avatar_url : !!profile?.cover_url}
-          mode="immediate"
-          profileId={profile?.id}
-          current={photoDoor === 'avatar'
-            ? { photoUrl: profile?.avatar_url ?? null, sourceUrl: profile?.avatar_source_url ?? null, recipe: profile?.avatar_recipe ?? null }
-            : { photoUrl: coverProxyUrl(profile?.id, profile?.cover_url), sourceUrl: profile?.cover_source_url ?? null, recipe: profile?.cover_recipe ?? null }}
-          onChanged={() => refreshProfile()}
-          onClose={() => setPhotoDoor(null)}
-        />
-      )}
       {viewing && profile && (
         <ProfilePhotoViewer
           slot={viewing}
@@ -1038,6 +659,5 @@ export default function AthleteProfilePage() {
         initialTab={followersModalTab}
       />
     </div>
-    </InlineEditContext.Provider>
   );
 }

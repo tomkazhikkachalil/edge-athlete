@@ -23,6 +23,7 @@ import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import ProfileSports from '@/components/profile/ProfileSports';
+import ProfileSocialLinks from '@/components/profile/ProfileSocialLinks';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
@@ -30,8 +31,6 @@ import type { Achievement } from '@/lib/achievements';
 import {
   formatDisplayName,
   getInitials,
-  formatSocialHandle,
-  formatSocialHandleDisplay
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { COPY } from '@/lib/copy';
@@ -419,55 +418,8 @@ export default function AthleteProfilePage() {
                   <span>Posts</span>
                 </div>
 
-                {/* Social links */}
-                {profile.social_twitter && (
-                  <a
-                    href={`https://x.com/${formatSocialHandle(profile.social_twitter)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on X`}
-                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
-                  >
-                    <i className="fa-brands fa-x-twitter text-2xl" aria-hidden="true"></i>
-                    <span>{formatSocialHandleDisplay(profile.social_twitter)}</span>
-                  </a>
-                )}
-                {profile.social_instagram && (
-                  <a
-                    href={`https://instagram.com/${formatSocialHandle(profile.social_instagram)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Instagram`}
-                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
-                  >
-                    <i className="fa-brands fa-instagram text-2xl text-pink-600" aria-hidden="true"></i>
-                    <span>{formatSocialHandleDisplay(profile.social_instagram)}</span>
-                  </a>
-                )}
-                {profile.social_tiktok && (
-                  <a
-                    href={`https://www.tiktok.com/@${formatSocialHandle(profile.social_tiktok)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on TikTok`}
-                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
-                  >
-                    <i className="fa-brands fa-tiktok text-2xl" aria-hidden="true"></i>
-                    <span>{formatSocialHandleDisplay(profile.social_tiktok)}</span>
-                  </a>
-                )}
-                {profile.social_facebook && (
-                  <a
-                    href={`https://facebook.com/${formatSocialHandle(profile.social_facebook)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Facebook`}
-                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
-                  >
-                    <i className="fa-brands fa-facebook text-2xl text-brand-fg" aria-hidden="true"></i>
-                    <span>{formatSocialHandleDisplay(profile.social_facebook)}</span>
-                  </a>
-                )}
+                {/* Social links — the ONE rendering, shared with the owner's /athlete */}
+                <ProfileSocialLinks profile={profile} />
 
                 {/* The actions pair — Message + Become a Fan — ends the row
                     (its own full-width line at a phone width). */}

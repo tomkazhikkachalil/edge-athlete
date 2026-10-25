@@ -17,7 +17,7 @@ import { managedProfilePhotoPath, managedProfileSourcePath } from '../src/lib/pr
 const PHOTO = join(process.cwd(), 'e2e', 'fixtures', 'photo.png');
 const GOLD = 'gold'; // src/lib/media/filters.ts — the 'Gold' film look
 
-test('photos: add both through the door, the buttons go, tap → viewer → Edit → Remove brings them back @mobile', async ({ browser }) => {
+test('photos: no upload buttons on the profile; both through Edit Profile, tap → viewer → Edit → Adjust → Remove @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = adminClient();
   const u = await createQaUser({ displayName: 'Photo Pia', firstName: 'Photo', lastName: 'Pia' });
@@ -26,16 +26,19 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
   try {
     const page = await ctx.newPage();
     await page.goto('/athlete');
-    // Empty slots: both upload buttons, no photo to tap.
-    const addAvatar = page.getByRole('button', { name: 'Add profile picture', exact: true });
-    const addCover = page.getByRole('button', { name: 'Add cover photo', exact: true });
-    await expect(addAvatar).toBeVisible({ timeout: 30_000 });
-    await expect(addCover).toBeVisible();
+    // Empty slots: NO upload buttons on the profile (Convention 52 — photos
+    // are set in Edit Profile → Basic), and no photo to tap.
+    await expect(page.locator('[data-profile-cover] [data-profile-edit]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Add profile picture', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add cover photo', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'View profile picture', exact: true })).toHaveCount(0);
 
-    // The picture through the door: Upload a new photo → the full editor
-    // (every post tool, the round frame on a non-crop tab) → a film look → Done.
-    await addAvatar.click();
+    // The picture through Edit Profile's door: Change profile picture →
+    // Upload a new photo → the full editor (every post tool, the round frame
+    // on a non-crop tab) → a film look → Done → Save Basic.
+    await page.locator('[data-profile-cover] [data-profile-edit]').click();
+    const editor = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+    await editor.getByRole('button', { name: 'Change profile picture', exact: true }).click({ timeout: 30_000 });
     const door = page.locator('[data-photo-door="avatar"]');
     await expect(door.getByRole('dialog')).toBeVisible();
     await expect(door.locator('[data-photo-remove]')).toHaveCount(0); // nothing to remove yet
@@ -57,16 +60,22 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
     await expect(page.locator('[data-circular-preview]')).toBeVisible();
     await page.getByRole('button', { name: /Gold/ }).click();
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
-    await expect(addAvatar).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.locator('[data-profile-avatar] img')).toBeVisible();
+    // Edit Profile holds the render and uploads it on Save; Save returns to the profile.
+    await expect(editor.getByAltText('New profile picture')).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Save Basic' }).click();
+    await expect(editor).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator('[data-profile-avatar] img')).toBeVisible({ timeout: 30_000 });
 
-    // The cover the same way.
-    await addCover.click();
+    // The cover the same way — through Edit Profile.
+    await page.locator('[data-profile-cover] [data-profile-edit]').click();
+    await editor.getByRole('button', { name: 'Change cover photo', exact: true }).click({ timeout: 30_000 });
     const coverDoor = page.locator('[data-photo-door="cover"]');
     await coverDoor.locator('input[aria-label="Choose a cover photo"]').setInputFiles(PHOTO);
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
-    await expect(addCover).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.locator('[data-profile-cover="photo"]')).toBeVisible();
+    await expect(editor.getByAltText('New cover photo')).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Save Basic' }).click();
+    await expect(editor).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator('[data-profile-cover="photo"]')).toBeVisible({ timeout: 30_000 });
     const { data: row } = await admin.from('profiles').select('avatar_url, cover_url, avatar_source_url, avatar_recipe, cover_source_url, cover_recipe').eq('id', u.id).single();
     expect(row?.avatar_url).toBeTruthy();
     expect(row?.cover_url).toBeTruthy();
@@ -116,7 +125,9 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
     const confirm = page.getByRole('dialog').filter({ hasText: 'Remove profile picture?' });
     await expect(confirm).toContainText('This cannot be undone');
     await confirm.getByRole('button', { name: 'Remove', exact: true }).click();
-    await expect(addAvatar).toBeVisible({ timeout: 30_000 });
+    // The default picture is back — and NO upload button appears on the profile (Convention 52).
+    await expect(page.getByRole('button', { name: 'View profile picture', exact: true })).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Add profile picture', exact: true })).toHaveCount(0);
     const { data: after } = await admin.from('profiles').select('avatar_url, avatar_source_url, avatar_recipe').eq('id', u.id).single();
     expect(after?.avatar_url).toBeNull();
     // Remove takes the kept original and its crop with it (264).
@@ -124,11 +135,10 @@ test('photos: add both through the door, the buttons go, tap → viewer → Edit
     expect(after?.avatar_recipe).toBeNull();
     expect(await listSources()).toEqual(expect.not.arrayContaining([expect.stringMatching(/^avatar-/)]));
 
-    // Edit profile offers both photos.
+    // Edit profile (the header menu's entry too) offers both photos.
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
     // Exact: the cover's corner pencil is "Edit profile" too (Oct 14 2026).
     await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
-    const editor = page.getByRole('dialog').filter({ hasText: 'Edit Profile' });
     await expect(editor.getByRole('button', { name: 'Change profile picture', exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(editor.getByRole('button', { name: 'Change cover photo', exact: true })).toBeVisible();
   } finally {

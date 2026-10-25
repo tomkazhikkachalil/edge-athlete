@@ -102,7 +102,9 @@ test('@mobile a library photo reaches the editor quickly — composer and profil
     const composer = await timedPick(page, LIBRARY, { annotate });
 
     await page.goto('/athlete');
-    await page.getByRole('button', { name: 'Add profile picture', exact: true }).click({ timeout: 30_000 });
+    // Convention 52: no upload button on the profile — the picture is picked in Edit Profile → Basic.
+    await page.locator('[data-profile-cover] [data-profile-edit]').click({ timeout: 30_000 });
+    await page.getByRole('dialog', { name: 'Edit Profile', exact: true }).getByRole('button', { name: 'Change profile picture', exact: true }).click({ timeout: 30_000 });
     const avatar = await timedPick(page, '[data-photo-door="avatar"] input[aria-label="Choose a profile photo"]', { annotate });
 
     for (const [name, ms] of [['composer pick → editor', composer], ['profile picture pick → editor', avatar]] as const) {
