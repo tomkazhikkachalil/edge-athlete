@@ -17,8 +17,9 @@ import { shouldPoll } from '@/lib/net/online';
 //     rows (filtered to the roster's participant ids — scale fix 1, Oct 25
 //     2026: a table-wide subscription delivered every score written anywhere
 //     to every spectator and feed card, one refetch each), on this round's
-//     group_post_participants rows (a late joiner → refresh the roster and
-//     resubscribe with the new filter; migration 273 publishes the table),
+//     group_post_participants rows ON A SECOND CHANNEL (a late joiner →
+//     refresh the roster and resubscribe with the new filter; migration 273
+//     publishes the table — unpublished, only that channel fails),
 //     and on this round's group_posts row (status flips: LIVE → FINAL streams
 //     to viewers, e.g. End Round),
 //   • retries failed subscriptions with backoff and reports connectionState,
@@ -198,16 +199,6 @@ export function useSharedRound({
     channel = channel
       .on(
         'postgres_changes',
-        // The roster: a late joiner (or a removal) → refresh; the new roster
-        // key then resubscribes this effect with the widened scores filter.
-        // Published by migration 273; until it is live, the poll carries it.
-        { event: '*', schema: 'public', table: 'group_post_participants', filter: `group_post_id=eq.${groupPostId}` },
-        () => {
-          refresh();
-        }
-      )
-      .on(
-        'postgres_changes',
         // Status flips (pending→active→completed, End Round) stream to every
         // viewer — the badge and leaderboard state follow without a reload.
         { event: 'UPDATE', schema: 'public', table: 'group_posts', filter: `id=eq.${groupPostId}` },
@@ -231,9 +222,30 @@ export function useSharedRound({
         }
       });
 
+    // The roster listener rides on its OWN channel: a late joiner (or a
+    // removal) → refresh; the new roster key then resubscribes the scores
+    // channel above with the widened filter. group_post_participants is
+    // published by migration 273 — and a listener on an UNPUBLISHED table
+    // fails its whole channel (proven on staging, Oct 25 2026: with the
+    // table out of the publication, one shared channel delivered NO scores
+    // at all). Apart, a missing publication degrades only the joiner path
+    // (the poll still carries it); it never takes the scores with it. Its
+    // status is not the hook's connectionState.
+    const rosterChannel = supabase
+      .channel(`shared-round-roster:${groupPostId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'group_post_participants', filter: `group_post_id=eq.${groupPostId}` },
+        () => {
+          refresh();
+        }
+      )
+      .subscribe();
+
     return () => {
       if (retryTimer) clearTimeout(retryTimer);
       supabase.removeChannel(channel);
+      supabase.removeChannel(rosterChannel);
       setConnectionState('idle');
     };
   }, [enabled, groupPostId, refresh, retryNonce, rosterKey]);
