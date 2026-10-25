@@ -4,22 +4,17 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
-// The count is RECOUNTED after every toggle (Oct 4 2026 — the post like
-// route's pattern): `post_comments.likes_count` used to ride +1/−1 triggers
-// alone, and a drifted number was never corrected. Tom: "make sure the count
-// is accurate." The triggers stay as defense; this is the truth the caller
-// renders. A failed recount keeps the stored number rather than failing the like.
-async function recountCommentLikes(admin: ReturnType<typeof getSupabaseAdmin>, commentId: string): Promise<number> {
-  const { count, error } = await admin
-    .from('comment_likes')
-    .select('id', { count: 'exact', head: true })
-    .eq('comment_id', commentId);
-  if (error || count === null) {
-    const { data } = await admin.from('post_comments').select('likes_count').eq('id', commentId).single();
-    return data?.likes_count ?? 0;
-  }
-  await admin.from('post_comments').update({ likes_count: count }).eq('id', commentId);
-  return count;
+// The TRIGGER recounts; the route READS (scale fix 4, Oct 25 2026 —
+// Convention 32 amended). Oct 4 2026 made the count a RECOUNT because the old
+// +1/−1 triggers drifted and nothing corrected them (Tom: "make sure the count
+// is accurate"); migration 252 then made the comment_likes triggers
+// themselves RECOUNT (`increment_` / `decrement_comment_likes_count` both set
+// the column to COUNT(*)) inside the same statement as the like. So the route's
+// own count + update was a second, identical pass — pure cost. The accuracy
+// rule is unchanged: the trigger's recount is the truth; this reads it.
+async function readCommentLikes(admin: ReturnType<typeof getSupabaseAdmin>, commentId: string): Promise<number> {
+  const { data } = await admin.from('post_comments').select('likes_count').eq('id', commentId).maybeSingle();
+  return data?.likes_count ?? 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -71,8 +66,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to unlike comment' }, { status: 500 });
       }
 
-      // Get updated count after unlike
-      const likesCount = await recountCommentLikes(supabaseAdmin, commentId);
+      // The delete's trigger recounted the column; read it.
+      const likesCount = await readCommentLikes(supabaseAdmin, commentId);
 
 
       return NextResponse.json({
@@ -93,16 +88,16 @@ export async function POST(request: NextRequest) {
 
         // Handle unique constraint violation (23505 is PostgreSQL's duplicate key error)
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
-          // User already liked this comment (race condition), get current count
-          const likesCount = await recountCommentLikes(supabaseAdmin, commentId);
+          // User already liked this comment (race condition): the other request's trigger wrote the column.
+          const likesCount = await readCommentLikes(supabaseAdmin, commentId);
           return NextResponse.json({ isLiked: true, likes_count: likesCount });
         }
 
         return NextResponse.json({ error: 'Failed to like comment' }, { status: 500 });
       }
 
-      // Get updated count after like
-      const likesCount = await recountCommentLikes(supabaseAdmin, commentId);
+      // The insert's trigger recounted the column; read it.
+      const likesCount = await readCommentLikes(supabaseAdmin, commentId);
 
 
       return NextResponse.json({
