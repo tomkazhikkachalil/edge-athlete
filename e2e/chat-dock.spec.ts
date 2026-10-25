@@ -121,7 +121,10 @@ test('fresh login restores a closed dock', async ({ browser }) => {
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const page = await ctx.newPage();
-    await page.goto('/');
+    // `?signin=1`: the launch gate (Sep 30 2026) sends a signed-out `/` to
+    // coming-soon on production and lets the login form through here only;
+    // harmless when the gate is off (auth-login.spec's rule).
+    await page.goto('/?signin=1');
     // Simulate "closed the dock in a previous session" — page.evaluate, NOT
     // addInitScript (which re-runs on every document load and would re-seed
     // the key after signIn clears it).
