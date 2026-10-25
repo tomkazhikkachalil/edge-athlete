@@ -21,7 +21,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen; Training's Start chooser, one bubble per exercise, a clip belongs to the exercise; the rest timer's phases, the total beside the clock, the picker panel, rest is personal (Oct 22 2026); the stopwatch's lead-in, count-down, bell, rest interplay and longest-hold records (Oct 23 2026) |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes; the sport setup as steps (51) |
-| `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026) |
+| `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026); one live signal for the list, presence only while the dock is in use (Oct 25 2026) |
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
 
