@@ -81,6 +81,7 @@ Tom asked for "something fun", and set one rule: *"I don't want it just be about
   - The `cheer` bucket applies. Like a like, it isn't on the write-gate list.
 - **"Live" follows the event round.** An event's golf group post stays `pending` until its first score. A casual round is live while pending or active and not gone quiet. `last_score_activity_at` is derived from the newest card write; it is **not a column**.
 - **The client:** `useCheers` polls every 10 s while visible. The floats are portaled to `<body>` at `z-[70]`, above the score-entry sheet.
+- **One grouped query for the totals** (scale fix 5, Oct 25 2026, migration 275): `readCheerFeed` calls `live_cheer_totals(context_key)` — one pass over `idx_live_cheers_context`, grouped by key — instead of six per-key head counts; a poll is four statements (the gate's two, the totals, the recent list), was nine. Rows never leave the database (the Sep 29 cap trap). `cheers-feed-shape.test.ts` pins it.
 - The daily cron purges cheers after 30 days.
 
 ## Friend challenges

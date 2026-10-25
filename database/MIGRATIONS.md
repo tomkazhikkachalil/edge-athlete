@@ -593,6 +593,21 @@ after are identical (`database/provenance/explain/2026-10-25/search-results-
 `database/tests/diagnostics/verify-274-search.sql`. Expected row on both:
 `274 APPLIED | 2 | 0 | 1 | true | 274`.
 
+## The cheer totals in one grouped query (migration 275, Oct 25 2026 — scale fix 5)
+
+`readCheerFeed` ran SIX `count: 'exact'` head requests per poll (one per cheer
+key — PostgREST cannot GROUP BY) plus the gate's two reads and the recent
+read: nine statements every 10 s per watcher of a live round. 275 adds
+`live_cheer_totals(p_context_key text) RETURNS TABLE (cheer text, n bigint)`
+— `LANGUAGE sql STABLE SECURITY INVOKER`, `search_path = public`, EXECUTE for
+service_role only (the API roles are revoked; `/api/live/cheers` is the one
+door and gates the context first) — one pass over `idx_live_cheers_context`,
+grouped by key. Rows still never leave the database (the 5,000-row cap trap
+of Sep 29 2026). No table change, no grants to add. Staging EXPLAIN on 5,000
+synthetic cheers of one round (rolled back): one per-key count 1.1 ms / 78
+buffers → ×6 ≈ 6.6 ms + six round trips; the grouped function 2.1 ms / 115
+buffers, one round trip. Expected row on both: `275 APPLIED | 1 | false | 275`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
