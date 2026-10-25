@@ -392,16 +392,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Count actual rows and sync cached column — published only (095): a
-    // held comment must not bump the public count.
-    const { count } = await admin
-      .from('post_comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('post_id', postId)
-      .eq('status', 'published');
-
-    const trueCount = count ?? 0;
-    await admin.from('posts').update({ comments_count: trueCount }).eq('id', postId);
+    // The TRIGGER recounts; the route READS (scale fix 4, Oct 25 2026,
+    // Convention 32 amended): 095's `trigger_update_post_comments_count`
+    // recounted `posts.comments_count` — published only, so a held comment
+    // does not bump the public count — inside the insert's own statement.
+    // The route's second count + update was the same work twice.
+    const { data: counted } = await admin.from('posts').select('comments_count').eq('id', postId).maybeSingle();
+    const trueCount = counted?.comments_count ?? 0;
 
     // Held comment: no fan-out of any kind until approval (the DB post-owner
     // trigger is also status-guarded). Tell the guardians instead.
@@ -532,18 +529,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Count actual rows and sync cached column — published only (095)
+    // The delete's trigger (095, published only) recounted the column; read it
+    // (scale fix 4, Convention 32 amended).
     let commentsCount = 0;
     if (postId) {
-      const admin = getSupabaseAdmin();
-      const { count } = await admin
-        .from('post_comments')
-        .select('id', { count: 'exact', head: true })
-        .eq('post_id', postId)
-        .eq('status', 'published');
-
-      commentsCount = count ?? 0;
-      await admin.from('posts').update({ comments_count: commentsCount }).eq('id', postId);
+      const { data: counted } = await getSupabaseAdmin().from('posts').select('comments_count').eq('id', postId).maybeSingle();
+      commentsCount = counted?.comments_count ?? 0;
     }
 
     return NextResponse.json({ success: true, commentsCount });

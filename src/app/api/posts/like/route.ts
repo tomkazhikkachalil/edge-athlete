@@ -4,6 +4,19 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
+// The TRIGGER recounts; the route READS (scale fix 4, Oct 25 2026 —
+// docs/SCALE_AUDIT.md hole 4, Convention 32 amended). 015's
+// `trigger_update_post_likes_count` recounts `posts.likes_count` inside the
+// same statement as the like's insert or delete, so by the time the route's
+// write returns the column is already the truth. The route used to COUNT the
+// likes again and UPDATE the column a second time — two counts and two
+// `posts` writes per like, the second pair pure cost (the O(likes) count
+// twice on a popular post). One indexed read now.
+async function readLikesCount(admin: ReturnType<typeof getSupabaseAdmin>, postId: string): Promise<number> {
+  const { data } = await admin.from('posts').select('likes_count').eq('id', postId).maybeSingle();
+  return data?.likes_count ?? 0;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // The liking profile is ALWAYS the session user — never a body-supplied
@@ -82,14 +95,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to unlike post' }, { status: 500 });
       }
 
-      // Count actual rows and sync cached column
-      const { count } = await supabase
-        .from('post_likes')
-        .select('id', { count: 'exact', head: true })
-        .eq('post_id', postId);
-
-      const trueCount = count ?? 0;
-      await supabase.from('posts').update({ likes_count: trueCount }).eq('id', postId);
+      // The delete's trigger recounted the column; read it.
+      const trueCount = await readLikesCount(supabase, postId);
 
       return NextResponse.json({
         action: 'unliked',
@@ -110,30 +117,20 @@ export async function POST(request: NextRequest) {
 
         // Handle unique constraint violation (23505 is PostgreSQL's duplicate key error)
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
-          // User already liked this post (race condition), get current count
-          const { count } = await supabase
-            .from('post_likes')
-            .select('id', { count: 'exact', head: true })
-            .eq('post_id', postId);
-
+          // User already liked this post (race condition): the other
+          // request's trigger wrote the column — read it.
           return NextResponse.json({
             action: 'liked',
             message: 'Post already liked',
-            likesCount: count ?? 0
+            likesCount: await readLikesCount(supabase, postId)
           });
         }
 
         return NextResponse.json({ error: 'Failed to like post' }, { status: 500 });
       }
 
-      // Count actual rows and sync cached column
-      const { count } = await supabase
-        .from('post_likes')
-        .select('id', { count: 'exact', head: true })
-        .eq('post_id', postId);
-
-      const trueCount = count ?? 0;
-      await supabase.from('posts').update({ likes_count: trueCount }).eq('id', postId);
+      // The insert's trigger recounted the column; read it.
+      const trueCount = await readLikesCount(supabase, postId);
 
       return NextResponse.json({
         action: 'liked',
