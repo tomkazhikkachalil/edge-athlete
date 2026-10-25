@@ -77,11 +77,21 @@ match against `places` (108's `backfill_places_from_text` does this for
   `ts_rank` and `ts_rank_cd` both score term PROXIMITY for AND queries, so
   a city token beside a region token beats a name token whatever the
   weights (107, probe-caught).
-- Ranking ladder, in order: exact name → name prefix → per-token rank
-  (`search_token_hits` on the name vector, then `search_token_rank` — 107;
-  never plain `ts_rank`/`ts_rank_cd`, which score term PROXIMITY for AND
-  queries) → richness (the entity's own "has real data" rule) → recency →
+- Ranking ladder, in order — as the CODE orders it (`search_all`, 112 → 274):
+  tier (exact name 0 → name prefix 1 → a name-vector token hit 2 → a
+  document-vector hit 3 → a substring hit 4) → name token hits
+  (`search_token_hits`' count on the name vector) → richness (the entity's
+  own "has real data" rule) → recency → the token score
+  (`search_token_rank`'s sum of single-token `ts_rank`; never plain
+  `ts_rank`/`ts_rank_cd`, which score term PROXIMITY for AND queries) →
   distance → name. A "near me" browse (empty `q`) puts distance first.
+  **274 (Oct 25 2026, scale fix 2):** the per-row inputs are STORED —
+  `search_documents.title_norm` (= `search_normalize(title)`) and
+  `title_vector` (= `to_tsvector('simple', title_norm)`), kept by the one
+  `search_documents_title_sync` trigger — and the query's token tsqueries are
+  parsed once per call; the order is unchanged (the nine-query before/after
+  lists under `database/provenance/explain/2026-10-25/` are identical) and a
+  common-prefix query went 478 → 27 ms on 2,471 documents.
 - Security: `SECURITY INVOKER`, `REVOKE EXECUTE … FROM PUBLIC, anon,
   authenticated`, `GRANT … TO service_role`; routes call through the admin
   client and apply privacy themselves (087's rule). Migrations end with a
