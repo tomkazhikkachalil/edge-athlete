@@ -392,8 +392,10 @@ A new environment is built from the LIVE schema instead:
    check:schema` must report 0 drift on every facet AND `Ledger OK`. That
    is the only proof the environment is built — never the result row.
 4. **By hand, after:** the pg_cron jobs (not in the file — `cron.job` is not
-   readable by the service role; 059 and 135 are the two
-   — they need the NEW app URL and `CRON_SECRET`; staging has NONE by
+   readable by the service role; EIGHT by Oct 2026 — calendar-reminders,
+   urgent-emails, push-sweep, golf-map-sweep, media-jobs,
+   platform-health-sample, platform-rollup call `net.http_*`, cron-history-prune
+   does not — they need the NEW app URL and `CRON_SECRET`; staging has NONE by
    decision: previews have no stable URL); storage
    OBJECTS and the golf catalog (28k courses — data, not schema; copy
    with a one-off script when the environment needs it); auth users.
@@ -458,11 +460,19 @@ report of why this section exists.
 - **`schema_dump()` (258) exports `private` too** — the schemas with the API
   roles' USAGE and each function's schema — so `000_rebuild.sql` creates the
   schema and its helpers before the policies that call them.
-- **Accepted, by decision (Tom):** `pg_net` stays in `public` — it does not
-  support `SET SCHEMA`, and a drop + create pauses the pg_cron jobs that call
-  `net.http_post`; its objects live in the `net` schema regardless. The
-  leaked-password protection is a dashboard toggle (Authentication → Attack
-  Protection), not SQL.
+- **`pg_net` lives in `extensions` (migration 272, Oct 25 2026 — this
+  supersedes the Oct 9 acceptance).** It is non-relocatable, so the move is
+  Supabase's documented `drop extension pg_net; create extension pg_net with
+  schema extensions;` in ONE transaction. Nothing depended on the extension
+  record: the pg_cron jobs that call `net.http_*` are SQL strings in
+  `cron.job.command` (their `CRON_SECRET` inside them), not functions, so
+  they survive the drop untouched; what is lost is the request queue and
+  the response log — fire-and-forget pings to our own cron routes, which
+  re-fire within minutes. The extension is owned by `supabase_admin` on both
+  databases (Supabase's extension manager escalates trusted extensions) and
+  the same manager runs the DROP / CREATE for `postgres` — staging proved it.
+  The leaked-password protection is a dashboard toggle (Authentication →
+  Attack Protection; Pro plan), not SQL.
 
 ## One permissive policy per (table, command); no duplicate indexes (migration 271, Oct 25 2026)
 
@@ -516,6 +526,31 @@ and after.
   **no GRANTs** (the Oct 30 rule is about `CREATE TABLE`). The baseline is
   regenerated AFTER 271 runs on production (`npm run build:baseline`), as a
   separate PR.
+
+## pg_net out of `public` (migration 272, Oct 25 2026)
+
+The Security Advisor's `extension_in_public` for `pg_net` — accepted on Oct 9
+(257) because "a drop + create pauses the cron jobs" — closed. Re-examined:
+the pause is one transaction; the seven `net.http_*` jobs are text rows in
+`cron.job` (059/135 → 246, 248, 255, 262, 268), never extension dependents, and
+their `Bearer` secret is inside the command text; no function body calls
+`net.*`; nothing grants on `net`. 272 therefore runs the documented move
+(`create schema if not exists extensions; drop extension pg_net; create
+extension pg_net with schema extensions;`) with guards (ledger ≥ 271; not
+installed → NOTICE + skip; already in `extensions` → NOTICE + skip; any other
+schema → refuse), a NOTICE of the queued requests about to be dropped, and a
+post-check that `net.http_post(text,jsonb,jsonb,jsonb,integer)` /
+`net.http_get(text,jsonb,jsonb,integer)` resolve, `postgres` keeps USAGE on
+`net`, and every job still carries its secret. The extension's owner is
+`supabase_admin` on both databases (the extension manager), and the SQL
+editor's `postgres` still drops and creates it — staging proved it Oct 25:
+`272 APPLIED | extensions | 0 | true | 0 | 272`. Expected on production:
+`272 APPLIED | extensions | 0 | true | 7 | 272`; then within ~5 minutes
+`platform_cron_runs()` shows fresh successful runs. If none arrive,
+`SELECT net.worker_restart();` restarts pg_net's background worker. The
+baseline regenerated after the prod run emits `pg_net WITH SCHEMA extensions`
+by itself (the generator copies the live namespace). `check:schema` has no
+extensions facet; the ledger row is the proof it ran.
 
 ## ⚠️ Everything else is historical — do NOT run it
 
