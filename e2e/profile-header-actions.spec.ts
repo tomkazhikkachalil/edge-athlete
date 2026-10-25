@@ -80,6 +80,15 @@ async function ownerChecks(page: Page) {
   const pencil = page.locator('[data-profile-cover] [data-profile-edit]');
   await expect(pencil).toBeVisible();
   await expect(page.locator('[data-profile-menu]')).toHaveCount(0);
+  // Convention 52 (Oct 25 2026): the owner's view is the visitor's view plus
+  // this ONE control — no inline editor, no "add your …" prompt, no empty-slot
+  // photo button on the profile itself.
+  await expect(page.locator('[data-profile-edit]')).toHaveCount(1);
+  await expect(page.getByLabel('X handle')).toHaveCount(0);
+  await expect(page.getByText('Add your bio')).toHaveCount(0);
+  await expect(page.getByText('Add your name in Edit Profile')).toHaveCount(0);
+  await expect(page.locator('[data-sports-empty], [data-add-avatar], [data-add-cover]')).toHaveCount(0);
+  await expect(page.locator('[data-profile-cover]').locator('input')).toHaveCount(0);
   await pencil.click();
   await expect(page.getByRole('dialog', { name: 'Edit Profile', exact: true })).toBeVisible({ timeout: 15_000 });
 }

@@ -58,15 +58,25 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
     const uploads: Array<Promise<number>> = [];
     page.on('request', r => { if (r.url().includes('/api/upload/cover') && r.method() === 'POST') uploads.push(bodyBytes(r)); });
 
-    // A first cover (the add door), so every step below CHANGES one.
+    // A first cover — through Edit Profile (Convention 52: no upload button on
+    // the profile) — so every step below CHANGES one. /athlete/[id] of one's
+    // own id lands on /athlete.
     await page.goto(`/athlete/${u.id}`);
-    await page.getByRole('button', { name: 'Add cover photo', exact: true }).click({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Add cover photo', exact: true })).toHaveCount(0);
+    await page.locator('[data-profile-cover] [data-profile-edit]').click({ timeout: 30_000 });
+    const editor0 = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
+    await editor0.getByRole('button', { name: 'Change cover photo', exact: true }).click({ timeout: 30_000 });
     const door = page.locator('[data-photo-door="cover"]');
     let chooser = page.waitForEvent('filechooser');
     await door.locator('[data-photo-upload]').click();
     await (await chooser).setFiles(PHOTO);
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
-    await expect(door).toHaveCount(0, { timeout: 30_000 });
+    await expect(editor0.getByAltText('New cover photo')).toBeVisible({ timeout: 30_000 });
+    const saved0 = page.waitForResponse(r => r.url().includes('/api/upload/cover') && r.request().method() === 'POST', { timeout: 60_000 });
+    await page.getByRole('button', { name: 'Save Basic' }).click();
+    expect((await saved0).status(), 'the first cover uploads').toBe(200);
+    await expect(editor0).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator('[data-profile-cover="photo"]')).toBeVisible({ timeout: 30_000 });
     const first = await coverRow();
     expect(first?.cover_url, 'the first cover saved').toBeTruthy();
     keep(first);

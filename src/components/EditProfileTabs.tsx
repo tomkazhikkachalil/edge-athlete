@@ -62,6 +62,10 @@ interface EditProfileTabsProps {
    *  Applied on the open transition only; invalid or hidden ids fall back to
    *  the default 'basic'. */
   initialTab?: string;
+  /** Convention 52 (Oct 25 2026): a tab's Save also closes the editor — through
+   *  requestClose, so typing left unsaved on ANOTHER tab gets the discard
+   *  prompt instead of vanishing. The root host closes in its own onSave. */
+  closeOnSave?: boolean;
 }
 
 /**
@@ -116,7 +120,8 @@ export default function EditProfileTabs({
   profile,
   onSave,
   targetProfileId,
-  initialTab
+  initialTab,
+  closeOnSave = false
 }: EditProfileTabsProps) {
   const { user, refreshProfile } = useAuth();
   const { showError } = useToast();
@@ -234,9 +239,14 @@ export default function EditProfileTabs({
   const serializeSportSettings = (sportKey: SportKey) =>
     JSON.stringify(sportSettings[sportKey] ?? {});
 
-  const isDirty = () => {
-    const staticDirty = (Object.keys(serializeGroup) as (keyof typeof serializeGroup)[]).some(
-      key => snapRef.current[key] !== undefined && snapRef.current[key] !== serializeGroup[key]()
+  type GroupKey = keyof typeof serializeGroup;
+  /** Dirty anywhere — or, with `except`, anywhere OUTSIDE that group. The
+   *  save path asks the second question: the group just saved is clean by
+   *  definition, and its state in this closure may still be the pre-save
+   *  shape (a pending photo cleared by a setState that has not rendered). */
+  const isDirtyOutside = (except?: GroupKey) => {
+    const staticDirty = (Object.keys(serializeGroup) as GroupKey[]).some(
+      key => key !== except && snapRef.current[key] !== undefined && snapRef.current[key] !== serializeGroup[key]()
     );
     if (staticDirty) return true;
 
@@ -245,6 +255,8 @@ export default function EditProfileTabs({
       return snapshot !== undefined && snapshot !== serializeSportSettings(sportKey);
     });
   };
+  const isDirty = () => isDirtyOutside();
+  const GROUP_OF_TAB: Record<TabId, GroupKey> = { basic: 'basic', sports: 'sports', body_metrics: 'bodyMetrics', socials: 'socials', recruiting: 'recruiting' };
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   // Every other useDirtyClose consumer pairs it with the scroll lock; this
@@ -662,6 +674,14 @@ export default function EditProfileTabs({
       if (saved) {
         setJustSaved(true);
         onSave();
+        // Save returns to the profile (Convention 52). The group just saved
+        // is clean by definition; if ANOTHER tab still holds unsaved typing
+        // the discard prompt asks first (requestClose), else a plain close —
+        // the hook's own rule: never confirm after a clean save.
+        if (closeOnSave) {
+          if (isDirtyOutside(GROUP_OF_TAB[tabId])) requestClose();
+          else onClose();
+        }
       }
     }
   };

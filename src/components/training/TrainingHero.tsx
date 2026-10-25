@@ -73,13 +73,13 @@ export default function TrainingHero({
     ? `Let's go${firstName ? `, ${firstName}` : ''}!`
     : firstName ? `${firstName}'s training` : 'Training snapshot';
   const accent = categoryAccent(pb ? metricCategory(pb.metricKey) : undefined);
-  // Height/weight take the greeting's place — UNIVERSALLY for the owner
-  // (Tom's call, Aug 26): every athlete sees their body slots from day one,
-  // an empty slot doubling as the add-affordance. Visitors see values only
-  // when present AND visible (API privacy-gated); a visitor view without
-  // visible data keeps the greeting — placeholder slots for someone else's
-  // empty or hidden data would be meaningless or privacy-misleading.
-  const showBody = isOwnProfile || Boolean(heightDisplay || weightDisplay);
+  // Height/weight take the greeting's place when a value exists — for the
+  // owner as for a visitor (Convention 52, Oct 25 2026; until then the owner
+  // saw empty slots as an add-affordance). An empty slot shows nothing: the
+  // profile carries no "add your …" prompt — height and weight are entered in
+  // Edit Profile → Body Metrics. A visitor sees values only when present AND
+  // visible (API privacy-gated).
+  const showBody = Boolean(heightDisplay || weightDisplay);
 
   return (
     <section className="tr-card tr-pop-in p-5 sm:p-6">
@@ -100,28 +100,28 @@ export default function TrainingHero({
         )}
         {showBody ? (
           <div className="min-w-0 flex-1 flex items-center gap-5 sm:gap-8">
-            {(heightDisplay || isOwnProfile) && (
+            {heightDisplay && (
               <button
                 type="button"
                 onClick={() => onOpenMetric?.('height')}
-                aria-label={heightDisplay ? `Height ${heightDisplay}. View progress.` : 'Add your height.'}
+                aria-label={`Height ${heightDisplay}. View progress.`}
                 className="ea-interactive text-left rounded-xl px-2 -mx-2 py-1"
               >
-                <div className={`text-2xl sm:text-3xl font-bold tabular-nums leading-none ${heightDisplay ? 'text-primary' : 'text-faint'}`}>
-                  {heightDisplay ?? '—'}
+                <div className="text-2xl sm:text-3xl font-bold tabular-nums leading-none text-primary">
+                  {heightDisplay}
                 </div>
                 <div className="text-xs text-muted uppercase tracking-wide mt-1.5">Height</div>
               </button>
             )}
-            {(weightDisplay || isOwnProfile) && (
+            {weightDisplay && (
               <button
                 type="button"
                 onClick={() => onOpenMetric?.('weight')}
-                aria-label={weightDisplay ? `Weight ${weightDisplay}. View progress.` : 'Add your weight.'}
+                aria-label={`Weight ${weightDisplay}. View progress.`}
                 className="ea-interactive text-left rounded-xl px-2 -mx-2 py-1"
               >
-                <div className={`text-2xl sm:text-3xl font-bold tabular-nums leading-none ${weightDisplay ? 'text-primary' : 'text-faint'}`}>
-                  {weightDisplay ?? '—'}
+                <div className="text-2xl sm:text-3xl font-bold tabular-nums leading-none text-primary">
+                  {weightDisplay}
                 </div>
                 <div className="text-xs text-muted uppercase tracking-wide mt-1.5">Weight</div>
               </button>

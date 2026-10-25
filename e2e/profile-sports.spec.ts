@@ -5,8 +5,8 @@ import { settleBody } from './helpers/isr';
 // Sports on the profile (profile quick fixes PR 3, Oct 14 2026, mig 263):
 // every sport the person has shows — golf no special treatment; pinned
 // sports lead, larger; the rest in a compact list; a viewer sees the same
-// order with no controls; no sport → the owner's prompt, nothing for a
-// viewer; a disabled registry sport (tennis) shows without a stats door.
+// order with no controls; no sport → nothing, for the owner too (Convention
+// 52, Oct 25 2026 — Edit Profile is the door); a disabled registry sport (tennis) shows without a stats door.
 // @mobile: 390 px Chromium AND WebKit AND Android.
 
 test.beforeAll(async () => {
@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   test.skip(!!probe.error && (probe.error.code === '42703' || probe.error.code === 'PGRST204'), 'migration 263 not applied on this target');
 });
 
-test('sports: every sport shows, pins lead, /u/ agrees without controls, no sport → the prompt @mobile', async ({ browser }) => {
+test('sports: every sport shows, pins lead, /u/ agrees without controls, no sport → nothing (the pencil is the door) @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = adminClient();
   const a = await createQaUser({ displayName: 'Pin Pat', firstName: 'Pin', lastName: 'Pat' });
@@ -27,14 +27,23 @@ test('sports: every sport shows, pins lead, /u/ agrees without controls, no spor
   const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] }, extraHTTPHeaders: bypassHeaders() });
   try {
     const page = await ctx.newPage();
-    // (a) no sport: the owner's prompt; nothing for a viewer
+    // (a) no sport: NOTHING on the profile — for the owner as for a viewer
+    // (Convention 52: no "add your …" prompt on the profile; the pencil is
+    // the one owner control and Edit Profile's Sports tab is where sports
+    // are added). The profile shows no inline editing at all.
     await page.goto('/athlete');
-    await expect(page.locator('#sports [data-sports-empty]')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('#sports').getByText('No sports yet')).toBeVisible();
-    // Add sports opens Edit Profile on the Sports tab (Program D), where the picker lives now.
-    await page.locator('#sports [data-sports-empty]').click();
+    await expect(page.locator('[data-profile-cover] [data-profile-edit]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#sports')).toHaveCount(0);
+    await expect(page.locator('[data-sports-empty]')).toHaveCount(0);
+    await expect(page.getByText('No sports yet')).toHaveCount(0);
+    await expect(page.getByLabel('X handle')).toHaveCount(0);
+    await expect(page.getByText('Add your bio')).toHaveCount(0);
+    await expect(page.locator('[data-add-avatar], [data-add-cover]')).toHaveCount(0);
+    await expect(page.locator('[data-profile-edit]')).toHaveCount(1);
+    await page.locator('[data-profile-cover] [data-profile-edit]').click();
     const dialog = page.getByRole('dialog', { name: 'Edit Profile', exact: true });
-    await expect(dialog.getByRole('navigation', { name: 'Profile sections' }).getByRole('button', { name: 'Sports', exact: true })).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await dialog.getByRole('navigation', { name: 'Profile sections' }).getByRole('button', { name: 'Sports', exact: true }).click();
     await expect(dialog.locator('[data-sports-tab]')).toBeVisible();
     await page.getByRole('button', { name: 'Close modal' }).click();
     await expect(dialog).toBeHidden({ timeout: 10_000 });
