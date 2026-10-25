@@ -568,6 +568,26 @@ migration (the 60 s poll carries a joiner until the table is published).
 `scripts/realtime-fanout-probe.mjs --mode unfiltered|filtered` is the
 before/after (staging only).
 
+## Search ranks on stored columns, same order (migration 274, Oct 25 2026 — scale fix 2)
+
+`search_all` computed its ranking columns per MATCHED row — `search_normalize`
+×2–3, `to_tsvector` ×2, and a tsquery PARSE per query token in
+`search_token_hits` / `search_token_rank` — before the window kept 20 per
+type: 0.15 ms a row, 478 ms for a common prefix at 2,471 documents, content-
+bound. 274 adds `search_documents.title_norm` + `title_vector` (one BEFORE
+INSERT OR UPDATE trigger, `search_documents_title_sync`, SECURITY DEFINER, no
+API EXECUTE; the four sync functions are untouched; the backfill is an UPDATE
+per entity_type that fires it) and REPLACES `search_all` (same signature,
+RETURNS, SECURITY INVOKER, `search_path = public, extensions`, grants and
+COMMENT restated) to read the columns and parse the token tsqueries once per
+call. No index (neither column is a WHERE term). **Order unchanged by
+construction and by proof:** the same nine queries' ordered lists before and
+after are identical (`database/provenance/explain/2026-10-25/search-results-
+{before,after}-274.json`); plans after: prefix 478 → 27 ms, two letters
+355 → 26 ms, rare term 16.5 → 17 ms, athletes-only 78 → 13 ms. Check grid:
+`database/tests/diagnostics/verify-274-search.sql`. Expected row on both:
+`274 APPLIED | 2 | 0 | 1 | true | 274`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

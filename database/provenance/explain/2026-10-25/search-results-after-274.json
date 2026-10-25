@@ -1,0 +1,1454 @@
+{
+ "common_prefix": {
+  "n": 40,
+  "rows": [
+   {
+    "t": "athlete",
+    "id": "3b8b11ac-b869-4bb6-8911-a03bcf981e1d",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "92a8e941-4714-42b8-a931-5abc6ed1ddb4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a31ab6b6-660e-4d63-9098-0209f745f114",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56098f61-bc34-4689-bbe2-8f7f44a36e97",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f0b06b56-8aa9-45dd-ae42-f7a8056674f7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9691249e-1e50-415f-a171-0e29be598599",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "dd5026b2-a0ea-46de-92d2-2a25af4b6ea4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0f5f2e55-8815-407a-9193-32dc9224872e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "eb01302d-9fa5-4740-88c6-291fc2cd2929",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7ebd7bb9-995e-4628-931c-11284e398348",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c6d222a2-cbaf-472a-b5b1-bb7baafe3593",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3cc95e03-f6e9-492a-8189-7bf915171382",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3343ac6b-5a14-4d1e-8f2f-bbfe8dc8b571",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "26a64fba-df78-4efe-8036-503408f8e779",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7d38897d-85d6-4c34-bb8c-4e2147ecefa7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "802b2a91-89e8-4ba0-98ec-f29cdeb20fa9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2647b4ec-2ff8-44ac-b259-4214e7c47ee8",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "91ddddf9-589e-4738-957a-27a92728712c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "4eac9724-9086-497c-bdb5-19f04caa23e3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "17bfdcf8-51f4-4302-bda6-71525101458c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "134d1691-7c1f-4399-97ba-27b27b36d3b4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "5914f013-c127-49e4-a988-6ce347d90ba3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b80179ea-706c-412c-bcba-dd4509701e18",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3fc71cf-dbe6-49c1-b9f3-3ee89e07d298",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "295160ff-6732-4b6e-b0e0-a12f0b618022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4c98ed70-c525-4f38-86ba-eed4744a14e0",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8ba94839-fe76-410a-9f54-3a4cf13ae5f1",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "649ec66a-ce3a-49c6-841a-1560b1a620ec",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "de699c74-4cc3-47ec-a5e1-4cd992e875b7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e236dc52-d708-4df2-b62b-f4eef53ec7ea",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4b4b8922-e091-452a-a27c-ab0e3b7ddc23",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e7adb990-1126-4063-8c74-e93cca48c051",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "bd249070-2893-4608-b81b-5cdc39be797f",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8657faf9-0865-4bb2-b10e-2107bb7c851e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b5549767-7d54-49d1-ad54-254dd5e8ff5b",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3cbb602-784d-4db6-b96b-069c9ba1021a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "efade496-7ca3-4f90-8433-e08be0222022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "c5a65215-0412-4876-b67d-ac19ee50b130",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "672b76c9-118e-4de7-aca8-95a272c71e59",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "348427b1-79f9-4ed9-8ba7-5a93cfb09ac1",
+    "r": 1,
+    "d": null
+   }
+  ]
+ },
+ "two_letters": {
+  "n": 41,
+  "rows": [
+   {
+    "t": "athlete",
+    "id": "3b8b11ac-b869-4bb6-8911-a03bcf981e1d",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "92a8e941-4714-42b8-a931-5abc6ed1ddb4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a31ab6b6-660e-4d63-9098-0209f745f114",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56098f61-bc34-4689-bbe2-8f7f44a36e97",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f0b06b56-8aa9-45dd-ae42-f7a8056674f7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9691249e-1e50-415f-a171-0e29be598599",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "dd5026b2-a0ea-46de-92d2-2a25af4b6ea4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0f5f2e55-8815-407a-9193-32dc9224872e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "eb01302d-9fa5-4740-88c6-291fc2cd2929",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7ebd7bb9-995e-4628-931c-11284e398348",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c6d222a2-cbaf-472a-b5b1-bb7baafe3593",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3cc95e03-f6e9-492a-8189-7bf915171382",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3343ac6b-5a14-4d1e-8f2f-bbfe8dc8b571",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "26a64fba-df78-4efe-8036-503408f8e779",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7d38897d-85d6-4c34-bb8c-4e2147ecefa7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "802b2a91-89e8-4ba0-98ec-f29cdeb20fa9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2647b4ec-2ff8-44ac-b259-4214e7c47ee8",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "91ddddf9-589e-4738-957a-27a92728712c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "4eac9724-9086-497c-bdb5-19f04caa23e3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "17bfdcf8-51f4-4302-bda6-71525101458c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "134d1691-7c1f-4399-97ba-27b27b36d3b4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "5914f013-c127-49e4-a988-6ce347d90ba3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b80179ea-706c-412c-bcba-dd4509701e18",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3fc71cf-dbe6-49c1-b9f3-3ee89e07d298",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "295160ff-6732-4b6e-b0e0-a12f0b618022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4c98ed70-c525-4f38-86ba-eed4744a14e0",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8ba94839-fe76-410a-9f54-3a4cf13ae5f1",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "649ec66a-ce3a-49c6-841a-1560b1a620ec",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "de699c74-4cc3-47ec-a5e1-4cd992e875b7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e236dc52-d708-4df2-b62b-f4eef53ec7ea",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4b4b8922-e091-452a-a27c-ab0e3b7ddc23",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e7adb990-1126-4063-8c74-e93cca48c051",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "bd249070-2893-4608-b81b-5cdc39be797f",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8657faf9-0865-4bb2-b10e-2107bb7c851e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b5549767-7d54-49d1-ad54-254dd5e8ff5b",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3cbb602-784d-4db6-b96b-069c9ba1021a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "efade496-7ca3-4f90-8433-e08be0222022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "c5a65215-0412-4876-b67d-ac19ee50b130",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "672b76c9-118e-4de7-aca8-95a272c71e59",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "348427b1-79f9-4ed9-8ba7-5a93cfb09ac1",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "club",
+    "id": "7cc1230c-de3d-4fab-8923-4b976a4a7b21",
+    "r": 3,
+    "d": null
+   }
+  ]
+ },
+ "rare_term": {
+  "n": 0,
+  "rows": []
+ },
+ "edge": {
+  "n": 0,
+  "rows": []
+ },
+ "ottawa": {
+  "n": 11,
+  "rows": [
+   {
+    "t": "post",
+    "id": "519a387c-22fb-483d-a24b-042367b0f77e",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "club",
+    "id": "e734472a-20cc-4787-85ea-096260a6829b",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "d338515d-f280-49cf-8c75-d16f09f14c06",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "5509893c-d87a-4676-a3a6-863253a57db5",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "35396464-bed7-4dca-b2e0-aa218e6596f7",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "d8eb324d-a5ed-420a-82ef-5d07d28c78eb",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "3578279a-4910-4cea-92ab-765c76341f81",
+    "r": 2,
+    "d": null
+   },
+   {
+    "t": "club",
+    "id": "0c617c22-09e9-4733-aca9-a9079b493b57",
+    "r": 3,
+    "d": null
+   },
+   {
+    "t": "club",
+    "id": "c5c33789-4b37-43bd-90b1-fe51f5ff21b2",
+    "r": 3,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "73f01e53-79ab-4f59-be23-00e09e569a66",
+    "r": 3,
+    "d": null
+   },
+   {
+    "t": "league",
+    "id": "cba424e9-f48f-434e-8276-10bb123e2005",
+    "r": 3,
+    "d": null
+   }
+  ]
+ },
+ "kanata_course": {
+  "n": 0,
+  "rows": []
+ },
+ "near_browse_empty_q": {
+  "n": 3,
+  "rows": [
+   {
+    "t": "athlete",
+    "id": "73f01e53-79ab-4f59-be23-00e09e569a66",
+    "r": 3,
+    "d": 1.169
+   },
+   {
+    "t": "club",
+    "id": "e734472a-20cc-4787-85ea-096260a6829b",
+    "r": 3,
+    "d": 1.169
+   },
+   {
+    "t": "league",
+    "id": "cba424e9-f48f-434e-8276-10bb123e2005",
+    "r": 3,
+    "d": 1.169
+   }
+  ]
+ },
+ "athletes_widen_100": {
+  "n": 100,
+  "rows": [
+   {
+    "t": "athlete",
+    "id": "3b8b11ac-b869-4bb6-8911-a03bcf981e1d",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "92a8e941-4714-42b8-a931-5abc6ed1ddb4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a31ab6b6-660e-4d63-9098-0209f745f114",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56098f61-bc34-4689-bbe2-8f7f44a36e97",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f0b06b56-8aa9-45dd-ae42-f7a8056674f7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9691249e-1e50-415f-a171-0e29be598599",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "dd5026b2-a0ea-46de-92d2-2a25af4b6ea4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0f5f2e55-8815-407a-9193-32dc9224872e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "eb01302d-9fa5-4740-88c6-291fc2cd2929",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7ebd7bb9-995e-4628-931c-11284e398348",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c6d222a2-cbaf-472a-b5b1-bb7baafe3593",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3cc95e03-f6e9-492a-8189-7bf915171382",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3343ac6b-5a14-4d1e-8f2f-bbfe8dc8b571",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "26a64fba-df78-4efe-8036-503408f8e779",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7d38897d-85d6-4c34-bb8c-4e2147ecefa7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "802b2a91-89e8-4ba0-98ec-f29cdeb20fa9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2647b4ec-2ff8-44ac-b259-4214e7c47ee8",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "91ddddf9-589e-4738-957a-27a92728712c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "4eac9724-9086-497c-bdb5-19f04caa23e3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "17bfdcf8-51f4-4302-bda6-71525101458c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "84829885-8427-4fc8-a4b2-1acb37418502",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "588e3673-71cc-4bce-bf27-0033a70a3171",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9debe6d1-28d2-4f29-9b05-e14f8a5dc543",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "671e4f21-a639-41b7-a88a-493830900d6e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56d385dd-0886-4b42-8691-c2dcbeafeb74",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "b17b21c6-db8e-4499-8af0-bb4f0bb477f6",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "457f215e-8cbd-461b-803d-50fbc1c92e05",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "61178625-0bda-4dea-ac2b-5497cc75fe54",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "b4da2595-a456-4e01-99ae-bfe93803fc27",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "ab99756e-a7d9-4dad-a47c-678d6266fa35",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "ae2d2a22-29f9-4cb2-a6f1-576a41e671c9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "764d5350-bac2-40a3-a47c-a460ffff17c9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "26f59a19-5740-48d6-b468-e61b63e20727",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "ca8ad4b2-421c-4651-af10-ca3130ee29b2",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "d5a7c69e-5398-4c88-b02e-bfb38fd8ebcb",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "254b75a3-00bd-4d2a-89e3-3a4ae2678849",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "57974548-1529-4d18-9ec7-b81b936dfbd5",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "ac8c5dba-2de8-4171-8bfd-34b0dd7b3ae1",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "412a7c96-7a0f-4c59-b15c-43f7218574c2",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2ed5254c-e0ca-4c0b-98e6-8c912027c07b",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c85c4aef-3963-45fb-bc1d-b156916573b4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7b96dba0-26f6-48f4-84ee-3aa869876648",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "96ef4892-d513-43e9-8395-bc53ac431c60",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "867e76ab-61ce-4865-91bd-e02c49a30e2b",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "8059e8f2-a8c5-45d8-b911-d84861a00075",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f520706d-7897-44a2-b7f9-040d3754bacd",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7b7d451d-aa2d-4ce6-ba21-7934a860a465",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c4471b06-9774-4228-92bc-b1f41d787fed",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f59b98f6-8f06-4477-81d2-9e93071e58c5",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "fc4da3d7-09e4-4919-b406-928b9ba24e05",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3d3f1dbe-f573-49ec-8dec-d2347ad010c4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "66c7382b-715e-4c3c-96f9-a2c36a70c91f",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "b2c803f1-be28-435f-b5fc-d66c61908bb6",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "31c1444e-53d5-491d-b505-c9c623d3641a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "fc39facb-6b68-4628-9c36-865c8e39c499",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a8528902-7ec7-4c24-ac78-c6ea66fdd31c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56c2dff0-c6a1-499b-8c84-96dcb408a420",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "6dd472aa-0d7e-4fb1-a02f-884be291ea67",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "b582839e-1c4d-4de5-80c0-a8dffabcece4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "e6a6e8c5-881d-4119-8309-41a5bc791282",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0c22f3e5-eda1-44e2-9232-3b980a253f2a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2e903d84-7ef4-4d10-8a42-dbb8de0b1a30",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c421a439-382d-4a4a-b7b4-f8af35fd706e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7aa38b84-4bed-49ff-bc99-4952133c5e65",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c2e1368a-b3d3-4616-bc6c-60ac922bd811",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "32ed9088-684e-485d-a24b-385ba9339bec",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0652f1d3-89d8-4fc8-85b0-9d6e4366898e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c2124698-9787-43a8-8186-98544bc23448",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3bfb678c-1287-4c07-b626-1e063dda85e3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "89fea885-7aca-46fe-b805-a0ee55370328",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0a05772a-f764-455a-9337-ee6463ce5427",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "05002ad4-9161-440e-b9d9-8d8d8c56c02d",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "31a57e6d-488e-44cc-b7c8-5f0c54e43a98",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "30fb04a1-f11b-4a0f-a667-3548fd7549a6",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "da535b65-c344-4cd5-8a9b-4056b8465408",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "607dbe5b-c513-4c88-afdc-5419ea195584",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "febb89c7-06c8-4f56-8963-75e439aead6a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "af24cdfc-0da1-4d61-bdba-cce5a5d1ba96",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "1207a0eb-fd69-4966-b076-33c5e16a5d75",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56c75a7a-58f8-4afd-9717-0550fa2d2299",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "496219b4-9095-468e-8086-8224d2e69254",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "37e2eb17-ec6c-4940-8d47-fd3cb9bdb099",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "325ecef4-331a-4db1-9eb9-00d15ac91325",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a2eb6b4b-cd77-41da-883d-5e775f25d0a6",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a92c3e4a-8acb-4fd5-b3ad-72595f653c54",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "925c26a9-d940-4a30-8fb5-1f3bdfeac7ba",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "d983bf36-0183-4643-91c9-78146331c268",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "af4aeacb-3ab9-47a3-83d2-5d17b788a7cf",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7af23066-1d60-49b3-9ef9-272c9931d4ae",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7379e8c6-94ca-43d4-bedc-5f64abc8c427",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9c905a4e-6290-4175-ab2b-8cfb0cda00b4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9b741f95-f149-4a2a-a518-bf47f6a3abc5",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "d4759a53-80c7-4f5d-90fe-c28af1be2e8a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a597afb7-7412-4fbc-9af8-e4028afee726",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "bd75f517-7e8f-4ee9-8a8c-72bf24ffc2c7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "d2f8e7be-05df-4d20-a294-4aea7ab797d7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "ad158b01-67ef-439a-bf4c-8ed4c004b177",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "772a9584-786b-4d99-837d-8ec74757e555",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "17c16203-6604-41b9-a40e-ce509ca0e253",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "82364596-75eb-4182-971b-7b005545557e",
+    "r": 1,
+    "d": null
+   }
+  ]
+ },
+ "accent_and_case": {
+  "n": 40,
+  "rows": [
+   {
+    "t": "athlete",
+    "id": "3b8b11ac-b869-4bb6-8911-a03bcf981e1d",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "92a8e941-4714-42b8-a931-5abc6ed1ddb4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "a31ab6b6-660e-4d63-9098-0209f745f114",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "56098f61-bc34-4689-bbe2-8f7f44a36e97",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "f0b06b56-8aa9-45dd-ae42-f7a8056674f7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "9691249e-1e50-415f-a171-0e29be598599",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "dd5026b2-a0ea-46de-92d2-2a25af4b6ea4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "0f5f2e55-8815-407a-9193-32dc9224872e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "eb01302d-9fa5-4740-88c6-291fc2cd2929",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7ebd7bb9-995e-4628-931c-11284e398348",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "c6d222a2-cbaf-472a-b5b1-bb7baafe3593",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3cc95e03-f6e9-492a-8189-7bf915171382",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "3343ac6b-5a14-4d1e-8f2f-bbfe8dc8b571",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "26a64fba-df78-4efe-8036-503408f8e779",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "7d38897d-85d6-4c34-bb8c-4e2147ecefa7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "802b2a91-89e8-4ba0-98ec-f29cdeb20fa9",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "2647b4ec-2ff8-44ac-b259-4214e7c47ee8",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "91ddddf9-589e-4738-957a-27a92728712c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "4eac9724-9086-497c-bdb5-19f04caa23e3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "athlete",
+    "id": "17bfdcf8-51f4-4302-bda6-71525101458c",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "134d1691-7c1f-4399-97ba-27b27b36d3b4",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "5914f013-c127-49e4-a988-6ce347d90ba3",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b80179ea-706c-412c-bcba-dd4509701e18",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3fc71cf-dbe6-49c1-b9f3-3ee89e07d298",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "295160ff-6732-4b6e-b0e0-a12f0b618022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4c98ed70-c525-4f38-86ba-eed4744a14e0",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8ba94839-fe76-410a-9f54-3a4cf13ae5f1",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "649ec66a-ce3a-49c6-841a-1560b1a620ec",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "de699c74-4cc3-47ec-a5e1-4cd992e875b7",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e236dc52-d708-4df2-b62b-f4eef53ec7ea",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "4b4b8922-e091-452a-a27c-ab0e3b7ddc23",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "e7adb990-1126-4063-8c74-e93cca48c051",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "bd249070-2893-4608-b81b-5cdc39be797f",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "8657faf9-0865-4bb2-b10e-2107bb7c851e",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b5549767-7d54-49d1-ad54-254dd5e8ff5b",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "b3cbb602-784d-4db6-b96b-069c9ba1021a",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "efade496-7ca3-4f90-8433-e08be0222022",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "c5a65215-0412-4876-b67d-ac19ee50b130",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "672b76c9-118e-4de7-aca8-95a272c71e59",
+    "r": 1,
+    "d": null
+   },
+   {
+    "t": "post",
+    "id": "348427b1-79f9-4ed9-8ba7-5a93cfb09ac1",
+    "r": 1,
+    "d": null
+   }
+  ]
+ }
+}
