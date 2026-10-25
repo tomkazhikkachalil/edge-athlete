@@ -1,5 +1,13 @@
 # Development Log
 
+## October 25, 2026 — Scale fix 1, follow-up: the roster listener gets its own channel (an unpublished table must never silence the scores)
+
+The production probe after #1299 missed: a score did not reach the spectator within 20 s. Production had the new hook but not yet migration 273, and the hook put its three listeners on ONE channel. **Reproduced on staging in two minutes:** with `group_post_participants` dropped from the publication, the same spec failed at the same line; with it added back, it passed. A `postgres_changes` listener on a table that is NOT in the publication fails its WHOLE channel — so until 273 ran, the scores listener was down with it and live scoring sat on the 30 s degraded poll. "Order-independent" was wrong by exactly that much.
+
+**The fix:** the roster listener rides on a SECOND channel (`shared-round-roster:{id}`); the scores channel keeps the filtered scores listener and the `group_posts` UPDATE. A missing publication now degrades only the joiner path (the poll still carries it) and never the scores; the roster channel's status is not the hook's `connectionState`. Tom runs 273 on production regardless — it is what makes the joiner path live.
+
+**Proof.** Staging on the built server with the table UNPUBLISHED (production's state before 273): the score step passes and only the joiner step waits (the spec fails at `Participants: 3`, line 51 — by design); with it published: the whole spec passes in 12.9 s. `realtime-subscriptions.test.ts` still finds every listener filtered; `npm run verify` exit 0 (5,384). Production probe after the merge: the score step before 273, everything after it.
+
 ## October 25, 2026 — Scale fix 1: the live-round subscription is filtered to the round (migration 273 + the hook)
 
 Tom: "Let's work on the fixes in the ranked order." Hole 1 of `docs/SCALE_AUDIT.md`: `useSharedRound` subscribed to `golf_participant_scores` **table-wide**. Realtime delivers a change once PER SUBSCRIBER, so every score written anywhere in the app reached every spectator and every live feed card, and each delivery was a scorecard refetch — one busy round could carry the whole project past its 500 messages/s and disconnect every client, messaging included.

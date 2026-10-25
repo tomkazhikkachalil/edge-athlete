@@ -563,8 +563,13 @@ the round's `group_post_participants` rows for a late joiner, which **273
 publishes** (`ALTER PUBLICATION supabase_realtime ADD TABLE
 public.group_post_participants`, guarded). After: 0 of round B's events reach
 round A's watchers; round A's own 200 still do. Expected row on both:
-`273 APPLIED | 5 | true | 273`. The code is order-independent with the
-migration (the 60 s poll carries a joiner until the table is published).
+`273 APPLIED | 5 | true | 273`. **A listener on an UNPUBLISHED table fails
+its whole channel** (proven on staging Oct 25: with the table out of the
+publication, one shared channel delivered no scores at all — the production
+probe after #1299 caught it before 273 had run there). The hook therefore
+keeps the roster listener on its OWN channel (`shared-round-roster:{id}`,
+the follow-up PR): unpublished, only the joiner path waits for the poll; the
+scores never do. Run 273 anyway — it is what makes the joiner path live.
 `scripts/realtime-fanout-probe.mjs --mode unfiltered|filtered` is the
 before/after (staging only).
 
