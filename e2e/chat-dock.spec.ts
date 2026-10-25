@@ -83,6 +83,39 @@ test('closing the pill leaves chats alone; minimized chat is a labeled pill', as
   await expect(page.getByTestId('mini-chat-window')).toHaveCount(0);
 });
 
+// Scale fix 3 (Oct 25 2026): the conversation list no longer holds one
+// Realtime channel per conversation. Its live signal is the `new_message`
+// bell on the ONE per-user notifications channel → one list refresh. With
+// the thread NOT open, a message B sends via the API must reach A's dock
+// (the preview and the unread badge) with no reload and no poll (the poll
+// is 2 minutes; the budget here is 20 s).
+test('a message to a closed thread bumps the dock list and badge live', async ({ page }) => {
+  const stamp = Date.now();
+  const conversationId = await seedDm(stamp);
+
+  await page.goto('/feed');
+  // Open the dock panel (the collapsed pill is the whole click target) so the
+  // list is on screen; the thread itself stays closed.
+  await page.getByRole('button', { name: 'Messages dock' }).click();
+  await expect(page.getByTestId('dock-panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('dock-panel').getByText(`qa-dock-${stamp}`).first()).toBeVisible({ timeout: 15_000 });
+
+  // Now B replies via the API — A's tab is simply watching.
+  const apiB = await apiAs('state-b.json');
+  try {
+    const res = await apiB.post(`/api/messages/${conversationId}/messages`, {
+      data: { type: 'text', content: `qa-live-${stamp}` },
+    });
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+  } finally {
+    await apiB.dispose();
+  }
+
+  // The preview is the list's state (last_message), so its arrival IS the
+  // refresh: no reload, no 2-minute poll — the bell did it.
+  await expect(page.getByTestId('dock-panel').getByText(`qa-live-${stamp}`).first()).toBeVisible({ timeout: 20_000 });
+});
+
 test('fresh login restores a closed dock', async ({ browser }) => {
   const user = loadQaUser('user.json');
   const ctx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });

@@ -52,6 +52,23 @@ describe('Realtime: every postgres_changes listener on a published table is filt
     expect(hook).toMatch(/\[enabled, groupPostId, refresh, retryNonce, rosterKey\]/); // a roster change resubscribes
     expect(hook).toMatch(/const REALTIME_IN_FILTER_MAX = 100;/);
   });
+  // Scale fix 3 (hole 3): the conversation LIST has no channel of its own —
+  // the `new_message` bell on the ONE per-user notifications channel is its
+  // live signal; presence is joined only while the dock is in use.
+  it('the messages provider holds no Realtime channel; the new_message bell is its signal', () => {
+    const provider = read('src/lib/messages.tsx');
+    expect(provider).not.toMatch(/\.channel\(/);
+    expect(provider).not.toMatch(/from '@\/lib\/supabase'/);
+    expect(provider).toMatch(/notifications\.filter\(n => n\.type === 'new_message'\)/);
+    expect(provider).toMatch(/\[notifications, user, fetchConversations, refreshUnreadCount\]/);
+  });
+  it('presence joins only while the dock is in use (panel open or a thread open / minimized)', () => {
+    const dock = read('src/components/chat-dock/ChatDock.tsx');
+    expect(dock).toMatch(/const presenceWanted = enabled && !suppressed && \(\(open && !hidden\) \|\| hasWindows\);/);
+    expect(dock).toMatch(/usePresence\(presenceWanted \? user!\.id : null\)/);
+    const hook = read('src/components/chat-dock/usePresence.ts');
+    expect(hook).toMatch(/if \(!userId\) return;/); // a null id = no channel
+  });
   it('migration 273 publishes group_post_participants', () => {
     const m = read('database/migrations/273_publish_group_post_participants.sql');
     expect(m).toMatch(/ALTER PUBLICATION supabase_realtime ADD TABLE public\.group_post_participants;/);

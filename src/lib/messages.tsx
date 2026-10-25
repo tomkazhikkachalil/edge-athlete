@@ -10,7 +10,6 @@ import {
   ReactNode,
 } from 'react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/lib/notifications';
 import type { Conversation, Message } from '@/types/messages';
 import { shouldPoll } from '@/lib/net/online';
@@ -34,7 +33,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   // Mounted inside NotificationsProvider (src/app/(app)/layout.tsx): a read
   // conversation clears its bells there too.
-  const { absorbConversationRead } = useNotifications();
+  const { absorbConversationRead, notifications } = useNotifications();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   // Live mirror of `conversations` for callbacks that consumers capture once
   // at mount (e.g. ChatWindow's realtime handler) — reading the state directly
@@ -43,7 +42,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   // Conversation-list pagination (migration 127): the server frontier is
-  // updated ONLY by the initial load and loadMore — never by the 30s poll,
+  // updated ONLY by the initial load and loadMore — never by the 2-minute poll,
   // which refreshes PAGE ONE and merges by id (see fetchConversations).
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const nextConvCursorRef = useRef<string | null>(null);
@@ -54,8 +53,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   // deep-loaded items survive.
   const deepLoadedRef = useRef(false);
 
-  // Track subscribed channel refs so we can clean them up
-  const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
+  // One live signal for the list (scale fix 3, Oct 25 2026 — docs/SCALE_AUDIT.md
+  // hole 3): the newest `new_message` bell seen, and the debounce timer that
+  // turns a burst of bells into one refresh. See the effect below.
+  const newestBellRef = useRef<{ at: number; ids: Set<string> } | null>(null);
+  const signalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -125,7 +127,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       // Intentional abort (navigation, logout, unmount) is not a real failure.
       if (e instanceof Error && e.name === 'AbortError') return;
       // Same rule as refreshUnreadCount: a network blip on a background
-      // poll is not an error — data stands, the 30s cycle retries.
+      // poll is not an error — data stands, the 2-minute cycle retries.
       if (e instanceof TypeError) return;
       console.error('Failed to fetch conversations:', e);
     }
@@ -160,71 +162,62 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Subscribe to a single conversation's messages channel
-  const subscribeToConversation = useCallback((conversationId: string) => {
-    if (channelRefs.current.has(conversationId)) return;
-
-    const channel = supabase
-      .channel(`messages:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload: { new: unknown }) => {
-          const newMsg = payload.new as Message;
-          // Update conversation list: bump last_message + unread_count (if not own message)
-          setConversations(prev =>
-            prev
-              .map(c => {
-                if (c.id !== conversationId) return c;
-                const isOwn = newMsg.sender_id === user?.id;
-                return {
-                  ...c,
-                  last_message: newMsg,
-                  updated_at: newMsg.created_at,
-                  unread_count: isOwn ? c.unread_count : c.unread_count + 1,
-                };
-              })
-              .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-          );
-          if (newMsg.sender_id !== user?.id) {
-            setTotalUnreadCount(prev => prev + 1);
-          }
-        }
-      )
-      .subscribe();
-
-    channelRefs.current.set(conversationId, channel);
-  }, [user?.id]);
-
-  const unsubscribeFromConversation = useCallback((conversationId: string) => {
-    const ch = channelRefs.current.get(conversationId);
-    if (ch) {
-      ch.unsubscribe();
-      channelRefs.current.delete(conversationId);
-    }
-  }, []);
-
-  // When conversations list changes, subscribe to any new conversation channels
+  // ONE live signal for the list instead of one Realtime channel per listed
+  // conversation (scale fix 3, Oct 25 2026): the send route writes a
+  // `new_message` notification per recipient on every message, and that row
+  // already reaches this tab on the per-user `notifications` channel
+  // (src/lib/notifications.tsx — ONE channel, filtered to the user). A new
+  // bell → page one + the count again, debounced so a burst is one
+  // `get_conversation_list` RPC + one count. The OPEN thread keeps its own
+  // `chat:` / `dockchat:` channel for the messages themselves. Before this an
+  // active account held ~30 channels per page view (every listed
+  // conversation), against Realtime caps that are per connection and per
+  // project. Not live here, carried by the 2-minute poll + the resume
+  // catch-up: a MUTED conversation (no bell is written) and your own sends
+  // from another device (the sender gets no bell).
   useEffect(() => {
-    const currentIds = new Set(conversations.map(c => c.id));
-    // Subscribe to new ones
-    for (const id of currentIds) {
-      if (!channelRefs.current.has(id)) {
-        subscribeToConversation(id);
+    if (!user) {
+      newestBellRef.current = null;
+      return;
+    }
+    const bells = notifications.filter(n => n.type === 'new_message');
+    if (!newestBellRef.current) {
+      // First observation: everything already loaded is history.
+      newestBellRef.current = {
+        at: Math.max(0, ...bells.map(b => Date.parse(b.created_at) || 0)),
+        ids: new Set(bells.map(b => b.id)),
+      };
+      return;
+    }
+    const seen = newestBellRef.current;
+    let fresh = false;
+    for (const b of bells) {
+      if (seen.ids.has(b.id)) continue;
+      seen.ids.add(b.id);
+      // Newer than anything seen = a live arrival; an OLDER page of the
+      // notifications list loading is not a signal.
+      const at = Date.parse(b.created_at) || 0;
+      if (at > seen.at) {
+        seen.at = at;
+        fresh = true;
       }
     }
-    // Unsubscribe from ones no longer in the list
-    for (const [id] of channelRefs.current) {
-      if (!currentIds.has(id)) {
-        unsubscribeFromConversation(id);
-      }
-    }
-  }, [conversations, subscribeToConversation, unsubscribeFromConversation]);
+    if (!fresh) return;
+    if (signalTimerRef.current) clearTimeout(signalTimerRef.current);
+    signalTimerRef.current = setTimeout(() => {
+      signalTimerRef.current = null;
+      // A hidden tab waits: the visibilitychange catch-up refreshes on return.
+      if (!shouldPoll()) return;
+      const c = new AbortController();
+      fetchConversations(c.signal);
+      refreshUnreadCount(c.signal);
+    }, 1_500);
+  }, [notifications, user, fetchConversations, refreshUnreadCount]);
+
+  // The debounce never outlives the provider.
+  useEffect(() => () => {
+    if (signalTimerRef.current) clearTimeout(signalTimerRef.current);
+  }, []);
 
   // Initial load + setup
   useEffect(() => {
@@ -235,7 +228,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       fetchAbortRef.current = controller;
 
       // OUT OF SCOPE by decision: this provider coordinates an AbortController,
-      // a 30s poll and channel teardown. A subtle mistake here is an outage,
+      // a 2-minute poll and the resume catch-up. A subtle mistake here is an outage,
       // not a glitch, so the loader stays a useCallback shared with them.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
@@ -247,17 +240,18 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setLoading(false);
       });
 
-      // 30-second poll fallback for realtime gaps. This provider mounts in the
+      // The poll is the net under realtime gaps. This provider mounts in the
       // ROOT layout, so it runs for every logged-in user on every page — a
       // backgrounded tab must NOT keep polling all day (the single largest
       // sustained cost in the app). Skip a cycle when the tab is hidden;
       // realtime covers a focused tab, and a visibilitychange catch-up fires
       // one refresh the moment the tab returns to the foreground.
       // Each poll cycle gets its own controller so a stale abort never kills future polls.
-      // Speed round 2: 30 s → 2 min. Realtime carries every new message to a
-      // focused tab (one channel per listed conversation) and the
-      // visibilitychange catch-up below covers a return; the poll is only
-      // the net under a dropped socket, and at 30 s it was two function
+      // Speed round 2: 30 s → 2 min. The `new_message` bell on the
+      // notifications channel (the effect above) carries every new message
+      // to a focused tab and the visibilitychange catch-up below covers a
+      // return; the poll is only the net under a dropped socket (and the
+      // two cases the bell does not cover), and at 30 s it was two function
       // calls per user per half-minute on every page.
       pollTimerRef.current = setInterval(() => {
         if (!shouldPoll()) return;
@@ -288,11 +282,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       setHasMoreConversations(false);
       nextConvCursorRef.current = null;
       deepLoadedRef.current = false;
-      // Unsubscribe all channels
-      for (const [, ch] of channelRefs.current) {
-        ch.unsubscribe();
+      newestBellRef.current = null;
+      if (signalTimerRef.current) {
+        clearTimeout(signalTimerRef.current);
+        signalTimerRef.current = null;
       }
-      channelRefs.current.clear();
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -356,8 +350,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
 
   const removeConversation = useCallback((conversationId: string) => {
     setConversations(prev => prev.filter(c => c.id !== conversationId));
-    unsubscribeFromConversation(conversationId);
-  }, [unsubscribeFromConversation]);
+  }, []);
 
   return (
     <MessagesContext.Provider
