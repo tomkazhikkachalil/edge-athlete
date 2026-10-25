@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-22T02:19:12.256762+00:00 from server 17.6 by
+-- Generated 2026-10-25T15:33:36.601433+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 270.
+-- public.schema_dump() (migration 227). Ledger head at generation: 271.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -11237,11 +11237,8 @@ CREATE INDEX IF NOT EXISTS idx_golf_scorecard_group ON public.golf_scorecard_dat
 CREATE INDEX IF NOT EXISTS idx_group_media_highlight ON public.group_post_media USING btree (group_post_id) WHERE is_highlight;
 CREATE INDEX IF NOT EXISTS idx_group_media_segment ON public.group_post_media USING btree (group_post_id, segment_number);
 CREATE INDEX IF NOT EXISTS idx_group_media_uploader ON public.group_post_media USING btree (uploaded_by);
-CREATE INDEX IF NOT EXISTS idx_group_post_media_group ON public.group_post_media USING btree (group_post_id);
 CREATE INDEX IF NOT EXISTS idx_group_post_media_group_post_id ON public.group_post_media USING btree (group_post_id);
-CREATE INDEX IF NOT EXISTS idx_group_post_media_uploader ON public.group_post_media USING btree (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_group_post_participants_group ON public.group_post_participants USING btree (group_post_id);
-CREATE INDEX IF NOT EXISTS idx_group_post_participants_profile ON public.group_post_participants USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_group_post_participants_status ON public.group_post_participants USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_participants_position ON public.group_post_participants USING btree (group_post_id, "position");
 CREATE INDEX IF NOT EXISTS idx_participants_profile ON public.group_post_participants USING btree (profile_id);
@@ -11358,7 +11355,6 @@ CREATE INDEX IF NOT EXISTS idx_places_search ON public.places USING gin (search_
 CREATE INDEX IF NOT EXISTS idx_platform_admins_granted_by ON public.platform_admins USING btree (granted_by);
 CREATE INDEX IF NOT EXISTS idx_comments_created_by ON public.post_comments USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON public.post_comments USING btree (post_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_comments_post_created ON public.post_comments USING btree (post_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_post_comments_hidden_ticket_id ON public.post_comments USING btree (hidden_ticket_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_is_pinned ON public.post_comments USING btree (post_id) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_post_comments_parent_comment_id ON public.post_comments USING btree (parent_comment_id);
@@ -11367,12 +11363,10 @@ CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON public.post_comments USI
 CREATE INDEX IF NOT EXISTS idx_post_comments_profile_id ON public.post_comments USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_status_pending ON public.post_comments USING btree (profile_id) WHERE (status <> 'published'::text);
 CREATE INDEX IF NOT EXISTS idx_post_likes_post ON public.post_likes USING btree (post_id);
-CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON public.post_likes USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_likes_profile ON public.post_likes USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_post_likes_profile_id ON public.post_likes USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_media_post_display ON public.post_media USING btree (post_id, display_order);
 CREATE INDEX IF NOT EXISTS idx_post_media_post_id ON public.post_media USING btree (post_id);
-CREATE INDEX IF NOT EXISTS idx_post_media_post_order ON public.post_media USING btree (post_id, display_order);
 CREATE INDEX IF NOT EXISTS idx_post_media_processing ON public.post_media USING btree (processing_at) WHERE (processing_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_post_tags_created_by ON public.post_tags USING btree (created_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_tags_media_id ON public.post_tags USING btree (media_id) WHERE (media_id IS NOT NULL);
@@ -16104,25 +16098,25 @@ ALTER TABLE public.workout_routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sets ENABLE ROW LEVEL SECURITY;
 
--- ── Policies (173) ────────────────────────────────────────────────────────────
+-- ── Policies (145) ────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS achievements_delete_policy ON public.athlete_achievements;
 CREATE POLICY achievements_delete_policy ON public.athlete_achievements
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS achievements_insert_policy ON public.athlete_achievements;
 CREATE POLICY achievements_insert_policy ON public.athlete_achievements
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS achievements_select_policy ON public.athlete_achievements;
 CREATE POLICY achievements_select_policy ON public.athlete_achievements
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = athlete_achievements.profile_id) AND (p.visibility = 'public'::text))))));
 DROP POLICY IF EXISTS achievements_update_policy ON public.athlete_achievements;
@@ -16130,51 +16124,25 @@ CREATE POLICY achievements_update_policy ON public.athlete_achievements
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS athlete_achievements_guardian_write ON public.athlete_achievements;
-CREATE POLICY athlete_achievements_guardian_write ON public.athlete_achievements
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
-DROP POLICY IF EXISTS athlete_achievements_profile_access_select ON public.athlete_achievements;
-CREATE POLICY athlete_achievements_profile_access_select ON public.athlete_achievements
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
-DROP POLICY IF EXISTS athlete_equipment_guardian_write ON public.athlete_equipment;
-CREATE POLICY athlete_equipment_guardian_write ON public.athlete_equipment
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
-DROP POLICY IF EXISTS athlete_equipment_profile_access_select ON public.athlete_equipment;
-CREATE POLICY athlete_equipment_profile_access_select ON public.athlete_equipment
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS equipment_delete_policy ON public.athlete_equipment;
 CREATE POLICY equipment_delete_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS equipment_insert_policy ON public.athlete_equipment;
 CREATE POLICY equipment_insert_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS equipment_select_policy ON public.athlete_equipment;
 CREATE POLICY equipment_select_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = athlete_equipment.profile_id) AND (p.visibility = 'public'::text))))));
 DROP POLICY IF EXISTS equipment_update_policy ON public.athlete_equipment;
@@ -16182,34 +16150,34 @@ CREATE POLICY equipment_update_policy ON public.athlete_equipment
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS "Athletes can insert own vitals" ON public.athlete_vitals;
 CREATE POLICY "Athletes can insert own vitals" ON public.athlete_vitals
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS "Athletes can view own vitals" ON public.athlete_vitals;
 CREATE POLICY "Athletes can view own vitals" ON public.athlete_vitals
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = athlete_vitals.profile_id) AND (p.visibility = 'public'::text))))));
-DROP POLICY IF EXISTS athlete_vitals_guardian_write ON public.athlete_vitals;
-CREATE POLICY athlete_vitals_guardian_write ON public.athlete_vitals
+DROP POLICY IF EXISTS athlete_vitals_guardian_delete ON public.athlete_vitals;
+CREATE POLICY athlete_vitals_guardian_delete ON public.athlete_vitals
   AS PERMISSIVE
-  FOR ALL
+  FOR DELETE
+  TO public
+  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+DROP POLICY IF EXISTS athlete_vitals_guardian_update ON public.athlete_vitals;
+CREATE POLICY athlete_vitals_guardian_update ON public.athlete_vitals
+  AS PERMISSIVE
+  FOR UPDATE
   TO public
   USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
   WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
-DROP POLICY IF EXISTS athlete_vitals_profile_access_select ON public.athlete_vitals;
-CREATE POLICY athlete_vitals_profile_access_select ON public.athlete_vitals
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS comment_likes_delete_policy ON public.comment_likes;
 CREATE POLICY comment_likes_delete_policy ON public.comment_likes
   AS PERMISSIVE
@@ -16387,14 +16355,6 @@ CREATE POLICY golf_holes_insert_policy ON public.golf_holes
   WITH CHECK ((EXISTS ( SELECT 1
    FROM golf_rounds
   WHERE ((golf_rounds.id = golf_holes.round_id) AND (golf_rounds.profile_id = ( SELECT auth.uid() AS uid))))));
-DROP POLICY IF EXISTS golf_holes_profile_access_select ON public.golf_holes;
-CREATE POLICY golf_holes_profile_access_select ON public.golf_holes
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING ((EXISTS ( SELECT 1
-   FROM golf_rounds r
-  WHERE ((r.id = golf_holes.round_id) AND private.has_profile_access(r.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
 DROP POLICY IF EXISTS golf_holes_select_policy ON public.golf_holes;
 CREATE POLICY golf_holes_select_policy ON public.golf_holes
   AS PERMISSIVE
@@ -16402,7 +16362,7 @@ CREATE POLICY golf_holes_select_policy ON public.golf_holes
   TO public
   USING ((EXISTS ( SELECT 1
    FROM golf_rounds
-  WHERE ((golf_rounds.id = golf_holes.round_id) AND ((golf_rounds.profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  WHERE ((golf_rounds.id = golf_holes.round_id) AND ((golf_rounds.profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(golf_rounds.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
            FROM profiles
           WHERE ((profiles.id = golf_rounds.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1
                    FROM follows
@@ -16445,32 +16405,19 @@ CREATE POLICY golf_rounds_delete_policy ON public.golf_rounds
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS golf_rounds_guardian_write ON public.golf_rounds;
-CREATE POLICY golf_rounds_guardian_write ON public.golf_rounds
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS golf_rounds_insert_policy ON public.golf_rounds;
 CREATE POLICY golf_rounds_insert_policy ON public.golf_rounds
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS golf_rounds_profile_access_select ON public.golf_rounds;
-CREATE POLICY golf_rounds_profile_access_select ON public.golf_rounds
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS golf_rounds_select_policy ON public.golf_rounds;
 CREATE POLICY golf_rounds_select_policy ON public.golf_rounds
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles
   WHERE ((profiles.id = golf_rounds.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1
            FROM follows
@@ -16480,7 +16427,7 @@ CREATE POLICY golf_rounds_update_policy ON public.golf_rounds
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS golf_data_insert_policy ON public.golf_scorecard_data;
 CREATE POLICY golf_data_insert_policy ON public.golf_scorecard_data
   AS PERMISSIVE
@@ -16507,32 +16454,6 @@ CREATE POLICY golf_data_update_policy ON public.golf_scorecard_data
   USING ((EXISTS ( SELECT 1
    FROM group_posts
   WHERE ((group_posts.id = golf_scorecard_data.group_post_id) AND (group_posts.creator_id = ( SELECT auth.uid() AS uid))))));
-DROP POLICY IF EXISTS group_post_media_delete_policy ON public.group_post_media;
-CREATE POLICY group_post_media_delete_policy ON public.group_post_media
-  AS PERMISSIVE
-  FOR DELETE
-  TO public
-  USING (((( SELECT auth.uid() AS uid) = uploaded_by) OR (EXISTS ( SELECT 1
-   FROM group_posts
-  WHERE ((group_posts.id = group_post_media.group_post_id) AND (group_posts.creator_id = ( SELECT auth.uid() AS uid)))))));
-DROP POLICY IF EXISTS group_post_media_insert_policy ON public.group_post_media;
-CREATE POLICY group_post_media_insert_policy ON public.group_post_media
-  AS PERMISSIVE
-  FOR INSERT
-  TO public
-  WITH CHECK (((( SELECT auth.uid() AS uid) = uploaded_by) AND (EXISTS ( SELECT 1
-   FROM group_post_participants
-  WHERE ((group_post_participants.group_post_id = group_post_media.group_post_id) AND (group_post_participants.profile_id = ( SELECT auth.uid() AS uid)) AND (group_post_participants.status = 'confirmed'::text))))));
-DROP POLICY IF EXISTS group_post_media_select_policy ON public.group_post_media;
-CREATE POLICY group_post_media_select_policy ON public.group_post_media
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (((EXISTS ( SELECT 1
-   FROM group_post_participants
-  WHERE ((group_post_participants.group_post_id = group_post_media.group_post_id) AND (group_post_participants.profile_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1
-   FROM group_posts
-  WHERE ((group_posts.id = group_post_media.group_post_id) AND ((group_posts.creator_id = ( SELECT auth.uid() AS uid)) OR (group_posts.visibility = 'public'::text)))))));
 DROP POLICY IF EXISTS media_delete_policy ON public.group_post_media;
 CREATE POLICY media_delete_policy ON public.group_post_media
   AS PERMISSIVE
@@ -16724,18 +16645,12 @@ CREATE POLICY performances_insert_policy ON public.performances
   FOR INSERT
   TO public
   WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS performances_profile_access_select ON public.performances;
-CREATE POLICY performances_profile_access_select ON public.performances
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS performances_select_policy ON public.performances;
 CREATE POLICY performances_select_policy ON public.performances
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles
   WHERE ((profiles.id = performances.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1
            FROM follows
@@ -16816,14 +16731,6 @@ CREATE POLICY post_media_insert_policy ON public.post_media
   WITH CHECK ((EXISTS ( SELECT 1
    FROM posts
   WHERE ((posts.id = post_media.post_id) AND (posts.profile_id = ( SELECT auth.uid() AS uid))))));
-DROP POLICY IF EXISTS post_media_profile_access_select ON public.post_media;
-CREATE POLICY post_media_profile_access_select ON public.post_media
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING ((EXISTS ( SELECT 1
-   FROM posts p
-  WHERE ((p.id = post_media.post_id) AND private.has_profile_access(p.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))));
 DROP POLICY IF EXISTS post_media_select_policy ON public.post_media;
 CREATE POLICY post_media_select_policy ON public.post_media
   AS PERMISSIVE
@@ -16831,7 +16738,7 @@ CREATE POLICY post_media_select_policy ON public.post_media
   TO public
   USING ((EXISTS ( SELECT 1
    FROM posts
-  WHERE ((posts.id = post_media.post_id) AND ((posts.profile_id = ( SELECT auth.uid() AS uid)) OR (posts.visibility = 'public'::text) OR (EXISTS ( SELECT 1
+  WHERE ((posts.id = post_media.post_id) AND ((posts.profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(posts.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (posts.visibility = 'public'::text) OR (EXISTS ( SELECT 1
            FROM follows
           WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = posts.profile_id) AND (follows.status = 'accepted'::text)))))))));
 DROP POLICY IF EXISTS post_media_update_policy ON public.post_media;
@@ -16875,32 +16782,19 @@ CREATE POLICY posts_delete_policy ON public.posts
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS posts_guardian_write ON public.posts;
-CREATE POLICY posts_guardian_write ON public.posts
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS posts_insert_policy ON public.posts;
 CREATE POLICY posts_insert_policy ON public.posts
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS posts_profile_access_select ON public.posts;
-CREATE POLICY posts_profile_access_select ON public.posts
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS posts_select_policy ON public.posts;
 CREATE POLICY posts_select_policy ON public.posts
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR ((status = 'published'::text) AND ((visibility = 'public'::text) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR ((status = 'published'::text) AND ((visibility = 'public'::text) OR (EXISTS ( SELECT 1
    FROM follows
   WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = posts.profile_id) AND (follows.status = 'accepted'::text))))))));
 DROP POLICY IF EXISTS posts_update_policy ON public.posts;
@@ -16908,7 +16802,7 @@ CREATE POLICY posts_update_policy ON public.posts
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS privacy_settings_insert_policy ON public.privacy_settings;
 CREATE POLICY privacy_settings_insert_policy ON public.privacy_settings
   AS PERMISSIVE
@@ -16939,24 +16833,12 @@ CREATE POLICY profile_access_audit_select_policy ON public.profile_access_audit
   FOR SELECT
   TO public
   USING (((user_id = ( SELECT auth.uid() AS uid)) OR (profile_id = ( SELECT auth.uid() AS uid))));
-DROP POLICY IF EXISTS profiles_departed_select ON public.profiles;
-CREATE POLICY profiles_departed_select ON public.profiles
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING ((departed_at IS NOT NULL));
-DROP POLICY IF EXISTS profiles_profile_access_select ON public.profiles;
-CREATE POLICY profiles_profile_access_select ON public.profiles
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS profiles_select_policy ON public.profiles;
 CREATE POLICY profiles_select_policy ON public.profiles
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((id = ( SELECT auth.uid() AS uid)) OR (visibility = 'public'::text) OR (EXISTS ( SELECT 1
+  USING (((id = ( SELECT auth.uid() AS uid)) OR (visibility = 'public'::text) OR (departed_at IS NOT NULL) OR private.has_profile_access(id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM follows
   WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = profiles.id) AND (follows.status = 'accepted'::text))))));
 DROP POLICY IF EXISTS profiles_update_policy ON public.profiles;
@@ -17001,18 +16883,12 @@ CREATE POLICY season_highlights_insert_policy ON public.season_highlights
   FOR INSERT
   TO public
   WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS season_highlights_profile_access_select ON public.season_highlights;
-CREATE POLICY season_highlights_profile_access_select ON public.season_highlights
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
 DROP POLICY IF EXISTS season_highlights_select_policy ON public.season_highlights;
 CREATE POLICY season_highlights_select_policy ON public.season_highlights
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles
   WHERE ((profiles.id = season_highlights.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1
            FROM follows
@@ -17047,30 +16923,6 @@ CREATE POLICY "Users can view their own sport settings" ON public.sport_settings
   FOR SELECT
   TO public
   USING ((( SELECT auth.uid() AS uid) = profile_id));
-DROP POLICY IF EXISTS sport_settings_delete_policy ON public.sport_settings;
-CREATE POLICY sport_settings_delete_policy ON public.sport_settings
-  AS PERMISSIVE
-  FOR DELETE
-  TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS sport_settings_insert_policy ON public.sport_settings;
-CREATE POLICY sport_settings_insert_policy ON public.sport_settings
-  AS PERMISSIVE
-  FOR INSERT
-  TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS sport_settings_select_policy ON public.sport_settings;
-CREATE POLICY sport_settings_select_policy ON public.sport_settings
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS sport_settings_update_policy ON public.sport_settings;
-CREATE POLICY sport_settings_update_policy ON public.sport_settings
-  AS PERMISSIVE
-  FOR UPDATE
-  TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS sports_insert_policy ON public.sports;
 CREATE POLICY sports_insert_policy ON public.sports
   AS PERMISSIVE
@@ -17089,12 +16941,6 @@ CREATE POLICY "Users manage own blocks" ON public.user_blocks
   FOR ALL
   TO public
   USING ((blocker_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS "Users see own blocks" ON public.user_blocks;
-CREATE POLICY "Users see own blocks" ON public.user_blocks
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING ((blocker_id = ( SELECT auth.uid() AS uid)));
 DROP POLICY IF EXISTS "Venues are viewable by everyone" ON public.venues;
 CREATE POLICY "Venues are viewable by everyone" ON public.venues
   AS PERMISSIVE
@@ -17106,32 +16952,19 @@ CREATE POLICY workout_exercises_delete_policy ON public.workout_exercises
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_exercises_guardian_write ON public.workout_exercises;
-CREATE POLICY workout_exercises_guardian_write ON public.workout_exercises
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_exercises_insert_policy ON public.workout_exercises;
 CREATE POLICY workout_exercises_insert_policy ON public.workout_exercises
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_exercises_profile_access_select ON public.workout_exercises;
-CREATE POLICY workout_exercises_profile_access_select ON public.workout_exercises
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_exercises_select_policy ON public.workout_exercises;
 CREATE POLICY workout_exercises_select_policy ON public.workout_exercises
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = workout_exercises.profile_id) AND (p.visibility = 'public'::text))))));
 DROP POLICY IF EXISTS workout_exercises_update_policy ON public.workout_exercises;
@@ -17139,7 +16972,7 @@ CREATE POLICY workout_exercises_update_policy ON public.workout_exercises
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_routine_exercises_delete_policy ON public.workout_routine_exercises;
 CREATE POLICY workout_routine_exercises_delete_policy ON public.workout_routine_exercises
   AS PERMISSIVE
@@ -17193,32 +17026,19 @@ CREATE POLICY workout_sessions_delete_policy ON public.workout_sessions
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_sessions_guardian_write ON public.workout_sessions;
-CREATE POLICY workout_sessions_guardian_write ON public.workout_sessions
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_sessions_insert_policy ON public.workout_sessions;
 CREATE POLICY workout_sessions_insert_policy ON public.workout_sessions
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_sessions_profile_access_select ON public.workout_sessions;
-CREATE POLICY workout_sessions_profile_access_select ON public.workout_sessions
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_sessions_select_policy ON public.workout_sessions;
 CREATE POLICY workout_sessions_select_policy ON public.workout_sessions
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = workout_sessions.profile_id) AND (p.visibility = 'public'::text))))));
 DROP POLICY IF EXISTS workout_sessions_update_policy ON public.workout_sessions;
@@ -17226,38 +17046,25 @@ CREATE POLICY workout_sessions_update_policy ON public.workout_sessions
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_sets_delete_policy ON public.workout_sets;
 CREATE POLICY workout_sets_delete_policy ON public.workout_sets
   AS PERMISSIVE
   FOR DELETE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_sets_guardian_write ON public.workout_sets;
-CREATE POLICY workout_sets_guardian_write ON public.workout_sets
-  AS PERMISSIVE
-  FOR ALL
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text]))
-  WITH CHECK (private.has_profile_access(profile_id, ARRAY['guardian'::text]));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_sets_insert_policy ON public.workout_sets;
 CREATE POLICY workout_sets_insert_policy ON public.workout_sets
   AS PERMISSIVE
   FOR INSERT
   TO public
-  WITH CHECK ((profile_id = ( SELECT auth.uid() AS uid)));
-DROP POLICY IF EXISTS workout_sets_profile_access_select ON public.workout_sets;
-CREATE POLICY workout_sets_profile_access_select ON public.workout_sets
-  AS PERMISSIVE
-  FOR SELECT
-  TO public
-  USING (private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]));
+  WITH CHECK (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 DROP POLICY IF EXISTS workout_sets_select_policy ON public.workout_sets;
 CREATE POLICY workout_sets_select_policy ON public.workout_sets
   AS PERMISSIVE
   FOR SELECT
   TO public
-  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) OR (EXISTS ( SELECT 1
    FROM profiles p
   WHERE ((p.id = workout_sets.profile_id) AND (p.visibility = 'public'::text))))));
 DROP POLICY IF EXISTS workout_sets_update_policy ON public.workout_sets;
@@ -17265,7 +17072,7 @@ CREATE POLICY workout_sets_update_policy ON public.workout_sets
   AS PERMISSIVE
   FOR UPDATE
   TO public
-  USING ((profile_id = ( SELECT auth.uid() AS uid)));
+  USING (((profile_id = ( SELECT auth.uid() AS uid)) OR private.has_profile_access(profile_id, ARRAY['guardian'::text])));
 
 -- ── Table and view grants ─────────────────────────────────────────────────────
 REVOKE ALL ON TABLE public.activities FROM anon, authenticated, service_role;
@@ -18576,7 +18383,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (267, '267_platform_stats.sql', 'rebuild-000'),
   (268, '268_platform_schedules.sql', 'rebuild-000'),
   (269, '269_feed_switch_training_buckets.sql', 'rebuild-000'),
-  (270, '270_posture_a_zero_policy_tables.sql', 'rebuild-000')
+  (270, '270_posture_a_zero_policy_tables.sql', 'rebuild-000'),
+  (271, '271_one_permissive_policy_per_command.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18585,12 +18393,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 121 | 173 | 270
+-- Expected: 000 REBUILT | 138 | 121 | 145 | 271
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_121,
-       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_173,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_270;
+       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_271;
 
