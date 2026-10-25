@@ -456,7 +456,7 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   e2e suite refuses prod without a flag; the migration ledger (226) says
   what each environment is at. Vercel Preview + Development → staging (the
   dashboard step in `LAUNCH_RUNBOOK.md` §6). Load tests now have a home.
-  **Capacity (Sep 22 2026):** the staging project is the FREE tier. Vercel
+  **Capacity (Sep 22 2026; staging was the FREE tier until Oct 19 2026, Micro since — the budget is larger, the rule stands):** Vercel
   preview builds (they pre-render the public ISR pages against it), the CI
   smoke job and a local e2e run together drain its Disk IO budget; a smoke
   job left retrying for two hours crashed its auth + REST services. When
@@ -498,7 +498,7 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 
 ## Scaling: the first thing to break (measured Oct 10 2026, maintenance pass)
 
-**Method.** Ramped concurrency (5 → 10 → 20 → 35 → 50 workers, 12 s each) from this Mac, against a Vercel preview with the bypass header. The preview reads the FREE-tier staging database, so these numbers show where the shape bends, not production's ceiling. Production is on Supabase Pro.
+**Method.** Ramped concurrency (5 → 10 → 20 → 35 → 50 workers, 12 s each) from this Mac, against a Vercel preview with the bypass header. The preview read the staging database when it was still the FREE tier (staging moved to Micro on Oct 19 2026, the same compute as production, which left Nano for Micro the same day), so these numbers show where the shape bends, not production's ceiling. **The full audit — ceilings, the static sweep, the seeded EXPLAIN pass, the measured-sweep procedure for the load-test project, the ranked holes — is `docs/SCALE_AUDIT.md` (Oct 25 2026).**
 
 | Route (anonymous) | Cache | 20 workers | 50 workers |
 | --- | --- | --- | --- |

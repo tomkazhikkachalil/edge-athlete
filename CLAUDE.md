@@ -12,7 +12,7 @@ Two Supabase projects, three gitignored env files:
 
 | File | Project | Read by |
 | --- | --- | --- |
-| `.env.local` | STAGING (`EdgeAthlete-Staging`, free tier, disposable) | `npm run dev`, e2e, `check:schema`, Vercel Preview + Development |
+| `.env.local` | STAGING (`EdgeAthlete-Staging`, Micro compute since Oct 19 2026, disposable) | `npm run dev`, e2e, `check:schema`, Vercel Preview + Development |
 | `.env.prod` | PRODUCTION (`edge-athlete`) | only `TARGET_ENV=prod` / `E2E_TARGET=prod` scripts; Vercel Production |
 | `.env.staging` | management-API token + staging ref | `scripts/staging-sql.mjs` (refuses the prod ref) |
 
