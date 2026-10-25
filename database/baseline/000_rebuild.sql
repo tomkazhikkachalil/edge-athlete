@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-25T15:33:36.601433+00:00 from server 17.6 by
+-- Generated 2026-10-25T16:29:26.736812+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 271.
+-- public.schema_dump() (migration 227). Ledger head at generation: 272.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -28,7 +28,7 @@ COMMENT ON SCHEMA private IS 'SECURITY DEFINER helpers that RLS policies call (2
 
 -- ── Extensions ────────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
@@ -18384,7 +18384,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (268, '268_platform_schedules.sql', 'rebuild-000'),
   (269, '269_feed_switch_training_buckets.sql', 'rebuild-000'),
   (270, '270_posture_a_zero_policy_tables.sql', 'rebuild-000'),
-  (271, '271_one_permissive_policy_per_command.sql', 'rebuild-000')
+  (271, '271_one_permissive_policy_per_command.sql', 'rebuild-000'),
+  (272, '272_pg_net_extensions_schema.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18393,12 +18394,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 121 | 145 | 271
+-- Expected: 000 REBUILT | 138 | 121 | 145 | 272
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_121,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_271;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_272;
 
