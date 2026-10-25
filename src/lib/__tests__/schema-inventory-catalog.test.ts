@@ -478,12 +478,27 @@ describe('the real chain', () => {
   });
   it('reads every policy claim: 196 records the drop of 001\'s profile family and makes 052\'s loop products literal', () => {
     const created = [...chain.policies.values()].filter(p => p.state === 'created');
-    expect(created.length).toBeGreaterThan(170); // 172 live after 199 (+ the two athlete_clubs claims on a table that is not live)
+    expect(created.length).toBeGreaterThan(140); // 145 live after 271 (172 after 199; 271 folded 052's arms and dropped the twin sets) + the two athlete_clubs claims on a table that is not live
     expect(chain.policies.get('profiles|Users can view their own profile')).toMatchObject({ state: 'dropped', file: '196_baseline_policies.sql' });
-    expect(chain.policies.get('profiles|profiles_select_policy')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
+    expect(chain.policies.get('profiles|profiles_select_policy')).toMatchObject({ state: 'created', file: '271_one_permissive_policy_per_command.sql', cmd: 'SELECT' }); // 196 wrote it out, 271 folded the guardian + tombstone arms in
     expect(chain.policies.get('clubs|Clubs are viewable by authenticated users')).toMatchObject({ state: 'dropped', file: '117_clubs_real.sql' });
-    expect(chain.policies.get('posts|posts_guardian_write')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql', cmd: 'ALL' });
-    expect(chain.policies.get('golf_rounds|golf_rounds_profile_access_select')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
+    // 052's additive arms were written out by 190/196 and FOLDED by 271 (one permissive policy per table + command).
+    expect(chain.policies.get('posts|posts_guardian_write')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
+    expect(chain.policies.get('golf_rounds|golf_rounds_profile_access_select')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
+    expect(chain.policies.get('posts|posts_select_policy')).toMatchObject({ state: 'created', file: '271_one_permissive_policy_per_command.sql', cmd: 'SELECT' });
+    expect(chain.policies.get('posts|posts_select_policy')!.using).toContain('has_profile_access');
+    expect(chain.policies.get('posts|posts_select_policy')!.using).toContain("status = 'published'"); // the narrowing arm survives the fold
+    expect(chain.policies.get('posts|posts_insert_policy')!.check).toContain('has_profile_access');
+    // athlete_vitals has no owner UPDATE/DELETE policy, so the guardian's FOR ALL became two narrow policies.
+    expect(chain.policies.get('athlete_vitals|athlete_vitals_guardian_update')).toMatchObject({ state: 'created', file: '271_one_permissive_policy_per_command.sql', cmd: 'UPDATE' });
+    expect(chain.policies.get('athlete_vitals|athlete_vitals_guardian_delete')).toMatchObject({ state: 'created', file: '271_one_permissive_policy_per_command.sql', cmd: 'DELETE' });
+    expect(chain.policies.get('athlete_vitals|athlete_vitals_guardian_write')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
+    // The twin sets: the chain-owned name stays, the archive copy goes.
+    expect(chain.policies.get('group_post_media|media_select_policy')!.state).toBe('created');
+    expect(chain.policies.get('group_post_media|group_post_media_select_policy')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
+    expect(chain.policies.get('sport_settings|Users can view their own sport settings')!.state).toBe('created');
+    expect(chain.policies.get('sport_settings|sport_settings_select_policy')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
+    expect(chain.policies.get('user_blocks|Users see own blocks')).toMatchObject({ state: 'dropped', file: '271_one_permissive_policy_per_command.sql' });
     // 199: the fold and the drops.
     expect(chain.policies.get('golf_participant_scores|golf_scores_update_policy')).toMatchObject({ state: 'created', file: '199_cleanup.sql', cmd: 'UPDATE' });
     expect(chain.policies.get('golf_participant_scores|golf_scores_update_policy')!.using).toContain('creator_id');

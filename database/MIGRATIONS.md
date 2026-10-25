@@ -129,7 +129,13 @@ otherwise contradicted this file): write idempotent SQL (`IF NOT EXISTS`,
 `DROP ... IF EXISTS` before `CREATE` for functions); never modify an existing
 migration file — add a new number; use `(select auth.uid())` (not bare
 `auth.uid()`) in RLS policies for performance; SECURITY DEFINER functions set
-`search_path = ''` and fully qualify table names. **Every foreign key ships
+`search_path = ''` and fully qualify table names. **One permissive policy per
+(table, command)** (migration 271, Oct 25 2026): supplementary access — a
+guardian, a viewer role, a tombstone rule — is an `OR` arm INSIDE that
+policy, never a second policy; Postgres evaluates every permissive policy for
+the command on every row (the Performance Advisor's
+`multiple_permissive_policies`), and a `FOR ALL` policy overlaps all four.
+**Every foreign key ships
 with an index whose leading columns are its columns** (migration 239, Sep 25
 2026): without one, deleting the referenced row makes the RI trigger scan the
 whole child table. `src/lib/__tests__/fk-index-coverage.test.ts` fails the
@@ -457,6 +463,59 @@ report of why this section exists.
   `net.http_post`; its objects live in the `net` schema regardless. The
   leaked-password protection is a dashboard toggle (Authentication → Attack
   Protection), not SQL.
+
+## One permissive policy per (table, command); no duplicate indexes (migration 271, Oct 25 2026)
+
+The Performance Advisor listed `multiple_permissive_policies` on 17 tables
+(once per role, because every policy is `TO public`) and `duplicate_index` on
+6. Both lints name real per-row work: Postgres evaluates EVERY permissive
+policy for a command on EVERY row and ORs them, and a duplicate index is
+written twice on every insert. 271 removes both without changing who sees or
+writes what — the OR of each table's policies per command is the same before
+and after.
+
+- **The 052 arms are folded in.** 052 added the guardian feature's RLS as
+  ADDITIVE policies (`<t>_guardian_write` FOR ALL, `<t>_profile_access_select`
+  FOR SELECT) beside each table's own four, because the live base bodies were
+  not known then. 190/191/196 wrote every base body out verbatim, so 271
+  recreates the base policies with the arm as an `OR` term — owner arm first,
+  so the common case short-circuits before `private.has_profile_access` runs —
+  and drops the two 052 policies on posts, golf_rounds, athlete_achievements,
+  athlete_equipment, workout_sessions / _exercises / _sets; the SELECT arm
+  alone on golf_holes and post_media (inside the parent `EXISTS`),
+  performances, season_highlights and profiles (238's `profiles_departed_select`
+  tombstone arm folded into `profiles_select_policy` too).
+- **athlete_vitals** has no owner UPDATE / DELETE policy (010; the routes
+  write through `supabaseAdmin`), so its guardian `FOR ALL` could not fold
+  into anything — it became two NARROW policies, `athlete_vitals_guardian_update`
+  and `athlete_vitals_guardian_delete`, each the only policy for its command.
+- **The byte-identical second sets are dropped:** `group_post_media_{select,
+  insert,delete}_policy` (an archive script; `media_*` from 004 → 126 stays),
+  `sport_settings_{select,insert,update,delete}_policy` (196, from an archive;
+  076's "Users can … their own sport settings" stays), `"Users see own
+  blocks"` (a SELECT twin of the FOR ALL `"Users manage own blocks"`).
+- **One twin of each duplicate index is dropped**, the chain-owned name kept:
+  `idx_group_post_media_group`, `idx_group_post_media_uploader`,
+  `idx_group_post_participants_profile`, `idx_comments_post_created`,
+  `idx_post_likes_post_id`, `idx_post_media_post_order`. Every FK stays covered
+  (`fk-index-coverage.test.ts`). Not taken: `idx_post_media_post_id` is a
+  leading-column prefix of the kept `(post_id, display_order)` index.
+- **Pre-flight / proof — the lint in SQL** (31 rows before, 0 after):
+  `SELECT tablename, c, count(*) FROM pg_policies, unnest(CASE cmd WHEN 'ALL'
+  THEN ARRAY['SELECT','INSERT','UPDATE','DELETE'] ELSE ARRAY[cmd] END) c WHERE
+  schemaname = 'public' AND permissive = 'PERMISSIVE' GROUP BY 1, 2 HAVING
+  count(*) > 1`. Expected result row on both databases:
+  `271 APPLIED | 0 | 0 | 0 | 145 | 271` (173 policies − 30 + 2). Staging ran it
+  Oct 25 2026 with exactly that row; `check:schema` OK, head 271.
+- **`schema-inventory-catalog.test.ts`** pins the fold: `posts_select_policy`
+  created in 271 with the `has_profile_access` arm AND the `status =
+  'published'` arm; `posts_guardian_write`, `golf_rounds_profile_access_select`,
+  `group_post_media_select_policy`, `sport_settings_select_policy` and
+  `"Users see own blocks"` dropped in 271; the two vitals policies created.
+- A migration that only drops and recreates policies and drops indexes ships
+  **no GRANTs** (the Oct 30 rule is about `CREATE TABLE`). The baseline is
+  regenerated AFTER 271 runs on production (`npm run build:baseline`), as a
+  separate PR.
 
 ## ⚠️ Everything else is historical — do NOT run it
 
