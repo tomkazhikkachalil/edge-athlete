@@ -1,5 +1,13 @@
 # Development Log
 
+## October 25, 2026 — Scale fix 5: the cheer totals in one grouped query (migration 275)
+
+Hole 5 of `docs/SCALE_AUDIT.md`. `readCheerFeed` (`src/lib/play/cheers-server.ts`) answered a watcher's 10-second poll with SIX `count: 'exact'` head requests — one per cheer key, because PostgREST has no GROUP BY — and the POST re-ran the six after its insert; with the gate's two reads and the recent-cheers read, nine statements per poll per watcher of a live round. A hundred watchers of one round is 90 statements a second for six numbers.
+
+**Migration 275** adds `live_cheer_totals(p_context_key text) RETURNS TABLE (cheer text, n bigint)` — `LANGUAGE sql STABLE SECURITY INVOKER`, `search_path = public`, EXECUTE for the service role only (the API roles revoked: `/api/live/cheers` is the one door and the context's own gate runs first) — one pass over `idx_live_cheers_context` grouped by key. `readCheerFeed` calls it once; the row loop tolerates a key the table's CHECK no longer allows; the POST's re-read reuses it. The Sep 29 rule holds: rows never leave the database, only counts (`RECENT_CAP` 50 stays on the recent list). Statements per poll 9 → 4.
+
+**Proof.** Staging: `275 APPLIED | 1 | false | 275`; `check:schema` ledger head 275. EXPLAIN on 5,000 synthetic cheers of one round (inserted and rolled back in one transaction): one per-key count 1.1 ms / 78 buffers — six of them ≈ 6.6 ms and six round trips; the grouped function 2.1 ms / 115 buffers, one round trip. `src/lib/__tests__/cheers-feed-shape.test.ts` (one RPC call, no per-key counts, the cap kept, the migration's shape and grants). E2E_PLACEHOLDER `npm run verify` VERIFY_PLACEHOLDER. Docs: `docs/PLAY.md` cheers section, `database/MIGRATIONS.md`, `SCALE_AUDIT.md` §6. **Production:** Tom runs 275 in the SQL editor after 273 and 274; the code tolerates the gap (a missing function is PostgREST's `PGRST202` — a logged warning and zero totals, never a 500).
+
 ## October 25, 2026 — Scale fix 1, follow-up: the roster listener gets its own channel (an unpublished table must never silence the scores)
 
 The production probe after #1299 missed: a score did not reach the spectator within 20 s. Production had the new hook but not yet migration 273, and the hook put its three listeners on ONE channel. **Reproduced on staging in two minutes:** with `group_post_participants` dropped from the publication, the same spec failed at the same line; with it added back, it passed. A `postgres_changes` listener on a table that is NOT in the publication fails its WHOLE channel — so until 273 ran, the scores listener was down with it and live scoring sat on the 30 s degraded poll. "Order-independent" was wrong by exactly that much.

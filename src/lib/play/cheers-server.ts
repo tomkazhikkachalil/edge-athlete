@@ -70,31 +70,34 @@ async function groupPostLive(admin: Admin, g: { status: string | null; last_scor
 const RECENT_CAP = 50;
 
 /**
- * The counts are six head counts in the database (one per cheer key, over
- * idx_live_cheers_context) — never the rows: a popular round used to ship
- * up to 5,000 rows to every viewer every 10 s, and its totals silently
- * froze at that cap (the Play review, Sep 29 2026).
+ * The counts are ONE grouped query in the database (`live_cheer_totals`,
+ * migration 275 — one pass over idx_live_cheers_context) — never the rows: a
+ * popular round used to ship up to 5,000 rows to every viewer every 10 s,
+ * and its totals silently froze at that cap (the Play review, Sep 29 2026).
+ * Until scale fix 5 (Oct 25 2026) it was six head counts, one per cheer key
+ * (PostgREST cannot GROUP BY): nine statements per poll per watcher with the
+ * gate's two and the recent read; now four.
  */
 export async function readCheerFeed(admin: Admin, contextKey: string, since: string | null): Promise<CheerFeed> {
   const now = new Date().toISOString();
-  const [counts, recent] = await Promise.all([
-    Promise.all(
-      CHEER_KEYS.map(k => admin.from('live_cheers').select('id', { count: 'exact', head: true }).eq('context_key', contextKey).eq('cheer', k))
-    ),
+  const [grouped, recent] = await Promise.all([
+    admin.rpc('live_cheer_totals', { p_context_key: contextKey }),
     since
       ? admin.from('live_cheers').select('id, cheer, target_profile_id, created_at').eq('context_key', contextKey).gt('created_at', since).order('created_at', { ascending: false }).limit(RECENT_CAP)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const totals = emptyTotals();
   let total = 0;
-  counts.forEach((c, i) => {
-    if (c.error) {
-      if (!isMissingTableError(c.error.code)) console.warn('[cheers] count failed:', c.error.message);
-      return;
+  if (grouped.error) {
+    if (!isMissingTableError(grouped.error.code)) console.warn('[cheers] totals failed:', grouped.error.message);
+  } else {
+    for (const row of (grouped.data ?? []) as Array<{ cheer: string; n: number | string }>) {
+      if (!(CHEER_KEYS as readonly string[]).includes(row.cheer)) continue; // a key the table's CHECK no longer allows
+      const n = Number(row.n) || 0;
+      totals[row.cheer as CheerKey] = n;
+      total += n;
     }
-    totals[CHEER_KEYS[i]] = c.count ?? 0;
-    total += c.count ?? 0;
-  });
+  }
   const events: CheerEvent[] = ((recent.data ?? []) as Array<{ id: string; cheer: CheerKey; target_profile_id: string | null; created_at: string }>).map(r => ({
     id: r.id,
     cheer: r.cheer,
