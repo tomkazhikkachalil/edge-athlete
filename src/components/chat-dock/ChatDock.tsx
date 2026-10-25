@@ -143,8 +143,13 @@ export default function ChatDock() {
     dispatch({ type: 'PRUNE', validIds: conversations.map(c => c.id) });
   }, [hydrated, loading, conversations]);
 
-  // Presence: mounted only when the dock is enabled (never on phones).
-  const onlineIds = usePresence(enabled ? user!.id : null);
+  // Presence: joined only while the dock is IN USE — the panel open, or a
+  // mini thread open / minimized — never on phones, never on a suppressed
+  // route (the full Messages page shows no dots), and never by a tab that
+  // merely has the collapsed pill on screen (scale fix 3, Oct 25 2026; see
+  // usePresence.ts). Closing the last of those leaves the channel.
+  const presenceWanted = enabled && !suppressed && ((open && !hidden) || hasWindows);
+  const onlineIds = usePresence(presenceWanted ? user!.id : null);
 
   // Browser-tab unread badge. Known limit: soft-nav title rewrites clear
   // the prefix until the next unread change — acceptable v1.
