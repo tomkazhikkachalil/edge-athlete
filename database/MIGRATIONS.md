@@ -552,6 +552,22 @@ baseline regenerated after the prod run emits `pg_net WITH SCHEMA extensions`
 by itself (the generator copies the live namespace). `check:schema` has no
 extensions facet; the ledger row is the proof it ran.
 
+## The live-round subscription is filtered to the round (migration 273, Oct 25 2026 — scale fix 1)
+
+`useSharedRound` subscribed to `golf_participant_scores` table-wide; Realtime
+delivers a change once PER SUBSCRIBER, so every score written anywhere reached
+every spectator and live feed card (the fan-out probe on staging: 10 watchers
+of round A received all 200 of round B's events). The hook now filters to the
+roster (`participant_id=in.(…)`, ≤ 100 values — Supabase's cap) and listens to
+the round's `group_post_participants` rows for a late joiner, which **273
+publishes** (`ALTER PUBLICATION supabase_realtime ADD TABLE
+public.group_post_participants`, guarded). After: 0 of round B's events reach
+round A's watchers; round A's own 200 still do. Expected row on both:
+`273 APPLIED | 5 | true | 273`. The code is order-independent with the
+migration (the 60 s poll carries a joiner until the table is published).
+`scripts/realtime-fanout-probe.mjs --mode unfiltered|filtered` is the
+before/after (staging only).
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

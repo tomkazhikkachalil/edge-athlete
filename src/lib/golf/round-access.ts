@@ -42,12 +42,12 @@ export function canViewSharedRound({
 }
 
 // ── Realtime score-event classification ─────────────────────────────────────
-// The golf_participant_scores subscription is TABLE-WIDE (no server filter),
-// so events arrive for every round in the app. A known participant id is this
-// round's — refresh. An unknown id is EITHER another round's noise OR this
-// round's roster gone stale (participant added mid-round, or a viewer whose
-// roster loaded empty) — refresh too, but throttled, so cross-round noise
-// costs at most one refetch per window.
+// The golf_participant_scores subscription is FILTERED to the round's roster
+// (scale fix 1, Oct 25 2026 — it was table-wide before, so events arrived for
+// every round in the app). A known participant id is this round's — refresh.
+// An unknown id now means the roster-over-100 fallback (unfiltered) or a
+// joiner whose first card landed before the resubscribe — refresh too, but
+// throttled, so any residual noise costs at most one refetch per window.
 
 export const UNKNOWN_EVENT_REFRESH_WINDOW_MS = 10_000;
 

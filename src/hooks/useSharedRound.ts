@@ -13,9 +13,14 @@ import { shouldPoll } from '@/lib/net/online';
 // and, later, tournament/leaderboard pages). It:
 //   • seeds from the scorecard the feed already loaded (no extra fetch on mount),
 //   • refreshes once when enabled (the seeded data may be minutes old),
-//   • subscribes to Supabase Realtime on golf_participant_scores (scores from
-//     ANY player) and on this round's group_posts row (status flips: LIVE →
-//     FINAL streams to viewers, e.g. End Round),
+//   • subscribes to Supabase Realtime on THIS ROUND's golf_participant_scores
+//     rows (filtered to the roster's participant ids — scale fix 1, Oct 25
+//     2026: a table-wide subscription delivered every score written anywhere
+//     to every spectator and feed card, one refetch each), on this round's
+//     group_post_participants rows (a late joiner → refresh the roster and
+//     resubscribe with the new filter; migration 273 publishes the table),
+//     and on this round's group_posts row (status flips: LIVE → FINAL streams
+//     to viewers, e.g. End Round),
 //   • retries failed subscriptions with backoff and reports connectionState,
 //   • polls ALWAYS while enabled — 30s when the channel is degraded, 60s even
 //     when it reports 'live'. SUBSCRIBED only means the channel joined; it
@@ -28,9 +33,11 @@ import { shouldPoll } from '@/lib/net/online';
 //     48h live window) expire without any server event,
 //   • exposes refresh() for imperative updates (e.g. right after you save).
 //
-// Realtime respects RLS (subscriber's SELECT policies). Requires both tables
-// in the `supabase_realtime` publication (migration 038); if absent, the
-// channel never fires and the poll fallback carries the feature.
+// Realtime respects RLS (subscriber's SELECT policies). Requires the three
+// tables in the `supabase_realtime` publication (migrations 038 + 273); if
+// absent, the channel never fires and the poll fallback carries the feature.
+// A Realtime `in.(…)` filter takes at most 100 values (Supabase docs); a
+// roster past that falls back to the unfiltered listener + classifyScoreEvent.
 
 export type LiveConnectionState = 'idle' | 'connecting' | 'live' | 'degraded';
 
@@ -40,6 +47,8 @@ const POLL_LIVE_MS = 60_000;
 const CLOCK_TICK_MS = 60_000;
 const RETRY_BASE_MS = 2_000;
 const RETRY_MAX_MS = 30_000;
+// Supabase Realtime's `in.(…)` filter accepts at most 100 values.
+const REALTIME_IN_FILTER_MAX = 100;
 
 export function useSharedRound({
   groupPostId,
@@ -115,9 +124,11 @@ export function useSharedRound({
     if (enabled) refresh();
   }, [enabled, refresh]);
 
-  // Participant RECORD ids (group_post_participants.id) for client-side event
-  // filtering. Kept in a ref so the subscription effect doesn't re-run — and
-  // resubscribe — every time scores change.
+  // Participant RECORD ids (group_post_participants.id): the server-side
+  // filter of the scores subscription AND the client-side classifier. The
+  // ref keeps the handler current between resubscribes; the ROSTER KEY (the
+  // sorted ids) is what the subscription effect depends on, so a scores
+  // change never resubscribes — only a roster change does (a late joiner).
   const participantIds = useMemo(
     () => new Set((scorecard?.participants || []).map(p => p.participant.id)),
     [scorecard]
@@ -126,11 +137,13 @@ export function useSharedRound({
   useEffect(() => {
     participantIdsRef.current = participantIds;
   }, [participantIds]);
+  const rosterKey = useMemo(() => Array.from(participantIds).sort().join(','), [participantIds]);
 
   const attemptRef = useRef(0);
   // Throttle marker for refreshes triggered by score events whose participant
-  // id is NOT in the roster (see classifyScoreEvent) — the subscription is
-  // table-wide, so that branch also fires for other rounds' scores.
+  // id is NOT in the roster (see classifyScoreEvent). With the server-side
+  // filter this is the roster-over-100 fallback and the race between a
+  // joiner's first card and our resubscribe; it stays, throttled.
   const unknownEventRefreshAtRef = useRef(0);
 
   // Connection state is effect-owned by definition: this effect owns the
@@ -145,18 +158,28 @@ export function useSharedRound({
     setConnectionState('connecting');
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const channel = supabase
-      .channel(`shared-round:${groupPostId}`)
-      .on(
+    // The scores listener is FILTERED to this round's roster (server-side:
+    // other rounds' scores never leave the database). An empty roster (the
+    // scorecard loaded without participants) subscribes to nothing here —
+    // the participants listener and the poll bring the roster, and the
+    // effect resubscribes when it arrives.
+    const roster = rosterKey ? rosterKey.split(',') : [];
+    const scoresFilter = roster.length > 0 && roster.length <= REALTIME_IN_FILTER_MAX
+      ? { event: '*' as const, schema: 'public', table: 'golf_participant_scores', filter: `participant_id=in.(${roster.join(',')})` }
+      : roster.length > REALTIME_IN_FILTER_MAX
+        ? { event: '*' as const, schema: 'public', table: 'golf_participant_scores' }
+        : null;
+
+    let channel = supabase.channel(`shared-round:${groupPostId}`);
+    if (scoresFilter) {
+      channel = channel.on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'golf_participant_scores' },
+        scoresFilter,
         (payload: { new?: unknown; old?: unknown }) => {
           const row = (payload.new ?? payload.old) as { participant_id?: string } | undefined;
           // Known participant → this round's score, refetch. UNKNOWN id is
-          // ambiguous: another round's noise, or OUR roster is stale (a
-          // participant joined mid-round, or it loaded empty) — the old code
-          // silently discarded those, which froze the page for exactly the
-          // viewers whose roster failed to load. Refresh, throttled.
+          // the roster-over-100 fallback or a joiner whose card landed before
+          // our resubscribe — refresh, throttled (classifyScoreEvent).
           const action = classifyScoreEvent(
             participantIdsRef.current,
             row?.participant_id,
@@ -169,6 +192,18 @@ export function useSharedRound({
             unknownEventRefreshAtRef.current = Date.now();
             refresh();
           }
+        }
+      );
+    }
+    channel = channel
+      .on(
+        'postgres_changes',
+        // The roster: a late joiner (or a removal) → refresh; the new roster
+        // key then resubscribes this effect with the widened scores filter.
+        // Published by migration 273; until it is live, the poll carries it.
+        { event: '*', schema: 'public', table: 'group_post_participants', filter: `group_post_id=eq.${groupPostId}` },
+        () => {
+          refresh();
         }
       )
       .on(
@@ -201,7 +236,7 @@ export function useSharedRound({
       supabase.removeChannel(channel);
       setConnectionState('idle');
     };
-  }, [enabled, groupPostId, refresh, retryNonce]);
+  }, [enabled, groupPostId, refresh, retryNonce, rosterKey]);
 
   // Poll ALWAYS while enabled — fast when degraded, relaxed when the channel
   // reports 'live'. SUBSCRIBED is not proof events are flowing (publication
