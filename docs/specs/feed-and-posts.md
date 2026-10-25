@@ -7,8 +7,14 @@
 **Likes you can trust, and impact everyone can see (likes round, Oct 4 2026,
 #1081 + mig 252)** — Tom: the count must be accurate; a heart must agree on
 every surface; "an impact so you know 1000 ppl viewed your post." **Counts
-are RECOUNTS** (post likes in the route + 015's trigger; comment likes in
-`POST /api/comments/like` + 252's recount triggers); a reader embeds only the
+are RECOUNTS — by the TRIGGER, read by the route** (amended Oct 25 2026,
+scale fix 4): 015's trigger recounts `posts.likes_count`, 095's recounts
+`posts.comments_count` (published only), 252's recount `post_comments.likes_count`,
+each inside the like's or comment's own statement; `POST /api/posts/like`,
+`POST /api/comments/like` and `POST`/`DELETE /api/comments` then READ the
+column and return it — they never count the rows a second time nor write the
+column (`counter-writes.test.ts`). Until Oct 25 the routes did both again:
+two O(likes) counts and two `posts` writes per like; a reader embeds only the
 VIEWER's own like row (`.eq('likes.profile_id', viewer)` — PostgREST caps a
 full embed at 1000, which emptied hearts on popular posts). **One liked truth
 per tab** — `src/lib/likes/store.ts`: every like the viewer performs and every
