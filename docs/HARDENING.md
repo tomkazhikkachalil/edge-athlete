@@ -272,14 +272,18 @@ The guardrails script enforces the mechanical half (no `'use client'`,
 ### B6. The Supabase Security Advisor (Oct 9 2026, migrations 257–258)
 
 Re-run it (Supabase → Advisors → Security Advisor) at every stage gate. The
-expected list is **one WARN: `extension_in_public` — `pg_net`**, accepted by
-decision (it cannot be moved without pausing the cron jobs; see
-`database/MIGRATIONS.md` "RLS helpers live in `private`"). Anything else is new
+expected list is **EMPTY** (Oct 25 2026): `pg_net` moved to `extensions` by
+migration 272 (the Oct 9 acceptance is superseded — see
+`database/MIGRATIONS.md` "pg_net out of `public`"), and leaked-password
+protection is ON. Anything else is new
 and gets fixed the same way: an RLS helper moves to `private`, a trigger
 function loses its EXECUTE grants, a function gains a fixed `search_path`, an
 anon RPC the server can call with its own key is revoked from `anon` /
-`authenticated`. Leaked-password protection is ON (Authentication → Attack
-Protection).
+`authenticated`. Leaked-password protection (Authentication → Attack
+Protection → "Prevent the use of leaked passwords", a Pro-plan setting that
+rejects HaveIBeenPwned-listed passwords at sign-up and password change) is
+ON on production — check the toggle, not the memory of it: on Oct 25 2026 the
+Advisor still listed it disabled two weeks after it was believed flipped.
 
 ### B7. Table grants — the Oct 30 2026 rule (Supabase stops auto-granting new tables)
 
