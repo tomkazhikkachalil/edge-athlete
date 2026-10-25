@@ -12,13 +12,13 @@
 
 | Layer | Limit | Number | Where it bites here |
 |---|---|---|---|
-| **Vercel Functions (Hobby)** | Max duration | **300 s** default and maximum (Pro: 300 default, 800 max, 1,800 beta) | `maxDuration` 300 is already the ceiling for `cron/media-jobs`, `admin/media-jobs`, `cron/platform-rollup` — nothing can go longer on Hobby |
-| | Memory / CPU | 2 GB / 1 vCPU (Pro 4 GB / 2 vCPU) | ffmpeg transcodes and the image sniff run inside that |
+| **Vercel Functions (Pro — corrected Oct 25: the project is on Pro, not Hobby)** | Max duration | **300 s default, 800 s maximum** (1,800 s beta) | `maxDuration` 300 on `cron/media-jobs`, `admin/media-jobs`, `cron/platform-rollup` can rise to 800 on Pro |
+| | Memory / CPU | 2 GB / 1 vCPU default, **4 GB / 2 vCPU maximum on Pro** | ffmpeg transcodes and the image sniff run inside that |
 | | **Request or response body** | **4.5 MB**, else `413 FUNCTION_PAYLOAD_TOO_LARGE` (streaming responses are not bodies) | Post media goes direct to storage (Oct 4) — but `upload/avatar` (5 MB cap), `upload/cover` (10 MB cap) and `upload` (5 MB) still carry bytes through the function: **any file over 4.5 MB is refused by Vercel before the route runs** (§1.5) |
-| | Concurrency | auto-scales to 30,000 (Hobby and Pro) | Not the wall; the database is |
-| | Crons | Hobby: 2 (`vercel.json` uses both); pg_cron carries the other 8 | Already shaped around it |
+| | Concurrency | auto-scales to 30,000 (Pro) | Not the wall; the database is |
+| | Crons | Pro allows more than the 2 `vercel.json` declares; pg_cron carries the other 8 by design | Already shaped around it |
 | | File descriptors | 1,024 per instance, shared | Fan-out `Promise.all` over N ids opens N sockets at once (§1.8) |
-| | Region | `iad1` only (Pro: multi-region) | Supabase is `ca-central-1`: every DB round trip crosses regions (~15–25 ms floor) — sequential chains pay it N times |
+| | Region | `iad1` (Pro can set multiple regions) | Supabase is `ca-central-1`: every DB round trip crosses regions (~15–25 ms floor) — sequential chains pay it N times |
 | **Supabase compute** (Pro plan; **production = Micro, staging = Micro**) | Memory | Nano 0.5 GB · **Micro 1 GB** · Small 2 GB · Medium 4 GB | Nano hit RAM + swap under probe load (support, Oct 21); Micro is the current floor |
 | | CPU | **shared** up to Medium; dedicated from Large | Shared CPU = noisy, bursty; the Oct 19 96 % CPU was Nano |
 | | Direct connections | 60 (Nano, Micro) · 90 (Small) · 120 (Medium) | PostgREST, Auth, Realtime, pg_cron and the dashboard all draw from these |
@@ -235,13 +235,13 @@ The seed is small on purpose (the IO budget), so the ABSOLUTE times are low; wha
 
 ---
 
-## 3. Measured sweep — the procedure, ready for the load-test project
+## 3. Measured sweep — the procedure, on STAGING in a quiet window (no new spend — Tom, Oct 25)
 
-**What Tom creates:** a third Supabase project on the Pro org (`EdgeAthlete-Load`, **Micro**, same region `ca-central-1`), its ref in `.env.load` (`LOAD_PROJECT_REF`, URL, anon + service keys, a management token); the chain applied with `000_rebuild.sql` (the baseline at head 272 rebuilds a blank project — `database/MIGRATIONS.md` "To build an environment"); a Vercel preview whose env points at it (the bypass header for the runner). Every load tool refuses the production AND staging refs by the same check `staging-sql.mjs` uses.
+**Where (Tom's decision, Oct 25 2026 — Supabase Pro + Vercel Pro, no third project):** STAGING (Micro, the same compute as production) is the measurement environment. Loads run in an agreed **quiet window** with no e2e invocation active (the CI smoke, a local sweep or a preview build would both skew the numbers and starve the IO budget). The numbers are recorded as a **FLOOR** — they prove the fixes hold and the app stays fast at thousands of users; the ceiling needs a dedicated project, revisited only before a large growth push. Every load tool refuses the production ref the way `staging-sql.mjs` does.
 
-**Seed (`scripts/seed-volume.mjs`, an extension of `staging-seed.mjs`):** users created in parallel batches of 20 through `auth.admin.createUser` (the serial loop is the only reason thousands take hours); **20,000 users, 200,000 posts (with media rows and 30 % stat lines), a power-law follow graph (a few athletes with 5,000 followers, most with 20), 5,000 conversations with 200,000 messages, 50 live rounds with scores, notifications in proportion** — sized to Micro's 10 GB; idempotent by email prefix; `--wipe`.
+**Seed (`scripts/seed-volume.mjs`, an extension of `staging-seed.mjs`):** users created in parallel batches of 20 through `auth.admin.createUser` (the serial loop did 500 in 162 s), **~5,000 users, ~50,000 posts, ~50,000 search documents** (search is where volume matters most — posts and athletes, topped up with synthetic course/org titles), a power-law follow graph, 500 conversations, 50 live rounds with scores — sized to Micro's disk and IO budget; idempotent by email prefix; `--wipe`.
 
-**The ramp (`scripts/load-ramp.mjs`, node, no new dependency):** closed-loop workers 5 → 10 → 20 → 50 → 100 → 200, 20 s each, per route: p50 / p95 / p99, error rate, req/s; the database side read from `platform_health_samples` + `pg_stat_statements` deltas (via the management API on the load ref); JSON + a markdown table per run under `docs/load/YYYY-MM-DD/`. **Stop rules:** p95 > 2 s or errors > 1 % ends the ramp (the knee is the capacity number); health > 1 s between steps pauses. **Routes:** signed-in `GET /api/posts` (20 distinct viewers' cookies), `GET /api/profile/[id]/media`, `GET /api/public/profile` (cold and CDN-warm), `GET /api/messages/unread-count`, `GET /api/notifications/unread-count`, `GET /api/search?q=`, `GET /api/golf/live-now`, `POST /api/posts/like` (the write path, with its RPCs), `GET /api/health` (the reference).
+**The ramp (`scripts/load-ramp.mjs`, node, no new dependency):** closed-loop workers 5 → 10 → 25 → 50 → 100 (capped — the question is "comfortably fast at realistic traffic", not the knee), 20 s each, per route: p50 / p95 / p99, error rate, req/s; the database side read from `platform_health_samples` + `pg_stat_statements` deltas (via the management API on the load ref); JSON + a markdown table per run under `docs/load/YYYY-MM-DD/`. **Stop rules:** p95 > 2 s or errors > 1 % ends the ramp (the knee is the capacity number); health > 1 s between steps pauses. **Routes:** signed-in `GET /api/posts` (20 distinct viewers' cookies), `GET /api/profile/[id]/media`, `GET /api/public/profile` (cold and CDN-warm), `GET /api/messages/unread-count`, `GET /api/notifications/unread-count`, `GET /api/search?q=`, `GET /api/golf/live-now`, `POST /api/posts/like` (the write path, with its RPCs), `GET /api/health` (the reference).
 
 **The Realtime scenario (`scripts/load-realtime.mjs`):** N supabase-js clients (100 → 500 → 1,000; the 500-connection wall is expected at N ≈ 500 with the spend cap on) each joining `shared-round:{roundId}` exactly as `useSharedRound` does (one unfiltered scores listener + one filtered group_posts listener) and, for desktop parity, `presence:global`; a writer updates `golf_participant_scores` at 1, 5 and 25 writes/s on ONE round while a second round also scores; **measures** delivery latency (write → event at client, p50/p95), events per client per second (the fan-out factor), `tenant_events` disconnects, `too_many_connections` / `too_many_joins` errors, and the Realtime dashboard's messages/s. The same run with a per-round FILTERED subscription gives the before/after for hole #1.
 
@@ -278,7 +278,7 @@ Rank = what fails first as concurrent users and live-event size grow, from the s
 
 ## 5. What this audit did not do, on purpose
 
-- No load against production (Tom's decision; the Oct 9–18 windows are the reason). Production's own number is still the runbook's step 1 — when the load project exists, its Micro result is the proxy.
+- No load against production (Tom's decision; the Oct 9–18 windows are the reason), and no dedicated load project (no new spend): staging on Micro in a quiet window is the proxy, and its numbers are a floor.
 - No seeding beyond the Sep 22 script's default size on staging; a million profiles is neither feasible on Micro nor needed to see the shapes (the plans show the scan vs probe either way).
 - No code changes. Every fix above is a separate decision and a separate PR, measured before and after.
 
@@ -286,4 +286,5 @@ Rank = what fails first as concurrent users and live-event size grow, from the s
 
 - **Oct 10 2026 · staging (then free tier) via a preview · ramp 5→50 workers:** cached paths 1,770 req/s at 50 workers (p95 40 ms); `/api/health` (one uncached round trip) 103 req/s at 20 workers (p95 316 ms), **18 req/s / p95 20 s / 11 % errors at 50**; the search bucket 429s after seconds, as designed. (HARDENING.md "Scaling".)
 - **Sep 22 2026 · staging seed · EXPLAIN:** followers `COUNT(*)` 12 ms → 0.17 ms (229); notifications `@>` seq scan 1,585 ms → 29 ms (GIN); following feed 238 ms before 230. (devlog.)
+- **Oct 25 2026 · staging (Micro) · Realtime fan-out probe (`scripts/realtime-fanout-probe.mjs`, 10 signed-in clients on round A, 20 score writes on round B then 20 on round A):** unfiltered (the shape before fix 1) — **200 of round B's events delivered** (20 per client) + 200 of A's; filtered to the roster (fix 1) — **0 of B's, 200 of A's**. Hole 1 closed by PR 1 (migration 273 publishes `group_post_participants` for the joiner path).
 - **Oct 25 2026 · staging (Micro) · seeded EXPLAIN pass (509 profiles, 2,044 posts, 2,471 search documents):** every list page an index probe (0.1–0.5 ms, keyset holds at depth); `rate_limit_hit` 5.7 ms / 452 buffers per check; `get_conversation_list` 6.7 ms; `get_unread_message_count` 2.6 ms; `get_profile_media_counts` 11 ms; **`search_all` 478 ms (common prefix), 355 ms (two letters), 16 ms (rare term) — 0.15 ms per matched row of ranking work.** §2.1.

@@ -475,7 +475,7 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   not a `COUNT(*)`; the rate limiter's fail-open reports every 10 min per
   instance; a chunk-load error after a deploy reloads once
   (`src/lib/version-skew.ts`). **Vercel Skew Protection is Pro-only** and
-  this project is on Hobby (the 2-cron limit below), so the reload-once
+  this project was on Hobby when written (it is on Pro since Oct 2026), so the reload-once
   floor is what runs until the plan changes (`LAUNCH_RUNBOOK.md` §5b).
 - **Backups:** `docs/RUNBOOK_BACKUP.md` (Sep 21 2026) — the tier and the
   Storage decision are Tom's; the restore drill runs when staging exists.
@@ -491,7 +491,7 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 - ~~`reminders` cron "unscheduled"~~ — **stale note, corrected Aug 2026:** it
   is invoked every 10 minutes by Supabase **pg_cron** (migration 059:85-92),
   with `/api/cron/daily` as the idempotent safety net; `vercel.json` holds only
-  2 crons by Hobby-plan limit. `notification-digest` is deliberately a manual
+  2 crons (the Hobby-plan limit when this was written; Pro allows more — pg_cron carries the rest by design). `notification-digest` is deliberately a manual
   entry point (its logic runs inside `daily`, #304).
 
 ---
