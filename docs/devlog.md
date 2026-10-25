@@ -1,5 +1,9 @@
 # Development Log
 
+## October 25, 2026 — The Training tab carries no count (zero DDL)
+
+Tom: *"I want to remove the training count. The media and stats make sense, but not training. So it's just remove the count. Nothing else changes."* `ProfileMediaTabs`' tab entries gain an optional `count`; the Training entry has none and the badge renders only for an entry that carries one. `counts.vitals` is still read from the media endpoint (the payload field never renames — `training-rename.test.ts`); the `/u/` strip never had counts. One file, one sentence in `docs/specs/profile.md`. **Proof:** `npm run verify` exit 0 (5,380 tests); staging on the built server, mobile: `profile-buckets` (the Media / Stats badges still match their grids) and `training-mobile` 2/2, plus a temporary spec (deleted) that seeded two training rows and read the Training tab as exactly "Training" with no badge span — the 390 px strip screenshot shows Media and Stats badged, Training bare.
+
 ## October 25, 2026 — The own profile is a profile, not a settings form (Convention 52, zero DDL)
 
 Tom: *"The owner's profile page currently shows every editing control at all times: sport selection, social link inputs, bio and detail fields. Because the profile is also where a lot of day-to-day activity happens (posts, media, stats, orgs), that clutter gets in the way of everything else on the page. The owner sees the same clean view a visitor sees, plus one Edit Profile button. … Save and Close both return the user to the read-only profile. … The profile is a place the user works from, so it stays clean. Editing is a separate, explicit step the user opens and closes."*

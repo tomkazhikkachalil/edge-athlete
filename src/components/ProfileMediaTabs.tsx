@@ -438,12 +438,14 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     };
   }, []);
 
-  // Tab configuration with icons
-  const tabs = [
+  // Tab configuration with icons. A tab without `count` carries no badge.
+  const tabs: Array<{ id: TabType; label: string; icon: typeof Camera; count?: number }> = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
     // Training sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
-    { id: 'training' as TabType, label: 'Training', icon: Activity, count: counts.vitals },
+    // No count (Tom, Oct 25 2026): a tally makes sense for Media and Stats,
+    // not for Training. counts.vitals is still read — nothing else changes.
+    { id: 'training' as TabType, label: 'Training', icon: Activity },
     { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
     { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
@@ -498,8 +500,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                     {/* Label */}
                     <span>{tab.label}</span>
 
-                    {/* Count badge */}
-                    {tab.count > 0 && (
+                    {/* Count badge — only for a tab that carries a count */}
+                    {tab.count !== undefined && tab.count > 0 && (
                       <span className={`
                         inline-flex items-center justify-center
                         min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold
