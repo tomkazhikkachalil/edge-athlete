@@ -1,6 +1,6 @@
 # EXPLAIN (ANALYZE, BUFFERS) — staging (Micro), Oct 25 2026
 
-Seed: 509 profiles, 2,044 posts, 5,753 follows, 10,353 notifications, 2,471 search documents, 59 MB (scripts/staging-seed.mjs defaults). Run through scripts/staging-sql.mjs; the queries stand in for the hot routes named in docs/SCALE_AUDIT.md §2.1. Times are shape, not capacity.
+Seed: 509 profiles, 2,044 posts, 5,753 follows, 10,353 notifications, 2,471 search documents, 59 MB (scripts/staging-seed.mjs defaults). Run through scripts/staging-sql.mjs; the queries stand in for the hot routes named in docs/SCALE_AUDIT.md §2.1. Times are shape, not capacity. The `*_after274` rows are the same search queries after migration 274; `search-results-before-274.json` and `search-results-after-274.json` are the nine ordered result lists the rewrite had to reproduce (identical).
 
 | query | exec ms | plan ms | rows | shared hit | top node | seq scans | indexes |
 |---|---|---|---|---|---|---|---|
@@ -23,9 +23,13 @@ Seed: 509 profiles, 2,044 posts, 5,753 follows, 10,353 notifications, 2,471 sear
 | public_profile_recent_posts | 0.20 | 1.53 | 24 | 26 | Limit | - | idx_posts_profile_visibility_created |
 | rate_limit_hit_rpc | 5.67 | 0.08 | 1 | 452 | ProjectSet | - | - |
 | search_all_athletes_only | 77.78 | 0.09 | 20 | 1505 | Function Scan | - | - |
+| search_all_athletes_only_after274 | 13.06 | 0.12 | 20 | 1511 | Function Scan | - | - |
 | search_all_prefix | 478.09 | 0.09 | 40 | 1575 | Function Scan | - | - |
+| search_all_prefix_after274 | 26.92 | 0.07 | 40 | 1645 | Function Scan | - | - |
 | search_all_rare_term | 16.51 | 0.07 | 0 | 1514 | Function Scan | - | - |
+| search_all_rare_term_after274 | 17.03 | 0.07 | 0 | 1645 | Function Scan | - | - |
 | search_all_two_letters | 354.99 | 0.07 | 41 | 1569 | Function Scan | - | - |
+| search_all_two_letters_after274 | 26.44 | 0.07 | 41 | 1645 | Function Scan | - | - |
 | search_ilike_only | 0.37 | 1.03 | 50 | 5 | Limit | search_documents(50r) | - |
 | search_matched_with_case_columns | 360.74 | 13.35 | 2371 | 130 | Seq Scan | search_documents(2371r) | - |
 | search_people_rpc | 15.09 | 0.07 | 20 | 1677 | Function Scan | - | - |
