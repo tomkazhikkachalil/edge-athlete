@@ -309,6 +309,25 @@ baseline already emits every table's grants (`emitTableGrants`), so a rebuild
 after Oct 30 is complete. Sweep: `npm run check:schema` and `check:schema:prod`
 show zero ERROR lines AND no hygiene list from the grants check.
 
+### B8. The Supabase Performance Advisor (Oct 25 2026, migration 271)
+
+Re-run it (Supabase → Advisors → Performance Advisor) at every stage gate.
+The expected list for the two policy / index lints is **empty**:
+`multiple_permissive_policies` — 0 (one permissive policy per table and
+command; a supplementary access rule is an `OR` arm inside that policy, never
+a second policy, and a `FOR ALL` policy counts against all four commands);
+`duplicate_index` — 0 (one index per column list). 271 closed both: 052's
+additive guardian / profile-access policies folded into the base policies on
+13 tables, the three byte-identical twin sets (group_post_media,
+sport_settings, user_blocks) and one twin of each of six duplicate indexes
+dropped; 173 policies → 145, every FK still covered. The lint in SQL, for a
+check without the dashboard, is the pre-flight query in
+`database/migrations/271_one_permissive_policy_per_command.sql` (0 rows =
+clean). `auth_rls_initplan` stays at 0 too: every policy uses
+`(select auth.uid())` (126, and the convention in `database/MIGRATIONS.md`).
+Anything the Advisor lists under the other lints (unindexed foreign keys,
+unused indexes) is a B1 item, not a policy one.
+
 ## Backlog (Tier 2) — scheduled, not yet done
 
 **From the Sep 2026 phase-3 R5 close (public-segment perf, accepted for now)**
