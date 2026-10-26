@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-25T16:29:26.736812+00:00 from server 17.6 by
+-- Generated 2026-10-25T23:54:31.043165+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 272.
+-- public.schema_dump() (migration 227). Ledger head at generation: 275.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (121; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (123; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2278,6 +2278,20 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.live_cheer_totals(p_context_key text)
+ RETURNS TABLE(cheer text, n bigint)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.cheer, count(*)::bigint AS n
+  FROM public.live_cheers c
+  WHERE c.context_key = p_context_key
+  GROUP BY c.cheer;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
  RETURNS SETOF media_jobs
  LANGUAGE sql
@@ -3376,6 +3390,9 @@ AS $function$
 DECLARE
   qn       text    := public.search_normalize(q);
   tsq      tsquery := public.search_prefix_tsquery(q);
+  -- 274: the query's token tsqueries, parsed ONCE per call (search_token_hits /
+  -- search_token_rank parsed them per row).
+  tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
@@ -3384,7 +3401,6 @@ DECLARE
   dlng     float8;
 BEGIN
   filtered := p_country_code IS NOT NULL OR p_region_code IS NOT NULL OR near;
-  -- An empty query is a filtered browse or nothing (search_people precedent).
   IF qn = '' AND NOT filtered THEN RETURN; END IF;
   dlat := radius / 111.0;
   dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
@@ -3394,8 +3410,6 @@ BEGIN
       CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, d.lat, d.lng) END AS dist
     FROM search_documents d
     WHERE (p_types IS NULL OR d.entity_type = ANY(p_types))
-      -- Privacy: public docs pass (athletes only when include_public);
-      -- everything else needs the owner in the caller's audience.
       AND ( (d.visibility = 'public' AND (d.entity_type <> 'athlete' OR include_public))
             OR (d.owner_id IS NOT NULL AND d.owner_id = ANY(visible_ids)) )
       AND (p_country_code IS NULL OR d.country_code = upper(p_country_code))
@@ -3407,16 +3421,18 @@ BEGIN
     SELECT b.*,
       CASE
         WHEN qn = '' THEN 3
-        WHEN public.search_normalize(b.title) = qn THEN 0
-        WHEN public.search_normalize(b.title) LIKE qn || '%' THEN 1
-        WHEN tsq IS NOT NULL AND to_tsvector('simple', public.search_normalize(b.title)) @@ tsq THEN 2
+        WHEN b.title_norm = qn THEN 0
+        WHEN b.title_norm LIKE qn || '%' THEN 1
+        WHEN tsq IS NOT NULL AND b.title_vector @@ tsq THEN 2
         WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
         ELSE 4
       END AS tier,
       CASE WHEN tsq IS NOT NULL
-           THEN public.search_token_hits(to_tsvector('simple', public.search_normalize(b.title)), q)
+           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE b.title_vector @@ tq)
            ELSE 0 END AS name_hits,
-      CASE WHEN tsq IS NOT NULL THEN public.search_token_rank(b.search_vector, q) ELSE 0 END AS score
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT COALESCE(sum(ts_rank(b.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
+           ELSE 0 END AS score
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
@@ -3774,6 +3790,21 @@ BEGIN
   DELETE FROM search_documents sd
   WHERE sd.entity_type = TG_ARGV[0] AND sd.entity_id = OLD.id;
   RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_documents_title_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.title_norm := public.search_normalize(NEW.title);
+  NEW.title_vector := to_tsvector('simple', NEW.title_norm);
+  RETURN NEW;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -6120,7 +6151,9 @@ CREATE TABLE IF NOT EXISTS public.search_documents (
   rich boolean DEFAULT false NOT NULL,
   recency timestamp with time zone,
   search_vector tsvector NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  title_norm text,
+  title_vector tsvector
 );
 
 CREATE TABLE IF NOT EXISTS public.season_highlights (
@@ -11579,7 +11612,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (121) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (123) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -13694,6 +13727,18 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.live_cheer_totals(p_context_key text)
+ RETURNS TABLE(cheer text, n bigint)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.cheer, count(*)::bigint AS n
+  FROM public.live_cheers c
+  WHERE c.context_key = p_context_key
+  GROUP BY c.cheer;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
  RETURNS SETOF media_jobs
  LANGUAGE sql
@@ -14736,6 +14781,9 @@ AS $function$
 DECLARE
   qn       text    := public.search_normalize(q);
   tsq      tsquery := public.search_prefix_tsquery(q);
+  -- 274: the query's token tsqueries, parsed ONCE per call (search_token_hits /
+  -- search_token_rank parsed them per row).
+  tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
@@ -14744,7 +14792,6 @@ DECLARE
   dlng     float8;
 BEGIN
   filtered := p_country_code IS NOT NULL OR p_region_code IS NOT NULL OR near;
-  -- An empty query is a filtered browse or nothing (search_people precedent).
   IF qn = '' AND NOT filtered THEN RETURN; END IF;
   dlat := radius / 111.0;
   dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
@@ -14754,8 +14801,6 @@ BEGIN
       CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, d.lat, d.lng) END AS dist
     FROM search_documents d
     WHERE (p_types IS NULL OR d.entity_type = ANY(p_types))
-      -- Privacy: public docs pass (athletes only when include_public);
-      -- everything else needs the owner in the caller's audience.
       AND ( (d.visibility = 'public' AND (d.entity_type <> 'athlete' OR include_public))
             OR (d.owner_id IS NOT NULL AND d.owner_id = ANY(visible_ids)) )
       AND (p_country_code IS NULL OR d.country_code = upper(p_country_code))
@@ -14767,16 +14812,18 @@ BEGIN
     SELECT b.*,
       CASE
         WHEN qn = '' THEN 3
-        WHEN public.search_normalize(b.title) = qn THEN 0
-        WHEN public.search_normalize(b.title) LIKE qn || '%' THEN 1
-        WHEN tsq IS NOT NULL AND to_tsvector('simple', public.search_normalize(b.title)) @@ tsq THEN 2
+        WHEN b.title_norm = qn THEN 0
+        WHEN b.title_norm LIKE qn || '%' THEN 1
+        WHEN tsq IS NOT NULL AND b.title_vector @@ tsq THEN 2
         WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
         ELSE 4
       END AS tier,
       CASE WHEN tsq IS NOT NULL
-           THEN public.search_token_hits(to_tsvector('simple', public.search_normalize(b.title)), q)
+           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE b.title_vector @@ tq)
            ELSE 0 END AS name_hits,
-      CASE WHEN tsq IS NOT NULL THEN public.search_token_rank(b.search_vector, q) ELSE 0 END AS score
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT COALESCE(sum(ts_rank(b.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
+           ELSE 0 END AS score
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
@@ -15116,6 +15163,19 @@ BEGIN
   DELETE FROM search_documents sd
   WHERE sd.entity_type = TG_ARGV[0] AND sd.entity_id = OLD.id;
   RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.search_documents_title_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.title_norm := public.search_normalize(NEW.title);
+  NEW.title_vector := to_tsvector('simple', NEW.title_norm);
+  RETURN NEW;
 END;
 $function$;
 
@@ -15925,6 +15985,8 @@ DROP TRIGGER IF EXISTS trigger_decrement_post_save_count ON public.saved_posts;
 CREATE TRIGGER trigger_decrement_post_save_count AFTER DELETE ON public.saved_posts FOR EACH ROW EXECUTE FUNCTION decrement_post_save_count();
 DROP TRIGGER IF EXISTS trigger_increment_post_save_count ON public.saved_posts;
 CREATE TRIGGER trigger_increment_post_save_count AFTER INSERT ON public.saved_posts FOR EACH ROW EXECUTE FUNCTION increment_post_save_count();
+DROP TRIGGER IF EXISTS search_documents_title_sync ON public.search_documents;
+CREATE TRIGGER search_documents_title_sync BEFORE INSERT OR UPDATE ON public.search_documents FOR EACH ROW EXECUTE FUNCTION search_documents_title_sync();
 DROP TRIGGER IF EXISTS handle_updated_at_season_highlights ON public.season_highlights;
 CREATE TRIGGER handle_updated_at_season_highlights BEFORE UPDATE ON public.season_highlights FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS seasons_updated_at ON public.seasons;
@@ -17583,6 +17645,8 @@ REVOKE EXECUTE ON FUNCTION public.increment_post_save_count() FROM PUBLIC, anon,
 GRANT EXECUTE ON FUNCTION public.increment_post_save_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
@@ -17659,6 +17723,8 @@ REVOKE EXECUTE ON FUNCTION public.search_doc_sync_post() FROM PUBLIC, anon, auth
 GRANT EXECUTE ON FUNCTION public.search_doc_sync_post() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_document_delete() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_document_delete() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.search_documents_title_sync() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_documents_title_sync() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_normalize(t text) FROM PUBLIC, anon, authenticated, service_role;
@@ -17957,12 +18023,13 @@ COMMENT ON FUNCTION public.get_golf_scorecard(p_group_post_id uuid) IS 'Returns 
 COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Returns complete group post data including participants and media';
 COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
+COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
-COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side.';
+COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: ranks on the stored title_norm / title_vector and once-parsed token tsqueries — same order as 112, a fraction of the per-row cost.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
 COMMENT ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked people search with location tier + filters (108). Privacy is the CALLER''s job. Service-role only.';
 
@@ -17985,6 +18052,12 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
      AND NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'golf_participant_scores') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.golf_participant_scores;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'group_post_participants') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.group_post_participants;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -18385,7 +18458,10 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (269, '269_feed_switch_training_buckets.sql', 'rebuild-000'),
   (270, '270_posture_a_zero_policy_tables.sql', 'rebuild-000'),
   (271, '271_one_permissive_policy_per_command.sql', 'rebuild-000'),
-  (272, '272_pg_net_extensions_schema.sql', 'rebuild-000')
+  (272, '272_pg_net_extensions_schema.sql', 'rebuild-000'),
+  (273, '273_publish_group_post_participants.sql', 'rebuild-000'),
+  (274, '274_search_documents_title_columns.sql', 'rebuild-000'),
+  (275, '275_live_cheer_totals.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18394,12 +18470,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 121 | 145 | 272
+-- Expected: 000 REBUILT | 138 | 123 | 145 | 275
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_121,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_123,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_272;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_275;
 
