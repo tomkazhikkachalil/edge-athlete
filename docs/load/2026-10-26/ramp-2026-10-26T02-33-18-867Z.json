@@ -1,0 +1,75 @@
+{
+  "startedAt": "2026-10-26T02:33:18.867Z",
+  "base": "https://edge-athlete-git-load-sweep-2026-10-toms-projects-b0cec44f.vercel.app",
+  "commit": "0c559494",
+  "seconds": 20,
+  "viewers": 25,
+  "steps": [
+    5,
+    10,
+    25,
+    50
+  ],
+  "results": [
+    {
+      "route": "POST /api/posts/like",
+      "workers": 5,
+      "requests": 119,
+      "rps": 6,
+      "p50": 845,
+      "p95": 1029,
+      "p99": 1091,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 119
+      },
+      "healthBefore": 186
+    },
+    {
+      "route": "POST /api/posts/like",
+      "workers": 10,
+      "requests": 235,
+      "rps": 11.8,
+      "p50": 846,
+      "p95": 940,
+      "p99": 1122,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 235
+      },
+      "healthBefore": 224
+    },
+    {
+      "route": "POST /api/posts/like",
+      "workers": 25,
+      "requests": 584,
+      "rps": 29.2,
+      "p50": 853,
+      "p95": 951,
+      "p99": 2642,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 584
+      },
+      "healthBefore": 209
+    },
+    {
+      "route": "POST /api/posts/like",
+      "workers": 50,
+      "requests": 1171,
+      "rps": 58.5,
+      "p50": 858,
+      "p95": 970,
+      "p99": 1088,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 1171
+      },
+      "healthBefore": 195
+    }
+  ]
+}

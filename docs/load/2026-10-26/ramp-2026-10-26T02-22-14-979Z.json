@@ -1,0 +1,88 @@
+{
+  "startedAt": "2026-10-26T02:22:14.979Z",
+  "base": "https://edge-athlete-git-load-sweep-2026-10-toms-projects-b0cec44f.vercel.app",
+  "commit": "0c559494",
+  "seconds": 20,
+  "viewers": 20,
+  "steps": [
+    5,
+    10,
+    25,
+    50,
+    100
+  ],
+  "results": [
+    {
+      "route": "GET /api/health",
+      "workers": 5,
+      "requests": 539,
+      "rps": 26.9,
+      "p50": 182,
+      "p95": 224,
+      "p99": 316,
+      "errors": 0,
+      "errorRate": 0,
+      "healthBefore": 198
+    },
+    {
+      "route": "GET /api/health",
+      "workers": 10,
+      "requests": 1103,
+      "rps": 55.1,
+      "p50": 179,
+      "p95": 216,
+      "p99": 259,
+      "errors": 0,
+      "errorRate": 0,
+      "healthBefore": 183
+    },
+    {
+      "route": "GET /api/health",
+      "workers": 25,
+      "requests": 2794,
+      "rps": 139.7,
+      "p50": 175,
+      "p95": 219,
+      "p99": 282,
+      "errors": 0,
+      "errorRate": 0,
+      "healthBefore": 209
+    },
+    {
+      "route": "GET /api/health",
+      "workers": 50,
+      "requests": 2220,
+      "rps": 111,
+      "p50": 175,
+      "p95": 648,
+      "p99": 17927,
+      "errors": 0,
+      "errorRate": 0,
+      "healthBefore": 202
+    },
+    {
+      "route": "GET /api/health",
+      "workers": 100,
+      "requests": 442,
+      "rps": 22.1,
+      "p50": 3804,
+      "p95": 18031,
+      "p99": 24437,
+      "errors": 3,
+      "errorRate": 0.68,
+      "healthBefore": 285
+    },
+    {
+      "route": "POST /api/posts/like",
+      "workers": 5,
+      "requests": 118,
+      "rps": 5.9,
+      "p50": 863,
+      "p95": 1059,
+      "p99": 1180,
+      "errors": 8,
+      "errorRate": 6.78,
+      "healthBefore": 267
+    }
+  ]
+}

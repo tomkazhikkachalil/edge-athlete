@@ -38,6 +38,7 @@ if (!url || !anonKey) { console.error('channel-count: .env.local missing'); proc
 if (url.includes(PROD_REF)) { console.error('channel-count: refusing the production project'); process.exit(2); }
 const host = new URL(base).hostname;
 if (/edgeathlete\.ca$|^edge-athlete\.vercel\.app$/.test(host)) { console.error('channel-count: refusing a production host'); process.exit(2); }
+if (/-git-(main|master)-/.test(host)) { console.error(`channel-count: refusing ${host} — the production branch's alias, not a preview`); process.exit(2); }
 if (!password) { console.error('channel-count: SEED_PASSWORD missing — run scripts/staging-seed.mjs first.'); process.exit(2); }
 
 const anon = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
