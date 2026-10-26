@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "framework": "nextjs",
   "regions": [
-    "iad1"
+    "yul1"
   ],
   "headers": [
     {
