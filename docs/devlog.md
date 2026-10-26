@@ -1,5 +1,13 @@
 # Development Log
 
+## October 26, 2026 — Functions move to Montreal (`yul1`): the region finally matches the production database
+
+Post-audit refinements, item 1 (Tom's pasted plan, corrected and approved). `vercel.json` pinned every function to `iad1` (Virginia); the Supabase management API answers **production `ca-central-1` (Montreal), staging `us-west-2` (Oregon)**. Every production database trip has crossed Virginia→Montreal since the project began, and the sweep's "~150 ms a trip" was Virginia→Oregon through a preview without `SUPABASE_JWT_SECRET` (a network `getUser` per authed request that production verifies locally). One line: `"regions": ["yul1"]` — Vercel's Montreal region is AWS ca-central-1, the same building as the database, on the Pro plan. Middleware and the CDN are global and unchanged; crons call the function wherever it runs.
+
+**Proof.** Production `/api/health` `latency_ms` (the function's own database round trip), ten readings before the move: **median 73 ms, 54–122**. The after-readings and one desktop prod probe follow the deploy (recorded in the next entry). Recorded in `SCALE_AUDIT.md` §0a and HARDENING's Scaling note. Optional for Tom, dashboard-only: add the STAGING project's JWT secret to Vercel's **Preview** environment so previews verify sessions locally too; and, only if a like-for-like sweep is ever wanted, recreate staging in `ca-central-1`.
+
+**Also closed today:** Tom turned on leaked-password protection and the email auth checks; **the Security Advisor, refreshed, is empty** — the Oct 25 Security Advisor round's last owed item.
+
 ## October 26, 2026 — The staging sweep: the floor at 5,000 users and 50,000 posts (no new spend)
 
 Tom: "go ahead and do what you need to." The measured sweep of `docs/SCALE_AUDIT.md` §3 ran on STAGING (Micro, production's tier) against a Vercel PREVIEW of main — `load/sweep-2026-10`, a branch with no product change, pushed with `[skip ci]` so the CI smoke did not share the window. **Trap found first:** the `edge-athlete-git-main-…vercel.app` alias is the PRODUCTION deployment under another hostname (`vercel env ls`: the JWT secret and the launch gate exist only in the Production env); it was gated and rejected a staging session — loading it would have been a production load test. `load-ramp.mjs` and `realtime-channel-count.mjs` now refuse `-git-main-` hosts, and the ramp sends one authenticated probe with a staging session before any load (`load-tools-refuse-prod.test.ts`).
