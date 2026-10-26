@@ -8,6 +8,7 @@ import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runSessionReminders } from '@/lib/sessions/abandon-reminder-server';
 import { runWorkoutSweep } from '@/lib/workouts/sweep-server';
+import { runCounterRecount } from '@/lib/counters/recount-server';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
 import { runDeletionPurge } from '@/lib/account-park';
@@ -180,6 +181,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] post views prune phase failed:', e);
     summary.postViews = { ok: false };
+  }
+
+  // Counters (277): the like / comment / comment-like triggers add or subtract
+  // one; this is the accuracy rule — every drifted row corrected, the count
+  // of corrections reported (zero on a healthy night).
+  try {
+    summary.counters = await runCounterRecount(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] counter recount phase failed:', e);
+    summary.counters = { ok: false };
   }
 
   // Program 2, D2 (Sep 11 2026): org-site form submissions — archived rows
