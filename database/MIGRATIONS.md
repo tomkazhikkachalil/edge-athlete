@@ -630,6 +630,53 @@ UNUSED on production was dropped — production was wiped Sep 30 and is gated,
 so a zero scan count says nothing about a feature. Expected row on both:
 `276 APPLIED | 0 | 12 | 276`.
 
+## search_all ranks a bounded candidate set (migration 279, Oct 26 2026 — hole 2b)
+
+At 53,051 documents `search_all('se')` cost 500 ms after 274 — every
+document matched and 50,044 rows went through the per-row ranking columns.
+279 REPLACES `search_all` (same signature, RETURNS, INVOKER, search_path,
+grants, COMMENT restated): after the cheap tier is known, a LATERAL top-N
+keeps at most 1,000 rows per entity_type by tier, (distance), rich, recency,
+and `name_hits` / `score` are computed for those only; the final ORDER BY is
+unchanged. Trade-off recorded in docs/SEARCH.md (a row past the first thousand
+of its type can be left out). Proof: `database/tests/diagnostics/verify-279-
+search.sql` — 274's body as a temp function beside 279's, ten lists identical
+at one instant on the 53k staging; plans 557 → 247 ms (prefix), 500 → 325 ms
+(two letters), athletes-only ~50 ms; the rare-term floor (~180 ms) is the
+substring arm's scan, not the ranking. Expected row on both: `279 APPLIED |
+1 | true | 279`.
+## The counter triggers add or subtract one; a nightly recount is the accuracy rule (migration 277, Oct 26 2026 — counters part b)
+
+015 / 095 / 252 recounted the whole set on every like, comment and comment
+like (`SET likes_count = (SELECT count(*) …)` in the write's own statement).
+277 REPLACES the four trigger bodies — same names, same triggers, SECURITY
+DEFINER + `search_path ''` kept — with ±1 (status-aware for comments the way
+229 is for follows: only a published comment counts, a status change moves
+the count by one; `GREATEST(…, 0)` on every decrement), adds
+`counters_recount()` (SECURITY INVOKER, service_role EXECUTE only; corrects
+every row whose stored count differs from a direct count, returns how many
+per target), runs it once (the reconciliation) and the daily cron runs it
+every night (`src/lib/counters/recount-server.ts`). Staging walk
+(`database/tests/diagnostics/verify-277-counters.sql`): like / unlike, a held
+comment, approved, a comment like / unlike, rejected, deleted — eight steps,
+every count exact. Expected row on both: `277 APPLIED | <fixed> | <fixed> |
+<fixed> | 5 | 277` (staging: 0 | 0 | 0 — nothing had drifted).
+
+## The elevation-due index matches the RPC's order (migration 278, Oct 26 2026)
+
+`golf_map_sweep_elevation_due` orders by `hole_elevation_at NULLS FIRST, id`;
+255's partial index was `(hole_elevation_at)` default ASC NULLS LAST, so the
+planner could not walk it in that order and read the whole partial index per
+call (production: 146 M tuples over 9,234 calls). 278 rebuilds it as
+`(hole_elevation_at ASC NULLS FIRST, id) WHERE hole_geometry IS NOT NULL AND
+external_source <> 'qa-e2e'` (the RPC body is unchanged) and adds
+`idx_golf_courses_elevation_done (id) WHERE hole_elevation IS NOT NULL` for
+the progress read's per-tick count. Staging has no catalog, so the proof is
+20,000 synthetic courses in one rolled-back transaction: before — a scan of
+the whole set and a sort, 546 buffers, 10.5 ms; after — an index scan that
+stops at the LIMIT, 50 buffers, 0.14 ms. Plain CREATE INDEX inline (255's
+reasoning). Expected row on both: `278 APPLIED | true | true | 278`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

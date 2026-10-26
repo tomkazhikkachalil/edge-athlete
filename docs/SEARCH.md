@@ -101,6 +101,8 @@ match against `places` (108's `backfill_places_from_text` does this for
   the previous search and logs loudly (`people-server.ts` pattern); it
   never 500s the picker.
 
+**The candidate cap (migration 279, Oct 26 2026 — hole 2b).** At 53,051 documents on staging a token every document matches (`'se'`, `'seed'`) cost 500–557 ms after 274: 50,044 rows through the per-row ranking columns. `search_all` now keeps at most **1,000 candidates per entity type** before computing `name_hits` and `score`, chosen by the ladder's own leading keys — tier, (distance for the near browse), rich, recency — as a bounded top-N per type (a LATERAL `ORDER BY … LIMIT`, a heap sort). The final order among the kept rows is the ladder, unchanged. **The trade-off, by design:** within one type with more than 1,000 matches, a row that would have ranked above a kept one only through `name_hits` (a multi-token query hitting its title with more tokens than a newer row of the same tier) or through `score` after an exact tie on rich and recency is left out — a row past the first thousand of its type. Proof: `database/tests/diagnostics/verify-279-search.sql` runs 274's body and 279's side by side at one instant — ten lists identical at 53k documents. Cost at 53k: 557 → 247 ms, 500 → 325 ms; the remaining floor is the substring arm's full scan (the rare-term case, ~180 ms) — the next lever is a trigram index for `title`/`subtitle` or a narrower substring arm (4b, not taken).
+
 ## Surfaces
 
 | surface | today | with 104–106 |
