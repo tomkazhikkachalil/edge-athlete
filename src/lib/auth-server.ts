@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { tracedFetch } from '@/lib/db-trace';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { parseCookieHeader } from './cookies';
@@ -22,7 +23,11 @@ function makeAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      // The trip trace (src/lib/db-trace.ts): undefined unless EA_TRACE_DB=1, so production keeps the default fetch.
+      ...(tracedFetch ? { global: { fetch: tracedFetch } } : {}),
+    }
   );
 }
 let adminSingleton: ReturnType<typeof makeAdminClient> | null = null;
@@ -48,6 +53,7 @@ export function getServerClient(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...(tracedFetch ? { global: { fetch: tracedFetch } } : {}),
       cookies: {
         getAll() {
           const cookieHeader = request.headers.get('cookie');

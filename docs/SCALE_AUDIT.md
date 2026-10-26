@@ -292,6 +292,25 @@ Rank = what fails first as concurrent users and live-event size grow, from the s
 - No seeding beyond the Sep 22 script's default size on staging; a million profiles is neither feasible on Micro nor needed to see the shapes (the plans show the scan vs probe either way).
 - No code changes. Every fix above is a separate decision and a separate PR, measured before and after.
 
+## 7. Trips per request — the inventory (Oct 26 2026; `scripts/db-trace-inventory.mjs`, `src/lib/db-trace.ts`)
+
+Counted, not grepped: the built app with `EA_TRACE_DB=1` wraps both server clients' `fetch` and prints one line per Supabase request; the harness sends one request at a time and keeps the second of two passes. Full table with the distinct paths: `docs/load/2026-10-26/trips.md`. **Caveat:** `GET auth:user` is the network session check a build without `SUPABASE_JWT_SECRET` pays on every authenticated request; production verifies locally — subtract one per authenticated route there.
+
+| Route | Trips | What they are |
+| --- | ---: | --- |
+| `GET /api/public/profile?handle=` (the origin behind the CDN) | **15** | profiles, posts (HEAD + GET), achievements, sport settings, contest stat lines, an RPC, golf rounds HEAD, memberships — one bundle RPC would make it 1 |
+| `GET /api/posts` (the feed) | **8** | auth, mutes, blocks, posts, follows, saved posts, likes — the viewer's four side reads could ride one RPC with the page |
+| `GET /api/search?q=` | **7** | limiter, auth, `search_all`, then profiles + posts + follows to decorate — the decoration is the second half |
+| `POST /api/posts/like` | **7** | auth, limiter, the gate's post read, the existing-like read, the write, the count read — one RPC (gate + toggle + count) would make it 3 |
+| `GET /api/profile/{id}/media` | **6** | auth, profile, the media RPC, post_media, posts |
+| `GET /api/notifications?limit=20` | **6** | auth, notifications, mutes, blocks, a HEAD count |
+| `GET /api/golf/live-now` | **4** | auth, follows, participants, group posts |
+| `GET /api/posts?postId=` | **3** | auth, the post, the viewer's like |
+| `GET /api/messages`, the two unread counts | **2** | auth + one RPC each — already the shape to aim for |
+| `GET /api/health` | 1 | the reference |
+
+**The program (one PR per route, before/after trips from this harness, p50 at 5 workers from the ramp's `--only`):** 1. the public profile bundle (15 → 1; it is the CDN's origin, so a miss costs fifteen trips), 2. the feed's viewer side reads into the page RPC (8 → ~4), 3. the like toggle as one RPC (7 → 3), 4. search's decoration (7 → ~4), 5. the notifications page (6 → 3). Each is a server-side change behind an unchanged response shape. Not started; Tom schedules.
+
 ## 6. Measured numbers (append per run: date · environment · commit · tool · result)
 
 - **Oct 10 2026 · staging (then free tier) via a preview · ramp 5→50 workers:** cached paths 1,770 req/s at 50 workers (p95 40 ms); `/api/health` (one uncached round trip) 103 req/s at 20 workers (p95 316 ms), **18 req/s / p95 20 s / 11 % errors at 50**; the search bucket 429s after seconds, as designed. (HARDENING.md "Scaling".)
