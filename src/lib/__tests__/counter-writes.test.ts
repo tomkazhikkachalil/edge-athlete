@@ -32,6 +32,30 @@ describe('Counters: the trigger recounts, the route reads', () => {
   it('the delete still asks for its own row count (a no-op is a 404, not a recount)', () => {
     expect(read('src/app/api/comments/route.ts')).toMatch(/\.delete\(\{ count: 'exact' \}\)/);
   });
+  // Part b (277, Oct 26 2026): the triggers add or subtract ONE; the nightly
+  // recount is the accuracy rule.
+  it('migration 277 makes the four trigger bodies ±1 and keeps the recount in counters_recount()', () => {
+    const m = read('database/migrations/277_counter_triggers_plus_minus.sql');
+    const body = (name: string) => {
+      const i = m.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+      expect(i).toBeGreaterThan(-1);
+      return m.slice(i, m.indexOf('$$;', i));
+    };
+    for (const fn of ['update_post_likes_count', 'update_post_comments_count', 'increment_comment_likes_count', 'decrement_comment_likes_count']) {
+      const b = body(fn);
+      expect(b).not.toMatch(/count\(\*\)/i);
+      expect(b).toMatch(/\+ 1|- 1, 0\)/);
+      expect(b).toMatch(/SET search_path = ''/);
+    }
+    expect(body('update_post_comments_count')).toMatch(/OLD\.status = 'published'/);
+    expect(body('counters_recount')).toMatch(/count\(\*\)/);
+    expect(m).toMatch(/GRANT EXECUTE ON FUNCTION public\.counters_recount\(\) TO service_role;/);
+    expect(m).toMatch(/VALUES \(277, '277_counter_triggers_plus_minus\.sql'\)/);
+  });
+  it('the daily cron runs the recount step through the one server module', () => {
+    expect(read('src/app/api/cron/daily/route.ts')).toMatch(/runCounterRecount\(admin\)/);
+    expect(read('src/lib/counters/recount-server.ts')).toMatch(/admin\.rpc\('counters_recount'\)/);
+  });
   it('the three recount triggers exist in the baseline', () => {
     const base = read('database/baseline/000_rebuild.sql');
     expect(base).toMatch(/CREATE TRIGGER trigger_update_post_likes_count AFTER INSERT OR DELETE ON public\.post_likes/);
