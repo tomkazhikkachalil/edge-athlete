@@ -40,6 +40,10 @@
 
 ---
 
+## 0a. The geometry (read Oct 26 2026 — the post-audit refinements, item 1)
+
+`vercel.json` pinned every function to **`iad1` (Virginia)**. The Supabase management API says production is in **`ca-central-1` (Montreal)** and staging in **`us-west-2` (Oregon)**. So every production database trip crossed Virginia→Montreal, and the Oct 26 sweep measured Virginia→Oregon through a preview that also lacks `SUPABASE_JWT_SECRET` (the Preview env has none, so every authenticated preview request pays a network `getUser` that production verifies locally) — the sweep's "~150 ms a trip" is pessimistic for production on both counts. **Oct 26: functions moved to `yul1` (= ca-central-1, Montreal; available on Pro).** Production's own round trip (`/api/health` `latency_ms`, ten readings): **before, median 73 ms (54–122)**; after is recorded in the devlog entry that follows the deploy. Previews now run Montreal→Oregon; a like-for-like sweep would need staging recreated in `ca-central-1` (a day of rewiring, no spend change — not done).
+
 ## 0b. Baseline — where the data is today (read-only, Oct 25 2026)
 
 **Production rows** (PostgREST `Prefer: count=exact` with the service key — a read, nothing written). Production was wiped on Sep 30 and is gated, so every growth table is tiny; the only large table is the golf catalog.
