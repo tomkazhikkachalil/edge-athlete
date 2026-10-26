@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-25T23:54:31.043165+00:00 from server 17.6 by
+-- Generated 2026-10-26T01:01:31.172718+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 275.
+-- public.schema_dump() (migration 227). Ledger head at generation: 276.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -11205,7 +11205,6 @@ CREATE INDEX IF NOT EXISTS idx_contests_play_window ON public.contests USING btr
 CREATE INDEX IF NOT EXISTS idx_contests_scheduled ON public.contests USING btree (scheduled_at) WHERE (scheduled_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_contests_venue_id ON public.contests USING btree (venue_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_held ON public.conversation_participants USING btree (profile_id) WHERE (held_at IS NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_cp_conversation ON public.conversation_participants USING btree (conversation_id);
 CREATE INDEX IF NOT EXISTS idx_cp_profile_active ON public.conversation_participants USING btree (profile_id) WHERE (left_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_conversations_created_by ON public.conversations USING btree (created_by);
 CREATE INDEX IF NOT EXISTS idx_conversations_frozen_ticket_id ON public.conversations USING btree (frozen_ticket_id);
@@ -11233,11 +11232,8 @@ CREATE INDEX IF NOT EXISTS idx_events_time ON public.events USING btree (starts_
 CREATE INDEX IF NOT EXISTS idx_events_venue_id ON public.events USING btree (venue_id) WHERE (venue_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_facilities_venue_id ON public.facilities USING btree (venue_id);
 CREATE INDEX IF NOT EXISTS idx_follows_composite ON public.follows USING btree (follower_id, following_id, status);
-CREATE INDEX IF NOT EXISTS idx_follows_follower ON public.follows USING btree (follower_id);
 CREATE INDEX IF NOT EXISTS idx_follows_follower_status ON public.follows USING btree (follower_id, status);
-CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows USING btree (following_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
-CREATE INDEX IF NOT EXISTS idx_follows_status ON public.follows USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
@@ -11255,7 +11251,6 @@ CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round_id ON public.golf_holes USING btree (round_id);
 CREATE INDEX IF NOT EXISTS idx_golf_map_sweep_cells_due ON public.golf_map_sweep_cells USING btree (next_due_at, priority);
 CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_finalized_by ON public.golf_participant_scores USING btree (finalized_by);
-CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_participant ON public.golf_participant_scores USING btree (participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_scores_entered_by ON public.golf_participant_scores USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_id ON public.golf_rounds USING btree (course_id);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_prefix ON public.golf_rounds USING btree (lower(course) COLLATE "C");
@@ -11324,7 +11319,6 @@ CREATE INDEX IF NOT EXISTS idx_notifications_post_id ON public.notifications USI
 CREATE INDEX IF NOT EXISTS idx_notifications_unpushed ON public.notifications USING btree (created_at) WHERE (pushed_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_notifications_urgent_unmailed ON public.notifications USING btree (created_at) WHERE ((emailed_at IS NULL) AND (type = ANY (ARRAY['safety_alert'::text, 'consent_result'::text])));
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications USING btree (user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications USING btree (user_id, is_read, created_at DESC) WHERE (is_read = false);
 CREATE INDEX IF NOT EXISTS idx_org_claim_invites_consumed_by ON public.org_claim_invites USING btree (consumed_by);
 CREATE INDEX IF NOT EXISTS idx_org_claim_invites_created_by ON public.org_claim_invites USING btree (created_by);
@@ -11392,14 +11386,10 @@ CREATE INDEX IF NOT EXISTS idx_post_comments_hidden_ticket_id ON public.post_com
 CREATE INDEX IF NOT EXISTS idx_post_comments_is_pinned ON public.post_comments USING btree (post_id) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_post_comments_parent_comment_id ON public.post_comments USING btree (parent_comment_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_pending_nudge ON public.post_comments USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL));
-CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON public.post_comments USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_profile_id ON public.post_comments USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_status_pending ON public.post_comments USING btree (profile_id) WHERE (status <> 'published'::text);
-CREATE INDEX IF NOT EXISTS idx_post_likes_post ON public.post_likes USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_likes_profile ON public.post_likes USING btree (profile_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_post_likes_profile_id ON public.post_likes USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_media_post_display ON public.post_media USING btree (post_id, display_order);
-CREATE INDEX IF NOT EXISTS idx_post_media_post_id ON public.post_media USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_post_media_processing ON public.post_media USING btree (processing_at) WHERE (processing_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_post_tags_created_by ON public.post_tags USING btree (created_by_profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_tags_media_id ON public.post_tags USING btree (media_id) WHERE (media_id IS NOT NULL);
@@ -11409,7 +11399,6 @@ CREATE INDEX IF NOT EXISTS idx_post_tags_tagged_profile ON public.post_tags USIN
 CREATE INDEX IF NOT EXISTS idx_post_view_marks_day ON public.post_view_marks USING btree (day);
 CREATE INDEX IF NOT EXISTS idx_posts_category_profile_created ON public.posts USING btree (post_category, profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_contest ON public.posts USING btree (contest_id) WHERE (contest_id IS NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_posts_created_at ON public.posts USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at_id_desc ON public.posts USING btree (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_created_by ON public.posts USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_event_id ON public.posts USING btree (event_id) WHERE (event_id IS NOT NULL);
@@ -11418,7 +11407,6 @@ CREATE INDEX IF NOT EXISTS idx_posts_hidden_ticket_id ON public.posts USING btre
 CREATE INDEX IF NOT EXISTS idx_posts_pending_nudge ON public.posts USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_posts_pinned ON public.posts USING btree (profile_id, pinned_at DESC) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_posts_profile_created ON public.posts USING btree (profile_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_profile_id ON public.posts USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_posts_profile_visibility_created ON public.posts USING btree (profile_id, visibility, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_round_id ON public.posts USING btree (round_id);
 CREATE INDEX IF NOT EXISTS idx_posts_search_vector ON public.posts USING gin (search_vector);
@@ -18470,12 +18458,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 123 | 145 | 275
+-- Expected: 000 REBUILT | 138 | 123 | 145 | 276
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_123,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_275;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_276;
 
