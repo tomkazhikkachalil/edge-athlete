@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-26T01:01:31.172718+00:00 from server 17.6 by
+-- Generated 2026-10-26T03:46:09.370843+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 276.
+-- public.schema_dump() (migration 227). Ledger head at generation: 279.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (123; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (124; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -625,6 +625,48 @@ END; $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.counters_recount()
+ RETURNS TABLE(target text, fixed integer)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE n integer;
+BEGIN
+  WITH truth AS (
+    SELECT p.id, COALESCE(l.n, 0)::integer AS n
+    FROM public.posts p
+    LEFT JOIN (SELECT post_id, count(*) AS n FROM public.post_likes GROUP BY post_id) l ON l.post_id = p.id
+    WHERE COALESCE(p.likes_count, 0) <> COALESCE(l.n, 0)
+  )
+  UPDATE public.posts p SET likes_count = t.n FROM truth t WHERE p.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'posts.likes_count'; fixed := n; RETURN NEXT;
+
+  WITH truth AS (
+    SELECT p.id, COALESCE(c.n, 0)::integer AS n
+    FROM public.posts p
+    LEFT JOIN (SELECT post_id, count(*) AS n FROM public.post_comments WHERE status = 'published' GROUP BY post_id) c ON c.post_id = p.id
+    WHERE COALESCE(p.comments_count, 0) <> COALESCE(c.n, 0)
+  )
+  UPDATE public.posts p SET comments_count = t.n FROM truth t WHERE p.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'posts.comments_count'; fixed := n; RETURN NEXT;
+
+  WITH truth AS (
+    SELECT c.id, COALESCE(l.n, 0)::integer AS n
+    FROM public.post_comments c
+    LEFT JOIN (SELECT comment_id, count(*) AS n FROM public.comment_likes GROUP BY comment_id) l ON l.comment_id = c.id
+    WHERE COALESCE(c.likes_count, 0) <> COALESCE(l.n, 0)
+  )
+  UPDATE public.post_comments c SET likes_count = t.n FROM truth t WHERE c.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'post_comments.likes_count'; fixed := n; RETURN NEXT;
+  RETURN;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.create_managed_profile(p_profile jsonb, p_guardian uuid)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -771,9 +813,7 @@ CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()
  SET search_path TO ''
 AS $function$
 BEGIN
-  UPDATE public.post_comments
-  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = OLD.comment_id)
-  WHERE id = OLD.comment_id;
+  UPDATE public.post_comments SET likes_count = GREATEST(COALESCE(likes_count, 0) - 1, 0) WHERE id = OLD.comment_id;
   RETURN OLD;
 END;
 $function$;
@@ -2220,9 +2260,7 @@ CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  SET search_path TO ''
 AS $function$
 BEGIN
-  UPDATE public.post_comments
-  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = NEW.comment_id)
-  WHERE id = NEW.comment_id;
+  UPDATE public.post_comments SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = NEW.comment_id;
   RETURN NEW;
 END;
 $function$;
@@ -3394,6 +3432,8 @@ DECLARE
   -- search_token_rank parsed them per row).
   tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
+  -- 279: the candidate cap per (entity_type, tier) — see the header.
+  cap      int     := 1000;
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
   filtered boolean;
@@ -3417,7 +3457,7 @@ BEGIN
       AND (NOT near OR (d.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
                     AND d.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
   ),
-  matched AS (
+  matched0 AS MATERIALIZED (
     SELECT b.*,
       CASE
         WHEN qn = '' THEN 3
@@ -3426,13 +3466,7 @@ BEGIN
         WHEN tsq IS NOT NULL AND b.title_vector @@ tsq THEN 2
         WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
         ELSE 4
-      END AS tier,
-      CASE WHEN tsq IS NOT NULL
-           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE b.title_vector @@ tq)
-           ELSE 0 END AS name_hits,
-      CASE WHEN tsq IS NOT NULL
-           THEN (SELECT COALESCE(sum(ts_rank(b.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
-           ELSE 0 END AS score
+      END AS tier
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
@@ -3440,6 +3474,35 @@ BEGIN
             b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'
          OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
          OR b.country ILIKE '%' || qn || '%'))
+  ),
+  -- 279: at most `cap` candidates per (entity_type, tier), chosen by the
+  -- ranking's own next keys (rich, recency) — the per-row name_hits / score
+  -- below then run over at most a few thousand rows, never the whole match.
+  -- A LATERAL top-N per group, not a window over every row: ORDER BY … LIMIT
+  -- is a bounded heap sort (no disk spill at 50k rows — the window version
+  -- sorted 52k rows through an external merge, 150 ms of the 250).
+  groups AS (SELECT DISTINCT m0.entity_type FROM matched0 m0),
+  capped AS (
+    SELECT c.*
+    FROM groups g
+    CROSS JOIN LATERAL (
+      SELECT m0.* FROM matched0 m0
+      WHERE m0.entity_type = g.entity_type
+      ORDER BY m0.tier,
+               CASE WHEN near AND qn = '' THEN m0.dist END ASC NULLS LAST,
+               m0.rich DESC, m0.recency DESC NULLS LAST, m0.updated_at DESC, m0.entity_id
+      LIMIT cap
+    ) c
+  ),
+  matched AS (
+    SELECT c.*,
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE c.title_vector @@ tq)
+           ELSE 0 END AS name_hits,
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT COALESCE(sum(ts_rank(c.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
+           ELSE 0 END AS score
+    FROM capped c
   ),
   ranked AS (
     SELECT m.*, ROW_NUMBER() OVER (
@@ -4252,26 +4315,16 @@ CREATE OR REPLACE FUNCTION public.update_post_comments_count()
  SET search_path TO ''
 AS $function$
 DECLARE
-  target_post_id UUID;
+  old_live boolean := (TG_OP <> 'INSERT') AND (OLD.status = 'published');
+  new_live boolean := (TG_OP <> 'DELETE') AND (NEW.status = 'published');
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    target_post_id := OLD.post_id;
-  ELSE
-    target_post_id := NEW.post_id;
+  IF old_live AND NOT new_live THEN
+    UPDATE public.posts SET comments_count = GREATEST(COALESCE(comments_count, 0) - 1, 0) WHERE id = OLD.post_id;
+  ELSIF new_live AND NOT old_live THEN
+    UPDATE public.posts SET comments_count = COALESCE(comments_count, 0) + 1 WHERE id = NEW.post_id;
   END IF;
-
-  UPDATE public.posts
-  SET comments_count = (
-    SELECT COUNT(*) FROM public.post_comments
-    WHERE post_id = target_post_id AND status = 'published'
-  )
-  WHERE id = target_post_id;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  ELSE
-    RETURN NEW;
-  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -4283,26 +4336,15 @@ CREATE OR REPLACE FUNCTION public.update_post_likes_count()
  SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-DECLARE
-  target_post_id UUID;
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    target_post_id := OLD.post_id;
-  ELSE
-    target_post_id := NEW.post_id;
-  END IF;
-
-  UPDATE public.posts
-  SET likes_count = (
-    SELECT COUNT(*) FROM public.post_likes WHERE post_id = target_post_id
-  )
-  WHERE id = target_post_id;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  ELSE
+  IF TG_OP = 'INSERT' THEN
+    UPDATE public.posts SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = NEW.post_id;
     RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.posts SET likes_count = GREATEST(COALESCE(likes_count, 0) - 1, 0) WHERE id = OLD.post_id;
+    RETURN OLD;
   END IF;
+  RETURN NULL;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -11239,7 +11281,8 @@ CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_country_region ON public.golf_courses USING btree (country_code, region_code);
-CREATE INDEX IF NOT EXISTS idx_golf_courses_elevation_due ON public.golf_courses USING btree (hole_elevation_at) WHERE (hole_geometry IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_elevation_done ON public.golf_courses USING btree (id) WHERE (hole_elevation IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_elevation_due ON public.golf_courses USING btree (hole_elevation_at NULLS FIRST, id) WHERE ((hole_geometry IS NOT NULL) AND (external_source <> 'qa-e2e'::text));
 CREATE INDEX IF NOT EXISTS idx_golf_courses_hydrated_at ON public.golf_courses USING btree (hydrated_at DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_lat ON public.golf_courses USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_name_raw_trgm ON public.golf_courses USING gin (name extensions.gin_trgm_ops);
@@ -11600,7 +11643,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (123) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (124) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -12142,6 +12185,46 @@ BEGIN
   RAISE EXCEPTION 'rows in consent_records are append-only';
 END; $function$;
 
+CREATE OR REPLACE FUNCTION public.counters_recount()
+ RETURNS TABLE(target text, fixed integer)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE n integer;
+BEGIN
+  WITH truth AS (
+    SELECT p.id, COALESCE(l.n, 0)::integer AS n
+    FROM public.posts p
+    LEFT JOIN (SELECT post_id, count(*) AS n FROM public.post_likes GROUP BY post_id) l ON l.post_id = p.id
+    WHERE COALESCE(p.likes_count, 0) <> COALESCE(l.n, 0)
+  )
+  UPDATE public.posts p SET likes_count = t.n FROM truth t WHERE p.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'posts.likes_count'; fixed := n; RETURN NEXT;
+
+  WITH truth AS (
+    SELECT p.id, COALESCE(c.n, 0)::integer AS n
+    FROM public.posts p
+    LEFT JOIN (SELECT post_id, count(*) AS n FROM public.post_comments WHERE status = 'published' GROUP BY post_id) c ON c.post_id = p.id
+    WHERE COALESCE(p.comments_count, 0) <> COALESCE(c.n, 0)
+  )
+  UPDATE public.posts p SET comments_count = t.n FROM truth t WHERE p.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'posts.comments_count'; fixed := n; RETURN NEXT;
+
+  WITH truth AS (
+    SELECT c.id, COALESCE(l.n, 0)::integer AS n
+    FROM public.post_comments c
+    LEFT JOIN (SELECT comment_id, count(*) AS n FROM public.comment_likes GROUP BY comment_id) l ON l.comment_id = c.id
+    WHERE COALESCE(c.likes_count, 0) <> COALESCE(l.n, 0)
+  )
+  UPDATE public.post_comments c SET likes_count = t.n FROM truth t WHERE c.id = t.id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  target := 'post_comments.likes_count'; fixed := n; RETURN NEXT;
+  RETURN;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.create_managed_profile(p_profile jsonb, p_guardian uuid)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -12280,9 +12363,7 @@ CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()
  SET search_path TO ''
 AS $function$
 BEGIN
-  UPDATE public.post_comments
-  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = OLD.comment_id)
-  WHERE id = OLD.comment_id;
+  UPDATE public.post_comments SET likes_count = GREATEST(COALESCE(likes_count, 0) - 1, 0) WHERE id = OLD.comment_id;
   RETURN OLD;
 END;
 $function$;
@@ -13663,9 +13744,7 @@ CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  SET search_path TO ''
 AS $function$
 BEGIN
-  UPDATE public.post_comments
-  SET likes_count = (SELECT COUNT(*) FROM public.comment_likes WHERE comment_id = NEW.comment_id)
-  WHERE id = NEW.comment_id;
+  UPDATE public.post_comments SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = NEW.comment_id;
   RETURN NEW;
 END;
 $function$;
@@ -14773,6 +14852,8 @@ DECLARE
   -- search_token_rank parsed them per row).
   tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
+  -- 279: the candidate cap per (entity_type, tier) — see the header.
+  cap      int     := 1000;
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
   filtered boolean;
@@ -14796,7 +14877,7 @@ BEGIN
       AND (NOT near OR (d.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
                     AND d.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
   ),
-  matched AS (
+  matched0 AS MATERIALIZED (
     SELECT b.*,
       CASE
         WHEN qn = '' THEN 3
@@ -14805,13 +14886,7 @@ BEGIN
         WHEN tsq IS NOT NULL AND b.title_vector @@ tsq THEN 2
         WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
         ELSE 4
-      END AS tier,
-      CASE WHEN tsq IS NOT NULL
-           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE b.title_vector @@ tq)
-           ELSE 0 END AS name_hits,
-      CASE WHEN tsq IS NOT NULL
-           THEN (SELECT COALESCE(sum(ts_rank(b.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
-           ELSE 0 END AS score
+      END AS tier
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
@@ -14819,6 +14894,35 @@ BEGIN
             b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'
          OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
          OR b.country ILIKE '%' || qn || '%'))
+  ),
+  -- 279: at most `cap` candidates per (entity_type, tier), chosen by the
+  -- ranking's own next keys (rich, recency) — the per-row name_hits / score
+  -- below then run over at most a few thousand rows, never the whole match.
+  -- A LATERAL top-N per group, not a window over every row: ORDER BY … LIMIT
+  -- is a bounded heap sort (no disk spill at 50k rows — the window version
+  -- sorted 52k rows through an external merge, 150 ms of the 250).
+  groups AS (SELECT DISTINCT m0.entity_type FROM matched0 m0),
+  capped AS (
+    SELECT c.*
+    FROM groups g
+    CROSS JOIN LATERAL (
+      SELECT m0.* FROM matched0 m0
+      WHERE m0.entity_type = g.entity_type
+      ORDER BY m0.tier,
+               CASE WHEN near AND qn = '' THEN m0.dist END ASC NULLS LAST,
+               m0.rich DESC, m0.recency DESC NULLS LAST, m0.updated_at DESC, m0.entity_id
+      LIMIT cap
+    ) c
+  ),
+  matched AS (
+    SELECT c.*,
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT count(*)::int FROM unnest(tqs) AS tq WHERE c.title_vector @@ tq)
+           ELSE 0 END AS name_hits,
+      CASE WHEN tsq IS NOT NULL
+           THEN (SELECT COALESCE(sum(ts_rank(c.search_vector, tq)), 0)::real FROM unnest(tqs) AS tq)
+           ELSE 0 END AS score
+    FROM capped c
   ),
   ranked AS (
     SELECT m.*, ROW_NUMBER() OVER (
@@ -15575,26 +15679,16 @@ CREATE OR REPLACE FUNCTION public.update_post_comments_count()
  SET search_path TO ''
 AS $function$
 DECLARE
-  target_post_id UUID;
+  old_live boolean := (TG_OP <> 'INSERT') AND (OLD.status = 'published');
+  new_live boolean := (TG_OP <> 'DELETE') AND (NEW.status = 'published');
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    target_post_id := OLD.post_id;
-  ELSE
-    target_post_id := NEW.post_id;
+  IF old_live AND NOT new_live THEN
+    UPDATE public.posts SET comments_count = GREATEST(COALESCE(comments_count, 0) - 1, 0) WHERE id = OLD.post_id;
+  ELSIF new_live AND NOT old_live THEN
+    UPDATE public.posts SET comments_count = COALESCE(comments_count, 0) + 1 WHERE id = NEW.post_id;
   END IF;
-
-  UPDATE public.posts
-  SET comments_count = (
-    SELECT COUNT(*) FROM public.post_comments
-    WHERE post_id = target_post_id AND status = 'published'
-  )
-  WHERE id = target_post_id;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  ELSE
-    RETURN NEW;
-  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END;
 $function$;
 
@@ -15604,26 +15698,15 @@ CREATE OR REPLACE FUNCTION public.update_post_likes_count()
  SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-DECLARE
-  target_post_id UUID;
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    target_post_id := OLD.post_id;
-  ELSE
-    target_post_id := NEW.post_id;
-  END IF;
-
-  UPDATE public.posts
-  SET likes_count = (
-    SELECT COUNT(*) FROM public.post_likes WHERE post_id = target_post_id
-  )
-  WHERE id = target_post_id;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  ELSE
+  IF TG_OP = 'INSERT' THEN
+    UPDATE public.posts SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = NEW.post_id;
     RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.posts SET likes_count = GREATEST(COALESCE(likes_count, 0) - 1, 0) WHERE id = OLD.post_id;
+    RETURN OLD;
   END IF;
+  RETURN NULL;
 END;
 $function$;
 
@@ -17553,6 +17636,8 @@ REVOKE EXECUTE ON FUNCTION public.cleanup_old_notifications() FROM PUBLIC, anon,
 GRANT EXECUTE ON FUNCTION public.cleanup_old_notifications() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.consent_records_forbid_mutation() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.consent_records_forbid_mutation() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.counters_recount() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.counters_recount() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.create_managed_profile(p_profile jsonb, p_guardian uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.create_managed_profile(p_profile jsonb, p_guardian uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.create_notification(p_user_id uuid, p_type text, p_actor_id uuid, p_title text, p_message text, p_action_url text, p_post_id uuid, p_comment_id uuid, p_follow_id uuid, p_metadata jsonb) FROM PUBLIC, anon, authenticated, service_role;
@@ -18003,6 +18088,7 @@ COMMENT ON COLUMN public.workout_sessions.profile_hidden_at IS 'The owner hid th
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
+COMMENT ON FUNCTION public.counters_recount() IS 'The accuracy rule for the three cached counters (277): corrects every row whose stored count differs from a direct count, returns how many per target. Run once by 277 and nightly by /api/cron/daily (src/lib/counters/recount-server.ts). The triggers add or subtract one.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230 + 269: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak, on-feed posts only (269); the route applies the privacy filter. Service-role only.';
 COMMENT ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) IS 'Generates personalized connection suggestions based on sport, school, location, and common connections.
 Excludes: profiles already followed, pending requests, and dismissed suggestions.
@@ -18017,7 +18103,7 @@ COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inven
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
-COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: ranks on the stored title_norm / title_vector and once-parsed token tsqueries — same order as 112, a fraction of the per-row cost.';
+COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type chosen by tier, rich and recency before the per-row ranking; same order among the kept rows.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
 COMMENT ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked people search with location tier + filters (108). Privacy is the CALLER''s job. Service-role only.';
 
@@ -18449,7 +18535,11 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (272, '272_pg_net_extensions_schema.sql', 'rebuild-000'),
   (273, '273_publish_group_post_participants.sql', 'rebuild-000'),
   (274, '274_search_documents_title_columns.sql', 'rebuild-000'),
-  (275, '275_live_cheer_totals.sql', 'rebuild-000')
+  (275, '275_live_cheer_totals.sql', 'rebuild-000'),
+  (276, '276_drop_prefix_covered_indexes.sql', 'rebuild-000'),
+  (277, '277_counter_triggers_plus_minus.sql', 'rebuild-000'),
+  (278, '278_elevation_due_index.sql', 'rebuild-000'),
+  (279, '279_search_candidate_cap.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18458,12 +18548,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 123 | 145 | 276
+-- Expected: 000 REBUILT | 138 | 124 | 145 | 279
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_123,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_124,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_276;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_279;
 
