@@ -500,11 +500,30 @@ export async function profileMembershipRows(
   const { data, error } = wide.error
     ? await admin.from('memberships').select(`org_id, role, ${ORG_KIND_EMBED_INNER}`).eq('profile_id', profileId).eq('org.kind', side).eq('scope_type', 'org')
     : wide;
-  const now = Date.now();
-  // One entry per org: a dual-edge profile reduces to their max role; a
-  // staff-only profile reads admin | staff.
+  return { rows: reduceMembershipRows((data ?? []) as unknown as RawMembershipRow[]), error };
+}
+
+/** One raw `memberships` row as the fetch above (or the public-profile bundle,
+ *  280) hands it: the ladder/staff columns and nothing else. */
+export interface RawMembershipRow {
+  org_id: string | null;
+  role: string | null;
+  kind?: string | null;
+  scope_type?: string | null;
+  expires_at?: string | null;
+}
+
+/**
+ * The reduction behind profileMembershipRows, pure (trip-count program PR 1,
+ * Oct 26 2026 — the public-profile bundle feeds it the same rows without the
+ * read). One entry per org: a dual-edge profile reduces to their max ladder
+ * role; a staff-only profile reads admin | staff; an expired staff row is
+ * inert; ladder rows count at org scope only, staff rows at any scope
+ * (admin at org scope).
+ */
+export function reduceMembershipRows(data: readonly RawMembershipRow[], now: number = Date.now()): Array<{ orgId: string; role: string }> {
   const byOrg = new Map<string, { ladder: string[]; admin: boolean; staff: boolean }>();
-  for (const r of (data ?? []) as unknown as Array<Record<string, string | null>>) {
+  for (const r of data) {
     const orgId = r.org_id;
     if (!orgId) continue; // belt and braces beside the read's filter
     if (!byOrg.has(orgId)) byOrg.set(orgId, { ladder: [], admin: false, staff: false });
@@ -517,14 +536,13 @@ export async function profileMembershipRows(
       entry.ladder.push(r.role ?? '');
     }
   }
-  const rows = [...byOrg.entries()]
+  return [...byOrg.entries()]
     .map(([orgId, e]) => {
       const ladder = maxOrgRole(e.ladder);
       const role = ladder === 'owner' || ladder === 'manager' ? ladder : e.admin ? 'admin' : e.staff ? 'staff' : (ladder ?? null);
       return role ? { orgId, role: role as string } : null;
     })
     .filter((r): r is { orgId: string; role: string } => r !== null);
-  return { rows, error };
 }
 
 export interface MemberPreviewRow {

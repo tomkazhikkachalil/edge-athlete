@@ -114,7 +114,10 @@ export const trackFieldServerModule: ServerSportModule = {
   },
 
   async buildSkillCard(profileId, supabase, ctx): Promise<SkillCardContribution | null> {
-    const lines = await fetchRaceLines(profileId, supabase, { includePrivate: ctx.includePrivate });
+    // 280: the bundle's rows when the caller already has them (the first 200, as the read would take).
+    const lines = ctx.statLines
+      ? ctx.statLines.slice(0, 200).filter(isStatLineData).map(line => line.stats)
+      : await fetchRaceLines(profileId, supabase, { includePrivate: ctx.includePrivate });
     return buildTrackSkillContribution(trackedPBs(lines), enteredPBs(ctx.settings), lines.length);
   },
 };

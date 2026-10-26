@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { STRANGER_VIEW, getProfileOrganizations } from '@/lib/affiliations/server';
 import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { BundleUnavailableError, isFullBundleProfile, readPublicProfileBundle } from '@/lib/profiles/public-bundle';
 import { isStatementPost, isTrainingPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { coverProxyUrl } from '@/lib/media/cover-url';
-import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
-import { aspectHidden } from '@/lib/training-privacy';
+import { aspectHidden, parseTrainingPrivacy } from '@/lib/training-privacy';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
@@ -25,53 +25,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Fetch profile by handle - only return public profiles
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        handle,
-        followers_count,
-        following_count,
-        first_name,
-        middle_name,
-        last_name,
-        full_name,
-        avatar_url,
-        cover_url,
-        bio,
-        sport,
-        school,
-        location,
-        city,
-        region,
-        country,
-        country_code,
-        height_cm,
-        weight_kg,
-        weight_unit,
-        dob,
-        class_year,
-        social_twitter,
-        social_instagram,
-        social_facebook,
-        social_tiktok,
-        visibility,
-        created_at
-      `)
-      .eq('handle', handle.toLowerCase())
-      .single();
-
-    if (profileError) {
-      if (profileError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    // ONE read (280, trip-count program PR 1): every row this route and its
+    // helpers need, raw; the rules below are unchanged. Fifteen trips became
+    // one for most athletes (the official stat lines stay a live read, and
+    // golf's handicap its own).
+    let bundle;
+    try {
+      bundle = await readPublicProfileBundle(supabase, handle.toLowerCase());
+    } catch (e) {
+      if (e instanceof BundleUnavailableError) {
+        // A deploy ahead of migration 280 on this database: say so, cache nothing.
+        return NextResponse.json({ error: 'Profile service updating' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
       }
-      reportRouteError('Profile fetch error:', profileError);
+      reportRouteError('Profile fetch error:', e);
       return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+    }
+    const profile = bundle.profile;
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Check if profile is public
-    if (profile.visibility !== 'public') {
+    if (!isFullBundleProfile(profile) || profile.visibility !== 'public') {
       return NextResponse.json({
         error: 'Profile is private',
         isPrivate: true,
@@ -85,75 +60,26 @@ export async function GET(request: NextRequest) {
     // over every accepted edge per view used to sit here (Round 3).
     // cover_url leaves only as its public proxy form (`cover` below) — the raw
     // bucket URL 404s since the uploads bucket went private.
-    const { followers_count: followersCountCol, following_count: followingCountCol, cover_url: coverUrlCol, ...profileFields } = profile as typeof profile & { followers_count: number | null; following_count: number | null; cover_url: string | null };
+    const { followers_count: followersCountCol, following_count: followingCountCol, cover_url: coverUrlCol, vitals_privacy: trainingPrivacyCol, ...profileFields } = profile;
 
     // Fetch posts count — media-only since the statements split (074): the
     // headline number counts portfolio posts, matching the athlete pages'
     // media-only counts.all. Statements are subtracted via the PostgREST
     // null-embed (anti-join) pattern; if that count errors it degrades to
     // subtracting 0 (total count) rather than breaking the page.
-    const [{ count: postsCount }, { count: statementsTotal }, { count: trainingTotal }] = await Promise.all([
-      supabase
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', profile.id)
-        .eq('visibility', 'public')
-        // Published only — the profile RPCs (070/074) count published posts
-        // for a viewer; a moderation-hidden or profile-hidden post must not
-        // count here either (Oct 4 2026).
-        .eq('status', 'published'),
-      supabase
-        .from('posts')
-        .select('id, post_media!left(id)', { count: 'exact', head: true })
-        .eq('profile_id', profile.id)
-        .eq('visibility', 'public')
-        .eq('status', 'published')
-        .is('post_media', null)
-        .is('round_id', null)
-        .is('group_post_id', null)
-        .or('stats_data.is.null,stats_data.eq."{}"'),
-      // 269: training posts are Training's — they leave the media count here
-      // exactly as the profile RPCs' counts leave them out.
-      supabase
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', profile.id)
-        .eq('visibility', 'public')
-        .eq('status', 'published')
-        .or('post_category.eq.training,stats_data->>type.eq.activity'),
-    ]);
+    // The three counts' predicates live in 280 now — published only (Oct 4
+    // 2026), the statements anti-join, 269's training exclusion — verbatim.
+    const postsCount = bundle.counts?.posts ?? 0;
+    const statementsTotal = bundle.counts?.statements ?? 0;
+    const trainingTotal = bundle.counts?.training ?? 0;
 
     // Fetch recent public posts. Over-fetch, then split into media posts
     // (the Recent Posts grid) and statements (the strip). Trade-off: if the
     // 24 most recent public posts are all statements, older media won't
     // backfill the grid — cosmetic on a teaser page, avoids a second query.
-    const { data: rawRecentPosts } = await supabase
-      .from('posts')
-      .select(`
-        id,
-        caption,
-        sport_key,
-        created_at,
-        likes_count,
-        comments_count,
-        stats_data,
-        post_category,
-        round_id,
-        group_post_id,
-        shared_post_id,
-        post_media (
-          id,
-          media_url,
-          media_type
-        )
-      `)
-      .eq('profile_id', profile.id)
-      .eq('visibility', 'public')
-      // Published only (269): this read had no status filter — a draft or a
-      // hidden post could reach the CDN-cached page.
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
-      .limit(24);
+    // Published only (269) — the bundle's recent_posts carry the same
+    // predicates and the same 24-row window, newest first.
+    const rawRecentPosts = bundle.recent_posts ?? [];
 
     // Classification fields (stats_data/round_id/group_post_id) stay server-
     // side — the wire shapes don't grow.
@@ -192,15 +118,11 @@ export async function GET(request: NextRequest) {
     )];
     const publicOriginalById = new Map<string, { author_name: string | null; caption: string | null }>();
     if (repostOriginalIds.length > 0) {
-      const { data: originals } = await supabase
-        .from('posts')
-        .select('id, caption, visibility, profile:profile_id ( full_name, first_name, last_name, visibility )')
-        .in('id', repostOriginalIds);
-      for (const orig of originals || []) {
-        const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
-        if (orig.visibility !== 'public' || owner?.visibility !== 'public') continue;
-        const authorName = owner.full_name
-          || [owner.first_name, owner.last_name].filter(Boolean).join(' ')
+      const originals = (bundle.repost_originals ?? []).filter(o => repostOriginalIds.includes(o.id));
+      for (const orig of originals) {
+        if (orig.visibility !== 'public' || orig.owner_visibility !== 'public') continue;
+        const authorName = orig.owner_full_name
+          || [orig.owner_first_name, orig.owner_last_name].filter(Boolean).join(' ')
           || null;
         publicOriginalById.set(orig.id, {
           author_name: authorName,
@@ -223,12 +145,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch top achievements (real athlete_achievements rows — the fields
     // the pill treatment needs; podium ranking happens client-side)
-    const { data: achievements } = await supabase
-      .from('athlete_achievements')
-      .select('id, title, placement, achieved_on')
-      .eq('profile_id', profile.id)
-      .order('achieved_on', { ascending: false })
-      .limit(12);
+    const achievements = bundle.achievements ?? [];
 
     // Skill cards — one per ACTIVE sport (not just the declared one), each
     // with provenance-tagged tracked metrics (golf: the computed handicap)
@@ -240,14 +157,20 @@ export async function GET(request: NextRequest) {
     // The STRANGER's view, always: this payload is CDN-cached for everyone
     // (never `includePrivate` — the owner's private lines ride the private
     // /api/profile/[id]/skill-cards answer).
-    const skillCards = await buildSportSkillCards(profile.id, supabase);
+    const skillCards = await buildSportSkillCards(profile.id, supabase, {}, {
+      sport: profile.sport,
+      postSportKeys: bundle.post_sport_keys ?? [],
+      settingsRows: bundle.sport_settings ?? [],
+      activity: { golf: (bundle.golf_rounds_count ?? 0) > 0 },
+      statPosts: bundle.stat_posts ?? {},
+    });
 
     // Org memberships (org connections round) — public data by the
     // membership-is-public decision; rides the aggregate so /u/ stays
     // anonymous-cheap (the strip gets initialData, no client fetch).
     // Viewer-independent + CDN-cached: the STRANGER view (a private org never
     // rides this payload; owners are redirected off /u/ anyway).
-    const organizations = await getProfileOrganizations(supabase, profile.id, STRANGER_VIEW);
+    const organizations = await getProfileOrganizations(supabase, profile.id, STRANGER_VIEW, { membershipRows: bundle.memberships ?? [], orgs: bundle.organizations ?? [] });
 
     // Elective Training privacy (migration 122): the body aspect hides
     // height/weight here exactly as it does on /api/vitals — this route used
@@ -255,7 +178,7 @@ export async function GET(request: NextRequest) {
     // (isOwner=false for everyone; owners see their own data on /athlete),
     // so the CDN cacheability below is unaffected. Fields stay in the shape
     // as nulls — clients already treat them as optional.
-    const trainingPrivacy = await fetchTrainingPrivacy(supabase, profile.id);
+    const trainingPrivacy = parseTrainingPrivacy(trainingPrivacyCol);
     const bodyHidden = aspectHidden(trainingPrivacy, 'body', false);
 
     return NextResponse.json({
@@ -269,7 +192,7 @@ export async function GET(request: NextRequest) {
       },
       recentPosts,
       statements,
-      achievements: achievements || [],
+      achievements,
       // Deprecated: athlete_badges no longer render anywhere. Kept one
       // release so cached clients keep working.
       badges: [],

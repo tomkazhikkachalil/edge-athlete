@@ -83,6 +83,10 @@ export interface SkillCardContext {
   /** The owner's view (self or guardian): count private lines too. Only a
    *  viewer-dependent route with a private cache sets it. */
   includePrivate?: boolean;
+  /** The sport's stat-line posts' `stats_data`, already read (the public-
+   *  profile bundle, 280 — newest first, the stranger's public rows). A module
+   *  that would call fetchStatLinePosts uses these instead when present. */
+  statLines?: unknown[];
 }
 
 /** The TRACKED parts a sport module contributes; the dispatcher assembles the
