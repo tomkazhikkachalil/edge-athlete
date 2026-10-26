@@ -498,6 +498,9 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 
 ## Scaling: the first thing to break (measured Oct 10 2026, maintenance pass)
 
+> **The floor, re-measured Oct 26 2026 on seeded STAGING (Micro — production's tier; 5k users / 50k posts / 53k documents; a preview of main; `docs/SCALE_AUDIT.md` §6, `docs/load/2026-10-26/`):** the CDN routes 3,400 req/s at 27 ms; every uncached route holds flat latency to ~50 closed-loop workers (160–190 one-trip req/s; ~60 req/s of the signed-in feed) and the instance's connection pool collapses at 100 (p95 20 s+), recovering on its own in a minute. Latency is trip count × a ~150 ms function-to-database hop (health 185 ms, the feed 575 ms, a like 845 ms at 5 workers), not query time (2–20 ms plans). Search is 0.5 s at 53k documents for a two-letter query and IP-limited to 120/min. Realtime fan-out stays 0 cross-round at 100 spectators. The Oct 10 numbers below were the FREE tier; the method stands.
+
+
 **Method.** Ramped concurrency (5 → 10 → 20 → 35 → 50 workers, 12 s each) from this Mac, against a Vercel preview with the bypass header. The preview read the staging database when it was still the FREE tier (staging moved to Micro on Oct 19 2026, the same compute as production, which left Nano for Micro the same day), so these numbers show where the shape bends, not production's ceiling. **The full audit — ceilings, the static sweep, the seeded EXPLAIN pass, the measured-sweep procedure for the load-test project, the ranked holes — is `docs/SCALE_AUDIT.md` (Oct 25 2026).**
 
 | Route (anonymous) | Cache | 20 workers | 50 workers |

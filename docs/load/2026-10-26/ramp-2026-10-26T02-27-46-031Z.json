@@ -1,0 +1,32 @@
+{
+  "startedAt": "2026-10-26T02:27:46.031Z",
+  "base": "https://edge-athlete-git-load-sweep-2026-10-toms-projects-b0cec44f.vercel.app",
+  "commit": "0c559494",
+  "seconds": 20,
+  "viewers": 20,
+  "steps": [
+    5,
+    10,
+    25,
+    50,
+    100
+  ],
+  "results": [
+    {
+      "route": "POST /api/posts/like",
+      "workers": 5,
+      "requests": 121,
+      "rps": 6,
+      "p50": 848,
+      "p95": 964,
+      "p99": 1003,
+      "errors": 9,
+      "errorRate": 7.44,
+      "statuses": {
+        "200": 112,
+        "404": 9
+      },
+      "healthBefore": 271
+    }
+  ]
+}

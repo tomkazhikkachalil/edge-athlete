@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `node scripts/realtime-fanout-probe.mjs [--clients 10] [--writes 20] [--mode filtered|unfiltered]`
+ * `node scripts/realtime-fanout-probe.mjs [--clients 10] [--writes 20] [--mode filtered|unfiltered] [--accounts 10]`
  *
  * The Realtime fan-out probe for scale fix 1 (docs/SCALE_AUDIT.md hole 1).
  * STAGING ONLY (refuses the production ref). N signed-in clients subscribe
@@ -23,6 +23,11 @@ const args = process.argv.slice(2);
 const num = (n, d) => { const i = args.indexOf(n); return i === -1 ? d : Number(args[i + 1]); };
 const str = (n, d) => { const i = args.indexOf(n); return i === -1 ? d : String(args[i + 1]); };
 const CLIENTS = num('--clients', 10), WRITES = num('--writes', 20), MODE = str('--mode', 'filtered');
+// Accounts are shared across clients (round-robin): GoTrue's sign-in endpoint
+// is rate-limited per IP (~30 per 5 min), so 100 clients cannot each sign in
+// from one laptop; a channel's delivery is per SUBSCRIPTION, not per user, so
+// ten accounts over a hundred sockets measure the same fan-out.
+const ACCOUNTS = Math.min(CLIENTS, num('--accounts', 10));
 const env = {};
 for (const file of ['.env.local', '.env.staging']) {
   try { for (const line of readFileSync(file, 'utf8').split('\n')) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line); if (m && !(m[1] in env)) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, ''); } } catch { /* absent */ }
@@ -55,13 +60,24 @@ console.log(`fanout-probe: mode=${MODE} clients=${CLIENTS} writes=${WRITES} roun
 const clients = [];
 const counts = [];
 try {
+  const tokens = [];
+  for (let a = 0; a < ACCOUNTS; a++) {
+    const email = `seed-${String(a + 1).padStart(4, '0')}@staging.invalid`;
+    const signer = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+    let session = null;
+    for (let attempt = 0; attempt < 4 && !session; attempt++) {
+      const { data, error } = await signer.auth.signInWithPassword({ email, password });
+      if (!error) session = data.session;
+      else if (/rate limit/i.test(error.message)) { console.log(`fanout-probe: sign-in rate limited at account ${a + 1} — waiting 60 s`); await new Promise(r => setTimeout(r, 60_000)); }
+      else throw new Error(`sign-in ${email}: ${error.message}`);
+    }
+    if (!session) throw new Error(`sign-in ${email}: still rate limited`);
+    tokens.push(session.access_token);
+  }
+  console.log(`fanout-probe: ${tokens.length} accounts signed in for ${CLIENTS} clients`);
   for (let i = 0; i < CLIENTS; i++) {
-    const email = `seed-${String(i + 1).padStart(4, '0')}@staging.invalid`;
     const c = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { error } = await c.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(`sign-in ${email}: ${error.message}`);
-    const { data: s } = await c.auth.getSession();
-    c.realtime.setAuth(s.session.access_token);
+    c.realtime.setAuth(tokens[i % tokens.length]);
     const count = { a: 0, b: 0, other: 0 };
     counts.push(count);
     const listener = MODE === 'filtered'
@@ -89,11 +105,14 @@ try {
   await new Promise(r => setTimeout(r, 4000));
   const totalA = counts.reduce((s, c) => s + c.a, 0), totalB = counts.reduce((s, c) => s + c.b, 0), totalO = counts.reduce((s, c) => s + c.other, 0);
   console.log(`fanout-probe RESULT mode=${MODE}: ${WRITES} writes on round B → ${totalB} events delivered across ${CLIENTS} clients (per client: ${counts.map(c => c.b).join(',')}); ${WRITES} writes on round A → ${totalA} events (per client: ${counts.map(c => c.a).join(',')}); other ${totalO}; ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+} catch (e) {
+  console.error('fanout-probe FAILED:', e instanceof Error ? e.message : String(e));
+  process.exitCode = 1;
 } finally {
-  for (const { c, ch } of clients) { try { await c.removeChannel(ch); } catch { /* */ } try { await c.auth.signOut(); } catch { /* */ } }
+  for (const { c, ch } of clients) { try { await c.removeChannel(ch); } catch { /* */ } }
   await admin.from('golf_participant_scores').delete().in('id', [...roundA.cardIds, ...roundB.cardIds]);
   await admin.from('group_post_participants').delete().in('group_post_id', [roundA.id, roundB.id]);
   await admin.from('group_posts').delete().in('id', [roundA.id, roundB.id]);
   console.log('fanout-probe: rounds removed');
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `node scripts/load-ramp.mjs --base <url> [--steps 5,10,25,50,100] [--seconds 20] [--viewers 20] [--routes all|read|write] [--out docs/load/<date>]`
+ * `node scripts/load-ramp.mjs --base <url> [--steps 5,10,25,50,100] [--seconds 20] [--viewers 20] [--routes all|read|write] [--only <name regex>] [--out docs/load/<date>]`
  *
  * The closed-loop ramp of docs/SCALE_AUDIT.md §3 (Oct 25 2026): N workers,
  * each a signed-in seed user, hit the hot routes back to back for S seconds
@@ -38,6 +38,7 @@ const steps = opt('--steps', '5,10,25,50,100').split(',').map(Number);
 const seconds = Number(opt('--seconds', '20'));
 const viewers = Number(opt('--viewers', '20'));
 const routeSet = opt('--routes', 'all');
+const only = opt('--only', ''); // a regex over route names, e.g. --only 'search|live-now' — one route's ladder on its own
 const outDir = opt('--out', path.join('docs', 'load', new Date().toISOString().slice(0, 10)));
 
 const PROD_REF = 'htwhmdoiszhhmwuflgci';
@@ -71,7 +72,10 @@ if (!sessions.length) { console.error('load-ramp: no sessions'); process.exit(1)
   if (!probe || probe.status !== 200) { console.error(`load-ramp: REFUSED — a staging session does not authenticate on ${host} (HTTP ${probe?.status ?? 'none'}); the target is not on the staging project`); process.exit(2); }
 }
 const { data: subject } = await admin.from('profiles').select('id, handle').eq('email', 'seed-subject@staging.invalid').maybeSingle();
-const { data: seedPosts } = await admin.from('posts').select('id').like('caption', 'Seed post %').eq('visibility', 'public').limit(50);
+// Like targets: public posts by PUBLIC owners — the like route's gate answers 404
+// for a private owner's post to a non-follower (a seed artefact, not a failure).
+const { data: publicOwners } = await admin.from('profiles').select('id').like('email', 'seed-%@staging.invalid').eq('visibility', 'public').limit(200);
+const { data: seedPosts } = await admin.from('posts').select('id').like('caption', 'Seed post %').eq('visibility', 'public').in('profile_id', (publicOwners ?? []).map(o => o.id)).limit(50);
 const postIds = (seedPosts ?? []).map(p => p.id);
 const PREFIXES = ['se', 'seed', 'ott', 'kan', 'fan 12', 'tourn', 'bir', 'pla', 'coa', 'edge'];
 console.log(`load-ramp: ${sessions.length} sessions · subject ${subject?.handle ?? '?'} · ${postIds.length} like targets · base ${base}`);
@@ -87,7 +91,7 @@ const routes = [
   { name: 'GET /api/search?q=', kind: 'read', req: (n) => ({ path: `/api/search?q=${encodeURIComponent(PREFIXES[n % PREFIXES.length])}` }) },
   { name: 'GET /api/golf/live-now', kind: 'read', req: () => ({ path: '/api/golf/live-now' }) },
   { name: 'POST /api/posts/like', kind: 'write', req: (n) => ({ path: '/api/posts/like', method: 'POST', body: JSON.stringify({ postId: postIds[n % postIds.length] }) }) },
-].filter(r => routeSet === 'all' || r.kind === routeSet || r.kind === 'ref').filter(r => !(r.kind === 'write' && !postIds.length));
+].filter(r => routeSet === 'all' || r.kind === routeSet || r.kind === 'ref').filter(r => !(r.kind === 'write' && !postIds.length)).filter(r => !only || new RegExp(only).test(r.name));
 
 // ── The ramp ─────────────────────────────────────────────────────────────────
 const pct = (sorted, p) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] : 0;
@@ -98,10 +102,11 @@ async function health() {
 async function runStep(route, workers) {
   const samples = []; let errors = 0; let n = 0;
   const end = Date.now() + seconds * 1000;
-  const worker = async (w) => {
-    const s = sessions[w % sessions.length];
+  const statuses = {};
+  const worker = async () => {
     while (Date.now() < end) {
       const k = n++;
+      const s = sessions[k % sessions.length]; // every request a different account: the per-account limiter is not what is measured
       const r = route.req(k);
       const t = Date.now();
       try {
@@ -112,14 +117,14 @@ async function runStep(route, workers) {
         });
         await res.arrayBuffer();
         samples.push(Date.now() - t);
-        if (!res.ok && res.status !== 429) errors++;
-        if (res.status === 429) errors++; // a 429 is the limiter doing its job, but it IS a failed request for the user
-      } catch { samples.push(Date.now() - t); errors++; }
+        statuses[res.status] = (statuses[res.status] ?? 0) + 1;
+        if (!res.ok) errors++; // a 429 is the limiter doing its job, but it IS a failed request for the user — the status split says which
+      } catch { samples.push(Date.now() - t); errors++; statuses.network = (statuses.network ?? 0) + 1; }
     }
   };
-  await Promise.all(Array.from({ length: workers }, (_, w) => worker(w)));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
   const sorted = [...samples].sort((a, b) => a - b);
-  return { workers, requests: samples.length, rps: +(samples.length / seconds).toFixed(1), p50: pct(sorted, 50), p95: pct(sorted, 95), p99: pct(sorted, 99), errors, errorRate: samples.length ? +(errors / samples.length * 100).toFixed(2) : 0 };
+  return { workers, requests: samples.length, rps: +(samples.length / seconds).toFixed(1), p50: pct(sorted, 50), p95: pct(sorted, 95), p99: pct(sorted, 99), errors, errorRate: samples.length ? +(errors / samples.length * 100).toFixed(2) : 0, statuses };
 }
 
 const results = [];
@@ -133,7 +138,7 @@ for (const route of routes) {
     while (h.ms > 1000) { console.log(`  health ${h.ms} ms — pausing 30 s`); await new Promise(r => setTimeout(r, 30_000)); h = await health(); }
     const row = await runStep(route, workers);
     results.push({ route: route.name, ...row, healthBefore: h.ms });
-    console.log(`  ${String(workers).padStart(3)} workers · ${String(row.rps).padStart(7)} req/s · p50 ${row.p50} · p95 ${row.p95} · p99 ${row.p99} ms · errors ${row.errorRate} %`);
+    console.log(`  ${String(workers).padStart(3)} workers · ${String(row.rps).padStart(7)} req/s · p50 ${row.p50} · p95 ${row.p95} · p99 ${row.p99} ms · errors ${row.errorRate} % ${JSON.stringify(row.statuses)}`);
     if (row.p95 > 2000 || row.errorRate > 1) { console.log(`  STOP: ${row.p95 > 2000 ? 'p95 over 2 s' : 'errors over 1 %'} at ${workers} workers`); break; }
     await new Promise(r => setTimeout(r, 2000));
   }
@@ -142,7 +147,7 @@ for (const route of routes) {
 fs.mkdirSync(outDir, { recursive: true });
 const stamp = startedAt.replace(/[:.]/g, '-');
 fs.writeFileSync(path.join(outDir, `ramp-${stamp}.json`), JSON.stringify({ startedAt, base, commit, seconds, viewers: sessions.length, steps, results }, null, 2));
-const md = [`# Load ramp — ${startedAt} · ${base} · commit ${commit}`, '', `Closed-loop workers, ${seconds} s per step, ${sessions.length} signed-in seed sessions. Stop rules: p95 > 2 s or errors > 1 %.`, '', '| Route | Workers | req/s | p50 ms | p95 ms | p99 ms | Errors % |', '| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
-  ...results.map(r => `| ${r.route} | ${r.workers} | ${r.rps} | ${r.p50} | ${r.p95} | ${r.p99} | ${r.errorRate} |`), ''].join('\n');
+const md = [`# Load ramp — ${startedAt} · ${base} · commit ${commit}`, '', `Closed-loop workers, ${seconds} s per step, ${sessions.length} signed-in seed sessions. Stop rules: p95 > 2 s or errors > 1 %.`, '', '| Route | Workers | req/s | p50 ms | p95 ms | p99 ms | Errors % | Statuses |', '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+  ...results.map(r => `| ${r.route} | ${r.workers} | ${r.rps} | ${r.p50} | ${r.p95} | ${r.p99} | ${r.errorRate} | ${Object.entries(r.statuses ?? {}).map(([k, v]) => `${k}:${v}`).join(' ')} |`), ''].join('\n');
 fs.writeFileSync(path.join(outDir, `ramp-${stamp}.md`), md);
 console.log(`\nload-ramp: written ${path.join(outDir, `ramp-${stamp}.{json,md}`)}`);

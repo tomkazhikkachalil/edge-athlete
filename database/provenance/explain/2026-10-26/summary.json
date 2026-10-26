@@ -1,0 +1,331 @@
+{
+ "sizes": {
+  "profiles": 5009,
+  "posts": 50044,
+  "follows": 95138,
+  "notifications": 100973,
+  "search_documents": 53051,
+  "messages": 2561
+ },
+ "rows": [
+  {
+   "name": "feed_page_default",
+   "exec_ms": 0.729,
+   "plan_ms": 1.807,
+   "rows": 21,
+   "shared_hit": 23,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_posts_created_at_id_desc"
+  },
+  {
+   "name": "feed_page_keyset_deep",
+   "exec_ms": 1.249,
+   "plan_ms": 2.105,
+   "rows": 21,
+   "shared_hit": 62,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_posts_created_at_id_desc"
+  },
+  {
+   "name": "feed_following_rpc",
+   "exec_ms": 7.324,
+   "plan_ms": 0.044,
+   "rows": 20,
+   "shared_hit": 1256,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "hidden_authors_mutes",
+   "exec_ms": 0.106,
+   "plan_ms": 0.721,
+   "rows": 0,
+   "shared_hit": 1,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_user_mutes_muter"
+  },
+  {
+   "name": "hidden_authors_blocks_in",
+   "exec_ms": 0.079,
+   "plan_ms": 0.517,
+   "rows": 0,
+   "shared_hit": 1,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "user_blocks(0r)",
+   "idx": ""
+  },
+  {
+   "name": "viewer_likes_for_page",
+   "exec_ms": 0.098,
+   "plan_ms": 2.041,
+   "rows": 0,
+   "shared_hit": 2,
+   "shared_read": 0,
+   "top": "Nested Loop",
+   "seq": "",
+   "idx": "idx_post_likes_profile idx_posts_created_at_id_desc"
+  },
+  {
+   "name": "likes_recount_one_post",
+   "exec_ms": 0.331,
+   "plan_ms": 0.562,
+   "rows": 1,
+   "shared_hit": 11,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "",
+   "idx": "post_likes_post_id_profile_id_key"
+  },
+  {
+   "name": "notifications_unread_count",
+   "exec_ms": 2.699,
+   "plan_ms": 1.053,
+   "rows": 1,
+   "shared_hit": 1467,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "",
+   "idx": "idx_notifications_user_unread"
+  },
+  {
+   "name": "notifications_list_page",
+   "exec_ms": 0.272,
+   "plan_ms": 1.271,
+   "rows": 21,
+   "shared_hit": 9,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_notifications_user_created"
+  },
+  {
+   "name": "notifications_metadata_contains",
+   "exec_ms": 0.357,
+   "plan_ms": 1.231,
+   "rows": 0,
+   "shared_hit": 9,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_notifications_metadata_gin"
+  },
+  {
+   "name": "unread_messages_rpc",
+   "exec_ms": 4.398,
+   "plan_ms": 0.034,
+   "rows": 1,
+   "shared_hit": 804,
+   "shared_read": 0,
+   "top": "Result",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "conversation_list_rpc",
+   "exec_ms": 14.283,
+   "plan_ms": 0.045,
+   "rows": 1,
+   "shared_hit": 2444,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "follows_of_viewer_unbounded",
+   "exec_ms": 0.21,
+   "plan_ms": 0.755,
+   "rows": 300,
+   "shared_hit": 7,
+   "shared_read": 0,
+   "top": "Index Only Scan",
+   "seq": "",
+   "idx": "idx_follows_composite"
+  },
+  {
+   "name": "followers_count_column_vs_count",
+   "exec_ms": 1.366,
+   "plan_ms": 0.73,
+   "rows": 1,
+   "shared_hit": 10,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "",
+   "idx": "idx_follows_following_status"
+  },
+  {
+   "name": "live_now_participants_in",
+   "exec_ms": 0.241,
+   "plan_ms": 1.624,
+   "rows": 0,
+   "shared_hit": 17,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "group_post_participants(48r)",
+   "idx": "idx_follows_composite"
+  },
+  {
+   "name": "cheers_count_one_kind",
+   "exec_ms": 0.2,
+   "plan_ms": 0.704,
+   "rows": 1,
+   "shared_hit": 1,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "live_cheers(0r) live_cheers(0r)",
+   "idx": ""
+  },
+  {
+   "name": "cheers_grouped_alternative",
+   "exec_ms": 0.154,
+   "plan_ms": 0.644,
+   "rows": 0,
+   "shared_hit": 4,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "live_cheers(0r) live_cheers(0r)",
+   "idx": ""
+  },
+  {
+   "name": "search_all_prefix",
+   "exec_ms": 557.468,
+   "plan_ms": 0.089,
+   "rows": 40,
+   "shared_hit": 4186,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "search_people_rpc",
+   "exec_ms": 48.149,
+   "plan_ms": 0.07,
+   "rows": 20,
+   "shared_hit": 2604,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "media_counts_rpc",
+   "exec_ms": 13.912,
+   "plan_ms": 0.048,
+   "rows": 1,
+   "shared_hit": 2328,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "public_profile_recent_posts",
+   "exec_ms": 0.195,
+   "plan_ms": 1.488,
+   "rows": 24,
+   "shared_hit": 27,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "",
+   "idx": "idx_posts_profile_visibility_created"
+  },
+  {
+   "name": "rate_limit_hit_rpc",
+   "exec_ms": 2.471,
+   "plan_ms": 0.046,
+   "rows": 1,
+   "shared_hit": 450,
+   "shared_read": 0,
+   "top": "ProjectSet",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "search_where_only_count",
+   "exec_ms": 27.088,
+   "plan_ms": 5.099,
+   "rows": 1,
+   "shared_hit": 2710,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "search_documents(52501r)",
+   "idx": ""
+  },
+  {
+   "name": "search_tsquery_only_count",
+   "exec_ms": 32.274,
+   "plan_ms": 4.507,
+   "rows": 1,
+   "shared_hit": 2768,
+   "shared_read": 0,
+   "top": "Aggregate",
+   "seq": "",
+   "idx": "idx_search_documents_vector"
+  },
+  {
+   "name": "search_ilike_only",
+   "exec_ms": 0.218,
+   "plan_ms": 1.055,
+   "rows": 50,
+   "shared_hit": 4,
+   "shared_read": 0,
+   "top": "Limit",
+   "seq": "search_documents(50r)",
+   "idx": ""
+  },
+  {
+   "name": "search_matched_with_case_columns",
+   "exec_ms": 3899.713,
+   "plan_ms": 5.32,
+   "rows": 52501,
+   "shared_hit": 3368,
+   "shared_read": 0,
+   "top": "Gather",
+   "seq": "search_documents(26250r)",
+   "idx": ""
+  },
+  {
+   "name": "search_all_rare_term",
+   "exec_ms": 178.143,
+   "plan_ms": 0.067,
+   "rows": 0,
+   "shared_hit": 4186,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "search_all_two_letters",
+   "exec_ms": 500.396,
+   "plan_ms": 0.064,
+   "rows": 41,
+   "shared_hit": 4186,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  },
+  {
+   "name": "search_all_athletes_only",
+   "exec_ms": 45.083,
+   "plan_ms": 0.09,
+   "rows": 20,
+   "shared_hit": 1672,
+   "shared_read": 0,
+   "top": "Function Scan",
+   "seq": "",
+   "idx": ""
+  }
+ ]
+}
