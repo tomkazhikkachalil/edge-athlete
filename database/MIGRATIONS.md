@@ -630,6 +630,22 @@ UNUSED on production was dropped — production was wiped Sep 30 and is gated,
 so a zero scan count says nothing about a feature. Expected row on both:
 `276 APPLIED | 0 | 12 | 276`.
 
+## search_all ranks a bounded candidate set (migration 279, Oct 26 2026 — hole 2b)
+
+At 53,051 documents `search_all('se')` cost 500 ms after 274 — every
+document matched and 50,044 rows went through the per-row ranking columns.
+279 REPLACES `search_all` (same signature, RETURNS, INVOKER, search_path,
+grants, COMMENT restated): after the cheap tier is known, a LATERAL top-N
+keeps at most 1,000 rows per entity_type by tier, (distance), rich, recency,
+and `name_hits` / `score` are computed for those only; the final ORDER BY is
+unchanged. Trade-off recorded in docs/SEARCH.md (a row past the first thousand
+of its type can be left out). Proof: `database/tests/diagnostics/verify-279-
+search.sql` — 274's body as a temp function beside 279's, ten lists identical
+at one instant on the 53k staging; plans 557 → 247 ms (prefix), 500 → 325 ms
+(two letters), athletes-only ~50 ms; the rare-term floor (~180 ms) is the
+substring arm's scan, not the ranking. Expected row on both: `279 APPLIED |
+1 | true | 279`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
