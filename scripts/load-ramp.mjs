@@ -46,6 +46,9 @@ if (!url || !anonKey || !service) { console.error('load-ramp: .env.local missing
 if (url.includes(PROD_REF)) { console.error('load-ramp: REFUSED — the production project'); process.exit(2); }
 const host = new URL(base).hostname;
 if (/edgeathlete\.ca$|^edge-athlete\.vercel\.app$/.test(host)) { console.error('load-ramp: REFUSED — a production host'); process.exit(2); }
+// The git-branch alias of the PRODUCTION branch is the production deployment under
+// another hostname (prod env, prod Supabase) — Oct 26 2026, found the hard way.
+if (/-git-(main|master)-/.test(host)) { console.error(`load-ramp: REFUSED — ${host} is the production branch's alias, not a preview`); process.exit(2); }
 if (!password) { console.error('load-ramp: SEED_PASSWORD missing — run scripts/staging-seed.mjs first.'); process.exit(2); }
 const bypass = /\.vercel\.app$/.test(host) && env.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': env.VERCEL_AUTOMATION_BYPASS_SECRET } : {};
 
@@ -61,6 +64,12 @@ for (let i = 1; i <= viewers; i++) {
   sessions.push({ id: data.user.id, cookie: `sb-${ref}-auth-token=base64-${Buffer.from(JSON.stringify(data.session)).toString('base64url')}` });
 }
 if (!sessions.length) { console.error('load-ramp: no sessions'); process.exit(1); }
+// The target must be ON the staging project: a staging session that does not
+// authenticate there means another database behind the hostname → refuse.
+{
+  const probe = await fetch(`${base}/api/notifications/unread-count`, { headers: { ...bypass, cookie: sessions[0].cookie } }).catch(() => null);
+  if (!probe || probe.status !== 200) { console.error(`load-ramp: REFUSED — a staging session does not authenticate on ${host} (HTTP ${probe?.status ?? 'none'}); the target is not on the staging project`); process.exit(2); }
+}
 const { data: subject } = await admin.from('profiles').select('id, handle').eq('email', 'seed-subject@staging.invalid').maybeSingle();
 const { data: seedPosts } = await admin.from('posts').select('id').like('caption', 'Seed post %').eq('visibility', 'public').limit(50);
 const postIds = (seedPosts ?? []).map(p => p.id);
