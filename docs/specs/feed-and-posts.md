@@ -6,15 +6,20 @@
 
 **Likes you can trust, and impact everyone can see (likes round, Oct 4 2026,
 #1081 + mig 252)** — Tom: the count must be accurate; a heart must agree on
-every surface; "an impact so you know 1000 ppl viewed your post." **Counts
-are RECOUNTS — by the TRIGGER, read by the route** (amended Oct 25 2026,
-scale fix 4): 015's trigger recounts `posts.likes_count`, 095's recounts
-`posts.comments_count` (published only), 252's recount `post_comments.likes_count`,
-each inside the like's or comment's own statement; `POST /api/posts/like`,
-`POST /api/comments/like` and `POST`/`DELETE /api/comments` then READ the
-column and return it — they never count the rows a second time nor write the
-column (`counter-writes.test.ts`). Until Oct 25 the routes did both again:
-two O(likes) counts and two `posts` writes per like; a reader embeds only the
+every surface; "an impact so you know 1000 ppl viewed your post." **The
+TRIGGER adds or subtracts one; the nightly recount is the accuracy rule; a
+route READS** (amended Oct 25 and Oct 26 2026, scale fix 4 and migration
+277): the triggers on `post_likes`, `post_comments` (published only — a
+status change moves the count by one) and `comment_likes` keep
+`posts.likes_count`, `posts.comments_count` and `post_comments.likes_count`
+by ±1 inside the write's own statement; `counters_recount()` corrects every
+drifted row — once in 277 and every night from `/api/cron/daily`
+(`src/lib/counters/recount-server.ts`), reporting how many it touched;
+`POST /api/posts/like`, `POST /api/comments/like` and `POST`/`DELETE
+/api/comments` READ the column and return it — they never count the rows nor
+write the column (`counter-writes.test.ts`). History: until Oct 25 the routes
+recounted and wrote too (two O(likes) counts and two `posts` writes per
+like); until Oct 26 the triggers themselves recounted the whole set; a reader embeds only the
 VIEWER's own like row (`.eq('likes.profile_id', viewer)` — PostgREST caps a
 full embed at 1000, which emptied hearts on popular posts). **One liked truth
 per tab** — `src/lib/likes/store.ts`: every like the viewer performs and every
