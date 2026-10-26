@@ -608,6 +608,28 @@ synthetic cheers of one round (rolled back): one per-key count 1.1 ms / 78
 buffers → ×6 ≈ 6.6 ms + six round trips; the grouped function 2.1 ms / 115
 buffers, one round trip. Expected row on both: `275 APPLIED | 1 | false | 275`.
 
+## Drop the twelve prefix-covered indexes (migration 276, Oct 25 2026 — the production baseline answers)
+
+Tom's read of `pg_indexes` on production (SCALE_AUDIT §0b "The answers")
+showed twelve indexes on the growth tables whose key is the leading prefix of
+a wider index on the same table — a write per like / follow / post / comment /
+message / notification for no read the planner would choose. The Advisor's
+`duplicate_index` lint flags exact twins only (271 cleared those). 276 drops:
+`follows` `idx_follows_follower`, `idx_follows_following`, `idx_follows_status`;
+`posts` `idx_posts_profile_id`, `idx_posts_created_at`; `post_comments`
+`idx_post_comments_post_id`; `post_likes` `idx_post_likes_profile_id`,
+`idx_post_likes_post`; `post_media` `idx_post_media_post_id` (271's "later
+decision"); `notifications` `idx_notifications_user_id`;
+`conversation_participants` `idx_cp_conversation`; `golf_participant_scores`
+`idx_golf_participant_scores_participant`. Every FK stays covered by a
+leading-column index (`fk-index-coverage.test.ts`); no `follows` query filters
+by status alone (a source scan, 0 chains). Proof on staging: the eleven hot
+read shapes each plan on the kept index
+(`database/provenance/explain/2026-10-25/plans-after-276.md`). Nothing merely
+UNUSED on production was dropped — production was wiped Sep 30 and is gated,
+so a zero scan count says nothing about a feature. Expected row on both:
+`276 APPLIED | 0 | 12 | 276`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

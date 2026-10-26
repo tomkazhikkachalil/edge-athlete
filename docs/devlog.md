@@ -1,5 +1,11 @@
 # Development Log
 
+## October 25, 2026 — Migration 276: the twelve prefix-covered indexes are dropped (zero behaviour change)
+
+From the production baseline answers (SCALE_AUDIT §0b): twelve indexes on the growth tables are the leading prefix of a wider index on the same table, so the planner never needs them while every like, follow, post, comment, message and notification pays to maintain them. Tom: "Yes, let's do a migration." 276 drops them — three on `follows` (including the status-only one: a source scan found no `follows` query filtering by status without a party), two on `posts`, two on `post_likes`, one each on `post_comments`, `post_media`, `notifications`, `conversation_participants` and `golf_participant_scores` (a twin of the unique participant key). Nothing merely unused on production was touched: prod was wiped Sep 30 and is gated, so the never-scanned tail Tom pasted (activities, affiliations, competitions, …) is features not yet exercised, not dead indexes.
+
+**Proof.** Staging: `276 APPLIED | 0 | 12 | 276`; `check:schema` ledger head 276; `fk-index-coverage`, `migration-grants`, `rebuild-baseline` tests green (every FK keeps a leading-column index). The eleven hot read shapes re-planned on staging after the drops — follower + status, following + status, posts by profile, the keyset, comments by post, likes by post + profile and by post, media by post, notifications by user, participants by conversation, scores by participant — each uses the kept index (`database/provenance/explain/2026-10-25/plans-after-276.md`; the one-page tables planned with `enable_seqscan = off` so the chosen index shows). `npm run verify` VERIFY_PLACEHOLDER. Production: Tom runs 276 in the SQL editor; the baseline is regenerated after.
+
 ## October 25, 2026 — Scale fix 5: the cheer totals in one grouped query (migration 275)
 
 Hole 5 of `docs/SCALE_AUDIT.md`. `readCheerFeed` (`src/lib/play/cheers-server.ts`) answered a watcher's 10-second poll with SIX `count: 'exact'` head requests — one per cheer key, because PostgREST has no GROUP BY — and the POST re-ran the six after its insert; with the gate's two reads and the recent-cheers read, nine statements per poll per watcher of a live round. A hundred watchers of one round is 90 statements a second for six numbers.
