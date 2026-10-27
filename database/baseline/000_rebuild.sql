@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-26T03:46:09.370843+00:00 from server 17.6 by
+-- Generated 2026-10-27T00:04:47.231571+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 279.
+-- public.schema_dump() (migration 227). Ledger head at generation: 280.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (124; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (125; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2993,6 +2993,116 @@ AS $function$
       WHERE n.nspname = 'public' AND NOT t.tgisinternal
     )
   );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.public_profile_bundle(p_handle text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+WITH prof AS (
+  SELECT p.id, p.handle, p.followers_count, p.following_count,
+         p.first_name, p.middle_name, p.last_name, p.full_name,
+         p.avatar_url, p.cover_url, p.bio, p.sport, p.school, p.location,
+         p.city, p.region, p.country, p.country_code,
+         p.height_cm, p.weight_kg, p.weight_unit, p.dob, p.class_year,
+         p.social_twitter, p.social_instagram, p.social_facebook, p.social_tiktok,
+         p.visibility, p.created_at, p.vitals_privacy
+  FROM public.profiles p
+  WHERE p.handle = lower(p_handle)
+  LIMIT 1
+),
+pub AS (SELECT id FROM prof WHERE visibility = 'public'),
+counts AS (
+  SELECT
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published') AS posts,
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+        AND NOT EXISTS (SELECT 1 FROM public.post_media m WHERE m.post_id = x.id)
+        AND x.round_id IS NULL AND x.group_post_id IS NULL
+        AND (x.stats_data IS NULL OR x.stats_data = '{}'::jsonb)) AS statements,
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+        AND (x.post_category = 'training' OR x.stats_data->>'type' = 'activity')) AS training
+),
+recent AS (
+  SELECT x.id, x.caption, x.sport_key, x.created_at, x.likes_count, x.comments_count,
+         x.stats_data, x.post_category, x.round_id, x.group_post_id, x.shared_post_id,
+         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', m.id, 'media_url', m.media_url, 'media_type', m.media_type) ORDER BY m.display_order, m.id)
+                   FROM public.post_media m WHERE m.post_id = x.id), '[]'::jsonb) AS post_media
+  FROM public.posts x, pub
+  WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+  ORDER BY x.created_at DESC
+  LIMIT 24
+),
+originals AS (
+  SELECT o.id, o.caption, o.visibility,
+         op.full_name AS owner_full_name, op.first_name AS owner_first_name, op.last_name AS owner_last_name, op.visibility AS owner_visibility
+  FROM public.posts o
+  LEFT JOIN public.profiles op ON op.id = o.profile_id
+  WHERE o.id IN (SELECT r.shared_post_id FROM recent r WHERE r.shared_post_id IS NOT NULL)
+),
+ach AS (
+  SELECT a.id, a.title, a.placement, a.achieved_on
+  FROM public.athlete_achievements a, pub
+  WHERE a.profile_id = pub.id
+  ORDER BY a.achieved_on DESC
+  LIMIT 12
+),
+settings AS (
+  SELECT s.sport_key, s.settings, s.pinned, s.pin_order
+  FROM public.sport_settings s, pub WHERE s.profile_id = pub.id
+),
+sport_keys AS (
+  SELECT COALESCE(array_agg(DISTINCT x.sport_key), '{}') AS keys
+  FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.sport_key IS NOT NULL
+),
+golf AS (
+  SELECT count(*) AS n FROM public.golf_rounds g, pub WHERE g.profile_id = pub.id
+),
+stat_posts AS (
+  SELECT COALESCE(jsonb_object_agg(sk, lines), '{}'::jsonb) AS by_sport
+  FROM (
+    SELECT q.sport_key AS sk, jsonb_agg(q.stats_data ORDER BY q.created_at DESC) AS lines
+    FROM (
+      SELECT x.sport_key, x.stats_data, x.created_at,
+             row_number() OVER (PARTITION BY x.sport_key ORDER BY x.created_at DESC) AS rn
+      FROM public.posts x, pub
+      WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.stats_data IS NOT NULL AND x.sport_key IS NOT NULL
+    ) q
+    WHERE q.rn <= 200
+    GROUP BY q.sport_key
+  ) g
+),
+mem AS (
+  SELECT m.org_id, m.role, m.kind, m.scope_type, m.expires_at, o.kind AS org_kind
+  FROM public.memberships m
+  JOIN public.organizations o ON o.id = m.org_id, pub
+  WHERE m.profile_id = pub.id AND m.kind IN ('follow', 'roster', 'staff')
+),
+orgs AS (
+  SELECT o.id, o.kind, o.name, o.sport_key, o.city, o.region, o.country, o.listing_status, o.approved_at, o.visibility
+  FROM public.organizations o
+  WHERE o.id IN (SELECT DISTINCT org_id FROM mem)
+)
+SELECT CASE
+  WHEN NOT EXISTS (SELECT 1 FROM prof) THEN jsonb_build_object('profile', NULL)
+  WHEN NOT EXISTS (SELECT 1 FROM pub)  THEN jsonb_build_object('profile', (SELECT jsonb_build_object('id', id, 'visibility', visibility) FROM prof))
+  ELSE jsonb_build_object(
+    'profile',          (SELECT to_jsonb(prof) FROM prof),
+    'counts',           (SELECT to_jsonb(counts) FROM counts),
+    'recent_posts',     COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC) FROM recent r), '[]'::jsonb),
+    'repost_originals', COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM originals o), '[]'::jsonb),
+    'achievements',     COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.achieved_on DESC) FROM ach a), '[]'::jsonb),
+    'sport_settings',   COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM settings s), '[]'::jsonb),
+    'post_sport_keys',  (SELECT to_jsonb(keys) FROM sport_keys),
+    'golf_rounds_count',(SELECT n FROM golf),
+    'stat_posts',       (SELECT by_sport FROM stat_posts),
+    'memberships',      COALESCE((SELECT jsonb_agg(to_jsonb(m)) FROM mem m), '[]'::jsonb),
+    'organizations',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM orgs o), '[]'::jsonb)
+  )
+END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -11643,7 +11753,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (124) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (125) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14425,6 +14535,114 @@ AS $function$
       WHERE n.nspname = 'public' AND NOT t.tgisinternal
     )
   );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.public_profile_bundle(p_handle text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+WITH prof AS (
+  SELECT p.id, p.handle, p.followers_count, p.following_count,
+         p.first_name, p.middle_name, p.last_name, p.full_name,
+         p.avatar_url, p.cover_url, p.bio, p.sport, p.school, p.location,
+         p.city, p.region, p.country, p.country_code,
+         p.height_cm, p.weight_kg, p.weight_unit, p.dob, p.class_year,
+         p.social_twitter, p.social_instagram, p.social_facebook, p.social_tiktok,
+         p.visibility, p.created_at, p.vitals_privacy
+  FROM public.profiles p
+  WHERE p.handle = lower(p_handle)
+  LIMIT 1
+),
+pub AS (SELECT id FROM prof WHERE visibility = 'public'),
+counts AS (
+  SELECT
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published') AS posts,
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+        AND NOT EXISTS (SELECT 1 FROM public.post_media m WHERE m.post_id = x.id)
+        AND x.round_id IS NULL AND x.group_post_id IS NULL
+        AND (x.stats_data IS NULL OR x.stats_data = '{}'::jsonb)) AS statements,
+    (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+        AND (x.post_category = 'training' OR x.stats_data->>'type' = 'activity')) AS training
+),
+recent AS (
+  SELECT x.id, x.caption, x.sport_key, x.created_at, x.likes_count, x.comments_count,
+         x.stats_data, x.post_category, x.round_id, x.group_post_id, x.shared_post_id,
+         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', m.id, 'media_url', m.media_url, 'media_type', m.media_type) ORDER BY m.display_order, m.id)
+                   FROM public.post_media m WHERE m.post_id = x.id), '[]'::jsonb) AS post_media
+  FROM public.posts x, pub
+  WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published'
+  ORDER BY x.created_at DESC
+  LIMIT 24
+),
+originals AS (
+  SELECT o.id, o.caption, o.visibility,
+         op.full_name AS owner_full_name, op.first_name AS owner_first_name, op.last_name AS owner_last_name, op.visibility AS owner_visibility
+  FROM public.posts o
+  LEFT JOIN public.profiles op ON op.id = o.profile_id
+  WHERE o.id IN (SELECT r.shared_post_id FROM recent r WHERE r.shared_post_id IS NOT NULL)
+),
+ach AS (
+  SELECT a.id, a.title, a.placement, a.achieved_on
+  FROM public.athlete_achievements a, pub
+  WHERE a.profile_id = pub.id
+  ORDER BY a.achieved_on DESC
+  LIMIT 12
+),
+settings AS (
+  SELECT s.sport_key, s.settings, s.pinned, s.pin_order
+  FROM public.sport_settings s, pub WHERE s.profile_id = pub.id
+),
+sport_keys AS (
+  SELECT COALESCE(array_agg(DISTINCT x.sport_key), '{}') AS keys
+  FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.sport_key IS NOT NULL
+),
+golf AS (
+  SELECT count(*) AS n FROM public.golf_rounds g, pub WHERE g.profile_id = pub.id
+),
+stat_posts AS (
+  SELECT COALESCE(jsonb_object_agg(sk, lines), '{}'::jsonb) AS by_sport
+  FROM (
+    SELECT q.sport_key AS sk, jsonb_agg(q.stats_data ORDER BY q.created_at DESC) AS lines
+    FROM (
+      SELECT x.sport_key, x.stats_data, x.created_at,
+             row_number() OVER (PARTITION BY x.sport_key ORDER BY x.created_at DESC) AS rn
+      FROM public.posts x, pub
+      WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.stats_data IS NOT NULL AND x.sport_key IS NOT NULL
+    ) q
+    WHERE q.rn <= 200
+    GROUP BY q.sport_key
+  ) g
+),
+mem AS (
+  SELECT m.org_id, m.role, m.kind, m.scope_type, m.expires_at, o.kind AS org_kind
+  FROM public.memberships m
+  JOIN public.organizations o ON o.id = m.org_id, pub
+  WHERE m.profile_id = pub.id AND m.kind IN ('follow', 'roster', 'staff')
+),
+orgs AS (
+  SELECT o.id, o.kind, o.name, o.sport_key, o.city, o.region, o.country, o.listing_status, o.approved_at, o.visibility
+  FROM public.organizations o
+  WHERE o.id IN (SELECT DISTINCT org_id FROM mem)
+)
+SELECT CASE
+  WHEN NOT EXISTS (SELECT 1 FROM prof) THEN jsonb_build_object('profile', NULL)
+  WHEN NOT EXISTS (SELECT 1 FROM pub)  THEN jsonb_build_object('profile', (SELECT jsonb_build_object('id', id, 'visibility', visibility) FROM prof))
+  ELSE jsonb_build_object(
+    'profile',          (SELECT to_jsonb(prof) FROM prof),
+    'counts',           (SELECT to_jsonb(counts) FROM counts),
+    'recent_posts',     COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC) FROM recent r), '[]'::jsonb),
+    'repost_originals', COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM originals o), '[]'::jsonb),
+    'achievements',     COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.achieved_on DESC) FROM ach a), '[]'::jsonb),
+    'sport_settings',   COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM settings s), '[]'::jsonb),
+    'post_sport_keys',  (SELECT to_jsonb(keys) FROM sport_keys),
+    'golf_rounds_count',(SELECT n FROM golf),
+    'stat_posts',       (SELECT by_sport FROM stat_posts),
+    'memberships',      COALESCE((SELECT jsonb_agg(to_jsonb(m)) FROM mem m), '[]'::jsonb),
+    'organizations',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM orgs o), '[]'::jsonb)
+  )
+END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer)
@@ -17766,6 +17984,8 @@ REVOKE EXECUTE ON FUNCTION public.profiles_search_vector_update() FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.profiles_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.provenance_inventory() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.provenance_inventory() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) FROM PUBLIC, anon, authenticated, service_role;
@@ -18100,6 +18320,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Cou
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
+COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280). Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
@@ -18539,7 +18760,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (276, '276_drop_prefix_covered_indexes.sql', 'rebuild-000'),
   (277, '277_counter_triggers_plus_minus.sql', 'rebuild-000'),
   (278, '278_elevation_due_index.sql', 'rebuild-000'),
-  (279, '279_search_candidate_cap.sql', 'rebuild-000')
+  (279, '279_search_candidate_cap.sql', 'rebuild-000'),
+  (280, '280_public_profile_bundle.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18548,12 +18770,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 124 | 145 | 279
+-- Expected: 000 REBUILT | 138 | 125 | 145 | 280
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_124,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_125,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_279;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_280;
 
