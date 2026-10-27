@@ -73,6 +73,87 @@ export async function searchAll({
   return (data ?? []) as SearchAllRow[];
 }
 
+export interface SearchAllDecoratedParams extends SearchAllParams {
+  /** The signed-in viewer (null = anonymous) — only the post-author privacy facts read it. */
+  viewerId: string | null;
+  /** The route's post read filters, verbatim (283). */
+  postSport?: string | null;
+  postFrom?: string | null;
+  postTo?: string | null;
+  postLimit: number;
+}
+
+/** What `search_all_decorated` (283) returns: search_all's rows plus the raw display rows per type and the two privacy facts. */
+export interface SearchDecorated {
+  rows: SearchAllRow[];
+  athletes: Array<{ id: string; sport?: string | null; school?: string | null }>;
+  courses: unknown[];
+  posts: unknown[];
+  clubs: Array<{ id: string } & Record<string, unknown>>;
+  leagues: Array<{ id: string } & Record<string, unknown>>;
+  author_visibility: Array<{ id: string; visibility: string | null }>;
+  followed_private: string[];
+}
+
+/**
+ * search_all AND its decoration in ONE call (migration 283, trip-count
+ * program PR 4): the ranked rows, the raw display rows for every ranked id
+ * (the route's columns, in the route's order — `json`, so the key order
+ * survives), the post authors' visibility and the viewer's accepted follows
+ * among the private ones. Every rule stays in the route. The degrade
+ * contract is searchAll's: `null` ONLY when the function does not exist yet
+ * (a deploy ahead of 283) — the route answers 503 for that; anything else
+ * THROWS.
+ */
+export async function searchAllDecorated({
+  query,
+  types,
+  maxPerType,
+  visibleIds = [],
+  includePublic = true,
+  location = {},
+  viewerId,
+  postSport = null,
+  postFrom = null,
+  postTo = null,
+  postLimit,
+}: SearchAllDecoratedParams): Promise<SearchDecorated | null> {
+  const q = normalizeQuery(query);
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.rpc('search_all_decorated', {
+    q,
+    p_types: [...types],
+    max_per_type: maxPerType,
+    visible_ids: [...visibleIds],
+    include_public: includePublic,
+    ...rpcLocationArgs(location),
+    p_viewer: viewerId,
+    p_post_sport: postSport,
+    p_post_from: postFrom,
+    p_post_to: postTo,
+    p_post_limit: postLimit,
+  });
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === '42883' || code === 'PGRST202') {
+      console.error('[search] search_all_decorated is missing — MIGRATION 283 HAS NOT BEEN RUN on this database.');
+      return null;
+    }
+    throw error;
+  }
+  const d = (data ?? {}) as Partial<SearchDecorated>;
+  return {
+    rows: d.rows ?? [],
+    athletes: d.athletes ?? [],
+    courses: d.courses ?? [],
+    posts: d.posts ?? [],
+    clubs: d.clubs ?? [],
+    leagues: d.leagues ?? [],
+    author_visibility: d.author_visibility ?? [],
+    followed_private: d.followed_private ?? [],
+  };
+}
+
 export interface SearchAllFacetsParams {
   query: string;
   /** Entity types to count; null = every type. */

@@ -739,6 +739,35 @@ MIGRATION FIRST (a pure addition; the route answers 503 `Like service
 updating`, no-store, until it exists). Reversal: DROP FUNCTION. Expected row
 on both: `282 APPLIED | 1 | true | 282`.
 
+## Search's decoration rides the search call (migration 283, Oct 27 2026 — trip-count program PR 4)
+
+`GET /api/search` made seven database trips for `q=seed` (docs/SCALE_AUDIT.md
+§7): the per-IP limiter, the session check, `search_all`, then the
+decoration — the athletes' `profiles` rows, the `posts` rows with their
+`profile` and `post_media` embeds, the authors' visibility and the viewer's
+accepted follows among the private authors (courses, clubs and leagues one
+read each more when they match). 283 adds `search_all_decorated(…search_all's
+ten parameters…, p_viewer, p_post_sport, p_post_from, p_post_to,
+p_post_limit) RETURNS json` (`LANGUAGE sql STABLE SECURITY INVOKER`,
+`search_path = public, extensions`, EXECUTE for service_role only): it CALLS
+`search_all` (274/279, untouched — one overload, the facets route and the
+recruiting search keep their function) and the same statement returns `{
+rows, athletes, courses, posts, clubs, leagues, author_visibility,
+followed_private }` — the ranked rows in order, the raw display rows for
+every ranked id with exactly the route's columns in the route's order
+(courses = `CATALOG_ROW_COLUMNS`, orgs with `listing_status` / `approved_at`
+riding along), the posts read verbatim (published, on the feed, the optional
+sport / date window, newest first, LIMIT the quota), the authors of THOSE
+posts with their visibility, and the viewer's `accepted` follows among the
+private ones. `json`, not jsonb: `json_build_object` keeps PostgREST's key
+order, so the response is byte-identical (`scripts/route-capture.mjs`
+before/after over 24 records). Every rule stays in the route (rank order,
+the facet filters, the quotas, the course mapping, `filterListedRows`, the
+author-privacy filter, the media proxy). Deploy order: MIGRATION FIRST (a
+pure addition; the route answers 503 `Search service updating`, no-store,
+until it exists). Reversal: DROP FUNCTION. Expected row on both: `283
+APPLIED | 1 | true | 283`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

@@ -134,6 +134,25 @@ the ⌘K filter panel (live type counts + Country → Region selects via
 already filters on). `/api/search` hydrates display rows from the ranked ids and keeps
 the entire pre-112 per-entity path as its degrade fallback.
 
+**One call (migration 283, Oct 27 2026 — trip-count program PR 4).** The
+route no longer hydrates with its own reads: `search_all_decorated(…)` calls
+`search_all` (unchanged) and the same statement returns the ranked rows plus
+the raw display rows for every ranked id — the route's columns in the route's
+order (`json`, so PostgREST's key order survives and the response is
+byte-identical) — the posts read verbatim (published, on the feed, the
+optional sport / date window, newest first, LIMIT the quota), the authors of
+those posts with their visibility, and the viewer's accepted follows among
+the private ones. The rules stay in the route: rank order (`orderByIds`), the
+sport / school post-filters, the quotas, `rowToCourse`, `filterListedRows`
+(the listing columns ride along and are stripped), the author-privacy filter,
+the media proxy. `GET /api/search` is three database trips on a local build
+(the per-IP limiter, the session check, the call) and two on production.
+A database with `search_all` but ahead of 283 answers 503 `Search service
+updating` (no-store); the legacy path still serves a database without
+`search_all`. Pins: `src/lib/__tests__/search-decorated.test.ts` (the one
+call, the kept rules, the column lists equal to the route's and to
+`CATALOG_ROW_COLUMNS`, 279 untouched).
+
 Privacy split, deliberate: athlete documents carry `visibility`/`owner_id`
 and are filtered in-query (search_people semantics — LIMIT after privacy);
 post documents EXIST only while the post is public and published, and

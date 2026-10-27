@@ -17,7 +17,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `play.md` | Play: badges, rivalries, cheers, challenges |
 | `activities.md` | Activities: imported, connected, live-recorded; set up before Start and the per-type layout table (Programs E and F, Oct 20 2026) |
 | `install-and-push.md` | Download the app, push notifications, the icon badge |
-| `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch; the feed's viewer side is one call (Oct 27 2026, mig 281); the like toggle is one call (mig 282) |
+| `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch; the feed's viewer side is one call (Oct 27 2026, mig 281); the like toggle is one call (mig 282); search's decoration rides the search call (mig 283, docs/SEARCH.md) |
 | `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen; Training's Start chooser, one bubble per exercise, a clip belongs to the exercise; the rest timer's phases, the total beside the clock, the picker panel, rest is personal (Oct 22 2026); the stopwatch's lead-in, count-down, bell, rest interplay and longest-hold records (Oct 23 2026) |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes; the sport setup as steps (51) |
