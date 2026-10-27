@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-27T02:55:48.793487+00:00 from server 17.6 by
+-- Generated 2026-10-27T03:45:57.909988+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 281.
+-- public.schema_dump() (migration 227). Ledger head at generation: 282.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (127; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (128; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2894,6 +2894,57 @@ AS $function$
     AND c.relname IN ('profiles', 'posts', 'activities', 'workout_sessions', 'follows', 'messages',
                       'notifications', 'organizations', 'sport_events', 'athlete_performances', 'profile_seen')
   ORDER BY c.relname;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_owner uuid;
+  v_post_visibility text;
+  v_owner_visibility text;
+  v_outcome text;
+  v_count integer;
+BEGIN
+  SELECT p.profile_id, p.visibility, o.visibility
+    INTO v_owner, v_post_visibility, v_owner_visibility
+  FROM public.posts p
+  LEFT JOIN public.profiles o ON o.id = p.profile_id
+  WHERE p.id = p_post_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  -- The gate (src/app/api/posts/like/route.ts before 282): owner, or public
+  -- post by a public owner, or an accepted follower. NULLs read as "not
+  -- public", as the TypeScript comparison did.
+  IF v_owner IS DISTINCT FROM p_viewer
+     AND NOT (COALESCE(v_post_visibility, '') = 'public' AND COALESCE(v_owner_visibility, '') = 'public')
+     AND NOT EXISTS (
+       SELECT 1 FROM public.follows f
+       WHERE f.follower_id = p_viewer AND f.following_id = v_owner AND f.status = 'accepted'
+     )
+  THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  DELETE FROM public.post_likes WHERE post_id = p_post_id AND profile_id = p_viewer;
+  IF FOUND THEN
+    v_outcome := 'unliked';
+  ELSE
+    INSERT INTO public.post_likes (post_id, profile_id) VALUES (p_post_id, p_viewer)
+    ON CONFLICT (post_id, profile_id) DO NOTHING;
+    v_outcome := CASE WHEN FOUND THEN 'liked' ELSE 'already_liked' END;
+  END IF;
+
+  -- The trigger's ±1 is visible here (same transaction); never count the rows.
+  SELECT COALESCE(likes_count, 0) INTO v_count FROM public.posts WHERE id = p_post_id;
+  RETURN jsonb_build_object('outcome', v_outcome, 'likes_count', v_count);
+END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -11796,7 +11847,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (127) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (128) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14483,6 +14534,55 @@ AS $function$
     AND c.relname IN ('profiles', 'posts', 'activities', 'workout_sessions', 'follows', 'messages',
                       'notifications', 'organizations', 'sport_events', 'athlete_performances', 'profile_seen')
   ORDER BY c.relname;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_owner uuid;
+  v_post_visibility text;
+  v_owner_visibility text;
+  v_outcome text;
+  v_count integer;
+BEGIN
+  SELECT p.profile_id, p.visibility, o.visibility
+    INTO v_owner, v_post_visibility, v_owner_visibility
+  FROM public.posts p
+  LEFT JOIN public.profiles o ON o.id = p.profile_id
+  WHERE p.id = p_post_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  -- The gate (src/app/api/posts/like/route.ts before 282): owner, or public
+  -- post by a public owner, or an accepted follower. NULLs read as "not
+  -- public", as the TypeScript comparison did.
+  IF v_owner IS DISTINCT FROM p_viewer
+     AND NOT (COALESCE(v_post_visibility, '') = 'public' AND COALESCE(v_owner_visibility, '') = 'public')
+     AND NOT EXISTS (
+       SELECT 1 FROM public.follows f
+       WHERE f.follower_id = p_viewer AND f.following_id = v_owner AND f.status = 'accepted'
+     )
+  THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  DELETE FROM public.post_likes WHERE post_id = p_post_id AND profile_id = p_viewer;
+  IF FOUND THEN
+    v_outcome := 'unliked';
+  ELSE
+    INSERT INTO public.post_likes (post_id, profile_id) VALUES (p_post_id, p_viewer)
+    ON CONFLICT (post_id, profile_id) DO NOTHING;
+    v_outcome := CASE WHEN FOUND THEN 'liked' ELSE 'already_liked' END;
+  END IF;
+
+  -- The trigger's ±1 is visible here (same transaction); never count the rows.
+  SELECT COALESCE(likes_count, 0) INTO v_count FROM public.posts WHERE id = p_post_id;
+  RETURN jsonb_build_object('outcome', v_outcome, 'likes_count', v_count);
+END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.posts_search_vector_update()
@@ -18062,6 +18162,8 @@ REVOKE EXECUTE ON FUNCTION public.platform_storage_by_bucket() FROM PUBLIC, anon
 GRANT EXECUTE ON FUNCTION public.platform_storage_by_bucket() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.platform_table_estimates() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.platform_table_estimates() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.posts_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.posts_search_vector_update() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.profile_seen_on_profile_insert() FROM PUBLIC, anon, authenticated, service_role;
@@ -18407,6 +18509,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Cou
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
+COMMENT ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) IS 'The like toggle in one call (282): the route''s visibility gate, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/posts/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
@@ -18850,7 +18953,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (278, '278_elevation_due_index.sql', 'rebuild-000'),
   (279, '279_search_candidate_cap.sql', 'rebuild-000'),
   (280, '280_public_profile_bundle.sql', 'rebuild-000'),
-  (281, '281_feed_viewer_side.sql', 'rebuild-000')
+  (281, '281_feed_viewer_side.sql', 'rebuild-000'),
+  (282, '282_post_like_toggle.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18859,12 +18963,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 127 | 145 | 281
+-- Expected: 000 REBUILT | 138 | 128 | 145 | 282
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_127,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_128,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_281;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_282;
 
