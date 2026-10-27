@@ -37,7 +37,6 @@ import { isPublicPostMedia } from '@/lib/media/visibility';
 /** The URL life a post's media gets: a public post's is stable, a private post's expires. */
 const mediaVisibilityOf = (post: { visibility?: string | null; profiles?: { visibility?: string | null } | null }) =>
   isPublicPostMedia({ postVisibility: post.visibility, ownerVisibility: post.profiles?.visibility }) ? ('public' as const) : ('private' as const);
-import { hiddenAuthorsFor } from '@/lib/mutes';
 import { reportRouteError } from '@/lib/observability/report';
 import { declareSport } from '@/lib/sports/declare-server';
 import type { SportKey } from '@/lib/sports/SportRegistry';
@@ -69,6 +68,9 @@ const SHARED_POST_SELECT = `
   ),
   media:post_media ( media_url, media_type, thumbnail_url, blur_hash, codec, processing_at )
 `;
+
+/** feed_viewer_side (281): raw ids, every array present (COALESCE'd in SQL). */
+type FeedViewerSide = { hidden?: string[]; following?: string[]; saved?: string[]; liked?: string[] };
 
 /** Gate + shape a fetched original for a given viewer. Returns the wire
  *  QuotedPost or null ("post unavailable" to this viewer). Mirrors the
@@ -1387,13 +1389,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('sport_key', sportKey);
     }
 
-    // The viewer's mutes + blocks (Spec 2, mig 223) depend on nothing the
-    // page returns, so they are read ALONGSIDE the page (speed round 2 —
-    // one fewer sequential round trip at 134–334 ms each on production).
-    const [{ data: posts, error }, hiddenAuthors] = await Promise.all([
-      query,
-      hiddenAuthorsFor(supabase, currentUserId),
-    ]);
+    const { data: posts, error } = await query;
 
     if (error) {
       // Pre-181: the contest filter names a column that is not there yet —
@@ -1405,25 +1401,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
-    // The viewer's accepted follows AMONG THIS PAGE'S AUTHORS (and, below,
-    // the quoted originals' owners) — bounded by the page, never the whole
-    // graph (Round 3: this read had no limit, so PostgREST capped it at
-    // 1 000 silently and a viewer following more lost private posts from
-    // their oldest follows). In the following lens every author on the page
-    // is followed by construction (or is the viewer).
+    // The viewer's side of this page in ONE call (migration 281, trip-count
+    // program PR 2 — six reads became one): the authors the viewer never sees
+    // (mutes + blocks both ways, Spec 2 / mig 223 — they used to ride
+    // alongside the page as three reads), the viewer's accepted follows AMONG
+    // THIS PAGE'S AUTHORS (and, below, the quoted originals' owners) — bounded
+    // by the page, never the whole graph (Round 3: this read had no limit, so
+    // PostgREST capped it at 1 000 silently and a viewer following more lost
+    // private posts from their oldest follows) — and the viewer's saves and
+    // likes among the page's posts (PostCard reads post.saved_posts /
+    // post.likes only to test the viewer's own membership; without saved_posts
+    // every post rendered unsaved and the bookmark toggled a saved post OFF).
+    // Raw ids; every rule below is TypeScript. In the following lens every
+    // author on the page is followed by construction (or is the viewer), so no
+    // author ids are sent. Anonymous: nothing hidden, followed, saved or
+    // liked — exactly the reads it never made. A read error fails OPEN as the
+    // four reads did (a log; nothing hidden, nothing followed); only a
+    // database ahead of 281 answers 503 so the deploy order shows.
+    let hiddenAuthors: Set<string> = new Set();
     let followingIds: Set<string> = new Set();
+    let savedPostIds = new Set<string>();
+    let likedPostIds = new Set<string>();
     const pageAuthorIds = [...new Set((posts || []).map(p => p.profile_id as string))];
     if (followScope) {
       followingIds = new Set(pageAuthorIds);
-    } else if (currentUserId && pageAuthorIds.length > 0) {
-      const { data: following } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', currentUserId)
-        .eq('status', 'accepted')
-        .in('following_id', pageAuthorIds);
-      if (following) {
-        followingIds = new Set(following.map(f => f.following_id));
+    }
+    if (currentUserId) {
+      const { data: side, error: sideError } = await supabase.rpc('feed_viewer_side', {
+        p_viewer: currentUserId,
+        p_author_ids: followScope ? [] : pageAuthorIds,
+        p_post_ids: (posts || []).map(p => p.id as string),
+      });
+      if (sideError?.code === 'PGRST202') {
+        // A deploy ahead of migration 281 on this database: say so, cache nothing.
+        return NextResponse.json({ error: 'Feed service updating' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+      }
+      if (sideError) {
+        reportRouteError('Feed viewer-side read error:', sideError);
+      } else {
+        const s = (side ?? {}) as FeedViewerSide;
+        hiddenAuthors = new Set(s.hidden ?? []);
+        if (!followScope) followingIds = new Set(s.following ?? []);
+        savedPostIds = new Set(s.saved ?? []);
+        likedPostIds = new Set(s.liked ?? []);
       }
     }
 
@@ -1485,31 +1505,9 @@ export async function GET(request: NextRequest) {
     // even though older visible posts exist.
     const rawPageCount = rawPage.length;
 
-    // Attach the viewer's saved state — PostCard reads post.saved_posts.
-    // Without it every feed post rendered unsaved, and tapping the bookmark
-    // on an already-saved post silently UNSAVED it (the endpoint toggles).
-    let savedPostIds = new Set<string>();
-    // The viewer's OWN likes for this page — one bounded query keyed on the
-    // viewer, replacing the per-post embed of everyone's likes. PostCard only
-    // reads post.likes to test membership of currentUserId (isLiked).
-    let likedPostIds = new Set<string>();
-    if (currentUserId && finalVisiblePosts.length > 0) {
-      const pageIds = finalVisiblePosts.map(p => p.id);
-      const [{ data: savedRows }, { data: likedRows }] = await Promise.all([
-        supabase
-          .from('saved_posts')
-          .select('post_id')
-          .eq('profile_id', currentUserId)
-          .in('post_id', pageIds),
-        supabase
-          .from('post_likes')
-          .select('post_id')
-          .eq('profile_id', currentUserId)
-          .in('post_id', pageIds),
-      ]);
-      savedPostIds = new Set((savedRows || []).map(r => r.post_id));
-      likedPostIds = new Set((likedRows || []).map(r => r.post_id));
-    }
+    // The viewer's saved state and OWN likes for this page (post.saved_posts /
+    // post.likes) arrived with the viewer side above (281) — one bounded call
+    // keyed on the viewer, never the per-post embed of everyone's likes.
 
     // Batched enrichment — ONE query per data type instead of one per post.
     // (The old per-post Promise.all fired a deep group_posts query and a
