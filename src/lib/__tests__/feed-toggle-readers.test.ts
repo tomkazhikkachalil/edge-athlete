@@ -20,7 +20,10 @@ describe('the feed is a switch (269)', () => {
   });
   it('explore, the three search reads and the org activity page are feed-side', () => {
     expect(code('src/app/api/explore/route.ts').match(/\.eq\('on_feed', true\)/g)?.length).toBe(1);
-    expect(code('src/app/api/search/route.ts').match(/\.eq\('on_feed', true\)/g)?.length).toBe(3);
+    // 283 (trip-count PR 4): the unified path's posts read rides inside
+    // search_all_decorated — its filter is in the function; the two legacy reads stay.
+    expect(code('src/app/api/search/route.ts').match(/\.eq\('on_feed', true\)/g)?.length).toBe(2);
+    expect(code('database/migrations/283_search_all_decorated.sql')).toMatch(/AND p\.on_feed = true/);
     expect(code('src/lib/affiliations/activity-server.ts').match(/\.eq\('on_feed', true\)/g)?.length).toBe(1);
   });
   it('the profile-side readers never filter it', () => {
