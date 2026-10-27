@@ -11,22 +11,34 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
-const ROUTES: Array<{ file: string; table: string; column: string }> = [
-  { file: 'src/app/api/posts/like/route.ts', table: 'post_likes', column: 'likes_count' },
+// `via` (282, trip-count PR 3): the route reads the column THROUGH one RPC —
+// the function's body is where the read must be (and no count, no write).
+const ROUTES: Array<{ file: string; table: string; column: string; via?: { rpc: string; migration: string } }> = [
+  { file: 'src/app/api/posts/like/route.ts', table: 'post_likes', column: 'likes_count', via: { rpc: 'post_like_toggle', migration: 'database/migrations/282_post_like_toggle.sql' } },
   { file: 'src/app/api/comments/like/route.ts', table: 'comment_likes', column: 'likes_count' },
   { file: 'src/app/api/comments/route.ts', table: 'post_comments', column: 'comments_count' },
 ];
 
 describe('Counters: the trigger recounts, the route reads', () => {
-  for (const { file, table, column } of ROUTES) {
+  for (const { file, table, column, via } of ROUTES) {
     it(`${file} never recounts ${table} nor writes ${column}`, () => {
       const code = read(file);
       // A `.from('<table>').select(…, { count: 'exact', head: true })` is a recount.
       const recount = new RegExp(`from\\('${table}'\\)\\s*\\.select\\([^)]*count:\\s*'exact'[^)]*head:\\s*true`);
       expect(code).not.toMatch(recount);
       expect(code).not.toMatch(new RegExp(`\\.update\\(\\{\\s*${column}`));
-      // …and it does read the trigger-written column back.
-      expect(code).toMatch(new RegExp(`\\.select\\('${column}'\\)`));
+      if (via) {
+        // …the one RPC reads the trigger-written column back; the route touches no table itself.
+        expect(code.match(new RegExp(`\\.rpc\\('${via.rpc}'`, 'g'))?.length).toBe(1);
+        expect(code).not.toMatch(/\.from\('/);
+        const fn = read(via.migration);
+        expect(fn).toMatch(new RegExp(`SELECT COALESCE\\(${column}, 0\\) INTO v_count FROM public\\.posts`));
+        expect(fn).not.toMatch(/count\(\*\)\s+FROM\s+public\.post_likes/i);
+        expect(fn).not.toMatch(new RegExp(`SET ${column}`));
+      } else {
+        // …and it does read the trigger-written column back.
+        expect(code).toMatch(new RegExp(`\\.select\\('${column}'\\)`));
+      }
     });
   }
   it('the delete still asks for its own row count (a no-op is a 404, not a recount)', () => {

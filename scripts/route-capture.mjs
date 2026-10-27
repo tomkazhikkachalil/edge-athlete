@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `node scripts/route-capture.mjs --base <url> --out <file.json> --path <p> [--path <p> …] [--user seed-0001@staging.invalid]`
+ * `node scripts/route-capture.mjs --base <url> --out <file.json> --path <p> [--path <p> …] [--post '<p>=<json body>' …] [--user seed-0001@staging.invalid]`
  * `node scripts/route-capture.mjs --diff <before.json> <after.json>`
  *
  * The trip-count program's equality harness (Oct 26 2026): a route PR must
@@ -9,6 +9,9 @@
  * `--diff` deep-compares and names the first differing key path per route.
  * With `--user`, the seed user's session cookie rides every request (STAGING
  * ONLY — the Supabase project is .env.local, and a production host is refused).
+ * `--post` (trip-count PR 3, Oct 27 2026) sends a JSON body, in the order
+ * given and after every `--path`; its record is keyed `POST <path> <body>`,
+ * so a toggle's sequence (like, unlike, like) is captured as three records.
  */
 import fs from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
@@ -50,7 +53,8 @@ const host = new URL(base).hostname;
 if (/edgeathlete\.ca$|^edge-athlete\.vercel\.app$|-git-(main|master)-/.test(host)) { console.error('route-capture: REFUSED — a production host'); process.exit(2); }
 if (!env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL.includes('htwhmdoiszhhmwuflgci')) { console.error('route-capture: STAGING ONLY'); process.exit(2); }
 const out = opt('--out'); const paths = all('--path'); const user = opt('--user', '');
-if (!out || !paths.length) { console.error('usage: --base <url> --out <file> --path <p> [--path …] [--user <seed email>]'); process.exit(2); }
+const posts = all('--post').map(spec => { const i = spec.indexOf('='); if (i < 0) { console.error(`--post needs '<path>=<json>': ${spec}`); process.exit(2); } return { path: spec.slice(0, i), body: spec.slice(i + 1) }; });
+if (!out || (!paths.length && !posts.length)) { console.error("usage: --base <url> --out <file> --path <p> [--path …] [--post '<p>=<json>' …] [--user <seed email>]"); process.exit(2); }
 let cookie = '';
 if (user) {
   const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -66,5 +70,15 @@ for (const p of paths) {
   result[p] = { status: res.status, body };
   console.log(`${String(res.status).padStart(3)}  ${p}  (${text.length} bytes)`);
 }
+for (const { path: p, body: reqBody } of posts) {
+  const res = await fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, body: reqBody });
+  const text = await res.text();
+  let body; try { body = JSON.parse(text); } catch { body = { _raw: text.slice(0, 500) }; }
+  const key = `POST ${p} ${reqBody}`;
+  // The same call twice in a sequence (like, unlike, like) is three records.
+  let k = key; for (let n = 2; k in result; n++) k = `${key} #${n}`;
+  result[k] = { status: res.status, body };
+  console.log(`${String(res.status).padStart(3)}  ${k}  (${text.length} bytes)`);
+}
 fs.writeFileSync(out, JSON.stringify(result, null, 1));
-console.log(`route-capture: ${paths.length} responses → ${out}`);
+console.log(`route-capture: ${paths.length + posts.length} responses → ${out}`);

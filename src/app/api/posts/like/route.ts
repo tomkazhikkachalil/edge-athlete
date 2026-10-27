@@ -4,18 +4,16 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
-// The TRIGGER recounts; the route READS (scale fix 4, Oct 25 2026 —
-// docs/SCALE_AUDIT.md hole 4, Convention 32 amended). 015's
-// `trigger_update_post_likes_count` recounts `posts.likes_count` inside the
-// same statement as the like's insert or delete, so by the time the route's
-// write returns the column is already the truth. The route used to COUNT the
-// likes again and UPDATE the column a second time — two counts and two
-// `posts` writes per like, the second pair pure cost (the O(likes) count
-// twice on a popular post). One indexed read now.
-async function readLikesCount(admin: ReturnType<typeof getSupabaseAdmin>, postId: string): Promise<number> {
-  const { data } = await admin.from('posts').select('likes_count').eq('id', postId).maybeSingle();
-  return data?.likes_count ?? 0;
-}
+// The like toggle is ONE call (migration 282, trip-count program PR 3, Oct 27
+// 2026): `post_like_toggle(viewer, post)` applies the visibility gate, removes
+// or inserts the viewer's like and reads back the trigger-written count, all
+// in one transaction — the route maps its outcome onto the wire shape it has
+// always had. The TRIGGER adds or subtracts one (277; Convention 32); the
+// bell is 190's `notify_post_like`, also a trigger. The route never counts
+// the rows and never writes the column (`counter-writes.test.ts`). Before
+// 282 this file made the gate's post read, a follow read, the existing-like
+// read, the write and the count read as five separate trips.
+type LikeToggleOutcome = { outcome: 'not_found' | 'liked' | 'already_liked' | 'unliked'; likes_count?: number };
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,117 +26,42 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { postId } = body;
-    const profileId = user.id;
 
     if (postId && !isUuid(postId)) {
-      // Same outcome the maybeSingle lookup produces for a bogus id today —
-      // deliberately 404, not 400, to keep the wire contract identical.
+      // Same outcome the lookup produces for a bogus id — deliberately 404,
+      // not 400, to keep the wire contract identical.
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
-    // Existence + visibility gate (admin client bypasses RLS): only posts
-    // the viewer can actually see may be liked. Also prevents probing for
-    // valid post UUIDs (missing/hidden both return 404, and bogus IDs no
-    // longer surface as FK-violation 500s).
-    const { data: targetPost } = await supabase
-      .from('posts')
-      .select('id, profile_id, visibility, profiles:profile_id (visibility)')
-      .eq('id', postId)
-      .maybeSingle();
-
-    if (!targetPost) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    // Existence + visibility gate, the toggle and the count — one call. Only
+    // posts the viewer can actually see may be liked; missing and hidden both
+    // answer 404, so valid post ids cannot be probed.
+    const { data, error } = await supabase.rpc('post_like_toggle', { p_viewer: user.id, p_post_id: postId });
+    if (error) {
+      if (error.code === 'PGRST202') {
+        // A deploy ahead of migration 282 on this database: say so, cache nothing.
+        return NextResponse.json({ error: 'Like service updating' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+      }
+      reportRouteError('Error toggling like:', error);
+      return NextResponse.json({ error: 'Failed to process like request' }, { status: 500 });
     }
+    const result = (data ?? { outcome: 'not_found' }) as LikeToggleOutcome;
+    const likesCount = result.likes_count ?? 0;
 
-    const postOwner = (Array.isArray(targetPost.profiles) ? targetPost.profiles[0] : targetPost.profiles) as { visibility?: string } | null;
-    const publiclyVisible = targetPost.visibility === 'public' && postOwner?.visibility === 'public';
-    if (targetPost.profile_id !== profileId && !publiclyVisible) {
-      const { data: follow } = await supabase
-        .from('follows')
-        .select('id')
-        .eq('follower_id', profileId)
-        .eq('following_id', targetPost.profile_id)
-        .eq('status', 'accepted')
-        .maybeSingle();
-      if (!follow) {
+    switch (result.outcome) {
+      case 'unliked':
+        return NextResponse.json({ action: 'unliked', message: 'Post unliked successfully', likesCount });
+      case 'liked':
+        return NextResponse.json({ action: 'liked', message: 'Post liked successfully', likesCount });
+      case 'already_liked':
+        // A concurrent like got there first; its trigger wrote the column.
+        return NextResponse.json({ action: 'liked', message: 'Post already liked', likesCount });
+      default:
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-      }
     }
-
-    // Check if the user already liked this post
-    const { data: existingLike, error: checkError } = await supabase
-      .from('post_likes')
-      .select('id')
-      .eq('post_id', postId)
-      .eq('profile_id', profileId)
-      .single();
-
-    if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 means no rows found, which is expected if not liked yet
-      reportRouteError('Error checking like status:', checkError);
-      return NextResponse.json({ error: 'Failed to check like status' }, { status: 500 });
-    }
-
-    if (existingLike) {
-      // Unlike: Remove the like
-      const { error: deleteError } = await supabase
-        .from('post_likes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('profile_id', profileId);
-
-      if (deleteError) {
-        reportRouteError('Error unliking post:', deleteError);
-        return NextResponse.json({ error: 'Failed to unlike post' }, { status: 500 });
-      }
-
-      // The delete's trigger recounted the column; read it.
-      const trueCount = await readLikesCount(supabase, postId);
-
-      return NextResponse.json({
-        action: 'unliked',
-        message: 'Post unliked successfully',
-        likesCount: trueCount
-      });
-    } else {
-      // Like: Add the like
-      const { error: insertError } = await supabase
-        .from('post_likes')
-        .insert({
-          post_id: postId,
-          profile_id: profileId
-        });
-
-      if (insertError) {
-        reportRouteError('Error liking post:', insertError);
-
-        // Handle unique constraint violation (23505 is PostgreSQL's duplicate key error)
-        if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
-          // User already liked this post (race condition): the other
-          // request's trigger wrote the column — read it.
-          return NextResponse.json({
-            action: 'liked',
-            message: 'Post already liked',
-            likesCount: await readLikesCount(supabase, postId)
-          });
-        }
-
-        return NextResponse.json({ error: 'Failed to like post' }, { status: 500 });
-      }
-
-      // The insert's trigger recounted the column; read it.
-      const trueCount = await readLikesCount(supabase, postId);
-
-      return NextResponse.json({
-        action: 'liked',
-        message: 'Post liked successfully',
-        likesCount: trueCount
-      });
-    }
-
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('Error processing like request:', error);

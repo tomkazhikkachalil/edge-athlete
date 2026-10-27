@@ -37,6 +37,8 @@ author's own looks never count; `POST /api/posts/views` answers 204 whatever
 happens; `useViewBeacon` (half on screen for 1 s) and the video's 3 s are the
 only sources; `bump_post_views` is the ONE writer of the counters.
 
+> **Amended by trip-count PR 3 (Oct 27 2026, migration 282):** `POST /api/posts/like` is ONE call — `post_like_toggle(viewer, post)` applies the same visibility gate (owner, or public post by a public owner, or an accepted follower; else 404 `Post not found`), removes or inserts the like, and reads the trigger-written `likes_count` inside the same transaction; the route maps `liked` / `already_liked` / `unliked` / `not_found` onto the wire shape it always had (`{ action, message, likesCount }`). The triggers still do the counting (277) and the bell (190's `notify_post_like`); the function writes neither. A database ahead of 282 answers 503 `Like service updating` (no-store). Pins: `like-toggle-rpc.test.ts`; `counter-writes.test.ts` reads the column through the function for this route. Proof: `scripts/route-capture.mjs --post` before/after (nine records + anonymous), side effects equal (counts, like rows, bells). Trips 7 → 4 locally (3 on production). Devlog: "Trip-count PR 3" (Oct 27 2026).
+
 ## Convention 33 — Finish and Post are two actions; nothing is ever auto-posted (Drafts round, Oct 6 2026, mig 253 the ONLY DDL — PR 1 of 5)
 
 **Finish and Post are two actions; nothing is ever auto-posted (Drafts
