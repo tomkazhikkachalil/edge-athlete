@@ -125,23 +125,36 @@ export function assembleSkillCard(
  * defaults to the STRANGER's (public lines only); only a viewer-dependent
  * route with a private cache passes the owner's.
  */
+/** The rows the dispatcher would otherwise read, already in hand (the
+ *  public-profile bundle, 280). `activity` answers a module's hasActivity;
+ *  `statPosts` are the public stat-line posts per sport, newest first. */
+export interface SkillCardPrefetch {
+  sport: string | null;
+  postSportKeys: string[];
+  settingsRows: Array<{ sport_key: string; settings: unknown; pinned?: boolean | null; pin_order?: number | null }>;
+  activity?: Partial<Record<SportKey, boolean>>;
+  statPosts?: Record<string, unknown[]>;
+}
+
 export async function buildSportSkillCards(
   profileId: string,
   supabase: SupabaseClient,
-  view: StatsCardView = {}
+  view: StatsCardView = {},
+  prefetched?: SkillCardPrefetch
 ): Promise<SportSkillCard[]> {
   // Same union as /api/profile/[id]/active-sports: declared label ∪ posted
   // sports ∪ intake-declared sport_settings rows (settings fetched here too,
-  // once, so modules never re-query them).
+  // once, so modules never re-query them). With `prefetched` (280) the three
+  // reads are the bundle's rows; the official lines stay a live read.
   const [
     { data: profile },
     { data: postSportKeys, error: rpcError },
     { data: settingsRows },
     officialLines,
   ] = await Promise.all([
-    supabase.from('profiles').select('sport').eq('id', profileId).single(),
-    supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
-    readSettingsRows(supabase, profileId),
+    prefetched ? Promise.resolve({ data: { sport: prefetched.sport } }) : supabase.from('profiles').select('sport').eq('id', profileId).single(),
+    prefetched ? Promise.resolve({ data: prefetched.postSportKeys, error: null }) : supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
+    prefetched ? Promise.resolve({ data: prefetched.settingsRows }) : readSettingsRows(supabase, profileId),
     // Phase 4: org-entered stat lines from PUBLIC competitions (degrades
     // to [] pre-157 or on an RLS-limited client — never throws).
     fetchOfficialStatLines(supabase, profileId),
@@ -175,9 +188,11 @@ export async function buildSportSkillCards(
   const activityChecks = await Promise.all(
     (Object.entries(SERVER_SPORT_MODULES) as Array<[SportKey, ServerSportModule]>)
       .filter(([key, mod]) => !!mod.hasActivity && !ordered.includes(key))
-      .map(async ([key, mod]) =>
-        (await mod.hasActivity!(profileId, supabase)) ? key : null
-      )
+      .map(async ([key, mod]) => {
+        const known = prefetched?.activity?.[key];
+        if (typeof known === 'boolean') return known ? key : null; // 280: answered by the bundle
+        return (await mod.hasActivity!(profileId, supabase)) ? key : null;
+      })
   );
   for (const key of activityChecks) {
     if (key) ordered.push(key);
@@ -203,7 +218,7 @@ export async function buildSportSkillCards(
       const mod = getServerSportModule(sportKey);
       const settings = settingsBySport.get(sportKey) ?? null;
       const contribution = mod?.buildSkillCard
-        ? await mod.buildSkillCard(profileId, supabase, { settings, includePrivate: view.includePrivate })
+        ? await mod.buildSkillCard(profileId, supabase, { settings, includePrivate: view.includePrivate, statLines: prefetched?.statPosts?.[sportKey] })
         : null;
       // Phase 4: official tiles replace same-label tracked tiles
       // (verified beats tracked; provenance = the conservative minimum).

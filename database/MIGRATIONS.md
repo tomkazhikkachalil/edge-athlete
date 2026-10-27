@@ -677,6 +677,25 @@ the whole set and a sort, 546 buffers, 10.5 ms; after — an index scan that
 stops at the LIMIT, 50 buffers, 0.14 ms. Plain CREATE INDEX inline (255's
 reasoning). Expected row on both: `278 APPLIED | true | true | 278`.
 
+## The public profile is one bundle (migration 280, Oct 26 2026 — trip-count program PR 1)
+
+`GET /api/public/profile` — the origin behind the CDN-cached `/u/[username]`
+page — made fifteen database trips (docs/SCALE_AUDIT.md §7). 280 adds
+`public_profile_bundle(p_handle text) RETURNS jsonb` (`LANGUAGE sql STABLE
+SECURITY INVOKER`, `search_path = public`, EXECUTE for service_role only): the
+profile row (+ `vitals_privacy`), the three counts with the route's exact
+predicates (published only; the statements anti-join; 269's training
+exclusion), the 24 most recent public published posts with their media,
+repost originals with the owner's names and visibility, 12 achievements,
+the sport_settings rows, the posted sport keys (`get_profile_post_sport_keys`'
+semantics), the golf round count, public stat-line posts per sport (≤ 200,
+newest first), and the raw membership rows with their orgs. Raw rows only —
+every rule stays in TypeScript, and the response is byte-identical
+(`scripts/route-capture.mjs` before/after). An unknown handle returns
+`{"profile": null}`; a private one `{"profile": {id, visibility}}`. Deploy
+order: MIGRATION FIRST (the route answers 503 `Profile service updating`,
+no-store, until it exists). Expected row on both: `280 APPLIED | 1 | true | 280`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

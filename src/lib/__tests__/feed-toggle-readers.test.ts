@@ -49,8 +49,11 @@ describe('training is Training\'s; nothing leaks (269)', () => {
   it('Training Activity and the public profile read published rows only; the public grid drops training posts and the count follows', () => {
     const trainingApi = code('src/app/api/vitals/route.ts');
     expect(trainingApi).toMatch(/\.eq\('post_category', 'training'\)\s*\.eq\('status', 'published'\)/);
+    // Since 280 the public profile's four published-only predicates live in the
+    // bundle function; the route keeps the split and the formula.
+    const bundle = code('database/migrations/280_public_profile_bundle.sql');
+    expect(bundle.match(/x\.status = 'published'/g)?.length).toBe(4);
     const pub = code('src/app/api/public/profile/route.ts');
-    expect(pub.match(/\.eq\('status', 'published'\)/g)?.length).toBe(4);
     expect(pub).toMatch(/!isStatementPost\(p\) && !isTrainingPost\(p\)/);
     expect(pub).toMatch(/\(postsCount \|\| 0\) - \(statementsTotal \|\| 0\) - \(trainingTotal \|\| 0\)/);
   });

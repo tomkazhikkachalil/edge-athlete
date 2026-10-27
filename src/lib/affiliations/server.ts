@@ -22,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getOrgRole, isOwnerOrManager } from '@/lib/orgs/authz';
-import { profileMembershipRows } from '@/lib/orgs/members';
+import { profileMembershipRows, reduceMembershipRows, type RawMembershipRow } from '@/lib/orgs/members';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -504,10 +504,18 @@ export const SELF_VIEW: ProfileOrganizationsOptions = { viewerId: null, isSelfOr
 /** The stranger's view — what a viewer-independent payload must carry. */
 export const STRANGER_VIEW: ProfileOrganizationsOptions = { viewerId: null, isSelfOrGuardian: false };
 
+/** The raw rows the public-profile bundle (280) hands over: both sides'
+ *  membership rows (with the org's kind) and the org rows themselves. */
+export interface OrganizationsPrefetch {
+  membershipRows: Array<RawMembershipRow & { org_kind: string | null }>;
+  orgs: Array<{ id: string; kind: string; name: string; sport_key?: string | null; city: string | null; region: string | null; country: string | null; listing_status?: string | null; approved_at?: string | null; visibility?: string | null }>;
+}
+
 export async function getProfileOrganizations(
   admin: Admin,
   profileId: string,
-  opts: ProfileOrganizationsOptions = SELF_VIEW
+  opts: ProfileOrganizationsOptions = SELF_VIEW,
+  prefetched?: OrganizationsPrefetch
 ): Promise<ProfileOrganization[]> {
   const out: Array<ProfileOrganization & { visibility?: string | null }> = [];
   // The rule (Tom, Sep 11 2026): your own memberships ALWAYS appear on your
@@ -523,7 +531,10 @@ export async function getProfileOrganizations(
     }
   }
   for (const side of ['league', 'club'] as const) {
-    const { rows, error } = await profileMembershipRows(admin, side, profileId);
+    // 280: the bundle's rows reduce exactly as the read's do (reduceMembershipRows).
+    const { rows, error } = prefetched
+      ? { rows: reduceMembershipRows(prefetched.membershipRows.filter(r => r.org_kind === side)), error: null }
+      : await profileMembershipRows(admin, side, profileId);
     if (error) {
       // Pre-140 database: an empty strip, never an error.
       if (isMissingTableError(error.code)) continue;
@@ -540,10 +551,12 @@ export async function getProfileOrganizations(
     // R1 (179): the listing state rides along (pending → a chip); the org's
     // visibility (176/177) decides the stranger view; the select ladder
     // steps down on 42703 (179+177 → 179 → 174 → bare).
-    let { data: orgs, error: orgsError } = await admin
-      .from('organizations')
-      .select(`${selectCols}, listing_status, approved_at, visibility`)
-      .in('id', orgIds);
+    let { data: orgs, error: orgsError } = prefetched
+      ? { data: prefetched.orgs.filter(o => orgIds.includes(o.id)) as unknown[], error: null as { code?: string } | null }
+      : await admin
+        .from('organizations')
+        .select(`${selectCols}, listing_status, approved_at, visibility`)
+        .in('id', orgIds);
     if (orgsError?.code === '42703') {
       ({ data: orgs, error: orgsError } = await admin.from('organizations').select(`${selectCols}, listing_status, approved_at`).in('id', orgIds));
     }
