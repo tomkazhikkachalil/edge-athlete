@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-27T00:04:47.231571+00:00 from server 17.6 by
+-- Generated 2026-10-27T02:55:48.793487+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 280.
+-- public.schema_dump() (migration 227). Ledger head at generation: 281.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (125; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (127; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -951,6 +951,25 @@ AS $function$
    ORDER BY p.created_at DESC, p.id DESC
    LIMIT GREATEST(1, LEAST(p_limit, 101))
   OFFSET GREATEST(0, p_offset);
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[])
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'hidden',    to_jsonb(public.hidden_authors_for(p_viewer)),
+    'following', COALESCE((SELECT jsonb_agg(DISTINCT f.following_id) FROM public.follows f
+                           WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id = ANY(p_author_ids)), '[]'::jsonb),
+    'saved',     COALESCE((SELECT jsonb_agg(DISTINCT s.post_id) FROM public.saved_posts s
+                           WHERE s.profile_id = p_viewer AND s.post_id = ANY(p_post_ids)), '[]'::jsonb),
+    'liked',     COALESCE((SELECT jsonb_agg(DISTINCT l.post_id) FROM public.post_likes l
+                           WHERE l.profile_id = p_viewer AND l.post_id = ANY(p_post_ids)), '[]'::jsonb)
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -2253,6 +2272,25 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.hidden_authors_for(p_viewer uuid)
+ RETURNS uuid[]
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(array_agg(DISTINCT x.id), '{}')
+  FROM (
+    SELECT m.muted_id AS id FROM (SELECT muted_id FROM public.user_mutes WHERE muter_id = p_viewer LIMIT 2000) m
+    UNION ALL
+    SELECT b.blocked_id FROM (SELECT blocked_id FROM public.user_blocks WHERE blocker_id = p_viewer LIMIT 2000) b
+    UNION ALL
+    SELECT c.blocker_id FROM (SELECT blocker_id FROM public.user_blocks WHERE blocked_id = p_viewer LIMIT 2000) c
+  ) x
+  WHERE x.id IS NOT NULL;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3016,6 +3054,7 @@ WITH prof AS (
   LIMIT 1
 ),
 pub AS (SELECT id FROM prof WHERE visibility = 'public'),
+-- the three HEAD counts' predicates, verbatim
 counts AS (
   SELECT
     (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published') AS posts,
@@ -3054,6 +3093,7 @@ settings AS (
   SELECT s.sport_key, s.settings, s.pinned, s.pin_order
   FROM public.sport_settings s, pub WHERE s.profile_id = pub.id
 ),
+-- the same semantics as get_profile_post_sport_keys: every post's sport_key
 sport_keys AS (
   SELECT COALESCE(array_agg(DISTINCT x.sport_key), '{}') AS keys
   FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.sport_key IS NOT NULL
@@ -3061,6 +3101,8 @@ sport_keys AS (
 golf AS (
   SELECT count(*) AS n FROM public.golf_rounds g, pub WHERE g.profile_id = pub.id
 ),
+-- the stat-line modules' reader (fetchStatLinePosts, the stranger's view):
+-- public posts with stats_data, per sport, newest first, at most 200 each
 stat_posts AS (
   SELECT COALESCE(jsonb_object_agg(sk, lines), '{}'::jsonb) AS by_sport
   FROM (
@@ -3075,6 +3117,7 @@ stat_posts AS (
     GROUP BY q.sport_key
   ) g
 ),
+-- the raw membership rows both helpers reduce (profileMembershipRows), and their orgs
 mem AS (
   SELECT m.org_id, m.role, m.kind, m.scope_type, m.expires_at, o.kind AS org_kind
   FROM public.memberships m
@@ -11753,7 +11796,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (125) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (127) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -12601,6 +12644,23 @@ AS $function$
    ORDER BY p.created_at DESC, p.id DESC
    LIMIT GREATEST(1, LEAST(p_limit, 101))
   OFFSET GREATEST(0, p_offset);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[])
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'hidden',    to_jsonb(public.hidden_authors_for(p_viewer)),
+    'following', COALESCE((SELECT jsonb_agg(DISTINCT f.following_id) FROM public.follows f
+                           WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id = ANY(p_author_ids)), '[]'::jsonb),
+    'saved',     COALESCE((SELECT jsonb_agg(DISTINCT s.post_id) FROM public.saved_posts s
+                           WHERE s.profile_id = p_viewer AND s.post_id = ANY(p_post_ids)), '[]'::jsonb),
+    'liked',     COALESCE((SELECT jsonb_agg(DISTINCT l.post_id) FROM public.post_likes l
+                           WHERE l.profile_id = p_viewer AND l.post_id = ANY(p_post_ids)), '[]'::jsonb)
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.follows_counts_sync()
@@ -13847,6 +13907,23 @@ AS $function$
   ))
 $function$;
 
+CREATE OR REPLACE FUNCTION public.hidden_authors_for(p_viewer uuid)
+ RETURNS uuid[]
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(array_agg(DISTINCT x.id), '{}')
+  FROM (
+    SELECT m.muted_id AS id FROM (SELECT muted_id FROM public.user_mutes WHERE muter_id = p_viewer LIMIT 2000) m
+    UNION ALL
+    SELECT b.blocked_id FROM (SELECT blocked_id FROM public.user_blocks WHERE blocker_id = p_viewer LIMIT 2000) b
+    UNION ALL
+    SELECT c.blocker_id FROM (SELECT blocker_id FROM public.user_blocks WHERE blocked_id = p_viewer LIMIT 2000) c
+  ) x
+  WHERE x.id IS NOT NULL;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14556,6 +14633,7 @@ WITH prof AS (
   LIMIT 1
 ),
 pub AS (SELECT id FROM prof WHERE visibility = 'public'),
+-- the three HEAD counts' predicates, verbatim
 counts AS (
   SELECT
     (SELECT count(*) FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.visibility = 'public' AND x.status = 'published') AS posts,
@@ -14594,6 +14672,7 @@ settings AS (
   SELECT s.sport_key, s.settings, s.pinned, s.pin_order
   FROM public.sport_settings s, pub WHERE s.profile_id = pub.id
 ),
+-- the same semantics as get_profile_post_sport_keys: every post's sport_key
 sport_keys AS (
   SELECT COALESCE(array_agg(DISTINCT x.sport_key), '{}') AS keys
   FROM public.posts x, pub WHERE x.profile_id = pub.id AND x.sport_key IS NOT NULL
@@ -14601,6 +14680,8 @@ sport_keys AS (
 golf AS (
   SELECT count(*) AS n FROM public.golf_rounds g, pub WHERE g.profile_id = pub.id
 ),
+-- the stat-line modules' reader (fetchStatLinePosts, the stranger's view):
+-- public posts with stats_data, per sport, newest first, at most 200 each
 stat_posts AS (
   SELECT COALESCE(jsonb_object_agg(sk, lines), '{}'::jsonb) AS by_sport
   FROM (
@@ -14615,6 +14696,7 @@ stat_posts AS (
     GROUP BY q.sport_key
   ) g
 ),
+-- the raw membership rows both helpers reduce (profileMembershipRows), and their orgs
 mem AS (
   SELECT m.org_id, m.role, m.kind, m.scope_type, m.expires_at, o.kind AS org_kind
   FROM public.memberships m
@@ -17876,6 +17958,8 @@ REVOKE EXECUTE ON FUNCTION public.enforce_profile_has_access() FROM PUBLIC, anon
 GRANT EXECUTE ON FUNCTION public.enforce_profile_has_access() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[]) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[]) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.follows_counts_sync() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.follows_counts_sync() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.forbid_mutation() FROM PUBLIC, anon, authenticated, service_role;
@@ -17930,6 +18014,8 @@ REVOKE EXECUTE ON FUNCTION public.handle_updated_at() FROM PUBLIC, anon, authent
 GRANT EXECUTE ON FUNCTION public.handle_updated_at() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.hidden_authors_for(p_viewer uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.hidden_authors_for(p_viewer uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_comment_likes_count() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.increment_comment_likes_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_post_save_count() FROM PUBLIC, anon, authenticated, service_role;
@@ -18310,6 +18396,7 @@ COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE thi
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
 COMMENT ON FUNCTION public.counters_recount() IS 'The accuracy rule for the three cached counters (277): corrects every row whose stored count differs from a direct count, returns how many per target. Run once by 277 and nightly by /api/cron/daily (src/lib/counters/recount-server.ts). The triggers add or subtract one.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230 + 269: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak, on-feed posts only (269); the route applies the privacy filter. Service-role only.';
+COMMENT ON FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[]) IS 'One feed page''s viewer side (281): the hidden authors, the accepted followees among the page''s authors, the viewer''s saves and likes among the page''s posts — raw ids; GET /api/posts applies the rules. service_role only.';
 COMMENT ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) IS 'Generates personalized connection suggestions based on sport, school, location, and common connections.
 Excludes: profiles already followed, pending requests, and dismissed suggestions.
 Returns: suggested_id, suggested_name, suggested_avatar, suggested_sport, suggested_school, suggested_location, similarity_score, reason';
@@ -18317,10 +18404,11 @@ COMMENT ON FUNCTION public.get_golf_scorecard(p_group_post_id uuid) IS 'Returns 
 COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Returns complete group post data including participants and media';
 COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
+COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
-COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280). Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
+COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
@@ -18761,7 +18849,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (277, '277_counter_triggers_plus_minus.sql', 'rebuild-000'),
   (278, '278_elevation_due_index.sql', 'rebuild-000'),
   (279, '279_search_candidate_cap.sql', 'rebuild-000'),
-  (280, '280_public_profile_bundle.sql', 'rebuild-000')
+  (280, '280_public_profile_bundle.sql', 'rebuild-000'),
+  (281, '281_feed_viewer_side.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18770,12 +18859,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 125 | 145 | 280
+-- Expected: 000 REBUILT | 138 | 127 | 145 | 281
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_125,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_127,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_280;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_281;
 
