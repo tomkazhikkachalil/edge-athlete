@@ -301,7 +301,7 @@ Counted, not grepped: the built app with `EA_TRACE_DB=1` wraps both server clien
 | `GET /api/public/profile?handle=` (the origin behind the CDN) | ~~15~~ **2** (PR 1, Oct 26: `public_profile_bundle` + the official-lines read; `docs/load/2026-10-26/trips-after-public-profile.md`) | was: profiles, posts (HEAD + GET), achievements, sport settings, contest stat lines, an RPC, golf rounds HEAD, memberships |
 | `GET /api/posts` (the feed) | ~~8~~ **3** (PR 2, Oct 27: auth, the posts page, `feed_viewer_side`; `docs/load/2026-10-26/trips-after-feed.md`) | was: auth, mutes, blocks, posts, follows, saved posts, likes — the viewer's six side reads are one RPC after the page |
 | `GET /api/search?q=` | **7** | limiter, auth, `search_all`, then profiles + posts + follows to decorate — the decoration is the second half |
-| `POST /api/posts/like` | **7** | auth, limiter, the gate's post read, the existing-like read, the write, the count read — one RPC (gate + toggle + count) would make it 3 |
+| `POST /api/posts/like` | ~~7~~ **4** (PR 3, Oct 27: auth, two limiter hits, `post_like_toggle`; `docs/load/2026-10-26/trips-after-like.md`) | was: auth, limiter ×2, the gate's post read, the existing-like read, the write, the count read — the two `rate_limit_hit` trips (`write-general` + `like`) are the remainder |
 | `GET /api/profile/{id}/media` | **6** | auth, profile, the media RPC, post_media, posts |
 | `GET /api/notifications?limit=20` | ~~6~~ **4** (for free with PR 2: `hiddenAuthorsFor` is one call) | auth, notifications, `hidden_authors_for`, a HEAD count |
 | `GET /api/golf/live-now` | **4** | auth, follows, participants, group posts |
@@ -309,7 +309,7 @@ Counted, not grepped: the built app with `EA_TRACE_DB=1` wraps both server clien
 | `GET /api/messages`, the two unread counts | **2** | auth + one RPC each — already the shape to aim for |
 | `GET /api/health` | 1 | the reference |
 
-**The program (one PR per route, before/after trips from this harness, p50 at 5 workers from the ramp's `--only`):** 1. ~~the public profile bundle~~ **done — 15 → 2** (migration 280; the response byte-identical over six handles), 2. ~~the feed's viewer side~~ **done — 8 → 3** (migration 281; eight responses over three viewers byte-identical; the notifications page 6 → 4 on the side), 3. the like toggle as one RPC (7 → 3), 4. search's decoration (7 → ~4), 5. the notifications page (6 → 3). Each is a server-side change behind an unchanged response shape. Tom schedules the rest.
+**The program (one PR per route, before/after trips from this harness, p50 at 5 workers from the ramp's `--only`):** 1. ~~the public profile bundle~~ **done — 15 → 2** (migration 280; the response byte-identical over six handles), 2. ~~the feed's viewer side~~ **done — 8 → 3** (migration 281; eight responses over three viewers byte-identical; the notifications page 6 → 4 on the side), 3. ~~the like toggle~~ **done — 7 → 4** (migration 282; nine responses + the side effects identical; the two limiter hits are what remains), 4. search's decoration (7 → ~4), 5. the notifications page (6 → 3). Each is a server-side change behind an unchanged response shape. Tom schedules the rest.
 
 ## 6. Measured numbers (append per run: date · environment · commit · tool · result)
 

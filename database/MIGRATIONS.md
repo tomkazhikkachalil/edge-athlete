@@ -719,6 +719,26 @@ PGRST202. Deploy order: MIGRATION FIRST (pure additions; the feed answers 503
 `Feed service updating`, no-store, until `feed_viewer_side` exists).
 Reversal: DROP both. Expected row on both: `281 APPLIED | 2 | true | 281`.
 
+## The like toggle is one call (migration 282, Oct 27 2026 — trip-count program PR 3)
+
+`POST /api/posts/like` made seven database trips a tap (docs/SCALE_AUDIT.md
+§7); five of them were the gate's post read, a conditional follow read, the
+existing-like read, the insert or delete, and the `likes_count` read-back.
+282 adds `post_like_toggle(p_viewer uuid, p_post_id uuid) RETURNS jsonb`
+(`LANGUAGE plpgsql VOLATILE SECURITY INVOKER`, `search_path = public`,
+EXECUTE for service_role only — 256's writer style): the route's gate
+verbatim (the owner, or a public post by a public owner, or an accepted
+follower; anything else `{"outcome":"not_found"}`), then remove-or-insert the
+viewer's like (`unliked` / `liked` / `already_liked` for a concurrent insert
+that won), then the trigger-written column read in the same transaction —
+`{"outcome", "likes_count"}`. 277's ±1 trigger and 190's `notify_post_like`
+fire on the row as they did for the route's own write; the function writes
+no counter and no bell. The route maps the outcome onto the unchanged wire
+shape (`scripts/route-capture.mjs --post` before/after). Deploy order:
+MIGRATION FIRST (a pure addition; the route answers 503 `Like service
+updating`, no-store, until it exists). Reversal: DROP FUNCTION. Expected row
+on both: `282 APPLIED | 1 | true | 282`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
