@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { adminClient, sweepStaleQa } from './helpers/qa-user';
 
 // The sweep-now door (Oct 27 2026). A production probe that is KILLED never
