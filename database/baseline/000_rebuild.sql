@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-27T03:45:57.909988+00:00 from server 17.6 by
+-- Generated 2026-10-27T05:42:06.502892+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 282.
+-- public.schema_dump() (migration 227). Ledger head at generation: 283.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (128; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (129; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -3738,6 +3738,120 @@ BEGIN
     r.dist ASC NULLS LAST,
     r.title;
 END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_all_decorated(q text, p_types text[] DEFAULT NULL::text[], max_per_type integer DEFAULT 20, visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision, p_viewer uuid DEFAULT NULL::uuid, p_post_sport text DEFAULT NULL::text, p_post_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_post_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_post_limit integer DEFAULT 15)
+ RETURNS json
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  WITH r AS (
+    SELECT t.*
+    FROM public.search_all(q, p_types, max_per_type, visible_ids, include_public,
+                           p_country_code, p_region_code, p_near_lat, p_near_lng, p_radius_km)
+         WITH ORDINALITY AS t(entity_type, entity_id, title, subtitle, sport_key, city, region, region_code,
+                              country, country_code, place_id, lat, lng, distance_km, match_rank, ord)
+  ),
+  -- The route's posts read, verbatim: the ranked ids, published, on the feed,
+  -- the optional filters, newest first, the quota.
+  ps AS (
+    SELECT p.*
+    FROM public.posts p
+    WHERE p.id IN (SELECT entity_id FROM r WHERE entity_type = 'post')
+      AND p.status = 'published'
+      AND p.on_feed = true
+      AND (p_post_sport IS NULL OR p.sport_key = p_post_sport)
+      AND (p_post_from IS NULL OR p.created_at >= p_post_from)
+      AND (p_post_to IS NULL OR p.created_at <= p_post_to)
+    ORDER BY p.created_at DESC
+    LIMIT GREATEST(COALESCE(p_post_limit, 15), 0)
+  ),
+  authors AS (SELECT DISTINCT profile_id AS id FROM ps WHERE profile_id IS NOT NULL)
+  SELECT json_build_object(
+    'rows', COALESCE((
+      SELECT json_agg(json_build_object(
+        'entity_type', entity_type, 'entity_id', entity_id, 'title', title, 'subtitle', subtitle, 'sport_key', sport_key,
+        'city', city, 'region', region, 'region_code', region_code, 'country', country, 'country_code', country_code,
+        'place_id', place_id, 'lat', lat, 'lng', lng, 'distance_km', distance_km, 'match_rank', match_rank
+      ) ORDER BY ord) FROM r), '[]'::json),
+    'athletes', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', a.id, 'handle', a.handle, 'first_name', a.first_name, 'middle_name', a.middle_name, 'last_name', a.last_name,
+        'full_name', a.full_name, 'avatar_url', a.avatar_url, 'location', a.location, 'sport', a.sport, 'school', a.school,
+        'visibility', a.visibility, 'city', a.city, 'region', a.region, 'region_code', a.region_code,
+        'country', a.country, 'country_code', a.country_code
+      )) FROM public.profiles a WHERE a.id IN (SELECT entity_id FROM r WHERE entity_type = 'athlete')), '[]'::json),
+    'courses', COALESCE((
+      SELECT json_agg(json_build_object(
+          'id', g.id,
+          'external_source', g.external_source,
+          'external_id', g.external_id,
+          'name', g.name,
+          'club_name', g.club_name,
+          'city', g.city,
+          'region', g.region,
+          'country', g.country,
+          'total_par', g.total_par,
+          'holes_count', g.holes_count,
+          'hole_data', g.hole_data,
+          'course_rating', g.course_rating,
+          'slope_rating', g.slope_rating,
+          'lat', g.lat,
+          'lng', g.lng,
+          'description', g.description,
+          'description_attribution', g.description_attribution,
+          'architect', g.architect,
+          'year_built', g.year_built,
+          'course_type', g.course_type,
+          'website', g.website,
+          'phone', g.phone,
+          'hydrated_at', g.hydrated_at,
+          'place_id', g.place_id,
+          'country_code', g.country_code,
+          'region_code', g.region_code,
+          'location_source', g.location_source,
+          'club_id', g.club_id,
+          'section_name', g.section_name,
+          'section_kind', g.section_kind
+      )) FROM public.golf_courses g WHERE g.id IN (SELECT entity_id FROM r WHERE entity_type = 'course')), '[]'::json),
+    'posts', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', p.id, 'caption', p.caption, 'sport_key', p.sport_key, 'hashtags', p.hashtags, 'tags', p.tags, 'created_at', p.created_at,
+        -- PostgREST renders an EMBED as jsonb (keys sorted by length, then
+        -- bytewise) inside a row whose own keys keep the select order; the
+        -- embeds are built the same way so the bytes match.
+        'profile', (SELECT (jsonb_build_object('id', pr.id, 'full_name', pr.full_name, 'first_name', pr.first_name,
+                                               'middle_name', pr.middle_name, 'last_name', pr.last_name, 'avatar_url', pr.avatar_url))::json
+                    FROM public.profiles pr WHERE pr.id = p.profile_id),
+        'post_media', COALESCE((SELECT json_agg((jsonb_build_object('media_url', m.media_url, 'media_type', m.media_type))::json
+                                                ORDER BY m.display_order, m.id)
+                                FROM public.post_media m WHERE m.post_id = p.id), '[]'::json)
+      ) ORDER BY p.created_at DESC) FROM ps p), '[]'::json),
+    'clubs', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', o.id, 'name', o.name, 'description', o.description, 'location', o.location, 'city', o.city, 'region', o.region,
+        'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
+        'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
+      )) FROM public.organizations o WHERE o.kind = 'club' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'club')), '[]'::json),
+    'leagues', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', o.id, 'name', o.name, 'description', o.description, 'sport_key', o.sport_key, 'city', o.city, 'region', o.region,
+        'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
+        'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
+      )) FROM public.organizations o WHERE o.kind = 'league' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'league')), '[]'::json),
+    'author_visibility', COALESCE((
+      SELECT json_agg(json_build_object('id', pr.id, 'visibility', pr.visibility))
+      FROM public.profiles pr WHERE pr.id IN (SELECT id FROM authors)), '[]'::json),
+    'followed_private', COALESCE((
+      SELECT json_agg(f.following_id)
+      FROM public.follows f
+      WHERE p_viewer IS NOT NULL AND f.follower_id = p_viewer AND f.status = 'accepted'
+        AND f.following_id IN (SELECT pr.id FROM public.profiles pr
+                               WHERE pr.id IN (SELECT id FROM authors) AND pr.visibility IS DISTINCT FROM 'public')), '[]'::json)
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -11847,7 +11961,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (128) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (129) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -15356,6 +15470,118 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.search_all_decorated(q text, p_types text[] DEFAULT NULL::text[], max_per_type integer DEFAULT 20, visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision, p_viewer uuid DEFAULT NULL::uuid, p_post_sport text DEFAULT NULL::text, p_post_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_post_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_post_limit integer DEFAULT 15)
+ RETURNS json
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  WITH r AS (
+    SELECT t.*
+    FROM public.search_all(q, p_types, max_per_type, visible_ids, include_public,
+                           p_country_code, p_region_code, p_near_lat, p_near_lng, p_radius_km)
+         WITH ORDINALITY AS t(entity_type, entity_id, title, subtitle, sport_key, city, region, region_code,
+                              country, country_code, place_id, lat, lng, distance_km, match_rank, ord)
+  ),
+  -- The route's posts read, verbatim: the ranked ids, published, on the feed,
+  -- the optional filters, newest first, the quota.
+  ps AS (
+    SELECT p.*
+    FROM public.posts p
+    WHERE p.id IN (SELECT entity_id FROM r WHERE entity_type = 'post')
+      AND p.status = 'published'
+      AND p.on_feed = true
+      AND (p_post_sport IS NULL OR p.sport_key = p_post_sport)
+      AND (p_post_from IS NULL OR p.created_at >= p_post_from)
+      AND (p_post_to IS NULL OR p.created_at <= p_post_to)
+    ORDER BY p.created_at DESC
+    LIMIT GREATEST(COALESCE(p_post_limit, 15), 0)
+  ),
+  authors AS (SELECT DISTINCT profile_id AS id FROM ps WHERE profile_id IS NOT NULL)
+  SELECT json_build_object(
+    'rows', COALESCE((
+      SELECT json_agg(json_build_object(
+        'entity_type', entity_type, 'entity_id', entity_id, 'title', title, 'subtitle', subtitle, 'sport_key', sport_key,
+        'city', city, 'region', region, 'region_code', region_code, 'country', country, 'country_code', country_code,
+        'place_id', place_id, 'lat', lat, 'lng', lng, 'distance_km', distance_km, 'match_rank', match_rank
+      ) ORDER BY ord) FROM r), '[]'::json),
+    'athletes', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', a.id, 'handle', a.handle, 'first_name', a.first_name, 'middle_name', a.middle_name, 'last_name', a.last_name,
+        'full_name', a.full_name, 'avatar_url', a.avatar_url, 'location', a.location, 'sport', a.sport, 'school', a.school,
+        'visibility', a.visibility, 'city', a.city, 'region', a.region, 'region_code', a.region_code,
+        'country', a.country, 'country_code', a.country_code
+      )) FROM public.profiles a WHERE a.id IN (SELECT entity_id FROM r WHERE entity_type = 'athlete')), '[]'::json),
+    'courses', COALESCE((
+      SELECT json_agg(json_build_object(
+          'id', g.id,
+          'external_source', g.external_source,
+          'external_id', g.external_id,
+          'name', g.name,
+          'club_name', g.club_name,
+          'city', g.city,
+          'region', g.region,
+          'country', g.country,
+          'total_par', g.total_par,
+          'holes_count', g.holes_count,
+          'hole_data', g.hole_data,
+          'course_rating', g.course_rating,
+          'slope_rating', g.slope_rating,
+          'lat', g.lat,
+          'lng', g.lng,
+          'description', g.description,
+          'description_attribution', g.description_attribution,
+          'architect', g.architect,
+          'year_built', g.year_built,
+          'course_type', g.course_type,
+          'website', g.website,
+          'phone', g.phone,
+          'hydrated_at', g.hydrated_at,
+          'place_id', g.place_id,
+          'country_code', g.country_code,
+          'region_code', g.region_code,
+          'location_source', g.location_source,
+          'club_id', g.club_id,
+          'section_name', g.section_name,
+          'section_kind', g.section_kind
+      )) FROM public.golf_courses g WHERE g.id IN (SELECT entity_id FROM r WHERE entity_type = 'course')), '[]'::json),
+    'posts', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', p.id, 'caption', p.caption, 'sport_key', p.sport_key, 'hashtags', p.hashtags, 'tags', p.tags, 'created_at', p.created_at,
+        -- PostgREST renders an EMBED as jsonb (keys sorted by length, then
+        -- bytewise) inside a row whose own keys keep the select order; the
+        -- embeds are built the same way so the bytes match.
+        'profile', (SELECT (jsonb_build_object('id', pr.id, 'full_name', pr.full_name, 'first_name', pr.first_name,
+                                               'middle_name', pr.middle_name, 'last_name', pr.last_name, 'avatar_url', pr.avatar_url))::json
+                    FROM public.profiles pr WHERE pr.id = p.profile_id),
+        'post_media', COALESCE((SELECT json_agg((jsonb_build_object('media_url', m.media_url, 'media_type', m.media_type))::json
+                                                ORDER BY m.display_order, m.id)
+                                FROM public.post_media m WHERE m.post_id = p.id), '[]'::json)
+      ) ORDER BY p.created_at DESC) FROM ps p), '[]'::json),
+    'clubs', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', o.id, 'name', o.name, 'description', o.description, 'location', o.location, 'city', o.city, 'region', o.region,
+        'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
+        'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
+      )) FROM public.organizations o WHERE o.kind = 'club' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'club')), '[]'::json),
+    'leagues', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', o.id, 'name', o.name, 'description', o.description, 'sport_key', o.sport_key, 'city', o.city, 'region', o.region,
+        'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
+        'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
+      )) FROM public.organizations o WHERE o.kind = 'league' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'league')), '[]'::json),
+    'author_visibility', COALESCE((
+      SELECT json_agg(json_build_object('id', pr.id, 'visibility', pr.visibility))
+      FROM public.profiles pr WHERE pr.id IN (SELECT id FROM authors)), '[]'::json),
+    'followed_private', COALESCE((
+      SELECT json_agg(f.following_id)
+      FROM public.follows f
+      WHERE p_viewer IS NOT NULL AND f.follower_id = p_viewer AND f.status = 'accepted'
+        AND f.following_id IN (SELECT pr.id FROM public.profiles pr
+                               WHERE pr.id IN (SELECT id FROM authors) AND pr.visibility IS DISTINCT FROM 'public')), '[]'::json)
+  );
+$function$;
+
 CREATE OR REPLACE FUNCTION public.search_all_facets(q text, p_types text[] DEFAULT NULL::text[], visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text)
  RETURNS TABLE(facet text, code text, label text, n bigint)
  LANGUAGE plpgsql
@@ -18186,6 +18412,8 @@ REVOKE EXECUTE ON FUNCTION public.schema_dump() FROM PUBLIC, anon, authenticated
 GRANT EXECUTE ON FUNCTION public.schema_dump() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_all_facets(q text, p_types text[], visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_all_facets(q text, p_types text[], visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_by_handle(search_term text, max_results integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -18516,6 +18744,7 @@ COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_se
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
 COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type chosen by tier, rich and recency before the per-row ranking; same order among the kept rows.';
+COMMENT ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) IS 'search_all plus its decoration in one call (283): the ranked rows, the raw display rows per entity type in the route''s column order, the post authors'' visibility and the viewer''s accepted follows among the private ones — raw; GET /api/search applies every rule. json (key order kept). service_role only.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
 COMMENT ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked people search with location tier + filters (108). Privacy is the CALLER''s job. Service-role only.';
 
@@ -18954,7 +19183,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (279, '279_search_candidate_cap.sql', 'rebuild-000'),
   (280, '280_public_profile_bundle.sql', 'rebuild-000'),
   (281, '281_feed_viewer_side.sql', 'rebuild-000'),
-  (282, '282_post_like_toggle.sql', 'rebuild-000')
+  (282, '282_post_like_toggle.sql', 'rebuild-000'),
+  (283, '283_search_all_decorated.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -18963,12 +19193,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 128 | 145 | 282
+-- Expected: 000 REBUILT | 138 | 129 | 145 | 283
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_128,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_129,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_282;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_283;
 
