@@ -681,10 +681,13 @@ export async function withDbRetry(step: string, run: () => Promise<string | null
  * construction), then the edgeqa-* USERS. Each deletion is caught on its
  * own; one refusal never aborts the rest; the whole sweep is non-fatal.
  */
-export async function sweepStaleQa(): Promise<void> {
+export async function sweepStaleQa(opts: { cutoffMs?: number } = {}): Promise<void> {
   try {
     const admin = adminClient();
-    const cutoff = Date.now() - SWEEP_CUTOFF_MS;
+    // The default (3 h) never takes an in-flight run's own users; the
+    // sweep-now door (e2e/qa-sweep-now.spec.ts, Oct 27 2026) passes 15 min
+    // after a KILLED probe left its users behind.
+    const cutoff = Date.now() - (opts.cutoffMs ?? SWEEP_CUTOFF_MS);
     const { users, shadows, orgs, tombstones } = await listStaleQaShapes(admin, cutoff);
     const total = orgs.length + shadows.length + users.length + tombstones.length;
     if (total === 0) return;

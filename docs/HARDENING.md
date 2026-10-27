@@ -313,6 +313,17 @@ baseline already emits every table's grants (`emitTableGrants`), so a rebuild
 after Oct 30 is complete. Sweep: `npm run check:schema` and `check:schema:prod`
 show zero ERROR lines AND no hygiene list from the grants check.
 
+### B9. Leaked QA accounts after a killed production probe (Oct 27 2026)
+
+A production probe creates `edgeqa-*` users and deletes them in its teardown; a run that is killed never gets there, and the next run's sweep (`sweepStaleQa`, 3 h cutoff so an in-flight run keeps its own users) waits three hours. When Tom sees "Edge QA Alpha" on production, or right after killing a probe, run the sweep-now door — the same sweep with a 15-minute cutoff, every existing guard, nothing but QA shapes:
+
+```
+E2E_SWEEP_NOW=1 E2E_TARGET=prod E2E_ALLOW_PROD=1 E2E_BASE_URL=https://edgeathlete.ca \
+  npx playwright test --project=desktop e2e/qa-sweep-now.spec.ts
+```
+
+Then the read-only count: `profiles` with `email LIKE 'edgeqa-%'` must be 0. The spec self-skips without `E2E_SWEEP_NOW=1`, so the normal sets never run it.
+
 ### B8. The Supabase Performance Advisor (Oct 25 2026, migration 271)
 
 Re-run it (Supabase → Advisors → Performance Advisor) at every stage gate.
