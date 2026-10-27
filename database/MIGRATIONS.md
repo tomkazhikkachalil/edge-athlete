@@ -696,6 +696,29 @@ every rule stays in TypeScript, and the response is byte-identical
 order: MIGRATION FIRST (the route answers 503 `Profile service updating`,
 no-store, until it exists). Expected row on both: `280 APPLIED | 1 | true | 280`.
 
+## The feed's viewer side is one call (migration 281, Oct 27 2026 — trip-count program PR 2)
+
+`GET /api/posts` — the signed-in feed — made eight database trips a page
+(docs/SCALE_AUDIT.md §7); six of them only decided what the viewer may see
+and what they already did. 281 adds two `LANGUAGE sql STABLE SECURITY
+INVOKER` functions (`search_path = public`, EXECUTE for service_role only):
+`hidden_authors_for(p_viewer uuid) RETURNS uuid[]` — muted ∪ blocked ∪
+blockers, each arm capped at 2,000 exactly as `hiddenAuthorsFor`
+(`src/lib/mutes.ts`) read them — and `feed_viewer_side(p_viewer uuid,
+p_author_ids uuid[], p_post_ids uuid[]) RETURNS jsonb` — `{ hidden,
+following, saved, liked }`: the hidden authors, the viewer's ACCEPTED follows
+among the page's authors, the viewer's saves and likes among the page's
+posts, every array present (`'[]'` when empty). Raw ids only — the posts page
+stays the route's PostgREST select and every rule stays in TypeScript (the
+privacy filter, the own-post arm, the quoted-post gate, the per-post
+`saved_posts` / `likes` arrays); the response is byte-identical
+(`scripts/route-capture.mjs` before/after). `hiddenAuthorsFor` itself calls
+`hidden_authors_for` for every caller (the notifications page, the single
+post, comments) and keeps its three reads only for a database that answers
+PGRST202. Deploy order: MIGRATION FIRST (pure additions; the feed answers 503
+`Feed service updating`, no-store, until `feed_viewer_side` exists).
+Reversal: DROP both. Expected row on both: `281 APPLIED | 2 | true | 281`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

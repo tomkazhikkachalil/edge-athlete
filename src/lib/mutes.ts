@@ -10,7 +10,9 @@
  * `hiddenAuthorsFor(viewerId)` = everyone the viewer muted ∪ everyone the
  * viewer blocked ∪ everyone who blocked the viewer. Fails OPEN on a read
  * error (nothing hidden, a log) — availability over strictness, the house
- * rule. Pre-223 (no user_mutes) the mute half is empty.
+ * rule. Pre-223 (no user_mutes) the mute half is empty. Since 281 the three
+ * reads are ONE call (`hidden_authors_for`); a database ahead of the migration
+ * (PGRST202) still gets the three reads, so deploy order never breaks a caller.
  */
 import type { getSupabaseAdmin } from '@/lib/auth-server';
 
@@ -20,6 +22,16 @@ const TAG = '[mutes]';
 export async function hiddenAuthorsFor(admin: Admin, viewerId: string | null): Promise<Set<string>> {
   const out = new Set<string>();
   if (!viewerId) return out;
+  const { data, error } = await admin.rpc('hidden_authors_for', { p_viewer: viewerId });
+  if (error?.code === 'PGRST202') return hiddenAuthorsThreeReads(admin, viewerId);
+  if (error) console.error(`${TAG} hidden-authors read failed:`, error.message);
+  for (const id of (data as string[] | null) ?? []) out.add(id);
+  return out;
+}
+
+/** The pre-281 body: three reads, each capped at 2,000 — the fallback while a database lacks `hidden_authors_for`. */
+async function hiddenAuthorsThreeReads(admin: Admin, viewerId: string): Promise<Set<string>> {
+  const out = new Set<string>();
   const [mutes, blocksOut, blocksIn] = await Promise.all([
     admin.from('user_mutes').select('muted_id').eq('muter_id', viewerId).limit(2000),
     admin.from('user_blocks').select('blocked_id').eq('blocker_id', viewerId).limit(2000),
