@@ -145,6 +145,9 @@ export interface Profile {
   // Account-level theme preference (migration 069). Deliberately `unknown`:
   // always read through sanitizeThemePrefs (src/lib/theme-prefs.ts).
   theme_prefs?: unknown;
+  // Favourite sports in the post composer's picker (migration 285). `unknown`
+  // on purpose: always read through sanitizeFavouriteSports (favourite-sports.ts).
+  favourite_sports?: unknown;
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 

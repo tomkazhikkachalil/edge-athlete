@@ -788,6 +788,30 @@ order: MIGRATION FIRST (a pure addition; the route answers 503
 `Notifications service updating`, no-store, until it exists). Reversal: DROP
 FUNCTION. Expected row on both: `284 APPLIED | 1 | true | 284`.
 
+## Favourite sports in the picker (migration 285, Oct 27 2026 — sport picker program PR 1)
+
+Tom's spec: the post composer's Sport step becomes search-first — no
+"General Post", no pre-selection, Favourites under the search, All Sports
+alphabetical — and "favourites are stored per user account, not per device,
+so they follow the user across logins". 285 adds ONE nullable column,
+`profiles.favourite_sports jsonb`: a JSON array of registry sport keys
+(`['golf', 'rowing']`), NULL = none, the house shape for an account
+preference (`theme_prefs` 069, `equipment_prefs` 065). It is owner-only
+(`OWNER_ONLY_FIELDS` strips it from `GET /api/profile` for every viewer) and
+the departure strip NULLs it (`DEPARTED_NULL_COLUMNS`). The app reads it only
+through `sanitizeFavouriteSports` (`src/lib/sports/favourite-sports.ts`:
+unknown keys and duplicates dropped, the array sorted) and writes it through
+ONE writer, `favourites-server.ts writeFavouriteSports`, behind `PATCH
+/api/settings/favourite-sports` (the whole list, `requireAuth`, the
+`favourite-sports` bucket). NOT `sport_settings`: a row there declares the
+sport on the profile (`computeActiveSports`), and pins (263) are public
+presentation — a favourite is a private composer preference. Deploy order:
+MIGRATION FIRST on both databases (PR 2's picker reads the column off the
+owner's profile row; before the column the picker simply has no stars to
+persist and a save answers 500 → rollback). Reversal: `ALTER TABLE
+public.profiles DROP COLUMN favourite_sports`. Expected row on both: `285
+APPLIED | 1 | 285`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

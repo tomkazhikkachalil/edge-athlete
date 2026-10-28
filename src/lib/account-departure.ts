@@ -132,7 +132,7 @@ export const DEPARTED_NULL_COLUMNS = [
   'weight_unit', 'class_year', 'social_twitter', 'social_instagram', 'social_facebook',
   'social_tiktok', 'avatar_url', 'cover_url', 'avatar_source_url', 'avatar_recipe', 'cover_source_url', 'cover_recipe', 'sport', 'school', 'coach', 'graduation_year',
   'gpa', 'sat_score', 'act_score', 'onboarded_at', 'jurisdiction', 'minor_threshold_age',
-  'equipment_prefs', 'theme_prefs', 'place_id', 'city', 'region', 'region_code', 'country',
+  'equipment_prefs', 'theme_prefs', 'favourite_sports', 'place_id', 'city', 'region', 'region_code', 'country',
   'country_code', 'lat', 'lng', 'location_source', 'vitals_privacy', 'household_policy',
   'recruiting_profile', 'scout_affiliation', 'moderation_until', 'moderation_ticket_id',
 ] as const;
