@@ -5,12 +5,13 @@
 // sign-up with an optional name and an explicit consent box, or an inquiry
 // with a message, both through POST /api/contacts, each answered with a
 // confirmation the person reads. The sign-in link for an existing account
-// (`/?signin=1`) is the one query the gate lets through to the login form.
+// (`/?signin=1`) is the one query the gate lets through to the login form;
+// since Oct 28 2026 it carries the way back (`?next=`) the gate arrived with.
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
-import { SIGNIN_QUERY } from '@/lib/launch-gate';
+import { useState, useSyncExternalStore } from 'react';
+import { RETURN_QUERY, comingSoonSignInHref } from '@/lib/launch-gate';
 import { COPY } from '@/lib/copy';
 import { MARKETING_CONSENT_TEXT, type ContactSource } from '@/lib/contacts/rules';
 
@@ -27,6 +28,9 @@ export function contactDoneCopy(source: ContactSource, name: string, email: stri
 
 const FIELD = 'w-full rounded-lg border border-border bg-surface px-4 py-3 text-base text-primary min-h-[48px]';
 
+/** The location never changes under this page; one read is the whole story. */
+const subscribeNever = () => () => {};
+
 export default function ComingSoon() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -38,6 +42,12 @@ export default function ComingSoon() {
   const [done, setDone] = useState<{ source: ContactSource; email: string } | null>(null);
 
   const source: ContactSource = inquiry ? 'inquiry' : 'notify_signup';
+
+  // The way back the gate arrived with (`?next=`), read from the location
+  // rather than useSearchParams (no Suspense boundary needed; the server
+  // snapshot is empty, so the first paint matches what was rendered).
+  const search = useSyncExternalStore(subscribeNever, () => window.location.search, () => '');
+  const signInHref = comingSoonSignInHref(new URLSearchParams(search).get(RETURN_QUERY));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,7 +191,7 @@ export default function ComingSoon() {
 
         <p className="mt-10 text-sm text-muted">
           Have an account?{' '}
-          <Link href={`/?${SIGNIN_QUERY}=1`} className="font-semibold text-brand-fg underline" data-coming-soon-signin>
+          <Link href={signInHref} className="font-semibold text-brand-fg underline" data-coming-soon-signin>
             Sign in
           </Link>
         </p>
