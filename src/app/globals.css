@@ -105,6 +105,7 @@
   --warning-fg: #b45309;
   --warning-soft: #fffbeb;
   --warning-border: #fde68a;
+  --star: #f59e0b;            /* the favourite star — gold (the warning fg is brown in light) */
   --danger: #dc2626;
   --danger-fg: #b91c1c;
   --danger-soft: #fef2f2;
@@ -234,6 +235,7 @@
   --color-warning-fg: var(--warning-fg);
   --color-warning-soft: var(--warning-soft);
   --color-warning-border: var(--warning-border);
+  --color-star: var(--star);
   --color-danger: var(--danger);
   --color-danger-fg: var(--danger-fg);
   --color-danger-soft: var(--danger-soft);
@@ -392,6 +394,7 @@ body {
   --warning-fg: #fbbf24;
   --warning-soft: #2d2412;
   --warning-border: #5c4a1e;
+  --star: #fbbf24;
   --danger: #dc2626;
   --danger-fg: #f87171;
   --danger-soft: #2e1a18;

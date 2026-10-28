@@ -55,6 +55,8 @@ test('Create → Sport opens the sport picker; closing it leaves a General post'
   await page.locator('[data-create-sport]').click();
   const selector = page.locator('div[class*="z-[60]"]');
   await expect(selector.getByRole('heading', { name: 'Select Sport' })).toBeVisible({ timeout: 15_000 });
+  // Oct 27 2026: the picker offers no "General Post" — General is what a post already is.
+  await expect(selector.getByText('General Post')).toHaveCount(0);
   await selector.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByText('General Post', { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();

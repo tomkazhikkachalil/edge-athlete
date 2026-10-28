@@ -1287,6 +1287,23 @@ export default function CreatePostModal({
                 </div>
               </div>
             </button>
+            {/* The way back to a General post (Oct 27 2026): the picker no
+                longer offers "General Post", so a chosen sport is cleared
+                HERE — a sibling of the row, never inside it. */}
+            {postType !== 'general' && (
+              <button
+                type="button"
+                data-post-type-clear=""
+                onClick={() => {
+                  setPostType('general');
+                  setStatLineData(null);
+                }}
+                className="ea-interactive mt-2 text-sm text-muted hover:text-primary"
+              >
+                <i className="fas fa-times mr-1" aria-hidden="true"></i>
+                Remove sport
+              </button>
+            )}
           </div>
 
           {/* Stat-line sport form (ice hockey, volleyball, …) */}
@@ -1594,7 +1611,6 @@ export default function CreatePostModal({
       {/* Sport Selector Modal */}
       {showSportSelector && (
         <SportSelector
-          selectedSport={postType}
           onSelectSport={(sport) => {
             setPostType(sport);
             setStatLineData(null); // stat entries are per-sport
