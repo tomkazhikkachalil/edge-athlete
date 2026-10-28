@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-27T05:42:06.502892+00:00 from server 17.6 by
+-- Generated 2026-10-28T01:03:19.474758+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 283.
+-- public.schema_dump() (migration 227). Ledger head at generation: 284.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (129; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (130; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2397,6 +2397,44 @@ AS $function$
     FROM picked
    WHERE j.id = picked.id
   RETURNING j.*;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer DEFAULT 20, p_cursor timestamp with time zone DEFAULT NULL::timestamp with time zone, p_unread_only boolean DEFAULT false, p_type text DEFAULT NULL::text)
+ RETURNS json
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  WITH page AS (
+    SELECT n.*
+    FROM public.notifications n
+    WHERE n.user_id = p_viewer
+      AND (NOT p_unread_only OR n.is_read = false)
+      AND (p_type IS NULL OR n.type = p_type)
+      AND (p_cursor IS NULL OR n.created_at < p_cursor)
+    ORDER BY n.created_at DESC
+    LIMIT GREATEST(COALESCE(p_limit, 20), 0) + 1
+  )
+  SELECT json_build_object(
+    'rows', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', n.id, 'type', n.type, 'title', n.title, 'message', n.message, 'action_url', n.action_url,
+        'is_read', n.is_read, 'read_at', n.read_at, 'created_at', n.created_at,
+        'action_status', n.action_status, 'action_taken_at', n.action_taken_at,
+        'grouped_notification_id', n.grouped_notification_id, 'metadata', n.metadata,
+        'post_id', n.post_id, 'comment_id', n.comment_id, 'follow_id', n.follow_id,
+        -- PostgREST renders an EMBED as jsonb (keys sorted) inside a row whose
+        -- own keys keep the select order; built the same way.
+        'actor', (SELECT (jsonb_build_object('id', a.id, 'first_name', a.first_name, 'middle_name', a.middle_name,
+                                             'last_name', a.last_name, 'full_name', a.full_name, 'avatar_url', a.avatar_url,
+                                             'handle', a.handle))::json
+                  FROM public.profiles a WHERE a.id = n.actor_id)
+      ) ORDER BY n.created_at DESC) FROM page n), '[]'::json),
+    'hidden', to_json(public.hidden_authors_for(p_viewer)),
+    'unread_count', (SELECT count(*) FROM public.notifications u WHERE u.user_id = p_viewer AND u.is_read = false)
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -11961,7 +11999,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (129) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (130) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14187,6 +14225,42 @@ AS $function$
     FROM picked
    WHERE j.id = picked.id
   RETURNING j.*;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer DEFAULT 20, p_cursor timestamp with time zone DEFAULT NULL::timestamp with time zone, p_unread_only boolean DEFAULT false, p_type text DEFAULT NULL::text)
+ RETURNS json
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  WITH page AS (
+    SELECT n.*
+    FROM public.notifications n
+    WHERE n.user_id = p_viewer
+      AND (NOT p_unread_only OR n.is_read = false)
+      AND (p_type IS NULL OR n.type = p_type)
+      AND (p_cursor IS NULL OR n.created_at < p_cursor)
+    ORDER BY n.created_at DESC
+    LIMIT GREATEST(COALESCE(p_limit, 20), 0) + 1
+  )
+  SELECT json_build_object(
+    'rows', COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', n.id, 'type', n.type, 'title', n.title, 'message', n.message, 'action_url', n.action_url,
+        'is_read', n.is_read, 'read_at', n.read_at, 'created_at', n.created_at,
+        'action_status', n.action_status, 'action_taken_at', n.action_taken_at,
+        'grouped_notification_id', n.grouped_notification_id, 'metadata', n.metadata,
+        'post_id', n.post_id, 'comment_id', n.comment_id, 'follow_id', n.follow_id,
+        -- PostgREST renders an EMBED as jsonb (keys sorted) inside a row whose
+        -- own keys keep the select order; built the same way.
+        'actor', (SELECT (jsonb_build_object('id', a.id, 'first_name', a.first_name, 'middle_name', a.middle_name,
+                                             'last_name', a.last_name, 'full_name', a.full_name, 'avatar_url', a.avatar_url,
+                                             'handle', a.handle))::json
+                  FROM public.profiles a WHERE a.id = n.actor_id)
+      ) ORDER BY n.created_at DESC) FROM page n), '[]'::json),
+    'hidden', to_json(public.hidden_authors_for(p_viewer)),
+    'unread_count', (SELECT count(*) FROM public.notifications u WHERE u.user_id = p_viewer AND u.is_read = false)
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.notifications_skip_departed()
@@ -18352,6 +18426,8 @@ REVOKE EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) FROM PUB
 GRANT EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.notifications_skip_departed() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_comment_like() FROM PUBLIC, anon, authenticated, service_role;
@@ -18737,6 +18813,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Cou
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
+COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
 COMMENT ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) IS 'The like toggle in one call (282): the route''s visibility gate, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/posts/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
@@ -19184,7 +19261,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (280, '280_public_profile_bundle.sql', 'rebuild-000'),
   (281, '281_feed_viewer_side.sql', 'rebuild-000'),
   (282, '282_post_like_toggle.sql', 'rebuild-000'),
-  (283, '283_search_all_decorated.sql', 'rebuild-000')
+  (283, '283_search_all_decorated.sql', 'rebuild-000'),
+  (284, '284_notifications_bell_page.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19193,12 +19271,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 129 | 145 | 283
+-- Expected: 000 REBUILT | 138 | 130 | 145 | 284
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_129,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_130,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_283;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_284;
 
