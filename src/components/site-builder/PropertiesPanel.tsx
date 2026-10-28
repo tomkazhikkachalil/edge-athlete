@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
@@ -625,7 +626,9 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
           >
             {saving ? 'Saving…' : 'Save content'}
           </button>
-          <p className="text-xs text-tertiary">Saves to your draft — nothing goes live until you publish.</p>
+          <SectionInfo as="p" heading="Saved to your draft" label="saving content" headingClassName="text-xs font-medium text-secondary" dense>
+            <p>Nothing goes live until you publish.</p>
+          </SectionInfo>
         </fieldset>
       )}
     </aside>

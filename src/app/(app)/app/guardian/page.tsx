@@ -492,11 +492,6 @@ export default function FamilyConsolePage() {
           </div>
           )}
         </div>
-        <p className="text-sm text-tertiary mb-6">
-          {readOnly
-            ? 'The athletes whose journey you follow — schedules and family updates, view only.'
-            : "The athletes you're responsible for — what's happening, what needs you, and what each profile is allowed to do."}
-        </p>
 
         {state === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>

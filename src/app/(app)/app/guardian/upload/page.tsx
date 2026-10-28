@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -385,19 +386,22 @@ export default function GuardianBatchUploadPage() {
     <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-primary">Family upload</h1>
-          <Link
-            href="/app/guardian"
-            className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
-          >
-            Back to console
-          </Link>
-        </div>
-        <p className="text-sm text-tertiary mb-6">
-          Pick a batch of photos or videos once, choose which athletes each one
-          belongs to, and it posts to their profiles — attributed to you.
-        </p>
+        <SectionInfo
+          as="h1"
+          heading="Family upload"
+          headingClassName="text-2xl font-bold text-primary"
+          className="mb-6"
+          trailing={
+            <Link
+              href="/app/guardian"
+              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+            >
+              Back to console
+            </Link>
+          }
+        >
+          <p>Pick a batch of photos or videos once, choose which athletes each one belongs to, and it posts to their profiles — attributed to you.</p>
+        </SectionInfo>
 
         {rosterState === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>

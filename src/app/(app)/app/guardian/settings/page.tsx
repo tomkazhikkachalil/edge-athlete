@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -235,12 +236,7 @@ export default function HouseholdSettingsPage() {
           <i className="fas fa-chevron-left text-xs"></i>
           Family console
         </Link>
-        <h1 className="text-2xl font-bold text-primary mb-1">Household</h1>
-        <p className="text-sm text-tertiary mb-6">
-          Your defaults for every athlete you manage. New athletes start with
-          these; changes here never touch an existing athlete without your
-          say-so.
-        </p>
+        <h1 className="text-2xl font-bold text-primary mb-6">Household</h1>
 
         {state === 'forbidden' && (
           <p className="text-sm text-tertiary bg-surface border border-border rounded-lg p-6 text-center">
@@ -298,11 +294,9 @@ export default function HouseholdSettingsPage() {
                 prompt in this direction — turning 13 relaxes back to the
                 household defaults, and deviation chips surface the rest. */}
             <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-              <h2 className="text-base font-bold text-primary mb-1">For younger kids</h2>
-              <p className="text-xs text-tertiary mb-4">
-                Optional stricter settings for athletes under 13. When they
-                turn 13 your household defaults take over automatically.
-              </p>
+              <SectionInfo as="h2" heading="For younger kids" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                <p>Optional stricter settings for athletes under 13. When they turn 13 your household defaults take over automatically.</p>
+              </SectionInfo>
               {effective.childDefaults === null ? (
                 <button
                   type="button"
@@ -362,13 +356,9 @@ export default function HouseholdSettingsPage() {
             </section>
 
             <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-              <h2 className="text-base font-bold text-primary mb-1">When they&apos;re older</h2>
-              <p className="text-xs text-tertiary mb-4">
-                Optional looser settings for when an athlete reaches the age of
-                digital consent in your region. When one of your athletes
-                crosses that age, you get a prompt — nothing changes until you
-                confirm it.
-              </p>
+              <SectionInfo as="h2" heading="When they're older" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                <p>Optional looser settings for when an athlete reaches the age of digital consent in your region. When one of your athletes crosses that age, you get a prompt — nothing changes until you confirm it.</p>
+              </SectionInfo>
               {effective.olderDefaults === null ? (
                 <button
                   type="button"
@@ -459,11 +449,9 @@ export default function HouseholdSettingsPage() {
             {/* Recent safety changes — the household's accountability mirror
                 (the first reader of the append-only safety audit). */}
             <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-              <h2 className="text-base font-bold text-primary mb-1">Recent safety changes</h2>
-              <p className="text-xs text-tertiary mb-4">
-                Every change to your athletes&apos; safety settings — who changed
-                what, and what it was before.
-              </p>
+              <SectionInfo as="h2" heading="Recent safety changes" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                <p>Every change to your athletes&apos; safety settings — who changed what, and what it was before.</p>
+              </SectionInfo>
               {events.length === 0 ? (
                 <p className="text-sm text-muted">No safety changes recorded yet.</p>
               ) : (
@@ -505,12 +493,9 @@ export default function HouseholdSettingsPage() {
             {/* Household block list (Wave 4 PR C): one action blocks a person
                 for you AND every athlete you manage. */}
             <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-              <h2 className="text-base font-bold text-primary mb-1">Household block list</h2>
-              <p className="text-xs text-tertiary mb-4">
-                Blocking here covers your whole household — you and every
-                athlete you manage. Per-athlete blocks stay on each
-                athlete&apos;s page.
-              </p>
+              <SectionInfo as="h2" heading="Household block list" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                <p>Blocking here covers your whole household — you and every athlete you manage. Per-athlete blocks stay on each athlete&apos;s page.</p>
+              </SectionInfo>
               <BlockedUsersList scope="household" canAdd subjectName="your household" />
             </section>
           </>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { contrastRatio } from '@/lib/org-sites/accent-contrast';
 import { TEMPLATE_IDS, templateSpec, type TemplateId } from '@/lib/org-sites/templates';
@@ -271,11 +272,13 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
           <option value="light">Always light</option>
           <option value="dark">Always dark</option>
         </select>
-        <p className="mt-1 text-xs text-tertiary">
-          {tokens.appearance
-            ? `Every visitor sees the ${tokens.appearance} site, whatever their own setting.`
-            : 'Each visitor sees their own Edge Athlete theme — otherwise dark from 6 PM to 9 AM by their clock, light in the day.'}
-        </p>
+        {tokens.appearance ? (
+          <p className="mt-1 text-xs text-tertiary">{`Every visitor sees the ${tokens.appearance} site, whatever their own setting.`}</p>
+        ) : (
+          <SectionInfo as="p" heading="Follows each visitor" label="the site's appearance" headingClassName="text-xs font-medium text-secondary" dense className="mt-1">
+            <p>Each visitor sees their own Edge Athlete theme — otherwise dark from 6 PM to 9 AM by their clock, light in the day.</p>
+          </SectionInfo>
+        )}
       </div>
 
       <fieldset>
@@ -337,7 +340,9 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
           {changed ? 'Discard' : 'Close'}
         </button>
       </div>
-      <p className="text-xs text-tertiary">The canvas previews every change. Saves to your draft — nothing goes live until you publish.</p>
+      <SectionInfo as="p" heading="Saved to your draft" label="theme changes" headingClassName="text-xs font-medium text-secondary" dense>
+        <p>The canvas previews every change. Nothing goes live until you publish.</p>
+      </SectionInfo>
     </aside>
   );
 }
