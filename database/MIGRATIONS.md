@@ -768,6 +768,26 @@ pure addition; the route answers 503 `Search service updating`, no-store,
 until it exists). Reversal: DROP FUNCTION. Expected row on both: `283
 APPLIED | 1 | true | 283`.
 
+## The notifications page is one call (migration 284, Oct 27 2026 — trip-count program PR 5)
+
+`GET /api/notifications` made six database trips a page before 281 and four
+after it (docs/SCALE_AUDIT.md §7): the session check, the page read with its
+actor embed, `hidden_authors_for`, and a HEAD count of the unread rows. 284
+adds `notifications_bell_page(p_viewer uuid, p_limit int, p_cursor
+timestamptz, p_unread_only boolean, p_type text) RETURNS json` (`LANGUAGE
+sql STABLE SECURITY INVOKER`, `search_path = public`, EXECUTE for
+service_role only): the route's page read verbatim — the viewer's rows, the
+optional unread / type filters, the keyset `created_at < cursor`, newest
+first, LIMIT limit + 1 — with the actor embed rendered as PostgREST renders
+an embed (jsonb inside a json row), the hidden actors (281's
+`hidden_authors_for`) and the unread count (the badge's predicate). Raw rows
+and ids: the route still drops a hidden actor's rows, slices the page,
+derives `has_more` and `next_cursor` from the raw count and shapes the
+envelope — byte-identical (`scripts/route-capture.mjs` before/after). Deploy
+order: MIGRATION FIRST (a pure addition; the route answers 503
+`Notifications service updating`, no-store, until it exists). Reversal: DROP
+FUNCTION. Expected row on both: `284 APPLIED | 1 | true | 284`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
