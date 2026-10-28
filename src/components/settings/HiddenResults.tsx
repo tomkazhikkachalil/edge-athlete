@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 
 // ── Hidden from your profile — results-kept round (241) ────────────────────
@@ -65,10 +66,11 @@ export default function HiddenResults() {
 
   return (
     <section className="ea-surface rounded-lg p-4 sm:p-6 mt-6" aria-labelledby="hidden-results-title" data-hidden-results="">
-      <h2 id="hidden-results-title" className="text-lg font-semibold text-primary">Hidden from your profile</h2>
-      <p className="text-sm text-tertiary mt-1 mb-3">
-        Results you hid stay on the record — they still count toward your stats and handicap — but nobody else sees them on your profile or in the feed. Show any of them again here, or from your own profile.
-      </p>
+      <SectionInfo heading="Hidden from your profile" headingId="hidden-results-title" className="mb-3">
+        <p>
+          Results you hid stay on the record — they still count toward your stats and handicap — but nobody else sees them on your profile or in the feed. Show any of them again here, or from your own profile.
+        </p>
+      </SectionInfo>
       {status === 'loading' && <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>}
       {status === 'error' && <p role="alert" className="text-sm text-tertiary">Couldn&apos;t load your hidden results.</p>}
       {message && <p role="status" className="text-sm text-secondary mb-2" data-hidden-results-message="">{message}</p>}

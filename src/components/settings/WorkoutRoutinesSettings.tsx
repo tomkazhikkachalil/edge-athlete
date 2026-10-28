@@ -1,6 +1,7 @@
 'use client';
 
-import RoutineManager from '../workouts/RoutineManager';
+import RoutineManager, { ROUTINES_HELP } from '../workouts/RoutineManager';
+import SectionInfo from '@/components/SectionInfo';
 
 /**
  * Settings → Routines. A thin section shell around the shared RoutineManager
@@ -10,10 +11,10 @@ export default function WorkoutRoutinesSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-1">Workout Routines</h3>
-        <p className="text-sm text-tertiary mb-4">
-          Saved presets for starting workouts faster.
-        </p>
+        <SectionInfo as="h3" heading="Workout Routines" className="mb-4">
+          <p>Saved presets for starting workouts faster.</p>
+          <p className="mt-2">{ROUTINES_HELP}</p>
+        </SectionInfo>
         <div className="bg-surface rounded-xl p-6 border border-border">
           <RoutineManager />
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/lib/use-theme';
 import {
@@ -137,11 +138,19 @@ export default function AppearanceSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-2">Theme</h3>
-        <p className="text-tertiary text-sm mb-6">
-          Choose how Edge Athlete decides between the light and dark theme. This is saved to your
-          account and applies on every device you sign in on.
-        </p>
+        <SectionInfo as="h3" heading="Theme" className="mb-6">
+          <p>
+            Choose how Edge Athlete decides between the light and dark theme. This is saved to your
+            account and applies on every device you sign in on.
+          </p>
+          {/* "menu in the top bar" covers both surfaces: the avatar dropdown
+              on desktop and the hamburger drawer on mobile. Naming the
+              profile menu was wrong on phones, where it does not exist. */}
+          <p className="mt-2">
+            You can switch between light and dark any time from the menu in the top bar. That
+            keeps the theme you picked until you choose Schedule here again.
+          </p>
+        </SectionInfo>
 
         <div className="space-y-3">
           {options.map((opt) => (
@@ -189,22 +198,6 @@ export default function AppearanceSettings() {
           </p>
         </div>
       )}
-
-      <div className="bg-brand-soft border border-border rounded-lg p-4">
-        <div className="flex gap-3">
-          <i className="fas fa-info-circle text-brand-fg mt-0.5 shrink-0"></i>
-          <div>
-            <h4 className="font-medium text-primary mb-1">Note</h4>
-            {/* "menu in the top bar" covers both surfaces: the avatar dropdown
-                on desktop and the hamburger drawer on mobile. Naming the
-                profile menu was wrong on phones, where it does not exist. */}
-            <p className="text-sm text-secondary">
-              You can switch between light and dark any time from the menu in the top bar. That
-              keeps the theme you picked until you choose Schedule here again.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

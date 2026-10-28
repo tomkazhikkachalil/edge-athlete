@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import SectionInfo, { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { useToast } from '@/components/Toast';
 import Toggle from '@/components/settings/Toggle';
 import PhoneNotificationsSection from '@/components/push/PhoneNotificationsSection';
@@ -63,6 +64,7 @@ export default function NotificationSettings() {
   const [lockedFields, setLockedFields] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<PrefKey | null>(null);
+  const [urgentRef, urgent] = useInfoDisclosure('Urgent safety emails');
 
   useEffect(() => {
     let cancelled = false;
@@ -135,11 +137,12 @@ export default function NotificationSettings() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-primary mb-1">Notification preferences</h2>
-      <p className="text-sm text-muted mb-6">
-        Turn off any notification type you don&apos;t want. Changes apply to new notifications
-        immediately.
-      </p>
+      <SectionInfo heading="Notification preferences" className="mb-6">
+        <p>
+          Turn off any notification type you don&apos;t want. Changes apply to new notifications
+          immediately.
+        </p>
+      </SectionInfo>
 
       {/* Phone notifications (248) — this device, the icon's number */}
       <PhoneNotificationsSection />
@@ -178,12 +181,15 @@ export default function NotificationSettings() {
               alerts within ~10 minutes. ON by default, never locked
               (children are never urgent recipients). */}
           <div className="flex items-center justify-between gap-4 p-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-primary">Urgent safety emails</p>
-              <p className="text-xs text-muted">
+            <div ref={urgentRef} className="min-w-0">
+              <div className="flex items-center gap-1">
+                <p className="text-sm font-medium text-primary">Urgent safety emails</p>
+                <InfoButton d={urgent} dense />
+              </div>
+              <InfoPanel d={urgent}>
                 Safety alerts and consent decisions about athletes you manage,
                 within minutes instead of the nightly summary. Recommended on.
-              </p>
+              </InfoPanel>
             </div>
             <Toggle
               on={prefs.urgent_email_enabled}

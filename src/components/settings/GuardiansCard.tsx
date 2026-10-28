@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
@@ -52,11 +53,12 @@ export default function GuardiansCard() {
 
   return (
     <div className="bg-brand-soft border border-violet-200 dark:border-violet-900 rounded-lg p-4 mb-6">
-      <h3 className="text-sm font-bold text-primary mb-1">Your guardians</h3>
-      <p className="text-xs text-tertiary mb-3">
-        These people manage your profile — its privacy, what gets posted, and
-        who can contact you — until the account is handed over to you.
-      </p>
+      <SectionInfo as="h3" heading="Your guardians" headingClassName="text-sm font-bold text-primary" dense className="mb-3">
+        <p>
+          These people manage your profile — its privacy, what gets posted, and
+          who can contact you — until the account is handed over to you.
+        </p>
+      </SectionInfo>
       <ul className="space-y-2">
         {guardians.map(g => {
           const name = formatDisplayName(g.first_name, null, g.last_name, g.display_name);

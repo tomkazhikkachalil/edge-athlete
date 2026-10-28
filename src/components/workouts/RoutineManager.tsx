@@ -14,6 +14,10 @@ import { MAX_ROUTINES, type WorkoutRoutine } from '@/lib/workouts/routines';
  * (copy-on-start).
  */
 
+/** The explainer both hosts (Settings → Routines, the Training modal) keep behind their (i). */
+export const ROUTINES_HELP =
+  'Start a workout from a routine and its exercises are ready with empty sets. Changes during a workout never affect the saved routine.';
+
 export default function RoutineManager() {
   const { showError } = useToast();
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
@@ -67,13 +71,6 @@ export default function RoutineManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-muted">
-          Start a workout from a routine and its exercises are ready with empty sets.
-          Changes during a workout never affect the saved routine.
-        </p>
-      </div>
-
       {routines === null ? (
         <p className="py-6 text-sm text-muted text-center">Loading routines…</p>
       ) : routines.length === 0 ? (

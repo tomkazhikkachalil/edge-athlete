@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { formsFromProfile, recruitingAcademics, type RecruitingForm } from '@/lib/profiles/edit-forms';
@@ -101,10 +102,11 @@ export default function RecruitingSettings() {
   return (
     <div className="space-y-6" data-recruiting-settings="">
       <div>
-        <h2 className="text-xl font-semibold text-primary">Recruiting</h2>
-        <p className="text-sm text-tertiary mt-1">
-          Nothing recruiting-related shows on your profile. When recruiting is open, coaches and scouts find you through Scout search; contact stays through messages.
-        </p>
+        <SectionInfo heading="Recruiting" headingClassName="text-xl font-semibold text-primary">
+          <p>
+            Nothing recruiting-related shows on your profile. When recruiting is open, coaches and scouts find you through Scout search; contact stays through messages.
+          </p>
+        </SectionInfo>
       </div>
 
       {supervised ? (

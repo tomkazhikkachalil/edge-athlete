@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
 import { useEditProfile } from '@/components/EditProfileHost';
@@ -18,10 +19,9 @@ export default function AccountSettings() {
     <div className="space-y-8">
       {/* Profile Information Section */}
       <div>
-        <div className="mb-6">
-          <h3 className="text-2xl font-bold text-primary tracking-tight">Profile Information</h3>
-          <p className="text-sm text-muted mt-1">View your account details and personal information</p>
-        </div>
+        <SectionInfo as="h3" heading="Profile Information" headingClassName="text-2xl font-bold text-primary tracking-tight" className="mb-6">
+          <p>View your account details and personal information</p>
+        </SectionInfo>
         <div className="bg-surface rounded-xl p-6 sm:p-8 border border-border shadow-sm">
           {/* Basic Info */}
           <div className="mb-8">

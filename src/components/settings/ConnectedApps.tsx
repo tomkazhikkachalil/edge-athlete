@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
 import { ago } from '@/components/tickets/ticket-ui';
@@ -126,11 +127,12 @@ export default function ConnectedApps() {
   return (
     <div className="space-y-6" data-connected-apps="">
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-2">Connected apps</h3>
-        <p className="text-tertiary text-sm">
-          Connect a watch or an app once and every workout it records shows up in your Training by
-          itself. Nothing is posted to your feed unless you share it.
-        </p>
+        <SectionInfo as="h3" heading="Connected apps">
+          <p>
+            Connect a watch or an app once and every workout it records shows up in your Training by
+            itself. Nothing is posted to your feed unless you share it.
+          </p>
+        </SectionInfo>
       </div>
 
       {state === 'loading' && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand my-6"></div>}
