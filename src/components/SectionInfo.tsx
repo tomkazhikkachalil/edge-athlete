@@ -80,7 +80,8 @@ interface SectionInfoProps {
   heading: ReactNode;
   /** The plain name for the button's label; required when `heading` is not a string. */
   label?: string;
-  as?: 'h1' | 'h2' | 'h3' | 'h4';
+  /** `p` for a bold label that is not a heading today (a card's or a panel's title). */
+  as?: 'h1' | 'h2' | 'h3' | 'h4' | 'p';
   headingClassName?: string;
   /** The heading's own id (a section's `aria-labelledby` target). */
   headingId?: string;
@@ -88,6 +89,8 @@ interface SectionInfoProps {
   trailing?: ReactNode;
   /** A text-sm heading row (the button's margin keeps it at 20 px). */
   dense?: boolean;
+  /** Extra classes on the heading row (`justify-center` for a centred header). */
+  rowClassName?: string;
   /** The old paragraph's margin (`mb-4`, `mb-6`) goes here — the row never moves. */
   className?: string;
   /** The explanatory copy. */
@@ -107,6 +110,7 @@ export default function SectionInfo({
   headingId,
   trailing,
   dense = false,
+  rowClassName = '',
   className = '',
   children,
 }: SectionInfoProps) {
@@ -117,7 +121,7 @@ export default function SectionInfo({
   const [wrapRef, d] = useInfoDisclosure(name);
   return (
     <div ref={wrapRef} className={className} data-section-info="">
-      <div className="flex flex-wrap items-center gap-1">
+      <div className={`flex flex-wrap items-center gap-1 ${rowClassName}`}>
         <Tag id={headingId} className={headingClassName}>{heading}</Tag>
         <InfoButton d={d} dense={dense} />
         {trailing && <div className="ml-auto flex items-center gap-2">{trailing}</div>}

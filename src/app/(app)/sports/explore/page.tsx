@@ -166,9 +166,6 @@ function ExploreInner() {
         {/* Heading */}
         <div className="mb-6">
           <h1 className="text-h1 font-bold text-primary">Explore</h1>
-          <p className="text-tertiary mt-1">
-            Discover athletes and activity across every sport.
-          </p>
         </div>
 
         {/* Live Now — fuller grid than the feed strip */}

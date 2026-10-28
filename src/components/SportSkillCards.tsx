@@ -22,6 +22,7 @@
  */
 
 import { PROVENANCE_LABEL, PROVENANCE_TITLE } from '@/lib/sports/provenance-copy';
+import SectionInfo from '@/components/SectionInfo';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
@@ -184,20 +185,31 @@ export default function SportSkillCards({
     if (!isOwner || !loaded || !onAddDetails) return null;
     return (
       <section id={sectionId} aria-label="Sports">
-        <button
-          type="button"
-          onClick={onAddDetails}
-          className="ea-interactive mt-4 w-full text-left bg-surface rounded-xl shadow-sm border border-dashed border-border p-4"
-        >
-          <h2 className="text-sm font-semibold text-secondary flex items-center gap-2">
-            <i className="fas fa-medal" aria-hidden="true"></i>
-            Sports
-          </h2>
-          <p className="mt-2 text-sm text-muted">
-            Add your competitive details — level, team, league — and they show here
-            alongside stats tracked from your activity.
-          </p>
-        </button>
+        {/* A div, not one big button: the (i) is a button of its own and a
+            button never nests in a button. The door is the Add details button. */}
+        <div className="mt-4 bg-surface rounded-xl shadow-sm border border-dashed border-border p-4">
+          <SectionInfo
+            as="h2"
+            heading={<><i className="fas fa-medal" aria-hidden="true"></i>Sports</>}
+            label="Sports"
+            headingClassName="text-sm font-semibold text-secondary flex items-center gap-2"
+            dense
+            trailing={
+              <button
+                type="button"
+                onClick={onAddDetails}
+                className="ea-interactive inline-flex min-h-[44px] items-center rounded-lg border border-border-strong px-3 text-sm font-semibold text-primary"
+              >
+                Add details
+              </button>
+            }
+          >
+            <p>
+              Add your competitive details — level, team, league — and they show here
+              alongside stats tracked from your activity.
+            </p>
+          </SectionInfo>
+        </div>
       </section>
     );
   }

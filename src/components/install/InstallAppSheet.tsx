@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import { COPY } from '@/lib/copy';
 import type { InstallMode } from '@/lib/install/platform';
@@ -127,9 +128,9 @@ export default function InstallAppSheet({ mode, onClose, onInstall }: Props) {
         )}
 
         {mode !== 'installed' && (
-          <p className="text-sm text-secondary border-t border-border-subtle pt-4">
-            {COPY.INSTALL.SAME_APP} {COPY.INSTALL.SIGN_IN_ONCE}
-          </p>
+          <SectionInfo as="p" heading="The same Edge Athlete" label="the app" headingClassName="text-sm font-semibold text-primary" dense className="border-t border-border-subtle pt-4">
+            <p>{COPY.INSTALL.SAME_APP} {COPY.INSTALL.SIGN_IN_ONCE}</p>
+          </SectionInfo>
         )}
       </div>
     </LargerWindow>

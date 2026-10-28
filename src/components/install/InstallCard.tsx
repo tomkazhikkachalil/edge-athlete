@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
@@ -56,8 +57,9 @@ export default function InstallCard() {
           <i className="fas fa-mobile-screen-button"></i>
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-bold text-primary">{COPY.INSTALL.CARD_TITLE}</h2>
-          <p className="text-sm text-secondary mt-0.5">{COPY.INSTALL.CARD_BODY}</p>
+          <SectionInfo heading={COPY.INSTALL.CARD_TITLE} label="the app" headingClassName="font-bold text-primary" dense>
+            <p>{COPY.INSTALL.CARD_BODY}</p>
+          </SectionInfo>
           <button
             type="button"
             onClick={app.install}

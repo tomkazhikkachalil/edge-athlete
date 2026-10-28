@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { ACTIVITY_TYPE_DEFS, indoorTwin, type ActivityType } from '@/lib/activities/catalog';
 import type { DistanceUnit } from '@/lib/activities/format';
 import { recordingAnswers, type RecordingEvent, type RecordingState } from '@/lib/activities/record/recording';
@@ -88,7 +89,13 @@ export default function SetupCard({
   return (
     <div className="mx-4 mt-4 space-y-4 rounded-xl border border-border bg-surface p-4 text-sm text-secondary" data-record-ready="">
       <div>
-        <p className="font-semibold text-primary">What will be recorded</p>
+        {gpsType ? (
+          <SectionInfo as="p" heading="What will be recorded" label="GPS recording" headingClassName="font-semibold text-primary" dense>
+            <p>{gpsNote}</p>
+          </SectionInfo>
+        ) : (
+          <p className="font-semibold text-primary">What will be recorded</p>
+        )}
         <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="What will be recorded" data-record-records="">
           {recorded.map(r => (
             <li key={r} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-secondary" data-record-records-item={r}>
@@ -96,7 +103,7 @@ export default function SetupCard({
             </li>
           ))}
         </ul>
-        {gpsType && <p className="mt-2">{gpsNote} {geoNote}</p>}
+        {gpsType && geoNote && <p className="mt-2">{geoNote}</p>}
         {!gpsType && def.recording === 'timer' && <p className="mt-2">A timer runs; you type the distance when you finish.</p>}
       </div>
 

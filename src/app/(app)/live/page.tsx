@@ -36,9 +36,6 @@ export default function LivePage() {
             <span className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></span>
             Live Now
           </h1>
-          <p className="text-tertiary mt-1">
-            Follow along as it happens — live rounds and events from athletes you follow.
-          </p>
         </div>
 
         <LiveNowStrip variant="grid" showEmptyState hideHeading />

@@ -52,7 +52,6 @@ function EventsListInner() {
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-h1 font-bold text-primary">Events</h1>
-            <p className="text-tertiary mt-1">The events you host, play in or follow.</p>
           </div>
           {user && (
             <Link href="/sports/events/new" className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-events-new="">

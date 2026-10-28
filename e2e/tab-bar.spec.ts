@@ -26,7 +26,7 @@ test('tab bar: five places, the active one, tappable, hidden where a screen owns
 
     // The drawer is still the superset.
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
-    await expect(page.getByRole('button', { name: 'Sports' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sports', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Close menu' }).click();
 
     // Tap through: Sports, Calendar.

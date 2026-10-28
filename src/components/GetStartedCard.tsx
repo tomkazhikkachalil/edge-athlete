@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import Link from 'next/link';
 import { firstActivityCopy } from '@/lib/sports/first-activity-copy';
 import { useAuth } from '@/lib/auth';
@@ -53,6 +54,7 @@ const ACTION_CLASS = 'ea-btn-secondary inline-flex items-center text-sm font-sem
 export default function GetStartedCard({ onLogRound }: { onLogRound: () => void }) {
   const { user, profile } = useAuth();
   const [state, setState] = useState<ChecklistState | null>(null);
+  const [introRef, intro] = useInfoDisclosure('getting started');
   // Read once, at mount (lazy initialisers — never in render, never in an
   // effect): the clock the age gate uses and whether THIS device closed the
   // card. The feed mounts the card only once the user is known.
@@ -170,11 +172,15 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
       data-get-started={resolving ? 'resolving' : 'resolved'}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <h2 className="font-bold text-primary">Get started on Edge Athlete</h2>
+        <div ref={introRef} className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <h2 className="font-bold text-primary">Get started on Edge Athlete</h2>
+            <InfoButton d={intro} dense />
+          </div>
           <p className="text-xs text-muted mt-0.5">
-            {doneCount} of {steps.length} done — finish these and your profile tells your story.
+            {doneCount} of {steps.length} done
           </p>
+          <InfoPanel d={intro}>Finish these and your profile tells your story.</InfoPanel>
         </div>
         <button
           type="button"

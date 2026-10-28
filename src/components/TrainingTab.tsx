@@ -1,6 +1,7 @@
 'use client';
 
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import SectionInfo from '@/components/SectionInfo';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BODY_METRIC_CATEGORIES } from '@/lib/body-metrics-config';
@@ -338,12 +339,9 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-h2 text-primary">Training</h2>
-              <p className="text-sm text-muted mt-0.5">
-                Workouts, activities, body metrics, and training history.
-              </p>
-            </div>
+            <SectionInfo heading="Training" headingClassName="text-h2 text-primary">
+              <p>Workouts, activities, body metrics, and training history.</p>
+            </SectionInfo>
             {/* Section-wide quick settings (body measurements + workout
                 routines). The form seeds from currentBodyMetrics when present and
                 from an empty snapshot when not — routines must stay reachable
@@ -484,11 +482,13 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           </StatBubbleCard>
         ) : (
           <StatBubbleCard span="md" icon={Dumbbell} label="Recent sessions" staggerIndex={1}>
-            <p className="text-sm text-muted mb-3">
-              {isOwnProfile
-                ? 'Record live — a workout with sets, reps and weight, or an activity with a timer or a map.'
-                : "This athlete hasn't recorded a session yet."}
-            </p>
+            {isOwnProfile ? (
+              <SectionInfo as="p" heading="Nothing recorded yet" label="recording a session" headingClassName="text-sm font-medium text-primary" dense className="mb-3">
+                <p>Record live — a workout with sets, reps and weight, or an activity with a timer or a map.</p>
+              </SectionInfo>
+            ) : (
+              <p className="text-sm text-muted mb-3">This athlete hasn&apos;t recorded a session yet.</p>
+            )}
             {isOwnProfile && (
               <button
                 onClick={() => setShowStartSheet(true)}

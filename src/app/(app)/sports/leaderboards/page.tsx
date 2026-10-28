@@ -38,7 +38,6 @@ export default function LeaderboardsPage() {
         <SportsSubnav />
         <div className="mb-6">
           <h1 className="text-h1 font-bold text-primary">Leaderboards</h1>
-          <p className="text-tertiary mt-1">Live boards and final results from your events.</p>
         </div>
         {initialAuthCheckComplete && !user ? (
           <div className="bg-surface rounded-lg border border-border p-6 text-center">

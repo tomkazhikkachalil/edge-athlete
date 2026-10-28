@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -191,16 +192,26 @@ export default function TrainingSettingsModal({
     >
       <div className="bg-surface-raised rounded-xl shadow-xl max-w-md w-full max-h-modal flex flex-col">
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-bold text-primary">Update body metrics</h2>
-          <button
-            onClick={requestClose}
-            aria-label="Close"
-            className="ea-icon-btn inline-flex items-center justify-center"
-          >
-            <X className="w-5 h-5 text-muted" />
-          </button>
-        </div>
+        <SectionInfo
+          heading="Update body metrics"
+          headingClassName="text-lg font-bold text-primary"
+          className="shrink-0 px-4 sm:px-6 py-4 border-b border-border"
+          trailing={
+            <button
+              onClick={requestClose}
+              aria-label="Close"
+              className="ea-icon-btn inline-flex items-center justify-center"
+            >
+              <X className="w-5 h-5 text-muted" />
+            </button>
+          }
+        >
+          <p>
+            Each save adds a permanent dated entry to your timeline; your most
+            recent dated entry becomes your current height and weight. Date of
+            birth is edited in Edit Profile.
+          </p>
+        </SectionInfo>
 
         {/* Body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-5">
@@ -275,11 +286,12 @@ export default function TrainingSettingsModal({
 
           {trainingPrivacy !== null && (
             <div className="border-t border-border-subtle pt-4">
-              <p className="text-sm font-semibold text-primary mb-1">Privacy</p>
-              <p className="text-xs text-muted mb-3">
-                Your profile can stay public while any of this stays just for
-                you — hide whatever you&rsquo;re not comfortable showing.
-              </p>
+              <SectionInfo as="p" heading="Privacy" label="training privacy" headingClassName="text-sm font-semibold text-primary" dense className="mb-3">
+                <p>
+                  Your profile can stay public while any of this stays just for
+                  you — hide whatever you&rsquo;re not comfortable showing.
+                </p>
+              </SectionInfo>
               <div className="space-y-2">
                 <label className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 cursor-pointer">
                   <input
@@ -331,12 +343,6 @@ export default function TrainingSettingsModal({
               </button>
             </div>
           )}
-
-          <p className="text-xs text-muted border-t border-border-subtle pt-4">
-            Each save adds a permanent dated entry to your timeline; your most
-            recent dated entry becomes your current height and weight. Date of
-            birth is edited in Edit Profile.
-          </p>
         </div>
 
         {/* Footer */}

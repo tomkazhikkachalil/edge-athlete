@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { backOr } from '@/lib/nav-back';
@@ -141,9 +142,9 @@ export default function WorkoutStartScreen() {
           </span>
         </button>
 
-        <p className="text-sm text-secondary" data-workout-start-records="">
-          <span className="font-semibold text-primary">What will be recorded:</span> sets, reps and weight{timed ? ' · the clock, pauses excluded' : ''} · rest per set · photos · records for every exercise.
-        </p>
+        <SectionInfo as="p" heading="What will be recorded" headingClassName="text-sm font-semibold text-primary" dense>
+          <p data-workout-start-records="">sets, reps and weight{timed ? ' · the clock, pauses excluded' : ''} · rest per set · photos · records for every exercise.</p>
+        </SectionInfo>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
