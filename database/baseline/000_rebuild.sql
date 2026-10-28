@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-28T01:03:19.474758+00:00 from server 17.6 by
+-- Generated 2026-10-28T03:40:06.915101+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 284.
+-- public.schema_dump() (migration 227). Ledger head at generation: 285.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -6409,7 +6409,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_source_url text,
   avatar_recipe jsonb,
   cover_source_url text,
-  cover_recipe jsonb
+  cover_recipe jsonb,
+  favourite_sports jsonb
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -18732,6 +18733,7 @@ COMMENT ON COLUMN public.profiles.avatar_source_url IS 'The uploaded ORIGINAL be
 COMMENT ON COLUMN public.profiles.avatar_recipe IS 'The crop recipe that made avatar_url from avatar_source_url (264); Adjust reopens the editor here.';
 COMMENT ON COLUMN public.profiles.cover_source_url IS 'The uploaded ORIGINAL behind cover_url (264): private uploads bucket, profile-sources/{id}/; owner-only through /api/media/profile-source. ONE writer: the cover POST.';
 COMMENT ON COLUMN public.profiles.cover_recipe IS 'The crop recipe that made cover_url from cover_source_url (264); Adjust reopens the editor here.';
+COMMENT ON COLUMN public.profiles.favourite_sports IS 'The account''s favourite sports in the post composer''s picker (285): a JSON array of registry sport keys, owner-only, never a declared sport. Read through sanitizeFavouriteSports; ONE writer: favourites-server.ts writeFavouriteSports.';
 COMMENT ON TABLE public.push_subscriptions IS 'Phone notifications (248): one row per device that turned them on (a Web Push subscription). Written by /api/push/subscriptions; pruned by src/lib/push/send-server.ts on 404/410. Posture A: service role only.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
@@ -19262,7 +19264,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (281, '281_feed_viewer_side.sql', 'rebuild-000'),
   (282, '282_post_like_toggle.sql', 'rebuild-000'),
   (283, '283_search_all_decorated.sql', 'rebuild-000'),
-  (284, '284_notifications_bell_page.sql', 'rebuild-000')
+  (284, '284_notifications_bell_page.sql', 'rebuild-000'),
+  (285, '285_favourite_sports.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19271,12 +19274,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 130 | 145 | 284
+-- Expected: 000 REBUILT | 138 | 130 | 145 | 285
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_130,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_284;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_285;
 
