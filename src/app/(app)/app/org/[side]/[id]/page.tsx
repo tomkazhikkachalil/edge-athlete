@@ -1,6 +1,7 @@
 'use client';
 
 import { resolveCompetitionProfile, type EntrantKind } from '@/lib/sports/competition-profiles';
+import SectionInfo from '@/components/SectionInfo';
 import { useEffect, useState, Fragment, type ReactNode } from 'react';
 // Org staff program (178): the console's section vocabulary IS authz's
 // ORG_SECTIONS (a type-only import — this is a client component).
@@ -1140,11 +1141,13 @@ export default function OrgConsolePage() {
                 <option value="public">Public — everything on your site is open</option>
                 <option value="private">Private — members-only content</option>
               </select>
-              <p className="mt-1 text-xs text-muted">
-                {orgVisibility === 'private'
-                  ? `Standings, results, players, teams and the roster are members-only on your site; your name, contact${side === 'club' ? ', courses' : ''}, schedule, registration and public news stay visible.`
-                  : 'Anyone can read your standings, results and players.'}
-              </p>
+              {orgVisibility === 'private' ? (
+                <SectionInfo as="p" heading="Members-only content" label="private visibility" headingClassName="text-xs font-medium text-secondary" dense className="mt-1">
+                  <p>{`Standings, results, players, teams and the roster are members-only on your site; your name, contact${side === 'club' ? ', courses' : ''}, schedule, registration and public news stay visible.`}</p>
+                </SectionInfo>
+              ) : (
+                <p className="mt-1 text-xs text-muted">Anyone can read your standings, results and players.</p>
+              )}
             </div>
             <div>
               <label htmlFor="org-join-policy" className="block text-sm font-medium text-secondary mb-1">
@@ -1204,11 +1207,11 @@ export default function OrgConsolePage() {
           aria-label="Roster"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">Roster</h2>
+          <SectionInfo heading="Roster">
+            <p>Import athletes per team below — each import creates claimable profiles and claim links to hand out.</p>
+          </SectionInfo>
           <p className="text-sm text-tertiary">
             {counts.rosterAthletes} rostered athlete{counts.rosterAthletes === 1 ? '' : 's'}.
-            Import athletes per team below — each import creates claimable profiles and
-            claim links to hand out.
           </p>
           <Link
             href={`/${side}/${orgId}#members`}
@@ -1296,17 +1299,14 @@ export default function OrgConsolePage() {
           aria-label="Competitions"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">{golfFirst ? 'Leagues & events' : 'Competitions'}</h2>
-          <p className="text-sm text-tertiary mb-4">
-            A competition holds a schedule and standings. Create one per season — pin it
-            to a division for house play.
-          </p>
+          <SectionInfo heading={golfFirst ? 'Leagues & events' : 'Competitions'} className="mb-4">
+            <p>A competition holds a schedule and standings. Create one per season — pin it to a division for house play.</p>
+          </SectionInfo>
           {golfFirst && !competitions.some(c => c.sport_key === 'golf' && c.format === 'leaderboard' && (c.status === 'draft' || c.status === 'active')) && (
             <div className="mb-4 rounded-xl border border-brand bg-brand-soft p-4" data-quickstart="golf">
-              <p className="font-medium text-primary">Start our season</p>
-              <p className="mt-0.5 text-sm text-secondary">
-                One tap: this year’s season, a league that ranks members’ posted rounds week by week, everyone on the roster entered. Rounds count at any course unless you pick one.
-              </p>
+              <SectionInfo as="p" heading="Start our season" label="the one-tap season" headingClassName="font-medium text-primary" dense>
+                <p>One tap: this year’s season, a league that ranks members’ posted rounds week by week, everyone on the roster entered. Rounds count at any course unless you pick one.</p>
+              </SectionInfo>
               <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <label className="text-xs text-tertiary">
                   Holes
@@ -1351,12 +1351,12 @@ export default function OrgConsolePage() {
           )}
           {!golfFirst && !!orgSport && !competitions.some(c => c.sport_key === orgSport && c.format === 'fixture' && (c.status === 'draft' || c.status === 'active')) && (
             <div className="mb-4 rounded-xl border border-brand bg-brand-soft p-4" data-quickstart="team">
-              <p className="font-medium text-primary">Start our season</p>
-              <p className="mt-0.5 text-sm text-secondary">
-                {teams.filter(tm => tm.status === 'active').length >= 2
-                  ? `One tap: this season's league table with all ${teams.filter(tm => tm.status === 'active').length} teams entered. Fixtures come after, under Schedule.`
-                  : 'Add at least two teams (Structure) and this becomes one tap: the season and its league table.'}
-              </p>
+              <SectionInfo as="p" heading="Start our season" label="the one-tap season" headingClassName="font-medium text-primary" dense>
+                <p>{`One tap: this season's league table with all ${teams.filter(tm => tm.status === 'active').length} teams entered. Fixtures come after, under Schedule.`}</p>
+              </SectionInfo>
+              {teams.filter(tm => tm.status === 'active').length < 2 && (
+                <p className="mt-0.5 text-sm text-secondary">Add at least two teams (Structure) and this becomes one tap: the season and its league table.</p>
+              )}
               <button
                 type="button"
                 disabled={qsBusy || teams.filter(tm => tm.status === 'active').length < 2}
@@ -1824,10 +1824,9 @@ export default function OrgConsolePage() {
             aria-label="Registrations"
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
-            <h2 className="text-lg font-semibold text-primary mb-1">Registrations</h2>
-            <p className="text-sm text-tertiary mb-3">
-              Families register; you evaluate, place onto teams, or release.
-            </p>
+            <SectionInfo heading="Registrations" className="mb-3">
+              <p>Families register; you evaluate, place onto teams, or release.</p>
+            </SectionInfo>
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <select
                 value={effectiveRegSeason}
@@ -2151,10 +2150,9 @@ export default function OrgConsolePage() {
             aria-label="External competitions"
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
-            <h2 className="text-lg font-semibold text-primary mb-1">External competitions</h2>
-            <p className="text-sm text-tertiary mb-3">
-              Your teams are entered here — record player stats for your own athletes.
-            </p>
+            <SectionInfo heading="External competitions" className="mb-3">
+              <p>Your teams are entered here — record player stats for your own athletes.</p>
+            </SectionInfo>
             <ul className="space-y-2">
               {externalComps.map(comp => (
                 <li key={comp.id} className="flex flex-wrap items-center justify-between gap-2">
@@ -2191,11 +2189,9 @@ export default function OrgConsolePage() {
           aria-label="Venues and courses"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">Venues &amp; courses</h2>
-          <p className="text-sm text-tertiary mb-3">
-            Where you play. Link a golf course from the catalog to show its tees, scorecard
-            and map on your pages.
-          </p>
+          <SectionInfo heading="Venues & courses" className="mb-3">
+            <p>Where you play. Link a golf course from the catalog to show its tees, scorecard and map on your pages.</p>
+          </SectionInfo>
           {venues.length > 0 && (
             <ul className="space-y-3 mb-4">
               {venues.map(venue => {
@@ -2511,13 +2507,15 @@ export default function OrgConsolePage() {
           aria-label="Website"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">Website</h2>
+          <SectionInfo heading="Website" className="mb-3">
+            <p>
+              {site === null
+                ? 'A public site for your organization — schedule, standings, and teams, always current, no webmaster.'
+                : 'Arrange the page, write the welcome, pick colours and a template, fill the contact card — in the editor. Subpages, the address, the domain and what goes live stay here.'}
+            </p>
+          </SectionInfo>
           {site === null ? (
             <>
-              <p className="text-sm text-tertiary mb-3">
-                A public site for your organization — schedule, standings, and teams,
-                always current, no webmaster.
-              </p>
               {!slugPickerOpen ? (
                 <button
                   type="button"
@@ -2630,9 +2628,6 @@ export default function OrgConsolePage() {
             </>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-tertiary">
-                Arrange the page, write the welcome, pick colours and a template, fill the contact card — in the editor. Subpages, the address, the domain and what goes live stay here.
-              </p>
               <p className="text-sm text-secondary min-w-0 break-all">
                 Address: <span className="font-medium text-primary">{orgSitePath(site.subdomain)}</span>
                 {' · '}
@@ -2704,10 +2699,9 @@ export default function OrgConsolePage() {
                 >
                   {siteDraft?.hasUnpublishedChanges ? (
                     <>
-                      <p className="text-sm font-medium text-amber-700">Draft has unpublished changes</p>
-                      <p className="text-xs text-tertiary">
-                        Your edits are saved to a draft. Preview to check them; publish to make them live.
-                      </p>
+                      <SectionInfo as="p" heading="Draft has unpublished changes" label="the draft" headingClassName="text-sm font-medium text-amber-700" dense>
+                        <p>Your edits are saved to a draft. Preview to check them; publish to make them live.</p>
+                      </SectionInfo>
                       <div className="flex flex-wrap items-center gap-2">
                         <input
                           type="text"
@@ -2955,8 +2949,9 @@ export default function OrgConsolePage() {
               {/* H2 (Sep 27 2026): one home — the editor owns the site's content now.
                   These deep links open the right place in it (?open / ?section). */}
               <div className="pt-2 space-y-1.5" data-console-editor-links="">
-                <p className="text-sm font-medium text-primary">Edit in the editor</p>
-                <p className="text-xs text-tertiary">Sections, pages, documents, photos, sponsors, the logo and the header all live in the site editor.</p>
+                <SectionInfo as="p" heading="Edit in the editor" label="the editor" headingClassName="text-sm font-medium text-primary" dense>
+                  <p>Sections, pages, documents, photos, sponsors, the logo and the header all live in the site editor.</p>
+                </SectionInfo>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { label: 'Header & subpages', q: 'open=settings' },
@@ -2981,10 +2976,9 @@ export default function OrgConsolePage() {
                   banner until …"). The history of what was sent stays here; the
                   /announce API stays for a siteless org and scripts. */}
               <div className="pt-2 space-y-1.5" data-console-announce="">
-                <p className="text-sm font-medium text-primary">Announce to members</p>
-                <p className="text-xs text-tertiary">
-                  Write a news post and tick “Notify members” — every member gets a notification (a young athlete’s guardians too), and it can run as a banner on your site.
-                </p>
+                <SectionInfo as="p" heading="Announce to members" label="announcements" headingClassName="text-sm font-medium text-primary" dense>
+                  <p>Write a news post and tick “Notify members” — every member gets a notification (a young athlete’s guardians too), and it can run as a banner on your site.</p>
+                </SectionInfo>
                 <Link
                   href={`/app/org/${side}/${orgId}/site/edit?news=new`}
                   className="inline-flex px-3 py-1.5 text-sm rounded-md border border-brand text-brand-fg font-medium hover:bg-brand-soft transition-colors"
@@ -3073,12 +3067,9 @@ export default function OrgConsolePage() {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         {welcome && (
           <div role="status" className="rounded-xl border border-brand bg-brand-soft p-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="font-medium text-primary">{`Your ${side} is live.`}</p>
-              <p className="text-sm text-secondary mt-0.5">
-                {`Share your join link from Membership, and start your season from here — everything below is optional until you need it.`}
-              </p>
-            </div>
+            <SectionInfo as="p" heading={`Your ${side} is live.`} label="getting started" headingClassName="font-medium text-primary" dense>
+              <p>Share your join link from Membership, and start your season from here — everything below is optional until you need it.</p>
+            </SectionInfo>
             <button
               type="button"
               onClick={() => setWelcome(false)}
@@ -3105,11 +3096,13 @@ export default function OrgConsolePage() {
             )}
           </h1>
           {listing !== 'listed' && (
-            <p className="mt-1 text-sm text-secondary">
-              {listing === 'pending'
-                ? `Your ${side} is live at its link now — it joins the directory and search once an Edge Athlete admin approves the listing.`
-                : `Your ${side} is live for anyone with the link. Ask to be listed from Membership when you want it in the directory.`}
-            </p>
+            <SectionInfo as="p" heading={`Your ${side} is live at its link`} label="the listing" headingClassName="text-sm font-medium text-secondary" dense className="mt-1">
+              <p>
+                {listing === 'pending'
+                  ? 'It joins the directory and search once an Edge Athlete admin approves the listing.'
+                  : 'Anyone with the link can open it. Ask to be listed from Membership when you want it in the directory.'}
+              </p>
+            </SectionInfo>
           )}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <Link href={`/${side}/${orgId}`} className="text-brand-fg hover:text-brand-fg-strong">

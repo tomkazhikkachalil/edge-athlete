@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { sparklinePoints, type SiteStats, type StatsRange } from '@/lib/org-sites/analytics-rollup';
 
 // ── Visitors — program 2, E2 (Sep 11 2026) ─────────────────────────────────
@@ -13,6 +14,7 @@ const RANGES: StatsRange[] = [7, 30, 90];
 
 export default function SiteVisitorsCard({ plural, orgId }: { plural: 'leagues' | 'clubs'; orgId: string }) {
   const [days, setDays] = useState<StatsRange>(30);
+  const [infoRef, info] = useInfoDisclosure('Visitors');
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'unsupported' | 'error'; stats: SiteStats | null; live: boolean; counting: boolean }>({ status: 'loading', stats: null, live: false, counting: true });
 
   useEffect(() => {
@@ -47,9 +49,12 @@ export default function SiteVisitorsCard({ plural, orgId }: { plural: 'leagues' 
   const height = 48;
 
   return (
-    <section id="visitors" aria-label="Visitors" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-site-visitors="">
+    <section ref={infoRef} id="visitors" aria-label="Visitors" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-site-visitors="">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <h2 className="text-lg font-semibold text-primary">Visitors</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-lg font-semibold text-primary">Visitors</h2>
+          <InfoButton d={info} />
+        </div>
         <div role="radiogroup" aria-label="Range" className="inline-flex rounded-md border border-border-strong p-0.5">
           {RANGES.map(r => (
             <button key={r} type="button" role="radio" aria-checked={days === r} onClick={() => setDays(r)} className={`min-h-[36px] rounded px-2.5 text-xs font-medium ${days === r ? 'bg-brand text-white' : 'text-secondary hover:bg-surface-sunken'}`} data-site-visitors-range={r}>
@@ -58,7 +63,7 @@ export default function SiteVisitorsCard({ plural, orgId }: { plural: 'leagues' 
           ))}
         </div>
       </div>
-      <p className="text-sm text-tertiary mb-3">Counting starts when your site is live. No cookies; nothing personal is stored — a visitor is one browser, counted once a day.</p>
+      <InfoPanel d={info} className="mb-3">Counting starts when your site is live. No cookies; nothing personal is stored — a visitor is one browser, counted once a day.</InfoPanel>
       {state.status === 'loading' ? (
         <div className="h-16 animate-pulse rounded bg-surface-sunken" />
       ) : state.status === 'error' || !s ? (

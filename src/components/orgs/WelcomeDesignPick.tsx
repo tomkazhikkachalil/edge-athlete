@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
@@ -181,10 +182,10 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
 
   return (
     <section aria-label="Pick a starting design" className="rounded-xl border border-border bg-surface p-4 sm:p-5" data-welcome-design="pick">
-      <p className="font-medium text-primary">Pick a starting design for your site</p>
-      <p className="mt-0.5 text-sm text-secondary">
-        A sketch of the arrangement — your real sections, your name, your venue. Nothing goes live until you say so.
-      </p>
+      <SectionInfo as="p" heading="Pick a starting design for your site" label="the starting designs" headingClassName="font-medium text-primary" dense>
+        <p>A sketch of the arrangement — your real sections, your name, your venue. Nothing goes live until you say so.</p>
+        <p className="mt-2">A design is a start — every section still moves, resizes and can be removed afterwards.</p>
+      </SectionInfo>
       <ul className="mt-3 grid gap-3 sm:grid-cols-2">
         {entries.map(entry => {
           const seed = gallerySeed(entry, { ...shape, template_id: entry.family }, org, site.side, site.sportKey);
@@ -208,8 +209,7 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
           );
         })}
       </ul>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-tertiary">A design is a start — every section still moves, resizes and can be removed afterwards.</p>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         <button type="button" onClick={() => setState('hidden')} className={PILL} data-welcome-design-later="">
           Later
         </button>

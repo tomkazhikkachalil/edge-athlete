@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { moduleLabel, parseNavConfig, parseThemeTokens, resolveAccentPair } from '@/lib/org-sites/validate';
@@ -90,8 +91,12 @@ export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush
   };
 
   return (
-    <LargerWindow title="Start from a design" subtitle={auto ? 'A good page in minutes — pick one, then make it yours. Nothing goes live until you publish.' : 'Each design re-arranges your page; your words and colours stay yours.'} onClose={onClose} windowKey="sb-gallery">
+    <LargerWindow title="Start from a design" onClose={onClose} windowKey="sb-gallery">
       <div className="space-y-4" data-sb-gallery="">
+        <SectionInfo as="p" heading="Pick one, then make it yours" label="the designs" headingClassName="text-sm font-semibold text-primary" dense>
+          <p>{auto ? 'A good page in minutes. Nothing goes live until you publish.' : 'Each design re-arranges your page; your words and colours stay yours.'}</p>
+          <p className="mt-2">A design is a start — every section still moves, resizes and can be removed afterwards.</p>
+        </SectionInfo>
         <fieldset className="flex flex-wrap gap-2" aria-label="How to apply">
           {GALLERY_MODES.map(m => (
             <label key={m} className={`flex min-w-[220px] flex-1 cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm ${mode === m ? 'border-brand bg-brand-soft' : 'border-border-strong'}`}>
@@ -127,8 +132,7 @@ export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush
           })}
         </ul>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-3">
-          <p className="text-xs text-tertiary">A design is a start — every section still moves, resizes and can be removed afterwards.</p>
+        <div className="flex items-center justify-end gap-2 border-t border-border-subtle pt-3">
           <button type="button" onClick={onClose} className={PILL} data-sb-gallery-skip="">
             {auto ? 'Skip — keep the starting layout' : 'Close'}
           </button>

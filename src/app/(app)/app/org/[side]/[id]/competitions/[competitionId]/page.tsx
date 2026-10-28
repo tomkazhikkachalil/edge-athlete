@@ -1,6 +1,7 @@
 'use client';
 
 import BracketColumnsView from '@/components/competitions/BracketColumnsView';
+import SectionInfo from '@/components/SectionInfo';
 import ReorderList from '@/components/site-builder/ReorderList';
 import { bracketColumnsFromContests, type BracketContestRow } from '@/lib/competitions/bracket-draw';
 import { ADVANCE_KINDS, ADVANCE_LABEL, deriveContestOutcome, type AdvanceKind } from '@/lib/competitions/contest-outcome';
@@ -1136,10 +1137,9 @@ export default function CompetitionDetailPage() {
               </button>
               {seasonOpen && (
                 <div className="mt-2 border border-border rounded-lg p-3">
-                  <p className="text-xs text-muted mb-2">
-                    One round a week from the start date, each open for the window length at the
-                    chosen course. Rounds whose week already exists are kept, not duplicated.
-                  </p>
+                  <SectionInfo as="p" heading="Season rounds" label="the season generator" headingClassName="text-xs font-semibold text-primary" dense className="mb-2">
+                    <p>One round a week from the start date, each open for the window length at the chosen course. Rounds whose week already exists are kept, not duplicated.</p>
+                  </SectionInfo>
                   <div className="flex flex-wrap gap-2">
                     <input
                       type="date"
@@ -1263,7 +1263,10 @@ export default function CompetitionDetailPage() {
                 <p className="text-sm text-tertiary">Enter at least two teams from the console first.</p>
               ) : (
                 <div className="border border-border rounded-lg p-3" data-bracket-seeds="">
-                  <p className="text-xs text-muted mb-2">The seeded order — 1 plays the lowest seed first; 1 and 2 meet only in the final. {bracketDrawn ? 'The bracket is drawn: regenerate to change the seeds.' : 'Save the seeds, then generate the bracket.'}</p>
+                  <SectionInfo as="p" heading="Seeds" label="seeding" headingClassName="text-xs font-semibold text-primary" dense>
+                    <p>The seeded order — 1 plays the lowest seed first; 1 and 2 meet only in the final.</p>
+                  </SectionInfo>
+                  <p className="text-xs text-muted mb-2">{bracketDrawn ? 'The bracket is drawn: regenerate to change the seeds.' : 'Save the seeds, then generate the bracket.'}</p>
                   {!bracketDrawn && <ReorderList items={seededEntries.map(en => ({ id: en.id, label: en.entrant_name }))} onChange={ids => setSeedOrder(ids)} label="Seeds" idBase={`seeds-${competitionId}`} />}
                   {bracketDrawn && <ol className="list-decimal pl-5 text-sm text-primary space-y-0.5">{seededEntries.map(en => <li key={en.id}>{en.entrant_name}</li>)}</ol>}
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1301,7 +1304,9 @@ export default function CompetitionDetailPage() {
 
           {competition.format === 'fixture' && pools.length > 0 && (
             <div className="mb-4 border border-border rounded-lg p-3 space-y-2" data-pools-panel="">
-              <p className="text-xs text-muted">Pools: {pools.map(p => `${p.pool} (${p.entryIds.length})`).join(' · ')}. Every pair in a pool plays once (or home and away); the pools&apos; tables seed a bracket.</p>
+              <SectionInfo as="p" heading={`Pools: ${pools.map(p => `${p.pool} (${p.entryIds.length})`).join(' · ')}.`} label="pools" headingClassName="text-xs text-muted" dense>
+                <p>Every pair in a pool plays once (or home and away); the pools&apos; tables seed a bracket.</p>
+              </SectionInfo>
               <div className="flex flex-wrap items-end gap-2">
                 <label className="text-xs text-secondary">
                   Legs
@@ -1343,7 +1348,9 @@ export default function CompetitionDetailPage() {
 
           {competition.format === 'meet' && (
             <div className="mb-4 border border-border rounded-lg p-3" data-meet-panel="">
-              <p className="text-xs text-muted mb-2">Each event is a contest: the marks place the athletes, the places score for their teams. Pick the events to add.</p>
+              <SectionInfo as="p" heading="Pick the events to add." label="meet events" headingClassName="text-xs font-semibold text-primary" dense className="mb-2">
+                <p>Each event is a contest: the marks place the athletes, the places score for their teams.</p>
+              </SectionInfo>
               {meetEvents.length === 0 ? (
                 <p className="text-sm text-tertiary">This sport has no meet events yet.</p>
               ) : (
@@ -1369,7 +1376,9 @@ export default function CompetitionDetailPage() {
               )}
               {meetSessions.length > 0 && (
                 <div className="mt-3 border-t border-border-subtle pt-2 space-y-2" data-meet-sessions="">
-                  <p className="text-xs text-muted">Each session is ONE calendar event; every event in it shares the start and the place.</p>
+                  <SectionInfo as="p" heading="Sessions" label="meet sessions" headingClassName="text-xs font-semibold text-primary" dense>
+                    <p>Each session is ONE calendar event; every event in it shares the start and the place.</p>
+                  </SectionInfo>
                   {meetSessions.map(n => {
                     const st = sessionState(n);
                     const f = sessionField(n);
@@ -2050,7 +2059,9 @@ export default function CompetitionDetailPage() {
 
                     {runEventContestId === contest.id && (
                       <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2" data-run-event-form={contest.id}>
-                        <p className="w-full text-xs text-muted">{runKind === 'match' ? 'A match-play round hosted for the org: the two sides come from the entries, the match is scored live hole by hole, and the winner lands here when the round completes.' : 'A live game event hosted for the org: the two sides come from the entries, the score and the players\u2019 stats are kept live, and the result lands here when the round completes.'}</p>
+                        <SectionInfo as="p" heading={runKind === 'match' ? 'Run a live match' : 'Run a live game'} label="running it live" headingClassName="text-xs font-semibold text-primary" dense className="w-full">
+                          <p>{runKind === 'match' ? 'A match-play round hosted for the org: the two sides come from the entries, the match is scored live hole by hole, and the winner lands here when the round completes.' : 'A live game event hosted for the org: the two sides come from the entries, the score and the players\u2019 stats are kept live, and the result lands here when the round completes.'}</p>
+                        </SectionInfo>
                         <label className="text-xs text-secondary">
                           Date
                           <input type="date" value={runEventDate} onChange={e => setRunEventDate(e.target.value)} aria-label="Event date" className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />

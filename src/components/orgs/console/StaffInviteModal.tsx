@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
@@ -156,9 +157,11 @@ export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, i
           </div>
         ) : (
           <form onSubmit={submit} className="px-5 py-4 space-y-4">
-            <p className="text-sm text-tertiary">
-              They get the sections you pick for <span className="font-medium text-secondary">{scopeLabel}</span> — and nothing else. Owners keep the {side}&apos;s settings and identity.
-            </p>
+            <SectionInfo as="p" heading="What they get" label="the invite's access" headingClassName="text-sm font-semibold text-primary" dense>
+              <p>
+                They get the sections you pick for <span className="font-medium text-secondary">{scopeLabel}</span> — and nothing else. Owners keep the {side}&apos;s settings and identity.
+              </p>
+            </SectionInfo>
             <div>
               <label htmlFor="staff-invite-email" className="block text-sm font-medium text-secondary mb-1">Email</label>
               <input id="staff-invite-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface text-primary" placeholder="coach@example.com" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import StaffInviteModal, { type InviteScopeOption } from './StaffInviteModal';
 import { buildHierarchy, defaultOpenSeasonId, type HierarchyPerson, type HierarchySeasonInput, type HierarchyTeamInput } from '@/lib/orgs/hierarchy';
@@ -183,12 +184,9 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
   return (
     <section id="hierarchy" aria-label="Hierarchy & people" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-1">
-        <div>
-          <h2 className="text-lg font-semibold text-primary mb-1">Hierarchy &amp; people</h2>
-          <p className="text-sm text-tertiary">
-            Who runs what. {isOwner ? 'Invite someone on any node — they get the sections you pick there, and nothing else.' : 'Owners invite people from here.'}
-          </p>
-        </div>
+        <SectionInfo heading="Hierarchy & people">
+          <p>Who runs what. {isOwner ? 'Invite someone on any node — they get the sections you pick there, and nothing else.' : 'Owners invite people from here.'}</p>
+        </SectionInfo>
         <InviteButton scope={null} isOwner={isOwner} onOpen={setInviteScope} />
       </div>
 
