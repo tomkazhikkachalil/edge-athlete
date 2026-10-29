@@ -169,10 +169,17 @@ export async function GET(request: NextRequest) {
       const clubDocs = grouped.club ?? [];
       const leagueDocs = grouped.league ?? [];
 
+      // 289 (Tom, Oct 28 2026): a person blocked either way leaves the athletes
+      // AND the posts; a muted person's posts leave, the person stays findable
+      // (the feed's rule: hidden = muted ∪ blocked ∪ blockers). Applied BEFORE
+      // the quota slice so a blocked person never consumes a slot. Anonymous:
+      // both sets empty. Clubs, leagues, courses untouched.
+      const blocked = new Set(decorated.blocked);
+      const hidden = new Set(decorated.hidden);
       if (athleteDocs.length > 0) {
         const ids = athleteDocs.map(d => d.entity_id);
         const byDoc = new Map(athleteDocs.map(d => [d.entity_id, d]));
-        let athletes = orderByIds(ids, decorated.athletes)
+        let athletes = orderByIds(ids, decorated.athletes.filter(a => !blocked.has(a.id)))
           .map(p => ({
             ...p,
             distance_km: byDoc.get(p.id)?.distance_km ?? null,
@@ -201,7 +208,7 @@ export async function GET(request: NextRequest) {
       if (postDocs.length > 0) {
         // Matches the legacy path: hydrated posts render newest-first (the
         // call ordered and limited them).
-        results.posts = decorated.posts;
+        results.posts = (decorated.posts as Array<{ profile?: { id?: string } | null }>).filter(p => !(p.profile?.id && hidden.has(p.profile.id)));
       }
       if (clubDocs.length > 0) {
         const ids = clubDocs.map(d => d.entity_id);

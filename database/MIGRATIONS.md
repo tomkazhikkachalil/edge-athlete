@@ -875,6 +875,22 @@ pure addition; the route answers 503 `Like service updating`, no-store,
 until it exists). Reversal: DROP FUNCTION. Expected row on both: `288
 APPLIED | 1 | true | 288`.
 
+## Search hides blocked people and muted authors' posts (migration 289, Oct 28 2026 — the leftovers program PR 4)
+
+Search applied no block or mute filter (the trip-count PR 4 finding; Tom's
+decision Oct 28: "blocks both ways + muted authors' posts"). 289
+re-declares `search_all_decorated` (283) with the same body plus two keys:
+`blocked` — the viewer's `user_blocks` arms both ways, as ids — and
+`hidden` — `hidden_authors_for(viewer)` (281: muted ∪ blocked ∪ blockers);
+both `[]` for the anonymous viewer. The route applies them: an athlete in
+`blocked` leaves the list BEFORE the quota slice (a blocked person never
+consumes a slot); a post whose author is in `hidden` leaves the posts (the
+feed's rule). A muted person is still found as a person; clubs, leagues and
+courses are untouched. The wrapper defaults the keys (`?? []`), so a
+database still on 283 answers as before. Deploy order: MIGRATION FIRST
+(either order is safe; first keeps the rule exact from the first request).
+Reversal: re-run 283. Expected row on both: `289 APPLIED | 1 | true | 289`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

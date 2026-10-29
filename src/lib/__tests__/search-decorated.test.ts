@@ -24,11 +24,13 @@ describe('search decoration rides the search call', () => {
     expect(route).toMatch(/const myFollows = decorated\s*\? decorated\.followed_private\.map/);
   });
   it('the rules did not move: rank order, the filters, the quotas, the course mapping, the listing filter, the privacy filter, the proxy, the envelope', () => {
-    expect(route).toMatch(/orderByIds\(ids, decorated\.athletes\)/);
+    // 289: a blocked person leaves the athletes BEFORE the quota slice; a hidden author's post leaves the posts
+    expect(route).toMatch(/orderByIds\(ids, decorated\.athletes\.filter\(a => !blocked\.has\(a\.id\)\)\)/);
+    expect(route).toMatch(/const blocked = new Set\(decorated\.blocked\);\s*const hidden = new Set\(decorated\.hidden\);/);
     expect(route).toMatch(/athletes\.filter\(a => a\.sport === sport\)/);
     expect(route).toMatch(/results\.athletes = athletes\.slice\(0, quotas\.athlete\)/);
     expect(route).toMatch(/orderByIds\(ids, decorated\.courses as unknown as CatalogRow\[\]\)[\s\S]*?\.slice\(0, quotas\.course\)[\s\S]*?rowToCourse\(/);
-    expect(route).toMatch(/results\.posts = decorated\.posts;/);
+    expect(route).toMatch(/results\.posts = \(decorated\.posts as Array<\{ profile\?: \{ id\?: string \} \| null \}>\)\.filter\(p => !\(p\.profile\?\.id && hidden\.has\(p\.profile\.id\)\)\);/);
     expect(route).toMatch(/orderByIds\(ids, filterListedRows\(decorated\.clubs\)\)[\s\S]*?\.slice\(0, quotas\.club\)/);
     expect(route).toMatch(/orderByIds\(ids, filterListedRows\(decorated\.leagues\)\)[\s\S]*?\.slice\(0, quotas\.league\)/);
     expect(route).toMatch(/return !privateAuthors\.has\(authorId\) \|\| followedPrivate\.has\(authorId\);/);
@@ -78,5 +80,20 @@ describe('migration 283', () => {
   });
   it('search_all itself (279) is untouched by this program', () => {
     expect(read('database/migrations/279_search_candidate_cap.sql')).toMatch(/cap\s+int\s+:= 1000;/);
+  });
+});
+
+describe('migration 289 (blocked + hidden on the search call)', () => {
+  const m = read('database/migrations/289_search_hide_blocked_muted.sql');
+  it('re-declares search_all_decorated with the two keys; the viewer\'s blocks both ways and hidden_authors_for; anonymous empty', () => {
+    expect(m).toMatch(/CREATE OR REPLACE FUNCTION public\.search_all_decorated\(/);
+    expect(m).toMatch(/'blocked', COALESCE\(\(\s*SELECT json_agg\(DISTINCT x\.id\) FROM \(\s*SELECT b\.blocked_id AS id FROM public\.user_blocks b WHERE p_viewer IS NOT NULL AND b\.blocker_id = p_viewer\s*UNION ALL\s*SELECT c\.blocker_id FROM public\.user_blocks c WHERE p_viewer IS NOT NULL AND c\.blocked_id = p_viewer/);
+    expect(m).toMatch(/'hidden', CASE WHEN p_viewer IS NULL THEN '\[\]'::json ELSE to_json\(public\.hidden_authors_for\(p_viewer\)\) END,/);
+    expect(m).toMatch(/'author_visibility', COALESCE\(\(/); // 283's keys all still there
+    expect(m).toMatch(/VALUES \(289, '289_search_hide_blocked_muted\.sql'\)/);
+  });
+  it('the wrapper defaults the two keys so a database on 283 still answers', () => {
+    const server = read('src/lib/search/all-server.ts');
+    expect(server).toMatch(/blocked: d\.blocked \?\? \[\],\s*hidden: d\.hidden \?\? \[\],/);
   });
 });

@@ -153,6 +153,16 @@ updating` (no-store); the legacy path still serves a database without
 call, the kept rules, the column lists equal to the route's and to
 `CATALOG_ROW_COLUMNS`, 279 untouched).
 
+**Blocks and mutes (migration 289, Oct 28 2026 — Tom: "blocks both ways +
+muted authors' posts").** The search call also returns the viewer's
+`blocked` (both `user_blocks` arms) and `hidden` (`hidden_authors_for`:
+muted ∪ blocked ∪ blockers); the route drops a blocked person from the
+athletes BEFORE the quota slice and a hidden author's posts from the posts.
+A muted person is still found as a person; clubs, leagues and courses are
+untouched; anonymous sees everything public, as before. `BlockedUsersList`
+is unaffected (its list is its own endpoint; its people search already
+drops blocked ids).
+
 Privacy split, deliberate: athlete documents carry `visibility`/`owner_id`
 and are filtered in-query (search_people semantics — LIMIT after privacy);
 post documents EXIST only while the post is public and published, and
