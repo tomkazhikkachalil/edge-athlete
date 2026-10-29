@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-29T01:02:02.435657+00:00 from server 17.6 by
+-- Generated 2026-10-29T01:57:44.071326+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 287.
+-- public.schema_dump() (migration 227). Ledger head at generation: 290.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (132; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (133; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -593,6 +593,43 @@ BEGIN
   WHERE is_read = true AND read_at < NOW() - INTERVAL '90 days';
   GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
   RETURN v_deleted_count;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_post_id uuid;
+  v_status text;
+  v_outcome text;
+  v_count integer;
+BEGIN
+  SELECT c.post_id, c.status INTO v_post_id, v_status
+  FROM public.post_comments c
+  WHERE c.id = p_comment_id;
+  IF NOT FOUND
+     OR COALESCE(v_status, 'published') <> 'published'
+     OR NOT public.post_like_allowed(p_viewer, v_post_id) THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  DELETE FROM public.comment_likes WHERE comment_id = p_comment_id AND profile_id = p_viewer;
+  IF FOUND THEN
+    v_outcome := 'unliked';
+  ELSE
+    INSERT INTO public.comment_likes (comment_id, profile_id) VALUES (p_comment_id, p_viewer)
+    ON CONFLICT (comment_id, profile_id) DO NOTHING;
+    v_outcome := CASE WHEN FOUND THEN 'liked' ELSE 'already_liked' END;
+  END IF;
+
+  -- The trigger's ±1 is visible here (same transaction); never count the rows.
+  SELECT COALESCE(likes_count, 0) INTO v_count FROM public.post_comments WHERE id = p_comment_id;
+  RETURN jsonb_build_object('outcome', v_outcome, 'likes_count', v_count);
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -3720,7 +3757,7 @@ DECLARE
   -- search_token_rank parsed them per row).
   tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
-  -- 279: the candidate cap per (entity_type, tier) — see the header.
+  -- 279: the candidate cap per entity_type — see 279's header.
   cap      int     := 1000;
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
@@ -3758,10 +3795,12 @@ BEGIN
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
-       OR (length(qn) >= 2 AND (
-            b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'
-         OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
-         OR b.country ILIKE '%' || qn || '%'))
+       -- 290: the substring arm is title / subtitle at THREE or more characters —
+       -- the length a trigram index can serve (087's note); city / region /
+       -- country are tokens in search_vector already and a 2-character query
+       -- keeps the prefix tsquery path.
+       OR (length(qn) >= 3 AND (
+            b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'))
   ),
   -- 279: at most `cap` candidates per (entity_type, tier), chosen by the
   -- ranking's own next keys (rich, recency) — the per-row name_hits / score
@@ -3926,6 +3965,18 @@ AS $function$
         'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
         'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
       )) FROM public.organizations o WHERE o.kind = 'league' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'league')), '[]'::json),
+    -- 289 (the leftovers program PR 4 — Tom: blocks both ways hide the person
+    -- and their posts; a mute hides only the posts): the viewer's hidden set
+    -- (281's hidden_authors_for = muted ∪ blocked ∪ blockers) and its block-only
+    -- subset, as ids; the route applies them — athletes by `blocked` before the
+    -- quota slice, posts by `hidden`. Anonymous: both empty.
+    'blocked', COALESCE((
+      SELECT json_agg(DISTINCT x.id) FROM (
+        SELECT b.blocked_id AS id FROM public.user_blocks b WHERE p_viewer IS NOT NULL AND b.blocker_id = p_viewer
+        UNION ALL
+        SELECT c.blocker_id FROM public.user_blocks c WHERE p_viewer IS NOT NULL AND c.blocked_id = p_viewer
+      ) x), '[]'::json),
+    'hidden', CASE WHEN p_viewer IS NULL THEN '[]'::json ELSE to_json(public.hidden_authors_for(p_viewer)) END,
     'author_visibility', COALESCE((
       SELECT json_agg(json_build_object('id', pr.id, 'visibility', pr.visibility))
       FROM public.profiles pr WHERE pr.id IN (SELECT id FROM authors)), '[]'::json),
@@ -11920,6 +11971,8 @@ CREATE INDEX IF NOT EXISTS idx_search_documents_country_region ON public.search_
 CREATE INDEX IF NOT EXISTS idx_search_documents_lat ON public.search_documents USING btree (lat);
 CREATE INDEX IF NOT EXISTS idx_search_documents_owner ON public.search_documents USING btree (owner_id) WHERE (owner_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_search_documents_place_id ON public.search_documents USING btree (place_id);
+CREATE INDEX IF NOT EXISTS idx_search_documents_subtitle_trgm ON public.search_documents USING gin (subtitle extensions.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_search_documents_title_trgm ON public.search_documents USING gin (title extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_search_documents_type ON public.search_documents USING btree (entity_type);
 CREATE INDEX IF NOT EXISTS idx_search_documents_vector ON public.search_documents USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS idx_season_highlights_season ON public.season_highlights USING btree (profile_id, season);
@@ -12046,7 +12099,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (132) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (133) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -12560,6 +12613,41 @@ BEGIN
   WHERE is_read = true AND read_at < NOW() - INTERVAL '90 days';
   GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
   RETURN v_deleted_count;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_post_id uuid;
+  v_status text;
+  v_outcome text;
+  v_count integer;
+BEGIN
+  SELECT c.post_id, c.status INTO v_post_id, v_status
+  FROM public.post_comments c
+  WHERE c.id = p_comment_id;
+  IF NOT FOUND
+     OR COALESCE(v_status, 'published') <> 'published'
+     OR NOT public.post_like_allowed(p_viewer, v_post_id) THEN
+    RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+
+  DELETE FROM public.comment_likes WHERE comment_id = p_comment_id AND profile_id = p_viewer;
+  IF FOUND THEN
+    v_outcome := 'unliked';
+  ELSE
+    INSERT INTO public.comment_likes (comment_id, profile_id) VALUES (p_comment_id, p_viewer)
+    ON CONFLICT (comment_id, profile_id) DO NOTHING;
+    v_outcome := CASE WHEN FOUND THEN 'liked' ELSE 'already_liked' END;
+  END IF;
+
+  -- The trigger's ±1 is visible here (same transaction); never count the rows.
+  SELECT COALESCE(likes_count, 0) INTO v_count FROM public.post_comments WHERE id = p_comment_id;
+  RETURN jsonb_build_object('outcome', v_outcome, 'likes_count', v_count);
 END;
 $function$;
 
@@ -15529,7 +15617,7 @@ DECLARE
   -- search_token_rank parsed them per row).
   tqs      tsquery[] := ARRAY(SELECT to_tsquery('simple', t || ':*') FROM unnest(public.search_query_tokens(q)) AS t);
   per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
-  -- 279: the candidate cap per (entity_type, tier) — see the header.
+  -- 279: the candidate cap per entity_type — see 279's header.
   cap      int     := 1000;
   near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
   radius   float8  := COALESCE(p_radius_km, 50);
@@ -15567,10 +15655,12 @@ BEGIN
     FROM base b
     WHERE qn = ''
        OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
-       OR (length(qn) >= 2 AND (
-            b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'
-         OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
-         OR b.country ILIKE '%' || qn || '%'))
+       -- 290: the substring arm is title / subtitle at THREE or more characters —
+       -- the length a trigram index can serve (087's note); city / region /
+       -- country are tokens in search_vector already and a 2-character query
+       -- keeps the prefix tsquery path.
+       OR (length(qn) >= 3 AND (
+            b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'))
   ),
   -- 279: at most `cap` candidates per (entity_type, tier), chosen by the
   -- ranking's own next keys (rich, recency) — the per-row name_hits / score
@@ -15733,6 +15823,18 @@ AS $function$
         'region_code', o.region_code, 'country', o.country, 'country_code', o.country_code, 'lat', o.lat, 'lng', o.lng,
         'visibility', o.visibility, 'listing_status', o.listing_status, 'approved_at', o.approved_at
       )) FROM public.organizations o WHERE o.kind = 'league' AND o.id IN (SELECT entity_id FROM r WHERE entity_type = 'league')), '[]'::json),
+    -- 289 (the leftovers program PR 4 — Tom: blocks both ways hide the person
+    -- and their posts; a mute hides only the posts): the viewer's hidden set
+    -- (281's hidden_authors_for = muted ∪ blocked ∪ blockers) and its block-only
+    -- subset, as ids; the route applies them — athletes by `blocked` before the
+    -- quota slice, posts by `hidden`. Anonymous: both empty.
+    'blocked', COALESCE((
+      SELECT json_agg(DISTINCT x.id) FROM (
+        SELECT b.blocked_id AS id FROM public.user_blocks b WHERE p_viewer IS NOT NULL AND b.blocker_id = p_viewer
+        UNION ALL
+        SELECT c.blocker_id FROM public.user_blocks c WHERE p_viewer IS NOT NULL AND c.blocked_id = p_viewer
+      ) x), '[]'::json),
+    'hidden', CASE WHEN p_viewer IS NULL THEN '[]'::json ELSE to_json(public.hidden_authors_for(p_viewer)) END,
     'author_visibility', COALESCE((
       SELECT json_agg(json_build_object('id', pr.id, 'visibility', pr.visibility))
       FROM public.profiles pr WHERE pr.id IN (SELECT id FROM authors)), '[]'::json),
@@ -18423,6 +18525,8 @@ REVOKE EXECUTE ON FUNCTION public.check_handle_availability(input_handle text, c
 GRANT EXECUTE ON FUNCTION public.check_handle_availability(input_handle text, current_profile_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.cleanup_old_notifications() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cleanup_old_notifications() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.consent_records_forbid_mutation() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.consent_records_forbid_mutation() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.counters_recount() FROM PUBLIC, anon, authenticated, service_role;
@@ -18894,6 +18998,7 @@ COMMENT ON COLUMN public.workout_sessions.profile_hidden_at IS 'The owner hid th
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
+COMMENT ON FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid) IS 'The comment-like toggle in one call (288): the parent post''s gate (post_like_allowed, 287) + the comment published, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/comments/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.counters_recount() IS 'The accuracy rule for the three cached counters (277): corrects every row whose stored count differs from a direct count, returns how many per target. Run once by 277 and nightly by /api/cron/daily (src/lib/counters/recount-server.ts). The triggers add or subtract one.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230 + 269: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak, on-feed posts only (269); the route applies the privacy filter. Service-role only.';
 COMMENT ON FUNCTION public.feed_viewer_side(p_viewer uuid, p_author_ids uuid[], p_post_ids uuid[]) IS 'One feed page''s viewer side (281): the hidden authors, the accepted followees among the page''s authors, the viewer''s saves and likes among the page''s posts — raw ids; GET /api/posts applies the rules. service_role only.';
@@ -18916,8 +19021,8 @@ COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_se
 COMMENT ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) IS 'Several rate-limit buckets in one call (286): each key through 094''s rate_limit_hit, in array order; one row per key. Service-role only — src/lib/rate-limit.ts enforceRateLimitMany is the caller.';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
-COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type chosen by tier, rich and recency before the per-row ranking; same order among the kept rows.';
-COMMENT ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) IS 'search_all plus its decoration in one call (283): the ranked rows, the raw display rows per entity type in the route''s column order, the post authors'' visibility and the viewer''s accepted follows among the private ones — raw; GET /api/search applies every rule. json (key order kept). service_role only.';
+COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type before the per-row ranking. 290: the substring arm is title / subtitle at 3+ characters, served by trigram indexes.';
+COMMENT ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) IS 'search_all plus its decoration in one call (283; 289 adds blocked + hidden): the ranked rows, the raw display rows per entity type in the route''s column order, the post authors'' visibility and the viewer''s accepted follows among the private ones — raw; GET /api/search applies every rule. json (key order kept). service_role only.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
 COMMENT ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked people search with location tier + filters (108). Privacy is the CALLER''s job. Service-role only.';
 
@@ -19361,7 +19466,10 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (284, '284_notifications_bell_page.sql', 'rebuild-000'),
   (285, '285_favourite_sports.sql', 'rebuild-000'),
   (286, '286_rate_limit_hit_many.sql', 'rebuild-000'),
-  (287, '287_post_like_allowed.sql', 'rebuild-000')
+  (287, '287_post_like_allowed.sql', 'rebuild-000'),
+  (288, '288_comment_like_toggle.sql', 'rebuild-000'),
+  (289, '289_search_hide_blocked_muted.sql', 'rebuild-000'),
+  (290, '290_search_trigram.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19370,12 +19478,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 132 | 145 | 287
+-- Expected: 000 REBUILT | 138 | 133 | 145 | 290
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_132,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_133,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_287;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_290;
 
