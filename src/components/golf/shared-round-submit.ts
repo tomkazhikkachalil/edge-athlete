@@ -123,6 +123,16 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
                     sharedRoundDetails.wind === 'light' ? 7 :
                     sharedRoundDetails.wind === 'moderate' ? 15 :
                     sharedRoundDetails.wind === 'strong' ? 25 : undefined,
+        // Where the conditions came from (291): the Conditions step's forecast
+        // button, or the person's own typing. Only sent when something was entered.
+        conditions_source:
+          sharedRoundDetails.weather || sharedRoundDetails.temperature || sharedRoundDetails.wind
+            ? (sharedRoundDetails.conditionsSource ?? 'manual')
+            : undefined,
+        conditions_at:
+          sharedRoundDetails.conditionsSource === 'forecast' && sharedRoundDetails.conditionsAt
+            ? new Date(sharedRoundDetails.conditionsAt * 1000).toISOString()
+            : undefined,
       },
     }),
   });

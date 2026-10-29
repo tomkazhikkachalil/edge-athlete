@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const user = await requireAuth(request, { limit: 'mute' }); // 286
     const limited = await enforceRateLimit(request, 'mute', { userId: user.id });
     if (limited) return limited;
     const parsed = await parseBody(request, Body);

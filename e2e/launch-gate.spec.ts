@@ -1,8 +1,11 @@
 import { test, expect } from './helpers/test';
 import { createQaUser, deleteQaUser, mintStorageState, bypassHeaders } from './helpers/qa-user';
 
-// The launch gate (Sep 30 2026): runs only against a build made with
-// NEXT_PUBLIC_LAUNCH_GATE=1 (the flag is build-injected; CI's build is not gated).
+// The launch gate (Sep 30 2026): runs only with NEXT_PUBLIC_LAUNCH_GATE=1 in
+// this process's env — and the SERVER's (the middleware reads the flag at
+// runtime through isLaunchGateOn's env parameter, so Next inlines nothing;
+// locally: `NEXT_PUBLIC_LAUNCH_GATE=1 npm run start`, then this spec with the
+// same variable). CI's build is not gated.
 // Signed out: everything but the doors → /auth/coming-soon; the crawler
 // files forbid indexing; the sign-up API refuses. Signed in: the app.
 
@@ -12,13 +15,17 @@ test('signed out: coming soon everywhere but the doors; robots forbid; signup re
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] }, extraHTTPHeaders: bypassHeaders() });
   const page = await ctx.newPage();
   try {
+    // The gate carries the way back (Oct 28 2026): every path but the root
+    // lands on coming-soon with `?next=<the path>`, the root with none.
     for (const path of ['/', '/feed', '/u/someone', '/org/some-club', '/register']) {
       await page.goto(path);
-      await expect(page, path).toHaveURL(/\/auth\/coming-soon$/);
+      await expect(page, path).toHaveURL(path === '/' ? /\/auth\/coming-soon$/ : new RegExp(`/auth/coming-soon\\?next=${encodeURIComponent(path).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
       await expect(page.locator('[data-coming-soon]')).toBeVisible();
     }
+    // The sign-in link passes the way back on to the form.
+    await expect(page.locator('[data-coming-soon-signin]')).toHaveAttribute('href', '/?signin=1&next=%2Fregister');
     await page.locator('[data-coming-soon-signin]').click();
-    await expect(page).toHaveURL(/\/\?signin=1$/);
+    await expect(page).toHaveURL(/\/\?signin=1&next=%2Fregister$/);
     await expect(page.getByRole('heading', { name: /login to your account/i })).toBeVisible({ timeout: 15_000 });
 
     const robots = await page.request.get('/robots.txt');

@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     // The follower is ALWAYS the session user — never trust a body-supplied
     // followerId (that let anyone forge follows/unfollows as any user).
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'follow' }); // 286
     const limited = await enforceRateLimit(request, 'follow', { userId: user.id });
     if (limited) return limited;
 

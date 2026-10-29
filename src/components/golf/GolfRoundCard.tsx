@@ -7,6 +7,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useHydrated } from '@/hooks/useHydrated';
+import { readUnitPreference } from '@/lib/activities/format';
+import { formatQuantity, fromInput, unitSystemOf } from '@/lib/activities/units';
 import type { GolfRound } from '@/types/golf';
 import { coursePar } from '@/lib/sports/post-stat-highlights';
 import { classifyScore, SCORE_CELL_RING } from '@/lib/golf/scoring';
@@ -23,6 +26,8 @@ export default function GolfRoundCard({
    *  would be a dead step. */
   defaultOpenScorecard?: boolean;
 }) {
+  const hydrated = useHydrated();
+  const unitSys = hydrated ? unitSystemOf(readUnitPreference()) : 'metric';
   const [scorecardOpen, setScorecardOpen] = useState(defaultOpenScorecard);
   // What was PLAYED. round.holes is the configured {9,18} taxonomy, so a round
   // abandoned after 13 still calls itself 18. Strokes-filtered, because
@@ -123,11 +128,17 @@ export default function GolfRoundCard({
               <span className="font-semibold text-green-900 dark:text-green-100">{round.weather}</span>
             </div>
           )}
-          {round.temperature && (
+          {round.temperature != null && (
             <div className="flex items-center gap-1.5">
               <i className="fas fa-thermometer-half text-green-700 dark:text-green-300"></i>
-              <span className="font-semibold text-green-900 dark:text-green-100">{round.temperature}°F</span>
+              {/* The column is Fahrenheit; the viewer's unit decides the words (units.ts). */}
+              <span className="font-semibold text-green-900 dark:text-green-100" data-round-temperature="">
+                {formatQuantity('temp', fromInput('temp', round.temperature, 'imperial'), unitSys)}
+              </span>
             </div>
+          )}
+          {round.conditions_source === 'forecast' && (
+            <span className="text-green-800 dark:text-green-200" data-round-conditions-source="forecast">Forecast at tee-off</span>
           )}
           {round.wind && (
             <div className="flex items-center gap-1.5">

@@ -1,7 +1,8 @@
 // Supabase-backed rate limiting (migration 094). The previous in-memory Map
 // limiter was per-lambda — on Vercel that meant limit × live instances,
 // reset on every cold start — and guarded 3 routes. This one is shared
-// across instances: one atomic rate_limit_hit() RPC per check.
+// across instances: one atomic rate_limit_hit() RPC per check — or ONE
+// rate_limit_hit_many() for a write's buckets together (286).
 //
 // Usage in a route (mirrors parseBody's return-a-ready-response convention):
 //
@@ -108,33 +109,78 @@ function recordLimitHit(action: string, outcome: 'blocked' | 'would-block', acco
   });
 }
 
+/** One request's limiter answers (migration 286, the leftovers program PR 1 —
+ *  one hit per write): `requireAuth(request, { limit })` checks `write-general`
+ *  and the route's own bucket(s) in ONE `rate_limit_hit_many` call and leaves
+ *  each bucket's verdict here; the route's `enforceRateLimit(request, bucket)`
+ *  then finds it and spends no round trip. A fail-open is memoised too (null),
+ *  so a database without 286 costs one failed call, not two. */
+const limitMemo = new WeakMap<NextRequest, Map<string, NextResponse | null>>();
+const memoKey = (action: string, extraKey?: string) => `${action}:${extraKey ?? ''}`;
+
+function identifierFor(request: NextRequest, action: RateLimitAction, rule: RateLimitRule, userId?: string): string {
+  if (rule.keyBy === 'user') {
+    if (userId) return userId;
+    // Programmer error — a user-keyed action called without a user. Fall
+    // back to IP so the request is still limited rather than unlimited.
+    console.error(`[RATE-LIMIT] action "${action}" is user-keyed but no userId was passed`);
+    return getClientIp(request) ?? 'unknown';
+  }
+  return getClientIp(request) ?? 'unknown';
+}
+
+/** The verdict for one bucket's row — allowed: null; over the budget: always
+ *  on the record (the console line, throttled per action; the Sentry record
+ *  per account + route) — and a SHADOW bucket stops there: it never refuses
+ *  anyone. Otherwise the ready 429. */
+function judge(request: NextRequest, action: RateLimitAction, rule: RateLimitRule, identifier: string, row: { allowed: boolean; retry_after_seconds: number }): NextResponse | null {
+  if (row.allowed) return null;
+  const outcome = rule.shadow ? 'would-block' : 'blocked';
+  const now = Date.now();
+  logLimitHit(action, outcome, now);
+  recordLimitHit(action, outcome, rule.keyBy === 'user' ? identifier : null, routeLabel(request.method, request.nextUrl.pathname), now);
+  if (rule.shadow) return null;
+  return NextResponse.json(
+    { error: rule.message ?? 'Too many requests. Please try again later.' },
+    {
+      status: 429,
+      headers: { 'Retry-After': String(clampRetryAfter(row.retry_after_seconds)) },
+    }
+  );
+}
+
+/** Fail-open: log every time, Sentry once per FAIL_OPEN_REPORT_MS per instance, let the request through. */
+function failOpen(action: string, error: unknown): null {
+  console.error(`[RATE-LIMIT] fail-open on "${action}":`, error);
+  const { report, count } = shouldReportFailOpen(Date.now());
+  if (report) {
+    Sentry.captureMessage('rate-limit: fail-open (rate_limit_hit RPC unavailable?)', {
+      level: 'warning',
+      tags: { area: 'rate-limit' },
+      extra: { action, unlimited_since_last_report: count, error: error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error) },
+    });
+  }
+  return null;
+}
+
 /**
  * Check-and-consume one hit against the named action's budget.
  * Returns a ready 429 NextResponse when over the limit, null otherwise.
+ * When requireAuth already checked this bucket for this request (286), the
+ * memoised verdict is returned and no round trip is spent.
  */
 export async function enforceRateLimit(
   request: NextRequest,
   action: RateLimitAction,
   opts?: { userId?: string; extraKey?: string }
 ): Promise<NextResponse | null> {
+  const remembered = limitMemo.get(request)?.get(memoKey(action, opts?.extraKey));
+  if (remembered !== undefined) return remembered;
+
   // Widen to the interface: `as const` narrows away optional `message` on
   // entries that don't declare it.
   const rule: RateLimitRule = RATE_LIMITS[action];
-
-  let identifier: string;
-  if (rule.keyBy === 'user') {
-    if (opts?.userId) {
-      identifier = opts.userId;
-    } else {
-      // Programmer error — a user-keyed action called without a user. Fall
-      // back to IP so the request is still limited rather than unlimited.
-      console.error(`[RATE-LIMIT] action "${action}" is user-keyed but no userId was passed`);
-      identifier = getClientIp(request) ?? 'unknown';
-    }
-  } else {
-    identifier = getClientIp(request) ?? 'unknown';
-  }
-
+  const identifier = identifierFor(request, action, rule, opts?.userId);
   const key = buildRateLimitKey(action, identifier, opts?.extraKey);
 
   try {
@@ -147,36 +193,51 @@ export async function enforceRateLimit(
       .single();
 
     if (error) throw error;
-
-    const row = data as { allowed: boolean; retry_after_seconds: number };
-    if (row.allowed) return null;
-
-    // Over the budget: always on the record — the console line (throttled
-    // per action) and the Sentry record (per account + route) — and a SHADOW
-    // bucket stops there: it never refuses anyone.
-    const outcome = rule.shadow ? 'would-block' : 'blocked';
-    const now = Date.now();
-    logLimitHit(action, outcome, now);
-    recordLimitHit(action, outcome, rule.keyBy === 'user' ? identifier : null, routeLabel(request.method, request.nextUrl.pathname), now);
-    if (rule.shadow) return null;
-
-    return NextResponse.json(
-      { error: rule.message ?? 'Too many requests. Please try again later.' },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(clampRetryAfter(row.retry_after_seconds)) },
-      }
-    );
+    return judge(request, action, rule, identifier, data as { allowed: boolean; retry_after_seconds: number });
   } catch (error) {
-    console.error(`[RATE-LIMIT] fail-open on "${action}":`, error);
-    const { report, count } = shouldReportFailOpen(Date.now());
-    if (report) {
-      Sentry.captureMessage('rate-limit: fail-open (rate_limit_hit RPC unavailable?)', {
-        level: 'warning',
-        tags: { area: 'rate-limit' },
-        extra: { action, unlimited_since_last_report: count, error: error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error) },
-      });
+    return failOpen(action, error);
+  }
+}
+
+/**
+ * Several buckets in ONE round trip (286): `rate_limit_hit_many` walks the
+ * keys in order through 094's `rate_limit_hit`, so each bucket behaves
+ * exactly as it does alone. Every bucket's verdict is memoised for this
+ * request; the first refusal (a ready 429) is returned, null when all pass.
+ * requireAuth sends `['write-general', ...the route's buckets]`.
+ */
+export async function enforceRateLimitMany(
+  request: NextRequest,
+  actions: readonly RateLimitAction[],
+  opts?: { userId?: string }
+): Promise<NextResponse | null> {
+  const items = actions.map(action => {
+    const rule: RateLimitRule = RATE_LIMITS[action];
+    const identifier = identifierFor(request, action, rule, opts?.userId);
+    return { action, rule, identifier, key: buildRateLimitKey(action, identifier) };
+  });
+  let memo = limitMemo.get(request);
+  if (!memo) { memo = new Map(); limitMemo.set(request, memo); }
+
+  try {
+    const { data, error } = await getSupabaseAdmin().rpc('rate_limit_hit_many', {
+      p_keys: items.map(i => i.key),
+      p_max: items.map(i => i.rule.max),
+      p_window_seconds: items.map(i => i.rule.windowSeconds),
+    });
+    if (error) throw error;
+    const rows = new Map(((data ?? []) as Array<{ key: string; allowed: boolean; retry_after_seconds: number }>).map(r => [r.key, r]));
+    let first: NextResponse | null = null;
+    for (const it of items) {
+      const row = rows.get(it.key);
+      // A key the function did not answer fails open for that bucket alone.
+      const verdict = row ? judge(request, it.action, it.rule, it.identifier, row) : null;
+      memo.set(memoKey(it.action), verdict);
+      if (verdict && !first) first = verdict;
     }
-    return null;
+    return first;
+  } catch (error) {
+    for (const it of items) memo.set(memoKey(it.action), null);
+    return failOpen(actions.join('+'), error);
   }
 }

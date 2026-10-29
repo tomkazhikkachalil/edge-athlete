@@ -101,7 +101,7 @@ match against `places` (108's `backfill_places_from_text` does this for
   the previous search and logs loudly (`people-server.ts` pattern); it
   never 500s the picker.
 
-**The candidate cap (migration 279, Oct 26 2026 — hole 2b).** At 53,051 documents on staging a token every document matches (`'se'`, `'seed'`) cost 500–557 ms after 274: 50,044 rows through the per-row ranking columns. `search_all` now keeps at most **1,000 candidates per entity type** before computing `name_hits` and `score`, chosen by the ladder's own leading keys — tier, (distance for the near browse), rich, recency — as a bounded top-N per type (a LATERAL `ORDER BY … LIMIT`, a heap sort). The final order among the kept rows is the ladder, unchanged. **The trade-off, by design:** within one type with more than 1,000 matches, a row that would have ranked above a kept one only through `name_hits` (a multi-token query hitting its title with more tokens than a newer row of the same tier) or through `score` after an exact tie on rich and recency is left out — a row past the first thousand of its type. Proof: `database/tests/diagnostics/verify-279-search.sql` runs 274's body and 279's side by side at one instant — ten lists identical at 53k documents. Cost at 53k: 557 → 247 ms, 500 → 325 ms; the remaining floor is the substring arm's full scan (the rare-term case, ~180 ms) — the next lever is a trigram index for `title`/`subtitle` or a narrower substring arm (4b, not taken).
+**The candidate cap (migration 279, Oct 26 2026 — hole 2b).** At 53,051 documents on staging a token every document matches (`'se'`, `'seed'`) cost 500–557 ms after 274: 50,044 rows through the per-row ranking columns. `search_all` now keeps at most **1,000 candidates per entity type** before computing `name_hits` and `score`, chosen by the ladder's own leading keys — tier, (distance for the near browse), rich, recency — as a bounded top-N per type (a LATERAL `ORDER BY … LIMIT`, a heap sort). The final order among the kept rows is the ladder, unchanged. **The trade-off, by design:** within one type with more than 1,000 matches, a row that would have ranked above a kept one only through `name_hits` (a multi-token query hitting its title with more tokens than a newer row of the same tier) or through `score` after an exact tie on rich and recency is left out — a row past the first thousand of its type. Proof: `database/tests/diagnostics/verify-279-search.sql` runs 274's body and 279's side by side at one instant — ten lists identical at 53k documents. Cost at 53k: 557 → 247 ms, 500 → 325 ms; the remaining floor is the substring arm's full scan (the rare-term case, ~180 ms) — the next lever was a trigram index for `title`/`subtitle` with a narrower substring arm (4b) — **taken Oct 28 2026 as migration 290:** two GIN trigram indexes on `search_documents(title)` / `(subtitle)` and the substring arm narrowed to those two columns at three or more characters (city / region / country stay reachable through their `search_vector` tokens). Rare term 180 → 14 ms, `ott` 206 → 75, `kan` 197 → 65 at 53k documents; the common-prefix cases unchanged (~250 ms, the ranking's cost); `verify-290-search.sql` and the nine capture lists identical.
 
 ## Surfaces
 
@@ -152,6 +152,16 @@ updating` (no-store); the legacy path still serves a database without
 `search_all`. Pins: `src/lib/__tests__/search-decorated.test.ts` (the one
 call, the kept rules, the column lists equal to the route's and to
 `CATALOG_ROW_COLUMNS`, 279 untouched).
+
+**Blocks and mutes (migration 289, Oct 28 2026 — Tom: "blocks both ways +
+muted authors' posts").** The search call also returns the viewer's
+`blocked` (both `user_blocks` arms) and `hidden` (`hidden_authors_for`:
+muted ∪ blocked ∪ blockers); the route drops a blocked person from the
+athletes BEFORE the quota slice and a hidden author's posts from the posts.
+A muted person is still found as a person; clubs, leagues and courses are
+untouched; anonymous sees everything public, as before. `BlockedUsersList`
+is unaffected (its list is its own endpoint; its people search already
+drops blocked ids).
 
 Privacy split, deliberate: athlete documents carry `visibility`/`owner_id`
 and are filtered in-query (search_people semantics — LIMIT after privacy);

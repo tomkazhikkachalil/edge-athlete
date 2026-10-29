@@ -525,13 +525,13 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 - Everything the CDN answers is effectively unlimited for us.
 - Every request that reaches Postgres (through PostgREST, which pools) is bounded by the instance. At the staging tier that is roughly 100 simple round trips a second before p95 climbs. Collapse followed at 50 concurrent, with 20 s timeouts, and staging needed a minute to recover.
 - The hottest uncached path in production is the signed-in feed (`GET /api/posts`, `private, no-store`, per viewer, several queries plus the viewer's like and save embeds). The next are the per-viewer profile reads and the notification and message polls (paused when hidden or offline since Oct 10).
-- Every authenticated write now also makes one `rate_limit_hit` RPC: the shadow `write-general` bucket. It runs after the response, so it adds latency to no one, but it is one extra small write per write.
+- Every authenticated write also checks the shadow `write-general` bucket — INLINE in `requireAuth` since Oct 22 2026 (it ran after the response from Oct 10). Since migration 286 (Oct 28) a route that names its own bucket (`requireAuth(request, { limit: 'like' })`) has both checked in ONE `rate_limit_hit_many` round trip; a route without one still pays the single `write-general` hit.
 
 **Plan, in order of leverage:**
 1. **Know production's number.** Run the same ramp once against production read paths in a quiet window, with Tom's OK, or read Supabase's own metrics during a busy hour. Watch `pg_stat_statements` for the feed's statements: mean time × calls.
 2. **Cache what is viewer-independent at the edge.** Org sites, `/u/`, explore, standings and course facets already are. The feed's per-viewer part can't be, but its post bodies could be split from the viewer's flags (a cached page of posts plus a small per-viewer "liked/saved" call).
 3. **Compute.** The Supabase compute add-on (noted Oct 4, not pulled) is the one-click step when step 1 shows CPU or connections as the limit.
-4. **The limiter's own cost.** If writes dominate, move the shadow bucket to a sampled check (1 in N) or to an in-memory pre-filter before the RPC.
+4. **The limiter's own cost.** Taken in part on Oct 28 2026 (286): a write's buckets ride one round trip. If writes still dominate, the next steps are a sampled check (1 in N) or an in-memory pre-filter before the RPC.
 
 Front end (Core Web Training on production, signed in, a Pixel 7 profile and an iPhone; DevTools-protocol throttling):
 

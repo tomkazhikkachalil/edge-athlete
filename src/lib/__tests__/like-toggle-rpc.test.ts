@@ -16,7 +16,8 @@ describe('the like toggle is one call', () => {
     expect(route).not.toMatch(/readLikesCount/);
   });
   it('the wire contract is unchanged: the gates before the call, the four outcomes, the exact bodies', () => {
-    expect(route).toMatch(/const user = await requireAuth\(request\);\s*const limited = await enforceRateLimit\(request, 'like', \{ userId: user\.id \}\);/);
+    // 286: the like bucket rides requireAuth's round trip; the route's own check reads the memo
+    expect(route).toMatch(/const user = await requireAuth\(request, \{ limit: 'like' \}\);[^\n]*\n\s*const limited = await enforceRateLimit\(request, 'like', \{ userId: user\.id \}\);/);
     // bad id → 404 BEFORE the missing-id 400, as before 282
     expect(route.indexOf("if (postId && !isUuid(postId))")).toBeLessThan(route.indexOf("if (!postId)"));
     expect(route).toMatch(/\{ error: 'Post ID is required' \}, \{ status: 400 \}/);
@@ -29,19 +30,26 @@ describe('the like toggle is one call', () => {
   });
 });
 
-describe('migration 282', () => {
-  const m = read('database/migrations/282_post_like_toggle.sql');
-  it('a service_role-only VOLATILE INVOKER writer with the route\'s gate, remove-or-insert, and the column read', () => {
-    expect(m).toMatch(/CREATE OR REPLACE FUNCTION public\.post_like_toggle\(p_viewer uuid, p_post_id uuid\)\s*RETURNS jsonb\s*LANGUAGE plpgsql VOLATILE SECURITY INVOKER\s*SET search_path = public/);
-    expect(m).toMatch(/IF v_owner IS DISTINCT FROM p_viewer\s*AND NOT \(COALESCE\(v_post_visibility, ''\) = 'public' AND COALESCE\(v_owner_visibility, ''\) = 'public'\)/);
-    expect(m).toMatch(/f\.follower_id = p_viewer AND f\.following_id = v_owner AND f\.status = 'accepted'/);
+describe('migration 287 (the gate) over 282 (the toggle)', () => {
+  const m = read('database/migrations/287_post_like_allowed.sql');
+  it('post_like_allowed = the read gate minus blocks: owner / guardian always; else published, owner present, public+public or an accepted follow; never across a block', () => {
+    expect(m).toMatch(/CREATE OR REPLACE FUNCTION public\.post_like_allowed\(p_viewer uuid, p_post_id uuid\)\s*RETURNS boolean\s*LANGUAGE sql STABLE SECURITY INVOKER\s*SET search_path = public/);
+    expect(m).toMatch(/p\.profile_id = p_viewer\s*OR EXISTS \(SELECT 1 FROM public\.profile_access a WHERE a\.user_id = p_viewer AND a\.profile_id = p\.profile_id\)/);
+    expect(m).toMatch(/COALESCE\(p\.status, 'published'\) = 'published'\s*AND o\.departed_at IS NULL/);
+    expect(m).toMatch(/\(COALESCE\(p\.visibility, ''\) = 'public' AND COALESCE\(o\.visibility, ''\) = 'public'\)\s*OR EXISTS \(SELECT 1 FROM public\.follows f\s*WHERE f\.follower_id = p_viewer AND f\.following_id = p\.profile_id AND f\.status = 'accepted'\)/);
+    expect(m).toMatch(/NOT EXISTS \(SELECT 1 FROM public\.user_blocks b\s*WHERE \(b\.blocker_id = p_viewer AND b\.blocked_id = p\.profile_id\)\s*OR \(b\.blocker_id = p\.profile_id AND b\.blocked_id = p_viewer\)\)/);
+    expect(m).not.toMatch(/user_mutes/); // a mute never refuses a like
+  });
+  it('the toggle is 282\'s, calling the gate; service_role only; the ledger', () => {
+    expect(m).toMatch(/IF NOT public\.post_like_allowed\(p_viewer, p_post_id\) THEN\s*RETURN jsonb_build_object\('outcome', 'not_found'\);/);
     expect(m).toMatch(/DELETE FROM public\.post_likes WHERE post_id = p_post_id AND profile_id = p_viewer;\s*IF FOUND THEN\s*v_outcome := 'unliked';/);
     expect(m).toMatch(/ON CONFLICT \(post_id, profile_id\) DO NOTHING;\s*v_outcome := CASE WHEN FOUND THEN 'liked' ELSE 'already_liked' END;/);
     expect(m).toMatch(/SELECT COALESCE\(likes_count, 0\) INTO v_count FROM public\.posts WHERE id = p_post_id;/);
     expect(m).not.toMatch(/UPDATE public\.posts/);
-    expect(m).not.toMatch(/INSERT INTO public\.notifications/);
-    expect(m).toMatch(/REVOKE EXECUTE ON FUNCTION public\.post_like_toggle\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/);
-    expect(m).toMatch(/GRANT EXECUTE ON FUNCTION public\.post_like_toggle\(uuid, uuid\) TO service_role;/);
-    expect(m).toMatch(/VALUES \(282, '282_post_like_toggle\.sql'\)/);
+    for (const fn of ['post_like_allowed', 'post_like_toggle']) {
+      expect(m).toMatch(new RegExp(`REVOKE EXECUTE ON FUNCTION public\\.${fn}\\(uuid, uuid\\) FROM PUBLIC, anon, authenticated;`));
+      expect(m).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\(uuid, uuid\\) TO service_role;`));
+    }
+    expect(m).toMatch(/VALUES \(287, '287_post_like_allowed\.sql'\)/);
   });
 });

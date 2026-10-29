@@ -18,12 +18,13 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `activities.md` | Activities: imported, connected, live-recorded; set up before Start and the per-type layout table (Programs E and F, Oct 20 2026) |
 | `install-and-push.md` | Download the app, push notifications, the icon badge |
 | `feed-and-posts.md` | Feed and posts: likes and impact, drafts, profile cover, posting audience, the feed switch; the feed's viewer side is one call (Oct 27 2026, mig 281); the like toggle is one call (mig 282); search's decoration rides the search call (mig 283, docs/SEARCH.md); the notifications page is one call (mig 284, `install-and-push.md`) |
-| `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep |
+| `golf-course-data.md` | Golf course data: near me, elevation, hole detail, course flow, the map sweep; the weather at the course for a live round (Open-Meteo, Oct 29 2026 — the rule is in `golf-round-setup.md`'s Conditions step) |
 | `workouts-and-sessions.md` | Workouts and sessions: capture, the resume pill, the workout screen; Training's Start chooser, one bubble per exercise, a clip belongs to the exercise; the rest timer's phases, the total beside the clock, the picker panel, rest is personal (Oct 22 2026); the stopwatch's lead-in, count-down, bell, rest interplay and longest-hold records (Oct 23 2026) |
 | `profile.md` | The profile: sports and pins (263), photos, Training — the Oct 14 2026 quick fixes; the sport setup as steps (51) |
 | `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026); one live signal for the list, presence only while the dock is in use (Oct 25 2026) |
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
+| `golf-round-setup.md` | The golf round setup as steps (Oct 28 2026): StepFlow over `round-steps.ts`, the list follows the first step, only the course step refuses, Near me on entry only when already granted, the date locked while live, Scores for already played only |
 
 ## Convention number → file
 
@@ -74,3 +75,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience (amended Oct 21 2026: a workout's Finish records, Post or Done decides) | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
 | 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |
 | 52 | The profile is a profile, not a settings form: the owner sees the visitor's view plus ONE Edit Profile control; every field is edited in Edit Profile, Save and Close both return to the profile | `profile.md` |
+| 53 | A golf round is set up in steps; every input the form had keeps its place; the frame is StepFlow and the list follows the first step | `golf-round-setup.md` |

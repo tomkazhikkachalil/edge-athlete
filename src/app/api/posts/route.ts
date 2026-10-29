@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'post-create' }); // 286
     const limited = await enforceRateLimit(request, 'post-create', { userId: user.id });
     if (limited) return limited;
 

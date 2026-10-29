@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   try {
     // The liking profile is ALWAYS the session user — never a body-supplied
     // profileId (that let anyone forge/remove likes as any user).
-    const user = await requireAuth(request);
+    const user = await requireAuth(request, { limit: 'like' }); // 286: one round trip for both buckets
     const limited = await enforceRateLimit(request, 'like', { userId: user.id });
     if (limited) return limited;
 

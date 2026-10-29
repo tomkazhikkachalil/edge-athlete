@@ -812,6 +812,126 @@ persist and a save answers 500 → rollback). Reversal: `ALTER TABLE
 public.profiles DROP COLUMN favourite_sports`. Expected row on both: `285
 APPLIED | 1 | 285`.
 
+## One limiter trip per write (migration 286, Oct 28 2026 — the leftovers program PR 1)
+
+Every authenticated write paid two `rate_limit_hit` round trips —
+`requireAuth`'s inline `write-general` (shadow) and the route's own bucket
+(docs/SCALE_AUDIT.md §7: the like toggle's "4" was auth, limiter, limiter,
+the toggle). 286 adds `rate_limit_hit_many(p_keys text[], p_max integer[],
+p_window_seconds integer[]) RETURNS TABLE(key, allowed, retry_after_seconds)`
+(`LANGUAGE plpgsql SECURITY INVOKER`, `search_path = public`, EXECUTE for
+service_role only): it walks the keys in order through 094's
+`rate_limit_hit` itself — the same atomic fixed-window upsert, the same 1 %
+GC, no punishment extension — one row per key, so a bucket behaves exactly
+as it does alone. The caller: `requireAuth(request, { limit: '<bucket>' })`
+(and `requireActiveWriter`) sends `['write-general', bucket]` in ONE call
+and memoises each verdict for the request; the route's existing
+`enforceRateLimit(request, bucket)` then returns the memo and spends
+nothing. The 429 body, `Retry-After`, the shadow would-block record and the
+fail-open rule are unchanged (`src/lib/__tests__/rate-limit-one-hit.test.ts`
+proves each with a mocked RPC). Deploy order: MIGRATION FIRST (a pure
+addition; a route ahead of it fails OPEN once per request, as the limiter
+always has). Reversal: DROP FUNCTION — `rate_limit_hit` stays for every
+single-key caller. Expected row on both: `286 APPLIED | 1 | true | 286`.
+
+## A like follows the read gate, minus blocks (migration 287, Oct 28 2026 — the leftovers program PR 2)
+
+282's like gate let anyone who could see the author like a post that was a
+draft, hidden by a moderator, by a departed account, or across a block
+(the trip-count PR 3 finding; Tom's decision Oct 28: "same as reading,
+minus blocks"). 287 adds `post_like_allowed(p_viewer uuid, p_post_id uuid)
+RETURNS boolean` (`LANGUAGE sql STABLE SECURITY INVOKER`, `search_path =
+public`, EXECUTE for service_role only): the owner or a guardian (a
+`profile_access` row on the owner) always; otherwise the post is PUBLISHED
+(`COALESCE(status, 'published')`), the owner has not departed, and (post
+public AND owner public) or an ACCEPTED follow of the owner; and, for anyone
+but the owner, no `user_blocks` row in either direction — `canReadPost`
+(`src/lib/posts/read-gate.ts`) plus the block arm. Mutes never refuse a like.
+`post_like_toggle` is re-declared to call it (the toggle — remove-or-insert,
+the trigger-written count — unchanged); a refusal is still `not_found` → the
+route's 404, so ids cannot be probed. The route is untouched. Deploy order:
+MIGRATION FIRST (CREATE OR REPLACE). Reversal: re-run 282's toggle and DROP
+`post_like_allowed`. Expected row on both: `287 APPLIED | 2 | true | 287`.
+
+## The comment like gets a gate, in one call (migration 288, Oct 28 2026 — the leftovers program PR 3)
+
+`POST /api/comments/like` had NO visibility gate (the authz allowlist's
+"post visibility checked" was not true): anyone signed in could like a
+comment on a draft, a hidden post, a private stranger's post or across a
+block, in four round trips. 288 adds `comment_like_toggle(p_viewer uuid,
+p_comment_id uuid) RETURNS jsonb` (`LANGUAGE plpgsql VOLATILE SECURITY
+INVOKER`, `search_path = public`, EXECUTE for service_role only): the
+comment must be published and its parent post must pass
+`post_like_allowed` (287 — the read gate minus blocks), then
+remove-or-insert on `comment_likes` (277's ±1 triggers and 190's
+`notify_comment_like` fire as they did for the route's own write), then
+the trigger-written `post_comments.likes_count` read in the same
+transaction. The route maps `liked` / `already_liked` → `{ isLiked: true,
+likes_count }`, `unliked` → `{ isLiked: false, … }`, `not_found` → 404
+`Comment not found` (a missing comment used to be a 500 from the FK), and
+moves to `requireAuth(request, { limit: 'like' })` — write-general
+coverage, one limiter round trip (286). Deploy order: MIGRATION FIRST (a
+pure addition; the route answers 503 `Like service updating`, no-store,
+until it exists). Reversal: DROP FUNCTION. Expected row on both: `288
+APPLIED | 1 | true | 288`.
+
+## Search hides blocked people and muted authors' posts (migration 289, Oct 28 2026 — the leftovers program PR 4)
+
+Search applied no block or mute filter (the trip-count PR 4 finding; Tom's
+decision Oct 28: "blocks both ways + muted authors' posts"). 289
+re-declares `search_all_decorated` (283) with the same body plus two keys:
+`blocked` — the viewer's `user_blocks` arms both ways, as ids — and
+`hidden` — `hidden_authors_for(viewer)` (281: muted ∪ blocked ∪ blockers);
+both `[]` for the anonymous viewer. The route applies them: an athlete in
+`blocked` leaves the list BEFORE the quota slice (a blocked person never
+consumes a slot); a post whose author is in `hidden` leaves the posts (the
+feed's rule). A muted person is still found as a person; clubs, leagues and
+courses are untouched. The wrapper defaults the keys (`?? []`), so a
+database still on 283 answers as before. Deploy order: MIGRATION FIRST
+(either order is safe; first keeps the rule exact from the first request).
+Reversal: re-run 283. Expected row on both: `289 APPLIED | 1 | true | 289`.
+
+## Search lever 4b: trigram indexes serve the substring arm (migration 290, Oct 28 2026 — the leftovers program PR 6)
+
+After 279 the floor of `search_all` was the substring arm's full scan —
+five `ILIKE '%q%'` columns over every document (a rare term ~180 ms at 53k
+documents). `pg_trgm` is installed (`extensions`) but `search_documents` had
+no trigram index. 290 adds two GIN trigram indexes (`title`, `subtitle`) and
+re-declares `search_all` (274/279's body verbatim, same signature, one
+overload) with ONE change: the substring arm is title / subtitle at THREE
+or more characters — the length a trigram index serves (087's note); city,
+region and country are already tokens in `search_vector`, and a
+two-character query keeps the prefix tsquery path. Trade-off, by design: a
+mid-word substring of a city / region / country and a two-character
+mid-word title substring leave the substring arm (`verify-290-search.sql`
+runs 279 and 290 side by side; the nine capture lists identical). Measured
+on staging (53k documents, warm): rare term 180 → 14 ms, `ott` 206 → 75,
+`kan` 197 → 65; the common-prefix cases (`seed`, `se`) unchanged at
+~250 ms — they are the ranking's cost, not the arm's. Plain CREATE INDEX
+inline (255 / 278's reasoning). No code change. Reversal: re-run 279's body
+and DROP the two indexes. Expected row on both: `290 APPLIED | 2 | 1 | true
+| 290`.
+
+## Where a round's conditions came from (migration 291, Oct 29 2026 — weather at the course PR 2)
+
+Tom: *"it needs to be stamped with the golf round, only make this as an
+option for a live round."* PR 1 fills the Conditions step from Open-Meteo at
+the course and the values ride the existing columns
+(`golf_scorecard_data.weather_conditions / temperature / wind_speed` at Go
+Live). What the record could not say is whether the person typed them or the
+forecast did. 291 adds two nullable columns to `golf_scorecard_data` AND
+`golf_rounds`: `conditions_source` (`manual` | `forecast`, CHECK; NULL = unknown,
+read as manual) and `conditions_at` (the forecast's observation time, NULL for
+manual). Written ONLY from the round create payload (`shared-round-submit.ts`
+→ `POST /api/group-posts`, the two words or null) and copied to the finished
+round by `mirrorCompletedRound` — which, with this PR, also copies
+`weather_conditions / temperature / wind_speed` into `golf_rounds.weather /
+temperature / wind` (the wind as its band): a finished live round never
+carried its conditions before. No new table, so no new grants. Deploy order:
+MIGRATION FIRST on both databases (the writers send the columns; a POST before
+the column answers 500 → rollback). Reversal: the two `DROP COLUMN` pairs in
+the file's header. Expected row on both: `291 APPLIED | 4 | 291`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

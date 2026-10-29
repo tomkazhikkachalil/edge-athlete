@@ -63,6 +63,7 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'push/config':
     'phone notifications (248, Oct 2026): whether this deployment can send them and the VAPID PUBLIC key a browser subscribes against — public by design (every subscribing browser holds it); no user data, no-store',
   places: 'geo autocomplete over public place data',
+  weather: 'the current conditions at a 2-decimal coordinate cell (Oct 29 2026): viewer-independent by construction — no auth, no cookie read, no Vary — CDN-cached 10 min per cell, an IP bucket and a provider day budget in front of the free host; the body says nothing about who asked',
   'media/o/[token]':
     'speed round 2 (Oct 2026): the media proxy\'s optimizable PUBLIC form — a re-export of media/[token]\'s GET; the gate (token verify, live re-authorization) lives in the parent handler',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
@@ -124,8 +125,8 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'leagues/[id]/members': 'org-role system (league managers), not profile roles',
   'leagues/[id]/owners': 'org-role system (owner-only minting; DELETE is self-scoped)',
   'leagues/[id]/roster': 'org-role system (league managers); supervised flag-gated (0.10) + guardian acting-for via requireProfileRole inside',
-  'comments/like': 'like row keyed to session user; post visibility checked',
-  'posts/like': 'like row keyed to session user; post visibility checked inside post_like_toggle (282)',
+  'comments/like': 'like row keyed to session user; the parent post\'s like gate inside comment_like_toggle (288 → post_like_allowed 287)',
+  'posts/like': 'like row keyed to session user; the read gate minus blocks inside post_like_toggle (282, gate 287)',
   'follow/stats': 'public counts; visibility handled in query',
   'golf/rounds': 'reads/writes scoped to session user in query',
   'golf/stats': 'visibility-filtered read',

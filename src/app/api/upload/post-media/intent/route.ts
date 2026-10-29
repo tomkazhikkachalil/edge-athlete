@@ -14,7 +14,7 @@ import { reportRouteError } from '@/lib/observability/report';
 // Vercel's 4.5 MB request cap no longer decides what a phone can post.
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 

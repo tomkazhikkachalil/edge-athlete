@@ -15,7 +15,7 @@ export async function POST(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'message-send' }); // 286
     const limited = await enforceRateLimit(request, 'message-send', { userId: user.id });
     if (limited) return limited;
 

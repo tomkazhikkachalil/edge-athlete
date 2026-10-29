@@ -184,6 +184,9 @@ export interface GolfScorecardData {
   weather_conditions: string | null;
   temperature: number | null;
   wind_speed: number | null;
+  /** Where the conditions came from (291): 'forecast' = the Conditions step's button, live rounds only; null reads as manual. */
+  conditions_source?: 'manual' | 'forecast' | null;
+  conditions_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -274,6 +277,9 @@ export interface CreateGolfScorecardRequest {
   weather_conditions?: string;
   temperature?: number;
   wind_speed?: number;
+  conditions_source?: 'manual' | 'forecast';
+  /** ISO time of the forecast's observation; only with conditions_source = 'forecast'. */
+  conditions_at?: string;
 }
 
 // Add Golf Scores Request

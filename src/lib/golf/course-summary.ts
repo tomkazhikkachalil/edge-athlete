@@ -53,6 +53,19 @@ export function courseSummary(
   return { holeCount, par, tees };
 }
 
+/** The tee as a choice in the round's tee select (the golf steps, Oct 29
+ *  2026 — Tom's spec: "colour, yardage, and any other existing tee details"):
+ *  "White · 6,412 yds · 71.2 / 128" — each part only when the course knows
+ *  it, so a tee with a name alone reads as its name, exactly as before. */
+export function teeChoiceLabel(t: TeeTotal): string {
+  const parts: string[] = [t.label];
+  if (t.yards !== null) parts.push(`${t.yards.toLocaleString('en-US')} yds`);
+  if (t.rating !== null && t.slope !== null) parts.push(`${t.rating} / ${t.slope}`);
+  else if (t.rating !== null) parts.push(`${t.rating} rating`);
+  else if (t.slope !== null) parts.push(`slope ${t.slope}`);
+  return parts.join(' · ');
+}
+
 export type MappingGap = 'no-hole-data' | 'no-yardage-for-tee' | 'no-map-lines' | 'greens-only' | 'pick-a-nine';
 
 /** What is missing, each named once. `geometry` undefined = not asked yet

@@ -18,7 +18,7 @@ describe('the network user is taken where it must be', () => {
   it('the write gate passes fresh: true; the admin and moderator gates read the console cookie only (B3, Oct 19 2026)', () => {
     const src = read('src/lib/auth-server.ts');
     const body = src.slice(src.indexOf('export async function requireActiveWriter('));
-    expect(body.slice(0, body.indexOf('\n}'))).toMatch(/requireAuth\(request, \{ fresh: true \}\)/);
+    expect(body.slice(0, body.indexOf('\n}'))).toMatch(/requireAuth\(request, \{ fresh: true(, limit: opts\.limit)? \}\)/);
     for (const fn of ['requireAdmin', 'requireModerator']) {
       const gate = src.slice(src.indexOf(`export async function ${fn}(`));
       const call = gate.slice(0, gate.indexOf('\n}'));
@@ -29,7 +29,7 @@ describe('the network user is taken where it must be', () => {
 
   it('the two account-field routes pass fresh: true', () => {
     for (const rel of ['src/app/api/auth/complete-profile/route.ts', 'src/app/api/invites/[token]/claim/route.ts']) {
-      expect(read(rel), rel).toMatch(/requireAuth\(request, \{ fresh: true \}\)/);
+      expect(read(rel), rel).toMatch(/requireAuth\(request, \{ fresh: true(, limit: opts\.limit)? \}\)/);
     }
   });
 

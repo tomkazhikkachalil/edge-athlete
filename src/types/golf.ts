@@ -49,6 +49,9 @@ export interface GolfRound {
   weather?: string;
   temperature?: number;
   wind?: string;
+  /** Where the conditions came from (291): forecast = Open-Meteo at the course at tee-off; null reads as manual. */
+  conditions_source?: 'manual' | 'forecast' | null;
+  conditions_at?: string | null;
   course_rating?: number;
   slope_rating?: number;
   golf_holes?: GolfHole[];

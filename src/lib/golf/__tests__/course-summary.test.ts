@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { courseSummary, mappingGaps } from '../course-summary';
+import { courseSummary, mappingGaps, teeChoiceLabel } from '../course-summary';
 
 // M3: the summary card's two pure rules.
 
@@ -46,5 +46,19 @@ describe('mappingGaps — greens-only (PR 3)', () => {
   it('drawn greens with no lines is the softer gap, not "no map lines"', () => {
     expect(mappingGaps({ holes, teeInPlay: 'white', geometry: null, greensOnly: true })).toEqual(['greens-only']);
     expect(mappingGaps({ holes, teeInPlay: 'white', geometry: [], greensOnly: false })).toEqual(['no-map-lines']);
+  });
+});
+
+// The golf steps (Oct 29 2026): the tee select names each tee with what the
+// course knows — yardage, rating / slope — and nothing it does not.
+describe('teeChoiceLabel — the tee as a choice', () => {
+  it('name · yards · rating / slope when the course knows all three', () => {
+    expect(teeChoiceLabel({ key: 'white', label: 'White', yards: 6412, rating: 71.2, slope: 128 })).toBe('White · 6,412 yds · 71.2 / 128');
+  });
+  it('drops what is unknown: a name alone stays a name', () => {
+    expect(teeChoiceLabel({ key: 'blue', label: 'Blue', yards: null, rating: null, slope: null })).toBe('Blue');
+    expect(teeChoiceLabel({ key: 'blue', label: 'Blue', yards: 6800, rating: null, slope: null })).toBe('Blue · 6,800 yds');
+    expect(teeChoiceLabel({ key: 'blue', label: 'Blue', yards: null, rating: 72.9, slope: null })).toBe('Blue · 72.9 rating');
+    expect(teeChoiceLabel({ key: 'blue', label: 'Blue', yards: null, rating: null, slope: 131 })).toBe('Blue · slope 131');
   });
 });
