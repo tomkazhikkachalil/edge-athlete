@@ -71,6 +71,8 @@ export async function GET(
           weather,
           temperature,
           wind,
+          conditions_source,
+          conditions_at,
           course_rating,
           slope_rating,
           golf_holes (

@@ -390,6 +390,13 @@ export async function POST(request: NextRequest) {
           weather_conditions: golf_data.weather_conditions ?? null,
           temperature: golf_data.temperature ?? null,
           wind_speed: golf_data.wind_speed ?? null,
+          // 291: where the conditions came from — only the two words, or null.
+          conditions_source:
+            golf_data.conditions_source === 'forecast' || golf_data.conditions_source === 'manual' ? golf_data.conditions_source : null,
+          conditions_at:
+            golf_data.conditions_source === 'forecast' && typeof golf_data.conditions_at === 'string' && !Number.isNaN(Date.parse(golf_data.conditions_at))
+              ? new Date(golf_data.conditions_at).toISOString()
+              : null,
           course_composition: sanitizedComposition,
         });
 

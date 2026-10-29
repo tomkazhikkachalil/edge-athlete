@@ -912,6 +912,26 @@ inline (255 / 278's reasoning). No code change. Reversal: re-run 279's body
 and DROP the two indexes. Expected row on both: `290 APPLIED | 2 | 1 | true
 | 290`.
 
+## Where a round's conditions came from (migration 291, Oct 29 2026 — weather at the course PR 2)
+
+Tom: *"it needs to be stamped with the golf round, only make this as an
+option for a live round."* PR 1 fills the Conditions step from Open-Meteo at
+the course and the values ride the existing columns
+(`golf_scorecard_data.weather_conditions / temperature / wind_speed` at Go
+Live). What the record could not say is whether the person typed them or the
+forecast did. 291 adds two nullable columns to `golf_scorecard_data` AND
+`golf_rounds`: `conditions_source` (`manual` | `forecast`, CHECK; NULL = unknown,
+read as manual) and `conditions_at` (the forecast's observation time, NULL for
+manual). Written ONLY from the round create payload (`shared-round-submit.ts`
+→ `POST /api/group-posts`, the two words or null) and copied to the finished
+round by `mirrorCompletedRound` — which, with this PR, also copies
+`weather_conditions / temperature / wind_speed` into `golf_rounds.weather /
+temperature / wind` (the wind as its band): a finished live round never
+carried its conditions before. No new table, so no new grants. Deploy order:
+MIGRATION FIRST on both databases (the writers send the columns; a POST before
+the column answers 500 → rollback). Reversal: the two `DROP COLUMN` pairs in
+the file's header. Expected row on both: `291 APPLIED | 4 | 291`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

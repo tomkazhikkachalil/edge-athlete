@@ -4,6 +4,9 @@ import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { backOr } from '@/lib/nav-back';
 import { COPY } from '@/lib/copy';
 import { useEffect, useState } from 'react';
+import { useHydrated } from '@/hooks/useHydrated';
+import { readUnitPreference } from '@/lib/activities/format';
+import { formatQuantity, fromInput, unitSystemOf } from '@/lib/activities/units';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -42,6 +45,8 @@ interface GolfRound {
   weather: string | null;
   temperature: number | null;
   wind: string | null;
+  conditions_source?: 'manual' | 'forecast' | null;
+  conditions_at?: string | null;
   course_rating: number | null;
   slope_rating: number | null;
   notes: string | null;
@@ -63,6 +68,8 @@ interface EditableHole {
 }
 
 export default function GolfRoundDetailPage() {
+  const hydrated = useHydrated();
+  const unitSys = hydrated ? unitSystemOf(readUnitPreference()) : 'metric';
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -301,7 +308,12 @@ export default function GolfRoundDetailPage() {
   const firLabel = trackedStatLabel(fairwayEligible.map(h => h.fairway_hit));
   const girLabel = trackedStatLabel(holes.map(h => h.green_in_regulation));
   const totalPutts = round.total_putts ?? holes.reduce((sum, h) => sum + (h.putts || 0), 0);
-  const conditions = [round.weather, round.temperature != null ? `${round.temperature}°` : null, round.wind]
+  const conditions = [
+    round.weather,
+    round.temperature != null ? formatQuantity('temp', fromInput('temp', round.temperature, 'imperial'), unitSys) : null,
+    round.wind,
+    round.conditions_source === 'forecast' ? 'Forecast at tee-off' : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 

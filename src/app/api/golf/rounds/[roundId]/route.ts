@@ -31,7 +31,7 @@ export async function GET(
       .select(`
         id, profile_id, date, course, course_location, tee, holes, round_type,
         par, gross_score, total_putts, fir_percentage, gir_percentage,
-        weather, temperature, wind, course_rating, slope_rating, notes,
+        weather, temperature, wind, conditions_source, conditions_at, course_rating, slope_rating, notes,
         is_complete, created_at, profile_hidden_at,
         course_info:golf_courses (
           id, name, city, region, lat, lng, description, description_attribution,
@@ -177,7 +177,7 @@ export async function PATCH(
         .select(`
           id, profile_id, date, course, course_location, tee, holes, round_type,
           par, gross_score, total_putts, fir_percentage, gir_percentage,
-          weather, temperature, wind, course_rating, slope_rating, notes,
+          weather, temperature, wind, conditions_source, conditions_at, course_rating, slope_rating, notes,
           is_complete, created_at,
           golf_holes (
             hole_number, par, strokes, putts, fairway_hit,
@@ -251,7 +251,7 @@ export async function PATCH(
       .select(`
         id, profile_id, date, course, course_location, tee, holes, round_type,
         par, gross_score, total_putts, fir_percentage, gir_percentage,
-        weather, temperature, wind, course_rating, slope_rating, notes,
+        weather, temperature, wind, conditions_source, conditions_at, course_rating, slope_rating, notes,
         is_complete, created_at,
         course_info:golf_courses (
           id, name, city, region, lat, lng, description, description_attribution,
