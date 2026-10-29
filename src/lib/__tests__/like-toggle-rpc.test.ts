@@ -16,7 +16,8 @@ describe('the like toggle is one call', () => {
     expect(route).not.toMatch(/readLikesCount/);
   });
   it('the wire contract is unchanged: the gates before the call, the four outcomes, the exact bodies', () => {
-    expect(route).toMatch(/const user = await requireAuth\(request\);\s*const limited = await enforceRateLimit\(request, 'like', \{ userId: user\.id \}\);/);
+    // 286: the like bucket rides requireAuth's round trip; the route's own check reads the memo
+    expect(route).toMatch(/const user = await requireAuth\(request, \{ limit: 'like' \}\);[^\n]*\n\s*const limited = await enforceRateLimit\(request, 'like', \{ userId: user\.id \}\);/);
     // bad id → 404 BEFORE the missing-id 400, as before 282
     expect(route.indexOf("if (postId && !isUuid(postId))")).toBeLessThan(route.indexOf("if (!postId)"));
     expect(route).toMatch(/\{ error: 'Post ID is required' \}, \{ status: 400 \}/);

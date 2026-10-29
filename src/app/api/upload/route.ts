@@ -22,7 +22,7 @@ const ALLOWED_VIDEO_TYPES: Record<string, string> = {
 export async function POST(request: NextRequest) {
   try {
     // Auth required — anonymous uploads were a storage/cost abuse vector.
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 

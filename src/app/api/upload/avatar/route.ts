@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Auth required — the avatar is always written to the session user's
     // profile, never a body-supplied userId (that let anyone overwrite any
     // user's avatar).
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
     let body: { targetProfileId?: unknown } = {};

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 
