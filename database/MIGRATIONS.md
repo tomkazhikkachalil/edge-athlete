@@ -891,6 +891,27 @@ database still on 283 answers as before. Deploy order: MIGRATION FIRST
 (either order is safe; first keeps the rule exact from the first request).
 Reversal: re-run 283. Expected row on both: `289 APPLIED | 1 | true | 289`.
 
+## Search lever 4b: trigram indexes serve the substring arm (migration 290, Oct 28 2026 — the leftovers program PR 6)
+
+After 279 the floor of `search_all` was the substring arm's full scan —
+five `ILIKE '%q%'` columns over every document (a rare term ~180 ms at 53k
+documents). `pg_trgm` is installed (`extensions`) but `search_documents` had
+no trigram index. 290 adds two GIN trigram indexes (`title`, `subtitle`) and
+re-declares `search_all` (274/279's body verbatim, same signature, one
+overload) with ONE change: the substring arm is title / subtitle at THREE
+or more characters — the length a trigram index serves (087's note); city,
+region and country are already tokens in `search_vector`, and a
+two-character query keeps the prefix tsquery path. Trade-off, by design: a
+mid-word substring of a city / region / country and a two-character
+mid-word title substring leave the substring arm (`verify-290-search.sql`
+runs 279 and 290 side by side; the nine capture lists identical). Measured
+on staging (53k documents, warm): rare term 180 → 14 ms, `ott` 206 → 75,
+`kan` 197 → 65; the common-prefix cases (`seed`, `se`) unchanged at
+~250 ms — they are the ranking's cost, not the arm's. Plain CREATE INDEX
+inline (255 / 278's reasoning). No code change. Reversal: re-run 279's body
+and DROP the two indexes. Expected row on both: `290 APPLIED | 2 | 1 | true
+| 290`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
