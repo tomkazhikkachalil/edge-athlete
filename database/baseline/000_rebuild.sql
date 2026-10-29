@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-29T01:57:44.071326+00:00 from server 17.6 by
+-- Generated 2026-10-29T11:37:24.017361+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 290.
+-- public.schema_dump() (migration 227). Ledger head at generation: 291.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5707,7 +5707,9 @@ CREATE TABLE IF NOT EXISTS public.golf_rounds (
   round_type text DEFAULT 'outdoor'::text,
   group_post_id uuid,
   course_id uuid,
-  profile_hidden_at timestamp with time zone
+  profile_hidden_at timestamp with time zone,
+  conditions_source text,
+  conditions_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_scorecard_data (
@@ -5727,7 +5729,9 @@ CREATE TABLE IF NOT EXISTS public.golf_scorecard_data (
   updated_at timestamp with time zone DEFAULT now(),
   game_format text DEFAULT 'stroke'::text NOT NULL,
   hole_data jsonb,
-  course_composition jsonb
+  course_composition jsonb,
+  conditions_source text,
+  conditions_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.group_post_media (
@@ -8906,6 +8910,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_conditions_source_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
+    ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_conditions_source_check CHECK (((conditions_source IS NULL) OR (conditions_source = ANY (ARRAY['manual'::text, 'forecast'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_fir_percentage_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
     ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_fir_percentage_check CHECK (((fir_percentage >= (0)::numeric) AND (fir_percentage <= (100)::numeric)));
   END IF;
@@ -8918,6 +8927,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_round_type_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
     ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_round_type_check CHECK ((round_type = ANY (ARRAY['outdoor'::text, 'indoor'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_scorecard_data_conditions_source_check' AND conrelid = 'public.golf_scorecard_data'::regclass) THEN
+    ALTER TABLE public.golf_scorecard_data ADD CONSTRAINT golf_scorecard_data_conditions_source_check CHECK (((conditions_source IS NULL) OR (conditions_source = ANY (ARRAY['manual'::text, 'forecast'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -18820,11 +18834,15 @@ COMMENT ON COLUMN public.golf_rounds.slope_rating IS 'USGA Slope Rating (relativ
 COMMENT ON COLUMN public.golf_rounds.round_type IS 'Type of round: outdoor (default) or indoor (simulator/range)';
 COMMENT ON COLUMN public.golf_rounds.group_post_id IS 'Set on rounds mirrored from a completed group round (one per participant). NULL for batch-entered solo rounds.';
 COMMENT ON COLUMN public.golf_rounds.profile_hidden_at IS 'Hidden from the owner''s profile (241). Still counts: handicap, WHS, leaderboards, the dataset.';
+COMMENT ON COLUMN public.golf_rounds.conditions_source IS 'Where weather / temperature / wind came from (291), copied from the scorecard by mirrorCompletedRound: manual | forecast; NULL = unknown, read as manual.';
+COMMENT ON COLUMN public.golf_rounds.conditions_at IS 'The forecast''s observation time when conditions_source = forecast (291); NULL otherwise.';
 COMMENT ON TABLE public.golf_scorecard_data IS 'Golf-specific data for group posts of type golf_round';
 COMMENT ON COLUMN public.golf_scorecard_data.round_type IS 'outdoor (on course) or indoor (simulator/range)';
 COMMENT ON COLUMN public.golf_scorecard_data.holes_played IS 'Number of holes played (supports any count 1-18)';
 COMMENT ON COLUMN public.golf_scorecard_data.game_format IS 'Scoring format: stroke (default), stableford (points), match (head-to-head)';
 COMMENT ON COLUMN public.golf_scorecard_data.hole_data IS 'Per-hole course data: [{"hole":1,"par":4,"yardage":390}, …]. Source of real pars for group rounds.';
+COMMENT ON COLUMN public.golf_scorecard_data.conditions_source IS 'Where weather_conditions / temperature / wind_speed came from (291): manual = typed, forecast = Open-Meteo at the course at tee-off (the Conditions step''s button, live rounds only). NULL = unknown, read as manual.';
+COMMENT ON COLUMN public.golf_scorecard_data.conditions_at IS 'The forecast''s observation time when conditions_source = forecast (291); NULL otherwise.';
 COMMENT ON TABLE public.group_post_media IS 'Shared media gallery for group posts, contributed by multiple participants';
 COMMENT ON COLUMN public.group_post_media.thumbnail_url IS 'Poster frame for videos (captured client-side at export). NULL for images.';
 COMMENT ON COLUMN public.group_post_media.segment_number IS 'Which slice of the event this media belongs to (hole/inning/quarter/set/lap). NULL = event-level media. Bounds enforced per-sport in segment-schemas.ts, not here.';
@@ -19478,12 +19496,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 133 | 145 | 290
+-- Expected: 000 REBUILT | 138 | 133 | 145 | 291
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_133,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_290;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_291;
 
