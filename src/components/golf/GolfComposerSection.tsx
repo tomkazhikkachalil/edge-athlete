@@ -43,7 +43,12 @@ import { formatPlace } from '@/lib/geo/regions';
 import StepFlow from '@/components/StepFlow';
 import RoundTypeStep from '@/components/golf/round-steps/RoundTypeStep';
 import FormatStep, { gameFormatLabel } from '@/components/golf/round-steps/FormatStep';
-import ConditionsStep, { weatherLabel, windLabel } from '@/components/golf/round-steps/ConditionsStep';
+import ConditionsStep, { weatherLabel, windLabel, type ForecastFilled } from '@/components/golf/round-steps/ConditionsStep';
+import { loadWeather } from '@/lib/weather/weather-client';
+import { golfConditionOf, golfTempF, golfWindBandOf, wmoLabel } from '@/lib/weather/weather';
+import type { WeatherStatus } from '@/hooks/useWeather';
+import { readUnitPreference } from '@/lib/activities/format';
+import { formatQuantity, fromInput, unitSystemOf } from '@/lib/activities/units';
 import {
   FIRST_ROUND_STEP,
   roundBusyLabel,
@@ -75,6 +80,12 @@ export interface GolfSharedRoundDetails {
   weather: string;
   temperature: string;
   wind: string;
+  /** Where the conditions came from (Oct 29 2026): 'forecast' when the
+   *  Conditions step's button filled them from Open-Meteo at the course;
+   *  'manual' once a person types. Absent = never asked. */
+  conditionsSource?: 'manual' | 'forecast';
+  /** The forecast's observation time (epoch seconds) when it was a forecast. */
+  conditionsAt?: number | null;
   /** Course rating/slope for handicap differentials — auto-filled from a
    *  catalog course's selected tee, manually enterable for custom courses.
    *  Strings because they are input values; submit parses. */
@@ -232,6 +243,38 @@ export default function GolfComposerSection({
   const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
+
+  // Weather at the course (Oct 29 2026): the Conditions step's button asks
+  // for the COURSE's cell on a TAP (never on entry) and fills the three
+  // fields; a live round only — an already-played round keeps what the
+  // person types. The temperature column stays Fahrenheit; the step shows
+  // the viewer's unit (units.ts), read once per mount.
+  const [unitSys] = useState(() => unitSystemOf(readUnitPreference()));
+  const [forecastStatus, setForecastStatus] = useState<WeatherStatus>('idle');
+  const [forecastFilled, setForecastFilled] = useState<ForecastFilled | null>(null);
+  const fillFromForecast = async () => {
+    if (!selectedCourse || selectedCourse.lat == null || selectedCourse.lng == null) return;
+    setForecastStatus('loading');
+    const w = await loadWeather({ lat: selectedCourse.lat, lng: selectedCourse.lng });
+    if (!w) {
+      setForecastStatus('unavailable');
+      return;
+    }
+    setSharedRoundDetails(prev => ({
+      ...prev,
+      weather: golfConditionOf(w),
+      temperature: String(golfTempF(w.tempC)),
+      wind: golfWindBandOf(w.windKmh),
+      conditionsSource: 'forecast',
+      conditionsAt: w.observedAt,
+    }));
+    setForecastFilled({ text: wmoLabel(w.code, w.isDay).text, tempC: w.tempC, windKmh: w.windKmh });
+    setForecastStatus('ready');
+  };
+  const forgetForecast = () => {
+    setForecastFilled(null);
+    setForecastStatus('idle');
+  };
 
   // Course hole data (par and yardage per hole)
   const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number; handicap?: number }[]>(
@@ -779,22 +822,29 @@ export default function GolfComposerSection({
     alreadyPlayed: sharedRoundDetails.alreadyPlayed,
   });
 
-  const setAlreadyPlayed = (alreadyPlayed: boolean) =>
+  const setAlreadyPlayed = (alreadyPlayed: boolean) => {
+    // An already-played round never carries a forecast: what was filled
+    // stays as values the person now owns.
+    if (alreadyPlayed) forgetForecast();
     setSharedRoundDetails(prev => ({
       ...prev,
       alreadyPlayed,
+      ...(alreadyPlayed && prev.conditionsSource === 'forecast' ? { conditionsSource: 'manual' as const, conditionsAt: null } : {}),
       // A live round is dated today; the old past-date → Already played flip
       // is gone now that the first step asks outright.
       date: roundDateForMode(alreadyPlayed, prev.date, localDayKey(new Date())),
     }));
-  const setIndoor = (next: boolean) =>
+  };
+  const setIndoor = (next: boolean) => {
+    if (next) forgetForecast();
     setSharedRoundDetails(prev => ({
       ...prev,
       roundTypeIndoorOutdoor: next ? 'indoor' : 'outdoor',
       // Indoor has no conditions step — values entered before the switch
       // used to ride along to the server; they are cleared here.
-      ...(next ? { weather: '', temperature: '', wind: '' } : {}),
+      ...(next ? { weather: '', temperature: '', wind: '', conditionsSource: undefined, conditionsAt: null } : {}),
     }));
+  };
 
   const teeTotals = selectedCourse ? courseSummary(selectedCourse).tees : [];
   const teeInPlayTotal = teeTotals.find(t => t.key === sharedRoundDetails.teeColor);
@@ -811,7 +861,14 @@ export default function GolfComposerSection({
       ? [{
           label: 'Conditions',
           value:
-            [weatherLabel(sharedRoundDetails.weather), sharedRoundDetails.temperature ? `${sharedRoundDetails.temperature}°F` : null, windLabel(sharedRoundDetails.wind)]
+            [
+              weatherLabel(sharedRoundDetails.weather),
+              sharedRoundDetails.temperature && Number.isFinite(Number(sharedRoundDetails.temperature))
+                ? formatQuantity('temp', fromInput('temp', Number(sharedRoundDetails.temperature), 'imperial'), unitSys)
+                : null,
+              windLabel(sharedRoundDetails.wind),
+              sharedRoundDetails.conditionsSource === 'forecast' ? 'Forecast at tee-off' : null,
+            ]
               .filter((s): s is string => !!s)
               .join(' · ') || null,
         }]
@@ -1332,7 +1389,17 @@ export default function GolfComposerSection({
             <div className={GOLF_SECTION_CARD}>
               <ConditionsStep
                 value={{ weather: sharedRoundDetails.weather, temperature: sharedRoundDetails.temperature, wind: sharedRoundDetails.wind }}
-                onChange={patch => setSharedRoundDetails(prev => ({ ...prev, ...patch }))}
+                onChange={patch => {
+                  // A typed value is the person's: the forecast line steps aside.
+                  setForecastFilled(null);
+                  setSharedRoundDetails(prev => ({ ...prev, ...patch, conditionsSource: 'manual', conditionsAt: null }));
+                }}
+                sys={unitSys}
+                forecast={
+                  !sharedRoundDetails.alreadyPlayed && selectedCourse?.lat != null && selectedCourse?.lng != null
+                    ? { status: forecastStatus, onUse: () => { void fillFromForecast(); }, filled: forecastFilled }
+                    : undefined
+                }
               />
             </div>
           )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { readUnitPreference, writeUnitPreference, type DistanceUnit } from '@/lib/activities/format';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
 import { useEditProfile } from '@/components/EditProfileHost';
@@ -13,6 +14,13 @@ export default function AccountSettings() {
   // The shared editor (EditProfileHost) — opened over Settings, in place.
   const editProfile = useEditProfile();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // Units (Oct 29 2026): the one device-level choice (units.ts) — °C · km or
+  // °F · mi — finally has a row here beside the body metrics it governs.
+  const [unit, setUnit] = useState<DistanceUnit>(() => readUnitPreference());
+  const chooseUnit = (u: DistanceUnit) => {
+    writeUnitPreference(u);
+    setUnit(u);
+  };
 
   return (
     <div className="space-y-8">
@@ -150,6 +158,30 @@ export default function AccountSettings() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-border" data-units-row="">
+            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+              Units
+            </label>
+            <div className="inline-flex rounded-full border border-border p-0.5" role="group" aria-label="Units">
+              {([['km', 'Metric', 'Metric — °C, km, kg'], ['mi', 'Imperial', 'Imperial — °F, mi, lb']] as const).map(([u, label, name]) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => chooseUnit(u)}
+                  aria-pressed={unit === u}
+                  aria-label={name}
+                  data-units-choice={u}
+                  className={`rounded-full px-4 py-1 text-sm font-semibold min-h-[44px] whitespace-nowrap ${unit === u ? 'bg-brand text-white' : 'text-secondary'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              {unit === 'mi' ? '°F, miles and pounds' : '°C, kilometres and kilograms'} — temperatures, distances and weights everywhere in the app. Saved on this device.
+            </p>
           </div>
 
           <div className="mt-8 pt-6 border-t border-border">

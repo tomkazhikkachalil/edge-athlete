@@ -63,6 +63,7 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'push/config':
     'phone notifications (248, Oct 2026): whether this deployment can send them and the VAPID PUBLIC key a browser subscribes against — public by design (every subscribing browser holds it); no user data, no-store',
   places: 'geo autocomplete over public place data',
+  weather: 'the current conditions at a 2-decimal coordinate cell (Oct 29 2026): viewer-independent by construction — no auth, no cookie read, no Vary — CDN-cached 10 min per cell, an IP bucket and a provider day budget in front of the free host; the body says nothing about who asked',
   'media/o/[token]':
     'speed round 2 (Oct 2026): the media proxy\'s optimizable PUBLIC form — a re-export of media/[token]\'s GET; the gate (token verify, live re-authorization) lives in the parent handler',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
