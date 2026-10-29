@@ -544,10 +544,6 @@ export default function FeedPage() {
             </div>
 
 
-            {/* Live Now — live rounds from people you follow (sports-app
-                ticker; opens the round via the existing deep-link modal) */}
-            <LiveNowStrip />
-
             {/* Feed scope lenses: All (global), Following (accepted follows
                 ∪ self — private posts included where the follow grants them),
                 My orgs (public posts from org peers) */}
@@ -561,6 +557,16 @@ export default function FeedPage() {
             {/* Phone notifications (248) — only in the installed app, where
                 the install card never shows; also waits behind Get Started. */}
             <PushCard />
+
+            {/* Live Now — live rounds from people you follow (sports-app
+                ticker; opens the round via the existing deep-link modal).
+                BELOW the cards since Oct 28 2026 (Tom): it mounts when its
+                poll answers, after first paint, and reserves no space — above
+                the cards it pushed Get Started down by its height (a measured
+                layout shift whenever a round was live). Here the cards hold
+                their place; only the posts below can move, once, while a
+                round is live. */}
+            <LiveNowStrip />
 
             <div className="flex gap-2 mb-4 sm:mb-6" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
