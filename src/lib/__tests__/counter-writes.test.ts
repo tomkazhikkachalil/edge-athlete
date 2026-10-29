@@ -14,7 +14,7 @@ const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // `via` (282, trip-count PR 3): the route reads the column THROUGH one RPC —
 // the function's body is where the read must be (and no count, no write).
 const ROUTES: Array<{ file: string; table: string; column: string; via?: { rpc: string; migration: string } }> = [
-  { file: 'src/app/api/posts/like/route.ts', table: 'post_likes', column: 'likes_count', via: { rpc: 'post_like_toggle', migration: 'database/migrations/282_post_like_toggle.sql' } },
+  { file: 'src/app/api/posts/like/route.ts', table: 'post_likes', column: 'likes_count', via: { rpc: 'post_like_toggle', migration: 'database/migrations/287_post_like_allowed.sql' } },
   { file: 'src/app/api/comments/like/route.ts', table: 'comment_likes', column: 'likes_count' },
   { file: 'src/app/api/comments/route.ts', table: 'post_comments', column: 'comments_count' },
 ];
