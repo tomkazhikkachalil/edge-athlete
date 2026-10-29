@@ -115,6 +115,10 @@ test('@mobile the checklist holds its place: on screen before its API answers, a
         // empty feed sees in the same viewport. Not this card's shift.
         const sources = e.sources ?? [];
         if (sources.length > 0 && sources.every(src => !!(src.node as Element | null)?.closest?.('[data-feed-suggestions]'))) continue;
+        // The Live Now strip (Oct 28 2026) sits BELOW the cards: when a round
+        // is live it mounts after its poll and moves only what is under it —
+        // by design, not this card's shift.
+        if (sources.length > 0 && sources.every(src => !!(src.node as Element | null)?.closest?.('[data-live-now]'))) continue;
         w.__cls += e.value;
         w.__clsLog.push(`${e.value.toFixed(3)} @${Math.round(e.startTime)}ms ${(e.sources ?? []).map(src => (src.node as Element | null)?.outerHTML?.slice(0, 70).replace(/\s+/g, ' ') ?? '?').join(' | ')}`);
       }

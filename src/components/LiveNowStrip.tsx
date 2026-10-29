@@ -193,7 +193,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   };
 
   return (
-    <div className="mb-4">
+    <div className="mb-4" data-live-now>
       {!hideHeading && (
         <div className="flex items-center gap-2 mb-2">
           <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
