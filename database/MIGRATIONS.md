@@ -812,6 +812,28 @@ persist and a save answers 500 → rollback). Reversal: `ALTER TABLE
 public.profiles DROP COLUMN favourite_sports`. Expected row on both: `285
 APPLIED | 1 | 285`.
 
+## One limiter trip per write (migration 286, Oct 28 2026 — the leftovers program PR 1)
+
+Every authenticated write paid two `rate_limit_hit` round trips —
+`requireAuth`'s inline `write-general` (shadow) and the route's own bucket
+(docs/SCALE_AUDIT.md §7: the like toggle's "4" was auth, limiter, limiter,
+the toggle). 286 adds `rate_limit_hit_many(p_keys text[], p_max integer[],
+p_window_seconds integer[]) RETURNS TABLE(key, allowed, retry_after_seconds)`
+(`LANGUAGE plpgsql SECURITY INVOKER`, `search_path = public`, EXECUTE for
+service_role only): it walks the keys in order through 094's
+`rate_limit_hit` itself — the same atomic fixed-window upsert, the same 1 %
+GC, no punishment extension — one row per key, so a bucket behaves exactly
+as it does alone. The caller: `requireAuth(request, { limit: '<bucket>' })`
+(and `requireActiveWriter`) sends `['write-general', bucket]` in ONE call
+and memoises each verdict for the request; the route's existing
+`enforceRateLimit(request, bucket)` then returns the memo and spends
+nothing. The 429 body, `Retry-After`, the shadow would-block record and the
+fail-open rule are unchanged (`src/lib/__tests__/rate-limit-one-hit.test.ts`
+proves each with a mocked RPC). Deploy order: MIGRATION FIRST (a pure
+addition; a route ahead of it fails OPEN once per request, as the limiter
+always has). Reversal: DROP FUNCTION — `rate_limit_hit` stays for every
+single-key caller. Expected row on both: `286 APPLIED | 1 | true | 286`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

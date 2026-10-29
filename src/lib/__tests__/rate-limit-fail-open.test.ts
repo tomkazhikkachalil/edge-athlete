@@ -71,8 +71,9 @@ describe('the write limit, inline and on the record', () => {
 
   it('requireAuth runs the check before the handler and throws the 429; the limiter records to Sentry by account and route', () => {
     const auth = readFileSync(join(__dirname, '..', 'auth-server.ts'), 'utf8');
-    expect(auth).toContain('await enforceWrite(request, user.id);');
-    expect(auth).toContain("const refused = await enforceRateLimit(request, 'write-general', { userId });\n  if (refused) throw refused;");
+    expect(auth).toContain('await enforceWrite(request, user.id, opts.limit);');
+    // 286: the route's bucket(s) ride write-general's round trip; a route without one keeps the single hit
+    expect(auth).toContain("? await enforceRateLimitMany(request, ['write-general', ...extra], { userId })\n    : await enforceRateLimit(request, 'write-general', { userId });\n  if (refused) throw refused;");
     expect(auth).not.toContain('after(async');
     const limiter = readFileSync(join(__dirname, '..', 'rate-limit.ts'), 'utf8');
     expect(limiter).toContain('Sentry.captureMessage(`[RATE-LIMIT] ${outcome} "${action}"`');

@@ -24,7 +24,7 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await requireActiveWriter(request);
+    const user = await requireActiveWriter(request, { limit: 'upload' }); // 286
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
     let body: { targetProfileId?: unknown } = {};

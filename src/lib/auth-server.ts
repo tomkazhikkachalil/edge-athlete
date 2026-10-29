@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import type { RateLimitAction } from '@/lib/rate-limit-core';
 import { tracedFetch } from '@/lib/db-trace';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
@@ -97,6 +98,10 @@ const freshMemo = new WeakMap<NextRequest, Promise<AuthAnswer>>();
 export interface AuthOptions {
   /** Always the network user (bans, moderation, account fields). */
   fresh?: boolean;
+  /** The route's own rate-limit bucket(s) (286): checked in the SAME call as
+   *  `write-general` — one round trip for the write — and remembered for the
+   *  route's `enforceRateLimit(request, bucket)`, which then costs nothing. */
+  limit?: RateLimitAction | readonly RateLimitAction[];
 }
 
 async function networkAuth(request: NextRequest): Promise<AuthAnswer> {
@@ -155,11 +160,15 @@ export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}
  *  and returns null; once it is real, the 429 it returns is thrown like the
  *  401 above and the route's `instanceof Response` catch returns it.
  *  Imported lazily: rate-limit.ts imports this module. */
-async function enforceWrite(request: NextRequest, userId: string): Promise<void> {
+async function enforceWrite(request: NextRequest, userId: string, limit?: AuthOptions['limit']): Promise<void> {
   const method = request.method?.toUpperCase?.() ?? 'GET';
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
-  const { enforceRateLimit } = await import('@/lib/rate-limit');
-  const refused = await enforceRateLimit(request, 'write-general', { userId });
+  const { enforceRateLimit, enforceRateLimitMany } = await import('@/lib/rate-limit');
+  const extra: readonly RateLimitAction[] = limit ? (Array.isArray(limit) ? limit : [limit as RateLimitAction]) : [];
+  // 286: the route's bucket(s) ride the same round trip as write-general.
+  const refused = extra.length > 0
+    ? await enforceRateLimitMany(request, ['write-general', ...extra], { userId })
+    : await enforceRateLimit(request, 'write-general', { userId });
   if (refused) throw refused;
 }
 
@@ -174,7 +183,7 @@ export async function requireAuth(request: NextRequest, opts: AuthOptions = {}) 
       );
     }
 
-    await enforceWrite(request, user.id);
+    await enforceWrite(request, user.id, opts.limit);
     return user;
   } catch (err) {
     if (err instanceof Response) {
@@ -454,10 +463,10 @@ export async function activeWriterRefusal(userId: string): Promise<Response | nu
 }
 
 /** requireAuth + the write gate; throws the 403 like the other gates (the caller `return`s a caught Response). */
-export async function requireActiveWriter(request: NextRequest) {
+export async function requireActiveWriter(request: NextRequest, opts: Omit<AuthOptions, 'fresh'> = {}) {
   // fresh: a ban (Supabase Auth) and a moderation state (profiles) both bite
   // at once on a write — the local check would honour the token until expiry.
-  const user = await requireAuth(request, { fresh: true });
+  const user = await requireAuth(request, { fresh: true, limit: opts.limit });
   const refusal = await activeWriterRefusal(user.id);
   if (refusal) throw refusal;
   return user;
