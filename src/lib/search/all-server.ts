@@ -93,6 +93,10 @@ export interface SearchDecorated {
   leagues: Array<{ id: string } & Record<string, unknown>>;
   author_visibility: Array<{ id: string; visibility: string | null }>;
   followed_private: string[];
+  /** 289: the viewer's blocks both ways (ids) — an athlete here leaves the list. */
+  blocked: string[];
+  /** 289: hidden_authors_for(viewer) = muted ∪ blocked ∪ blockers — a post by one of these leaves the posts. */
+  hidden: string[];
 }
 
 /**
@@ -151,6 +155,8 @@ export async function searchAllDecorated({
     leagues: d.leagues ?? [],
     author_visibility: d.author_visibility ?? [],
     followed_private: d.followed_private ?? [],
+    blocked: d.blocked ?? [],
+    hidden: d.hidden ?? [],
   };
 }
 
