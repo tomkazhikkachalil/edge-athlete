@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { shouldPoll } from '@/lib/net/online';
+import { getPulse, requestPulse, subscribePulse } from '@/lib/pulse/pulse-store';
 
 /**
  * Is anything actually live right now?
@@ -11,109 +11,27 @@ import { shouldPoll } from '@/lib/net/online';
  * "live" every second of every day. Promoting it to a status chip made that
  * worse, so it now needs the truth.
  *
- * ONE cheap fetch per page, shared by every caller through a module-level
- * cache. It hits `/api/golf/live-now/count` — which returns just `{ count }` —
- * NOT the deep scorecard endpoint `LiveNowStrip` uses for its list. The header
- * only needs to know whether anything is live, and this poll runs on every
- * authenticated page, so it must stay off the heavy embed.
+ * The truth comes from the pulse store (`src/lib/pulse/`, the cost program
+ * PR B, Oct 29 2026): ONE fetch of `/api/me/pulse` — one RPC answering the
+ * live golf rounds, the live events AND the unread messages — shared by the
+ * header, the tab bar and the messages provider through a module-level
+ * store. Before, this hook alone polled two endpoints a minute on every
+ * authenticated page for every visible tab.
  *
- * Deliberately NOT a context provider: that would mean touching the root layout
- * and mounting a fetch for signed-out visitors on public pages. A module cache
- * gets the same sharing with none of that.
- */
-
-const REFRESH_MS = 60_000;
-/** How long a fetched answer is reused before anyone refetches. */
-const STALE_MS = 30_000;
-
-let cachedCount: number | null = null;
-let cachedAt = 0;
-let inFlight: Promise<number> | null = null;
-const subscribers = new Set<(count: number) => void>();
-
-let sharedTimer: ReturnType<typeof setInterval> | null = null;
-function startSharedTimer() {
-  if (sharedTimer) return;
-  sharedTimer = setInterval(() => {
-    if (!shouldPoll()) return;
-    fetchLiveCount();
-  }, REFRESH_MS);
-  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
-  if (typeof document !== 'undefined') window.addEventListener('online', onVisible);
-}
-function stopSharedTimerIfUnused() {
-  if (subscribers.size > 0 || !sharedTimer) return;
-  clearInterval(sharedTimer);
-  sharedTimer = null;
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('online', onVisible);
-  }
-}
-/** Back to the tab after a while: one catch-up fetch, only when the cache is stale. */
-function onVisible() {
-  if (shouldPoll() && Date.now() - cachedAt > STALE_MS) fetchLiveCount();
-}
-
-async function fetchLiveCount(): Promise<number> {
-  // Coalesce: several components mounting at once must not each fire a request.
-  if (inFlight) return inFlight;
-
-  inFlight = (async () => {
-    try {
-      // Phase 4: the golf rounds' count + the live EVENTS' count (any sport), both lean.
-      const [golf, events] = await Promise.all([
-        fetch('/api/golf/live-now/count', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
-        fetch('/api/sport-events/live-now?count=1', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
-      ]);
-      if (!golf && !events) return cachedCount ?? 0;
-      return (typeof golf?.count === 'number' ? golf.count : 0) + (typeof events?.count === 'number' ? events.count : 0);
-    } catch {
-      // An indicator is a nicety. A failure means "show nothing", never an
-      // error state in the header.
-      return cachedCount ?? 0;
-    } finally {
-      inFlight = null;
-    }
-  })();
-
-  const count = await inFlight;
-  cachedCount = count;
-  cachedAt = Date.now();
-  subscribers.forEach(fn => fn(count));
-  return count;
-}
-
-/**
- * Number of rounds currently live. 0 until the first answer arrives.
- *
- * `enabled` gates the fetch on having a session: the endpoint is
+ * `enabled` gates the subscription on having a session: the endpoint is
  * authenticated, so polling it signed-out (AppHeader renders on public
  * pages) can only ever produce a 401 per minute of console noise.
  */
 export function useLiveNow(enabled: boolean = true): number {
-  const [count, setCount] = useState(cachedCount ?? 0);
+  const [count, setCount] = useState(() => getPulse().liveNow);
 
   useEffect(() => {
     if (!enabled) return;
-    subscribers.add(setCount);
-
-    // Reuse a recent answer rather than refetching on every navigation. No
-    // setState here for the fresh-cache case: useState already initialised
-    // from the cache above, and any later change arrives via the subscriber.
-    if (cachedCount === null || Date.now() - cachedAt > STALE_MS) {
-      fetchLiveCount();
-    }
-
-    // ONE module-level timer for every mount (the header AND the tab bar
-    // mount this on every page — two timers used to fire the pair of
-    // fetches twice a minute), and it skips hidden tabs: a backgrounded
-    // tab polled "who is live" all day (Round 3, Sep 2026).
-    startSharedTimer();
-    return () => {
-      subscribers.delete(setCount);
-      stopSharedTimerIfUnused();
-    };
+    const unsubscribe = subscribePulse(s => setCount(s.liveNow));
+    // Reuse a recent answer rather than refetching on every navigation (the
+    // rules' stale gate); the store's one timer and resume catch-up do the rest.
+    requestPulse('mount');
+    return unsubscribe;
   }, [enabled]);
 
   return enabled ? count : 0;

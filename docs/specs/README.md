@@ -76,3 +76,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |
 | 52 | The profile is a profile, not a settings form: the owner sees the visitor's view plus ONE Edit Profile control; every field is edited in Edit Profile, Save and Close both return to the profile | `profile.md` |
 | 53 | A golf round is set up in steps; every input the form had keeps its place; the frame is StepFlow and the list follows the first step | `golf-round-setup.md` |
+| 54 | The pulse: the header's two numbers (the live count, the unread messages) are ONE call, `/api/me/pulse`, behind one RPC and one module-level store; the rules say when it fetches; the conversation list keeps its own refresh | `pulse.md` |
