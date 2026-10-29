@@ -124,7 +124,7 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'leagues/[id]/members': 'org-role system (league managers), not profile roles',
   'leagues/[id]/owners': 'org-role system (owner-only minting; DELETE is self-scoped)',
   'leagues/[id]/roster': 'org-role system (league managers); supervised flag-gated (0.10) + guardian acting-for via requireProfileRole inside',
-  'comments/like': 'like row keyed to session user; post visibility checked',
+  'comments/like': 'like row keyed to session user; the parent post\'s like gate inside comment_like_toggle (288 → post_like_allowed 287)',
   'posts/like': 'like row keyed to session user; the read gate minus blocks inside post_like_toggle (282, gate 287)',
   'follow/stats': 'public counts; visibility handled in query',
   'golf/rounds': 'reads/writes scoped to session user in query',

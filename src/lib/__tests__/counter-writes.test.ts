@@ -15,7 +15,7 @@ const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // the function's body is where the read must be (and no count, no write).
 const ROUTES: Array<{ file: string; table: string; column: string; via?: { rpc: string; migration: string } }> = [
   { file: 'src/app/api/posts/like/route.ts', table: 'post_likes', column: 'likes_count', via: { rpc: 'post_like_toggle', migration: 'database/migrations/287_post_like_allowed.sql' } },
-  { file: 'src/app/api/comments/like/route.ts', table: 'comment_likes', column: 'likes_count' },
+  { file: 'src/app/api/comments/like/route.ts', table: 'comment_likes', column: 'likes_count', via: { rpc: 'comment_like_toggle', migration: 'database/migrations/288_comment_like_toggle.sql' } },
   { file: 'src/app/api/comments/route.ts', table: 'post_comments', column: 'comments_count' },
 ];
 
@@ -32,8 +32,8 @@ describe('Counters: the trigger recounts, the route reads', () => {
         expect(code.match(new RegExp(`\\.rpc\\('${via.rpc}'`, 'g'))?.length).toBe(1);
         expect(code).not.toMatch(/\.from\('/);
         const fn = read(via.migration);
-        expect(fn).toMatch(new RegExp(`SELECT COALESCE\\(${column}, 0\\) INTO v_count FROM public\\.posts`));
-        expect(fn).not.toMatch(/count\(\*\)\s+FROM\s+public\.post_likes/i);
+        expect(fn).toMatch(new RegExp(`SELECT COALESCE\\(${column}, 0\\) INTO v_count FROM public\\.(posts|post_comments)`));
+        expect(fn).not.toMatch(new RegExp(`count\\(\\*\\)\\s+FROM\\s+public\\.${table}`, 'i'));
         expect(fn).not.toMatch(new RegExp(`SET ${column}`));
       } else {
         // …and it does read the trigger-written column back.
