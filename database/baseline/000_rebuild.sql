@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-28T03:40:06.915101+00:00 from server 17.6 by
+-- Generated 2026-10-29T00:31:04.176857+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 285.
+-- public.schema_dump() (migration 227). Ledger head at generation: 286.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (130; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (131; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -3277,6 +3277,36 @@ BEGIN
       (v_window_start + make_interval(secs => p_window_seconds) - now())))::integer)
   END;
   RETURN NEXT;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[])
+ RETURNS TABLE(key text, allowed boolean, retry_after_seconds integer)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  i integer;
+  v_allowed boolean;
+  v_retry integer;
+BEGIN
+  IF p_keys IS NULL OR array_length(p_keys, 1) IS NULL THEN
+    RETURN;
+  END IF;
+  IF array_length(p_max, 1) IS DISTINCT FROM array_length(p_keys, 1)
+     OR array_length(p_window_seconds, 1) IS DISTINCT FROM array_length(p_keys, 1) THEN
+    RAISE EXCEPTION 'rate_limit_hit_many: the three arrays must have the same length';
+  END IF;
+  FOR i IN 1 .. array_length(p_keys, 1) LOOP
+    SELECT h.allowed, h.retry_after_seconds INTO v_allowed, v_retry
+    FROM public.rate_limit_hit(p_keys[i], p_max[i], p_window_seconds[i]) AS h;
+    key := p_keys[i];
+    allowed := v_allowed;
+    retry_after_seconds := v_retry;
+    RETURN NEXT;
+  END LOOP;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -12000,7 +12030,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (130) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (131) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -15054,6 +15084,34 @@ BEGIN
       (v_window_start + make_interval(secs => p_window_seconds) - now())))::integer)
   END;
   RETURN NEXT;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[])
+ RETURNS TABLE(key text, allowed boolean, retry_after_seconds integer)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  i integer;
+  v_allowed boolean;
+  v_retry integer;
+BEGIN
+  IF p_keys IS NULL OR array_length(p_keys, 1) IS NULL THEN
+    RETURN;
+  END IF;
+  IF array_length(p_max, 1) IS DISTINCT FROM array_length(p_keys, 1)
+     OR array_length(p_window_seconds, 1) IS DISTINCT FROM array_length(p_keys, 1) THEN
+    RAISE EXCEPTION 'rate_limit_hit_many: the three arrays must have the same length';
+  END IF;
+  FOR i IN 1 .. array_length(p_keys, 1) LOOP
+    SELECT h.allowed, h.retry_after_seconds INTO v_allowed, v_retry
+    FROM public.rate_limit_hit(p_keys[i], p_max[i], p_window_seconds[i]) AS h;
+    key := p_keys[i];
+    allowed := v_allowed;
+    retry_after_seconds := v_retry;
+    RETURN NEXT;
+  END LOOP;
 END;
 $function$;
 
@@ -18479,6 +18537,8 @@ REVOKE EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) FROM PUBL
 GRANT EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.resolve_org_site_domain(p_slug text) FROM PUBLIC, anon, authenticated, service_role;
@@ -18820,6 +18880,7 @@ COMMENT ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) IS 'T
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
+COMMENT ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) IS 'Several rate-limit buckets in one call (286): each key through 094''s rate_limit_hit, in array order; one row per key. Service-role only — src/lib/rate-limit.ts enforceRateLimitMany is the caller.';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
 COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type chosen by tier, rich and recency before the per-row ranking; same order among the kept rows.';
@@ -19265,7 +19326,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (282, '282_post_like_toggle.sql', 'rebuild-000'),
   (283, '283_search_all_decorated.sql', 'rebuild-000'),
   (284, '284_notifications_bell_page.sql', 'rebuild-000'),
-  (285, '285_favourite_sports.sql', 'rebuild-000')
+  (285, '285_favourite_sports.sql', 'rebuild-000'),
+  (286, '286_rate_limit_hit_many.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19274,12 +19336,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 130 | 145 | 285
+-- Expected: 000 REBUILT | 138 | 131 | 145 | 286
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_130,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_131,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_285;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_286;
 
