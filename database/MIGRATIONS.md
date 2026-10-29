@@ -853,6 +853,28 @@ route's 404, so ids cannot be probed. The route is untouched. Deploy order:
 MIGRATION FIRST (CREATE OR REPLACE). Reversal: re-run 282's toggle and DROP
 `post_like_allowed`. Expected row on both: `287 APPLIED | 2 | true | 287`.
 
+## The comment like gets a gate, in one call (migration 288, Oct 28 2026 — the leftovers program PR 3)
+
+`POST /api/comments/like` had NO visibility gate (the authz allowlist's
+"post visibility checked" was not true): anyone signed in could like a
+comment on a draft, a hidden post, a private stranger's post or across a
+block, in four round trips. 288 adds `comment_like_toggle(p_viewer uuid,
+p_comment_id uuid) RETURNS jsonb` (`LANGUAGE plpgsql VOLATILE SECURITY
+INVOKER`, `search_path = public`, EXECUTE for service_role only): the
+comment must be published and its parent post must pass
+`post_like_allowed` (287 — the read gate minus blocks), then
+remove-or-insert on `comment_likes` (277's ±1 triggers and 190's
+`notify_comment_like` fire as they did for the route's own write), then
+the trigger-written `post_comments.likes_count` read in the same
+transaction. The route maps `liked` / `already_liked` → `{ isLiked: true,
+likes_count }`, `unliked` → `{ isLiked: false, … }`, `not_found` → 404
+`Comment not found` (a missing comment used to be a 500 from the FK), and
+moves to `requireAuth(request, { limit: 'like' })` — write-general
+coverage, one limiter round trip (286). Deploy order: MIGRATION FIRST (a
+pure addition; the route answers 503 `Like service updating`, no-store,
+until it exists). Reversal: DROP FUNCTION. Expected row on both: `288
+APPLIED | 1 | true | 288`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
