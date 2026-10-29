@@ -92,19 +92,30 @@ MERGE_SHA="$(printf '%s' "$result" | json "d.get('sha')")"
 echo "✓ merged PR #$PR into $BASE as ${MERGE_SHA:0:8}"
 
 # 4. main deploys on Vercel — wait for its status on the merge commit.
+#    Unless the merge changes nothing the app is built from: then the Ignored
+#    Build Step (scripts/vercel-ignore-build.mjs, cost program Oct 29 2026)
+#    cancels the build and production keeps serving the previous deployment —
+#    there is nothing to wait for, and /api/health keeps the previous commit.
 if [ "$BASE" = "main" ] && [ "$WAIT" = 1 ]; then
+  git fetch -q origin main 2>/dev/null || true
+  files="$(git diff --name-only "$MERGE_SHA^" "$MERGE_SHA" 2>/dev/null || true)"
+  if [ -n "$files" ] && [ "$(FILES="$files" node scripts/vercel-ignore-build.mjs --classify)" = "skip" ]; then
+    echo "✓ Vercel: no production build — the merge touches only docs/e2e/scripts/database (ignored build step); edgeathlete.ca is unchanged"
+    exit 0
+  fi
   echo "▸ waiting for the Vercel deployment…"
   for attempt in $(seq 1 60); do
     v="$(gh_api GET "/commits/$MERGE_SHA/status" | python3 -c "
 import json,sys
 s=[x for x in json.load(sys.stdin).get('statuses',[]) if x['context'].lower().startswith('vercel')]
-print(s[0]['state'] if s else 'none')
+print((s[0]['state']+' '+(s[0].get('description') or '')) if s else 'none')
 ")"
     case "$v" in
-      success) echo "✓ Vercel: deployment completed"; exit 0 ;;
-      failure|error) echo "✗ Vercel: deployment $v — check the Vercel dashboard" >&2; exit 1 ;;
+      success*) echo "✓ Vercel: deployment completed"; exit 0 ;;
+      failure*[Cc]ancel*|error*[Cc]ancel*) echo "✓ Vercel: build skipped (ignored build step) — production unchanged"; exit 0 ;;
+      failure*|error*) echo "✗ Vercel: deployment ${v%% *} — check the Vercel dashboard" >&2; exit 1 ;;
     esac
     sleep 15
   done
-  echo "⚠ Vercel status still '$v' after 15 min — the merge stands; check the dashboard" >&2
+  echo "⚠ Vercel status still '${v%% *}' after 15 min — the merge stands; check the dashboard" >&2
 fi
