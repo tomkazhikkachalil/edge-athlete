@@ -17,6 +17,10 @@ is sent to `/auth/coming-soon` except the doors (`/?signin=1`, `/auth/*`,
 `/forgot-password`, `/reset-password`, `/privacy`, `/terms`, `/admin`,
 static files); `/robots.txt` answers `Disallow: /`, `/sitemap.xml` 404,
 `POST /api/signup` 403, and the login page shows "Sign-ups are closed".
+The gate carries the way back (Oct 28 2026): a signed-out visit to an app
+path lands on `/auth/coming-soon?next=<that path>` and the page's sign-in
+link goes to `/?signin=1&next=…`, so an existing account that opened a
+workout or profile link comes back to it after signing in.
 Supabase → Authentication → "Allow new users to sign up" is OFF (it covers
 Google too). APIs and the pg_cron jobs are never gated. The coming-soon page
 collects names and e-mails into `contacts` (marketing consent unticked by
