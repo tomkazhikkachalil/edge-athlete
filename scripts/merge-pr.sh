@@ -111,8 +111,10 @@ s=[x for x in json.load(sys.stdin).get('statuses',[]) if x['context'].lower().st
 print((s[0]['state']+' '+(s[0].get('description') or '')) if s else 'none')
 ")"
     case "$v" in
+      # A build the Ignored Build Step skipped reports as SUCCESS with the
+      # description "Canceled by Ignored Build Step" (seen Oct 29 2026).
+      *[Cc]ancel*) echo "✓ Vercel: build skipped (ignored build step) — production unchanged"; exit 0 ;;
       success*) echo "✓ Vercel: deployment completed"; exit 0 ;;
-      failure*[Cc]ancel*|error*[Cc]ancel*) echo "✓ Vercel: build skipped (ignored build step) — production unchanged"; exit 0 ;;
       failure*|error*) echo "✗ Vercel: deployment ${v%% *} — check the Vercel dashboard" >&2; exit 1 ;;
     esac
     sleep 15
