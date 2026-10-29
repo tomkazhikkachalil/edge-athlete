@@ -27,7 +27,7 @@ async function theThree(api: APIRequestContext): Promise<{ golf: number; events:
   return { golf: ((await g.json()) as { count: number }).count, events: ((await e.json()) as { count: number }).count, unread: ((await u.json()) as { count: number }).count };
 }
 
-test('one pulse equals the three polls it replaces; a round and a message move it', async () => {
+test('one pulse equals the three polls it replaces; a round and a message move it @mobile', async () => {
   const s = await openEventSession();
   let groupPostId: string | null = null;
   try {
