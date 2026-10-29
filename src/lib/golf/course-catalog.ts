@@ -42,6 +42,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reportRouteWarning } from '@/lib/observability/report';
+import { hitDailyBudget as hitBudget } from '@/lib/provider-budget-server';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
@@ -412,19 +413,8 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   'sweep-terrain': 3000,
 };
 
-/** ONE daily fixed-window hit against `rate_limit_hit` (mig 094). Fail CLOSED:
- *  an RPC error means "no" — protect the budget, serve local. */
-async function hitBudget(admin: SupabaseClient, key: string, max: number): Promise<boolean> {
-  try {
-    const { data, error } = await admin
-      .rpc('rate_limit_hit', { p_key: key, p_max: max, p_window_seconds: 86400 })
-      .single();
-    if (error) return false;
-    return (data as { allowed: boolean }).allowed === true;
-  } catch {
-    return false;
-  }
-}
+// The daily budget hit itself lives in src/lib/provider-budget-server.ts
+// (Oct 29 2026) — the weather needed it with an owner that is not golf.
 
 /** Exported for the hole-geometry cache (same budget machinery, its own key). */
 export async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {

@@ -18,6 +18,7 @@ convention 36, migration 255) is the layer on top — "The sweep" below.
 | Nominatim | coordinate refinement, reverse geocoding | — | `nominatim` | OSM's |
 | **Terrain Tiles** (AWS Open Data / Mapzen) | **elevation**, free, no key — 3DEP 10 m (US), CDEM (Canada), SRTM 30 m elsewhere | — | `terrain-tiles` 400 (the lazy path) · `sweep-terrain` 3,000 (the sweep's elevation phase) — one hit per course per 30 days | see below |
 | Open-Meteo Elevation (commercial host) | elevation, 90 m — the **fallback** when the tiles cannot be reached | `OPEN_METEO_API_KEY` | `open-meteo` 100 | — |
+| Open-Meteo Forecast (free host; the key moves it to the commercial one) | the conditions at the course for a LIVE round's Conditions step (Oct 29 2026) — `current` block only, metric, 2-decimal cell, CDN-cached 10 min | none (`OPEN_METEO_API_KEY` optional, `WEATHER_OFF` brake) | `provider:weather` 8,000 | "Weather by Open-Meteo" (CC-BY) where shown |
 
 **Terrain Tiles credit (required by the data licence):** *Elevation: Terrain
 Tiles (Mapzen / AWS Open Data) — 3DEP (USGS), CDEM (Natural Resources

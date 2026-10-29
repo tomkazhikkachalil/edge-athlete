@@ -6,6 +6,11 @@ describe('buildCsp', () => {
   const prod = buildCsp(nonce);
   const dev = buildCsp(nonce, { dev: true });
 
+  it('never names the weather provider — the browser calls OUR /api/weather, the server calls Open-Meteo (Oct 29 2026)', () => {
+    expect(prod).not.toContain('open-meteo');
+    expect(dev).not.toContain('open-meteo');
+  });
+
   it('carries the nonce + strict-dynamic in script-src', () => {
     expect(prod).toContain(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
     // CSP2 fallbacks present (ignored by nonce-aware browsers)

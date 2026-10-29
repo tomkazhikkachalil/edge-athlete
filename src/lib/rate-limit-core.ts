@@ -53,6 +53,11 @@ export const RATE_LIMITS = {
   // keystroke plus browse-on-focus, and 30 was hit in normal composing
   // (Tom, Aug 23). Still throttles enumeration to a crawl.
   'course-search': { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // Weather at a course (Oct 29 2026): GET /api/weather — anonymous-reachable
+  // by construction and CDN-cached 10 min per 2-decimal cell, so the function
+  // runs on misses only; 60/min per IP is a scraper's pace, never a screen's
+  // (one call per course per tap). Shadow first, until the logs say.
+  weather: { max: 60, windowSeconds: 60, keyBy: 'ip', shadow: true },
   // Site Builder phase 2: publish / discard / restore / label on a site's
   // draft — a manager's deliberate acts, separate from the `org-site`
   // content bucket the draft edits already spend.
