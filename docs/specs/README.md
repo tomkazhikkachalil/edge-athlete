@@ -24,6 +24,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `messaging.md` | Messaging: the Message door on a profile, the thread on a phone (Oct 14 2026); one live signal for the list, presence only while the dock is in use (Oct 25 2026) |
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
+| `golf-round-setup.md` | The golf round setup as steps (Oct 28 2026): StepFlow over `round-steps.ts`, the list follows the first step, only the course step refuses, Near me on entry only when already granted, the date locked while live, Scores for already played only |
 
 ## Convention number → file
 
@@ -74,3 +75,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 50 | Sports are the profile's (Media + Stats), training is Training's, and the feed is a SWITCH, never an audience (amended Oct 21 2026: a workout's Finish records, Post or Done decides) | `feed-and-posts.md` (+ `activities.md`, `workouts-and-sessions.md`) |
 | 51 | One Sports tab; a sport's setup is a few short steps from its schema, every field optional, one save | `profile.md` |
 | 52 | The profile is a profile, not a settings form: the owner sees the visitor's view plus ONE Edit Profile control; every field is edited in Edit Profile, Save and Close both return to the profile | `profile.md` |
+| 53 | A golf round is set up in steps; every input the form had keeps its place; the frame is StepFlow and the list follows the first step | `golf-round-setup.md` |

@@ -23,3 +23,21 @@ describe('StepFlow — the shared step shell', () => {
     expect(src).toMatch(/disabled=\{busy \|\| index === 0\}/);
   });
 });
+
+// Oct 28 2026 (the golf round as steps): the frame says WHY Next is refused,
+// the finish honours canAdvance too, and can wear the live red with its own
+// busy line — SportSetupFlow passes none of these and renders as before.
+describe('StepFlow — the refusal line, the finish tone and the busy label', () => {
+  it('a refused Next shows its reason beside the button, and nothing when it may advance', () => {
+    expect(src).toContain('data-step-refusal={!canAdvance && refusal ? \'\' : undefined}');
+    expect(src).toMatch(/\{!canAdvance && refusal \? refusal : null\}/);
+  });
+  it('the finish is disabled while refused or busy, and the defaults keep the old frame', () => {
+    expect(src).toMatch(/onClick=\{onFinish\} disabled=\{busy \|\| !canAdvance\}/);
+    expect(src).toMatch(/busyLabel = 'Saving…'/);
+    expect(src).toMatch(/canAdvance = true/);
+    expect(src).toMatch(/finishTone = 'brand'/);
+    expect(src).toMatch(/brand: 'ea-cta'/);
+    expect(src).toMatch(/live: 'bg-red-600 hover:bg-red-700/);
+  });
+});

@@ -168,6 +168,10 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
         await sportSelector.getByPlaceholder('Search sports...').fill('golf');
         await sportSelector.getByRole('button', { name: /golf/i }).first().click();
 
+        // The round as steps (Oct 28 2026): the course field is step 2.
+        const flow = page.locator('[data-step-flow="golf-round"]');
+        await expect(flow).toBeVisible({ timeout: 15_000 });
+        await flow.locator('[data-step-next]').click();
         const course = page.getByPlaceholder(/search for a golf course/i);
         await expect(course).toBeVisible();
         await course.click();

@@ -88,8 +88,14 @@ test('header Create shows Post, Sport, Event and Record Activity — nothing els
   await expect(picker.getByRole('heading', { name: 'Select Sport' })).toBeVisible({ timeout: 15_000 });
   await picker.getByPlaceholder('Search sports...').fill('golf');
   await picker.getByRole('button', { name: /golf/i }).first().click();
-  await expect(page.getByPlaceholder(/search for a golf course/i)).toBeVisible({ timeout: 15_000 });
+  // The round as steps (Oct 28 2026): step 1 is the round type, Playing now
+  // pre-selected; the course field is step 2.
+  const flow = page.locator('[data-step-flow="golf-round"]');
+  await expect(flow).toBeVisible({ timeout: 15_000 });
+  await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 6 · Round type/);
   await expect(page.getByText('Playing now')).toBeVisible();
+  await flow.locator('[data-step-next]').click();
+  await expect(page.getByPlaceholder(/search for a golf course/i)).toBeVisible({ timeout: 15_000 });
 });
 
 // Oct 22 2026, Tom's iPhone: after a cold open, Create → Sport zoomed the

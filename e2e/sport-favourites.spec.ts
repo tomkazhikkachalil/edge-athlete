@@ -60,10 +60,10 @@ for (const tag of ['', ' @mobile']) {
       // A row tap picks the sport and advances; "Remove sport" is the way back to General.
       await picker.getByPlaceholder('Search sports...').fill('golf');
       await picker.getByRole('button', { name: /golf/i }).click();
-      await expect(page.getByPlaceholder(/search for a golf course/i)).toBeVisible();
+      await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();
       await page.locator('[data-post-type-clear]').click();
       await expect(page.getByText('General Post', { exact: true })).toBeVisible();
-      await expect(page.getByPlaceholder(/search for a golf course/i)).toHaveCount(0);
+      await expect(page.locator('[data-step-flow="golf-round"]')).toHaveCount(0);
     } finally {
       await api.patch('/api/settings/favourite-sports', CLEAR);
       await api.dispose();

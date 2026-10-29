@@ -29,8 +29,11 @@ it may be Nominatim-refined) and never goes back through `upsertThinRows`
 `providerNearby`. Our own catalog (29k OSM courses with coords, the RPC's
 `near=`) answers "near me" either way. **PR B — Near me in the composer:**
 `src/lib/geo/request-position.ts requestPosition()` is the ONE one-shot
-device fix (on a TAP only; Explore's course search and the composer share
-it; the recorder and the rangefinder keep their `watchPosition` streams);
+device fix (on a TAP only — with ONE exception since Oct 28 2026: the golf
+round's course step runs it on entry when `geolocationGranted()` says the
+device has ALREADY granted location, Playing now + outdoor, nothing typed;
+never a prompt on arrival — Convention 53; Explore's course search and the
+composer share it; the recorder and the rangefinder keep their `watchPosition` streams);
 `src/lib/golf/near-me.ts` (pure) holds `NEAR_RADIUS_KM` 50, `nearbyOffer`
 (the nearest course with coordinates within 1 km — the RPC's `distanceKm`
 first, else the haversine) and `formatKm`. The composer's "Near me"
