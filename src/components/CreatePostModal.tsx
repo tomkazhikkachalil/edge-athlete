@@ -933,10 +933,256 @@ export default function CreatePostModal({
   const currentTags = getTagOptions(postType);
   const currentHashtags = getHashtagSuggestions(postType);
 
-  // "Playing now" is round SETUP, not a post: course, partners, conditions,
-  // then Go Live. Caption/media/tags belong to the story told when the round
-  // completes — hidden during setup (see the section wrappers below).
-  const isLiveSetup = postType === 'golf' && !golfValue.sharedRoundDetails.alreadyPlayed;
+  // A golf round is round SETUP as steps, not a post (Oct 28 2026): the golf
+  // section draws the frame and the Go Live / Create Post finish; the
+  // composer's footer, tags and audience switch stay off while golf is the
+  // post type, and the story (media + caption) is hosted by its last step.
+
+  // The post's story — media and caption — as ONE block, so the golf steps
+  // can host it on their last step (Oct 28 2026) while every other post type
+  // keeps it where it was.
+  const postFields = (
+    <>
+      {/* Media Upload. The whole section is an INVISIBLE drop target
+          (dropzone-box retired, Tom Aug 25 — the capture row already
+          names every input path): dragging files over it summons a ring
+          + "Drop to add"; at rest there's no drag furniture at all.
+          Files-only guards keep the preview grid's tile-reorder drags
+          from triggering it. */}
+      <div
+        className={`mb-6 ${
+          draggedOver ? 'ring-2 ring-violet-500 rounded-lg bg-brand-soft p-2 -m-2' : ''
+        }`}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDraggedOver(false);
+          if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files);
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return;
+          e.preventDefault();
+          setDraggedOver(true);
+        }}
+        onDragLeave={(e) => {
+          // Leaving INTO a child also fires dragleave — ignore those.
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          setDraggedOver(false);
+        }}
+      >
+        <label className="block text-sm font-semibold text-secondary mb-3">
+          Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
+        </label>
+
+        {/* Capture row — media is the headline act (Tom, Aug 24): take it
+            NOW at full native-camera quality, or upload. `capture` is a
+            mobile hint; on desktop these open the file picker. */}
+        <CaptureInputs onFiles={files => handleFileUpload(files, 'camera')} allowVideo>
+          {({ openPhoto, openVideo }) => (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={openPhoto}
+                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+              >
+                <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
+                <span className="text-xs font-semibold">Take photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={openVideo}
+                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+              >
+                <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
+                <span className="text-xs font-semibold">Record video</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+              >
+                <i className="fas fa-cloud-upload-alt text-lg text-brand-fg" aria-hidden="true"></i>
+                <span className="text-xs font-semibold">Upload</span>
+              </button>
+            </div>
+          )}
+        </CaptureInputs>
+
+        <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
+          {draggedOver
+            ? 'Drop to add'
+            : 'Up to 50MB each — crop, adjust, and filter before posting'}
+        </p>
+
+        {/* Visible privacy care for minors' media (Family Console Wave 1;
+            video joined in Wave 6 — MP4/MOV re-muxed on upload, fail-open
+            like photos, so the plain claim is honest). */}
+        {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
+          <p className="mt-1 text-xs text-muted">
+            <i className="fas fa-shield-alt mr-1" aria-hidden="true"></i>
+            Location data is removed from photos and videos before upload.
+          </p>
+        )}
+
+        {/* Media preview grid */}
+        {mediaFiles.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {mediaFiles.map((file, index) => (
+              <div
+                key={file.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`relative aspect-square bg-surface-sunken rounded-lg overflow-hidden cursor-move ${
+                  draggedIndex === index ? 'opacity-50' : ''
+                }`}
+                data-media-upload={uploads.itemFor(file.id)?.status ?? (file.file ? 'pending' : 'stored')}
+              >
+                {/* Media number badge */}
+                <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                  {index + 1}
+                </div>
+
+                {/* Media content. MediaTile (fill-in-frame), not LazyImage
+                    with pixel dimensions: LazyImage bakes its width/height
+                    into an inline style that beats Tailwind, so a 200px
+                    image was clipped to the top-left corner of the ~114px
+                    grid cell on phones. MediaTile also handles the
+                    isOptimizableImageSrc opt-out for blob: preview URLs. */}
+                {file.type === 'image' ? (
+                  <MediaTile
+                    src={file.url}
+                    kind="image"
+                    alt=""
+                    className="h-full w-full"
+                    sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 200px"
+                  />
+                ) : (
+                  <>
+                    {/* Capture v2: the local file previews itself (metadata
+                        only, muted, inline) until its poster arrives; the
+                        element's own metadata fills width/height/duration
+                        (no probe load). VideoFrame since Oct 13 2026. */}
+                    <VideoFrame
+                      src={file.url}
+                      poster={file.posterPreviewUrl}
+                      state={frameStateOf(uploads.itemFor(file.id))}
+                      progress={uploads.itemFor(file.id)?.progress}
+                      onRetry={() => queue.retry(file.id)}
+                      onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
+                      alt=""
+                      className="w-full h-full"
+                    />
+                    {/* PR 8: the server read an iPhone's HEVC — the worker converts it after Post; the tile says so. */}
+                    {uploads.itemFor(file.id)?.codec === 'hevc' && (file.durationSeconds ?? 0) <= MAX_VIDEO_SECONDS && (
+                      <div role="status" data-media-will-process="" className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1">
+                        Will process after posting
+                      </div>
+                    )}
+                    {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
+                      <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
+                        Too long — trim in the editor
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* A photo's upload state (a video's is VideoFrame's own):
+                    the bar + the number while its bytes leave the device,
+                    a Retry that keeps the file when they did not. */}
+                {file.type === 'image' && uploads.itemFor(file.id)?.status === 'pending' && (
+                  <div
+                    role="progressbar"
+                    aria-label="Upload progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}
+                    className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1"
+                  >
+                    <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-1">
+                      <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%` }} />
+                    </div>
+                    {Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%
+                  </div>
+                )}
+                {file.type === 'image' && uploads.itemFor(file.id)?.status === 'failed' && (
+                  <button
+                    type="button"
+                    onClick={() => queue.retry(file.id)}
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-900/60 px-2 text-center text-xs font-semibold text-white"
+                    aria-label="Retry upload"
+                    data-media-retry=""
+                  >
+                    <i className="fas fa-rotate-right" aria-hidden="true"></i>
+                    <span>Upload failed — tap to retry</span>
+                  </button>
+                )}
+
+                {/* Remove button. Padding grows the 24px circle to a 40px
+                    hit area; the visual circle lives on the inner span. */}
+                <button
+                  onClick={() => removeMediaFile(file.id)}
+                  aria-label="Remove media"
+                  className="absolute top-0 right-0 p-2 group"
+                >
+                  <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                    <i className="fas fa-times text-xs"></i>
+                  </span>
+                </button>
+
+                {/* Edit (re-opens the editor rehydrated with this asset's
+                    recipe) — images AND videos: openEditorFor is
+                    kind-agnostic and VideoStage rehydrates trim/poster. */}
+                {(file.sourceFile || file.file) && (
+                  <button
+                    onClick={() => openEditorFor(file)}
+                    aria-label="Edit media"
+                    className="absolute bottom-0 right-0 p-2 group"
+                  >
+                    <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
+                      <i className="fas fa-pen text-xs"></i>
+                    </span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+
+      {/* Caption */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-semibold text-secondary">
+            Caption
+          </label>
+          <span className={`text-xs ${
+            caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600 dark:text-red-400' : 'text-muted'
+          }`}>
+            {caption.length}/{MAX_CAPTION_LENGTH}
+          </span>
+        </div>
+        <textarea
+          ref={captionRef}
+          value={caption}
+          onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION_LENGTH))}
+          placeholder="Share your thoughts..."
+          className="w-full px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
+          rows={4}
+        />
+      </div>
+    </>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1009,244 +1255,10 @@ export default function CreatePostModal({
             </div>
           )}
 
-          {/* Media Upload. The whole section is an INVISIBLE drop target
-              (dropzone-box retired, Tom Aug 25 — the capture row already
-              names every input path): dragging files over it summons a ring
-              + "Drop to add"; at rest there's no drag furniture at all.
-              Files-only guards keep the preview grid's tile-reorder drags
-              from triggering it. */}
-          <div
-            className={`${isLiveSetup ? 'hidden' : 'mb-6'} ${
-              draggedOver ? 'ring-2 ring-violet-500 rounded-lg bg-brand-soft p-2 -m-2' : ''
-            }`}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDraggedOver(false);
-              if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files);
-            }}
-            onDragOver={(e) => {
-              if (!e.dataTransfer.types.includes('Files')) return;
-              e.preventDefault();
-              setDraggedOver(true);
-            }}
-            onDragLeave={(e) => {
-              // Leaving INTO a child also fires dragleave — ignore those.
-              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-              setDraggedOver(false);
-            }}
-          >
-            <label className="block text-sm font-semibold text-secondary mb-3">
-              Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
-            </label>
-
-            {/* Capture row — media is the headline act (Tom, Aug 24): take it
-                NOW at full native-camera quality, or upload. `capture` is a
-                mobile hint; on desktop these open the file picker. */}
-            <CaptureInputs onFiles={files => handleFileUpload(files, 'camera')} allowVideo>
-              {({ openPhoto, openVideo }) => (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    className="hidden"
-                    onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                  />
-                  <button
-                    type="button"
-                    onClick={openPhoto}
-                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-                  >
-                    <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
-                    <span className="text-xs font-semibold">Take photo</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openVideo}
-                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-                  >
-                    <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
-                    <span className="text-xs font-semibold">Record video</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-                  >
-                    <i className="fas fa-cloud-upload-alt text-lg text-brand-fg" aria-hidden="true"></i>
-                    <span className="text-xs font-semibold">Upload</span>
-                  </button>
-                </div>
-              )}
-            </CaptureInputs>
-
-            <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
-              {draggedOver
-                ? 'Drop to add'
-                : 'Up to 50MB each — crop, adjust, and filter before posting'}
-            </p>
-
-            {/* Visible privacy care for minors' media (Family Console Wave 1;
-                video joined in Wave 6 — MP4/MOV re-muxed on upload, fail-open
-                like photos, so the plain claim is honest). */}
-            {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
-              <p className="mt-1 text-xs text-muted">
-                <i className="fas fa-shield-alt mr-1" aria-hidden="true"></i>
-                Location data is removed from photos and videos before upload.
-              </p>
-            )}
-
-            {/* Media preview grid */}
-            {mediaFiles.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {mediaFiles.map((file, index) => (
-                  <div
-                    key={file.id}
-                    draggable
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                    className={`relative aspect-square bg-surface-sunken rounded-lg overflow-hidden cursor-move ${
-                      draggedIndex === index ? 'opacity-50' : ''
-                    }`}
-                    data-media-upload={uploads.itemFor(file.id)?.status ?? (file.file ? 'pending' : 'stored')}
-                  >
-                    {/* Media number badge */}
-                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                      {index + 1}
-                    </div>
-
-                    {/* Media content. MediaTile (fill-in-frame), not LazyImage
-                        with pixel dimensions: LazyImage bakes its width/height
-                        into an inline style that beats Tailwind, so a 200px
-                        image was clipped to the top-left corner of the ~114px
-                        grid cell on phones. MediaTile also handles the
-                        isOptimizableImageSrc opt-out for blob: preview URLs. */}
-                    {file.type === 'image' ? (
-                      <MediaTile
-                        src={file.url}
-                        kind="image"
-                        alt=""
-                        className="h-full w-full"
-                        sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 200px"
-                      />
-                    ) : (
-                      <>
-                        {/* Capture v2: the local file previews itself (metadata
-                            only, muted, inline) until its poster arrives; the
-                            element's own metadata fills width/height/duration
-                            (no probe load). VideoFrame since Oct 13 2026. */}
-                        <VideoFrame
-                          src={file.url}
-                          poster={file.posterPreviewUrl}
-                          state={frameStateOf(uploads.itemFor(file.id))}
-                          progress={uploads.itemFor(file.id)?.progress}
-                          onRetry={() => queue.retry(file.id)}
-                          onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
-                          alt=""
-                          className="w-full h-full"
-                        />
-                        {/* PR 8: the server read an iPhone's HEVC — the worker converts it after Post; the tile says so. */}
-                        {uploads.itemFor(file.id)?.codec === 'hevc' && (file.durationSeconds ?? 0) <= MAX_VIDEO_SECONDS && (
-                          <div role="status" data-media-will-process="" className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1">
-                            Will process after posting
-                          </div>
-                        )}
-                        {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
-                          <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
-                            Too long — trim in the editor
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* A photo's upload state (a video's is VideoFrame's own):
-                        the bar + the number while its bytes leave the device,
-                        a Retry that keeps the file when they did not. */}
-                    {file.type === 'image' && uploads.itemFor(file.id)?.status === 'pending' && (
-                      <div
-                        role="progressbar"
-                        aria-label="Upload progress"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}
-                        className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1"
-                      >
-                        <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-1">
-                          <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%` }} />
-                        </div>
-                        {Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%
-                      </div>
-                    )}
-                    {file.type === 'image' && uploads.itemFor(file.id)?.status === 'failed' && (
-                      <button
-                        type="button"
-                        onClick={() => queue.retry(file.id)}
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-900/60 px-2 text-center text-xs font-semibold text-white"
-                        aria-label="Retry upload"
-                        data-media-retry=""
-                      >
-                        <i className="fas fa-rotate-right" aria-hidden="true"></i>
-                        <span>Upload failed — tap to retry</span>
-                      </button>
-                    )}
-
-                    {/* Remove button. Padding grows the 24px circle to a 40px
-                        hit area; the visual circle lives on the inner span. */}
-                    <button
-                      onClick={() => removeMediaFile(file.id)}
-                      aria-label="Remove media"
-                      className="absolute top-0 right-0 p-2 group"
-                    >
-                      <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                        <i className="fas fa-times text-xs"></i>
-                      </span>
-                    </button>
-
-                    {/* Edit (re-opens the editor rehydrated with this asset's
-                        recipe) — images AND videos: openEditorFor is
-                        kind-agnostic and VideoStage rehydrates trim/poster. */}
-                    {(file.sourceFile || file.file) && (
-                      <button
-                        onClick={() => openEditorFor(file)}
-                        aria-label="Edit media"
-                        className="absolute bottom-0 right-0 p-2 group"
-                      >
-                        <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
-                          <i className="fas fa-pen text-xs"></i>
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-          </div>
-
-          {/* Caption */}
-          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-secondary">
-                Caption
-              </label>
-              <span className={`text-xs ${
-                caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600 dark:text-red-400' : 'text-muted'
-              }`}>
-                {caption.length}/{MAX_CAPTION_LENGTH}
-              </span>
-            </div>
-            <textarea
-              ref={captionRef}
-              value={caption}
-              onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION_LENGTH))}
-              placeholder="Share your thoughts..."
-              className="w-full px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
-              rows={4}
-            />
-          </div>
+          {/* Media + caption: in place for a general or stat-line post; a golf
+              round's steps render them on the last step of an already-played
+              round (finishSlot) — a live round tells its story at the finish. */}
+          {postType !== 'golf' && postFields}
 
           {/* Sport/Post Type Selection */}
           <div className="mb-6">
@@ -1332,11 +1344,16 @@ export default function CreatePostModal({
               onChange={setGolfValue}
               onCaptionGenerated={setCaption}
               seed={sportKey === 'golf' ? golfSeed : undefined}
+              onFinish={() => { void handleSubmit(); }}
+              onPreview={() => setShowPreview(true)}
+              busy={isSubmitting}
+              busyLabel={uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? undefined}
+              finishSlot={postFields}
             />
           ))}
 
           {/* Tags */}
-          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
+          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
             <label className="block text-sm font-semibold text-secondary mb-3">Tags</label>
             <div className="flex flex-wrap gap-2">
               {currentTags.map(tag => (
@@ -1359,7 +1376,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Hashtags */}
-          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
+          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-secondary">
                 Hashtags ({hashtags.length}/{MAX_HASHTAGS})
@@ -1443,7 +1460,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Tag People */}
-          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
+          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-secondary">Tag People</label>
               <button
@@ -1489,16 +1506,19 @@ export default function CreatePostModal({
               per-post audience. The one switch is the feed (269): off, the
               post still stands on the profile. A guardian posting as an
               athlete sees the athlete's account. */}
-          <div className="mb-6" data-composer-audience="">
+          <div className={postType === 'golf' ? 'hidden' : 'mb-6'} data-composer-audience="">
             <FeedToggle on={onFeed} onChange={setOnFeed} kind={feedKind} place={defaultPostCategory === 'training' ? 'in Training' : undefined} accountVisibility={(activeProfile ?? profile)?.visibility ?? null} />
           </div>
         </div>
 
-        {/* Footer.
+        {/* Footer — a golf round's steps draw their own (StepFlow: Back / Next /
+            Go Live or Create Post), so the composer's stays off while golf is
+            the post type.
             Stacks below `sm`: as a single non-wrapping row, the hint + Cancel +
             Preview + Create Post overflowed the modal on every phone width and
             clipped the primary submit button off the right edge (375px: the
             "Create Post" button ran to 424px in a 375px viewport). */}
+        {postType !== 'golf' && (
         <div className="flex flex-col gap-3 p-4 border-t border-border bg-surface-muted sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="text-sm text-tertiary">
             {/* What the disabled Post needs, as a calm hint — not a red
@@ -1506,20 +1526,7 @@ export default function CreatePostModal({
             {!isValidForSubmission() && (
               <span className="text-secondary" data-composer-hint="">
                 <i className="fas fa-circle-info mr-1.5 text-brand-fg" aria-hidden="true"></i>
-                {postType === 'golf'
-                  ? (() => {
-                      // Name the ACTUAL missing fields — a dead grey button
-                      // with a stale generic hint reads as "broken"
-                      const { sharedRoundDetails } = golfValue;
-                      const missing: string[] = [];
-                      if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
-                      if (!sharedRoundDetails.date) missing.push('date');
-                      return missing.length > 0
-                        ? `Missing: ${missing.join(', ')}`
-                        : 'Please complete the round details';
-                    })()
-                  : 'Add a caption or media to post'
-                }
+                Add a caption or media to post
               </span>
             )}
           </div>
@@ -1548,19 +1555,12 @@ export default function CreatePostModal({
                 handleSubmit();
               }}
               disabled={!isValidForSubmission() || isSubmitting}
-              className={`flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                isLiveSetup ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-hover'
-              }`}
+              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-brand hover:bg-brand-hover"
             >
               {isSubmitting ? (
                 <>
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  {uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? (isLiveSetup ? 'Starting…' : 'Creating...')}
-                </>
-              ) : isLiveSetup ? (
-                <>
-                  <span className="inline-block w-2 h-2 bg-surface rounded-full mr-2 animate-pulse align-middle"></span>
-                  Go Live
+                  {uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? 'Creating...'}
                 </>
               ) : (
                 <>
@@ -1571,6 +1571,7 @@ export default function CreatePostModal({
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* Preview Modal */}

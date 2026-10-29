@@ -10,6 +10,11 @@ import type { ReactNode } from 'react';
  * index and the values; this draws the frame. Every target is ≥ 44 px, one
  * column at 375 px, and it never sets display or width on a shared class.
  * The event, org and registration wizards keep their own frames for now.
+ *
+ * Oct 28 2026 (the golf round as steps): a refused Next or finish says WHY
+ * beside the button (`refusal`) — a dead grey button with no reason read as
+ * broken, the composer's footer hint lesson; the finish can wear the live
+ * red (`finishTone="live"`, the Go Live button) and name its own busy line.
  */
 export interface StepFlowStep {
   id: string;
@@ -23,17 +28,28 @@ interface StepFlowProps {
   steps: StepFlowStep[];
   index: number;
   onIndex: (next: number) => void;
-  finishLabel: string;
+  finishLabel: ReactNode;
   onFinish: () => void;
   /** Next / the finish button wait (a save in flight). */
   busy?: boolean;
-  /** Next is refused on this step until it is true (a required answer). */
+  /** What the finish button says while busy; "Saving…" by default. */
+  busyLabel?: string;
+  /** Next (and the finish) is refused on this step until it is true (a required answer). */
   canAdvance?: boolean;
+  /** Why Next is refused, shown beside the button while `canAdvance` is false. */
+  refusal?: string;
+  /** The finish button's colour: the brand CTA, or the live red. */
+  finishTone?: 'brand' | 'live';
   children: ReactNode;
   className?: string;
 }
 
-export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFinish, busy = false, canAdvance = true, children, className = '' }: StepFlowProps) {
+const FINISH_TONE: Record<NonNullable<StepFlowProps['finishTone']>, string> = {
+  brand: 'ea-cta',
+  live: 'bg-red-600 hover:bg-red-700 transition-colors',
+};
+
+export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFinish, busy = false, busyLabel = 'Saving…', canAdvance = true, refusal, finishTone = 'brand', children, className = '' }: StepFlowProps) {
   const step = steps[index] ?? steps[0];
   const last = index >= steps.length - 1;
   const back = () => onIndex(Math.max(0, index - 1));
@@ -77,10 +93,14 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
             Skip
           </button>
         )}
-        <span className="flex-1" />
+        {/* The reason Next is grey, in the space between the buttons; a
+            calm line, not a red error before anything was tried. */}
+        <span className="flex-1 min-w-0 text-xs text-secondary" data-step-refusal={!canAdvance && refusal ? '' : undefined} aria-live="polite">
+          {!canAdvance && refusal ? refusal : null}
+        </span>
         {last ? (
-          <button type="button" onClick={onFinish} disabled={busy} className="ea-cta min-h-[44px] rounded-lg px-5 text-base font-semibold text-white disabled:opacity-50" data-step-finish="">
-            {busy ? 'Saving…' : finishLabel}
+          <button type="button" onClick={onFinish} disabled={busy || !canAdvance} className={`${FINISH_TONE[finishTone]} min-h-[44px] rounded-lg px-5 text-base font-semibold text-white disabled:opacity-50`} data-step-finish="">
+            {busy ? busyLabel : finishLabel}
           </button>
         ) : (
           <button type="button" onClick={next} disabled={busy || !canAdvance} className="ea-cta min-h-[44px] rounded-lg px-5 text-base font-semibold text-white disabled:opacity-50" data-step-next="">

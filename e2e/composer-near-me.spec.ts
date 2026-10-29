@@ -20,7 +20,7 @@ async function phoneContext(browser: Browser, at: [number, number]) {
   });
 }
 
-test('composer: Near me sorts the picker by distance and offers the course you are standing on @mobile', async ({ browser }) => {
+test('composer: Near me sorts the picker by distance and offers the course you are standing on @mobile', async ({ browser, browserName }) => {
   test.setTimeout(120_000);
   const admin = adminClient();
   const api = await apiAs('state.json');
@@ -57,8 +57,23 @@ test('composer: Near me sorts the picker by distance and offers the course you a
     await sportSelector.getByPlaceholder('Search sports...').fill('golf');
     await sportSelector.getByRole('button', { name: /golf/i }).first().click();
 
-    await page.locator('[data-course-near-me]').click();
+    // The round as steps (Oct 28 2026): Playing now + Outdoor are the
+    // defaults; Next opens the course step. Location is GRANTED to this
+    // context, so the step runs the one-shot fix on entry (geolocationGranted)
+    // and "Playing at X?" is the first row without a tap — asserted where
+    // the Permissions API answers "granted" for geolocation (Chromium);
+    // elsewhere the tap stands, exactly as before.
+    const flow = page.locator('[data-step-flow="golf-round"]');
+    await expect(flow).toBeVisible({ timeout: 15_000 });
+    await flow.locator('[data-step-next]').click();
+    await expect(flow).toHaveAttribute('data-step', 'course');
     const offer = page.locator('[data-course-nearby-offer]');
+    if (browserName === 'chromium') {
+      await expect(offer).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('[data-course-near-me]')).toHaveAttribute('aria-pressed', 'true');
+    } else {
+      await page.locator('[data-course-near-me]').click();
+    }
     await expect(offer).toBeVisible({ timeout: 15_000 });
     await expect(offer).toContainText(`Playing at ${name}?`);
     await expect(offer).toContainText(/0\.\d km/);

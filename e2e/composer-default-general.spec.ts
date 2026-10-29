@@ -15,13 +15,15 @@ test('a golfer\'s new post starts General: "Create a post", no golf fields', asy
     await prompt.click();
     await expect(page.getByText('General Post', { exact: true })).toBeVisible();
     await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
-    await expect(page.getByPlaceholder(/search for a golf course/i)).toHaveCount(0);
+    await expect(page.locator('[data-step-flow="golf-round"]')).toHaveCount(0);
     // The sport picker is still one tap away (functionality unchanged).
     await page.getByText('General Post', { exact: true }).click();
     const selector = page.locator('div[class*="z-[60]"]');
     await selector.getByPlaceholder('Search sports...').fill('golf');
     await selector.getByRole('button', { name: /golf/i }).first().click();
-    await expect(page.getByPlaceholder(/search for a golf course/i)).toBeVisible();
+    // The golf round's steps (Oct 28 2026) open on Round type.
+    await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();
+    await expect(page.getByText('Playing now')).toBeVisible();
   } finally {
     await api.put('/api/profile', { data: { profileData: { sport: null } } });
     await api.dispose();
