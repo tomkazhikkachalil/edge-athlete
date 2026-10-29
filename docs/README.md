@@ -19,6 +19,9 @@ addition below as a promise to keep it true.
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
+- `docs/COST.md` — what Vercel and Supabase charge for (Oct 29 2026): the two curves (pace of change vs
+  users), the rates, what is in place (Observability Plus off, retention, the Ignored Build Step, opt-in
+  previews), the ranked user-scaling levers, the monthly Usage-page glance.
 - `docs/SCALE_AUDIT.md` — the scale audit (Oct 25 2026): the ceilings table (Vercel, Supabase
   Micro, PostgREST 1,000 rows, Realtime 500 connections / 500 msgs/s), the baseline, the static
   sweep of every hot path (round trips, bounds, cache, limiter), the seeded EXPLAIN pass, the
