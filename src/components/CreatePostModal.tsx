@@ -1260,7 +1260,36 @@ export default function CreatePostModal({
               round (finishSlot) — a live round tells its story at the finish. */}
           {postType !== 'golf' && postFields}
 
-          {/* Sport/Post Type Selection */}
+          {/* Sport/Post Type Selection. While a golf round's steps run the
+              card is ONE line (Oct 29 2026): the big card took a third of a
+              phone screen above every step; the same two doors stay —
+              Change (the picker) and Remove sport. */}
+          {postType === 'golf' ? (
+            <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1" data-post-type-compact="">
+              <button
+                type="button"
+                onClick={() => setShowSportSelector(true)}
+                className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 -ml-2 text-left"
+                aria-label="Change sport"
+              >
+                <i className={`${getSportDefinition(postType as SportKey).icon_id} text-brand-fg`} aria-hidden="true"></i>
+                <span className="font-semibold text-primary">{getSportDefinition(postType as SportKey).display_name}</span>
+                <span className="text-sm font-medium text-brand-fg">Change</span>
+              </button>
+              <button
+                type="button"
+                data-post-type-clear=""
+                onClick={() => {
+                  setPostType('general');
+                  setStatLineData(null);
+                }}
+                className="ea-interactive inline-flex min-h-[44px] items-center text-sm text-muted hover:text-primary"
+              >
+                <i className="fas fa-times mr-1" aria-hidden="true"></i>
+                Remove sport
+              </button>
+            </div>
+          ) : (
           <div className="mb-6">
             <label className="block text-sm font-semibold text-secondary mb-3">Post Type</label>
             <button
@@ -1317,6 +1346,7 @@ export default function CreatePostModal({
               </button>
             )}
           </div>
+          )}
 
           {/* Stat-line sport form (ice hockey, volleyball, …) */}
           {isStatLineSport && (
