@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
-import { apiAs } from './helpers/qa-user';
+import { adminClient, apiAs } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
 // The golf round as STEPS (Oct 28 2026): one flow, two modes. Picking golf
@@ -225,4 +225,63 @@ test('@mobile Quick entry opens the stepper and writes back to the grid', { tag:
   await expect(strokes).toBeHidden();
   const holeInputs = page.getByPlaceholder('-', { exact: true });
   await expect(holeInputs.first()).toHaveValue('5');
+});
+
+// The tee rows (Oct 29 2026, Tom's spec: "colour, yardage, and any other
+// existing tee details"): a catalog course's tee select names each tee with
+// its yardage and rating / slope; the compact sport row stands above the
+// steps with both doors. Self-seeded — staging holds no catalog courses.
+test('a catalog tee shows its yards and rating / slope; the sport row is one line with Change and Remove sport', async ({ page }) => {
+  const admin = adminClient();
+  const stamp = Date.now();
+  const name = `QA Tee Links ${stamp}`;
+  let courseId = '';
+  try {
+    const seeded = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'qa-e2e',
+        external_id: `tees-${stamp}`,
+        name,
+        total_par: 36,
+        holes_count: 9,
+        section_kind: 'nine',
+        course_rating: { white: 71.2, blue: 72.9 },
+        slope_rating: { white: 128, blue: 134 },
+        hole_data: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: 4, yardage: { white: 350, blue: 380 }, handicap: i + 1 })),
+      })
+      .select('id')
+      .single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+
+    const flow = await openGolf(page);
+    const row = page.locator('[data-post-type-compact]');
+    await expect(row).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Change sport' })).toBeVisible();
+    await expect(row.locator('[data-post-type-clear]')).toBeVisible();
+    await expect(page.getByText('Post Type', { exact: true })).toHaveCount(0);
+
+    await next(flow, /Step 2 of 6 · Course/);
+    const courseInput = page.getByPlaceholder(/search for a golf course/i);
+    await courseInput.fill('QA Tee Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(courseInput).toHaveValue(name);
+
+    const tees = page.locator('select').filter({ has: page.locator('option', { hasText: 'Select tees' }) }).first();
+    await expect(tees).toBeVisible();
+    // Hardest first (blue 72.9 over white 71.2), each with yards · rating / slope.
+    await expect(tees.locator('option')).toHaveText(['Select tees', 'Blue · 3,420 yds · 72.9 / 134', 'White · 3,150 yds · 71.2 / 128']);
+    await tees.selectOption('white');
+    // The summary on the last step names the tee the same way.
+    await next(flow, /Step 3 of 6 · Game format/);
+    await next(flow, /Step 4 of 6 · Conditions/);
+    await next(flow, /Step 5 of 6 · Players/);
+    await next(flow, /Step 6 of 6 · Start/);
+    await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('White · 3,150 yds · 71.2 / 128');
+  } finally {
+    await cleanup('golf-steps-tees', [
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+    ]);
+  }
 });

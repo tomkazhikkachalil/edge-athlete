@@ -35,6 +35,7 @@ import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } 
 import type { GolfCourse } from '@/types/golf';
 import { deriveCourseHoles as deriveCourseHolesPure } from '@/lib/golf/holes';
 import { composeCourses, buildComposition, type CourseComposition } from '@/lib/golf/course-sections';
+import { courseSummary, teeChoiceLabel } from '@/lib/golf/course-summary';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
@@ -795,7 +796,11 @@ export default function GolfComposerSection({
       ...(next ? { weather: '', temperature: '', wind: '' } : {}),
     }));
 
-  const teeInPlay = sharedRoundDetails.teeColor ? teeLabel(sharedRoundDetails.teeColor) : null;
+  const teeTotals = selectedCourse ? courseSummary(selectedCourse).tees : [];
+  const teeInPlayTotal = teeTotals.find(t => t.key === sharedRoundDetails.teeColor);
+  const teeInPlay = sharedRoundDetails.teeColor
+    ? teeInPlayTotal ? teeChoiceLabel(teeInPlayTotal) : teeLabel(sharedRoundDetails.teeColor)
+    : null;
   const summaryRows: { label: string; value: string | null }[] = [
     { label: 'Course', value: sharedRoundDetails.courseName.trim() || null },
     ...(sharedRoundDetails.alreadyPlayed ? [{ label: 'Date', value: sharedRoundDetails.date || null }] : []),
@@ -1185,9 +1190,15 @@ export default function GolfComposerSection({
                 className={GOLF_SELECT}
               >
                 <option value="">{selectedCourse ? 'Select tees' : 'Select tee color'}</option>
-                {courseTeeOptions(selectedCourse).map(key => (
-                  <option key={key} value={key}>{teeLabel(key)}</option>
-                ))}
+                {/* A catalog tee shows its yardage, rating and slope beside
+                    its name (teeChoiceLabel); a custom course's classic
+                    colours stay names. */}
+                {courseTeeOptions(selectedCourse).map(key => {
+                  const total = teeTotals.find(t => t.key === key);
+                  return (
+                    <option key={key} value={key}>{total ? teeChoiceLabel(total) : teeLabel(key)}</option>
+                  );
+                })}
               </select>
             </div>
           )}
