@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
@@ -109,10 +110,9 @@ export default function PushCard() {
           <i className="fas fa-bell"></i>
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-bold text-primary">Know when something happens</h2>
-          <p className="text-sm text-secondary mt-0.5">
-            Get a notification for new messages and activity, with a number on the app icon. Tap one to go straight to it.
-          </p>
+          <SectionInfo heading="Know when something happens" label="phone notifications" headingClassName="font-bold text-primary" dense>
+            <p>Get a notification for new messages and activity, with a number on the app icon. Tap one to go straight to it.</p>
+          </SectionInfo>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"

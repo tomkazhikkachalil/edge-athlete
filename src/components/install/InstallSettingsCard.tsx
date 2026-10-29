@@ -1,6 +1,7 @@
 'use client';
 
 import { COPY } from '@/lib/copy';
+import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { useInstallApp } from './InstallAppProvider';
 
 /**
@@ -10,14 +11,24 @@ import { useInstallApp } from './InstallAppProvider';
  */
 export default function InstallSettingsCard() {
   const app = useInstallApp();
+  const [infoRef, info] = useInfoDisclosure(COPY.INSTALL.SETTINGS_TITLE);
   if (app.mode === null) return null;
 
   const usingApp = app.mode === 'installed';
+  const invite = !usingApp && !app.knownInstalled;
 
   return (
     <div data-install-settings={usingApp ? 'using' : app.knownInstalled ? 'installed' : 'invite'}>
-      <div className="mb-4">
-        <h3 className="text-2xl font-bold text-primary tracking-tight">{COPY.INSTALL.SETTINGS_TITLE}</h3>
+      <div ref={infoRef} className="mb-4">
+        <div className="flex flex-wrap items-center gap-1">
+          <h3 className="text-2xl font-bold text-primary tracking-tight">{COPY.INSTALL.SETTINGS_TITLE}</h3>
+          {invite && <InfoButton d={info} />}
+        </div>
+        {invite && (
+          <InfoPanel d={info}>
+            <p>{COPY.INSTALL.SETTINGS_BODY}</p>
+          </InfoPanel>
+        )}
       </div>
       <div className="bg-surface rounded-xl p-6 sm:p-8 border border-border shadow-sm">
         <div className="flex items-start gap-4">
@@ -43,12 +54,11 @@ export default function InstallSettingsCard() {
               </>
             ) : (
               <>
-                <p className="text-base text-primary">{COPY.INSTALL.SETTINGS_BODY}</p>
                 <button
                   type="button"
                   onClick={app.install}
                   data-install-cta=""
-                  className="ea-cta mt-4 inline-flex items-center gap-2 min-h-[44px] px-5 rounded-lg text-sm font-semibold text-white"
+                  className="ea-cta mt-1 inline-flex items-center gap-2 min-h-[44px] px-5 rounded-lg text-sm font-semibold text-white"
                 >
                   <i className="fas fa-download" aria-hidden="true"></i>
                   {COPY.INSTALL.CTA}

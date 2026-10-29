@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
@@ -346,12 +347,13 @@ export default function MediaDiagPage() {
     <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <main className="flex-grow p-4 max-w-2xl w-full mx-auto">
-        <h1 className="text-2xl font-bold text-primary">Media diagnostic</h1>
-        <p className="mt-2 text-sm text-secondary">
-          Runs the same steps the post composer runs — pick, validate, decode, editor, export — and logs
-          each one. Nothing is posted. The Upload test stores one file that the storage sweep removes
-          within 48 hours.
-        </p>
+        <SectionInfo as="h1" heading="Media diagnostic" headingClassName="text-2xl font-bold text-primary">
+          <p>
+            Runs the same steps the post composer runs — pick, validate, decode, editor, export — and logs
+            each one. Nothing is posted. The Upload test stores one file that the storage sweep removes
+            within 48 hours.
+          </p>
+        </SectionInfo>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="ea-cta min-h-[52px] rounded-lg text-white font-semibold flex items-center justify-center cursor-pointer">

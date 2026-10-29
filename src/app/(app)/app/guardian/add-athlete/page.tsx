@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
@@ -121,11 +122,9 @@ export default function AddAthletePage() {
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {createdName}&apos;s profile is ready
               </h2>
-              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
-                It starts private — nothing is visible to anyone else until
-                you approve it. You can switch into their profile from the
-                menu at the top right.
-              </p>
+              <SectionInfo as="p" heading="Private until you approve it" label="the new profile" headingClassName="text-sm font-medium text-primary" dense rowClassName="justify-center" className="max-w-md mx-auto mb-6">
+                <p>Nothing is visible to anyone else until you approve it. You can switch into their profile from the menu at the top right.</p>
+              </SectionInfo>
               <div className="flex flex-col gap-2 max-w-xs mx-auto">
                 {createdId && (
                   <button
@@ -161,11 +160,9 @@ export default function AddAthletePage() {
             </div>
           ) : (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Add your athlete</h2>
-              <p className="text-sm text-tertiary mb-4">
-                Their profile starts private, and you control what gets shared.
-                No email needed — they&apos;ll never need one to use their profile.
-              </p>
+              <SectionInfo heading="Add your athlete" headingClassName="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200" className="mb-4">
+                <p>Their profile starts private, and you control what gets shared. No email needed — they&apos;ll never need one to use their profile.</p>
+              </SectionInfo>
               {error && (
                 <div
                   ref={errorRef}

@@ -1,6 +1,7 @@
 'use client';
 
 import { ALL_ON } from '@/lib/orgs/switches';
+import SectionInfo from '@/components/SectionInfo';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
@@ -242,12 +243,15 @@ export default function OrgPage({ side }: { side: OrgKind }) {
         {/* Roster invitation banner (0.3) */}
         {viewerRoster === 'pending' && (
           <div className="mt-6 ea-bubble ea-bubble-accent p-4 sm:p-6">
-            <p className="font-medium text-primary">
-              You&apos;ve been invited to the {org.name} roster
-            </p>
-            <p className="mt-1 text-sm text-secondary">
-              Roster membership is the real record — it&apos;s what future stats and schedules attach to.
-            </p>
+            <SectionInfo
+              as="p"
+              heading={<>You&apos;ve been invited to the {org.name} roster</>}
+              label="the roster invitation"
+              headingClassName="font-medium text-primary"
+              dense
+            >
+              <p>Roster membership is the real record — it&apos;s what future stats and schedules attach to.</p>
+            </SectionInfo>
             {viewerProfile?.supervision_state === 'supervised' ? (
               <p className="mt-1 text-xs text-muted">
                 Your guardian can also approve this from their console.

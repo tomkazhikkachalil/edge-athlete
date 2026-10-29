@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useSearchParams } from 'next/navigation';
 import { SeverityChip, StatusChip, TypeChip, ago, reasonLabel, resolutionLabel } from '@/components/tickets/ticket-ui';
 import { HELP_CATEGORIES, HELP_CATEGORY_LABELS, TICKET_LIMITS, type HelpCategory } from '@/lib/tickets/types';
@@ -89,8 +90,9 @@ export function SubmitRequest({ onCreated }: { onCreated: () => void }) {
 
   return (
     <section aria-labelledby="support-submit-heading">
-      <h2 id="support-submit-heading" className="text-lg font-semibold text-primary mb-1">Submit a request</h2>
-      <p className="text-sm text-tertiary mb-4">Tell us what you need. You get a ticket number and a reply here and by email.</p>
+      <SectionInfo heading="Submit a request" headingId="support-submit-heading" className="mb-4">
+        <p>Tell us what you need. You get a ticket number and a reply here and by email.</p>
+      </SectionInfo>
       {done && (
         <p role="status" className="mb-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 px-4 py-3 text-sm text-green-800 dark:text-green-300" data-support-created={done.number}>
           Sent — your ticket is <strong>{done.number}</strong>. Expect a first response {done.target}.
@@ -167,16 +169,18 @@ export function MyRequests({ listKey, openId }: { listKey: number; openId: strin
 
   return (
     <section aria-labelledby="support-mine-heading">
-      <h2 id="support-mine-heading" className="text-lg font-semibold text-primary mb-1">My requests</h2>
-      <p className="text-sm text-tertiary mb-4">Everything you have sent us, and any request from an athlete you look after.</p>
+      <SectionInfo heading="My requests" headingId="support-mine-heading" className="mb-4">
+        <p>Everything you have sent us, and any request from an athlete you look after.</p>
+      </SectionInfo>
       {state === 'loading' && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand my-6"></div>}
       {state === 'unsupported' && <p className="text-sm text-muted">Support requests are not available yet.</p>}
       {state === 'error' && <p role="alert" className="text-sm text-muted">Couldn&apos;t load your requests.</p>}
       {state === 'ready' && tickets.length === 0 && aboutMe.length === 0 && <p className="text-sm text-muted">No requests yet.</p>}
       {state === 'ready' && aboutMe.length > 0 && (
         <div className="mb-6" data-about-my-account="">
-          <h3 className="text-sm font-semibold text-primary mb-1">About your account</h3>
-          <p className="text-xs text-muted mb-2">A decision was made after a report. You can reply once if you disagree. Who reported is never shown.</p>
+          <SectionInfo as="h3" heading="About your account" headingClassName="text-sm font-semibold text-primary" dense className="mb-2">
+            <p>A decision was made after a report. You can reply once if you disagree. Who reported is never shown.</p>
+          </SectionInfo>
           <ul className="space-y-2">
             {aboutMe.map(t => (
               <li key={t.id} className="ea-surface rounded-lg border-l-4 border-amber-400" data-my-request={t.id}>

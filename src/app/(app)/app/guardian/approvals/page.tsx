@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import VideoFrame from '@/components/media/VideoFrame';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -322,13 +323,14 @@ export default function GuardianApprovalsPage() {
           <i className="fas fa-chevron-left text-xs"></i>
           Family console
         </Link>
-        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Approval queue</h1>
-        <p className="text-sm text-tertiary mb-6">
-          Posts — and, when you&apos;ve chosen review, comments — your athletes have
-          created are held here until you approve them. Nothing is visible to
-          anyone else until you do. The one exception: shared golf rounds
-          publish right away, because they&apos;re scored live with other players.
-        </p>
+        <SectionInfo as="h1" heading="Approval queue" headingClassName="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200" className="mb-6">
+          <p>
+            Posts — and, when you&apos;ve chosen review, comments — your athletes have
+            created are held here until you approve them. Nothing is visible to
+            anyone else until you do. The one exception: shared golf rounds
+            publish right away, because they&apos;re scored live with other players.
+          </p>
+        </SectionInfo>
 
         {error && (
           <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">

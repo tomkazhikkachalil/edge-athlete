@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import { hasDeepLink, parseEditorDeepLink, type EditorDeepLink } from '@/lib/site-builder/deep-link';
 import { useParams } from 'next/navigation';
@@ -754,9 +755,9 @@ function Editor({
         <main className="flex-1 px-4 py-6">
           {/* The phone editor: the same draft as a list — size and order per section. */}
           <div className="lg:hidden mx-auto max-w-lg" data-sb-phone="">
-            <p className="mb-3 text-xs text-tertiary">
-              {page ? `Editing the page “${page.title}”. ` : ''}Edit a section’s words, size or order here. Nothing goes live until you publish.
-            </p>
+            <SectionInfo as="p" heading={page ? `Editing the page “${page.title}”` : 'Editing your home page'} label="the phone editor" headingClassName="text-xs font-medium text-secondary" dense className="mb-3">
+              <p>Edit a section’s words, size or order here. Nothing goes live until you publish.</p>
+            </SectionInfo>
             <SectionsList
               site={site}
               layout={history.present}
@@ -845,10 +846,11 @@ function Editor({
             </LargerWindow>
           )}
           <div className="hidden lg:block mx-auto max-w-5xl">
-            {isHome ? <ChecklistRail steps={steps} onStep={onStep} /> : <p className="mb-3 text-sm text-secondary">Editing the page <strong>{page?.title}</strong>. Home, theme and the design gallery are on the Home page.</p>}
-            <p className="mb-3 text-xs text-tertiary">
-              Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.
-            </p>
+            {isHome ? <ChecklistRail steps={steps} onStep={onStep} /> : <p className="mb-3 text-sm text-secondary">Editing the page <strong>{page?.title}</strong>.</p>}
+            <SectionInfo as="p" heading="The canvas" label="the canvas" headingClassName="text-xs font-medium text-secondary" dense className="mb-3">
+              <p>Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.</p>
+              {!isHome && <p className="mt-2">Home, theme and the design gallery are on the Home page.</p>}
+            </SectionInfo>
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <Canvas

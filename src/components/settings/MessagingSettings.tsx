@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import type { MessagingPermission } from '@/types/messages';
@@ -102,12 +103,17 @@ export default function MessagingSettings() {
       {/* Supervised profiles see who manages them (renders nothing otherwise) */}
       <GuardiansCard />
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-2">Who Can Message You</h3>
-        <p className="text-tertiary text-sm mb-6">
-          {supervised
-            ? 'This setting controls who can exchange messages with you.'
-            : 'Control who is allowed to send you direct messages on Edge Athlete.'}
-        </p>
+        <SectionInfo as="h3" heading="Who Can Message You" className="mb-6">
+          <p>
+            {supervised
+              ? 'This setting controls who can exchange messages with you.'
+              : 'Control who is allowed to send you direct messages on Edge Athlete.'}
+          </p>
+          <p className="mt-2">
+            Group chats can still be created by admins regardless of this setting. Existing
+            conversations are not affected when you change this setting.
+          </p>
+        </SectionInfo>
 
         {supervised ? (
           <SupervisedSettingCard
@@ -153,26 +159,14 @@ export default function MessagingSettings() {
         )}
       </div>
 
-      <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">
-        <div className="flex gap-3">
-          <i className="fas fa-info-circle text-brand-fg mt-0.5 shrink-0"></i>
-          <div>
-            <h4 className="font-medium text-violet-900 dark:text-violet-200 mb-1">Note</h4>
-            <p className="text-sm text-violet-800 dark:text-violet-200">
-              Group chats can still be created by admins regardless of this setting. Existing
-              conversations are not affected when you change this setting.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Round I: the first place blocks are visible/reversible anywhere. */}
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-2">Blocked users</h3>
-        <p className="text-tertiary text-sm mb-4">
-          People you&apos;ve blocked can&apos;t message you. Blocking someone also closes
-          any conversation you had with them.
-        </p>
+        <SectionInfo as="h3" heading="Blocked users" className="mb-4">
+          <p>
+            People you&apos;ve blocked can&apos;t message you. Blocking someone also closes
+            any conversation you had with them.
+          </p>
+        </SectionInfo>
         <BlockedUsersList />
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import TeamRosterPanel from './TeamRosterPanel';
 import TeamIdentityForm, { type TeamIdentity } from './TeamIdentityForm';
@@ -65,14 +66,15 @@ export default function ScopedConsole({ side, orgId, orgName, grants, teams, div
   return (
     <div className="space-y-6" data-scoped-console="">
       <section className={card}>
-        <h2 className="text-lg font-semibold text-primary">What you run</h2>
+        <SectionInfo heading="What you run">
+          <p>Access tied to a season ends when that season is rolled over.</p>
+        </SectionInfo>
         <p className="mt-1 text-sm text-tertiary">
           {`Your access at ${orgName ?? `this ${side}`} covers ${[
             myTeams.length ? `${myTeams.length} ${myTeams.length === 1 ? 'team' : 'teams'}` : null,
             myDivisions.length ? `${myDivisions.length} ${myDivisions.length === 1 ? 'division' : 'divisions'}` : null,
           ].filter(Boolean).join(' and ') || 'nothing active right now'}.`}
         </p>
-        <p className="mt-1 text-xs text-muted">Access tied to a season ends when that season is rolled over.</p>
       </section>
 
       {myDivisions.map(({ division, sections }) => (

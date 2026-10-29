@@ -10,6 +10,7 @@
 // stored, already-trimmed preview.
 
 import Link from 'next/link';
+import SectionInfo from '@/components/SectionInfo';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -103,10 +104,9 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
   return (
     <div className="space-y-4 scroll-mt-24" id="training-activities" data-activities-tab>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-primary">Activities</h3>
-          <p className="text-xs text-muted mt-0.5">Walks, runs, rides and swims recorded on your phone.</p>
-        </div>
+        <SectionInfo as="h3" heading="Activities" headingClassName="text-base font-bold text-primary" dense>
+          <p>Walks, runs, rides and swims recorded on your phone.</p>
+        </SectionInfo>
         {state.isOwner && (
           <div className="flex flex-wrap items-center gap-3">
             {/* Record lives in the Training header above (one door per screen —

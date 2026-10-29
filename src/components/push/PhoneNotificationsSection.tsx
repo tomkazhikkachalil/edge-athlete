@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { useToast } from '@/components/Toast';
 import Toggle from '@/components/settings/Toggle';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
@@ -20,6 +21,7 @@ export default function PhoneNotificationsSection() {
   const { openGuide } = useInstallApp();
   const phone = usePhoneNotifications();
   const [testing, setTesting] = useState(false);
+  const [infoRef, info] = useInfoDisclosure('Phone notifications');
 
   if (!phone.ready || !phone.offered) return null;
 
@@ -53,7 +55,10 @@ export default function PhoneNotificationsSection() {
     }
   };
 
-  let detail: React.ReactNode;
+  // `detail` is the fix-it line a person must read (blocked, unsupported, needs
+  // the app); `explain` is what the toggle does — that one sits behind the (i).
+  let detail: React.ReactNode = null;
+  let explain: string | null = null;
   let control: React.ReactNode = null;
   switch (phone.support) {
     case 'needs-install':
@@ -73,7 +78,7 @@ export default function PhoneNotificationsSection() {
       detail = 'This browser can’t show notifications. Open Edge Athlete in Safari, Chrome or Edge, or from the app on your home screen.';
       break;
     default:
-      detail = phone.on
+      explain = phone.on
         ? 'This device shows new messages and activity, and the app icon shows how many you haven’t seen. Tap one to open it.'
         : 'Get a notification on this device for new messages and activity, with a number on the app icon. Your choices below still apply.';
       control = (
@@ -86,9 +91,13 @@ export default function PhoneNotificationsSection() {
       <h3 className="text-sm font-semibold text-secondary uppercase tracking-wide mb-3">On this device</h3>
       <div className="border border-border rounded-lg">
         <div className="flex items-center justify-between gap-4 p-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-primary">Phone notifications</p>
-            <p className="text-xs text-muted">{detail}</p>
+          <div ref={infoRef} className="min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-primary">Phone notifications</p>
+              {explain && <InfoButton d={info} dense />}
+            </div>
+            {detail && <p className="text-xs text-muted">{detail}</p>}
+            {explain && <InfoPanel d={info}>{explain}</InfoPanel>}
             {phone.on && (
               <button
                 type="button"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import type { OwnerAuthorityEntry } from '@/lib/authority/projection';
 
 // The identity fields in words — the log stores column names. Location
@@ -87,8 +88,9 @@ export default function OrgActivityCard({ plural, orgId, onRestored }: { plural:
 
   return (
     <section id="activity" aria-label="Activity" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-org-activity="">
-      <h2 className="text-lg font-semibold text-primary">Activity</h2>
-      <p className="text-sm text-tertiary mb-4">Who changed who runs this, and its website. Only owners see this.</p>
+      <SectionInfo heading="Activity" className="mb-4">
+        <p>Who changed who runs this, and its website. Only owners see this.</p>
+      </SectionInfo>
       {status === 'loading' && <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>}
       {status === 'error' && <p role="alert" className="text-sm text-tertiary">Couldn&apos;t load the activity.</p>}
       {message && <p role="status" className="text-sm text-secondary mb-3" data-org-activity-message="">{message}</p>}

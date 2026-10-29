@@ -1,6 +1,7 @@
 'use client';
 
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import SectionInfo from '@/components/SectionInfo';
 import LazyImage from './LazyImage';
 import FollowButton from './FollowButton';
 
@@ -28,9 +29,12 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
         </div>
 
         {/* Heading */}
-        <h2 className="text-2xl font-bold text-primary mb-3">
-          This Profile is Private
-        </h2>
+        <SectionInfo heading="This Profile is Private" label="this private profile" headingClassName="text-2xl font-bold text-primary" rowClassName="justify-center" className="mb-3">
+          <p>
+            This athlete has a private profile. Once they accept your fan request,
+            you&apos;ll be able to view their posts, stats, and all profile content.
+          </p>
+        </SectionInfo>
 
         <p className="text-tertiary mb-8">
           Become a fan of {profile.first_name || 'this athlete'} to see their posts, stats, and activity
@@ -76,17 +80,6 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
               onFollow?.(isFollowing);
             }}
           />
-        </div>
-
-        {/* Info Note */}
-        <div className="mt-8 p-4 bg-brand-soft border border-violet-100 dark:border-violet-800 rounded-lg">
-          <div className="flex items-start gap-2 text-left">
-            <i className="fas fa-info-circle text-brand-fg mt-0.5 flex-shrink-0"></i>
-            <p className="text-sm text-violet-900 dark:text-violet-200">
-              This athlete has a private profile. Once they accept your fan request,
-              you&apos;ll be able to view their posts, stats, and all profile content.
-            </p>
-          </div>
         </div>
       </div>
     </div>

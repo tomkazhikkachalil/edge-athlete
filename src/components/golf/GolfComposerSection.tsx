@@ -21,6 +21,7 @@
 // toggle, so switching golf → general → golf must keep the scorecard.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import SectionInfo, { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { requestPosition, geolocationGranted, POSITION_DENIED, type DeviceFix } from '@/lib/geo/request-position';
 import { formatKm, nearbyOffer, NEAR_RADIUS_KM } from '@/lib/golf/near-me';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
@@ -199,6 +200,7 @@ export default function GolfComposerSection({
   // activeProfile first, so a guardian composing AS a managed athlete seeds
   // that athlete's row rather than their own.
   const { profile, activeProfile } = useAuth();
+  const [scoreInfoRef, scoreInfo] = useInfoDisclosure('Score Entry');
   const displayProfile = activeProfile ?? profile;
 
   // Round data. `seed` (crash-draft restore) wins over the blank defaults —
@@ -1196,12 +1198,9 @@ export default function GolfComposerSection({
 
             {/* Help text for manual entry */}
             {!selectedCourse && sharedRoundDetails.courseName && (
-              <div className="mt-2 flex items-start gap-2 p-3 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg">
-                <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
-                <p className="text-xs text-violet-800 dark:text-violet-200">
-                  <strong>Custom course detected.</strong> Since this course isn&apos;t in our database, you can manually enter par and yardage below (optional).
-                </p>
-              </div>
+              <SectionInfo as="p" heading="Custom course detected." label="a custom course" headingClassName="text-xs font-semibold text-primary" dense className="mt-2">
+                <p>Since this course isn&apos;t in our database, you can enter par and yardage below (optional).</p>
+              </SectionInfo>
             )}
           </div>
 
@@ -1305,10 +1304,15 @@ export default function GolfComposerSection({
           {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
           {!selectedCourse && sharedRoundDetails.courseName && (
             <div className={GOLF_SECTION_CARD}>
-              <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                <i className="fas fa-edit mr-2 text-brand-fg"></i>
-                Course Par & Yardage (Optional)
-              </h3>
+              <SectionInfo
+                as="h3"
+                heading={<><i className="fas fa-edit mr-2 text-brand-fg"></i>Course Par & Yardage (Optional)</>}
+                label="course par and yardage"
+                headingClassName="text-lg font-semibold text-primary flex items-center"
+                className="mb-4"
+              >
+                <p>Entering par and yardage will display these values in the scorecard.</p>
+              </SectionInfo>
               <div className="p-4 bg-surface-muted border border-border-strong rounded-lg">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs text-tertiary">Optional - adds Par & Yardage to scorecard</span>
@@ -1366,10 +1370,6 @@ export default function GolfComposerSection({
                   </div>
                 </div>
 
-                <div className="mt-3 text-xs text-tertiary">
-                  <i className="fas fa-info-circle mr-1"></i>
-                  Entering par and yardage will display these values in the scorecard
-                </div>
               </div>
             </div>
           )}
@@ -1407,10 +1407,19 @@ export default function GolfComposerSection({
           {currentStep.id === 'players' && (
             <div data-round-step="players">
           <div className={GOLF_SECTION_CARD}>
-            <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-              <i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>
-              {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
-            </h3>
+            <SectionInfo
+              as="h3"
+              heading={<><i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>{sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}</>}
+              label={sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
+              headingClassName="text-lg font-semibold text-primary flex items-center"
+              className="mb-4"
+            >
+              <p>
+                {sharedRoundDetails.alreadyPlayed
+                  ? 'You’re on the scorecard already — add playing partners if you weren’t alone.'
+                  : 'Playing solo — just hit Go Live. Add partners any time if someone joins you.'}
+              </p>
+            </SectionInfo>
             <div>
               {/* flex-wrap: the label is long and dynamic — at ~279px of
                   card width it must wrap rather than squeeze the button. */}
@@ -1453,22 +1462,7 @@ export default function GolfComposerSection({
                     </span>
                   ))}
                 </div>
-              ) : sharedRoundDetails.alreadyPlayed ? (
-                <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
-                  <i className="fas fa-info-circle mr-1"></i>
-                  You&apos;re on the scorecard already — add playing partners
-                  if you weren&apos;t alone.
-                </div>
-              ) : (
-                // Live rounds are solo by default — nothing here is
-                // required. The old copy said a participant was needed and
-                // read as a hard block even though Go Live was enabled.
-                <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
-                  <i className="fas fa-golf-ball-tee mr-1"></i>
-                  Playing solo — just hit Go Live. Add partners any time if
-                  someone joins you.
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
             </div>
@@ -1479,12 +1473,15 @@ export default function GolfComposerSection({
               live round has no scores step; they are entered on the live page. */}
           {currentStep.id === 'scores' && (
             <div data-round-step="scores">
-          <div className={GOLF_SECTION_CARD}>
+          <div ref={scoreInfoRef} className={GOLF_SECTION_CARD}>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-lg font-semibold text-primary flex items-center">
-                <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
-                Score Entry
-              </h3>
+              <div className="flex items-center gap-1">
+                <h3 className="text-lg font-semibold text-primary flex items-center">
+                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
+                  Score Entry
+                </h3>
+                <InfoButton d={scoreInfo} />
+              </div>
               {/* One-tap path into the hole-by-hole stepper (ScoreEntryModal
                   in batch mode) — the phone-first alternative to the full
                   grid. The seam (quickEntryRequest) existed in the grid all
@@ -1504,9 +1501,9 @@ export default function GolfComposerSection({
                 Quick entry
               </button>
             </div>
-            <p className="text-sm text-tertiary mb-4">
+            <InfoPanel d={scoreInfo} className="mb-4">
               Enter the finished round below — the post publishes once, complete. Quick entry walks it hole by hole.
-            </p>
+            </InfoPanel>
 
             {/* Multi-player scorecard grid */}
             <div>

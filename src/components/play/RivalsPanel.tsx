@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import { BadgeCheck, Swords } from 'lucide-react';
 import { getInitials } from '@/lib/formatters';
@@ -105,17 +106,22 @@ export default function RivalsPanel({ profileId, sportKey }: { profileId: string
 
   return (
     <section className="ea-surface rounded-xl bg-surface p-4 sm:p-6 mb-6" aria-labelledby={`rivals-${sportKey}`} data-rivals={sportKey}>
-      <div className="flex items-center gap-2 mb-1">
-        <Swords className="w-5 h-5 text-brand" aria-hidden />
-        <h3 id={`rivals-${sportKey}`} className="text-h3 text-primary">Rivals</h3>
-      </div>
-      <p className="text-sm text-muted mb-4">
-        {view.selfView
-          ? view.canManage
-            ? 'Head-to-head with the people you play. Only the rivals you show appear on your profile.'
-            : 'Head-to-head with the people you play. Your guardian chooses which ones show on your profile.'
-          : 'Head-to-head records.'}
-      </p>
+      <SectionInfo
+        as="h3"
+        heading={<><Swords className="w-5 h-5 text-brand" aria-hidden /> Rivals</>}
+        label="Rivals"
+        headingId={`rivals-${sportKey}`}
+        headingClassName="text-h3 text-primary flex items-center gap-2"
+        className="mb-4"
+      >
+        <p>
+          {view.selfView
+            ? view.canManage
+              ? 'Head-to-head with the people you play. Only the rivals you show appear on your profile.'
+              : 'Head-to-head with the people you play. Your guardian chooses which ones show on your profile.'
+            : 'Head-to-head records.'}
+        </p>
+      </SectionInfo>
 
       {view.yours && (
         <div className="rounded-lg bg-brand-soft px-4 py-3 mb-4" data-rivals-yours>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { Award, ChevronDown, Hourglass, Pause, Play, RotateCcw, Save, Timer, X } from 'lucide-react';
 import { useToast } from '../Toast';
 import NumberWheel from '@/components/golf/NumberWheel';
@@ -283,13 +284,19 @@ export default function WorkoutControls({ exercises, rest, onRest, stopwatch, on
             data-workout-rest-target-open={targetOpen ? 'true' : 'false'}
           >
             <div className="rounded-xl border border-border bg-surface p-3" data-workout-rest-target-panel="" {...(targetOpen ? {} : { inert: true })}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-primary">Rest target</p>
-                <button type="button" onClick={() => setTargetOpen(false)} className="ea-icon-btn text-secondary" aria-label="Close the rest target" data-workout-rest-target-close="">
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-secondary">Purple while you rest, yellow five seconds before the target, red when it is up — with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice. Off still times every rest.</p>
+              <SectionInfo
+                as="p"
+                heading="Rest target"
+                headingClassName="text-sm font-bold text-primary"
+                dense
+                trailing={
+                  <button type="button" onClick={() => setTargetOpen(false)} className="ea-icon-btn text-secondary" aria-label="Close the rest target" data-workout-rest-target-close="">
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                }
+              >
+                <p>Purple while you rest, yellow five seconds before the target, red when it is up — with a buzz where your phone allows it (Android; iPhones do not vibrate from a web app) and a short notice. Off still times every rest.</p>
+              </SectionInfo>
               <div className="mt-3 flex items-start justify-center gap-3" data-workout-rest-custom-panel="">
                 <NumberWheel label="Minutes" min={0} max={10} value={customMin} defaultValue={1} onChange={setCustomMin} tone="brand" disabled={!targetOpen} />
                 <NumberWheel label="Seconds" min={0} max={55} step={5} value={customSec} defaultValue={30} onChange={setCustomSec} tone="brand" format={v => String(v).padStart(2, '0')} disabled={!targetOpen} />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import ConfirmModal from '@/components/ConfirmModal';
 import { validateFiles } from '@/lib/media/validation';
 import { newsState } from '@/lib/org-sites/news-state';
@@ -161,7 +162,9 @@ function NewsList({
   return (
     <div className="space-y-4" data-sb-news-list="">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-secondary">Write news for your site. Posts save as you type.</p>
+        <SectionInfo as="p" heading="News" label="news posts" headingClassName="text-sm font-semibold text-primary" dense>
+          <p>Write news for your site. Posts save as you type.</p>
+        </SectionInfo>
         <button type="button" onClick={onNew} disabled={creating} className={CTA} data-sb-news-new="">
           {creating ? 'Starting…' : '+ New post'}
         </button>
@@ -601,7 +604,9 @@ function Composer({
             </button>
           )}
         </div>
-        <p className="text-xs text-tertiary">The banner runs across the top of every page of your site and links to this post.</p>
+        <SectionInfo as="p" heading="Site banner" label="the banner" headingClassName="text-xs font-medium text-secondary" dense>
+          <p>The banner runs across the top of every page of your site and links to this post.</p>
+        </SectionInfo>
       </fieldset>
 
       <div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -141,10 +142,17 @@ export default function GolfTrendsPage() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-              <i className="fas fa-chart-line mr-2 text-green-600 dark:text-green-400"></i>
-              Golf Trends
-            </h1>
+            <SectionInfo
+              as="h1"
+              heading={<><i className="fas fa-chart-line mr-2 text-green-600 dark:text-green-400"></i>Golf Trends</>}
+              label="how the trends are computed"
+              headingClassName="text-2xl sm:text-3xl font-bold text-primary"
+            >
+              <p>
+                9- and 18-hole rounds are compared by to-par and per-hole stats. Use the filters to
+                isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap follows the full World Handicap System method from your rated rounds: net double bogey hole caps where course data allows, the 9-hole expected-score conversion, exceptional-score reductions, and the Low-Index soft/hard caps. Below three rated rounds it&apos;s a conservative provisional figure. It excludes only the daily playing-conditions adjustment (PCC — association-only data), and is not an official index.
+              </p>
+            </SectionInfo>
             {summary && !loading && (
               <p className="text-sm text-muted mt-1">
                 Based on your last {summary.rounds} round{summary.rounds !== 1 ? 's' : ''}
@@ -258,14 +266,15 @@ export default function GolfTrendsPage() {
                 />
               </div>
             ) : summary?.handicapIndex === null ? (
-              <div className="mb-4 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4 text-sm text-violet-800 dark:text-violet-200">
-                <i className="fas fa-info-circle mr-2"></i>
-                Your estimated handicap starts from your very first round logged with a
-                course rating and slope (find them on the course&apos;s scorecard, or pick
-                the course from search — ratings fill in automatically). It&apos;s marked
-                provisional until three rated rounds are in; 18-hole rounds count
-                first, and 9-hole rounds join once an estimate exists.
-              </div>
+              <SectionInfo as="p" heading="No estimated handicap yet" label="the estimated handicap" headingClassName="text-sm font-semibold text-primary" dense className="mb-4">
+                <p>
+                  Your estimated handicap starts from your very first round logged with a
+                  course rating and slope (find them on the course&apos;s scorecard, or pick
+                  the course from search — ratings fill in automatically). It&apos;s marked
+                  provisional until three rated rounds are in; 18-hole rounds count
+                  first, and 9-hole rounds join once an estimate exists.
+                </p>
+              </SectionInfo>
             ) : null}
 
             {/* Charts */}
@@ -296,11 +305,6 @@ export default function GolfTrendsPage() {
                 yDomain={[0, 100]}
               />
             </div>
-
-            <p className="text-xs text-faint mt-4">
-              9- and 18-hole rounds are compared by to-par and per-hole stats. Use the filters to
-              isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap follows the full World Handicap System method from your rated rounds: net double bogey hole caps where course data allows, the 9-hole expected-score conversion, exceptional-score reductions, and the Low-Index soft/hard caps. Below three rated rounds it&apos;s a conservative provisional figure. It excludes only the daily playing-conditions adjustment (PCC — association-only data), and is not an official index.
-            </p>
           </>
         )}
       </div>

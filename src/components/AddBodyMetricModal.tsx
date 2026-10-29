@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
@@ -343,11 +344,10 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
       />
       <div className="bg-surface-raised rounded-xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border-subtle">
-          <div>
-            <h2 className="text-lg font-bold text-primary">Add body metric</h2>
-            <p className="text-xs text-muted mt-0.5">Each entry is saved permanently as part of your development record.</p>
-          </div>
+        <div className="flex items-start justify-between p-5 border-b border-border-subtle">
+          <SectionInfo heading="Add body metric" headingClassName="text-lg font-bold text-primary">
+            <p>Each entry is saved permanently as part of your development record.</p>
+          </SectionInfo>
           <button
             onClick={requestClose}
             aria-label="Close"

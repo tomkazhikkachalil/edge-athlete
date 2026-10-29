@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { supabase } from '@/lib/supabase';
@@ -79,21 +80,20 @@ export default function SecuritySettings() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-primary mb-1">Change password</h2>
+      {supervised ? (
+        <SectionInfo heading="Change password" className="mb-1">
+          <p>
+            Your guardian is notified when you change your password. If you sign
+            in with a PIN, ask your guardian to change it for you.
+          </p>
+        </SectionInfo>
+      ) : (
+        <h2 className="text-lg font-semibold text-primary mb-1">Change password</h2>
+      )}
       <p className="text-sm text-muted mb-6">
         Forgot your current password? Log out and use{' '}
         <span className="font-medium">Forgot password</span> on the login screen instead.
       </p>
-
-      {supervised && (
-        <div className="max-w-md mb-6 flex items-start gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft p-3 text-xs text-violet-900 dark:text-violet-200">
-          <i className="fas fa-user-shield mt-0.5" aria-hidden="true"></i>
-          <span>
-            Your guardian is notified when you change your password. If you sign
-            in with a PIN, ask your guardian to change it for you.
-          </span>
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="max-w-md space-y-4">
         <div>

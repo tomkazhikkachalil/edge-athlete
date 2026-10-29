@@ -23,7 +23,7 @@ test('sports nav: redirect, subnav, drawer, events list, leaderboards @mobile', 
     // The drawer (phone): Sports and the one Create row (which opens the
     // sheet with Event in it — Oct 13 2026) are there.
     await page.getByRole('button', { name: 'Toggle mobile menu' }).click();
-    await expect(page.getByRole('button', { name: 'Sports' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sports', exact: true })).toBeVisible();
     await expect(page.locator('[data-drawer-create]')).toBeVisible();
     await page.getByRole('button', { name: 'Close menu' }).click();
 

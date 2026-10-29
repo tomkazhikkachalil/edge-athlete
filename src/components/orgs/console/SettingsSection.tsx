@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 import type { OrgSwitches } from '@/lib/orgs/switches';
 
@@ -85,10 +86,9 @@ export default function SettingsSection({ side, orgId, switches, teamCount, comp
 
   return (
     <section id="settings" aria-label="What you run" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-org-switches="">
-      <h2 className="text-lg font-semibold text-primary mb-1">What you run</h2>
-      <p className="text-sm text-tertiary mb-4">
-        {`Turn off what your ${side} doesn't do. Nothing is deleted — a hidden part comes back exactly as you left it.`}
-      </p>
+      <SectionInfo heading="What you run" className="mb-4">
+        <p>{`Turn off what your ${side} doesn't do. Nothing is deleted — a hidden part comes back exactly as you left it.`}</p>
+      </SectionInfo>
       <ul className="space-y-3">
         {rows.map(row => {
           const on = pending[row.key] ?? switches[row.key];

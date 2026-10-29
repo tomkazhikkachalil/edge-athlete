@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -129,8 +130,9 @@ export default function SportLogPage() {
             )}
             {official.length > 0 && (
               <section aria-labelledby="official-heading">
-                <h2 id="official-heading" className="text-base font-semibold text-primary mb-2">Official lines</h2>
-                <p className="text-xs text-tertiary mb-3">Entered by a club or league from a public competition — kept apart from your own log.</p>
+                <SectionInfo heading="Official lines" headingId="official-heading" headingClassName="text-base font-semibold text-primary" dense className="mb-3">
+                  <p>Entered by a club or league from a public competition — kept apart from your own log.</p>
+                </SectionInfo>
                 <ul className="bg-surface rounded-lg shadow-sm border border-border divide-y divide-border">
                   {official.map(o => (
                     <li key={o.contestId} className="px-4 py-3 text-sm flex flex-wrap justify-between gap-2">

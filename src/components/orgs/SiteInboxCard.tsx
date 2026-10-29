@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { useToast } from '@/components/Toast';
 
 // ── The site's inbox — program 2, D2 (Sep 11 2026) ─────────────────────────
@@ -25,6 +26,7 @@ const PILL = 'min-h-[36px] rounded-md border border-border-strong px-3 text-xs t
 export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | 'clubs'; orgId: string }) {
   const { showError} = useToast();
   const [state, setState] = useState<'open' | 'archived'>('open');
+  const [infoRef, info] = useInfoDisclosure('Inbox');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [unread, setUnread] = useState(0);
   const [supported, setSupported] = useState(true);
@@ -80,11 +82,14 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
   const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
   return (
-    <section id="inbox" aria-label="Inbox" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-site-inbox="">
+    <section ref={infoRef} id="inbox" aria-label="Inbox" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-site-inbox="">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <h2 className="text-lg font-semibold text-primary">
-          Inbox{unread > 0 && <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-brand px-1.5 text-xs font-semibold text-white" data-site-inbox-unread="">{unread}</span>}
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-lg font-semibold text-primary">
+            Inbox{unread > 0 && <span className="ml-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-brand px-1.5 text-xs font-semibold text-white" data-site-inbox-unread="">{unread}</span>}
+          </h2>
+          <InfoButton d={info} />
+        </div>
         <div role="radiogroup" aria-label="Inbox view" className="inline-flex rounded-md border border-border-strong p-0.5">
           {(['open', 'archived'] as const).map(v => (
             <button key={v} type="button" role="radio" aria-checked={state === v} onClick={() => setState(v)} className={`min-h-[36px] rounded px-2.5 text-xs font-medium ${state === v ? 'bg-brand text-white' : 'text-secondary hover:bg-surface-sunken'}`}>
@@ -93,7 +98,10 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
           ))}
         </div>
       </div>
-      <p className="text-sm text-tertiary mb-3">What visitors sent through your site’s forms. Only your managers see this.</p>
+      <InfoPanel d={info} className="mb-3">
+        <p>What visitors sent through your site’s forms. Only your managers see this.</p>
+        <p className="mt-2">Archived messages are removed after a year; open ones after two.</p>
+      </InfoPanel>
       {rows === null ? (
         <div className="h-12 animate-pulse rounded bg-surface-sunken" />
       ) : rows.length === 0 ? (
@@ -147,7 +155,6 @@ export default function SiteInboxCard({ plural, orgId }: { plural: 'leagues' | '
           })}
         </ul>
       )}
-      <p className="mt-3 text-xs text-tertiary">Archived messages are removed after a year; open ones after two.</p>
     </section>
   );
 }

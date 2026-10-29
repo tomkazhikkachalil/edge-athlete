@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -801,11 +802,9 @@ export default function GuardianAthletePage() {
 
                 {/* Safety */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                  <h2 className="text-base font-bold text-primary mb-1">Safety</h2>
-                  <p className="text-xs text-tertiary mb-4">
-                    How the outside world can reach {athlete.first_name || 'this athlete'}.
-                    Changes apply immediately.
-                  </p>
+                  <SectionInfo as="h2" heading="Safety" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                    <p>How the outside world can reach {athlete.first_name || 'this athlete'}. Changes apply immediately.</p>
+                  </SectionInfo>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <h3 className="text-sm font-semibold text-secondary">Profile visibility</h3>
                     {deviating.includes('visibility') && (
@@ -867,11 +866,9 @@ export default function GuardianAthletePage() {
 
                 {/* Fans (Round G): either the athlete or a guardian decides */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                  <h2 className="text-base font-bold text-primary mb-1">Fans</h2>
-                  <p className="text-xs text-tertiary mb-4">
-                    Who follows {athlete.first_name || 'this athlete'}. You and they can both
-                    approve requests; only you can remove a fan.
-                  </p>
+                  <SectionInfo as="h2" heading="Fans" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                    <p>Who follows {athlete.first_name || 'this athlete'}. You and they can both approve requests; only you can remove a fan.</p>
+                  </SectionInfo>
 
                   {followRequests.length > 0 && (
                     <>
@@ -985,11 +982,9 @@ export default function GuardianAthletePage() {
                 {/* Tags (Round H): visibility + veto — see what the child is
                     tagged in, remove any of it. */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                  <h2 className="text-base font-bold text-primary mb-1">Tags</h2>
-                  <p className="text-xs text-tertiary mb-4">
-                    Posts {athlete.first_name || 'this athlete'} is tagged in. You&apos;re
-                    notified when someone new tags them.
-                  </p>
+                  <SectionInfo as="h2" heading="Tags" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                    <p>Posts {athlete.first_name || 'this athlete'} is tagged in. You&apos;re notified when someone new tags them.</p>
+                  </SectionInfo>
                   {tags.length === 0 ? (
                     <p className="text-sm text-muted">No active tags.</p>
                   ) : (
@@ -1042,11 +1037,9 @@ export default function GuardianAthletePage() {
                 {/* Recruiting (R1): the gate is the guardian's call; the details
                     (school, GPA, notes) live in Edit profile, acting as. */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4" data-guardian-recruiting={parseRecruitingStatus(childProfile?.recruiting_status)}>
-                  <h2 className="text-base font-bold text-primary mb-1">Recruiting</h2>
-                  <p className="text-xs text-tertiary mb-4">
-                    Whether coaches and scouts can see {athlete.first_name || 'this athlete'}&apos;s recruiting card
-                    (school, grad year, academics). Only you can change this; the details are edited in their profile.
-                  </p>
+                  <SectionInfo as="h2" heading="Recruiting" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                    <p>Whether coaches and scouts can see {athlete.first_name || 'this athlete'}&apos;s recruiting card (school, grad year, academics). Only you can change this; the details are edited in their profile.</p>
+                  </SectionInfo>
                   <div className="space-y-2" role="radiogroup" aria-label="Recruiting status">
                     {RECRUITING_STATUSES.map(value => (
                       <RadioCard<RecruitingStatus>
@@ -1090,11 +1083,9 @@ export default function GuardianAthletePage() {
 
                 {/* Blocked users (Round I): per-contact protection */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                  <h2 className="text-base font-bold text-primary mb-1">Blocked users</h2>
-                  <p className="text-xs text-tertiary mb-4">
-                    People blocked here can&apos;t message {athlete.first_name || 'this athlete'};
-                    blocking also closes any conversation they had.
-                  </p>
+                  <SectionInfo as="h2" heading="Blocked users" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                    <p>People blocked here can&apos;t message {athlete.first_name || 'this athlete'}; blocking also closes any conversation they had.</p>
+                  </SectionInfo>
                   <BlockedUsersList
                     profileId={athlete.id}
                     canAdd
@@ -1105,12 +1096,9 @@ export default function GuardianAthletePage() {
                 {/* Calendar (Round I): read-only schedule + decline */}
                 {(
                   <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                    <h2 className="text-base font-bold text-primary mb-1">Calendar</h2>
-                    <p className="text-xs text-tertiary mb-4">
-                      {athlete.first_name || 'This athlete'}&apos;s next two weeks. You&apos;re
-                      notified when someone invites them; you can decline for them. Your own
-                      calendar sync link includes their events too.
-                    </p>
+                    <SectionInfo as="h2" heading="Calendar" headingClassName="text-base font-bold text-primary" dense className="mb-4">
+                      <p>{athlete.first_name || 'This athlete'}&apos;s next two weeks. You&apos;re notified when someone invites them; you can decline for them. Your own calendar sync link includes their events too.</p>
+                    </SectionInfo>
                     {childEvents.length === 0 ? (
                       <p className="text-sm text-muted">Nothing scheduled in the next two weeks.</p>
                     ) : (
@@ -1183,13 +1171,9 @@ export default function GuardianAthletePage() {
 
                 {/* Guardians — the custody links themselves (Round 3) */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
-                  <h2 className="text-base font-bold text-primary mb-1">Guardians</h2>
-                  <p className="text-xs text-tertiary mb-3">
-                    Who manages this profile. An athlete can have up to two
-                    guardians; there must always be at least one. View-only
-                    members (up to two) see schedules and family updates but
-                    can&apos;t change anything.
-                  </p>
+                  <SectionInfo as="h2" heading="Guardians" headingClassName="text-base font-bold text-primary" dense className="mb-3">
+                    <p>Who manages this profile. An athlete can have up to two guardians; there must always be at least one. View-only members (up to two) see schedules and family updates but can&apos;t change anything.</p>
+                  </SectionInfo>
                   <ul className="space-y-2 mb-3">
                     {guardians.map(g => {
                       const gName = formatDisplayName(g.first_name, null, g.last_name, g.full_name);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { ACTIVITY_TYPE_DEFS, type ActivityType } from '@/lib/activities/catalog';
 import { UNIT_METRES, formatDistance, formatDuration, formatPace, type DistanceUnit } from '@/lib/activities/format';
 import { encodePolyline, type LatLng } from '@/lib/activities/polyline';
@@ -258,8 +259,9 @@ export default function FinishSheet({
           </button>
         </div>
         </>) : (<>
-        <h2 className="text-lg font-bold text-primary">Preview and post</h2>
-        <p className="mt-1 text-sm text-secondary">It will be in your Training. This is how it will look on the feed.</p>
+        <SectionInfo heading="Preview and post" headingClassName="text-lg font-bold text-primary">
+          <p>It will be in your Training. This is how it will look on the feed.</p>
+        </SectionInfo>
 
         {/* The one decision: Post to feed on / off (269). Off still lands in Training. */}
         <div className="mt-3">

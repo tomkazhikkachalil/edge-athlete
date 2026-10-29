@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -92,12 +93,9 @@ export default function GuardianTransfersPage() {
           <i className="fas fa-chevron-left text-xs"></i>
           Family console
         </Link>
-        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Account transfers</h1>
-        <p className="text-sm text-tertiary mb-6">
-          When an athlete is old enough, you can hand their account over to them.
-          Nothing happens without both of you confirming, and there&apos;s always a
-          7-day waiting period.
-        </p>
+        <SectionInfo as="h1" heading="Account transfers" headingClassName="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200" className="mb-6">
+          <p>When an athlete is old enough, you can hand their account over to them. Nothing happens without both of you confirming, and there&apos;s always a 7-day waiting period.</p>
+        </SectionInfo>
 
         {error && (
           <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">

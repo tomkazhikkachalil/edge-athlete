@@ -154,7 +154,6 @@ export default function SettingsPage() {
             <span>Back</span>
           </button>
           <h1 className="text-3xl font-bold text-primary">Settings</h1>
-          <p className="text-tertiary mt-2">Manage your account settings and preferences</p>
         </div>
 
         {/* Tabs Navigation */}

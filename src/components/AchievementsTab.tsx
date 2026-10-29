@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { Plus, Trophy } from 'lucide-react';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
@@ -163,12 +164,9 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
   return (
     <div className="w-full space-y-8">
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="text-h2 text-primary">Achievements</h2>
-        <p className="text-sm text-muted mt-0.5">
-          Badges earned from results, plus the awards and titles on the résumé.
-        </p>
-      </div>
+      <SectionInfo heading="Achievements" headingClassName="text-h2 text-primary">
+        <p>Badges earned from results, plus the awards and titles on the résumé.</p>
+      </SectionInfo>
 
       {/* ── Badges: EARNED automatically from real results (Play, 244) ── */}
       <EarnedBadges profileId={profileId} isOwnProfile={isOwnProfile} />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 
 // The manager's candidate browser (M2, program 10): "Round photos from
@@ -90,11 +91,12 @@ export default function MemberPhotoPicker({
   const picked = (items ?? []).filter(c => c.picked).length;
   return (
     <div className="pt-2 space-y-1.5" data-photo-candidates={items?.length ?? -1} data-photo-picks={picked}>
-      <p className="text-sm font-medium text-primary">Round photos from members</p>
-      <p className="text-xs text-tertiary">
-        Photos from members who switched on sharing, taken from their public round posts. Add the ones you want on the
-        gallery; a member switching off, or hiding the post, removes it automatically.
-      </p>
+      <SectionInfo as="p" heading="Round photos from members" label="member photos" headingClassName="text-sm font-medium text-primary" dense>
+        <p>
+          Photos from members who switched on sharing, taken from their public round posts. Add the ones you want on the
+          gallery; a member switching off, or hiding the post, removes it automatically.
+        </p>
+      </SectionInfo>
       {items === null ? null : items.length === 0 ? (
         <p className="text-sm text-tertiary">{`No member photos yet — members opt in from the ${side} page.`}</p>
       ) : (

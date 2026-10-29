@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -61,10 +62,13 @@ export default function PrivacySettings() {
       {/* Supervised profiles see who manages them (renders nothing otherwise) */}
       <GuardiansCard />
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-4">Profile Visibility</h3>
-        <p className="text-tertiary text-sm mb-6">
-          Control who can see your profile, posts, and athletic performance data.
-        </p>
+        <SectionInfo as="h3" heading="Profile Visibility" className="mb-6">
+          <p>Control who can see your profile, posts, and athletic performance data.</p>
+          <p className="mt-2">
+            Your profile picture and name are always visible to help others find you.
+            All other information respects your privacy settings.
+          </p>
+        </SectionInfo>
 
         {profile?.supervision_state === 'supervised' ? (
           // Supervised profiles: visibility belongs to the guardian console.
@@ -149,20 +153,6 @@ export default function PrivacySettings() {
           </button>
         </div>
         )}
-      </div>
-
-      {/* Additional Privacy Info */}
-      <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">
-        <div className="flex gap-3">
-          <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
-          <div>
-            <h4 className="font-medium text-violet-900 dark:text-violet-200 mb-1">Privacy Note</h4>
-            <p className="text-sm text-violet-800 dark:text-violet-200">
-              Your profile picture and name are always visible to help others find you.
-              All other information respects your privacy settings.
-            </p>
-          </div>
-        </div>
       </div>
 
       <ConfirmModal

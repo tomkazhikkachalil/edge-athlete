@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { Award, Bookmark, Check, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Timer, Trash2, TrendingUp } from 'lucide-react';
 import SetMediaThumb from './SetMediaThumb';
 import FeedToggle from '@/components/posts/FeedToggle';
@@ -460,10 +461,9 @@ export function PreviewStep({
   const ordinals = clipOrdinals([...clips.selected, ...clips.rest]);
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5" data-finish-preview="">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-primary">Preview and post</h1>
-        <p className="text-muted mt-1">It’s in your Training. This is how it will look on the feed.</p>
-      </div>
+      <SectionInfo as="h1" heading="Preview and post" headingClassName="text-2xl font-bold text-primary" rowClassName="justify-center" className="text-center">
+        <p>It’s in your Training. This is how it will look on the feed.</p>
+      </SectionInfo>
 
       {/* The one decision (src/lib/posts/audience.ts, 269): Post to feed on —
           who sees it follows the account — or off, kept in your training history. */}

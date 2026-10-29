@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import { retryAfterMs } from '@/lib/rate-limit-retry';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -338,9 +339,11 @@ export default function RecordActivityScreen() {
 
       {!state && rec.ready && !starting && (
         <main className="mx-auto max-w-xl px-4 py-4">
-          <p className="mb-4 text-sm text-secondary">
-            Pick what you are about to do. Edge Athlete records only while this app is open with the screen on — any page of it; the screen stays awake where your phone allows it. Recording with the phone locked comes with the Edge Athlete app — for now keep the app open. Steps are an estimate.
-          </p>
+          <SectionInfo as="p" heading="Pick what you are about to do." label="recording" headingClassName="text-sm text-secondary" dense className="mb-4">
+            <p>
+              Edge Athlete records only while this app is open with the screen on — any page of it; the screen stays awake where your phone allows it. Recording with the phone locked comes with the Edge Athlete app — for now keep the app open. Steps are an estimate.
+            </p>
+          </SectionInfo>
           <TypePicker
             onStrength={ownWorkouts ? () => startWorkout.open() : undefined}
             onPick={type => {

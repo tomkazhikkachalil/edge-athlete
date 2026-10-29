@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import SectionInfo from '@/components/SectionInfo';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { orgLogoUrl } from '@/lib/media/org-site-media';
@@ -213,7 +214,9 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           <input type="checkbox" checked={showSocials} onChange={e => setShowSocials(e.target.checked)} className="h-4 w-4" />
           Show social links
         </label>
-        <p className="text-xs text-tertiary">The links from your contact card. “Powered by Edge Athlete” stays on every site.</p>
+        <SectionInfo as="p" heading="Footer links" label="the footer links" headingClassName="text-xs font-medium text-secondary" dense>
+          <p>The links from your contact card. “Powered by Edge Athlete” stays on every site.</p>
+        </SectionInfo>
         {/* L3: the sponsors' logos as a strip on every page (the Sponsors section's list, by tier). */}
         <div>
           <label className={LABEL} htmlFor="sb-sponsor-bar">
@@ -224,7 +227,9 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
             <option value="footer">Above the footer</option>
             <option value="header">Under the header</option>
           </select>
-          <p className="mt-1 text-xs text-tertiary">Your sponsors’ logos on every page, top tier first. Edit them in the Sponsors section.</p>
+          <SectionInfo as="p" heading="Sponsor logos" label="the sponsor bar" headingClassName="text-xs font-medium text-secondary" dense className="mt-1">
+            <p>Your sponsors’ logos on every page, top tier first. Edit them in the Sponsors section.</p>
+          </SectionInfo>
         </div>
       </fieldset>
 
@@ -243,7 +248,9 @@ export default function SitePanel({ site, plural, orgId, variant = 'aside', clas
           Each change saves to the draft on its own; publish to make it live. */}
       <fieldset className="space-y-2 border-t border-border pt-4">
         <legend className="text-xs font-medium text-secondary">Subpages &amp; navigation</legend>
-        <p className="text-xs text-tertiary">Which pages your site has and how the header lists them. Changes save to your draft; publish to make them live.</p>
+        <SectionInfo as="p" heading="Pages and the header" label="subpages and navigation" headingClassName="text-xs font-medium text-secondary" dense>
+          <p>Which pages your site has and how the header lists them. Changes save to your draft; publish to make them live.</p>
+        </SectionInfo>
         <NavigationEditor
           plural={plural}
           orgId={orgId}
