@@ -834,6 +834,25 @@ addition; a route ahead of it fails OPEN once per request, as the limiter
 always has). Reversal: DROP FUNCTION — `rate_limit_hit` stays for every
 single-key caller. Expected row on both: `286 APPLIED | 1 | true | 286`.
 
+## A like follows the read gate, minus blocks (migration 287, Oct 28 2026 — the leftovers program PR 2)
+
+282's like gate let anyone who could see the author like a post that was a
+draft, hidden by a moderator, by a departed account, or across a block
+(the trip-count PR 3 finding; Tom's decision Oct 28: "same as reading,
+minus blocks"). 287 adds `post_like_allowed(p_viewer uuid, p_post_id uuid)
+RETURNS boolean` (`LANGUAGE sql STABLE SECURITY INVOKER`, `search_path =
+public`, EXECUTE for service_role only): the owner or a guardian (a
+`profile_access` row on the owner) always; otherwise the post is PUBLISHED
+(`COALESCE(status, 'published')`), the owner has not departed, and (post
+public AND owner public) or an ACCEPTED follow of the owner; and, for anyone
+but the owner, no `user_blocks` row in either direction — `canReadPost`
+(`src/lib/posts/read-gate.ts`) plus the block arm. Mutes never refuse a like.
+`post_like_toggle` is re-declared to call it (the toggle — remove-or-insert,
+the trigger-written count — unchanged); a refusal is still `not_found` → the
+route's 404, so ids cannot be probed. The route is untouched. Deploy order:
+MIGRATION FIRST (CREATE OR REPLACE). Reversal: re-run 282's toggle and DROP
+`post_like_allowed`. Expected row on both: `287 APPLIED | 2 | true | 287`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
