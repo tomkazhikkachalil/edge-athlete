@@ -136,6 +136,13 @@ export function golfWindBandOf(windKmh: number): GolfWindBand {
   return 'strong';
 }
 
+/** The scorecard keeps the wind as mph (0 / 7 / 15 / 25 for the four bands,
+ *  shared-round-submit.ts); the mirrored round keeps the band's word. */
+export function golfWindBandFromMph(mph: number | null | undefined): GolfWindBand | null {
+  if (mph == null || !Number.isFinite(mph)) return null;
+  return golfWindBandOf(mph / MPH_PER_KMH);
+}
+
 /** The golf temperature column is Fahrenheit (a whole number) — the one edge
  *  where metric becomes imperial on the way IN. */
 export function golfTempF(tempC: number): number {

@@ -11,6 +11,7 @@
 // failure must never fail the triggering save.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { golfWindBandFromMph } from '@/lib/weather/weather';
 import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
 import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { isActiveParticipant } from './round-status';
@@ -198,7 +199,8 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
         date,
         golf_data:golf_scorecard_data (
           course_name, course_id, round_type, holes_played, tee_color,
-          slope_rating, course_rating, hole_data
+          slope_rating, course_rating, hole_data,
+          weather_conditions, temperature, wind_speed, conditions_source, conditions_at
         ),
         participants:group_post_participants (
           profile_id,
@@ -259,6 +261,14 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
             course_rating: golfData.course_rating ?? null,
             slope_rating: golfData.slope_rating ?? null,
             round_type: golfData.round_type ?? 'outdoor',
+            // The conditions (Oct 29 2026, 291): the scorecard's words and
+            // numbers, the wind as its band — the round row never carried
+            // them before, so a finished live round showed none.
+            weather: golfData.weather_conditions ?? null,
+            temperature: golfData.temperature ?? null,
+            wind: golfWindBandFromMph(golfData.wind_speed),
+            conditions_source: golfData.conditions_source ?? null,
+            conditions_at: golfData.conditions_at ?? null,
             is_complete: (scores.holes_completed ?? 0) >= holesPlayed,
           },
           { onConflict: 'group_post_id,profile_id' }

@@ -97,6 +97,8 @@ interface GolfRound {
   weather: string | null;
   temperature: number | null;
   wind: string | null;
+  conditions_source?: 'manual' | 'forecast' | null;
+  conditions_at?: string | null;
   course_rating: number | null;
   slope_rating: number | null;
 }

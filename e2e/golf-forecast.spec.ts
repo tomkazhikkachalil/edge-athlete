@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
 import { adminClient, apiAs } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { purgeGolfRound, purgePost } from './helpers/results';
 import { startWeatherMock, type WeatherMock } from './helpers/weather-mock';
 
 // Weather at the course (Oct 29 2026). Tom: outdoor sport cares about the
@@ -57,6 +58,15 @@ async function chooseUnit(page: Page, unit: 'km' | 'mi') {
   await choice.click();
   await expect(choice).toHaveAttribute('aria-pressed', 'true');
 }
+/** Remove a QA round and everything hanging off it (a completed round is a result the API keeps). */
+async function purgeRound(admin: ReturnType<typeof adminClient>, groupPostId: string) {
+  const rounds = await admin.from('golf_rounds').select('id').eq('group_post_id', groupPostId);
+  for (const r of rounds.data ?? []) await purgeGolfRound(r.id as string);
+  const posts = await admin.from('posts').select('id').eq('group_post_id', groupPostId);
+  for (const p of posts.data ?? []) await purgePost(p.id as string);
+  await admin.from('group_posts').delete().eq('id', groupPostId);
+}
+
 /** Walk a fresh Playing-now round to the Conditions step at the seeded course. */
 async function toConditions(page: Page, name: string): Promise<Locator> {
   const flow = await openGolf(page);
@@ -124,15 +134,37 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     expect(groupPostId).not.toBe('');
     const stamped = await admin
       .from('golf_scorecard_data')
-      .select('weather_conditions, temperature, wind_speed')
+      .select('weather_conditions, temperature, wind_speed, conditions_source, conditions_at')
       .eq('group_post_id', groupPostId)
       .single();
     expect(stamped.error, stamped.error?.message).toBeNull();
-    expect(stamped.data).toMatchObject({ weather_conditions: 'partly-cloudy', temperature: 54, wind_speed: 15 });
-    // The live round has done its job: end it now so the resume pill and the
-    // composer's draft prompt stay out of the next two walks.
-    const ended = await api.delete(`/api/group-posts/${groupPostId}`);
-    expect(ended.ok()).toBe(true);
+    expect(stamped.data).toMatchObject({ weather_conditions: 'partly-cloudy', temperature: 54, wind_speed: 15, conditions_source: 'forecast' });
+    expect(typeof stamped.data?.conditions_at).toBe('string'); // the forecast's observation time (291)
+
+    // Finish the round the way a player does — scores, then completed — and the
+    // mirrored golf_rounds row carries the conditions and their source (291):
+    // before this program a finished live round carried none.
+    const participant = await admin.from('group_post_participants').select('id').eq('group_post_id', groupPostId).limit(1).single();
+    expect(participant.error, participant.error?.message).toBeNull();
+    const scored = await api.post(`/api/golf/scorecards/${participant.data!.id}/scores`, {
+      data: { scores: Array.from({ length: 18 }, (_, i) => ({ hole_number: i + 1, strokes: 4 })) },
+    });
+    expect(scored.ok(), await scored.text()).toBe(true);
+    const finished = await api.patch(`/api/group-posts/${groupPostId}`, { data: { status: 'completed' } });
+    expect(finished.ok(), await finished.text()).toBe(true);
+    const mirrored = await admin
+      .from('golf_rounds')
+      .select('weather, temperature, wind, conditions_source, conditions_at')
+      .eq('group_post_id', groupPostId)
+      .limit(1)
+      .single();
+    expect(mirrored.error, mirrored.error?.message).toBeNull();
+    expect(mirrored.data).toMatchObject({ weather: 'partly-cloudy', temperature: 54, wind: 'moderate', conditions_source: 'forecast' });
+    expect(typeof mirrored.data?.conditions_at).toBe('string');
+    // The round has done its job. A COMPLETED round is a result and the API
+    // never deletes one (results are never lost), so the test data goes with
+    // the service role: the mirrored rounds, the feed post, the group post.
+    await purgeRound(admin, groupPostId);
     groupPostId = '';
 
     // An already-played round never sees the button.
@@ -157,7 +189,7 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     expect(mock.calls).toHaveLength(1);
   } finally {
     await cleanup('golf-forecast', [
-      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => groupPostId && purgeRound(admin, groupPostId),
       () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
       () => mock?.close(),
       () => api.dispose(),

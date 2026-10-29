@@ -71,6 +71,19 @@ describe('the Conditions step and the composer', () => {
     expect(composer).toMatch(/conditionsSource: 'forecast'/);
   });
 
+  it('the finished round carries its conditions and their source (291): the mirror copies them, the readers select them', () => {
+    const mirror = code('src/lib/golf/round-mirror.ts');
+    expect(mirror).toMatch(/weather_conditions, temperature, wind_speed, conditions_source, conditions_at/);
+    expect(mirror).toMatch(/weather: golfData\.weather_conditions \?\? null/);
+    expect(mirror).toMatch(/wind: golfWindBandFromMph\(golfData\.wind_speed\)/);
+    expect(mirror).toMatch(/conditions_source: golfData\.conditions_source \?\? null/);
+    for (const f of ['src/app/api/golf/rounds/[roundId]/route.ts', 'src/app/api/posts/[id]/route.ts']) {
+      expect(code(f), f).toMatch(/conditions_source/);
+    }
+    const writer = code('src/app/api/group-posts/route.ts');
+    expect(writer).toMatch(/golf_data\.conditions_source === 'forecast' \|\| golf_data\.conditions_source === 'manual'/);
+  });
+
   it('the temperature column stays Fahrenheit: the step converts at its edge, the composer stores golfTempF', () => {
     expect(step).toMatch(/fromInput\('temp', f, 'imperial'\)/);
     expect(step).toMatch(/toDisplay\('temp', fromInput\('temp', v, sys\), 'imperial'\)/);

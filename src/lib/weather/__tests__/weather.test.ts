@@ -4,6 +4,7 @@ import {
   formatWindKmh,
   golfConditionOf,
   golfTempF,
+  golfWindBandFromMph,
   golfWindBandOf,
   parseCoords,
   parseOpenMeteo,
@@ -131,6 +132,16 @@ describe('the golf mapping', () => {
     expect(golfWindBandOf(20)).toBe('moderate');
     expect(golfWindBandOf(32.1)).toBe('moderate'); // 19.95 mph
     expect(golfWindBandOf(32.3)).toBe('strong'); // 20.07 mph
+  });
+
+  it('the scorecard\'s mph (0 / 7 / 15 / 25) comes back as the band; nothing stays nothing', () => {
+    expect(golfWindBandFromMph(0)).toBe('calm');
+    expect(golfWindBandFromMph(7)).toBe('light');
+    expect(golfWindBandFromMph(15)).toBe('moderate');
+    expect(golfWindBandFromMph(25)).toBe('strong');
+    expect(golfWindBandFromMph(null)).toBeNull();
+    expect(golfWindBandFromMph(undefined)).toBeNull();
+    expect(golfWindBandFromMph(Number.NaN)).toBeNull();
   });
 
   it('the temperature column stays Fahrenheit: 12 °C → 54, -3 °C → 27, 22 °C → 72', () => {
