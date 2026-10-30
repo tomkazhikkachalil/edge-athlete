@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-29T11:37:24.017361+00:00 from server 17.6 by
+-- Generated 2026-10-29T22:53:20.261453+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 291.
+-- public.schema_dump() (migration 227). Ledger head at generation: 292.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (133; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (134; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2401,6 +2401,54 @@ AS $function$
   FROM public.live_cheers c
   WHERE c.context_key = p_context_key
   GROUP BY c.cheer;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'live_golf', (
+      SELECT count(*)
+      FROM public.group_posts gp
+      WHERE gp.type = 'golf_round'
+        AND gp.status IN ('pending', 'active')
+        AND (gp.date::timestamp AT TIME ZONE 'UTC')
+              BETWEEN now() - interval '48 hours' AND now() + interval '48 hours'
+        AND (
+          gp.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.group_post_participants gpp
+            WHERE gpp.group_post_id = gp.id
+              AND gpp.profile_id = p_viewer
+              AND gpp.status IS DISTINCT FROM 'declined'
+          )
+        )
+    ),
+    'live_events', (
+      SELECT count(*)
+      FROM public.sport_events e
+      WHERE e.status = 'live'
+        AND (
+          e.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.sport_event_participants sp
+            WHERE sp.sport_event_id = e.id
+              AND sp.profile_id = p_viewer
+              AND sp.status = 'accepted'
+          )
+        )
+        AND EXISTS (
+          SELECT 1 FROM public.sport_event_rounds r
+          WHERE r.sport_event_id = e.id AND r.status = 'live'
+        )
+    ),
+    'unread_messages', public.get_unread_message_count(p_viewer)
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -12113,7 +12161,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (133) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (134) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14343,6 +14391,52 @@ AS $function$
   FROM public.live_cheers c
   WHERE c.context_key = p_context_key
   GROUP BY c.cheer;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'live_golf', (
+      SELECT count(*)
+      FROM public.group_posts gp
+      WHERE gp.type = 'golf_round'
+        AND gp.status IN ('pending', 'active')
+        AND (gp.date::timestamp AT TIME ZONE 'UTC')
+              BETWEEN now() - interval '48 hours' AND now() + interval '48 hours'
+        AND (
+          gp.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.group_post_participants gpp
+            WHERE gpp.group_post_id = gp.id
+              AND gpp.profile_id = p_viewer
+              AND gpp.status IS DISTINCT FROM 'declined'
+          )
+        )
+    ),
+    'live_events', (
+      SELECT count(*)
+      FROM public.sport_events e
+      WHERE e.status = 'live'
+        AND (
+          e.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.sport_event_participants sp
+            WHERE sp.sport_event_id = e.id
+              AND sp.profile_id = p_viewer
+              AND sp.status = 'accepted'
+          )
+        )
+        AND EXISTS (
+          SELECT 1 FROM public.sport_event_rounds r
+          WHERE r.sport_event_id = e.id AND r.status = 'live'
+        )
+    ),
+    'unread_messages', public.get_unread_message_count(p_viewer)
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
@@ -18631,6 +18725,8 @@ REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) FROM PUBLIC, anon, authenticated, service_role;
@@ -19029,6 +19125,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
+COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
 COMMENT ON FUNCTION public.post_like_allowed(p_viewer uuid, p_post_id uuid) IS 'May this viewer like this post (287): the read gate (owner / guardian always; else published, owner present, public+public or an accepted follow) minus blocks either way. service_role only.';
@@ -19487,7 +19584,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (287, '287_post_like_allowed.sql', 'rebuild-000'),
   (288, '288_comment_like_toggle.sql', 'rebuild-000'),
   (289, '289_search_hide_blocked_muted.sql', 'rebuild-000'),
-  (290, '290_search_trigram.sql', 'rebuild-000')
+  (290, '290_search_trigram.sql', 'rebuild-000'),
+  (291, '291_round_conditions_source.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19496,12 +19594,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 133 | 145 | 291
+-- Expected: 000 REBUILT | 138 | 134 | 145 | 292
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_133,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_134,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_291;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_292;
 
