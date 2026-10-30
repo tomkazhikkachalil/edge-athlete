@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ROUND_ANSWERS,
+  LIVE_OUTDOOR_STEPS,
+  conditionsLine,
+  liveOutdoorStepNumber,
+  weatherWord,
+  windRange,
   REFUSAL_COURSE,
   REFUSAL_DATE,
   roundBusyLabel,
@@ -80,5 +85,31 @@ describe('the date, the finish and the busy labels', () => {
     expect(roundFinishLabel(true)).toBe('Create Post');
     expect(roundBusyLabel(false)).toBe('Starting…');
     expect(roundBusyLabel(true)).toBe('Creating...');
+  });
+});
+
+// The live + outdoor path's numbering and the one-line conditions (Oct 29 2026).
+describe('LIVE_OUTDOOR_STEPS — the numbering the refinement spec names', () => {
+  it('is exactly stepsForRound of the defaults: 1 Round type · 2 Course · 3 Game format · 4 Conditions · 5 Players · 6 Start', () => {
+    expect([...LIVE_OUTDOOR_STEPS]).toEqual(stepsForRound(DEFAULT_ROUND_ANSWERS).map(s => s.id));
+    expect(liveOutdoorStepNumber('conditions')).toBe(4);
+    expect(liveOutdoorStepNumber('finish')).toBe(6);
+    expect(liveOutdoorStepNumber('scores')).toBe(0);
+  });
+});
+
+describe('conditionsLine — "Cloudy, 7°C, 5–10 mph"', () => {
+  it('the word without its emoji, the temperature tight in the viewer\'s unit, the band as its mph range', () => {
+    expect(conditionsLine({ weather: 'cloudy', temperature: 7, unit: '°C', wind: 'light' })).toBe('Cloudy, 7°C, 5–10 mph');
+    expect(conditionsLine({ weather: 'partly-cloudy', temperature: 54.3, unit: '°F', wind: 'moderate' })).toBe('Partly cloudy, 54°F, 10–20 mph');
+  });
+  it('drops what was not entered, and is null when nothing was', () => {
+    expect(conditionsLine({ weather: '', temperature: null, unit: '°C', wind: 'strong' })).toBe('20+ mph');
+    expect(conditionsLine({ weather: 'sunny', temperature: null, unit: '°F', wind: '' })).toBe('Sunny');
+    expect(conditionsLine({ weather: '', temperature: null, unit: '°F', wind: '' })).toBeNull();
+    expect(windRange('calm')).toBe('0–5 mph');
+    expect(windRange('gale')).toBeNull();
+    expect(weatherWord('windy')).toBe('Windy');
+    expect(weatherWord('hail')).toBeNull();
   });
 });

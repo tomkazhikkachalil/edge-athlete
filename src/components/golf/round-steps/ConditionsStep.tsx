@@ -82,10 +82,14 @@ interface ConditionsStepProps {
   onChange: (patch: Partial<ConditionsValue>) => void;
   /** The viewer's unit system (units.ts) — °C or °F on the temperature field. */
   sys?: UnitSystem;
+  /** The °F / °C toggle (Oct 29 2026): choosing a unit here is choosing the
+   *  account's unit system (useUnitSystem.setSys — the device at once, the
+   *  account in the background); the stored value stays Fahrenheit. */
+  onUnit?: (sys: UnitSystem) => void;
   forecast?: ConditionsForecast;
 }
 
-export default function ConditionsStep({ value, onChange, sys = 'imperial', forecast }: ConditionsStepProps) {
+export default function ConditionsStep({ value, onChange, sys = 'imperial', onUnit, forecast }: ConditionsStepProps) {
   const tempUnit = QUANTITY_UNITS.temp[sys];
   const min = Math.round(toDisplay('temp', fromInput('temp', F_MIN, 'imperial'), sys));
   const max = Math.round(toDisplay('temp', fromInput('temp', F_MAX, 'imperial'), sys));
@@ -97,7 +101,8 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', fore
         <i className="fas fa-cloud-sun mr-2 text-violet-500" aria-hidden="true"></i>
         Playing Conditions
       </h3>
-      <p className="text-sm text-tertiary mb-4">Optional — skip if you&apos;d rather not say.</p>
+      {/* The "Optional" line is gone (Oct 29 2026): Skip in the footer says it. */}
+      <div className="mb-4" aria-hidden="true"></div>
       {forecast && (
         <div className="mb-4 flex flex-wrap items-center gap-3" data-golf-forecast-row="">
           <button
@@ -127,7 +132,28 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', fore
           </select>
         </div>
         <div>
-          <label className={GOLF_LABEL} htmlFor="golf-temperature">Temperature ({tempUnit})</label>
+          <div className="flex items-end justify-between gap-2">
+            <label className={GOLF_LABEL} htmlFor="golf-temperature">Temperature ({tempUnit})</label>
+            {onUnit && (
+              <div className="mb-1 inline-flex rounded-full border border-border p-0.5" role="group" aria-label="Temperature unit" data-golf-temp-units="">
+                {(['°F', '°C'] as const).map(u => {
+                  const pressed = tempUnit === u;
+                  return (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => onUnit(u === '°F' ? 'imperial' : 'metric')}
+                      aria-pressed={pressed}
+                      data-golf-temp-unit={u}
+                      className={`ea-interactive rounded-full px-3 min-h-[36px] text-xs font-semibold ${pressed ? 'bg-brand text-white' : 'text-secondary'}`}
+                    >
+                      {u}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <input
             id="golf-temperature"
             type="number"

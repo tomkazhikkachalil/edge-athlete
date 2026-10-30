@@ -17,6 +17,7 @@ export function gameFormatLabel(value: GolfGameFormat): string {
 /**
  * Step 3 of the golf round: the game format, unchanged from the one-page
  * form — the three options and their two help lines, on a screen of their own.
+ * The pressed option is purple (Oct 29 2026: the one selected colour).
  */
 interface FormatStepProps {
   value: GolfGameFormat;
@@ -38,8 +39,8 @@ export default function FormatStep({ value, onChange }: FormatStepProps) {
             aria-pressed={value === option}
             className={`px-3 py-3 min-h-[44px] rounded-lg font-semibold text-sm transition-all ${
               value === option
-                ? 'bg-green-600 text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
+                ? 'bg-brand text-white'
+                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
             <i className={`fas ${icon} mr-1.5`} aria-hidden="true"></i>

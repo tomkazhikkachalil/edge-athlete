@@ -45,11 +45,17 @@ interface CourseInfoCardProps {
 }
 
 export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null }: CourseInfoCardProps) {
-  const [showMap, setShowMap] = useState(defaultOpen);
+  // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
+  // the official scorecard, opened by two side-by-side buttons under the
+  // summary; opening one closes the other. `defaultOpen` opens the map.
   // Official scorecard: shown from course.holes when the caller has them;
   // otherwise lazily fetched by catalog id on first expand (embeds carry the
   // id but hardcode holes: [] — the tee sheet lives only in the catalog).
-  const [showScorecard, setShowScorecard] = useState(false);
+  const [open, setOpen] = useState<'map' | 'scorecard' | null>(defaultOpen ? 'map' : null);
+  const showMap = open === 'map';
+  const showScorecard = open === 'scorecard';
+  const setShowMap = (next: boolean) => setOpen(next ? 'map' : null);
+  const setShowScorecard = (next: boolean) => setOpen(next ? 'scorecard' : null);
   const [fetchedCourse, setFetchedCourse] = useState<GolfCourse | null>(null);
   // Phase 6b A2: "Home of {org} →" — the org site whose venue recognized
   // this course. Keyed by course id (the composer swaps `course` in place).
@@ -179,7 +185,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     course.description || metaBits.length > 0 || course.website || hasCoords || scorecardPossible;
   if (!hasAnything) return null;
 
-  const toggleScorecard = () => setShowScorecard(v => !v);
+  const toggleScorecard = () => setShowScorecard(!showScorecard);
 
   // M3: the summary's facts — the caller's course, or the detail the card
   // fetched for a row that arrived without its sheet.
@@ -204,11 +210,6 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     const nextIdx = idx < 0 && dir === 1 ? 0 : idx + dir;
     setFocusHole(nextIdx < 0 ? null : holeLines[Math.min(nextIdx, holeLines.length - 1)].hole);
   };
-
-  const mapsQuery = hasCoords
-    ? `${course.lat},${course.lng}`
-    : [course.name, course.city, course.state].filter(Boolean).join(', ');
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
 
 
   return (
@@ -243,26 +244,51 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           )}
         </div>
       </div>
+      {/* Show Map | Official Scorecard (Oct 29 2026): two equal buttons; the
+          open one reads Hide; one panel at a time, directly below. The old
+          "View on map" Google link is gone. */}
+      {((hasCoords && mapMode !== 'hidden') || scorecardPossible) && (
+        <div className="mt-3 grid grid-cols-2 gap-2" data-course-panels="">
+          {hasCoords && mapMode !== 'hidden' && (
+            <button
+              type="button"
+              onClick={() => setShowMap(!showMap)}
+              aria-expanded={showMap}
+              data-course-show-map=""
+              className={`ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
+                showMap ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
+              }`}
+            >
+              <i className={`fas ${showMap ? 'fa-chevron-up' : 'fa-map'}`} aria-hidden="true"></i>
+              {showMap ? 'Hide' : 'Show Map'}
+            </button>
+          )}
+          {scorecardPossible && (
+            <button
+              type="button"
+              onClick={toggleScorecard}
+              aria-expanded={showScorecard}
+              data-course-show-scorecard=""
+              className={`ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
+                showScorecard ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
+              }`}
+            >
+              <i className={`fas ${showScorecard ? 'fa-chevron-up' : 'fa-table-list'}`} aria-hidden="true"></i>
+              {showScorecard ? 'Hide' : 'Official Scorecard'}
+            </button>
+          )}
+        </div>
+      )}
+      {showScorecard && (
+        <div className="mt-2" data-course-scorecard="">
+          {scorecardSource && scorecardSource.holes.length > 0 ? (
+            <CourseScorecardTable course={scorecardSource} />
+          ) : scorecardLoading ? (
+            <div className="h-24 animate-pulse rounded-lg border border-border bg-surface" />
+          ) : null /* the summary's "Not fully mapped" line says it */}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
-        >
-          <i className="fas fa-map-marker-alt" aria-hidden="true"></i>
-          View on map
-        </a>
-        {hasCoords && mapMode !== 'hidden' && (
-          <button
-            type="button"
-            onClick={() => setShowMap(v => !v)}
-            className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
-          >
-            <i className={`fas ${showMap ? 'fa-chevron-up' : 'fa-map'}`} aria-hidden="true"></i>
-            {showMap ? 'Hide map' : 'Show map'}
-          </button>
-        )}
         {homeOf && (
           <Link
             href={homeOf.path}
@@ -283,26 +309,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             Website
           </a>
         )}
-        {scorecardPossible && (
-          <button
-            type="button"
-            onClick={toggleScorecard}
-            className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
-          >
-            <i className={`fas ${showScorecard ? 'fa-chevron-up' : 'fa-table-list'}`} aria-hidden="true"></i>
-            {showScorecard ? 'Hide scorecard' : 'Official scorecard'}
-          </button>
-        )}
       </div>
-      {showScorecard && (
-        <div className="mt-2">
-          {scorecardSource && scorecardSource.holes.length > 0 ? (
-            <CourseScorecardTable course={scorecardSource} />
-          ) : scorecardLoading ? (
-            <div className="h-24 animate-pulse rounded-lg border border-border bg-surface" />
-          ) : null /* the summary's "Not fully mapped" line says it */}
-        </div>
-      )}
       {mapVisible && (
         <div className="mt-2" ref={mapRef}>
           {holeLines && holeLines.length > 0 && (

@@ -6,9 +6,12 @@ import { GOLF_LABEL } from '@/components/golf/golf-form-styles';
  * Step 1 of the golf round (Oct 28 2026): the sport named, then WHEN
  * ("Playing now" goes live, "Already played" logs a finished round) and
  * WHERE (Outdoor / Indoor). Both default as the one-page form did —
- * Playing now, Outdoor (Tom: keep today's defaults). The copy, the labels
- * and the colours are the form's, moved verbatim; the e2e idioms
+ * Playing now, Outdoor (Tom: keep today's defaults). The copy and the
+ * labels are the form's, moved verbatim; the e2e idioms
  * (`/already played/i`, `/outdoor/i`) still find exactly these buttons.
+ * The look (Oct 29 2026, Tom's refinement spec): purple is the ONE
+ * selected colour on every step; Playing now keeps a small status dot —
+ * red while it is selected (the round goes live), white when it is not.
  */
 interface RoundTypeStepProps {
   alreadyPlayed: boolean;
@@ -41,11 +44,14 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
             aria-pressed={!alreadyPlayed}
             className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
               !alreadyPlayed
-                ? 'bg-red-600 text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-red-300 dark:hover:border-red-700'
+                ? 'bg-brand text-white'
+                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
-            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
+            <span
+              data-live-dot=""
+              className={`inline-block w-2 h-2 rounded-full mr-2 ${!alreadyPlayed ? 'bg-red-500 animate-pulse' : 'bg-white border border-border-strong'}`}
+            ></span>
             Playing now
           </button>
           <button
@@ -55,7 +61,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
             className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
               alreadyPlayed
                 ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-border-strong'
+                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
             <i className="fas fa-flag-checkered mr-2" aria-hidden="true"></i>
@@ -78,8 +84,8 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
             aria-pressed={!indoor}
             className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
               !indoor
-                ? 'bg-green-600 text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
+                ? 'bg-brand text-white'
+                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
             <i className="fas fa-tree mr-2" aria-hidden="true"></i>

@@ -60,13 +60,20 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
     </tr>
   );
 
+  // Par and HCP (Oct 29 2026, Tom's refinement spec): each row bordered so
+  // the two read apart, the handicap row on a light purple — the sticky
+  // label cell paints the row's own background so it never covers it.
   const statRow = (
     label: string,
     get: (h: (typeof holes)[number]) => number | undefined,
-    bold = false
+    bold = false,
+    tone: 'par' | 'hcp' | 'tee' = 'tee'
   ) => (
-    <tr className={`border-b border-border ${bold ? 'font-bold text-primary' : 'text-secondary'}`}>
-      <th scope="row" className={`${cell} text-left font-semibold sticky left-0 bg-surface`}>{label}</th>
+    <tr
+      data-course-scorecard-row={tone === 'tee' ? undefined : tone}
+      className={`${tone === 'tee' ? 'border-b border-border' : 'border-y-2 border-border-strong'} ${tone === 'hcp' ? 'bg-brand-soft' : ''} ${bold ? 'font-bold text-primary' : 'text-secondary'}`}
+    >
+      <th scope="row" className={`${cell} text-left font-semibold sticky left-0 ${tone === 'hcp' ? 'bg-brand-soft' : 'bg-surface'}`}>{label}</th>
       {front.map(h => (
         <td key={h.number} className={cell}>{get(h) ?? '—'}</td>
       ))}
@@ -88,8 +95,8 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
       <table className="w-full text-xs bg-surface">
         <thead>{numberRow}</thead>
         <tbody>
-          {statRow('Par', h => h.par, true)}
-          {statRow('HCP', h => (typeof h.handicap === 'number' && h.handicap > 0 ? h.handicap : undefined))}
+          {statRow('Par', h => h.par, true, 'par')}
+          {statRow('HCP', h => (typeof h.handicap === 'number' && h.handicap > 0 ? h.handicap : undefined), false, 'hcp')}
           {tees.map(tee => {
             const rating = course.courseRating?.[tee];
             const slope = course.slopeRating?.[tee];
