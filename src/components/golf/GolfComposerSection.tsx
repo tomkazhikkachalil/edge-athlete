@@ -48,8 +48,8 @@ import ConditionsStep, { weatherLabel, windLabel, type ForecastFilled } from '@/
 import { loadWeather } from '@/lib/weather/weather-client';
 import { golfConditionOf, golfTempF, golfWindBandOf, wmoLabel } from '@/lib/weather/weather';
 import type { WeatherStatus } from '@/hooks/useWeather';
-import { readUnitPreference } from '@/lib/activities/format';
-import { formatQuantity, fromInput, unitSystemOf } from '@/lib/activities/units';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { formatQuantity, fromInput } from '@/lib/activities/units';
 import {
   FIRST_ROUND_STEP,
   roundBusyLabel,
@@ -251,7 +251,7 @@ export default function GolfComposerSection({
   // fields; a live round only — an already-played round keeps what the
   // person types. The temperature column stays Fahrenheit; the step shows
   // the viewer's unit (units.ts), read once per mount.
-  const [unitSys] = useState(() => unitSystemOf(readUnitPreference()));
+  const { sys: unitSys } = useUnitSystem();
   const [forecastStatus, setForecastStatus] = useState<WeatherStatus>('idle');
   const [forecastFilled, setForecastFilled] = useState<ForecastFilled | null>(null);
   const fillFromForecast = async () => {

@@ -148,6 +148,9 @@ export interface Profile {
   // Favourite sports in the post composer's picker (migration 285). `unknown`
   // on purpose: always read through sanitizeFavouriteSports (favourite-sports.ts).
   favourite_sports?: unknown;
+  // The account's unit system (migration 293): 'metric' | 'imperial'. `unknown`
+  // on purpose: always read through sanitizeUnitSystem (unit-prefs.ts).
+  unit_system?: unknown;
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 
