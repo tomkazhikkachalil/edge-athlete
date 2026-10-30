@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-29T22:53:20.261453+00:00 from server 17.6 by
+-- Generated 2026-10-30T01:52:24.285483+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 292.
+-- public.schema_dump() (migration 227). Ledger head at generation: 293.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -6559,7 +6559,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_recipe jsonb,
   cover_source_url text,
   cover_recipe jsonb,
-  favourite_sports jsonb
+  favourite_sports jsonb,
+  unit_system text
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -9570,6 +9571,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_supervision_state_check' AND conrelid = 'public.profiles'::regclass) THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_supervision_state_check CHECK ((supervision_state = ANY (ARRAY['self'::text, 'supervised'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_unit_system_check' AND conrelid = 'public.profiles'::regclass) THEN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_unit_system_check CHECK (((unit_system IS NULL) OR (unit_system = ANY (ARRAY['metric'::text, 'imperial'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -19044,6 +19050,7 @@ COMMENT ON COLUMN public.profiles.avatar_recipe IS 'The crop recipe that made av
 COMMENT ON COLUMN public.profiles.cover_source_url IS 'The uploaded ORIGINAL behind cover_url (264): private uploads bucket, profile-sources/{id}/; owner-only through /api/media/profile-source. ONE writer: the cover POST.';
 COMMENT ON COLUMN public.profiles.cover_recipe IS 'The crop recipe that made cover_url from cover_source_url (264); Adjust reopens the editor here.';
 COMMENT ON COLUMN public.profiles.favourite_sports IS 'The account''s favourite sports in the post composer''s picker (285): a JSON array of registry sport keys, owner-only, never a declared sport. Read through sanitizeFavouriteSports; ONE writer: favourites-server.ts writeFavouriteSports.';
+COMMENT ON COLUMN public.profiles.unit_system IS 'The account''s unit system (293): metric (°C, km, kg) or imperial (°F, mi, lb) for everything measured; NULL = not chosen (the device decides). Owner-only. Read through sanitizeUnitSystem; ONE writer: unit-prefs-server.ts writeUnitSystem behind PATCH /api/settings/units.';
 COMMENT ON TABLE public.push_subscriptions IS 'Phone notifications (248): one row per device that turned them on (a Web Push subscription). Written by /api/push/subscriptions; pruned by src/lib/push/send-server.ts on 404/410. Posture A: service role only.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
@@ -19585,7 +19592,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (288, '288_comment_like_toggle.sql', 'rebuild-000'),
   (289, '289_search_hide_blocked_muted.sql', 'rebuild-000'),
   (290, '290_search_trigram.sql', 'rebuild-000'),
-  (291, '291_round_conditions_source.sql', 'rebuild-000')
+  (291, '291_round_conditions_source.sql', 'rebuild-000'),
+  (292, '292_me_pulse.sql', 'rebuild-000'),
+  (293, '293_profiles_unit_system.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19594,12 +19603,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 134 | 145 | 292
+-- Expected: 000 REBUILT | 138 | 134 | 145 | 293
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_134,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_292;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_293;
 
