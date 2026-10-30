@@ -301,6 +301,7 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
   const stamp = Date.now();
   const name = `QA Look Links ${stamp}`;
   let courseId = '';
+  let osmId = '';
   try {
     const seeded = await admin
       .from('golf_courses')
@@ -353,6 +354,32 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await expect(page.getByText('(optional)')).toHaveCount(0);
     await expect(page.getByText(/unlock your estimated handicap/)).toHaveCount(0);
 
+    // A course with a location and no sheet — a catalog row whose detail
+    // has already been asked (hydrated_at set) and answered without holes,
+    // the shape of production's map-only rows — gets NO Official Scorecard
+    // button: the summary says "Not fully mapped" and Show Map stands alone
+    // (Oct 30 2026, Tom's empty panel). Seeded as qa-e2e so the sweep owns it.
+    const osmName = `QA Map Only Links ${stamp}`;
+    const osm = await admin
+      .from('golf_courses')
+      .insert({ external_source: 'qa-e2e', external_id: `maponly-${stamp}`, name: osmName, total_par: 72, holes_count: 18, lat: 45.41, lng: -75.71, hydrated_at: new Date().toISOString() })
+      .select('id')
+      .single();
+    expect(osm.error, osm.error?.message).toBeNull();
+    osmId = osm.data!.id as string;
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Only Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: osmName }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(osmName);
+    // The detail answers without holes → the button is dropped (the
+    // summary's "Not fully mapped" follows the slower map-lines request).
+    await expect(page.locator('[data-course-show-scorecard]')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.locator('[data-course-show-map]')).toBeVisible();
+    await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
+    // Back to the real course for the rest of the walk.
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(name);
+
     // Step 3: the pressed format is purple.
     await next(flow, /Step 3 of 6 · Game format/);
     await expect(page.getByRole('button', { name: 'Stroke Play' })).toHaveClass(/bg-brand/);
@@ -381,6 +408,7 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await cleanup('golf-steps-look', [
       () => api.patch('/api/settings/units', { data: { system: 'imperial' } }),
       () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => osmId && admin.from('golf_courses').delete().eq('id', osmId),
       () => api.dispose(),
     ]);
   }

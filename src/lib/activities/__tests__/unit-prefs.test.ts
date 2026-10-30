@@ -45,6 +45,11 @@ describe('unit_system — the column\'s contract', () => {
     expect(read('lib/activities/unit-prefs-server.ts')).toMatch(/\.update\(\{ unit_system: sys \}\)\s*\.eq\('id', profileId\)/);
     expect(read('lib/rate-limit-core.ts')).toMatch(/\n\s*units: \{ max: 120, windowSeconds: 3600, keyBy: 'user' \}/);
   });
+  it('adopts the account value only when the SERVER value changes, and a save sets the expectation', () => {
+    const hook = read('hooks/useUnitSystem.ts');
+    expect(hook).toMatch(/if \(sys === lastAdopted\) return;\s*lastAdopted = sys;/);
+    expect(hook).toMatch(/export function persistUnitSystem\(sys: UnitSystem\)[\s\S]*?lastAdopted = sys;/);
+  });
   it('the account seeds the device on every profile load, keyed off the OWN profile', () => {
     const applier = read('components/UnitSystemApplier.tsx');
     expect(applier).toMatch(/adoptAccountUnitSystem\(profile\.unit_system\)/);

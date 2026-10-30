@@ -36,14 +36,23 @@ function applyLocally(sys: UnitSystem): void {
   emit();
 }
 
-/** The account's stored value (any shape) seeds the device — server truth first. */
+/** The account's stored value (any shape) seeds the device — server truth
+ *  first — but only when the SERVER value changes (the favourites' rule):
+ *  `useAuth().profile` is not re-read after a save, so a re-render of the
+ *  same stale row must not flip a fresher device choice back. */
+let lastAdopted: UnitSystem | null | undefined;
 export function adoptAccountUnitSystem(raw: unknown): void {
   const sys = sanitizeUnitSystem(raw);
+  if (sys === lastAdopted) return;
+  lastAdopted = sys;
   if (!sys || sys === getSnapshot()) return;
   applyLocally(sys);
 }
 
 export function persistUnitSystem(sys: UnitSystem): Promise<boolean> {
+  // What the account will hold once this lands — a later re-adopt of the
+  // same value is a no-op.
+  lastAdopted = sys;
   return enqueueSave(async () => {
     try {
       const res = await fetch('/api/settings/units', {
