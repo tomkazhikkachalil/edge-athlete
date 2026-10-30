@@ -124,8 +124,10 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     // The finish summary says so, and Go Live stamps the round.
     await next(flow, /Step 5 of 6 · Players/);
     await next(flow, /Step 6 of 6 · Start/);
-    await expect(flow.locator('[data-round-summary-row="conditions"]')).toContainText('Forecast at tee-off');
-    await expect(flow.locator('[data-round-summary-row="conditions"]')).toContainText('54 °F');
+    // ONE line on the last step (Oct 29 2026): "Partly cloudy, 54°F, 10–20 mph" —
+    // "Forecast at tee-off" stays on the step's note, the card and the round page.
+    await expect(flow.locator('[data-round-summary-row="conditions"]')).toHaveText(/Partly cloudy, 54°F, 10–20 mph/);
+    await expect(flow.locator('[data-round-summary-row="conditions"]')).not.toContainText('Forecast at tee-off');
     const finish = flow.locator('[data-step-finish]');
     await expect(finish).toHaveText(/Go Live/);
     await finish.click();

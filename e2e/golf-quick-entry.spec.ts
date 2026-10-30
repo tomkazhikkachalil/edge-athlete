@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
-import { adminClient, apiAs } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
 // The golf round as STEPS (Oct 28 2026): one flow, two modes. Picking golf
@@ -150,7 +150,9 @@ test('Playing now: the steps end in Go Live and open the live round', async ({ p
     await next(flow, /Step 4 of 6 · Conditions/);
     await next(flow, /Step 5 of 6 · Players/);
     await next(flow, /Step 6 of 6 · Start/);
-    await expect(flow.locator('[data-round-summary-row="players"]')).toContainText('Just you');
+    // The players, stacked (Oct 29 2026): the creator's row alone — picture, name.
+    await expect(flow.locator('[data-round-summary-row="players"] [data-round-player]')).toHaveCount(1);
+    await expect(flow.locator('[data-round-summary-row="players"]')).toContainText('Edge');
     const finish = flow.locator('[data-step-finish]');
     await expect(finish).toHaveText(/Go Live/);
     await finish.click();
@@ -282,6 +284,104 @@ test('a catalog tee shows its yards and rating / slope; the sport row is one lin
   } finally {
     await cleanup('golf-steps-tees', [
       () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+    ]);
+  }
+});
+
+// The live path's look (Oct 29 2026, Tom's refinement spec): purple is the
+// one selected colour; Playing now keeps a red dot while selected; the course
+// card's two buttons open one panel at a time with the HCP row on light
+// purple; no "(optional)" labels, no handicap paragraph; the Conditions
+// step's °F / °C toggle writes the ACCOUNT (293) — Settings shows it after a
+// reload; Playing Partners is a heading without an icon and without the
+// "Playing with anyone" line. Self-seeded course with coordinates.
+test('the live path look: purple selection, Show Map | Official Scorecard one at a time, the °F / °C toggle on the account', async ({ page }) => {
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA Look Links ${stamp}`;
+  let courseId = '';
+  try {
+    const seeded = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'qa-e2e',
+        external_id: `look-${stamp}`,
+        name,
+        total_par: 36,
+        holes_count: 9,
+        section_kind: 'nine',
+        lat: 45.4,
+        lng: -75.7,
+        course_rating: { white: 71.2 },
+        slope_rating: { white: 128 },
+        hole_data: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: 4, yardage: { white: 350 }, handicap: i + 1 })),
+      })
+      .select('id')
+      .single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+
+    // Step 1: the pressed buttons are purple; the dot is red while Playing now is selected, white when not.
+    const flow = await openGolf(page);
+    const playingNow = page.getByRole('button', { name: 'Playing now' });
+    await expect(playingNow).toHaveClass(/bg-brand/);
+    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-red-500/);
+    await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveClass(/bg-brand/);
+    await page.getByRole('button', { name: 'Already played' }).click();
+    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-white/);
+    await playingNow.click();
+
+    // Step 2: the seeded course → Show Map | Official Scorecard, one open at a time; no "(optional)", no handicap line.
+    await next(flow, /Step 2 of 6 · Course/);
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toHaveClass(/bg-brand-soft/);
+    const showMap = page.locator('[data-course-show-map]');
+    const showCard = page.locator('[data-course-show-scorecard]');
+    await expect(showMap).toHaveText(/Show Map/, { timeout: 15_000 });
+    await expect(showCard).toHaveText(/Official Scorecard/);
+    await expect(page.getByText('View on map')).toHaveCount(0);
+    await showCard.click();
+    await expect(showCard).toHaveText(/Hide/);
+    await expect(page.locator('[data-course-scorecard-row="hcp"]')).toHaveClass(/bg-brand-soft/, { timeout: 15_000 });
+    await showMap.click();
+    await expect(showMap).toHaveText(/Hide/);
+    await expect(showCard).toHaveText(/Official Scorecard/);
+    await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
+    await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('(optional)')).toHaveCount(0);
+    await expect(page.getByText(/unlock your estimated handicap/)).toHaveCount(0);
+
+    // Step 3: the pressed format is purple.
+    await next(flow, /Step 3 of 6 · Game format/);
+    await expect(page.getByRole('button', { name: 'Stroke Play' })).toHaveClass(/bg-brand/);
+
+    // Step 4: no "Optional" line; °C flips the field's unit and lands on the account.
+    await next(flow, /Step 4 of 6 · Conditions/);
+    await expect(page.getByText(/skip if you/)).toHaveCount(0);
+    await page.locator('[data-golf-temp-unit="°C"]').click();
+    await expect(page.locator('[data-golf-temp-unit="°C"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('label[for="golf-temperature"]')).toHaveText('Temperature (°C)');
+    // The ACCOUNT holds it (293): the row itself, not the device.
+    const me = loadQaUser('user.json');
+    await expect.poll(async () => (await admin.from('profiles').select('unit_system').eq('id', me.id).single()).data?.unit_system, { timeout: 15_000 }).toBe('metric');
+
+    // Step 5: the heading, no icon, no helper; Add Others is the purple CTA.
+    await next(flow, /Step 5 of 6 · Players/);
+    await expect(page.getByRole('heading', { name: 'Playing Partners' })).toBeVisible();
+    await expect(page.getByText(/Playing with anyone/)).toHaveCount(0);
+    await expect(page.locator('[data-round-add-players]')).toHaveClass(/ea-cta/);
+
+    // The account's choice shows in Settings after a fresh load — and is restored below.
+    await page.goto('/settings?tab=account');
+    await expect(page.locator('[data-units-choice="km"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
+    await expect(page.getByText(/Saved on your account/)).toBeVisible();
+  } finally {
+    await cleanup('golf-steps-look', [
+      () => api.patch('/api/settings/units', { data: { system: 'imperial' } }),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => api.dispose(),
     ]);
   }
 });

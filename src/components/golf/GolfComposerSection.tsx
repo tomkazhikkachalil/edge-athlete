@@ -44,14 +44,18 @@ import { formatPlace } from '@/lib/geo/regions';
 import StepFlow from '@/components/StepFlow';
 import RoundTypeStep from '@/components/golf/round-steps/RoundTypeStep';
 import FormatStep, { gameFormatLabel } from '@/components/golf/round-steps/FormatStep';
-import ConditionsStep, { weatherLabel, windLabel, type ForecastFilled } from '@/components/golf/round-steps/ConditionsStep';
+import ConditionsStep, { type ForecastFilled } from '@/components/golf/round-steps/ConditionsStep';
 import { loadWeather } from '@/lib/weather/weather-client';
 import { golfConditionOf, golfTempF, golfWindBandOf, wmoLabel } from '@/lib/weather/weather';
 import type { WeatherStatus } from '@/hooks/useWeather';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
-import { formatQuantity, fromInput } from '@/lib/activities/units';
+import { fromInput, QUANTITY_UNITS, toDisplay } from '@/lib/activities/units';
+import { AvatarImage } from '@/components/OptimizedImage';
+import { getInitials } from '@/lib/formatters';
+import { handicapSuffix } from '@/lib/golf/handicaps';
 import {
   FIRST_ROUND_STEP,
+  conditionsLine,
   roundBusyLabel,
   roundDateForMode,
   roundFinishLabel,
@@ -251,7 +255,7 @@ export default function GolfComposerSection({
   // fields; a live round only — an already-played round keeps what the
   // person types. The temperature column stays Fahrenheit; the step shows
   // the viewer's unit (units.ts), read once per mount.
-  const { sys: unitSys } = useUnitSystem();
+  const { sys: unitSys, setSys: setUnitSys } = useUnitSystem();
   const [forecastStatus, setForecastStatus] = useState<WeatherStatus>('idle');
   const [forecastFilled, setForecastFilled] = useState<ForecastFilled | null>(null);
   const fillFromForecast = async () => {
@@ -810,6 +814,29 @@ export default function GolfComposerSection({
     selectedCourse,
   ]);
 
+  // The players' handicaps for the last step (Oct 29 2026): one GET for the
+  // ids not yet asked, when the finish step opens; a miss or a failure
+  // simply shows no suffix. The cache lives for the section's life.
+  const [handicaps, setHandicaps] = useState<Record<string, string | null>>({});
+  const handicapsAskedRef = useRef<Set<string>>(new Set());
+  const [handicapsWanted, setHandicapsWanted] = useState<string[]>([]);
+  useEffect(() => {
+    const ids = handicapsWanted.filter(id => !handicapsAskedRef.current.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) handicapsAskedRef.current.add(id);
+    let cancelled = false;
+    fetch(`/api/golf/handicaps?ids=${encodeURIComponent(ids.join(','))}`, { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { handicaps?: Record<string, string | null> } | null) => {
+        if (cancelled || !data?.handicaps) return;
+        setHandicaps(prev => ({ ...prev, ...data.handicaps }));
+      })
+      .catch(() => { /* no suffix — the list renders either way */ });
+    return () => {
+      cancelled = true;
+    };
+  }, [handicapsWanted]);
+
   // ── The steps (Oct 28 2026) ─────────────────────────────────────────────
   // The list follows the first step's answers (round-steps.ts); the step is
   // held by ID so a list change keeps the person where they are, and an id
@@ -848,6 +875,9 @@ export default function GolfComposerSection({
     }));
   };
 
+  const wantedIds = (currentStep.id === 'finish' && active ? [userId, ...sharedRoundParticipants] : []).filter((id): id is string => !!id);
+  if (wantedIds.join(',') !== handicapsWanted.join(',')) setHandicapsWanted(wantedIds);
+
   const teeTotals = selectedCourse ? courseSummary(selectedCourse).tees : [];
   const teeInPlayTotal = teeTotals.find(t => t.key === sharedRoundDetails.teeColor);
   const teeInPlay = sharedRoundDetails.teeColor
@@ -859,29 +889,29 @@ export default function GolfComposerSection({
     { label: 'Round type', value: indoor ? 'Indoor' : 'Outdoor' },
     { label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
     ...(!indoor ? [{ label: 'Tee', value: teeInPlay }] : []),
+    // ONE line (Oct 29 2026, Tom): "Cloudy, 7°C, 5–10 mph" — the temperature
+    // in the viewer's unit; "Forecast at tee-off" lives on the step's note,
+    // the round card and the round page, not here.
     ...(!indoor
       ? [{
           label: 'Conditions',
-          value:
-            [
-              weatherLabel(sharedRoundDetails.weather),
+          value: conditionsLine({
+            weather: sharedRoundDetails.weather,
+            temperature:
               sharedRoundDetails.temperature && Number.isFinite(Number(sharedRoundDetails.temperature))
-                ? formatQuantity('temp', fromInput('temp', Number(sharedRoundDetails.temperature), 'imperial'), unitSys)
+                ? toDisplay('temp', fromInput('temp', Number(sharedRoundDetails.temperature), 'imperial'), unitSys)
                 : null,
-              windLabel(sharedRoundDetails.wind),
-              sharedRoundDetails.conditionsSource === 'forecast' ? 'Forecast at tee-off' : null,
-            ]
-              .filter((s): s is string => !!s)
-              .join(' · ') || null,
+            unit: QUANTITY_UNITS.temp[unitSys] as '°C' | '°F',
+            wind: sharedRoundDetails.wind,
+          }),
         }]
       : []),
-    {
-      label: 'Players',
-      value:
-        sharedRoundParticipantsData.length === 0
-          ? 'Just you'
-          : `You + ${sharedRoundParticipantsData.map(p => p.name).join(', ')}`,
-    },
+  ];
+  // The players, stacked (Oct 29 2026): the creator first, then every
+  // partner — picture, name, and " · index 12.4" when the handicap is known.
+  const roundPlayers: { id: string; name: string; avatar_url?: string }[] = [
+    ...(userId ? [{ id: userId, name: creatorName ?? 'You', avatar_url: displayProfile?.avatar_url ?? undefined }] : []),
+    ...sharedRoundParticipantsData,
   ];
 
   return (
@@ -1014,7 +1044,7 @@ export default function GolfComposerSection({
               />
               {searchLoading && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full"></div>
+                  <div className="animate-spin h-5 w-5 border-2 border-brand border-t-transparent rounded-full"></div>
                 </div>
               )}
               {!searchLoading && sharedRoundDetails.courseName && (
@@ -1031,7 +1061,7 @@ export default function GolfComposerSection({
                 aria-pressed={!!nearFix}
                 data-course-near-me=""
                 className={`inline-flex items-center gap-2 px-3 min-h-[44px] rounded-lg border text-sm font-semibold ea-interactive disabled:opacity-60 ${
-                  nearFix ? 'border-green-400 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 dark:border-green-700' : 'border-border bg-surface text-primary'
+                  nearFix ? 'border-violet-200 dark:border-violet-800 bg-brand-soft text-brand-fg-strong' : 'border-border bg-surface text-primary'
                 }`}
               >
                 <i className={`fas ${nearBusy ? 'fa-spinner fa-spin' : 'fa-location-crosshairs'}`} aria-hidden="true"></i>
@@ -1063,12 +1093,12 @@ export default function GolfComposerSection({
                     type="button"
                     onClick={() => selectCourse(nearOffer.course)}
                     data-course-nearby-offer=""
-                    className="w-full px-4 py-3 text-left bg-green-50 dark:bg-green-950/40 hover:bg-green-100 dark:hover:bg-green-950/60 transition-colors border-b border-border-subtle"
+                    className="w-full px-4 py-3 text-left bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors border-b border-border-subtle"
                   >
-                    <div className="font-semibold text-green-900 dark:text-green-100">
-                      <i className="fas fa-location-dot mr-2 text-green-700 dark:text-green-300" aria-hidden="true"></i>
+                    <div className="font-semibold text-brand-fg-strong">
+                      <i className="fas fa-location-dot mr-2 text-brand-fg" aria-hidden="true"></i>
                       Playing at {nearOffer.course.name}?
-                      <span className="ml-2 text-xs font-medium text-green-800 dark:text-green-200">· {formatKm(nearOffer.km)}</span>
+                      <span className="ml-2 text-xs font-medium text-brand-fg">· {formatKm(nearOffer.km)}</span>
                     </div>
                   </button>
                 )}
@@ -1076,7 +1106,7 @@ export default function GolfComposerSection({
                   <button
                     key={course.id}
                     onClick={() => selectCourse(course)}
-                    className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
+                    className="w-full px-4 py-3 text-left hover:bg-brand-soft transition-colors border-b border-border-subtle last:border-b-0"
                   >
                     <div className="font-semibold text-primary">
                       {course.name}
@@ -1138,7 +1168,7 @@ export default function GolfComposerSection({
 
             {/* Selected Course Badge */}
             {selectedCourse && (
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700">
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-brand-soft text-brand-fg-strong rounded-full text-sm font-medium border border-violet-200 dark:border-violet-800" data-course-chosen="">
                 <i className="fas fa-check-circle text-xs"></i>
                 {selectedCourse.name}
                 {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
@@ -1211,7 +1241,7 @@ export default function GolfComposerSection({
           {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
             <div className="mb-4">
               <label className={GOLF_LABEL}>
-                {selectedCourse ? 'Tees (optional)' : 'Tee Color (optional)'}
+                {selectedCourse ? 'Tees' : 'Tee Color'}
               </label>
               <select
                 value={sharedRoundDetails.teeColor}
@@ -1269,7 +1299,7 @@ export default function GolfComposerSection({
             <div className="mb-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={GOLF_LABEL}>Course Rating (optional)</label>
+                  <label className={GOLF_LABEL}>Course Rating</label>
                   <input
                     type="number"
                     step="0.1"
@@ -1282,7 +1312,7 @@ export default function GolfComposerSection({
                   />
                 </div>
                 <div>
-                  <label className={GOLF_LABEL}>Slope Rating (optional)</label>
+                  <label className={GOLF_LABEL}>Slope Rating</label>
                   <input
                     type="number"
                     min="55"
@@ -1294,9 +1324,6 @@ export default function GolfComposerSection({
                   />
                 </div>
               </div>
-              <p className="mt-1.5 text-xs text-tertiary">
-                18-hole rounds with a course rating and slope unlock your estimated handicap — both are on the course&apos;s scorecard.
-              </p>
             </div>
           )}
               </div>
@@ -1395,6 +1422,7 @@ export default function GolfComposerSection({
                   setSharedRoundDetails(prev => ({ ...prev, ...patch, conditionsSource: 'manual', conditionsAt: null }));
                 }}
                 sys={unitSys}
+                onUnit={next => { void setUnitSys(next); }}
                 forecast={
                   !sharedRoundDetails.alreadyPlayed && selectedCourse?.lat != null && selectedCourse?.lng != null
                     ? { status: forecastStatus, onUse: () => { void fillFromForecast(); }, filled: forecastFilled }
@@ -1409,8 +1437,7 @@ export default function GolfComposerSection({
           <div className={GOLF_SECTION_CARD}>
             <SectionInfo
               as="h3"
-              heading={<><i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>{sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}</>}
-              label={sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
+              heading={sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing Partners'}
               headingClassName="text-lg font-semibold text-primary flex items-center"
               className="mb-4"
             >
@@ -1423,45 +1450,48 @@ export default function GolfComposerSection({
             <div>
               {/* flex-wrap: the label is long and dynamic — at ~279px of
                   card width it must wrap rather than squeeze the button. */}
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <label className="text-sm font-semibold text-primary">
-                  {`Playing with anyone? Optional (${sharedRoundParticipants.length})`}
-                </label>
+              <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
                 <div className="flex items-center gap-2">
                   {/* The old "+ Add Myself" button (already-played only) is
                       gone: the creator's row is always seeded and the
                       server always inserts the creator — it only implied
                       partners were required. */}
                   <button
+                    type="button"
                     onClick={() => setShowParticipantModal(true)}
-                    className="flex min-h-[44px] items-center gap-2 px-3 py-1.5 -my-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 active:text-green-800 dark:hover:text-green-200 dark:active:text-green-200 hover:bg-green-100 active:bg-green-100 dark:hover:bg-green-950/60 dark:active:bg-green-950/60 rounded-lg transition-colors font-semibold"
+                    className="ea-cta flex min-h-[44px] items-center gap-2 px-4 text-sm text-white rounded-lg font-semibold"
+                    data-round-add-players=""
                   >
-                    <i className="fas fa-users"></i>
+                    <i className="fas fa-user-plus" aria-hidden="true"></i>
                     Add Others
                   </button>
                 </div>
               </div>
 
-              {/* Participant chips */}
+              {/* The added players, one row each (Oct 29 2026): the picture
+                  the search showed, the name, Remove — on the house light
+                  purple. */}
               {sharedRoundParticipantsData.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <ul className="space-y-2" data-round-partners="">
                   {sharedRoundParticipantsData.map(participant => (
-                    <span
+                    <li
                       key={participant.id}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700"
+                      data-round-partner={participant.id}
+                      className="flex items-center gap-3 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2 text-sm"
                     >
-                      <i className="fas fa-user text-xs"></i>
-                      {participant.name}
+                      <AvatarImage src={participant.avatar_url} alt="" size={32} fallbackInitials={getInitials(participant.name)} />
+                      <span className="flex-1 min-w-0 truncate font-medium text-primary">{participant.name}</span>
                       <button
+                        type="button"
                         onClick={() => removeParticipant(participant.id)}
-                        className="ml-1 hover:text-green-900 active:text-green-900 dark:hover:text-green-200 dark:active:text-green-200 min-w-[44px] min-h-[44px] -my-2.5 -mr-2.5 flex items-center justify-center rounded-full hover:bg-green-200"
+                        className="ea-icon-btn text-secondary hover:text-primary"
                         aria-label={`Remove ${participant.name}`}
                       >
-                        <i className="fas fa-times text-xs"></i>
+                        <i className="fas fa-times text-xs" aria-hidden="true"></i>
                       </button>
-                    </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : null}
             </div>
           </div>
@@ -1549,6 +1579,20 @@ export default function GolfComposerSection({
                     </div>
                   ))}
                 </dl>
+                <div className="border-t border-border-subtle pt-2 text-sm" data-round-summary-row="players">
+                  <p className="text-secondary mb-1.5">Players</p>
+                  <ul className="space-y-1.5">
+                    {roundPlayers.map(p => (
+                      <li key={p.id} data-round-player={p.id} className="flex items-center gap-2">
+                        <AvatarImage src={p.avatar_url} alt="" size={32} fallbackInitials={getInitials(p.name)} />
+                        <span className="font-semibold text-primary truncate">
+                          {p.name}
+                          {handicaps[p.id] ? <span className="font-normal text-secondary">{handicapSuffix(handicaps[p.id])}</span> : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                 <p className="mt-3 text-sm text-tertiary">
                   {sharedRoundDetails.alreadyPlayed
                     ? 'Create Post saves the round and opens it for review — you post it from there.'
