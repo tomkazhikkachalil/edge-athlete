@@ -22,7 +22,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import SectionInfo, { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
-import { requestPosition, geolocationGranted, POSITION_DENIED, type DeviceFix } from '@/lib/geo/request-position';
+import { requestPosition, POSITION_DENIED, type DeviceFix } from '@/lib/geo/request-position';
 import { formatKm, nearbyOffer, NEAR_RADIUS_KM } from '@/lib/golf/near-me';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
@@ -368,24 +368,26 @@ export default function GolfComposerSection({
     }
   }, [nearBusy, cancelCourseSearch, debouncedCourseSearch]);
 
-  // Entering the course step while Playing now + outdoor: when the device has
-  // ALREADY granted location (never a prompt on arrival — Tom, Oct 28 2026),
-  // run the same one-shot fix the Near me tap runs, so "Playing at X?" is the
-  // first row without a tap. Once per flow; typing or a pick ends it.
-  const autoNearRanRef = useRef(false);
+  // Search first (Oct 30 2026, Tom's follow-up — the Oct 28 "Near me on
+  // entry when already granted" is withdrawn): entering the course step puts
+  // the cursor in the EMPTY search field, and nothing location-based happens
+  // until the Near me tap, in every mode. The focus follows the sport
+  // picker's rule — only behind a fine pointer (a phone shows no keyboard
+  // and never zooms to a field it did not tap), never a bare `autoFocus` —
+  // and it must not open the catalog browse the way a real tap does.
+  const courseInputRef = useRef<HTMLInputElement>(null);
+  const programmaticFocusRef = useRef(false);
   useEffect(() => {
-    if (!active || stepId !== 'course') return;
-    if (sharedRoundDetails.alreadyPlayed || sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor') return;
-    if (autoNearRanRef.current || nearFix || selectedCourse || sharedRoundDetails.courseName.trim()) return;
-    autoNearRanRef.current = true;
-    let cancelled = false;
-    void geolocationGranted().then(granted => {
-      if (granted && !cancelled) void findNearMe();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active, stepId, sharedRoundDetails.alreadyPlayed, sharedRoundDetails.roundTypeIndoorOutdoor, sharedRoundDetails.courseName, nearFix, selectedCourse, findNearMe]);
+    if (!active || stepId !== 'course' || typeof window === 'undefined') return;
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const input = courseInputRef.current;
+    if (!input || input.value.trim() !== '' || document.activeElement === input) return;
+    programmaticFocusRef.current = true;
+    input.focus({ preventScroll: true });
+    // A browser that did not fire focus (a hidden input) must not leave the
+    // flag armed for the next real tap.
+    if (document.activeElement !== input) programmaticFocusRef.current = false;
+  }, [active, stepId]);
 
   const searchCourses = useCallback((query: string, opts?: { browse?: boolean }) => {
     if (query.trim().length < 1 && !opts?.browse) {
@@ -1022,7 +1024,14 @@ export default function GolfComposerSection({
                     }));
                   }
                 }}
+                ref={courseInputRef}
                 onFocus={() => {
+                  // The step's own focus-on-entry is not a tap: the field is
+                  // ready to type into, the catalog list waits for a gesture.
+                  if (programmaticFocusRef.current) {
+                    programmaticFocusRef.current = false;
+                    return;
+                  }
                   setCourseSearchOpen(true);
                   // Empty input browses the catalog head — the field
                   // answers "what courses are there?" on first tap.

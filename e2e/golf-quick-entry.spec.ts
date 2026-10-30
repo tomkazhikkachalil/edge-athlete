@@ -346,6 +346,9 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await showCard.click();
     await expect(showCard).toHaveText(/Hide/);
     await expect(page.locator('[data-course-scorecard-row="hcp"]').first()).toHaveClass(/bg-brand-soft/, { timeout: 15_000 });
+    // One row (Oct 30 2026): the Total column boxed and bold; a nine ends in Total.
+    await expect(page.locator('[data-course-scorecard-sum="total"]').first()).toHaveClass(/font-bold/);
+    await expect(page.locator('[data-course-scorecard-sum="total"]').first()).toHaveClass(/border-l-2/);
     await showMap.click();
     await expect(showMap).toHaveText(/Hide/);
     await expect(showCard).toHaveText(/Official Scorecard/);
