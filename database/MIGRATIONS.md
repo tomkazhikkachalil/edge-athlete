@@ -947,3 +947,16 @@ broke tagging once — see migration 025):
 
 If you need something from these, port it into a new numbered migration rather
 than running the file directly.
+
+## The header's numbers in one call (migration 292, Oct 29 2026 — the cost program PR B)
+
+Every signed-in visible tab polled three routes for two numbers (the Live
+dot, the bell): two a minute, one every two minutes — three Vercel function
+calls a minute per tab, each with its own Supabase trips. 292 adds
+`me_pulse(viewer) → {live_golf, live_events, unread_messages}`: the SQL
+mirror of the routes' pure rules (round-status.ts's 48 h window and
+"any status but declined"; live-now.ts's "a live round" and "accepted";
+`get_unread_message_count` as it is), STABLE, invoker, service_role only.
+`GET /api/me/pulse` is its one caller; a deploy ahead of it answers 503.
+Reversal: `DROP FUNCTION public.me_pulse(uuid)`. Expected row on both:
+`292 APPLIED | 1 | true | 292`.
