@@ -112,6 +112,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       });
     return () => {
       cancelled = true;
+      if (homeRequestedFor.current === id) homeRequestedFor.current = null;
     };
   }, [course.id]);
   // M3: the lines are asked for at card-open (= mount), not at "Show map" —
@@ -137,6 +138,11 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       });
     return () => {
       cancelled = true;
+      // A cancelled ask was never answered: let the next mount ask again
+      // (React's development double-mount, Oct 30 2026 — the "asked" ref
+      // used to block the re-mount while the first request was discarded,
+      // so the summary never learned the lines).
+      if (holesRequestedFor.current === id) holesRequestedFor.current = null;
     };
   }, [course.id]);
 
@@ -146,6 +152,9 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // own this fetch; it now only shows the table. (A thin provider row
   // stamped within 7 days comes back thin: the summary says so.)
   const detailRequestedFor = useRef<string | null>(null);
+  // The id whose detail has ANSWERED (with a course or with nothing) — the
+  // scorecard button's "may still get a sheet" ends here, whatever came back.
+  const [detailDoneFor, setDetailDoneFor] = useState<string | null>(null);
   useEffect(() => {
     if (detailRequestedFor.current === course.id || !UUID_SHAPE.test(course.id) || course.holes.length > 0) return;
     const id = course.id;
@@ -164,17 +173,34 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         if (!cancelled) setFetchedCourse(null);
       })
       .finally(() => {
-        if (!cancelled) setScorecardLoading(false);
+        if (!cancelled) {
+          setScorecardLoading(false);
+          setDetailDoneFor(id);
+        }
       });
     return () => {
       cancelled = true;
+      // Same rule as the lines: a cancelled ask lets the next mount ask again.
+      if (detailRequestedFor.current === id) detailRequestedFor.current = null;
     };
   }, [course.id, course.holes.length]);
 
   const logoDomain = websiteDomain(course.website);
   const logoAvailable = !!logoUrl(logoDomain ?? undefined, 40);
   const scorecardSource = course.holes.length > 0 ? course : fetchedCourse;
-  const scorecardPossible = course.holes.length > 0 || UUID_SHAPE.test(course.id);
+  // Honest states (Oct 30 2026, Tom's report of an empty panel on a real
+  // course): the Official Scorecard button is offered when the course HAS a
+  // sheet, or may still get one — a catalog row that is not map-only (OSM
+  // rows never gain holes) and whose detail has not answered yet. A map-only
+  // course gets no button (the summary's "Not fully mapped" says it); a
+  // detail that answered without holes drops the button and closes the panel.
+  const sheetKnown = course.holes.length > 0 || (scorecardSource?.holes.length ?? 0) > 0;
+  const detailAnswered = detailDoneFor === course.id && !scorecardLoading;
+  const mayStillGetSheet =
+    UUID_SHAPE.test(course.id) && course.source !== 'osm' && (fetchedCourse?.source ?? course.source) !== 'osm' && !detailAnswered;
+  const scorecardPossible = sheetKnown || mayStillGetSheet;
+  // The panel was opened on a promise the detail then broke: close it.
+  if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [
     course.architect && `Designed by ${course.architect}`,
     course.yearBuilt && `est. ${course.yearBuilt}`,
@@ -284,8 +310,13 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           {scorecardSource && scorecardSource.holes.length > 0 ? (
             <CourseScorecardTable course={scorecardSource} />
           ) : scorecardLoading ? (
-            <div className="h-24 animate-pulse rounded-lg border border-border bg-surface" />
-          ) : null /* the summary's "Not fully mapped" line says it */}
+            <div className="h-24 animate-pulse rounded-lg border border-border bg-surface" data-course-scorecard-loading="" />
+          ) : (
+            // Never an empty panel behind a Hide button.
+            <p className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-tertiary" data-course-scorecard-none="">
+              No official scorecard for this course yet — the catalog has its location only.
+            </p>
+          )}
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

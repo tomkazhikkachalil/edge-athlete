@@ -1,0 +1,28 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// The course card's Official Scorecard (Oct 30 2026, Tom's report of an
+// empty panel on a real course): the button is offered only when a sheet
+// exists or may still arrive — never for a map-only (OSM) row — and the
+// panel always says something: the table, the skeleton, or the "none" line.
+const src = fs.readFileSync(path.join(process.cwd(), 'src/components/golf/CourseInfoCard.tsx'), 'utf8');
+
+describe('CourseInfoCard — honest scorecard states', () => {
+  it('a map-only row never gets the button; a detail that answered without holes drops it and closes the panel', () => {
+    expect(src).toMatch(/course\.source !== 'osm'/);
+    expect(src).toMatch(/const scorecardPossible = sheetKnown \|\| mayStillGetSheet;/);
+    expect(src).toMatch(/if \(open === 'scorecard' && !scorecardPossible\) setOpen\(null\);/);
+  });
+  it('the panel is the table, the skeleton, or the none line — never null behind Hide', () => {
+    expect(src).toContain('data-course-scorecard-loading=""');
+    expect(src).toContain('data-course-scorecard-none=""');
+    expect(src).toMatch(/No official scorecard for this course yet/);
+    expect(src).not.toMatch(/\) : null \/\* the summary's "Not fully mapped" line says it \*\//);
+  });
+  it('one panel at a time: Show Map | Official Scorecard over one `open` state', () => {
+    expect(src).toMatch(/useState<'map' \| 'scorecard' \| null>/);
+    expect(src).toContain('data-course-show-map=""');
+    expect(src).toContain('data-course-show-scorecard=""');
+  });
+});
