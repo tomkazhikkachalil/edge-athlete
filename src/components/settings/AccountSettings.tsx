@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import SectionInfo from '@/components/SectionInfo';
-import { readUnitPreference, writeUnitPreference, type DistanceUnit } from '@/lib/activities/format';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { deviceUnitOf, type DeviceUnit } from '@/lib/activities/unit-prefs';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
 import { useEditProfile } from '@/components/EditProfileHost';
@@ -15,12 +16,13 @@ export default function AccountSettings() {
   // The shared editor (EditProfileHost) — opened over Settings, in place.
   const editProfile = useEditProfile();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  // Units (Oct 29 2026): the one device-level choice (units.ts) — °C · km or
-  // °F · mi — finally has a row here beside the body metrics it governs.
-  const [unit, setUnit] = useState<DistanceUnit>(() => readUnitPreference());
-  const chooseUnit = (u: DistanceUnit) => {
-    writeUnitPreference(u);
-    setUnit(u);
+  // Units (Oct 29 2026): the one choice — °C · km or °F · mi — beside the
+  // body metrics it governs; since 293 it lives on the ACCOUNT (useUnitSystem:
+  // the device at once, the account in the background).
+  const { sys, setSys } = useUnitSystem();
+  const unit: DeviceUnit = deviceUnitOf(sys);
+  const chooseUnit = (u: DeviceUnit) => {
+    void setSys(u === 'mi' ? 'imperial' : 'metric');
   };
 
   return (
@@ -180,7 +182,7 @@ export default function AccountSettings() {
               ))}
             </div>
             <p className="mt-2 text-xs text-muted">
-              {unit === 'mi' ? '°F, miles and pounds' : '°C, kilometres and kilograms'} — temperatures, distances and weights everywhere in the app. Saved on this device.
+              {unit === 'mi' ? '°F, miles and pounds' : '°C, kilometres and kilograms'} — temperatures, distances and weights everywhere in the app. Saved on your account.
             </p>
           </div>
 

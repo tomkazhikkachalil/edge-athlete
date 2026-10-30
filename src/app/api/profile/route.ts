@@ -22,7 +22,7 @@ import { reportRouteError } from '@/lib/observability/report';
 // where the recruiting gate lives — it never ships from here to a viewer.
 // favourite_sports (285) is a private composer preference — the owner reads it
 // off their own profile row; a viewer never receives it.
-const OWNER_ONLY_FIELDS = ['email', 'phone', 'birthday', 'gender', 'postal_code', 'nickname', 'recruiting_profile', 'favourite_sports'] as const;
+const OWNER_ONLY_FIELDS = ['email', 'phone', 'birthday', 'gender', 'postal_code', 'nickname', 'recruiting_profile', 'favourite_sports', 'unit_system'] as const;
 
 // Minimal subset for blocked viewers — exactly what PrivateProfileView needs.
 const MINIMAL_FIELDS = [
