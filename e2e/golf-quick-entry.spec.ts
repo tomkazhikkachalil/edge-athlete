@@ -344,7 +344,7 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await expect(page.getByText('View on map')).toHaveCount(0);
     await showCard.click();
     await expect(showCard).toHaveText(/Hide/);
-    await expect(page.locator('[data-course-scorecard-row="hcp"]')).toHaveClass(/bg-brand-soft/, { timeout: 15_000 });
+    await expect(page.locator('[data-course-scorecard-row="hcp"]').first()).toHaveClass(/bg-brand-soft/, { timeout: 15_000 });
     await showMap.click();
     await expect(showMap).toHaveText(/Hide/);
     await expect(showCard).toHaveText(/Official Scorecard/);
