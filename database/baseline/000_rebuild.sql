@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-30T01:52:24.285483+00:00 from server 17.6 by
+-- Generated 2026-10-31T22:08:49.686377+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 293.
+-- public.schema_dump() (migration 227). Ledger head at generation: 294.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (134; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (135; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2172,6 +2172,18 @@ AS $function$
     AND (p_country_code IS NULL OR (c.country_code = upper(p_country_code) AND c.region_code IS NOT NULL))
   GROUP BY c.country_code, CASE WHEN p_country_code IS NULL THEN NULL ELSE c.region_code END
   ORDER BY n DESC, 1, 3
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text)
+ RETURNS void
+ LANGUAGE sql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  INSERT INTO public.golf_course_picks (course_id, card) VALUES (p_course_id, p_card)
+  ON CONFLICT (course_id) DO UPDATE
+    SET card = EXCLUDED.card, picks = public.golf_course_picks.picks + 1, last_picked_at = now();
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -5016,7 +5028,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (138) ──────────────────────────────────────────────────────────────
+-- ── Tables (139) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -5606,6 +5618,14 @@ CREATE TABLE IF NOT EXISTS public.golf_clubs (
   lng double precision,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_course_picks (
+  course_id uuid NOT NULL,
+  card text NOT NULL,
+  picks integer DEFAULT 1 NOT NULL,
+  first_picked_at timestamp with time zone DEFAULT now() NOT NULL,
+  last_picked_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_courses (
@@ -7305,6 +7325,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_pkey' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_pkey PRIMARY KEY (course_id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_courses_pkey' AND conrelid = 'public.golf_courses'::regclass) THEN
     ALTER TABLE public.golf_courses ADD CONSTRAINT golf_courses_pkey PRIMARY KEY (id);
   END IF;
@@ -8891,6 +8916,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'follows_status_check' AND conrelid = 'public.follows'::regclass) THEN
     ALTER TABLE public.follows ADD CONSTRAINT follows_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_card_check' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_card_check CHECK ((card = ANY (ARRAY['provider'::text, 'map'::text, 'none'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10686,6 +10716,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_course_id_fkey' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_course_id_fkey FOREIGN KEY (course_id) REFERENCES golf_courses(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_courses_club_id_fkey' AND conrelid = 'public.golf_courses'::regclass) THEN
     ALTER TABLE public.golf_courses ADD CONSTRAINT golf_courses_club_id_fkey FOREIGN KEY (club_id) REFERENCES golf_clubs(id) ON DELETE SET NULL;
   END IF;
@@ -11799,6 +11834,7 @@ CREATE INDEX IF NOT EXISTS idx_follows_composite ON public.follows USING btree (
 CREATE INDEX IF NOT EXISTS idx_follows_follower_status ON public.follows USING btree (follower_id, status);
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
 CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
+CREATE INDEX IF NOT EXISTS golf_course_picks_card_picks_idx ON public.golf_course_picks USING btree (card, picks DESC);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name extensions.gin_trgm_ops);
@@ -12167,7 +12203,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (134) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (135) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14192,6 +14228,16 @@ AS $function$
     AND (p_country_code IS NULL OR (c.country_code = upper(p_country_code) AND c.region_code IS NOT NULL))
   GROUP BY c.country_code, CASE WHEN p_country_code IS NULL THEN NULL ELSE c.region_code END
   ORDER BY n DESC, 1, 3
+$function$;
+
+CREATE OR REPLACE FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text)
+ RETURNS void
+ LANGUAGE sql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  INSERT INTO public.golf_course_picks (course_id, card) VALUES (p_course_id, p_card)
+  ON CONFLICT (course_id) DO UPDATE
+    SET card = EXCLUDED.card, picks = public.golf_course_picks.picks + 1, last_picked_at = now();
 $function$;
 
 CREATE OR REPLACE FUNCTION public.golf_courses_search_vector_update()
@@ -17139,6 +17185,7 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.facilities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_clubs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_course_picks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_hole_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_holes ENABLE ROW LEVEL SECURITY;
@@ -18321,6 +18368,10 @@ REVOKE ALL ON TABLE public.golf_clubs FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO service_role;
+REVOKE ALL ON TABLE public.golf_course_picks FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_course_picks TO anon;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_course_picks TO authenticated;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_course_picks TO service_role;
 REVOKE ALL ON TABLE public.golf_courses FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_courses TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_courses TO authenticated;
@@ -18707,6 +18758,8 @@ REVOKE EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) FR
 GRANT EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_courses_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_courses_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -18913,6 +18966,7 @@ COMMENT ON COLUMN public.contests.sport_event_match_id IS 'The event match this 
 COMMENT ON COLUMN public.conversation_participants.held_at IS 'First-contact hold (131). Non-null on a supervised child''s row = the conversation is invisible to them until a guardian approves; cleared on approve, row severed (left_at) on deny.';
 COMMENT ON COLUMN public.conversations.frozen_at IS 'Frozen by a Critical report (223): no one sends while set; everyone still reads. Distinct from the first-contact hold (131).';
 COMMENT ON COLUMN public.conversations.frozen_ticket_id IS 'The ticket that froze it (223).';
+COMMENT ON TABLE public.golf_course_picks IS 'Picks per course and the card each had at the latest pick (294). No user ids. Service role only.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation IS 'Elevation profile along each hole (254): {holes:[{hole, pts:[[lat,lng]…], elev:[metres…]}], sampled:''line10'', source:''open-meteo''}; NULL = no geometry or no answer. Sampled from hole_geometry; 30-day cache keyed by hole_elevation_at. Written only by src/lib/golf/elevation-server.ts.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation_at IS 'When hole_elevation was last ATTEMPTED (254) — a null answer is stamped too; recomputed after 30 days or when hole_geometry_at is newer.';
 COMMENT ON TABLE public.golf_hole_scores IS 'Per-hole detailed scores for golf participants';
@@ -19594,7 +19648,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (290, '290_search_trigram.sql', 'rebuild-000'),
   (291, '291_round_conditions_source.sql', 'rebuild-000'),
   (292, '292_me_pulse.sql', 'rebuild-000'),
-  (293, '293_profiles_unit_system.sql', 'rebuild-000')
+  (293, '293_profiles_unit_system.sql', 'rebuild-000'),
+  (294, '294_golf_course_picks.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19603,12 +19658,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 134 | 145 | 293
+-- Expected: 000 REBUILT | 139 | 135 | 145 | 294
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_139,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_134,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_293;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_294;
 
