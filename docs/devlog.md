@@ -6,6 +6,8 @@
 
 **Production (Oct 31 2026):** 294 on production (`294 APPLIED | 1 | 294`), #1379 `4bc0dc8b`, health on it. Prod probe: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile. The tracker has not yet counted a real pick, as QA accounts are excluded. `check:schema:prod` lists the table as hygiene: the migration omitted posture A's table REVOKE; RLS with no policies keeps it closed, and 295 removes the grants.
 
+**Migration 295 (Oct 31 2026):** closes `golf_course_picks` to anon and authenticated, on both databases (`295 APPLIED | 295 | false | false`); #1381 merged; `check:schema` and `:prod` no longer list it; baseline at 295.
+
 ## October 31, 2026 — The provider lookup never matched real names: fixed (zero DDL)
 
 Picking real courses on production (Camelot, Kanata, Royal Ottawa, Irish Hills, Hylands) answered `no_match` every time, though GolfCourseAPI lists them. **Causes:** its search returns nothing for a full name ("Camelot Golf & Country Club") and finds the distinctive word ("Camelot"); and `pickSheetCandidate` gave up on any two plausible candidates. **Fix:** `sheetSearchQuery` asks with the distinctive words; the matcher narrows on positive evidence (confirmed region, then the same name over a section of it, then city), and two true twins are still no match. The seeded e2e could not catch this: staging's lookups never reach a real find. The Marshes remains absent from GolfCourseAPI ("Marshes" finds only Wildwood Marshes, Wisconsin), so it keeps its map card.
