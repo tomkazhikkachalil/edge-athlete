@@ -1,5 +1,9 @@
 # Development Log
 
+## October 31, 2026 — A map card can become a real card (part 1 of 3, zero DDL)
+
+Picking a map-card course now also asks GolfCourseAPI, silently, for tees, handicaps and ratings. A found card replaces the map card only with the same hole count and at most 2 differing pars (`sheetAgreesWithMap`), so a same-named wrong course cannot overwrite a good card; a refusal is logged. **Proof:** `npm run verify` exit 0 (5567 passed); audit 0; guardrails ✓; blocklists ✓. Dev against staging: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile (the miss path; staging has no real find).
+
 ## October 31, 2026 — Provider card on pick; the batch backfill removed; coverage numbers and licensing (zero DDL)
 
 Tom's production buckets for courses with no provider card (28,911): no lines 17,859, map card ready 8,417, lines without pars 2,097, wrong hole count 538. Coverage is 8,491 of 28,985 (29%); the map tops out near 38%. **Estimated pars rejected:** a length rule scored 93.4% of 137,322 holes but only 3,550 of 8,417 courses all right. **Licensing:** GolfCourseAPI's terms ban building a copy through requests, Golf Intelligence ($399 a month) bans catalog downloads and server storage beyond a live request, iGolf is quote-only. So the batch backfill from #1373 is removed unrun, and the composer now asks the provider when a person picks a course with no card (one ask per course per day). **Open for Tom:** the map sweep's hydration phase still refreshes up to 3 provider rows per tick with no user asking; about 90 provider rows exist, each at most weekly.

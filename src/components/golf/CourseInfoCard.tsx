@@ -167,6 +167,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const findSheetRef = useRef<() => Promise<void>>(async () => {});
   const findSheet = async () => {
     if (sheetAsk === 'asking') return;
+    const upgrading = course.sheetSource === 'map';
     setSheetAsk('asking');
     try {
       const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&sheet=1`, { credentials: 'include' });
@@ -175,7 +176,8 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         setFetchedCourse(body.course);
         setDetailDoneFor(course.id);
         setSheetAsk('idle');
-        setOpen('scorecard');
+        // An upgrade from a map card is quiet: the panel stays as the person left it.
+        if (!upgrading) setOpen('scorecard');
         onCourseUpdated?.(body.course);
       } else {
         setSheetAsk(body ? 'none' : 'failed');
@@ -235,10 +237,12 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const sheetFindable = !scorecardPossible && UUID_SHAPE.test(course.id);
   const autoAskedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!autoFindSheet || !sheetFindable || autoAskedFor.current === course.id) return;
+    // A map card asks too (Oct 31 2026): a provider card adds tees, handicaps
+    // and ratings. Silent; on a miss the map card simply stays.
+    if (!autoFindSheet || !(sheetFindable || course.sheetSource === 'map') || autoAskedFor.current === course.id) return;
     autoAskedFor.current = course.id;
     queueMicrotask(() => { void findSheetRef.current(); });
-  }, [autoFindSheet, sheetFindable, course.id]);
+  }, [autoFindSheet, sheetFindable, course.sheetSource, course.id]);
   // The panel was opened on a promise the detail then broke: close it.
   if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [

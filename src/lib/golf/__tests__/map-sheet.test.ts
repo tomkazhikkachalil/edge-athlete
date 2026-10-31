@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_TEE, sheetFromGeometry } from '../map-sheet';
+import { MAP_TEE, sheetAgreesWithMap, sheetFromGeometry } from '../map-sheet';
 
 const line: [number, number][] = [[45, -75], [45.001, -75]];
 const measure = () => 399;
@@ -25,5 +25,22 @@ describe('sheetFromGeometry: a card only when complete', () => {
     expect(sheetFromGeometry(holes(13), measure)).toBeNull();
     expect(sheetFromGeometry(null, measure)).toBeNull();
     expect(sheetFromGeometry(holes(18), () => 0)).toBeNull();
+  });
+});
+
+describe('sheetAgreesWithMap: a provider card may replace a map card', () => {
+  const card = (pars: number[]) => pars.map((par, i) => ({ number: i + 1, par }));
+  const map = card([4, 5, 3, 5, 3, 4, 4, 3, 5]);
+  it('accepts the same card, and up to two differing pars', () => {
+    expect(sheetAgreesWithMap(map, map)).toBe(true);
+    expect(sheetAgreesWithMap(card([5, 4, 3, 5, 3, 4, 4, 3, 5]), map)).toBe(true);
+  });
+  it('refuses three differing pars, another hole count, or other hole numbers', () => {
+    expect(sheetAgreesWithMap(card([5, 4, 4, 5, 3, 4, 4, 3, 5]), map)).toBe(false);
+    expect(sheetAgreesWithMap(card([4, 5, 3]), map)).toBe(false);
+    expect(sheetAgreesWithMap(map.map(h => ({ ...h, number: h.number + 9 })), map)).toBe(false);
+  });
+  it('with no map card there is nothing to protect', () => {
+    expect(sheetAgreesWithMap(map, null)).toBe(true);
   });
 });

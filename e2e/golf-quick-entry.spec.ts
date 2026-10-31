@@ -551,6 +551,10 @@ test('a course with map lines and no card: the scorecard comes from the map and 
     await expect(show).toBeVisible({ timeout: 15_000 });
     await show.click();
     await expect(page.locator('[data-course-scorecard-map]')).toBeVisible();
+    // It also asks for a real card, silently: no line, and the map card stays on a miss.
+    await page.waitForTimeout(2500);
+    await expect(page.locator('[data-course-sheet-looking], [data-course-sheet-none]')).toHaveCount(0);
+    await expect(page.locator('[data-course-scorecard-map]')).toBeVisible();
     await expect(page.locator('[data-course-scorecard-row="par"] [data-course-scorecard-sum="total"]').first()).toHaveText('72');
     await next(flow, /Step 3 of 7/);
     await next(flow, /Step 4 of 7/);
