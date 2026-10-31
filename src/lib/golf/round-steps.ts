@@ -3,10 +3,9 @@
 // behaviour stays, only the way through them changes. The step LIST depends
 // on the first step's answers (the org wizard's `stepsFor` idea):
 //   • Indoor drops Conditions (the form hid them for indoor already).
-//   • Already played adds Scores (the grid + the hole-by-hole Quick entry)
-//     and the finish is "Create" — the round lands on the draft review;
-//     Playing now has no scores step (they are entered on the live page)
-//     and the finish is "Start" — Go Live.
+//   • Every round has Scores (the grid + the hole-by-hole Quick entry,
+//     skippable). Already played finishes on "Create" — the round lands on
+//     the draft review; Playing now finishes on "Start" — Go Live.
 // Playing now + Outdoor are the defaults (Tom, Oct 28: keep today's), the
 // date is locked to today while Playing now (the old past-date → Already
 // played flip is retired), and only the course step can refuse Next:
@@ -41,7 +40,8 @@ export function stepsForRound(a: RoundStepAnswers): RoundStep[] {
   ];
   if (!a.indoor) steps.push({ id: 'conditions', label: 'Conditions', skippable: true });
   steps.push({ id: 'players', label: 'Players', skippable: true });
-  if (a.alreadyPlayed) steps.push({ id: 'scores', label: 'Scores', skippable: true });
+  // Oct 31 2026 (Tom): the score grid is back for Playing now too, skippable.
+  steps.push({ id: 'scores', label: 'Scores', skippable: true });
   steps.push({ id: 'finish', label: a.alreadyPlayed ? 'Create' : 'Start' });
   return steps;
 }
@@ -94,8 +94,8 @@ export function roundBusyLabel(alreadyPlayed: boolean): string {
 // outdoor round sees them, and asks that code, tests and later specs keep
 // the numbering. This is that list: `stepsForRound(DEFAULT_ROUND_ANSWERS)`
 // in order — Step 1 Round type · 2 Course · 3 Game format · 4 Conditions ·
-// 5 Players · 6 Start. `round-steps.test.ts` pins the two agree.
-export const LIVE_OUTDOOR_STEPS: readonly RoundStepId[] = ['type', 'course', 'format', 'conditions', 'players', 'finish'];
+// 5 Players · 6 Scores · 7 Start. `round-steps.test.ts` pins the two agree.
+export const LIVE_OUTDOOR_STEPS: readonly RoundStepId[] = ['type', 'course', 'format', 'conditions', 'players', 'scores', 'finish'];
 
 /** The step's number on the live + outdoor path (1-based); 0 when it is not on it. */
 export function liveOutdoorStepNumber(id: RoundStepId): number {
