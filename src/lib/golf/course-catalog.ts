@@ -1432,11 +1432,13 @@ export async function hydrateCourseDetailed(
             country_code: normalized.country_code ?? row.country_code,
             location_source: normalized.country_code || normalized.region ? 'provider' : row.location_source,
           }),
-      total_par: normalized.total_par,
-      holes_count: normalized.holes_count,
-      hole_data: normalized.hole_data,
-      course_rating: normalized.course_rating,
-      slope_rating: normalized.slope_rating,
+      // Oct 31 2026: an empty provider answer never erases a sheet the row
+      // already holds (the refresh runs again every 7 days).
+      total_par: normalized.total_par ?? row.total_par,
+      holes_count: normalized.holes_count ?? row.holes_count,
+      hole_data: normalized.hole_data?.length ? normalized.hole_data : row.hole_data,
+      course_rating: Object.keys(normalized.course_rating ?? {}).length ? normalized.course_rating : row.course_rating,
+      slope_rating: Object.keys(normalized.slope_rating ?? {}).length ? normalized.slope_rating : row.slope_rating,
       lat: refined?.lat ?? providerCoords.lat,
       lng: refined?.lng ?? providerCoords.lng,
       description: normalized.description,

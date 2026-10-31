@@ -422,3 +422,70 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     ]);
   }
 });
+
+// Oct 31 2026 (Tom: scorecards missing in the preview and while playing): a
+// course with NO sheet still has a card everywhere, before any score. Holeless
+// row seeded; Par & Yardage offered; preview names the player; Go Live, close
+// the scorer, View Full Scorecard shows all 18 holes.
+test('a course with no sheet: manual pars, the preview and the full scorecard before any score @mobile', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA No Sheet Links ${stamp}`;
+  let courseId = '';
+  let groupPostId = '';
+  try {
+    const seeded = await admin.from('golf_courses').insert({ external_source: 'qa-e2e', external_id: `nosheet-${stamp}`, name, total_par: 72, holes_count: 18, lat: 45.42, lng: -75.72, hydrated_at: new Date().toISOString() }).select('id').single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const pick = async () => {
+      await page.getByPlaceholder(/search for a golf course/i).fill('QA No Sheet Links');
+      await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+      await expect(page.locator('[data-course-chosen]')).toContainText(name);
+    };
+    let flow = await openGolf(page);
+    await page.getByRole('button', { name: /already played/i }).click();
+    await next(flow, /Step 2 of 7/);
+    await pick();
+    await expect(page.getByRole('heading', { name: /Course Par & Yardage/ })).toBeVisible();
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await page.locator('[data-round-preview]').click();
+    const preview = page.getByText('Post Preview').locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+    await expect(preview).toContainText('Edge');
+    await expect(preview).not.toContainText('LIVE');
+    await page.goto('/feed');
+
+    flow = await openGolf(page);
+    await next(flow, /Step 2 of 6/);
+    await pick();
+    await next(flow, /Step 3 of 6/);
+    await next(flow, /Step 4 of 6/);
+    await next(flow, /Step 5 of 6/);
+    await next(flow, /Step 6 of 6/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    // The scorer opens over the page on arrival; close it to reach the card.
+    await page.waitForTimeout(2500);
+    const closeScorer = page.getByRole('button', { name: /^close/i }).last();
+    if (await closeScorer.count()) await closeScorer.click();
+    await page.getByRole('button', { name: /View Full Scorecard/i }).first().click();
+    const tab = page.getByRole('tab', { name: /Full Scorecard/i });
+    if (await tab.count()) await tab.first().click();
+    const panel = page.locator('#round-panel-scorecard');
+    await expect(panel.locator('table')).toHaveCount(2, { timeout: 15_000 });
+    await expect(panel).toContainText('OUT');
+    await expect(panel).toContainText('18');
+  } finally {
+    await cleanup('golf-no-sheet', [
+      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => api.dispose(),
+    ]);
+  }
+});

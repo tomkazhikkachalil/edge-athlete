@@ -1351,7 +1351,8 @@ export default function GolfComposerSection({
               </div>
 
           {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
-          {!selectedCourse && sharedRoundDetails.courseName && (
+          {/* Oct 31 2026: also a catalog course with no sheet, so any course can carry pars. */}
+          {(!selectedCourse || selectedCourse.holes.length === 0) && sharedRoundDetails.courseName && (
             <div className={GOLF_SECTION_CARD}>
               <SectionInfo
                 as="h3"

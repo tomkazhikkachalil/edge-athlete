@@ -69,6 +69,24 @@ export function holeCountValue(played: number, configured: number): string {
  * NOT deriveRecordedRound — that buckets to {9,18} for the write path, by
  * design, and can never return 13.
  */
+export function scorecardHoleNumbers(
+  scoredHoles: ReadonlyArray<number>,
+  holesPlayed: number | null | undefined,
+  holeData: ReadonlyArray<{ hole: number }> | null | undefined,
+  completed: boolean
+): number[] {
+  const scored = [...new Set(scoredHoles)].sort((a, b) => a - b);
+  // A finished round's extent is what was played (a 13-hole round stays 13).
+  if (completed && scored.length > 0) return scored;
+  const sheet = (holeData ?? []).map(h => h.hole).filter(n => typeof n === 'number' && n > 0);
+  const size = holesPlayed && holesPlayed > 0 ? holesPlayed : 18;
+  const start = sheet.length > 0 ? Math.min(...sheet) : scored.length > 0 && Math.min(...scored) > 9 && size === 9 ? 10 : 1;
+  const range = Array.from({ length: size }, (_, i) => start + i);
+  return [...new Set([...range, ...sheet, ...scored])].sort((a, b) => a - b);
+}
+
+/** See scorecardHoleNumbers above for the card's columns (Oct 31 2026: a round
+ *  with no scores yet used to render NO table on any course). */
 export function playedHoleCount(
   holeRows: ReadonlyArray<{ hole_number?: number | null; strokes?: number | null }> | null | undefined
 ): number {
