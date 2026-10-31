@@ -31,6 +31,13 @@ describe('CourseInfoCard — honest scorecard states', () => {
     expect(route).toMatch(/if \(!viewerId\) return NextResponse\.json\(\{ error: 'Authentication required' \}, \{ status: 401 \}\);/);
     expect(route).toMatch(/findOfficialSheet\(admin, row\)/);
   });
+  it('asks on its own only where the composer says so, and the server asks once a day per course', () => {
+    expect(src).toMatch(/autoFindSheet = false/);
+    const composer = fs.readFileSync(path.join(process.cwd(), 'src/components/golf/GolfComposerSection.tsx'), 'utf8');
+    expect(composer).toMatch(/autoFindSheet\n/);
+    const catalog = fs.readFileSync(path.join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
+    expect(catalog).toContain('golf-sheet-ask:${row.id}');
+  });
   it('one panel at a time: Show Map | Official Scorecard over one `open` state', () => {
     expect(src).toMatch(/useState<'map' \| 'scorecard' \| null>/);
     expect(src).toContain('data-course-show-map=""');

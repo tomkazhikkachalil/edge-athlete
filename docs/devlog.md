@@ -1,5 +1,11 @@
 # Development Log
 
+## October 31, 2026 — Provider card on pick; the batch backfill removed; coverage numbers and licensing (zero DDL)
+
+Tom's production buckets for courses with no provider card (28,911): no lines 17,859, map card ready 8,417, lines without pars 2,097, wrong hole count 538. Coverage is 8,491 of 28,985 (29%); the map tops out near 38%. **Estimated pars rejected:** a length rule scored 93.4% of 137,322 holes but only 3,550 of 8,417 courses all right. **Licensing:** GolfCourseAPI's terms ban building a copy through requests, Golf Intelligence ($399 a month) bans catalog downloads and server storage beyond a live request, iGolf is quote-only. So the batch backfill from #1373 is removed unrun, and the composer now asks the provider when a person picks a course with no card (one ask per course per day). **Open for Tom:** the map sweep's hydration phase still refreshes up to 3 provider rows per tick with no user asking; about 90 provider rows exist, each at most weekly.
+
+**Proof:** `npm run verify` exit 0 (5564 passed); audit 0; guardrails ✓; blocklists ✓. Dev against staging: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile.
+
 ## October 31, 2026 — The scorecard from the map (zero DDL)
 
 Tom: *"I see the yardage from the GPS and map when I go to play. So how do we not know the scorecard?"* He was right, and my "no provider has it" answer was looking in the wrong place: The Marshes' stored `hole_geometry` has 18 holes with OSM pars (72) and lines (~7,024 yds). The live scorer's header already used them; the Official Scorecard, grid and round `hole_data` read only provider cards. **Fix:** `withMapSheet` on `?id=` builds a card from complete cached lines at read time (`map-sheet.ts`, nothing written, provider cards win); labelled as from the map, no invented handicaps or ratings. Manual par entry on catalog courses (#1372) is removed: *"don't build options to manually input pars."*
