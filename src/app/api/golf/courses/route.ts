@@ -7,6 +7,7 @@ import {
   searchCatalog,
   getCatalogRow,
   hydrateCourseDetailed,
+  findOfficialSheet,
   hydrationDue,
   hydrateCourse,
   globalSearch,
@@ -95,6 +96,16 @@ export async function GET(request: NextRequest) {
       const row = await getCatalogRow(admin, courseId);
       if (!row) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      }
+      // ?sheet=1 — "Find the official scorecard" (Oct 31 2026, Tom): a
+      // catalog row without a tee sheet (a thin provider row whose own
+      // provider had nothing, or a map-only OSM row) asks the OTHER provider
+      // by NAME, and a same-facility match writes its sheet onto THIS row.
+      // A deliberate, signed-in tap — budgeted like every provider call.
+      if (searchParams.get('sheet') === '1') {
+        if (!viewerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        const result = await findOfficialSheet(admin, row);
+        return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
       }
       // ?home=1 — the info card's lightweight "Home of" read: no hydration
       // (no provider budget spent), just the org link or nothing.

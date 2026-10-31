@@ -42,9 +42,13 @@ interface CourseInfoCardProps {
   /** M3: the tee the round plays — the summary leads with it and names it
    *  when the card has no yardage for it. */
   teeInPlay?: string | null;
+  /** "Find the official scorecard" found one (Oct 31 2026): the fuller course
+   *  for the caller to adopt (the composer swaps its selection so the round's
+   *  pars, tees and ratings follow). The card updates itself either way. */
+  onCourseUpdated?: (course: GolfCourse) => void;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated }: CourseInfoCardProps) {
   // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
   // the official scorecard, opened by two side-by-side buttons under the
   // summary; opening one closes the other. `defaultOpen` opens the map.
@@ -155,6 +159,27 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // The id whose detail has ANSWERED (with a course or with nothing) — the
   // scorecard button's "may still get a sheet" ends here, whatever came back.
   const [detailDoneFor, setDetailDoneFor] = useState<string | null>(null);
+  // "Find the official scorecard" (Oct 31 2026): a tap, one ask, one answer.
+  const [sheetAsk, setSheetAsk] = useState<'idle' | 'asking' | 'none' | 'failed'>('idle');
+  const findSheet = async () => {
+    if (sheetAsk === 'asking') return;
+    setSheetAsk('asking');
+    try {
+      const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&sheet=1`, { credentials: 'include' });
+      const body = res.ok ? ((await res.json()) as { found?: boolean; course?: GolfCourse }) : null;
+      if (body?.found && body.course && body.course.holes.length > 0) {
+        setFetchedCourse(body.course);
+        setDetailDoneFor(course.id);
+        setSheetAsk('idle');
+        setOpen('scorecard');
+        onCourseUpdated?.(body.course);
+      } else {
+        setSheetAsk(body ? 'none' : 'failed');
+      }
+    } catch {
+      setSheetAsk('failed');
+    }
+  };
   useEffect(() => {
     if (detailRequestedFor.current === course.id || !UUID_SHAPE.test(course.id) || course.holes.length > 0) return;
     const id = course.id;
@@ -199,6 +224,10 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const mayStillGetSheet =
     UUID_SHAPE.test(course.id) && course.source !== 'osm' && (fetchedCourse?.source ?? course.source) !== 'osm' && !detailAnswered;
   const scorecardPossible = sheetKnown || mayStillGetSheet;
+  // No sheet and nothing coming: offer to ASK for one (any catalog row —
+  // a thin provider row or a map-only OSM row — may have a sheet under the
+  // other provider's name).
+  const sheetFindable = !scorecardPossible && UUID_SHAPE.test(course.id);
   // The panel was opened on a promise the detail then broke: close it.
   if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [
@@ -273,7 +302,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       {/* Show Map | Official Scorecard (Oct 29 2026): two equal buttons; the
           open one reads Hide; one panel at a time, directly below. The old
           "View on map" Google link is gone. */}
-      {((hasCoords && mapMode !== 'hidden') || scorecardPossible) && (
+      {((hasCoords && mapMode !== 'hidden') || scorecardPossible || sheetFindable) && (
         <div className="mt-3 grid grid-cols-2 gap-2" data-course-panels="">
           {hasCoords && mapMode !== 'hidden' && (
             <button
@@ -287,6 +316,19 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             >
               <i className={`fas ${showMap ? 'fa-chevron-up' : 'fa-map'}`} aria-hidden="true"></i>
               {showMap ? 'Hide' : 'Show Map'}
+            </button>
+          )}
+          {sheetFindable && (
+            <button
+              type="button"
+              onClick={() => { void findSheet(); }}
+              disabled={sheetAsk === 'asking'}
+              aria-busy={sheetAsk === 'asking' || undefined}
+              data-course-find-sheet=""
+              className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface px-2 text-xs sm:text-sm font-semibold whitespace-nowrap text-primary disabled:opacity-60"
+            >
+              <i className={`fas ${sheetAsk === 'asking' ? 'fa-spinner fa-spin' : 'fa-table-list'}`} aria-hidden="true"></i>
+              {sheetAsk === 'asking' ? 'Looking…' : 'Find the official scorecard'}
             </button>
           )}
           {scorecardPossible && (
@@ -304,6 +346,13 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             </button>
           )}
         </div>
+      )}
+      {sheetFindable && (sheetAsk === 'none' || sheetAsk === 'failed') && (
+        <p className="mt-2 text-sm text-tertiary" data-course-sheet-none="">
+          {sheetAsk === 'none'
+            ? 'No official scorecard found for this course yet.'
+            : 'Could not look that up right now — try again in a minute.'}
+        </p>
       )}
       {showScorecard && (
         <div className="mt-2" data-course-scorecard="">
