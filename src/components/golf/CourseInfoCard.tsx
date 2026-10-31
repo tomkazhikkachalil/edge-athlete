@@ -239,10 +239,17 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   useEffect(() => {
     // A map card asks too (Oct 31 2026): a provider card adds tees, handicaps
     // and ratings. Silent; on a miss the map card simply stays.
-    if (!autoFindSheet || !(sheetFindable || course.sheetSource === 'map') || autoAskedFor.current === course.id) return;
+    if (!autoFindSheet || autoAskedFor.current === course.id) return;
+    // An official card needs no ask, but the pick is counted (294).
+    if (course.holes.length > 0 && course.sheetSource !== 'map' && UUID_SHAPE.test(course.id)) {
+      autoAskedFor.current = course.id;
+      void fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&picked=1`, { credentials: 'include' }).catch(() => undefined);
+      return;
+    }
+    if (!(sheetFindable || course.sheetSource === 'map')) return;
     autoAskedFor.current = course.id;
     queueMicrotask(() => { void findSheetRef.current(); });
-  }, [autoFindSheet, sheetFindable, course.sheetSource, course.id]);
+  }, [autoFindSheet, sheetFindable, course.sheetSource, course.holes.length, course.id]);
   // The panel was opened on a promise the detail then broke: close it.
   if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [

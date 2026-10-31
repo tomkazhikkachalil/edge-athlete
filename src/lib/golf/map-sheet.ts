@@ -8,6 +8,11 @@
 
 export const MAP_TEE = 'map';
 
+/** QA accounts never count as picks (294). */
+export function countsAsPick(email: string | null | undefined): boolean {
+  return !(email ?? '').toLowerCase().startsWith('edgeqa-');
+}
+
 export interface MapSheetLine {
   hole: number;
   par?: number | null;

@@ -59,3 +59,5 @@ Pinned by: `round-steps.test.ts` (the numbering, `conditionsLine`, `windRange`, 
 **The scorecard from the map (Oct 31 2026, Tom):** a course with no provider card takes its card from its cached map lines at read time (`withMapSheet`, `map-sheet.ts`): only with exactly 9 or 18 consecutive holes, each with a real par and a line. One measured yardage per hole under the `map` tee, no handicaps or ratings, labelled "from the course map, not the official card"; a provider card always wins; nothing is written to the catalog. Manual par entry is NOT offered on catalog courses (Tom); it is removed from the #1372 addition.
 
 **A map card can become a real card (Oct 31 2026):** picking a map-card course also asks the provider, silently. A found card replaces it only with the same hole count and at most 2 differing pars (`sheetAgreesWithMap`); otherwise the map card stays and the refusal is logged.
+
+**The tracker (Oct 31 2026, migration 294):** each pick in the composer counts the course's card kind in `golf_course_picks` (no user ids, QA accounts excluded), shown by `GolfCoursePicksPanel` in the admin console: the list any future data spend should target.
