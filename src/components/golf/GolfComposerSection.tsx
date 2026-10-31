@@ -1137,7 +1137,7 @@ export default function GolfComposerSection({
                       {course.holes.length > 0
                         ? `Par ${course.totalPar} • ${course.holes.length} holes`
                         : course.source === 'osm'
-                          ? 'Map location only — enter pars manually'
+                          ? 'Details load when selected'
                           : course.hydratedAt
                             ? 'No hole data from the provider yet'
                             : 'Details load when selected'}
@@ -1301,7 +1301,7 @@ export default function GolfComposerSection({
                 {/* A catalog tee shows its yardage, rating and slope beside
                     its name (teeChoiceLabel); a custom course's classic
                     colours stay names. */}
-                {courseTeeOptions(selectedCourse).map(key => {
+                {(selectedCourse?.sheetSource === 'map' ? FALLBACK_TEES : courseTeeOptions(selectedCourse)).map(key => {
                   const total = teeTotals.find(t => t.key === key);
                   return (
                     <option key={key} value={key}>{total ? teeChoiceLabel(total) : teeLabel(key)}</option>
@@ -1351,8 +1351,7 @@ export default function GolfComposerSection({
               </div>
 
           {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
-          {/* Oct 31 2026: also a catalog course with no sheet, so any course can carry pars. */}
-          {(!selectedCourse || selectedCourse.holes.length === 0) && sharedRoundDetails.courseName && (
+          {!selectedCourse && sharedRoundDetails.courseName && (
             <div className={GOLF_SECTION_CARD}>
               <SectionInfo
                 as="h3"

@@ -110,6 +110,12 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
   );
 
   return (
+    <>
+    {course.sheetSource === 'map' && (
+      <p className="mb-2 text-xs text-tertiary" data-course-scorecard-map="">
+        Pars and yardage from the course map, not the official card.
+      </p>
+    )}
     <div className="overflow-x-auto rounded-lg border border-border" data-course-scorecard-table="">
       <table className="w-full text-xs bg-surface">
         <thead>{numberRow}</thead>
@@ -150,5 +156,6 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
         </tbody>
       </table>
     </div>
+    </>
   );
 }

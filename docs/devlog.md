@@ -1,5 +1,11 @@
 # Development Log
 
+## October 31, 2026 — The scorecard from the map (zero DDL)
+
+Tom: *"I see the yardage from the GPS and map when I go to play. So how do we not know the scorecard?"* He was right, and my "no provider has it" answer was looking in the wrong place: The Marshes' stored `hole_geometry` has 18 holes with OSM pars (72) and lines (~7,024 yds). The live scorer's header already used them; the Official Scorecard, grid and round `hole_data` read only provider cards. **Fix:** `withMapSheet` on `?id=` builds a card from complete cached lines at read time (`map-sheet.ts`, nothing written, provider cards win); labelled as from the map, no invented handicaps or ratings. Manual par entry on catalog courses (#1372) is removed: *"don't build options to manually input pars."*
+
+**Proof:** `npm run verify` exit 0 (5568 passed); audit 0; guardrails ✓; blocklists ✓. Dev against staging: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile, including a seeded course whose card comes from its map lines through to the round's stored pars.
+
 ## October 31, 2026 — The score grid back on Playing now; the scorecard backfill in batches (zero DDL)
 
 Tom's audit answered the open question: **no course lost a sheet** (`empty_but_rounds_had_sheet` 0 on all sources); coverage is the gap, 74 of 28,985 rows have a sheet (osm 0 of 28,883, opengolfapi 43 of 61, golfcourseapi 25 of 29, seed 6 of 12). Why his scorecards seemed to vanish last night stays unexplained by any deploy or data change; the blank screens were fixed in #1372. Tom: *"I want scoregrid back, yes. Let's run it in batches."* **Score grid:** Scores is on every round, skippable, reversing the Oct 28 decision; scores entered before Go Live use the existing submit path; Preview is on both finishes. **Backfill:** an admin console panel and `POST /api/admin/golf-sheet-backfill`, dry run by default, by place, capped at 25.
