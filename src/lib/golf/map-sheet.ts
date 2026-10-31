@@ -39,3 +39,25 @@ export function sheetFromGeometry(
   }
   return out;
 }
+
+/** At most this many pars may differ when a provider card replaces a map card:
+ *  a real card can correct a mapper's slip, but a same-named different course
+ *  disagrees on many holes. */
+export const MAP_PAR_DIFF_MAX = 2;
+
+/** May this provider card replace the course's map card? Same hole count and
+ *  nearly the same pars. No map card to compare with: nothing to protect. */
+export function sheetAgreesWithMap(
+  provider: ReadonlyArray<{ number: number; par: number }>,
+  map: ReadonlyArray<{ number: number; par: number }> | null
+): boolean {
+  if (!map) return true;
+  if (provider.length !== map.length) return false;
+  const pars = new Map(map.map(h => [h.number, h.par]));
+  let differ = 0;
+  for (const h of provider) {
+    if (!pars.has(h.number)) return false;
+    if (pars.get(h.number) !== h.par) differ++;
+  }
+  return differ <= MAP_PAR_DIFF_MAX;
+}

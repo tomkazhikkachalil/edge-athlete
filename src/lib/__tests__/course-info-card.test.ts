@@ -37,6 +37,8 @@ describe('CourseInfoCard — honest scorecard states', () => {
     expect(composer).toMatch(/autoFindSheet\n/);
     const catalog = fs.readFileSync(path.join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
     expect(catalog).toContain('golf-sheet-ask:${row.id}');
+    expect(catalog).toMatch(/sheetAgreesWithMap\(normalized\.hole_data, await readMapSheet\(admin, row\.id\)\)/);
+    expect(src).toMatch(/sheetFindable \|\| course\.sheetSource === 'map'/);
   });
   it('one panel at a time: Show Map | Official Scorecard over one `open` state', () => {
     expect(src).toMatch(/useState<'map' \| 'scorecard' \| null>/);
