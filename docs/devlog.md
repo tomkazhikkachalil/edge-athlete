@@ -1,5 +1,9 @@
 # Development Log
 
+## October 31, 2026 — Which picked courses have a card: the tracker (part 2 of 3, migration 294)
+
+**Real finds first (#1378 on production):** of eight more real picks, Cedarhill, Canadian Golf and Mississippi Golf gained 18-hole provider cards with 10 to 14 tee ratings; Pakenham's candidate was refused by the map cross-check; the rest had no match. **The tracker:** `golf_course_picks` counts each composer pick with the course's card kind (no user ids, QA accounts excluded), read by `GolfCoursePicksPanel`. **Proof:** `npm run verify` exit 0 (5,571 tests); audit 0; guardrails ✓; blocklists ✓; on staging `294 APPLIED | 1 | 294`, two hits count 2 with the latest card, the anon key is refused on the RPC and reads no rows, deleting a course cascades; `golf-quick-entry` 7/7 desktop, 2/2 webkit-mobile. Production awaits Tom's run of 294, then the merge and the baseline.
+
 ## October 31, 2026 — The provider lookup never matched real names: fixed (zero DDL)
 
 Picking real courses on production (Camelot, Kanata, Royal Ottawa, Irish Hills, Hylands) answered `no_match` every time, though GolfCourseAPI lists them. **Causes:** its search returns nothing for a full name ("Camelot Golf & Country Club") and finds the distinctive word ("Camelot"); and `pickSheetCandidate` gave up on any two plausible candidates. **Fix:** `sheetSearchQuery` asks with the distinctive words; the matcher narrows on positive evidence (confirmed region, then the same name over a section of it, then city), and two true twins are still no match. The seeded e2e could not catch this: staging's lookups never reach a real find. The Marshes remains absent from GolfCourseAPI ("Marshes" finds only Wildwood Marshes, Wisconsin), so it keeps its map card.

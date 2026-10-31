@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_TEE, sheetAgreesWithMap, sheetFromGeometry } from '../map-sheet';
+import { MAP_TEE, countsAsPick, sheetAgreesWithMap, sheetFromGeometry } from '../map-sheet';
 
 const line: [number, number][] = [[45, -75], [45.001, -75]];
 const measure = () => 399;
@@ -42,5 +42,13 @@ describe('sheetAgreesWithMap: a provider card may replace a map card', () => {
   });
   it('with no map card there is nothing to protect', () => {
     expect(sheetAgreesWithMap(map, null)).toBe(true);
+  });
+});
+
+describe('countsAsPick', () => {
+  it('QA accounts do not count; everyone else does', () => {
+    expect(countsAsPick('EdgeQA-abc@edgeathlete.ca')).toBe(false);
+    expect(countsAsPick('tom@example.com')).toBe(true);
+    expect(countsAsPick(null)).toBe(true);
   });
 });

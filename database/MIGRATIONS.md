@@ -951,6 +951,10 @@ so no new grants. Deploy order: MIGRATION FIRST on both databases (the route
 writes the column; a PATCH before it answers 500). Reversal: the `DROP
 COLUMN` in the file's header. Expected row on both: `293 APPLIED | 1 | 293`.
 
+## Which picked courses have a card (migration 294, Oct 31 2026)
+
+`golf_course_picks` holds one row per picked course with its card kind (`provider`, `map`, `none`) and a counter; no user ids; RLS on with no policies, service role only. The one writer is `golf_course_pick_hit`, called best-effort from `GET /api/golf/courses`. Run on both databases BEFORE the code; a failed count never blocks a pick. Reversal is in the file's header. Expected row: `294 APPLIED | 1 | 294`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
