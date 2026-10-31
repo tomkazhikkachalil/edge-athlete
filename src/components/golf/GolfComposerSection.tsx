@@ -1555,7 +1555,7 @@ export default function GolfComposerSection({
               </button>
             </div>
             <InfoPanel d={scoreInfo} className="mb-4">
-              Enter the finished round below — the post publishes once, complete. Quick entry walks it hole by hole.
+              {sharedRoundDetails.alreadyPlayed ? 'Enter the finished round below — the post publishes once, complete. Quick entry walks it hole by hole.' : 'Enter scores now or skip — you can keep scoring hole by hole once the round is live.'}
             </InfoPanel>
 
             {/* Multi-player scorecard grid */}
@@ -1627,7 +1627,7 @@ export default function GolfComposerSection({
                   round's post (a live round tells its story at the finish). */}
               {sharedRoundDetails.alreadyPlayed && finishSlot}
 
-              {sharedRoundDetails.alreadyPlayed && onPreview && (
+              {onPreview && (
                 <button
                   type="button"
                   onClick={onPreview}

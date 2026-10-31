@@ -21,13 +21,13 @@ import {
 const ids = (a: Parameters<typeof stepsForRound>[0]) => stepsForRound(a).map(s => s.id);
 
 describe('stepsForRound — the list follows the first step', () => {
-  it('Playing now + Outdoor (the defaults) is six steps ending in Start', () => {
+  it('Playing now + Outdoor (the defaults) is seven steps ending in Start', () => {
     expect(DEFAULT_ROUND_ANSWERS).toEqual({ alreadyPlayed: false, indoor: false });
-    expect(ids(DEFAULT_ROUND_ANSWERS)).toEqual(['type', 'course', 'format', 'conditions', 'players', 'finish']);
+    expect(ids(DEFAULT_ROUND_ANSWERS)).toEqual(['type', 'course', 'format', 'conditions', 'players', 'scores', 'finish']);
     expect(stepsForRound(DEFAULT_ROUND_ANSWERS).at(-1)?.label).toBe('Start');
   });
   it('Indoor drops Conditions', () => {
-    expect(ids({ alreadyPlayed: false, indoor: true })).toEqual(['type', 'course', 'format', 'players', 'finish']);
+    expect(ids({ alreadyPlayed: false, indoor: true })).toEqual(['type', 'course', 'format', 'players', 'scores', 'finish']);
   });
   it('Already played adds Scores before the finish, labelled Create', () => {
     expect(ids({ alreadyPlayed: true, indoor: false })).toEqual(['type', 'course', 'format', 'conditions', 'players', 'scores', 'finish']);
@@ -52,7 +52,7 @@ describe('roundStepIndex — a step the list no longer holds starts over', () =>
   it('finds a step, and falls back to 0 for a missing or undefined id', () => {
     const live = stepsForRound(DEFAULT_ROUND_ANSWERS);
     expect(roundStepIndex(live, 'players')).toBe(4);
-    expect(roundStepIndex(live, 'scores')).toBe(0); // no Scores step while Playing now
+    expect(roundStepIndex(live, 'scores')).toBe(5);
     expect(roundStepIndex(live, undefined)).toBe(0);
   });
 });
@@ -93,8 +93,8 @@ describe('LIVE_OUTDOOR_STEPS — the numbering the refinement spec names', () =>
   it('is exactly stepsForRound of the defaults: 1 Round type · 2 Course · 3 Game format · 4 Conditions · 5 Players · 6 Start', () => {
     expect([...LIVE_OUTDOOR_STEPS]).toEqual(stepsForRound(DEFAULT_ROUND_ANSWERS).map(s => s.id));
     expect(liveOutdoorStepNumber('conditions')).toBe(4);
-    expect(liveOutdoorStepNumber('finish')).toBe(6);
-    expect(liveOutdoorStepNumber('scores')).toBe(0);
+    expect(liveOutdoorStepNumber('finish')).toBe(7);
+    expect(liveOutdoorStepNumber('scores')).toBe(6);
   });
 });
 
