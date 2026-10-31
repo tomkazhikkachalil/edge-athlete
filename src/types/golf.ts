@@ -89,6 +89,8 @@ export interface GolfCourse {
    *  provider had nothing; the picker says so instead of promising a load. */
   hydratedAt?: string;
   holes: CourseHole[];
+  /** 'map': the holes are built from the course's map lines, not a provider card. */
+  sheetSource?: 'map';
   totalPar: number;
   /** Course length from the catalog (9 or 18) — sizes the composer grid. */
   holesCount?: number;

@@ -8,6 +8,7 @@ import {
   getCatalogRow,
   hydrateCourseDetailed,
   findOfficialSheet,
+  withMapSheet,
   hydrationDue,
   hydrateCourse,
   globalSearch,
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
         const home = await findHomeOrg(admin, row);
         return NextResponse.json(home ? { homeOf: home } : {});
       }
-      const course = await hydrateCourse(admin, row);
+      const course = await withMapSheet(admin, await hydrateCourse(admin, row));
       // Phase 6b A2: "Home of {org}" — the org whose venue recognized this
       // course (169's club/course pair) and has a PUBLISHED site. Best-
       // effort and additive; pre-169 or no link → absent.

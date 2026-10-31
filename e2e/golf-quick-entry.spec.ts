@@ -427,9 +427,9 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
 
 // Oct 31 2026 (Tom: scorecards missing in the preview and while playing): a
 // course with NO sheet still has a card everywhere, before any score. Holeless
-// row seeded; Par & Yardage offered; preview names the player; Go Live, close
+// row seeded; preview names the player; Go Live, close
 // the scorer, View Full Scorecard shows all 18 holes.
-test('a course with no sheet: manual pars, the preview and the full scorecard before any score @mobile', async ({ page }) => {
+test('a course with no sheet: the preview and the full scorecard before any score @mobile', async ({ page }) => {
   test.setTimeout(120_000);
   const admin = adminClient();
   const api = await apiAs('state.json');
@@ -450,7 +450,8 @@ test('a course with no sheet: manual pars, the preview and the full scorecard be
     await page.getByRole('button', { name: /already played/i }).click();
     await next(flow, /Step 2 of 7/);
     await pick();
-    await expect(page.getByRole('heading', { name: /Course Par & Yardage/ })).toBeVisible();
+    // No manual entry on a catalog course (Tom, Oct 31).
+    await expect(page.getByRole('heading', { name: /Course Par & Yardage/ })).toHaveCount(0);
     await next(flow, /Step 3 of 7/);
     await next(flow, /Step 4 of 7/);
     await next(flow, /Step 5 of 7/);
@@ -523,6 +524,53 @@ test('Playing now: a score entered in the Scores step reaches the live round', a
     await cleanup('golf-live-grid', [
       // A round with a score is a result the API will not delete; purge QA's own.
       () => groupPostId && adminClient().from('group_posts').delete().eq('id', groupPostId),
+      () => api.dispose(),
+    ]);
+  }
+});
+
+// Oct 31 2026 (Tom: the map knows the holes, so why no scorecard?): a course with
+// complete map lines and no provider card shows a card built from the map, and
+// the round carries its pars. Real-shaped geometry, 18 holes, par 72.
+test('a course with map lines and no card: the scorecard comes from the map and the round carries its pars', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA Map Card Links ${stamp}`;
+  let courseId = '';
+  let groupPostId = '';
+  try {
+    const pars = [4, 5, 3, 5, 3, 4, 4, 3, 5, 5, 4, 3, 4, 5, 3, 5, 3, 4];
+    const holes = pars.map((par, i) => ({ hole: i + 1, par, line: [[45.4 + i * 0.01, -75.7], [45.4 + i * 0.01 + 0.003, -75.7]] }));
+    const seeded = await admin.from('golf_courses').insert({ external_source: 'qa-e2e', external_id: `mapcard-${stamp}`, name, total_par: 72, holes_count: 18, lat: 45.43, lng: -75.73, hydrated_at: new Date().toISOString(), hole_geometry: { holes, greens: [], source: 'osm' }, hole_geometry_at: new Date().toISOString() }).select('id').single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const flow = await openGolf(page);
+    await next(flow, /Step 2 of 7/);
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Card Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    const show = page.locator('[data-course-show-scorecard]');
+    await expect(show).toBeVisible({ timeout: 15_000 });
+    await show.click();
+    await expect(page.locator('[data-course-scorecard-map]')).toBeVisible();
+    await expect(page.locator('[data-course-scorecard-row="par"] [data-course-scorecard-sum="total"]').first()).toHaveText('72');
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    const body = await (await api.get(`/api/group-posts/${groupPostId}/scorecard`)).json();
+    const stored = body.scorecard?.golf_data?.hole_data as Array<{ hole: number; par: number }>;
+    expect(stored).toHaveLength(18);
+    expect(stored.find(h => h.hole === 2)?.par).toBe(5);
+  } finally {
+    await cleanup('golf-map-card', [
+      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
       () => api.dispose(),
     ]);
   }

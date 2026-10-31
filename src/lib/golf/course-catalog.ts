@@ -46,7 +46,8 @@ import { hitDailyBudget as hitBudget } from '@/lib/provider-budget-server';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
-import { courseNameScore } from '@/lib/golf/hole-geometry';
+import { courseNameScore, polylineYards } from '@/lib/golf/hole-geometry';
+import { sheetFromGeometry, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -371,6 +372,18 @@ async function searchCatalogFallback(admin: SupabaseClient, q: string, limit: nu
   if (prefix.error && wide.error) return [];
   const rows = [...(prefix.data ?? []), ...(wide.data ?? [])] as unknown as CatalogRow[];
   return mergeSearchRows(rows, q, limit).map(rowToCourse);
+}
+
+/** A course with no provider card takes its card from its CACHED map lines
+ *  (map-sheet.ts). Read-time only: nothing is written, nothing external is
+ *  called, and a provider card always wins. */
+export async function withMapSheet(admin: SupabaseClient, course: GolfCourse): Promise<GolfCourse> {
+  if (course.holes.length > 0 || !UUID_RE.test(course.id)) return course;
+  const { data } = await admin.from('golf_courses').select('hole_geometry').eq('id', course.id).maybeSingle();
+  const geometry = (data as { hole_geometry?: { holes?: MapSheetLine[] } | null } | null)?.hole_geometry;
+  const holes = sheetFromGeometry(geometry?.holes, line => polylineYards(line as [number, number][]) ?? 0);
+  if (!holes) return course;
+  return { ...course, holes, totalPar: holes.reduce((s, h) => s + h.par, 0), holesCount: holes.length, sheetSource: 'map' };
 }
 
 export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<CatalogRow | null> {
