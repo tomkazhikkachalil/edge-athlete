@@ -983,3 +983,7 @@ mirror of the routes' pure rules (round-status.ts's 48 h window and
 `GET /api/me/pulse` is its one caller; a deploy ahead of it answers 503.
 Reversal: `DROP FUNCTION public.me_pulse(uuid)`. Expected row on both:
 `292 APPLIED | 1 | true | 292`.
+
+## Closing golf_course_picks to the public roles (migration 295, Oct 31 2026)
+
+294 omitted posture A's table REVOKE. 295 removes anon and authenticated privileges; RLS with no policies already kept the table closed. Run on both databases; no code depends on it. Expected row: `295 APPLIED | 295 | false | false`.
