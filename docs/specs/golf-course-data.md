@@ -109,6 +109,8 @@ up — until then no plays-like shows anywhere, and nothing else changes).
 Migration 254 runs on prod whenever; the code reads a missing column as
 "no elevation". Read DEVLOG Oct 7 2026 PR A–F before touching any of it.
 
+> **Oct 31 2026 — a row may gain its sheet by NAME.** The rule above that an OSM row "never gains holes (no provider knows its id)" has one door now: `findOfficialSheet` (course-catalog.ts, behind `?id=&sheet=1`, a signed-in tap on the round's course step) asks GolfCourseAPI by the row's name and writes a same-facility match's sheet onto the row — the identity, coords and `external_source` stay. `pickSheetCandidate` is the pure rule (Convention 53, `golf-round-setup.md`). The same door serves a thin provider row whose own provider's detail was empty (The Marshes, an OpenGolfAPI row with nothing behind it).
+
 ## Convention 35 — The course flow: the green is a shape, elevation is free, every door hydrates, Follow is a toggle, the course has a summary (Golf course flow fixes, Oct 7 2026, #1103–#1110, ZERO DDL — `docs/GOLF_COURSE_DATA.md` is the reference)
 
 **The course flow: the green is a shape, elevation is free, every door

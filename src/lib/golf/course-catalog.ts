@@ -990,6 +990,101 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
   return fetched;
 }
 
+// ── "Find the official scorecard" (Oct 31 2026) ─────────────────────────────
+// Tom, on The Marshes: a catalog row can sit WITHOUT a tee sheet for good —
+// a thin provider row whose own provider's detail came back empty (stamped,
+// never re-asked), or a map-only OSM row (no provider knows its id). The
+// other provider may still carry the sheet under the course's NAME. On a
+// deliberate tap the row asks GolfCourseAPI by name and, when exactly one
+// same-facility candidate agrees on country / region (and city when it has
+// to decide between several), its detail's pars, handicaps, tee yardages
+// and ratings are written onto THIS row — the identity, coords and source
+// stay (the adopt rule's spirit: the sheet joins the row people pick).
+// Never a guess: two candidates that both fit is "no match".
+
+export interface SheetCandidate {
+  id: string;
+  name: string;
+  city: string | null;
+  region_code: string | null;
+  country_code: string | null;
+}
+
+/** The one candidate that is this facility, or null. Pure — tests cover it. */
+export function pickSheetCandidate(
+  row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'>,
+  candidates: SheetCandidate[]
+): SheetCandidate | null {
+  const named = candidates.filter(c => sameFacilityName(row.name, c.name));
+  const placed = named.filter(
+    c =>
+      (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
+      (!row.region_code || !c.region_code || row.region_code === c.region_code)
+  );
+  if (placed.length === 1) return placed[0];
+  if (placed.length === 0) return null;
+  const city = (row.city ?? '').trim().toLowerCase();
+  const sameCity = city ? placed.filter(c => (c.city ?? '').trim().toLowerCase() === city) : [];
+  return sameCity.length === 1 ? sameCity[0] : null;
+}
+
+export interface OfficialSheetResult {
+  found: boolean;
+  outcome: 'already' | 'found' | 'no_match' | 'no_sheet' | 'not_configured' | 'budget_refused' | 'provider_error';
+  course: GolfCourse;
+}
+
+export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow): Promise<OfficialSheetResult> {
+  const answer = (outcome: OfficialSheetResult['outcome'], r: CatalogRow = row): OfficialSheetResult => ({
+    found: outcome === 'already' || outcome === 'found',
+    outcome,
+    course: rowToCourse(r),
+  });
+  if ((row.hole_data?.length ?? 0) > 0) return answer('already');
+  if (!gcaConfigured()) return answer('not_configured');
+  if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
+
+  const search = await fetchJsonResult(
+    `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(row.name)}`,
+    gcaHeaders()
+  );
+  if (!search.ok) return answer('provider_error');
+  const summaries = ((search.body as { courses?: GcaSummary[] } | null)?.courses ?? []).map(s => {
+    const n = normalizeGcaSummary(s);
+    return { id: s.id, name: n.name, city: n.city, region_code: n.region_code, country_code: n.country_code } satisfies SheetCandidate;
+  });
+  const pick = pickSheetCandidate(row, summaries);
+  if (!pick) {
+    console.warn(`[course-catalog] official sheet: no match for ${row.id} "${row.name}" among ${summaries.length}`);
+    return answer('no_match');
+  }
+
+  if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
+  const detail = await fetchJsonResult(`https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(pick.id)}`, gcaHeaders());
+  if (!detail.ok) return answer('provider_error');
+  const d = (detail.body as { course?: GcaDetail } | null)?.course;
+  const normalized = d?.id ? normalizeGcaDetail(d) : null;
+  if (!normalized?.hole_data?.length) {
+    await admin.from('golf_courses').update({ hydrated_at: new Date().toISOString() }).eq('id', row.id);
+    return answer('no_sheet');
+  }
+  const sheet = {
+    total_par: normalized.total_par,
+    holes_count: normalized.holes_count,
+    hole_data: normalized.hole_data,
+    course_rating: normalized.course_rating,
+    slope_rating: normalized.slope_rating,
+    hydrated_at: new Date().toISOString(),
+  };
+  const { error } = await admin.from('golf_courses').update(sheet).eq('id', row.id);
+  if (error) {
+    console.error(`[course-catalog] official sheet write failed for ${row.id}:`, error.message);
+    return answer('provider_error');
+  }
+  console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← golfcourseapi:${pick.id} (${normalized.hole_data.length} holes)`);
+  return answer('found', { ...row, ...sheet });
+}
+
 // ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────
 
 /** ~5 km cells at mid-latitudes: one provider call per cell per day, so a

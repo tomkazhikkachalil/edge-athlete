@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  pickSheetCandidate,
   rankCourseName,
   courseDisplayName,
   normalizeOpenGolfSummary,
@@ -602,5 +603,31 @@ describe('coordFillDecision — a provider coordinate never moves a stored pin',
   it('the cell key is ~5 km: neighbours share it, a town over does not', () => {
     expect(proximityCellKey(36.61, -88.31)).toBe(proximityCellKey(36.62, -88.32));
     expect(proximityCellKey(36.61, -88.31)).not.toBe(proximityCellKey(36.71, -88.31));
+  });
+});
+
+// "Find the official scorecard" (Oct 31 2026, Tom on The Marshes): the ONE
+// candidate that is this facility — same-facility name, country / region
+// agreeing when both known, the city deciding between several; two that
+// both fit is no match, never a guess.
+describe('pickSheetCandidate (the other provider by name)', () => {
+  const row = { name: 'The Marshes Golf Club', city: 'Kanata', region_code: 'ON', country_code: 'CA' };
+  const marshes = { id: 'a1', name: 'The Marshes Golf Club', city: 'Ottawa', region_code: 'ON', country_code: 'CA' };
+  it('one same-facility candidate in the same province wins, a different city notwithstanding', () => {
+    expect(pickSheetCandidate(row, [marshes, { id: 'b2', name: 'Wildwood Marshes', city: 'Hayward', region_code: 'WI', country_code: 'US' }])).toEqual(marshes);
+  });
+  it('a different country or province is never it', () => {
+    expect(pickSheetCandidate(row, [{ ...marshes, country_code: 'US', region_code: 'OH' }])).toBeNull();
+    expect(pickSheetCandidate(row, [{ ...marshes, region_code: 'BC' }])).toBeNull();
+  });
+  it('an unknown place on either side does not block; two that both fit need the city to decide', () => {
+    expect(pickSheetCandidate({ ...row, region_code: null, country_code: null }, [marshes])).toEqual(marshes);
+    const twin = { ...marshes, id: 'c3', city: 'Kanata' };
+    expect(pickSheetCandidate(row, [marshes, twin])).toEqual(twin);
+    expect(pickSheetCandidate({ ...row, city: null }, [marshes, twin])).toBeNull();
+  });
+  it('no same-facility name, no candidate', () => {
+    expect(pickSheetCandidate(row, [{ id: 'd4', name: 'Loch March Golf And Country Club', city: 'Kanata', region_code: 'ON', country_code: 'CA' }])).toBeNull();
+    expect(pickSheetCandidate(row, [])).toBeNull();
   });
 });

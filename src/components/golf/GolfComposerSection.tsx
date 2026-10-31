@@ -1233,7 +1233,20 @@ export default function GolfComposerSection({
 
             {/* Keyed: a course swap remounts the card (and its Leaflet
                 map) cleanly instead of re-using one instance's state. */}
-            {selectedCourse && <CourseInfoCard key={selectedCourse.id} course={selectedCourse} teeInPlay={sharedRoundDetails.teeColor} />}
+            {selectedCourse && (
+              <CourseInfoCard
+                key={selectedCourse.id}
+                course={selectedCourse}
+                teeInPlay={sharedRoundDetails.teeColor}
+                // "Find the official scorecard" found one: the selection takes
+                // the fuller row so the round's pars, tees and ratings follow.
+                onCourseUpdated={full => {
+                  setSelectedCourse(full);
+                  selectedCourseIdRef.current = full.id;
+                  applyCourseData(full);
+                }}
+              />
+            )}
 
             {/* Help text for manual entry */}
             {!selectedCourse && sharedRoundDetails.courseName && (
