@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { hydrateCourseDetailed, hydrationDue, sheetFromRow, type CatalogRow } from '../course-catalog';
 
@@ -148,5 +150,15 @@ describe('sheetFromRow — what is missing', () => {
     expect(sheetFromRow(row({ hole_data: [{ number: 1, par: 4, yardage: { white: 388 }, handicap: 0 }], course_rating: { white: 70.1 } }))).toMatchObject({ partial: null, source: 'golfcourseapi', courseRating: { white: 70.1 } });
     expect(sheetFromRow(row())).toMatchObject({ partial: 'no_holes', holes: [], courseRating: {}, slopeRating: {} });
     expect(sheetFromRow(row({ hole_data: [{ number: 1, par: 4, yardage: {}, handicap: 0 }, { number: 2, par: 4, yardage: { white: 0 }, handicap: 0 }] })).partial).toBe('no_yardage');
+  });
+});
+
+// Oct 31 2026: an empty provider answer never erases a sheet the row holds.
+describe('hydration keeps an existing sheet', () => {
+  it('the writer falls back to the row for holes, ratings and par', () => {
+    const src = readFileSync(join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
+    expect(src).toContain('hole_data: normalized.hole_data?.length ? normalized.hole_data : row.hole_data');
+    expect(src).toContain('course_rating: Object.keys(normalized.course_rating ?? {}).length ? normalized.course_rating : row.course_rating');
+    expect(src).toContain('total_par: normalized.total_par ?? row.total_par');
   });
 });

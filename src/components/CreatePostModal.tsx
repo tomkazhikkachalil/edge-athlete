@@ -124,6 +124,7 @@ interface ProfileData {
 }
 
 interface SharedRoundDetails {
+  alreadyPlayed?: boolean;
   courseName: string;
   date: string;
   holesPlayed: number;
@@ -1684,7 +1685,8 @@ function transformToScorecardPreview(
     date: sharedRoundDetails.date,
     location: sharedRoundDetails.courseName,
     visibility: 'public' as const,
-    status: 'pending' as const,
+    // Oct 31 2026: an already-played preview is not LIVE.
+    status: (sharedRoundDetails.alreadyPlayed ? 'completed' : 'pending') as 'completed' | 'pending',
     post_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -1709,7 +1711,13 @@ function transformToScorecardPreview(
   };
 
   // Transform participants with scores
-  const participants = sharedRoundParticipants.map(participant => {
+  // Oct 31 2026: the creator is on the card too. The list holds partners only,
+  // so a solo preview showed no players and no scores at all.
+  const creatorRow = playerScores.find(ps => ps.participant_id === userId);
+  const previewPlayers = creatorRow && !sharedRoundParticipants.some(p => p.id === userId)
+    ? [{ id: userId, name: creatorRow.profile?.full_name ?? 'You', avatar_url: creatorRow.profile?.avatar_url ?? undefined }, ...sharedRoundParticipants]
+    : sharedRoundParticipants;
+  const participants = previewPlayers.map(participant => {
     // Find matching player scores
     const playerScore = playerScores.find(ps => ps.participant_id === participant.id);
 
