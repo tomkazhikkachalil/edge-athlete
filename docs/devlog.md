@@ -6,6 +6,8 @@ Tom's production buckets for courses with no provider card (28,911): no lines 17
 
 **Proof:** `npm run verify` exit 0 (5564 passed); audit 0; guardrails ✓; blocklists ✓. Dev against staging: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile.
 
+**Production (Oct 31 2026):** #1372 `adf23fc6`, #1373 `614fefe3`, #1374 `343d79bd`, #1375 `b0dcefe4`, health on the last. Prod probe on #1375: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile; the backfill route answers 404. Probed on #1374: The Marshes itself shows pars totalling 72 in the panel and grid, and its round stores 18 holes, on mobile and webkit-mobile. Not yet seen: a real provider card arriving through the on-pick lookup. **Tom's decision:** stay on map cards and the on-pick lookup for now, buy nothing; he has asked a vendor for a quote.
+
 ## October 31, 2026 — The scorecard from the map (zero DDL)
 
 Tom: *"I see the yardage from the GPS and map when I go to play. So how do we not know the scorecard?"* He was right, and my "no provider has it" answer was looking in the wrong place: The Marshes' stored `hole_geometry` has 18 holes with OSM pars (72) and lines (~7,024 yds). The live scorer's header already used them; the Official Scorecard, grid and round `hole_data` read only provider cards. **Fix:** `withMapSheet` on `?id=` builds a card from complete cached lines at read time (`map-sheet.ts`, nothing written, provider cards win); labelled as from the map, no invented handicaps or ratings. Manual par entry on catalog courses (#1372) is removed: *"don't build options to manually input pars."*
