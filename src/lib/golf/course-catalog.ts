@@ -46,7 +46,7 @@ import { hitDailyBudget as hitBudget } from '@/lib/provider-budget-server';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
-import { courseNameScore, polylineYards } from '@/lib/golf/hole-geometry';
+import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
@@ -1027,6 +1027,14 @@ export interface SheetCandidate {
   country_code: string | null;
 }
 
+/** What to ask the provider: the course's distinctive words. Its search finds
+ *  "Camelot" and returns nothing for "Camelot Golf & Country Club" (Oct 31 2026:
+ *  full names made nearly every lookup a miss). Pure. */
+export function sheetSearchQuery(name: string): string {
+  const core = [...nameTokens(name)].join(' ');
+  return core || name;
+}
+
 /** The one candidate that is this facility, or null. Pure — tests cover it. */
 export function pickSheetCandidate(
   row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'>,
@@ -1038,10 +1046,20 @@ export function pickSheetCandidate(
       (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
       (!row.region_code || !c.region_code || row.region_code === c.region_code)
   );
-  if (placed.length === 1) return placed[0];
-  if (placed.length === 0) return null;
+  if (placed.length <= 1) return placed[0] ?? null;
+  // Several fit: narrow by what is positively known, never by guessing.
+  // A candidate confirmed in the same region beats one with no location…
+  const confirmed = placed.filter(c => !!row.region_code && c.region_code === row.region_code);
+  const pool = confirmed.length > 0 ? confirmed : placed;
+  if (pool.length === 1) return pool[0];
+  // …the same distinctive name beats a section of it ("Royal Ottawa" over
+  // "Royal Ottawa (Royal Nine)")…
+  const want = [...nameTokens(row.name)].sort().join(' ');
+  const exact = pool.filter(c => [...nameTokens(c.name)].sort().join(' ') === want);
+  if (exact.length === 1) return exact[0];
+  // …and the city decides between twins.
   const city = (row.city ?? '').trim().toLowerCase();
-  const sameCity = city ? placed.filter(c => (c.city ?? '').trim().toLowerCase() === city) : [];
+  const sameCity = city ? pool.filter(c => (c.city ?? '').trim().toLowerCase() === city) : [];
   return sameCity.length === 1 ? sameCity[0] : null;
 }
 
@@ -1066,7 +1084,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
 
   const search = await fetchJsonResult(
-    `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(row.name)}`,
+    `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(sheetSearchQuery(row.name))}`,
     gcaHeaders()
   );
   if (!search.ok) return answer('provider_error');

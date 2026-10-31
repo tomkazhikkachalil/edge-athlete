@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   pickSheetCandidate,
+  sheetSearchQuery,
   rankCourseName,
   courseDisplayName,
   normalizeOpenGolfSummary,
@@ -629,5 +630,28 @@ describe('pickSheetCandidate (the other provider by name)', () => {
   it('no same-facility name, no candidate', () => {
     expect(pickSheetCandidate(row, [{ id: 'd4', name: 'Loch March Golf And Country Club', city: 'Kanata', region_code: 'ON', country_code: 'CA' }])).toBeNull();
     expect(pickSheetCandidate(row, [])).toBeNull();
+  });
+});
+
+// Oct 31 2026: the real picks on production. The provider's search misses full
+// names, and two plausible candidates must narrow on what is known.
+describe('the lookup on real names', () => {
+  it('asks with the distinctive words', () => {
+    expect(sheetSearchQuery('Camelot Golf & Country Club')).toBe('camelot');
+    expect(sheetSearchQuery('Royal Ottawa Golf Club')).toBe('royal ottawa');
+    expect(sheetSearchQuery('Golf Club')).toBe('Golf Club');
+  });
+  const on = { city: 'Fallingbrook', region_code: 'ON', country_code: 'CA' };
+  it('a candidate confirmed in the region beats one with no location', () => {
+    const real = { id: 'a', name: 'Camelot Golf And Country Club – Camelot', ...on, city: 'Ottawa' };
+    const vague = { id: 'b', name: 'Camelot Country Club', city: null, region_code: null, country_code: null };
+    expect(pickSheetCandidate({ name: 'Camelot Golf & Country Club', ...on }, [real, vague])).toEqual(real);
+  });
+  it('the same name beats a section of it; still no guess between true twins', () => {
+    const qc = { city: 'Gatineau', region_code: 'QC', country_code: 'CA' };
+    const main = { id: 'a', name: 'Royal Ottawa', ...qc };
+    const nine = { id: 'b', name: 'Royal Ottawa (Royal Nine)', ...qc };
+    expect(pickSheetCandidate({ name: 'Royal Ottawa Golf Club', ...qc }, [main, nine])).toEqual(main);
+    expect(pickSheetCandidate({ name: 'Royal Ottawa Golf Club', ...qc, city: 'Elsewhere' }, [{ ...main, city: 'X' }, { ...main, id: 'c', city: 'Y' }])).toBeNull();
   });
 });

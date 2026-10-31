@@ -134,7 +134,7 @@ const GENERIC_NAME_TOKENS = new Set([
  *  src/lib/search/people.ts. Single LETTERS are dropped \u2014 the possessive
  *  in "King's" scored a match against "Queen's" \u2014 but single digits stay:
  *  "Pinehurst No. 2" and "No. 8" are different courses. */
-function nameTokens(name: string): Set<string> {
+export function nameTokens(name: string): Set<string> {
   return new Set(
     name
       .normalize('NFD')

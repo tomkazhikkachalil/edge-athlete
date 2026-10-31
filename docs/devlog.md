@@ -1,5 +1,11 @@
 # Development Log
 
+## October 31, 2026 — The provider lookup never matched real names: fixed (zero DDL)
+
+Picking real courses on production (Camelot, Kanata, Royal Ottawa, Irish Hills, Hylands) answered `no_match` every time, though GolfCourseAPI lists them. **Causes:** its search returns nothing for a full name ("Camelot Golf & Country Club") and finds the distinctive word ("Camelot"); and `pickSheetCandidate` gave up on any two plausible candidates. **Fix:** `sheetSearchQuery` asks with the distinctive words; the matcher narrows on positive evidence (confirmed region, then the same name over a section of it, then city), and two true twins are still no match. The seeded e2e could not catch this: staging's lookups never reach a real find. The Marshes remains absent from GolfCourseAPI ("Marshes" finds only Wildwood Marshes, Wisconsin), so it keeps its map card.
+
+**Proof:** `npm run verify` exit 0 (5570 passed); audit 0; guardrails ✓; blocklists ✓; the provider's real answers for these names were read directly before the fix.
+
 ## October 31, 2026 — A map card can become a real card (part 1 of 3, zero DDL)
 
 Picking a map-card course now also asks GolfCourseAPI, silently, for tees, handicaps and ratings. A found card replaces the map card only with the same hole count and at most 2 differing pars (`sheetAgreesWithMap`), so a same-named wrong course cannot overwrite a good card; a refusal is logged. **Proof:** `npm run verify` exit 0 (5567 passed); audit 0; guardrails ✓; blocklists ✓. Dev against staging: `golf-quick-entry` 7/7 desktop, 2/2 mobile, 2/2 webkit-mobile (the miss path; staging has no real find).
