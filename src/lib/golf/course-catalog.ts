@@ -1045,16 +1045,12 @@ export interface OfficialSheetResult {
   found: boolean;
   outcome: 'already' | 'found' | 'no_match' | 'no_sheet' | 'not_configured' | 'budget_refused' | 'provider_error';
   course: GolfCourse;
-  /** The provider course chosen, for a batch's human review. */
-  match?: { id: string; name: string; city: string | null };
 }
 
-/** `dryRun` (the batch door): search and pick only — one budget hit, no write. */
-export async function findOfficialSheet(
-  admin: SupabaseClient,
-  row: CatalogRow,
-  opts: { dryRun?: boolean; stampMiss?: boolean } = {}
-): Promise<OfficialSheetResult> {
+/** Only ever for a person who picked this course: GolfCourseAPI's terms allow
+ *  caching what serves a user and ban harvesting a copy, so there is no bulk
+ *  caller (Oct 31 2026). One ask per course per day, whoever asks. */
+export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow): Promise<OfficialSheetResult> {
   const answer = (outcome: OfficialSheetResult['outcome'], r: CatalogRow = row): OfficialSheetResult => ({
     found: outcome === 'already' || outcome === 'found',
     outcome,
@@ -1062,6 +1058,7 @@ export async function findOfficialSheet(
   });
   if ((row.hole_data?.length ?? 0) > 0) return answer('already');
   if (!gcaConfigured()) return answer('not_configured');
+  if (!(await hitBudget(admin, `golf-sheet-ask:${row.id}`, 1))) return answer('no_match');
   if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
 
   const search = await fetchJsonResult(
@@ -1076,12 +1073,8 @@ export async function findOfficialSheet(
   const pick = pickSheetCandidate(row, summaries);
   if (!pick) {
     console.warn(`[course-catalog] official sheet: no match for ${row.id} "${row.name}" among ${summaries.length}`);
-    // A batch must not re-ask (and re-spend on) this row next time.
-    if (opts.stampMiss && !opts.dryRun) await admin.from('golf_courses').update({ hydrated_at: new Date().toISOString() }).eq('id', row.id);
     return answer('no_match');
   }
-  const match = { id: pick.id, name: pick.name, city: pick.city };
-  if (opts.dryRun) return { ...answer('no_match'), found: false, outcome: 'found', match };
 
   if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
   const detail = await fetchJsonResult(`https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(pick.id)}`, gcaHeaders());
@@ -1106,7 +1099,7 @@ export async function findOfficialSheet(
     return answer('provider_error');
   }
   console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← golfcourseapi:${pick.id} (${normalized.hole_data.length} holes)`);
-  return { ...answer('found', { ...row, ...sheet }), match };
+  return answer('found', { ...row, ...sheet });
 }
 
 // ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────

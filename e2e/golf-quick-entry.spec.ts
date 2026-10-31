@@ -380,12 +380,9 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await expect(page.locator('[data-course-show-scorecard]')).toHaveCount(0, { timeout: 15_000 });
     await expect(page.locator('[data-course-show-map]')).toBeVisible();
     await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
-    // …and offers to ASK for one (Oct 31 2026, Tom on The Marshes): the other
-    // provider by name. A QA-named row matches nothing → the honest line.
-    const find = page.locator('[data-course-find-sheet]');
-    await expect(find).toBeVisible();
-    await find.click();
+    // …and asks for one on its own (Oct 31 2026): the provider by name. A QA-named row matches nothing → the honest line.
     await expect(page.locator('[data-course-sheet-none]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-course-find-sheet]')).toHaveCount(0);
     // Back to the real course for the rest of the walk.
     await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
     await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });

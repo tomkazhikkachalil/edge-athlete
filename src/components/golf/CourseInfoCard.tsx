@@ -46,9 +46,12 @@ interface CourseInfoCardProps {
    *  for the caller to adopt (the composer swaps its selection so the round's
    *  pars, tees and ratings follow). The card updates itself either way. */
   onCourseUpdated?: (course: GolfCourse) => void;
+  /** The person just picked this course to play: ask for its card without a
+   *  tap (Oct 31 2026). Other surfaces keep the button, and never ask unprompted. */
+  autoFindSheet?: boolean;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, autoFindSheet = false }: CourseInfoCardProps) {
   // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
   // the official scorecard, opened by two side-by-side buttons under the
   // summary; opening one closes the other. `defaultOpen` opens the map.
@@ -161,6 +164,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const [detailDoneFor, setDetailDoneFor] = useState<string | null>(null);
   // "Find the official scorecard" (Oct 31 2026): a tap, one ask, one answer.
   const [sheetAsk, setSheetAsk] = useState<'idle' | 'asking' | 'none' | 'failed'>('idle');
+  const findSheetRef = useRef<() => Promise<void>>(async () => {});
   const findSheet = async () => {
     if (sheetAsk === 'asking') return;
     setSheetAsk('asking');
@@ -180,6 +184,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       setSheetAsk('failed');
     }
   };
+  useEffect(() => { findSheetRef.current = findSheet; });
   useEffect(() => {
     if (detailRequestedFor.current === course.id || !UUID_SHAPE.test(course.id) || course.holes.length > 0) return;
     const id = course.id;
@@ -228,6 +233,12 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // a thin provider row or a map-only OSM row — may have a sheet under the
   // other provider's name).
   const sheetFindable = !scorecardPossible && UUID_SHAPE.test(course.id);
+  const autoAskedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoFindSheet || !sheetFindable || autoAskedFor.current === course.id) return;
+    autoAskedFor.current = course.id;
+    queueMicrotask(() => { void findSheetRef.current(); });
+  }, [autoFindSheet, sheetFindable, course.id]);
   // The panel was opened on a promise the detail then broke: close it.
   if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [
@@ -318,7 +329,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               {showMap ? 'Hide' : 'Show Map'}
             </button>
           )}
-          {sheetFindable && (
+          {sheetFindable && !(autoFindSheet && sheetAsk !== 'failed') && (
             <button
               type="button"
               onClick={() => { void findSheet(); }}
@@ -346,6 +357,9 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             </button>
           )}
         </div>
+      )}
+      {sheetFindable && autoFindSheet && sheetAsk === 'asking' && (
+        <p className="mt-2 text-sm text-tertiary" data-course-sheet-looking="">Looking for the official scorecard…</p>
       )}
       {sheetFindable && (sheetAsk === 'none' || sheetAsk === 'failed') && (
         <p className="mt-2 text-sm text-tertiary" data-course-sheet-none="">

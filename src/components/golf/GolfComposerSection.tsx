@@ -1238,6 +1238,7 @@ export default function GolfComposerSection({
                 key={selectedCourse.id}
                 course={selectedCourse}
                 teeInPlay={sharedRoundDetails.teeColor}
+                autoFindSheet
                 // "Find the official scorecard" found one: the selection takes
                 // the fuller row so the round's pars, tees and ratings follow.
                 onCourseUpdated={full => {
