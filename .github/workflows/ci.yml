@@ -42,6 +42,12 @@ jobs:
           # secret lives in Vercel.
           MEDIA_PROXY_SECRET: ci-media-proxy-secret-placeholder
 
+      # The browser floor (iOS 15 / Chrome 100): every client chunk of the
+      # build above must parse at the floor. `npm run verify` runs it locally;
+      # CI runs it too so a PR cannot ship a chunk the floor refuses.
+      - name: Check browser syntax
+        run: npm run check:syntax
+
   # Hardening guardrails — cheap pattern checks that encode the exact
   # regressions the pre-scale audit fixed (backslash .or() sanitizer, thrown
   # Response in a route, await cookies() outside the auth exceptions) plus a

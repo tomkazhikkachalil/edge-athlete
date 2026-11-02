@@ -47,13 +47,13 @@ default) — that list is the opening announcement's audience.
       Production so an under-age sign-up parks in `pending_profiles` with a
       guardian invite. Google sign-up human round-trip (§3). Probe: an athlete
       sign-up lands in `/onboarding`; a parent sign-up creates a PARENT.
-- [ ] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging's auth used to confirm by e-mail with the built-in sender at 2 mails an hour, so at most two real sign-up specs passed per hour there — **staging, and only staging, auto-confirms since Oct 22 2026** (Tom's call; management API `mailer_autoconfirm: true`, the prod ref refused by the script), mirroring production, where confirmations are off]:
+- [x] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging's auth used to confirm by e-mail with the built-in sender at 2 mails an hour, so at most two real sign-up specs passed per hour there — **staging, and only staging, auto-confirms since Oct 22 2026** (Tom's call; management API `mailer_autoconfirm: true`, the prod ref refused by the script), mirroring production, where confirmations are off]:
       the three real-sign-up specs (`scout-signup`, `scout-search`,
       `scout-search-performance`) guard the door again.
-- [ ] **Vercel plan** [Tom, cost]. Hobby's terms are non-commercial; a public
-      product runs on Pro (US$20 a month), which also unlocks Skew Protection
-      (§5b) and longer function limits. Supabase is already Pro (Micro since
-      Oct 19 2026).
+- [x] **Vercel plan** [done: the project is on **Pro** since Oct 2026 —
+      corrected Oct 25 in `SCALE_AUDIT.md` §1; this line said Hobby until
+      Nov 2]. Pro unlocks Skew Protection (§5b — still a toggle to flip) and
+      the longer function limits. Supabase is Pro (Micro since Oct 19 2026).
 - [ ] **Rate limits** [Tom reads, Claude one line]. `write-general` (120 a
       minute per account) runs INLINE and in SHADOW since Oct 22 2026, every
       would-block recorded in Sentry by account and route (the Vercel console
@@ -68,20 +68,25 @@ default) — that list is the opening announcement's audience.
       published org pages. Still unchecked from `GO_LIVE_EDGEATHLETE_CA.md`:
       the Supabase Site URL and Google Search Console. Probe after the
       switch: `/robots.txt` allows, `/sitemap.xml` 200.
-- [ ] **Legal and the visitor doors** [Tom reviews, Claude one line].
-      `/privacy` and `/terms` read "Last updated: July 2026" — review the
-      wording for a public launch. `/help` and `/contact` are NOT on the open
-      list, so a signed-out visitor is sent to coming-soon: add them to
-      `OPEN_PREFIXES` so the public has a support door (one line +
-      `launch-gate.test`). No cookie banner exists and none is planned: the
-      app sets first-party cookies only, disclosed on the privacy page.
+- [ ] **Legal** [Tom reviews]. `/privacy` and `/terms` read "Last updated:
+      July 2026"; since then the app added the weather at the course
+      (Open-Meteo), the golf course provider lookup, web push, the Sentry
+      relay and the coming-soon contacts list — review the wording for a
+      public launch and move the date. No cookie banner exists and none is
+      planned: the app sets first-party cookies only, disclosed on the
+      privacy page. The visitor doors are DONE (Nov 2 2026): `/help` and
+      `/contact` are on the gate's open list, so the public has a support
+      door whether or not the gate is up (`launch-gate.test`, the
+      `launch-gate` spec).
 
 **Decide before, not blocking.**
 
-- [ ] **Feed cold load on a mid-range Android** (Oct 10 2026: LCP 5.2 s, CLS
-      0.35). The Get Started card appears after its fetch and pushes the feed
-      246 px. Layout decision: reserve its space from the profile we already
-      hold, or render it below the scope chips. One small PR.
+- [x] **Feed cold load on a mid-range Android** (Oct 10 2026: LCP 5.2 s, CLS
+      0.35; the Get Started card appeared after its fetch and pushed the feed
+      246 px). DONE Oct 22 2026 (#1273): the card decides before its first
+      paint from what the client holds and keeps its painted height as a
+      floor; the Live Now strip moved below the cards Oct 28 (#1345). Owed:
+      one cold measurement on a real mid-range Android after the switch.
 - [ ] **Capacity.** Micro has been clean since Oct 19 2026. Measure
       production's number once in a quiet window (Tom's OK first); the
       compute add-on only if CPU binds. The first thing to break is the
@@ -92,10 +97,28 @@ default) — that list is the opening announcement's audience.
       Prerequisites on the Mac: Xcode (~20 GB), the Apple Developer Program
       (US$99 a year). Either a go-public date sets the native start, or the
       web app opens the doors alone (it installs to the home screen today).
+- [ ] **Push keys** [Tom]. `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+      `VAPID_SUBJECT` in Vercel Production (`docs/PUSH.md`; they are in
+      `.env.example` since Nov 2 2026). Unset, push is silently OFF — the
+      bell's push row hides and nothing is sent. Probe: signed in,
+      `GET /api/push/config` answers `ready: true`; a real banner on a real
+      phone.
+- [ ] **Something that pages someone** [Tom, three dashboards; nothing does
+      today — the 5-minute health sampler feeds the admin Overview and
+      notifies nobody]. (1) A hosted uptime monitor (UptimeRobot or Better
+      Stack, free tier) on `https://edgeathlete.ca/api/health` every minute,
+      alerting on a non-200 or on `status` ≠ `ok`, to Tom's phone. (2) Sentry
+      → Alerts: a rule for every NEW issue in `production`, and one on the
+      `[RATE-LIMIT] would-block` event so the shadow limiter's answer
+      arrives instead of being read. (3) Supabase → Project → Reports /
+      Settings → Alerts (or the daily e-mail): CPU, RAM, disk IO budget on the
+      Micro. Probe: pause the monitor's target once (or point it at a 404
+      path) and see the alert land; raise a test event in Sentry.
 - [ ] **Launch-day watch.** Sentry carries the environment (10 % traces, no
       PII); the latency watcher during probes; Vercel logs for 500s and
       `[RATE-LIMIT]`; Supabase Reports → RAM / SWAP; the admin console's
-      Support queue (reports are tickets; suspend and ban are ticket actions).
+      Support queue (reports are tickets; suspend and ban are ticket actions);
+      the three alerts above.
 - [ ] **The announcement.** The coming-soon contacts with marketing consent
       TRUE get the opening e-mail once e-mail is green; Admin → Contacts
       exports the CSV.
@@ -135,7 +158,9 @@ Leave every EXISTING record alone — the root `v=spf1
 include:secureserver.net -all` TXT is the Microsoft 365 mail setup and Resend
 does not need it changed. TTL: GoDaddy's default (1 hour) is fine.
 
-- [ ] GoDaddy DNS → add the four records above.
+- [x] GoDaddy DNS → the four records above are LIVE and correct (verified
+      with `dig` — `docs/HARDENING.md`, "Resend"; this box was stale until
+      Nov 2 2026).
 - [ ] Resend → Domains → `edgeathlete.ca` → **Verify** → status flips to
       **Verified** (usually minutes, up to an hour).
 - [ ] **Probe:** submit the prod contact form (or trigger any guarded send)

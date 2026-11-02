@@ -23,6 +23,8 @@ const OPEN_PREFIXES = [
   '/privacy', // named by the Google consent screen
   '/terms',
   '/admin', // the admin console's own door (Oct 19 2026): its own sign-in protects it
+  '/help', // the support doors (Nov 2 2026): a visitor with a problem must reach them
+  '/contact',
 ];
 
 /** Static files the matcher lets through (favicons, manifest, fonts, images). */
