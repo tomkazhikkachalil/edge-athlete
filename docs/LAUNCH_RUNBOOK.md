@@ -168,6 +168,31 @@ does not need it changed. TTL: GoDaddy's default (1 hour) is fine.
 
 ## 2. Supabase auth email — separate sender from #1
 
+**Confirmations ON (Tom's decision, Nov 2 2026; Convention 56,
+`docs/specs/auth-confirmation.md`).** The app is ready for it: the
+sign-up form shows "Check your email", the link is handled by
+`/auth/confirm`. Two dashboard steps, in this order, AFTER custom SMTP:
+
+1. Authentication → **Email Templates → Confirm signup** → replace the
+   body's link with the token-hash form (the default
+   `{{ .ConfirmationURL }}` lands as a hash the server never sees):
+
+   ```html
+   <h2>Confirm your email</h2>
+   <p>Open this link on the device you signed up from to finish setting up your Edge Athlete account:</p>
+   <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup">Confirm my email</a></p>
+   <p>If you did not create an account, ignore this message.</p>
+   ```
+
+   Do the same for **Magic Link** with `&type=magiclink` (unused today;
+   ready). Leave **Reset Password** alone — `/reset-password` already works.
+2. Authentication → **Sign In / Providers → Email → Confirm email: ON**.
+   Probe: `npm run launch:probe` reads `mailer_autoconfirm: false`; the
+   real round-trip is the switch's (§0 "The switch"): a throwaway address
+   signs up on edgeathlete.ca → the mail arrives → the link lands in
+   onboarding, signed in. Staging stays auto-confirm (the four real-sign-up
+   specs need it).
+
 Password reset and signup confirmation go through **Supabase's own sender**,
 not the app's SMTP. Supabase's built-in sender is rate-limited to a handful of
 emails per hour — fine for testing, not for 100 signups.

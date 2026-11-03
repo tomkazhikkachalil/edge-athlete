@@ -18,6 +18,21 @@ import { getSportDefinition } from './sports/SportRegistry';
 // Global Copy Constants
 export const COPY = {
   // Coming Soon Messages
+  // Sign-up with e-mail confirmations ON (Convention 56, Nov 2 2026).
+  AUTH: {
+    CHECK_EMAIL_TITLE: 'Check your email',
+    // {email} is replaced by the address the form sent.
+    CHECK_EMAIL_BODY: 'We sent a confirmation link to {email}. Open it on this device to finish setting up your account.',
+    CHECK_EMAIL_SPAM: 'Not there after a minute? Look in Spam or Promotions.',
+    CHECK_EMAIL_RESEND: 'Resend the email',
+    CHECK_EMAIL_RESENT: 'Sent again. Give it a minute.',
+    CHECK_EMAIL_RESEND_FAILED: 'That did not send — try again in a moment.',
+    CHECK_EMAIL_START_OVER: 'Wrong address? Start over',
+    CHECK_EMAIL_INLINE: 'Account created. Check your email for the confirmation link, then sign in.',
+    CONFIRM_LINK_EXPIRED: 'That confirmation link has expired or was already used. Sign in and we will send a new one.',
+    CONFIRM_LINK_INVALID: 'That confirmation link is not valid. Sign in and we will send a new one.',
+  },
+
   COMING_SOON: {
     SPORT_GENERAL: 'Coming soon',
     SPORT_SETTINGS: (sportName: string) => `${sportName} preferences coming soon!`,
