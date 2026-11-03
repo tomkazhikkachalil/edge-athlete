@@ -36,6 +36,57 @@ Google too). APIs and the pg_cron jobs are never gated. The coming-soon page
 collects names and e-mails into `contacts` (marketing consent unticked by
 default) — that list is the opening announcement's audience.
 
+### 0a. The walkthrough — Tom's steps in the probe's order (Nov 3 2026)
+
+Each step ends with `npm run launch:probe`; the row named turns ✓ and the
+probe's last line names the next step. The same list, tickable, is the
+"Edge Athlete Launch Walkthrough" page.
+
+1. **A Vercel token for the probe.** `vercel login` (the CLI's token has
+   expired) — or vercel.com/account/tokens → a token scoped to the team →
+   `.env.staging` as `VERCEL_API_TOKEN=`. The seven "Vercel not read" rows
+   resolve.
+2. **Resend.** Domains → `edgeathlete.ca` → Verify (the records are live).
+   API Keys → Create → Sending access for `edgeathlete.ca` → copy the `re_`
+   key once (steps 3 and 7). Optional: a Full-access key as
+   `RESEND_API_KEY=` in `.env.staging` so the probe reads the domain.
+3. **Supabase → Authentication → Emails → SMTP Settings:** Enable Custom
+   SMTP — sender `no-reply@edgeathlete.ca`, name Edge Athlete, host
+   `smtp.resend.com`, port `465`, user `resend`, password the `re_` key.
+   Then **Rate Limits** → e-mails sent `60`/h. Rows: auth-smtp, auth-rate.
+4. **Authentication → URL Configuration → Site URL** `https://edgeathlete.ca`
+   (it is `http://localhost:3000`). Row: site-url. Human check: Forgot
+   password with a real address → the mail → `/reset-password` on the domain.
+5. **Authentication → Emails → Templates → Confirm sign up:** the body in §2
+   below (the token-hash link). Confirmations are already ON here.
+6. **Authentication → Sign In / Providers → User Signups → "Allow new users
+   to sign up" OFF** until the switch (Google through Supabase bypasses the
+   app's gate). Row: signups.
+7. **Vercel → Settings → Environment Variables, Production only:**
+   `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_USER=resend`,
+   `SMTP_PASS=<the re_ key, Sensitive>`, `EMAIL_FROM=Edge Athlete
+   <no-reply@edgeathlete.ca>`, `CONTACT_EMAIL=<the inbox>` → Redeploy. Rows:
+   smtp, contact-email. Human check: the contact form lands.
+8. **Vercel → Settings → Advanced → Skew Protection ON** (+ "Automatically
+   expose System Environment Variables") → Redeploy (§5b).
+9. **UptimeRobot:** a Keyword monitor on `https://edgeathlete.ca/api/health`,
+   keyword `"status":"ok"`, alert when not found, to the phone; prove it once
+   by changing the keyword, then restore.
+10. **Sentry → Alerts:** "New issue in production" (a new issue is created,
+    environment production → notify) and "Limiter would-block" (the event's
+    message contains `[RATE-LIMIT] would-block` → notify — the read behind
+    the limiter flip).
+11. **Supabase → Database → Backups:** daily present (Pro, 7 days) → the
+    date into `RUNBOOK_BACKUP.md` §1; PITR stays off (Decision A); the
+    organisation owner e-mail is one you read (Supabase's resource alerts
+    go there). The drill once: `TARGET_ENV=prod node
+    scripts/prod-reset/export.mjs` → `node
+    scripts/prod-reset/restore-to-staging.mjs <snapshot>` → `npm run
+    check:schema` → a signed-in look at staging; a dated line in the drill box.
+12. **Read PR #1389** (privacy + terms) → "merge" or the sentences to change.
+13. **At the switch:** sign-ups ON, the Google round-trip (athlete →
+    onboarding; parent → add-athlete), then "The switch" below.
+
 **Before the switch — blocking.** Owner in brackets; every line ends in a probe.
 
 - [ ] **E-mail** (§1 + §2) [Tom: Resend + Vercel + Supabase dashboards; Claude:
@@ -139,7 +190,9 @@ from Vercel Production → a REAL build (not a redeploy — the flag is inlined)
 allows, `/sitemap.xml` 200, `POST /api/signup` no longer 403s → the
 `launch-gate` spec stops applying and the signed-out prod specs (share cards,
 `/u/`, org sites, landing, `stats-hub-mobile`) return to the prod probe set →
-the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
+**Vercel Observability Plus back ON** (Tom's Oct 29 decision: OFF while gated,
+ON the day the doors open — the per-route and per-path views are what the
+first week's reading needs) → the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
 2026 (the gate), Oct 22 2026 (this checklist).
 
 ## 1. Email deliverability — BLOCKING (every app email 550s today)
