@@ -16,9 +16,15 @@ import { parseProfilePhotoRecipe, profilePhotoRecipeEnvelope, profileSourcePath 
 
 export const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 
+/** An original that already sits at its final path (the direct flow, Nov 2 2026: finalized under profile-sources/). */
+export interface StoredSource {
+  path: string;
+  url: string;
+}
+
 export interface PhotoPostFields {
-  /** The original to keep (bounded on the device), or null. */
-  source: File | null;
+  /** The original to keep: the bytes (the FormData routes), the stored object (the direct route), or null. */
+  source: File | StoredSource | null;
   /** The crop that made the derived file (the editor envelope, JSON). */
   recipe: ImageRecipe | null;
   /** Adjust: keep the stored original. */
@@ -48,6 +54,21 @@ export function readPhotoPostFields(formData: FormData): { ok: true; fields: Pho
   const sameSource = formData.get('sameSource') === '1';
   if (sameSource && source) return { ok: false, error: 'sameSource and a new source cannot both be sent' };
   return { ok: true, fields: { source, recipe, sameSource } };
+}
+
+/**
+ * The JSON body of the direct route (Nov 2 2026): the recipe and the
+ * sameSource flag, read once, refused by name. The stored original rides
+ * separately (the route finalizes it first).
+ */
+export function readPhotoJsonFields(body: Record<string, unknown>): { ok: true; recipe: ImageRecipe | null; sameSource: boolean } | { ok: false; error: string } {
+  let recipe: ImageRecipe | null = null;
+  if (body.recipe !== undefined && body.recipe !== null) {
+    recipe = parseProfilePhotoRecipe(body.recipe);
+    if (!recipe) return { ok: false, error: 'recipe is not an image recipe' };
+  }
+  const sameSource = body.sameSource === true;
+  return { ok: true, recipe, sameSource };
 }
 
 export interface PreviousPhoto {
@@ -95,6 +116,13 @@ export async function storeProfilePhoto(admin: SupabaseClient, input: StoreProfi
     }
     sourceUrl = previous.sourceUrl;
     envelope = fields.recipe ? profilePhotoRecipeEnvelope(fields.recipe) : null;
+    patch[recipeKey] = envelope;
+  } else if (fields.source && !(fields.source instanceof File)) {
+    // The direct flow: the original was finalized (sniffed, stripped) at its path already.
+    rollback.push({ bucket: PROFILE_SOURCE_BUCKET, path: fields.source.path });
+    sourceUrl = fields.source.url;
+    envelope = fields.recipe ? profilePhotoRecipeEnvelope(fields.recipe) : null;
+    patch[sourceKey] = sourceUrl;
     patch[recipeKey] = envelope;
   } else if (fields.source) {
     const prepared = prepareImage(new Uint8Array(await fields.source.arrayBuffer()), fields.source.type);

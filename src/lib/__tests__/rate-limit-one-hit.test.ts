@@ -84,7 +84,7 @@ describe('the hot writes ride one round trip; migration 286 walks 094\'s functio
     expect(read('src/app/api/follow/route.ts')).toMatch(/requireActiveWriter\(request, \{ limit: 'follow' \}\)/);
     expect(read('src/app/api/messages/[conversationId]/messages/route.ts')).toMatch(/requireActiveWriter\(request, \{ limit: 'message-send' \}\)/);
     expect(read('src/app/api/mutes/route.ts')).toMatch(/requireAuth\(request, \{ limit: 'mute' \}\)/);
-    for (const f of ['src/app/api/upload/route.ts', 'src/app/api/upload/post-media/intent/route.ts', 'src/app/api/upload/post-media/route.ts', 'src/app/api/upload/avatar/route.ts', 'src/app/api/upload/cover/route.ts']) {
+    for (const f of ['src/app/api/profile/photo/route.ts', 'src/app/api/upload/post-media/intent/route.ts', 'src/app/api/upload/post-media/route.ts', 'src/app/api/upload/avatar/route.ts', 'src/app/api/upload/cover/route.ts']) {
       expect(read(f), f).toMatch(/requireActiveWriter\(request, \{ limit: 'upload' \}\)/);
     }
   });

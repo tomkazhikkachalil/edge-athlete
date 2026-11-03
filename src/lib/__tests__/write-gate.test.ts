@@ -18,7 +18,7 @@ export const GATED_WRITE_ROUTES = [
   'group-posts/route.ts',
   'follow/route.ts',
   'tags/route.ts',
-  'upload/route.ts',
+  'profile/photo/route.ts', // the profile picture / cover by the direct route (Nov 2 2026)
   'upload/post-media/route.ts',
   'upload/post-media/intent/route.ts', // the direct upload (Oct 2026): signs the key…
   'upload/post-media/complete/route.ts', // …and finalizes it — both doors are the upload

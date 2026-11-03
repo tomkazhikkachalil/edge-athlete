@@ -4,7 +4,8 @@
 // request body, and the editor asset that Adjust opens.
 
 import type { ImageRecipe, MediaAsset } from '@/lib/media/types';
-import { keepSourceAsIs, PROFILE_SOURCE_MAX_DIM, sourceFitsRequest, type ProfilePhotoPayload } from './photo-recipe';
+import { stageUpload } from '@/lib/media/upload';
+import { keepSourceAsIs, PROFILE_SOURCE_MAX_DIM, type ProfilePhotoPayload } from './photo-recipe';
 import type { ProfilePhotoSlot } from './photo-paths';
 
 /**
@@ -27,16 +28,53 @@ export async function prepareProfileSource(file: File): Promise<File | null> {
   }
 }
 
-/** The ONE request body both photo routes read (photo-source-server.ts readPhotoPostFields). */
-export function profilePhotoFormData(slot: ProfilePhotoSlot, payload: ProfilePhotoPayload, targetProfileId?: string | null): FormData {
-  const formData = new FormData();
-  formData.append(slot, payload.file);
-  if (payload.sameSource) formData.append('sameSource', '1');
-  else if (payload.source && sourceFitsRequest(payload.file.size, payload.source.size)) formData.append('source', payload.source);
-  else if (payload.source) console.warn('[profile photo] the original would not fit one upload; sending the photo alone');
-  if (payload.recipe) formData.append('recipe', JSON.stringify({ v: 3, recipe: payload.recipe }));
-  if (targetProfileId) formData.append('targetProfileId', targetProfileId);
-  return formData;
+export interface ProfilePhotoAnswer {
+  success: true;
+  avatar_url?: string;
+  cover_url?: string;
+  avatar_source_url?: string | null;
+  cover_source_url?: string | null;
+  avatar_recipe?: unknown;
+  cover_recipe?: unknown;
+}
+
+/**
+ * The ONE way a profile photo is uploaded (Nov 2 2026, SCALE_AUDIT hole #9):
+ * the render and the kept original each go intent → a signed PUT straight
+ * to storage (upload.ts stageUpload — no Vercel function ever carries the
+ * bytes, so the 4 MB request budget is gone), then one JSON POST to
+ * /api/profile/photo finalizes both to the slot's paths and writes the row.
+ * Throws an Error with the sentence to show.
+ */
+export async function uploadProfilePhoto(slot: ProfilePhotoSlot, payload: ProfilePhotoPayload, targetProfileId?: string | null): Promise<ProfilePhotoAnswer> {
+  const target = targetProfileId ?? undefined;
+  const render = await stageUpload(payload.file, target);
+  let sourcePath: string | null = null;
+  if (!payload.sameSource && payload.source) {
+    try {
+      sourcePath = (await stageUpload(payload.source, target)).path;
+    } catch (err) {
+      // The render is what the profile shows; a lost original only means Adjust starts from the render.
+      console.warn('[profile photo] the original did not upload; keeping the photo alone:', err);
+    }
+  }
+  const response = await fetch('/api/profile/photo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      slot,
+      path: render.path,
+      ...(sourcePath ? { sourcePath } : {}),
+      ...(payload.sameSource ? { sameSource: true } : {}),
+      ...(payload.recipe ? { recipe: { v: 3, recipe: payload.recipe } } : {}),
+      ...(target ? { targetProfileId: target } : {}),
+    }),
+  });
+  const data = (await response.json().catch(() => ({}))) as Partial<ProfilePhotoAnswer> & { error?: string };
+  if (!response.ok || data.success !== true) {
+    throw new Error(data.error || `Failed to upload the ${slot === 'avatar' ? 'profile photo' : 'cover photo'}`);
+  }
+  return data as ProfilePhotoAnswer;
 }
 
 /**
