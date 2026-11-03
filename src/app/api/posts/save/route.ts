@@ -6,11 +6,12 @@ import { reportRouteError } from '@/lib/observability/report';
 export async function POST(request: NextRequest) {
   try {
     // Get authenticated user
-    const { supabase, user, error: authError } = await getServerAuth(request);
+    const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'post-save' });
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
 
     const body = await request.json();
     const { postId } = body;

@@ -50,10 +50,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;
       look?: unknown;
@@ -102,10 +103,11 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
     const id = request.nextUrl.searchParams.get('id');
     if (id && !isUuid(id)) {
       return NextResponse.json({ error: 'Invalid preset ID' }, { status: 400 });

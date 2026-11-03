@@ -4,7 +4,8 @@ import { runCardAction } from '../card-action';
 
 /** POST — {reopen?} — an organizer marks a card final, or reopens it. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; pid: string }> }) {
-  const { user, error: authError } = await getServerAuth(request);
+  const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
   if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  if (limited) return limited;
   return runCardAction(request, user, params, 'from_body');
 }

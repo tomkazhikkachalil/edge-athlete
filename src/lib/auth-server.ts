@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, type NextResponse } from 'next/server';
 import type { RateLimitAction } from '@/lib/rate-limit-core';
 import { tracedFetch } from '@/lib/db-trace';
 import { createServerClient } from '@supabase/ssr';
@@ -146,11 +146,20 @@ function resolveAuth(request: NextRequest, opts: AuthOptions = {}): Promise<Auth
  * user (nullable) and the cookie-scoped RLS client for subsequent queries
  * (PostgREST verifies the same JWT on every query, so RLS never depended on
  * the network check).
+ *
+ * A write route on this gate names its bucket — `getServerAuth(request,
+ * { limit: 'post-save' })` — and gets `limited` back: the same ONE
+ * `rate_limit_hit_many` round trip as requireAuth (`write-general` + the
+ * bucket), as a value instead of a throw, so the route keeps its shape
+ * (`if (limited) return limited;` after its 401). Without `limit` nothing
+ * is checked here — a write route without a bucket is what the
+ * `write-routes-limited` pin refuses (Nov 2 2026).
  */
 export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}) {
   const supabase = getServerClient(request);
   const { user, error } = await resolveAuth(request, opts);
-  return { supabase, user, error };
+  const limited = user && opts.limit !== undefined ? await writeVerdict(request, user.id, opts.limit) : null;
+  return { supabase, user, error, limited };
 }
 
 /** Every authenticated write counts against the 'write-general' bucket —
@@ -160,15 +169,19 @@ export async function getServerAuth(request: NextRequest, opts: AuthOptions = {}
  *  and returns null; once it is real, the 429 it returns is thrown like the
  *  401 above and the route's `instanceof Response` catch returns it.
  *  Imported lazily: rate-limit.ts imports this module. */
-async function enforceWrite(request: NextRequest, userId: string, limit?: AuthOptions['limit']): Promise<void> {
+async function writeVerdict(request: NextRequest, userId: string, limit?: AuthOptions['limit']): Promise<NextResponse | null> {
   const method = request.method?.toUpperCase?.() ?? 'GET';
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
   const { enforceRateLimit, enforceRateLimitMany } = await import('@/lib/rate-limit');
   const extra: readonly RateLimitAction[] = limit ? (Array.isArray(limit) ? limit : [limit as RateLimitAction]) : [];
   // 286: the route's bucket(s) ride the same round trip as write-general.
-  const refused = extra.length > 0
+  return extra.length > 0
     ? await enforceRateLimitMany(request, ['write-general', ...extra], { userId })
     : await enforceRateLimit(request, 'write-general', { userId });
+}
+
+async function enforceWrite(request: NextRequest, userId: string, limit?: AuthOptions['limit']): Promise<void> {
+  const refused = await writeVerdict(request, userId, limit);
   if (refused) throw refused;
 }
 

@@ -247,6 +247,24 @@ export const RATE_LIMITS = {
   // re-subscribes on every app start when its endpoint rotated; 30/h is
   // several devices' worth of normal use.
   'push-subscribe': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // The getServerAuth write routes get their buckets (Nov 2 2026): until
+  // then they met NO limiter, not even the shadow one. Each is per account
+  // and generous — the ceiling is a script's pace, never a person's.
+  // Save / unsave a post: a toggle, the like's pace.
+  'post-save': { max: 120, windowSeconds: 600, keyBy: 'user' },
+  // A handle rename (self or a managed athlete): rare by nature.
+  'handle-update': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Golf scores as they are entered — a scorecard's holes, a group's
+  // players, the quick-entry grid's per-hole saves: 600 in ten minutes is
+  // one save a second for the whole window.
+  'golf-score': { max: 600, windowSeconds: 600, keyBy: 'user' },
+  // A group post's edits after creation (fields, media, attestation).
+  'group-post-edit': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // Account settings writes (theme, body-metrics privacy, sport settings, equipment
+  // prefs, media presets, the Get Started dismissal).
+  'settings-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // A body measurement logged (Body Metrics).
+  'body-metrics-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Every authenticated WRITE (POST/PUT/PATCH/DELETE through requireAuth),
   // per account, in SHADOW — logged, never refused (maintenance pass, Oct 10
   // 2026). Generous on purpose: two writes a second for a whole minute is

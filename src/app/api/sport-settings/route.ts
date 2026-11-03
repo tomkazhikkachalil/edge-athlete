@@ -98,13 +98,14 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     // Verify authentication
-    const { supabase, user, error: authError } = await getServerAuth(request);
+    const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
+    if (limited) return limited;
 
     // Parse request body
     const body = await request.json();
@@ -172,13 +173,14 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Verify authentication
-    const { supabase, user, error: authError } = await getServerAuth(request);
+    const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
+    if (limited) return limited;
 
     // Get sport key from query params
     const sportKey = request.nextUrl.searchParams.get('sport');
@@ -232,10 +234,11 @@ export async function DELETE(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const { supabase, user, error: authError } = await getServerAuth(request);
+    const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
     let body: { sport?: unknown; pinned?: unknown; position?: unknown };
     try {
       body = await request.json();
