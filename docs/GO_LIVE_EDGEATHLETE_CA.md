@@ -35,14 +35,14 @@ Who does what: **[Tom]** is a console or dashboard action; **[Claude]** is a PR.
 
 ## Phase 0: before the day
 
-- [ ] **[Tom] Vercel plan.** The project is on **Hobby**, which Vercel's terms limit to personal, non-commercial use. A business launch belongs on **Pro**. Pro also brings Skew Protection (LAUNCH_RUNBOOK §5b), which is one toggle once you're on Pro.
+- [x] **[Tom] Vercel plan.** DONE — the project is on **Pro** since Oct 2026 (corrected Oct 25 in `SCALE_AUDIT.md`; this line said Hobby until Nov 2). Skew Protection (LAUNCH_RUNBOOK §5b) is still one toggle to flip.
 - [ ] **[Tom] Lower the TTL** on the apex A records and the `www` CNAME at GoDaddy to 600 seconds, a day ahead, so the switch spreads in minutes.
 - [x] **[Claude] The code-prep PR** (nothing in it changes behaviour until the env var is set):
   - The e2e suite knows **every** production host (`PROD_APP_HOSTS` in `e2e/helpers/qa-user.ts`: the vercel.app alias, `edgeathlete.ca` + www, the planned `.com` + www). The prod refusal and the deploy wait read the list; `e2e-prod-guard.test.ts` pins it.
   - `npm run test:e2e:prod` still targets the vercel.app alias (it always serves production). After Phase 4, probe the domain itself with `E2E_PROD_URL=https://edgeathlete.ca npm run test:e2e:prod`.
   - The Nominatim User-Agent reads `NEXT_PUBLIC_APP_URL`. The ~20 `|| 'https://edge-athlete.vercel.app'` fallbacks stay (harmless once the env is set).
   - Already done in #1010: the one support address everywhere, and the recovery search recognising `.ca`.
-- [ ] **[Claude] Migration 246** re-points the two pg_cron jobs (`calendar-reminders`, `urgent-emails`) at `https://edgeathlete.ca/api/cron/…`. It rewrites only the host inside each job, so the secret is never re-typed. **Its PR stays unmerged until Phase 7.** Run early, the jobs would call GoDaddy's page and silently do nothing.
+- [x] **[Claude] Migration 246** (ran on prod Sep 30, Phase 7 below) re-points the two pg_cron jobs (`calendar-reminders`, `urgent-emails`) at `https://edgeathlete.ca/api/cron/…`. It rewrites only the host inside each job, so the secret is never re-typed. **Its PR stays unmerged until Phase 7.** Run early, the jobs would call GoDaddy's page and silently do nothing.
 
 ## Phase 1: add the domain in Vercel (nothing changes for users yet)
 
