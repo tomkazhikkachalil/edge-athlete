@@ -1,5 +1,9 @@
 # Development Log
 
+## November 3, 2026 — The launch walkthrough: Tom's thirteen steps in the probe's order (docs only)
+
+Tom: *"give me all my steps in baby steps so I can execute everything on my side."* `LAUNCH_RUNBOOK.md` gains §0a — the console pass as thirteen numbered steps, each with where to click, what to type (the Resend SMTP values, the Site URL, the Confirm-signup template, the six Vercel variables, the UptimeRobot keyword, the two Sentry rules, the backup drill's three commands), and the probe row that turns green; the same list is the tickable "Edge Athlete Launch Walkthrough" page (ticks kept on the device). **State this morning:** production on `29bad662`; the probe's ✗ rows are Supabase SMTP (built-in, 2/h), the Site URL (`http://localhost:3000`) and Supabase sign-ups (open); seven rows unreadable until a Vercel token; push, Google, confirmations, the gate and the doors ✓. GitHub Actions has created no run for the repo since Nov 3 03:51 UTC: #1392 (the profile photos direct to storage, verified locally and on two browsers) and this docs PR wait on it; a `rerun` of PR C's cancelled smoke did execute, so the runners are fine and only new-run creation is stalled.
+
 ## November 2, 2026 — Launch program PR D: two ops notes (docs only)
 
 `LAUNCH_RUNBOOK.md` "The switch" now carries Tom's Oct 29 decision that was owed a line: **Vercel Observability Plus back ON** the day the doors open (OFF while gated). `RUNBOOK_BACKUP.md` §1 is pre-filled with what the dashboards will show (Pro since Oct 2026, daily backups on Pro, Micro compute — PITR would need Small; Decision A stays "PITR when the first org runs a real season"), and holds the restore drill as three commands (the Sep 30 export/restore kit, into staging, never prod) with a dated line to close it. Nothing else changes; no code.
