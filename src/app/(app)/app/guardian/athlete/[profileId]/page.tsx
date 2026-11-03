@@ -466,13 +466,10 @@ export default function GuardianAthletePage() {
     if (!athlete || avatarBusy) return;
     setAvatarBusy(true);
     try {
-      const fd = new FormData();
-      fd.append('avatar', file);
-      fd.append('targetProfileId', athlete.id);
-      const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      setAthlete({ ...athlete, avatar_url: data.avatar_url });
+      // Direct to storage (Nov 2 2026): the one profile photo uploader, acting for the athlete.
+      const { uploadProfilePhoto } = await import('@/lib/profiles/photo-upload-client');
+      const data = await uploadProfilePhoto('avatar', { file, source: null, recipe: null, sameSource: false }, athlete.id);
+      setAthlete({ ...athlete, avatar_url: data.avatar_url ?? athlete.avatar_url });
       void refreshManagedProfiles();
     } catch (e) {
       showError('Photo not updated', e instanceof Error ? e.message : 'Please try again');
