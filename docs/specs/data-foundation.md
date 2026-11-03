@@ -105,3 +105,30 @@ EXECUTE grants; `pg_trgm` / `unaccent` live in `extensions`; `pg_net` in
 `public` is the ONE accepted Advisor item (Tom). `schema_dump()` exports
 `private`, so the baseline rebuilds it. `docs/HARDENING.md` B6 is the
 check; `database/MIGRATIONS.md` has the rules.
+
+## Convention 55 — The account's own data is one file: export sits next to Delete (Nov 2 2026)
+
+**The account's own data is one file: export sits next to Delete (Nov 2
+2026)** — the launch readiness review found deletion without access.
+`POST /api/account/export` (a POST: an action behind the per-account
+`account-export` bucket, 3 a day, riding the general write limit's call)
+answers the person's profile row and every row of theirs in the sections
+`src/lib/account-export.ts` names (posts, comments, likes, saved posts,
+follows both ways, golf rounds, rounds created and cards, activities, the
+workout tables, body metrics, performances, achievements, equipment, sports
+and sport settings, messages SENT, event participations, entries, stat
+lines, memberships, registrations, calendar events, notification and
+privacy settings) as one JSON attachment, `private, no-store`, named by the
+date and never the account. The rule imports nothing; every section is a
+`table.column` that `PROFILE_FK_POLICY` classifies (the test holds it, so a
+renamed table breaks the test before it breaks a person); the route reads
+each with the admin client and ONLY `eq(<the account column>, user.id)`.
+Stays out by design: tokens and access rows, push subscriptions, the
+safety machinery (risk signals, reports, blocks, mutes), and rows that
+merely name the account in someone else's thing. A section is cut at
+5,000 rows and named in `truncated` (the file must always arrive under
+Vercel's 4.5 MB). The door is Settings → Account → "Your data", above the
+Danger Zone; the browser's own download is the only thing that happens.
+Pins: `account-export.test.ts` (the sections, the cap, the shape, the
+route's read), `e2e/account-export.spec.ts` (A's file has A's post and
+never B's; signed out 401; the door downloads at phone width).
