@@ -16,6 +16,7 @@ import RegistrationSteps from '@/components/signup/RegistrationSteps';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { FEATURE_FLAGS } from '@/lib/features';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import { COPY } from '@/lib/copy';
 
 export default function Home() {
   // NEXT_PUBLIC_*: inlined at build time, the same value the middleware reads.
@@ -264,6 +265,9 @@ export default function Home() {
 
       if (!response.ok) {
         setError(result.error || 'An error occurred during registration');
+      } else if (result.confirmationRequired) {
+        // Confirmations ON (Convention 56): the link in the mail finishes it.
+        setSuccess(COPY.AUTH.CHECK_EMAIL_INLINE);
       } else {
         setSuccess('Account created successfully! Please sign in to continue.');
         // Reset form

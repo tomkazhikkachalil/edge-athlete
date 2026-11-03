@@ -78,3 +78,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 53 | A golf round is set up in steps; every input the form had keeps its place; the frame is StepFlow and the list follows the first step | `golf-round-setup.md` |
 | 54 | The pulse: the header's two numbers (the live count, the unread messages) are ONE call, `/api/me/pulse`, behind one RPC and one module-level store; the rules say when it fetches; the conversation list keeps its own refresh | `pulse.md` |
 | 55 | The account's own data is one file: `POST /api/account/export` answers the profile row and every row of theirs in the named sections as one JSON attachment; export sits next to Delete | `data-foundation.md` |
+| 56 | A sign-up that must confirm says so; the link is `/auth/confirm` by token hash; every door after it is `destinationFor` | `auth-confirmation.md` |
