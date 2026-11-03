@@ -263,6 +263,9 @@ export const RATE_LIMITS = {
   // Account settings writes (theme, body-metrics privacy, sport settings, equipment
   // prefs, media presets, the Get Started dismissal).
   'settings-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // The account's own data as a file (Nov 2 2026): every row of theirs,
+  // read table by table — three a day is a person, more is a script.
+  'account-export': { max: 3, windowSeconds: 86400, keyBy: 'user', message: 'You can download your data three times a day — try again tomorrow.' },
   // A body measurement logged (Body Metrics).
   'body-metrics-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Every authenticated WRITE (POST/PUT/PATCH/DELETE through requireAuth),

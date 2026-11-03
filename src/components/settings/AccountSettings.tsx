@@ -6,6 +6,7 @@ import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { deviceUnitOf, type DeviceUnit } from '@/lib/activities/unit-prefs';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
+import ExportDataCard from './ExportDataCard';
 import { useEditProfile } from '@/components/EditProfileHost';
 import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
 import { COPY } from '@/lib/copy';
@@ -200,6 +201,9 @@ export default function AccountSettings() {
 
       {/* Download the app — the door that is always here. */}
       <InstallSettingsCard />
+
+      {/* The account's own data as a file (Nov 2 2026) — next to Delete, before it. */}
+      <ExportDataCard />
 
       {/* Danger Zone Section */}
       <div className="border-t border-border pt-8">
