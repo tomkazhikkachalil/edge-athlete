@@ -16,10 +16,24 @@ nobody runs.
 
 | Question | Where to look | Answer (Tom) |
 | --- | --- | --- |
-| Which plan is the production project on? | Supabase → Organization → Billing | ☐ Free ☐ Pro ☐ Team |
-| Are daily backups present? | Project → Database → Backups | ☐ yes, n days ☐ none |
-| Is PITR enabled? | Project → Database → Backups → Point in Time | ☐ yes ☐ no |
-| Compute add-on? (PITR needs ≥ Small) | Project → Settings → Compute | |
+| Which plan is the production project on? | Supabase → Organization → Billing | **Pro** (since Oct 2026; `SCALE_AUDIT.md`) — ☐ confirmed in the dashboard |
+| Are daily backups present? | Project → Database → Backups | Pro includes daily backups, 7 days — ☐ confirmed, n days: |
+| Is PITR enabled? | Project → Database → Backups → Point in Time | ☐ yes ☐ no (Decision A: PITR when the first org runs a real season) |
+| Compute add-on? (PITR needs ≥ Small) | Project → Settings → Compute | **Micro** since Oct 19 2026 (PITR would need Small) |
+
+**The drill (one sitting, Tom's OK first; the Sep 30 2026 export/restore is the
+precedent — `docs/devlog.md` Sep 30):**
+
+```bash
+TARGET_ENV=prod node scripts/prod-reset/export.mjs        # a dated snapshot on the Mac
+node scripts/prod-reset/restore-to-staging.mjs <snapshot>  # into STAGING, never prod
+npm run check:schema                                        # staging still at the ledger head
+```
+
+Then a signed-in walk of staging (a real profile, its rounds, a photo) is the
+restore's proof; a dated line below closes the drill.
+
+- ☐ Drill run on: ____ (the snapshot's name, what was walked)
 
 What Supabase provides (docs read Sep 21 2026):
 

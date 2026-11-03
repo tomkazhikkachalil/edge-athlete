@@ -139,7 +139,9 @@ from Vercel Production → a REAL build (not a redeploy — the flag is inlined)
 allows, `/sitemap.xml` 200, `POST /api/signup` no longer 403s → the
 `launch-gate` spec stops applying and the signed-out prod specs (share cards,
 `/u/`, org sites, landing, `stats-hub-mobile`) return to the prod probe set →
-the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
+**Vercel Observability Plus back ON** (Tom's Oct 29 decision: OFF while gated,
+ON the day the doors open — the per-route and per-path views are what the
+first week's reading needs) → the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
 2026 (the gate), Oct 22 2026 (this checklist).
 
 ## 1. Email deliverability — BLOCKING (every app email 550s today)
