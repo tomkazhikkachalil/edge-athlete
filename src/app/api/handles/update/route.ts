@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get authenticated user
-    const { user, error: userError } = await getServerAuth(request);
+    const { user, error: userError, limited } = await getServerAuth(request, { limit: 'handle-update' });
 
     if (userError || !user) {
       return NextResponse.json(
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (limited) return limited;
 
     // Round H: a guardian may rename their managed athlete via
     // targetProfileId (manage_settings). Everyone else renames themselves.

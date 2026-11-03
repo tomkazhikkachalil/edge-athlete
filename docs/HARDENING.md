@@ -50,10 +50,16 @@ DB scale-readiness). That audit's findings seed the backlog below.
     the bucket a photo-heavy workout meets). A 429 reads "Slow down — try
     again in a moment." with `Retry-After`; the workout editor re-sends its
     entries after it and the recorder retries its save once, nothing lost.
-    **Next hardening item:** ~49 write routes gate on `getServerAuth`
-    rather than `requireAuth` (comments, scorecards, sport-events,
-    group-posts, posts/save, settings/theme…) and so never meet
-    `write-general` — move them or give them buckets.
+    **Closed Nov 2 2026:** the write routes that gated on `getServerAuth`
+    (scorecards, participant scores, group-post edits, posts/save, the
+    handle rename, the event cards, settings, vitals, the contest-media
+    untag) met NO bucket — `getServerAuth(request, { limit })` now hands
+    the same one-trip verdict back as `limited`, every one names a bucket
+    (`post-save`, `handle-update`, `golf-score`, `group-post-edit`,
+    `settings-write`, `body-metrics-write`, or an existing one), and
+    `write-routes-limited.test.ts` refuses a write route with no gate
+    (its own or its `@/lib` handler's). The shadow flip is still the
+    one-line PR after Tom's Sentry read.
 
 ## Part B — periodic manual sweep (this runbook)
 

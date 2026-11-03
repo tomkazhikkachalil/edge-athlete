@@ -124,10 +124,11 @@ export async function DELETE(
 ) {
   try {
     const admin = getSupabaseAdmin();
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'result-visibility' });
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
     const { profileId } = await params;
     if (!isUuid(profileId)) {
       return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });

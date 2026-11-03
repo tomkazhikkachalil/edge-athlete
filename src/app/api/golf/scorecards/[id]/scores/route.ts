@@ -36,10 +36,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'golf-score' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (limited) return limited;
 
   try {
     const { id: participant_id } = await params;
@@ -379,10 +380,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'golf-score' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (limited) return limited;
 
   try {
     const { id: participant_id } = await params;

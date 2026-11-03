@@ -82,10 +82,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { user, error } = await getServerAuth(request);
+    const { user, error, limited } = await getServerAuth(request, { limit: 'settings-write' });
     if (error || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
     const body = (await request.json().catch(() => null)) as { dismiss?: unknown } | null;
     if (!body || body.dismiss !== true) {
       return NextResponse.json({ error: 'Send { "dismiss": true }' }, { status: 400 });

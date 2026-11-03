@@ -73,7 +73,10 @@ describe('the write limit, inline and on the record', () => {
     const auth = readFileSync(join(__dirname, '..', 'auth-server.ts'), 'utf8');
     expect(auth).toContain('await enforceWrite(request, user.id, opts.limit);');
     // 286: the route's bucket(s) ride write-general's round trip; a route without one keeps the single hit
-    expect(auth).toContain("? await enforceRateLimitMany(request, ['write-general', ...extra], { userId })\n    : await enforceRateLimit(request, 'write-general', { userId });\n  if (refused) throw refused;");
+    // Nov 2 2026: the verdict is a value (writeVerdict) so getServerAuth can hand it back as `limited`; the gate still throws it
+    expect(auth).toContain("? await enforceRateLimitMany(request, ['write-general', ...extra], { userId })\n    : await enforceRateLimit(request, 'write-general', { userId });");
+    expect(auth).toContain('const refused = await writeVerdict(request, userId, limit);\n  if (refused) throw refused;');
+    expect(auth).toContain("const limited = user && opts.limit !== undefined ? await writeVerdict(request, user.id, opts.limit) : null;");
     expect(auth).not.toContain('after(async');
     const limiter = readFileSync(join(__dirname, '..', 'rate-limit.ts'), 'utf8');
     expect(limiter).toContain('Sentry.captureMessage(`[RATE-LIMIT] ${outcome} "${action}"`');
