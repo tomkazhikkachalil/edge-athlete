@@ -11,6 +11,16 @@ saved.
 
 ## 0. Opening the gate — the checklist (Oct 22 2026)
 
+**Run `npm run launch:probe` first (Nov 2 2026).** It reads the live state
+behind every line below — the Supabase auth config (Site URL, confirmations,
+SMTP, rate limit, the sign-up switch, Google), the NAMES of Vercel's
+Production env (never a value), the live site (health, the gate, the doors,
+push) and Resend's domain when `RESEND_API_KEY` is in `.env.staging` — and
+prints each as ✓ ✗ ? with the evidence, then the next step in this order.
+GET requests only (the one POST is the sign-up refusal the gate answers);
+`--open` judges the opened state after the switch; `--json` for the devlog.
+A `?` means it could not read that source (the line says which token to add).
+
 Production is gated: `NEXT_PUBLIC_LAUNCH_GATE=1` in Vercel Production is
 baked into the build (`src/lib/launch-gate.ts`), so every signed-out visitor
 is sent to `/auth/coming-soon` except the doors (`/?signin=1`, `/auth/*`,
