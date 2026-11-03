@@ -16,6 +16,8 @@ addition below as a promise to keep it true.
   something is arbitrary.
 - `AGENTS.md` — a pointer back to this file. Deliberately thin; see the note in it.
 - `src/app/api/CLAUDE.md` — **required** API route patterns (cookie auth, admin client)
+- `docs/LAUNCH_RUNBOOK.md` — the ops gates before real users; `npm run launch:probe` (`scripts/launch-probe.mjs`,
+  rules in `launch-probe-rules.mjs`) reads the live state behind §0 and prints each line ✓ ✗ ? with the next step.
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
