@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { LogoDevCredits } from '@/components/LogoDevAttribution';
+import { LEGAL_LAST_UPDATED } from '@/lib/legal';
 
 export const metadata = { title: 'Terms of Service — Edge Athlete' };
 
-// Plain-language MVP terms. Reviewed content should replace this before any
-// large-scale launch — this is a general template, not legal advice.
+// Plain-language terms (Nov 2 2026 — caught up: the guardian flow, results
+// that outlive the person, who hosts the service). Tom reads every change
+// before it ships; this is a general template, not legal advice.
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-canvas">
@@ -14,16 +17,19 @@ export default function TermsPage() {
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="bg-surface rounded-lg shadow-sm border border-border p-6 sm:p-10 prose-sm">
           <h1 className="text-3xl font-bold text-primary mb-2">Terms of Service</h1>
-          <p className="text-sm text-muted mb-8">Last updated: July 2026</p>
+          <p className="text-sm text-muted mb-8">Last updated: {LEGAL_LAST_UPDATED}</p>
 
           <div className="space-y-6 text-secondary text-sm leading-relaxed">
             <section>
               <h2 className="text-lg font-semibold text-primary mb-2">1. What Edge Athlete is</h2>
               <p>
-                Edge Athlete is a social platform for athletes to share performance data, posts,
-                and connect with other athletes. By creating an account you agree to these terms.
-                If you are under the age of majority where you live, you need a parent or
-                guardian&apos;s permission to use the platform.
+                Edge Athlete is a social platform for athletes, their clubs and leagues to record
+                results, share posts and connect. By creating an account you agree to these terms.
+                An athlete under the age of digital consent where they live (13 in Canada and the
+                United States, 14 in Quebec, up to 16 in Europe) cannot open an account alone: a
+                parent or guardian creates and manages the profile, and can withdraw consent at
+                any time. Anyone under the age of majority needs a parent or guardian&apos;s
+                permission to use the platform.
               </p>
             </section>
 
@@ -32,10 +38,13 @@ export default function TermsPage() {
               <p>
                 You are responsible for your account and for keeping your password secure. Provide
                 accurate information, don&apos;t impersonate others, and don&apos;t create accounts
-                for anyone but yourself. You can delete your account at any time from Settings —
-                after a 30-day window, deletion removes your profile, posts, activities, messages,
-                and related data. Results you recorded as part of a club, league, event or round
-                with other people remain part of those records under your name.
+                for anyone but yourself (a guardian manages an athlete&apos;s profile through the
+                guardian tools, never by sharing a login). You can download a copy of your data
+                and delete your account at any time from Settings → Account — after a 30-day
+                window, deletion removes your profile, posts, activities, messages, and related
+                data. Results you recorded as part of a club, league, event or round with other
+                people remain part of those shared records under your name, the way a printed
+                results sheet would, so nobody else&apos;s results change because you left.
               </p>
             </section>
 
@@ -72,10 +81,12 @@ export default function TermsPage() {
             <section>
               <h2 className="text-lg font-semibold text-primary mb-2">6. The service</h2>
               <p>
-                Edge Athlete is provided &quot;as is,&quot; without warranties of any kind. We may
-                change, suspend, or discontinue features at any time. To the maximum extent
-                permitted by law, Edge Athlete is not liable for indirect or consequential damages
-                arising from your use of the platform.
+                Edge Athlete is provided &quot;as is,&quot; without warranties of any kind. The
+                service runs on Vercel and Supabase, with a few other providers for single
+                features, as the <Link href="/privacy" className="text-brand-fg hover:text-brand-fg-strong">Privacy Policy</Link>{' '}
+                lists. We may change, suspend, or discontinue features at any time. To the maximum
+                extent permitted by law, Edge Athlete is not liable for indirect or consequential
+                damages arising from your use of the platform.
               </p>
             </section>
 
