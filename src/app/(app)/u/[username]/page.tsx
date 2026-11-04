@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import AppHeader from '@/components/AppHeader';
+import RouteLoading from '@/components/RouteLoading';
 import ProfileActions from '@/components/profile/ProfileActions';
 import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
 import MessageButton from '@/components/profile/MessageButton';
@@ -237,17 +238,8 @@ export default function PublicProfilePage() {
   }, [user, profileData, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-canvas">
-        <AppHeader showSearch={false} />
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
-            <p className="mt-3 text-tertiary">Loading profile...</p>
-          </div>
-        </div>
-      </div>
-    );
+    // The same view as u/[username]/loading.tsx — one hand-off (PR I, Nov 4 2026).
+    return <RouteLoading message="Loading profile..." />;
   }
 
   if (error) {
