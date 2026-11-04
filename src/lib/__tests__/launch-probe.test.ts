@@ -12,10 +12,31 @@ const green = () => ({
 });
 
 describe('the launch probe rules', () => {
-  it('a fully green gated state has no next step', () => {
+  it('a fully green gated state has no next step; the sign-up switch is a decided row, not a judged one', () => {
     const rows = judge(green());
-    expect(rows.every(r => r.status === 'ok'), formatRows(rows)).toBe(true);
+    expect(rows.every(r => r.status === 'ok' || r.key === 'signups'), formatRows(rows)).toBe(true);
+    expect(rows.find(r => r.key === 'signups')?.status).toBe('decided');
     expect(nextStep(rows)).toBeNull();
+    expect(formatRows(rows)).toMatch(/^–  Supabase sign-ups while gated/m);
+  });
+  it('gated, the sign-up switch is never the next step whichever way it points (Tom, Nov 3 2026)', () => {
+    for (const disable_signup of [true, false]) {
+      const s = green(); s.auth.disable_signup = disable_signup;
+      const rows = judge(s);
+      const r = rows.find(x => x.key === 'signups');
+      expect(r?.status, String(disable_signup)).toBe('decided');
+      expect(r?.evidence).toContain(`disable_signup ${disable_signup}`);
+      expect(r?.evidence).toContain('403');
+      expect(nextStep(rows)).toBeNull();
+    }
+  });
+  it('judged as OPEN, a closed sign-up switch is a real hole and the next step', () => {
+    const s = green();
+    s.http.robots = 'User-agent: *\nAllow: /\nDisallow: /api/\n'; s.http.sitemap = 200; s.http.signup = 400;
+    s.envNames.delete('NEXT_PUBLIC_LAUNCH_GATE'); s.auth.disable_signup = true;
+    const rows = judge({ ...s, expectOpen: true });
+    expect(nextStep(rows)?.key).toBe('signups');
+    expect(rows.find(r => r.key === 'signups')?.status).toBe('bad');
   });
   it('each single hole names its own runbook line, in the runbook order', () => {
     const cases: Array<[string, (s: ReturnType<typeof green>) => void]> = [
