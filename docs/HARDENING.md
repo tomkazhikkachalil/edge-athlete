@@ -515,6 +515,8 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 
 ## Scaling: the first thing to break (measured Oct 10 2026, maintenance pass)
 
+> **The feed, re-measured Nov 4 2026 on the same setup after the trip-count program (`docs/load/2026-11-04/`):** `GET /api/posts` p95 448 ms at 25 workers, 622 at 50 (Oct 26: 883 / 1,171), 0 errors — under the launch phase's 1 s line, so the viewer-independent feed page is NOT built; re-measure under real traffic.
+>
 > **The floor, re-measured Oct 26 2026 on seeded STAGING (Micro — production's tier; 5k users / 50k posts / 53k documents; a preview of main; `docs/SCALE_AUDIT.md` §6, `docs/load/2026-10-26/`):** the CDN routes 3,400 req/s at 27 ms; every uncached route holds flat latency to ~50 closed-loop workers (160–190 one-trip req/s; ~60 req/s of the signed-in feed) and the instance's connection pool collapses at 100 (p95 20 s+), recovering on its own in a minute. Latency is trip count × a ~150 ms function-to-database hop (health 185 ms, the feed 575 ms, a like 845 ms at 5 workers), not query time (2–20 ms plans). Search is 0.5 s at 53k documents for a two-letter query and IP-limited to 120/min. Realtime fan-out stays 0 cross-round at 100 spectators. **Oct 26: functions moved from `iad1` to `yul1` (Montreal, production's Supabase region) — the per-trip hop is the first lever, trip count the second.** The Oct 10 numbers below were the FREE tier; the method stands.
 
 
