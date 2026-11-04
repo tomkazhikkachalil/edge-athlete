@@ -16,7 +16,8 @@ behind every line below — the Supabase auth config (Site URL, confirmations,
 SMTP, rate limit, the sign-up switch, Google), the NAMES of Vercel's
 Production env (never a value), the live site (health, the gate, the doors,
 push) and Resend's domain when `RESEND_API_KEY` is in `.env.staging` — and
-prints each as ✓ ✗ ? with the evidence, then the next step in this order.
+prints each as ✓ ✗ ? – with the evidence, then the next step in this order
+(`–` is a line settled by decision — printed, never the next step).
 GET requests only (the one POST is the sign-up refusal the gate answers);
 `--open` judges the opened state after the switch; `--json` for the devlog.
 A `?` means it could not read that source (the line says which token to add).
@@ -31,8 +32,11 @@ The gate carries the way back (Oct 28 2026): a signed-out visit to an app
 path lands on `/auth/coming-soon?next=<that path>` and the page's sign-in
 link goes to `/?signin=1&next=…`, so an existing account that opened a
 workout or profile link comes back to it after signing in.
-Supabase → Authentication → "Allow new users to sign up" is OFF (it covers
-Google too). APIs and the pg_cron jobs are never gated. The coming-soon page
+Supabase → Authentication → "Allow new users to sign up" stays ON while
+gated (Tom's decision, Nov 3 2026): the app's gate is the refusal, the
+dashboard switch is the switch day's, and a Google sign-in through Supabase
+while gated — the one way in the gate does not cover — is accepted. The
+probe prints that row as `–`. APIs and the pg_cron jobs are never gated. The coming-soon page
 collects names and e-mails into `contacts` (marketing consent unticked by
 default) — that list is the opening announcement's audience.
 
@@ -41,6 +45,12 @@ default) — that list is the opening announcement's audience.
 Each step ends with `npm run launch:probe`; the row named turns ✓ and the
 probe's last line names the next step. The same list, tickable, is the
 "Edge Athlete Launch Walkthrough" page.
+
+**Where it stands (Nov 3 2026, the probe 19 ✓ of 21):** steps 1–5, 7–9 and
+12 DONE; 6 settled by decision (sign-ups stay ON while gated); 10 later
+(Tom); 11 open (the drill); 13 is the switch day's. Still owed by hand: the
+Forgot-password round-trip (step 4), the contact form landing (step 7),
+the backups confirmation + the drill (step 11).
 
 1. **A Vercel token for the probe.** `vercel login` (the CLI's token has
    expired) — or vercel.com/account/tokens → a token scoped to the team →
@@ -60,8 +70,9 @@ probe's last line names the next step. The same list, tickable, is the
 5. **Authentication → Emails → Templates → Confirm sign up:** the body in §2
    below (the token-hash link). Confirmations are already ON here.
 6. **Authentication → Sign In / Providers → User Signups → "Allow new users
-   to sign up" OFF** until the switch (Google through Supabase bypasses the
-   app's gate). Row: signups.
+   to sign up"** — DECIDED Nov 3 2026: it stays ON while gated (the app's
+   gate answers 403; a Google sign-in through Supabase is accepted). Row:
+   signups, printed `–`.
 7. **Vercel → Settings → Environment Variables, Production only:**
    `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_USER=resend`,
    `SMTP_PASS=<the re_ key, Sensitive>`, `EMAIL_FROM=Edge Athlete
@@ -72,7 +83,7 @@ probe's last line names the next step. The same list, tickable, is the
 9. **UptimeRobot:** a Keyword monitor on `https://edgeathlete.ca/api/health`,
    keyword `"status":"ok"`, alert when not found, to the phone; prove it once
    by changing the keyword, then restore.
-10. **Sentry → Alerts:** "New issue in production" (a new issue is created,
+10. **Sentry → Alerts** (later — Tom, Nov 3 2026): "New issue in production" (a new issue is created,
     environment production → notify) and "Limiter would-block" (the event's
     message contains `[RATE-LIMIT] would-block` → notify — the read behind
     the limiter flip).
@@ -84,14 +95,17 @@ probe's last line names the next step. The same list, tickable, is the
     scripts/prod-reset/restore-to-staging.mjs <snapshot>` → `npm run
     check:schema` → a signed-in look at staging; a dated line in the drill box.
 12. **Read PR #1389** (privacy + terms) → "merge" or the sentences to change.
+    DONE Nov 3 2026: merged as `e96bdcd1`, "Last updated: November 2026" live.
 13. **At the switch:** sign-ups ON, the Google round-trip (athlete →
     onboarding; parent → add-athlete), then "The switch" below.
 
 **Before the switch — blocking.** Owner in brackets; every line ends in a probe.
 
-- [ ] **E-mail** (§1 + §2) [Tom: Resend + Vercel + Supabase dashboards; Claude:
-      the probe specs]. Parked since Sep 27 2026 by decision ("until we go
-      public") — this is that step. Resend → Domains → `edgeathlete.ca` →
+- [x] **E-mail** (§1 + §2) [DONE Nov 3 2026 by the probe: Supabase auth
+      mail on `smtp.resend.com` (sender `no-reply@edgeathlete.ca`), 60/h,
+      `SMTP_*` + `EMAIL_FROM` + `CONTACT_EMAIL` in Vercel Production; the
+      three human probes at the end of this line are still owed]. Parked
+      since Sep 27 2026 by decision ("until we go public") — this was that step. Resend → Domains → `edgeathlete.ca` →
       Verify (the DNS records are in GoDaddy since Sep 29); `SMTP_HOST`,
       `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` in Vercel
       Production; Supabase custom SMTP on prod (password reset and sign-up
@@ -101,13 +115,15 @@ probe's last line names the next step. The same list, tickable, is the
       so nothing is lost — it sends once configured. Probe: the prod contact
       form lands in a real inbox; Forgot password arrives and the link opens
       `/reset-password`; a guardian invite arrives.
-- [ ] **Sign-up path** [Tom]. Supabase sign-up switch ON. E-mail confirmations
-      are OFF today (verified live): decide — keep OFF (the account signs in
-      at once after sign-up; the `signup` bucket is 5 an hour per IP) or ON
-      (needs e-mail first). `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1` in
-      Production so an under-age sign-up parks in `pending_profiles` with a
-      guardian invite. Google sign-up human round-trip (§3). Probe: an athlete
-      sign-up lands in `/onboarding`; a parent sign-up creates a PARENT.
+- [ ] **Sign-up path** [Tom]. Supabase sign-up switch is ON and stays on
+      while gated (decision, Nov 3 2026). E-mail confirmations are ON
+      (Tom's decision Nov 2 2026; Convention 56 — the probe reads
+      `mailer_autoconfirm false`, the template carries the token-hash link
+      since Nov 3). `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1` is in
+      Production (the probe reads it) so an under-age sign-up parks in
+      `pending_profiles` with a guardian invite. Left for the switch day:
+      the Google sign-up human round-trip (§3). Probe: an athlete sign-up
+      lands in `/onboarding`; a parent sign-up creates a PARENT.
 - [x] **The QA e-mail domain** [done Oct 22 2026, `edgeqa-<tag>@edgeathlete.ca` — the apex: Supabase checks the domain in DNS on signUp, and a record-less subdomain came back "invalid"; staging's auth used to confirm by e-mail with the built-in sender at 2 mails an hour, so at most two real sign-up specs passed per hour there — **staging, and only staging, auto-confirms since Oct 22 2026** (Tom's call; management API `mailer_autoconfirm: true`, the prod ref refused by the script), mirroring production, where confirmations are off]:
       the three real-sign-up specs (`scout-signup`, `scout-search`,
       `scout-search-performance`) guard the door again.
@@ -129,8 +145,9 @@ probe's last line names the next step. The same list, tickable, is the
       published org pages. Still unchecked from `GO_LIVE_EDGEATHLETE_CA.md`:
       the Supabase Site URL and Google Search Console. Probe after the
       switch: `/robots.txt` allows, `/sitemap.xml` 200.
-- [ ] **Legal** [Tom reviews]. `/privacy` and `/terms` read "Last updated:
-      July 2026"; since then the app added the weather at the course
+- [x] **Legal** [DONE Nov 3 2026: Tom read #1389, merged as `e96bdcd1`;
+      both pages read "Last updated: November 2026" and name every
+      processor]. `/privacy` and `/terms` read "Last updated: July 2026"; since then the app added the weather at the course
       (Open-Meteo), the golf course provider lookup, web push, the Sentry
       relay and the coming-soon contacts list — review the wording for a
       public launch and move the date. No cookie banner exists and none is
@@ -164,9 +181,9 @@ probe's last line names the next step. The same list, tickable, is the
       bell's push row hides and nothing is sent. Probe: signed in,
       `GET /api/push/config` answers `ready: true`; a real banner on a real
       phone.
-- [ ] **Something that pages someone** [Tom, three dashboards; nothing does
-      today — the 5-minute health sampler feeds the admin Overview and
-      notifies nobody]. (1) A hosted uptime monitor (UptimeRobot or Better
+- [ ] **Something that pages someone** [Tom, three dashboards; (1) DONE Nov 3
+      2026 — UptimeRobot on `/api/health`; (2) Sentry later; (3) Supabase
+      open]. (1) A hosted uptime monitor (UptimeRobot or Better
       Stack, free tier) on `https://edgeathlete.ca/api/health` every minute,
       alerting on a non-200 or on `status` ≠ `ok`, to Tom's phone. (2) Sentry
       → Alerts: a rule for every NEW issue in `production`, and one on the
@@ -184,18 +201,42 @@ probe's last line names the next step. The same list, tickable, is the
       TRUE get the opening e-mail once e-mail is green; Admin → Contacts
       exports the CSV.
 
-**The switch itself.** Supabase sign-up ON → remove `NEXT_PUBLIC_LAUNCH_GATE`
-from Vercel Production → a REAL build (not a redeploy — the flag is inlined)
-→ probes: `/` serves the landing with the sign-up column, `/robots.txt`
-allows, `/sitemap.xml` 200, `POST /api/signup` no longer 403s → the
-`launch-gate` spec stops applying and the signed-out prod specs (share cards,
-`/u/`, org sites, landing, `stats-hub-mobile`) return to the prod probe set →
-**Vercel Observability Plus back ON** (Tom's Oct 29 decision: OFF while gated,
-ON the day the doors open — the per-route and per-path views are what the
-first week's reading needs) → the first-hour watch → the announcement. The rule's history: DEVLOG Sep 30
-2026 (the gate), Oct 22 2026 (this checklist).
+**The switch itself — the day's order (Nov 3 2026).** Owner in brackets;
+every line ends in its probe. Nothing below is started until the morning's
+`npm run launch:probe` is all ✓ / `–`.
 
-## 1. Email deliverability — BLOCKING (every app email 550s today)
+1. [Tom] Supabase → Authentication → "Allow new users to sign up" is already
+   ON (the Nov 3 decision) — confirm it; "Confirm email" ON (it is).
+2. [Tom] Vercel → Settings → Environment Variables → delete
+   `NEXT_PUBLIC_LAUNCH_GATE` from Production → **a REAL build** (push an
+   empty commit or Redeploy with "use existing build cache" OFF — the flag is
+   inlined, a plain redeploy keeps the gate).
+3. [Claude] `npm run launch:probe --open`: the gate rows flip (robots allow,
+   sitemap 200, `POST /api/signup` no longer 403, the flag absent), the
+   sign-up row is judged again, everything else still ✓.
+4. [Tom, a throwaway address] Sign up on edgeathlete.ca → "Check your email"
+   → the mail from `no-reply@edgeathlete.ca` → the link lands in `/onboarding`
+   signed in (Convention 56). Then Forgot password on the same account →
+   `/reset-password` on the domain.
+5. [Tom, a throwaway Google account] "Continue with Google" as an athlete →
+   `/onboarding`; as a parent → `/app/guardian/add-athlete` (§3).
+6. [Claude] The signed-out prod specs return to the probe set (share cards,
+   `/u/`, org sites, landing, `stats-hub-mobile`); the `launch-gate` spec
+   stops applying; one project at a time.
+7. [Tom] Vercel → Team → Billing → **Observability Plus back ON** (Tom's Oct
+   29 decision: OFF while gated, ON the day the doors open — the per-route
+   and per-path views are what the first week's reading needs).
+8. [Tom] Google Search Console: the domain property, submit `/sitemap.xml`.
+9. [Both] The first-hour watch (the "Launch-day watch" line above).
+10. [Tom] The announcement: Admin → Contacts → export the consenting rows
+    → a Resend broadcast from `no-reply@edgeathlete.ca`.
+11. [Claude, a week on] The limiter flip (PR E) after Tom's Sentry read of the
+    first real week; then the iPhone shell program starts.
+
+The rule's history: DEVLOG Sep 30 2026 (the gate), Oct 22 2026 (this
+checklist), Nov 3 2026 (the day's order).
+
+## 1. Email deliverability — wired Nov 3 2026 (the human probe still owed)
 
 The app sends through Resend as an SMTP relay (`SMTP_*` vars in Vercel), but
 the sending domain has never verified. Broken until fixed: **guardian
@@ -225,7 +266,11 @@ does not need it changed. TTL: GoDaddy's default (1 hour) is fine.
       with `dig` — `docs/HARDENING.md`, "Resend"; this box was stale until
       Nov 2 2026).
 - [ ] Resend → Domains → `edgeathlete.ca` → **Verify** → status flips to
-      **Verified** (usually minutes, up to an hour).
+      **Verified** (usually minutes, up to an hour). Nov 3 2026: Supabase's
+      auth mail is on `smtp.resend.com` with the `re_` key, which Resend
+      only honours for a verified domain — the box closes when the probe
+      reads the domain (`RESEND_API_KEY` in `.env.staging`) or the first
+      mail lands.
 - [ ] **Probe:** submit the prod contact form (or trigger any guarded send)
       and confirm the email lands in a real inbox — check spam too.
 
@@ -260,12 +305,11 @@ Password reset and signup confirmation go through **Supabase's own sender**,
 not the app's SMTP. Supabase's built-in sender is rate-limited to a handful of
 emails per hour — fine for testing, not for 100 signups.
 
-- [ ] Supabase Dashboard → Project → **Authentication → Emails / SMTP
-      Settings**: either configure custom SMTP (can reuse the Resend
-      credentials once #1 is verified) or consciously accept the built-in
-      limits for the first cohort.
-- [ ] Authentication → **Rate Limits**: note the email-sending limit; raise if
-      custom SMTP is configured.
+- [x] Supabase Dashboard → Project → **Authentication → Emails / SMTP
+      Settings**: custom SMTP — DONE Nov 3 2026 (`smtp.resend.com`, 465,
+      user `resend`, sender `no-reply@edgeathlete.ca`; the probe reads it).
+- [x] Authentication → **Rate Limits**: e-mails sent 60/h — DONE Nov 3 2026
+      (was 2/h; the probe reads it).
 - [ ] **Probe:** on prod, run "Forgot password?" with a real address →
       email arrives → the reset link opens `/reset-password` in the SAME
       browser and a new password works. Also probe the signup-confirmation
@@ -342,7 +386,11 @@ the ORG_SUBDOMAINS precedent). Test hostname for the prod probe: a Tom-controlle
 Rollback = unset the flag + build; claimed domains simply stop routing
 (the apex address always works).
 
-## 5b. Vercel Skew Protection — one toggle (Round 1 PR 8, Sep 21 2026)
+## 5b. Vercel Skew Protection — one toggle (Round 1 PR 8, Sep 21 2026) — ON since Nov 3 2026
+
+**DONE Nov 3 2026 (Tom):** the project reads `skewProtectionMaxAge: 43200`
+(12 h) from the Vercel API — the toggle is on. The verify line at the end
+of this section is the one check still owed after the next deploy.
 
 Every deploy replaces every hashed chunk. A phone with the app open
 across a deploy fails its next lazy import (`ChunkLoadError` / "Importing

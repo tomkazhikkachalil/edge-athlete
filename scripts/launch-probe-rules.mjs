@@ -1,11 +1,14 @@
 // ── The launch probe's rules (Nov 2 2026) — pure, ZERO imports ──────────────
 // `npm run launch:probe` reads the live state (scripts/launch-probe.mjs,
 // GET requests only) and hands it here; this file decides what each row of
-// docs/LAUNCH_RUNBOOK.md §0 says. Every row is ok · bad · unknown with the
-// evidence; the next step is the first bad row in the runbook's order.
+// docs/LAUNCH_RUNBOOK.md §0 says. Every row is ok · bad · unknown · decided
+// with the evidence; the next step is the first bad row in the runbook's
+// order. A DECIDED row (Nov 3 2026) is a line Tom settled by decision rather
+// than by the setting the runbook first asked for — printed as `–` with the
+// decision, never the next step; judged as OPEN it is a real row again.
 // The runbook's wording is the source; a row here is one of its lines.
 
-/** @typedef {{ key: string, label: string, status: 'ok'|'bad'|'unknown', evidence: string, step: string }} Row */
+/** @typedef {{ key: string, label: string, status: 'ok'|'bad'|'unknown'|'decided', evidence: string, step: string }} Row */
 
 export const PROD_ENV_NAMES = [
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM', 'CONTACT_EMAIL',
@@ -71,10 +74,19 @@ export function judge(state) {
     auth ? (auth.mailer_autoconfirm === false ? 'ok' : 'bad') : 'unknown',
     auth ? `mailer_autoconfirm ${auth.mailer_autoconfirm}` : 'Supabase not read',
     '§2 Authentication → Email → Confirm email ON (after the template)'));
-  rows.push(row('signups', expectOpen ? 'Supabase sign-ups allowed' : 'Supabase sign-ups closed (gated)',
-    auth ? ((auth.disable_signup === !expectOpen) ? 'ok' : 'bad') : 'unknown',
-    auth ? `disable_signup ${auth.disable_signup}` : 'Supabase not read',
-    'Authentication → "Allow new users to sign up"'));
+  // The Supabase sign-up switch. Gated: Tom's decision (Nov 3 2026) is to
+  // leave it ON — the app's gate answers POST /api/signup 403 and the
+  // dashboard switch is the switch day's, so the row reports and never
+  // nags. Open: the switch must be ON, judged like any other row.
+  rows.push(expectOpen
+    ? row('signups', 'Supabase sign-ups allowed',
+      auth ? (auth.disable_signup === false ? 'ok' : 'bad') : 'unknown',
+      auth ? `disable_signup ${auth.disable_signup}` : 'Supabase not read',
+      'Authentication → "Allow new users to sign up"')
+    : row('signups', 'Supabase sign-ups while gated (open by decision, Nov 3 2026)',
+      auth ? 'decided' : 'unknown',
+      auth ? `disable_signup ${auth.disable_signup} — the app's gate answers POST /api/signup 403; the dashboard switch is the switch day's` : 'Supabase not read',
+      'The switch'));
   rows.push(row('google', 'Google provider enabled',
     auth ? (auth.external_google_enabled ? 'ok' : 'bad') : 'unknown',
     auth ? `external_google_enabled ${auth.external_google_enabled}` : 'Supabase not read', '§3'));
@@ -113,13 +125,13 @@ export function judge(state) {
   return rows;
 }
 
-/** The first bad row, in the runbook's order; null when every row is ok or unknown. */
+/** The first bad row, in the runbook's order; null when every row is ok, decided or unknown. */
 export function nextStep(rows) {
   return rows.find(r => r.status === 'bad') ?? null;
 }
 
 export function formatRows(rows) {
-  const mark = { ok: '✓', bad: '✗', unknown: '?' };
+  const mark = { ok: '✓', bad: '✗', unknown: '?', decided: '–' };
   const width = Math.max(...rows.map(r => r.label.length));
   return rows.map(r => `${mark[r.status]}  ${r.label.padEnd(width)}  ${r.evidence}`).join('\n');
 }
