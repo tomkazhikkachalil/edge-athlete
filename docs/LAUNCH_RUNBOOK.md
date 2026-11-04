@@ -165,8 +165,11 @@ the backups confirmation + the drill (step 11).
       paint from what the client holds and keeps its painted height as a
       floor; the Live Now strip moved below the cards Oct 28 (#1345). Owed:
       one cold measurement on a real mid-range Android after the switch.
-- [ ] **Capacity.** Micro has been clean since Oct 19 2026. Measure
-      production's number once in a quiet window (Tom's OK first); the
+- [x] **Capacity.** Micro has been clean since Oct 19 2026. MEASURED Nov 4
+      2026 (Tom's OK Nov 3): the feed on the floor's setup — p95 448 ms at
+      25 workers, 622 at 50, 0 errors (`docs/load/2026-11-04/`); production
+      with no load: first post 3.5 s on a ×4-throttled phone, 1 passed. The
+      viewer-independent feed page is NOT built (under the 1 s line); the
       compute add-on only if CPU binds. The first thing to break is the
       signed-in feed's uncached per-viewer read (`docs/HARDENING.md`,
       Scaling).

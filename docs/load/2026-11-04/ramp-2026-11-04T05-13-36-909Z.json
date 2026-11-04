@@ -1,0 +1,75 @@
+{
+  "startedAt": "2026-11-04T05:13:36.909Z",
+  "base": "https://edge-athlete-2w78hf2m5-toms-projects-b0cec44f.vercel.app",
+  "commit": "2c971913",
+  "seconds": 20,
+  "viewers": 20,
+  "steps": [
+    5,
+    10,
+    25,
+    50
+  ],
+  "results": [
+    {
+      "route": "GET /api/posts",
+      "workers": 5,
+      "requests": 285,
+      "rps": 14.3,
+      "p50": 309,
+      "p95": 474,
+      "p99": 2211,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 285
+      },
+      "healthBefore": 194
+    },
+    {
+      "route": "GET /api/posts",
+      "workers": 10,
+      "requests": 615,
+      "rps": 30.8,
+      "p50": 311,
+      "p95": 444,
+      "p99": 565,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 615
+      },
+      "healthBefore": 204
+    },
+    {
+      "route": "GET /api/posts",
+      "workers": 25,
+      "requests": 1436,
+      "rps": 71.8,
+      "p50": 327,
+      "p95": 448,
+      "p99": 636,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 1436
+      },
+      "healthBefore": 301
+    },
+    {
+      "route": "GET /api/posts",
+      "workers": 50,
+      "requests": 2024,
+      "rps": 101.2,
+      "p50": 489,
+      "p95": 622,
+      "p99": 756,
+      "errors": 0,
+      "errorRate": 0,
+      "statuses": {
+        "200": 2024
+      },
+      "healthBefore": 190
+    }
+  ]
+}
