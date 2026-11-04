@@ -14,27 +14,21 @@ import type { ProfilePhotoSlot } from './photo-paths';
 /** The longest edge a kept original is bounded to on the device before it uploads. */
 export const PROFILE_SOURCE_MAX_DIM = 2048;
 
-// The photo and its original ride ONE request, and a Vercel request body is
-// capped at 4.5 MB — the platform refuses a bigger one before our route runs
-// (every-browser round, Oct 16 2026: a 2000 px PNG wallpaper, kept as-is,
-// made a 9.3 MB body; the pick limit says 10 MB). So an original is kept
-// byte-for-byte only when it is small, and the request never passes the
-// budget: past it the original is left out and the render uploads alone
-// (Adjust then starts from the render — lossy once, as for a pre-264 photo).
-export const PROFILE_SOURCE_KEEP_MAX_BYTES = 2.5 * 1024 * 1024;
-/** Under 4.5 MB with room for the multipart framing and the recipe. */
-export const PROFILE_PHOTO_BODY_BUDGET = 4 * 1024 * 1024;
+// Until Nov 2 2026 the photo and its original rode ONE request under
+// Vercel's 4.5 MB body cap, so an original was kept byte-for-byte only
+// while small (2.5 MB) and left out past a 4 MB budget. The render and the
+// original now go DIRECT to storage (upload.ts stageUpload → the profile
+// photo route), so the one bound left is the server's cap on a kept
+// original (photo-source-server.ts MAX_SOURCE_BYTES, 10 MB): a pick within
+// it and within the edge bound is kept as it is; a bigger one is re-encoded
+// to the bound on the device.
+export const PROFILE_SOURCE_KEEP_MAX_BYTES = 10 * 1024 * 1024;
 
 const KEEP_AS_IS_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 /** The pick itself may be the kept original: an untouched type, within the edge bound, and small. */
 export function keepSourceAsIs(type: string, bytes: number, longestEdge: number | null): boolean {
   return KEEP_AS_IS_TYPES.includes(type) && longestEdge !== null && longestEdge <= PROFILE_SOURCE_MAX_DIM && bytes <= PROFILE_SOURCE_KEEP_MAX_BYTES;
-}
-
-/** The original goes with the render only while the two fit one request. */
-export function sourceFitsRequest(renderBytes: number, sourceBytes: number): boolean {
-  return renderBytes + sourceBytes <= PROFILE_PHOTO_BODY_BUDGET;
 }
 
 /** An untrusted recipe (the request body, the row) → an IMAGE recipe, or null. */

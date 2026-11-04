@@ -162,7 +162,6 @@ const UPLOAD_WRITERS: Record<string, { marker: string; keep: Keep }> = {
   // source under posts/<owner>/ and the row's media_url / thumbnail_url point at them in the SAME update.
   'src/lib/media/process-server.ts': { marker: 'outputKey(', keep: { kind: 'url', table: 'post_media' } },
   // No in-app caller today; a client that uses it stores the returned public URL (post media).
-  'src/app/api/upload/route.ts': { marker: '${userId}/', keep: { kind: 'url', table: 'post_media' } },
   'src/app/api/upload/equipment/route.ts': { marker: 'equipment/', keep: { kind: 'url', table: 'athlete_equipment' } },
   'src/app/api/upload/avatar/route.ts': { marker: 'avatars/', keep: { kind: 'url', table: 'profiles' } },
   'src/app/api/upload/cover/route.ts': { marker: 'covers/', keep: { kind: 'url', table: 'profiles' } },

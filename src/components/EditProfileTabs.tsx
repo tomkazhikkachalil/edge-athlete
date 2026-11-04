@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import ProfilePhotoDoor from './profile/ProfilePhotoDoor';
-import { profilePhotoFormData } from '@/lib/profiles/photo-upload-client';
+import { uploadProfilePhoto as uploadProfilePhotoDirect } from '@/lib/profiles/photo-upload-client';
 import type { ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
 import { PHOTO_SLOTS } from './profile/ProfilePhotoUploader';
 import { coverProxyUrl } from '@/lib/media/cover-url';
@@ -715,11 +715,8 @@ export default function EditProfileTabs({
   const uploadProfilePhoto = async (slot: ProfilePhotoSlot, payload: ProfilePhotoPayload) => {
     const def = PHOTO_SLOTS[slot];
     if (payload.file.size > def.maxBytes) throw new Error(`${def.noun} must be less than ${Math.round(def.maxBytes / (1024 * 1024))}MB`);
-    const response = await fetch(def.endpoint, { method: 'POST', body: profilePhotoFormData(slot, payload, targetProfileId) });
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      throw new Error(result.error || `Failed to upload the ${def.noun.toLowerCase()}`);
-    }
+    // Direct to storage (Nov 2 2026): no Vercel function carries the bytes.
+    await uploadProfilePhotoDirect(slot, payload, targetProfileId);
   };
   const [photoDoor, setPhotoDoor] = useState<ProfilePhotoSlot | null>(null);
   // A pending pick previews as itself (an object URL, revoked on change).
