@@ -9,6 +9,7 @@ import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';;
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
+import RouteLoading from '@/components/RouteLoading';
 import ProfileActions from '@/components/profile/ProfileActions';
 import ProfileCornerControl from '@/components/profile/ProfileCornerControl';
 import MessageButton from '@/components/profile/MessageButton';
@@ -210,14 +211,8 @@ export default function AthleteProfilePage() {
 
   // Show loading state
   if (authLoading || loading) {
-    return (
-      <div className="min-h-screen bg-canvas flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-2 text-primary font-medium">Loading athlete profile...</p>
-        </div>
-      </div>
-    );
+    // The same view as athlete/[id]/loading.tsx — one hand-off (PR I, Nov 4 2026).
+    return <RouteLoading message="Loading athlete profile..." />;
   }
 
   // Show private profile view if access is denied
