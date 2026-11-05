@@ -19,7 +19,13 @@
 //   • the online rule: an attempt while offline fails AT ONCE as `offline`
 //     (no 60 s XHR hang); when the connection returns, failures of kind
 //     network | offline are re-queued by themselves — a `refused` 4xx or
-//     `too-large` stays tap-to-retry (they would loop forever).
+//     `too-large` stays tap-to-retry (they would loop forever);
+//   • the cancel (Videos program Phase 2, Nov 5 2026): one AbortController per
+//   upload in flight — forget, replace and destroy abort it, so a tile's X
+//   stops the bytes at the next chunk instead of letting a 40 MB request run
+//   to the end for nothing; the queue hands the uploader a `resumeKey`
+//   (session + local id) so a resumable upload's retry continues where it
+//   stopped (upload.ts, tus.ts).
 // `register` returns synchronously: the tile is on screen before the stash
 // write and the first upload start (convention 8 — nothing heavy between the
 // camera's hand-back and the tile).
@@ -234,6 +240,8 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
   const files = new Map<string, File>();
   const originals = new Map<string, File>();
   const previews = new Map<string, string>();
+  /** The upload in flight per item — aborted by forget / replace / destroy. */
+  const inFlight = new Map<string, AbortController>();
   const waiters = new Map<string, Array<(item: QueueItem) => void>>();
   let state: QueueState = {};
   let uploadChain: Promise<void> = Promise.resolve();
@@ -277,6 +285,13 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
   const current = (localId: string, generation: number) => !destroyed && generationOf(localId) === generation;
   const stash = () => opts.stash ?? null;
   const target = () => opts.targetProfileId?.();
+  const abortInFlight = (localId: string) => {
+    const controller = inFlight.get(localId);
+    if (!controller) return;
+    inFlight.delete(localId);
+    controller.abort();
+  };
+  const resumeKeyFor = (localId: string) => `${opts.sessionId}:${localId}`;
 
   const onUpload = (task: () => Promise<void>) => {
     uploadChain = uploadChain.then(task).catch(() => undefined);
@@ -313,9 +328,18 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
             dispatch({ type: 'prepared', localId, generation, resized: false });
           }
         }
-        const uploaded = await opts.upload(body, target(), {
-          onProgress: fraction => { if (current(localId, generation)) dispatch({ type: 'progress', localId, generation, fraction }); },
-        });
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        if (controller) inFlight.set(localId, controller);
+        let uploaded: UploadedMedia;
+        try {
+          uploaded = await opts.upload(body, target(), {
+            onProgress: fraction => { if (current(localId, generation)) dispatch({ type: 'progress', localId, generation, fraction }); },
+            ...(controller ? { signal: controller.signal } : {}),
+            resumeKey: resumeKeyFor(localId),
+          });
+        } finally {
+          if (controller && inFlight.get(localId) === controller) inFlight.delete(localId);
+        }
         if (!current(localId, generation)) return;
         dispatch({ type: 'stored', localId, generation, url: uploaded.url, processing: uploaded.processing === true, codec: uploaded.codec });
         const item = state[localId];
@@ -364,6 +388,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
       enqueueUpload(localId);
     },
     forget(localId) {
+      abortInFlight(localId);
       const preview = previews.get(localId);
       if (preview) URL.revokeObjectURL(preview);
       previews.delete(localId);
@@ -377,6 +402,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
     },
     replaceWithEdited(localId, file, extras = {}) {
       if (!state[localId]) return;
+      abortInFlight(localId);
       const old = previews.get(localId);
       const preview = extras.previewUrl ?? URL.createObjectURL(file);
       if (old && old !== preview) URL.revokeObjectURL(old);
@@ -467,6 +493,7 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
     },
     destroy() {
       destroyed = true;
+      for (const localId of Array.from(inFlight.keys())) abortInFlight(localId);
       holds = 0;
       openGate?.(); // nothing waits on a hold past the queue's life
       gate = null;

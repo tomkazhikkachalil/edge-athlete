@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   checkUploadIntent,
   EXT_BY_TYPE,
@@ -83,5 +85,35 @@ describe('direct upload rules', () => {
     expect(isOwnPostsUploadUrl('javascript:alert(1)', OWNER)).toBe(false);
     expect(isOwnPostsUploadUrl(`posts/${OWNER}/${ID}.mov`, OWNER)).toBe(false);
     expect(isOwnPostsUploadUrl(null, OWNER)).toBe(false);
+  });
+});
+
+// Videos program Phase 2 (Nov 5 2026): the cap lives in ONE module that the
+// client, every route and the bucket read. The bucket's own limit is the
+// literal 250's result row expects; no other source file carries the number.
+describe('the one upload cap', () => {
+  it('equals the uploads bucket file_size_limit that migration 250 pins', () => {
+    const sql = readFileSync(join(process.cwd(), 'database/migrations/250_uploads_bucket_gzip.sql'), 'utf8');
+    const m = /uploads_limit_expect_(\d+)/.exec(sql);
+    expect(m, '250 names the bucket limit in its result row').not.toBeNull();
+    expect(Number(m![1])).toBe(MAX_UPLOAD_BYTES);
+  });
+  it('no other source file spells the cap as a literal (code, not comments)', () => {
+    const root = join(process.cwd(), 'src');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) { if (entry.name !== '__tests__') walk(full); continue; }
+        if (!/\.(ts|tsx)$/.test(entry.name) || full.endsWith('/media/upload-rules.ts')) continue;
+        const lines = readFileSync(full, 'utf8').split('\n');
+        lines.forEach((line, i) => {
+          const code = line.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
+          if (/50 \* 1024 \* 1024|50 \* MB\b|52428800|less than 50MB|Up to 50MB/.test(code)) offenders.push(`${full.slice(root.length + 1)}:${i + 1}`);
+        });
+      }
+    };
+    walk(root);
+    expect(offenders).toEqual([]);
   });
 });

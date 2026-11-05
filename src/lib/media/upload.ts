@@ -18,6 +18,8 @@
  */
 
 import { stripJpegMetadataKeepOrientation } from './exif-strip';
+import { resumableEndpoint, uploadTransportFor, type UploadTransport } from './tus';
+import { clearResumeEntry, defaultResumeStorage, readResumeEntry, writeResumeEntry } from './resume-store';
 
 export interface UploadedMedia {
   url: string;
@@ -28,6 +30,8 @@ export interface UploadedMedia {
   processing?: boolean;
   /** The video track's codec the server read at completion (PR 7). */
   codec?: string;
+  /** Phase 2: how the bytes travelled — the plain PUT, or the resumable chunks. */
+  transport?: UploadTransport;
 }
 
 /** Why an upload failed — the queue decides from it what a reconnect retries. */
@@ -64,8 +68,13 @@ async function withoutJpegMetadata(file: File): Promise<File> {
 }
 
 export interface UploadOptions {
-  /** 0..1 as the bytes leave the device (the PUT to storage). */
+  /** 0..1 as the bytes leave the device (the PUT or the chunks to storage). */
   onProgress?: (fraction: number) => void;
+  /** Aborts the request in flight (the queue's forget / replace / destroy — a tile's X is the cancel). */
+  signal?: AbortSignal;
+  /** Phase 2: the key a resumable upload is remembered under (the queue's session + local id), so a
+   *  retry — or a reload inside the service's 24 h — continues from the last acknowledged chunk. */
+  resumeKey?: string;
 }
 
 async function readError(response: Response, fallback: string): Promise<string> {
@@ -77,10 +86,14 @@ async function readError(response: Response, fallback: string): Promise<string> 
 }
 
 /** PUT the bytes straight to the signed storage URL, reporting progress. */
-function putToStorage(signedUrl: string, file: File, onProgress?: (fraction: number) => void): Promise<void> {
+function putToStorage(signedUrl: string, file: File, onProgress?: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', signedUrl);
+    if (signal) {
+      if (signal.aborted) { reject(new UploadError('network', 'The upload was cancelled')); return; }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
     xhr.setRequestHeader('content-type', file.type);
     xhr.setRequestHeader('cache-control', 'max-age=3600');
     xhr.setRequestHeader('x-upsert', 'false');
@@ -125,19 +138,67 @@ export async function stageUpload(
   file: File,
   targetProfileId?: string,
   options: UploadOptions = {}
-): Promise<{ path: string }> {
+): Promise<{ path: string; transport: UploadTransport }> {
   const body = file.type.startsWith('video/') ? file : await withoutJpegMetadata(file);
   const target = targetProfileId ? { targetProfileId } : {};
-  const intent = await fetch('/api/upload/post-media/intent', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: body.type, size: body.size, ...target }),
-  }).catch(err => { throw new UploadError('network', err instanceof Error && err.message ? 'The upload could not start — check your connection' : 'The upload could not start'); });
-  if (!intent.ok) throw new UploadError(intent.status === 413 ? 'too-large' : 'refused', await readError(intent, 'Failed to upload media'));
-  const { path, signedUrl } = (await intent.json()) as { path: string; signedUrl: string };
-  await putToStorage(signedUrl, body, options.onProgress);
-  return { path };
+  const transport = uploadTransportFor(body.size);
+  const storage = transport === 'tus' && options.resumeKey ? defaultResumeStorage() : null;
+
+  // Phase 2 (Nov 5 2026): a resumable upload that stopped inside the service's
+  // 24 h continues where it was — the stored key and token are the intent's
+  // own, so no new intent is spent and no second object is minted.
+  const remembered = options.resumeKey ? readResumeEntry(storage, options.resumeKey, body, Date.now()) : null;
+  let path: string;
+  let token: string;
+  let signedUrl: string | null = null;
+  if (remembered) {
+    path = remembered.path;
+    token = remembered.token;
+  } else {
+    const intent = await fetch('/api/upload/post-media/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: body.type, size: body.size, ...target }),
+      signal: options.signal,
+    }).catch(err => {
+      if (options.signal?.aborted) throw new UploadError('network', 'The upload was cancelled');
+      throw new UploadError('network', err instanceof Error && err.message ? 'The upload could not start — check your connection' : 'The upload could not start');
+    });
+    if (!intent.ok) throw new UploadError(intent.status === 413 ? 'too-large' : 'refused', await readError(intent, 'Failed to upload media'));
+    const minted = (await intent.json()) as { path: string; signedUrl: string; token: string };
+    path = minted.path;
+    token = minted.token;
+    signedUrl = minted.signedUrl;
+  }
+
+  if (transport === 'put' && signedUrl) {
+    await putToStorage(signedUrl, body, options.onProgress, options.signal);
+    return { path, transport };
+  }
+
+  const { tusUpload } = await import('./tus-upload');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const resumeKey = options.resumeKey;
+  await tusUpload({
+    endpoint: resumableEndpoint(supabaseUrl),
+    token,
+    bucket: UPLOAD_BUCKET,
+    objectName: path,
+    contentType: body.type,
+    file: body,
+    uploadUrl: remembered?.uploadUrl ?? null,
+    signal: options.signal,
+    onProgress: options.onProgress,
+    onUploadUrl: uploadUrl => {
+      if (resumeKey) writeResumeEntry(storage, resumeKey, { uploadUrl, path, token, size: body.size, type: body.type, savedAt: Date.now() });
+    },
+  });
+  if (resumeKey) clearResumeEntry(storage, resumeKey);
+  return { path, transport };
 }
+
+/** The bucket the intent mints into — upload-server.ts's BUCKET, named here for the client's metadata. */
+const UPLOAD_BUCKET = 'uploads';
 
 export async function uploadPostMedia(
   file: File,
@@ -145,7 +206,7 @@ export async function uploadPostMedia(
   options: UploadOptions = {}
 ): Promise<UploadedMedia> {
   const target = targetProfileId ? { targetProfileId } : {};
-  const { path } = await stageUpload(file, targetProfileId, options);
+  const { path, transport } = await stageUpload(file, targetProfileId, options);
 
   const complete = await fetch('/api/upload/post-media/complete', {
     method: 'POST',
@@ -162,6 +223,7 @@ export async function uploadPostMedia(
     scrubbed: payload.scrubbed === true,
     ...(payload.processing === true ? { processing: true } : {}),
     ...(typeof payload.codec === 'string' ? { codec: payload.codec } : {}),
+    transport,
   };
 }
 

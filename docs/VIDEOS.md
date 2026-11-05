@@ -19,9 +19,9 @@ The same `videos` row with three more nullable places (`group_post_id`, `activit
 
 Not in 1b: a per-exercise link (`ExerciseCard`) — a workout's recording is one link per session, since exercise rows are replaced on every save; the feed's `WorkoutPostCard` count (a later round, through `stats_data`).
 
-## Phase 2 — native short-video reliability
+## Phase 2 — native short-video reliability (shipped Nov 5 2026, zero DDL; the branch `feat/videos-phase2`)
 
-The native path already uploads direct to storage (intent → PUT → complete, Oct 2026; Vercel bodies are 4.5 MB). What remains: resumable TUS uploads through Supabase's TUS endpoint; progress, retry and cancel in `upload-queue.ts`; the 50 MB cap in ONE module (`upload-rules.ts`) that the client, the server and the bucket all read; and "quality" defined as codec / bitrate / transcode targets in `media-jobs.ts` BEFORE any cap is raised — a 200 MB cap is not "highest quality" until those are written.
+The native path already uploaded direct to storage (intent → PUT → complete; Vercel bodies are 4.5 MB). Phase 2 made it survive a phone's connection: a clip longer than one chunk (6 MB) travels **resumable** (tus against Supabase's signed endpoint with the intent's own token — the same host, zero CSP change; proven on staging Nov 5 by a node probe before a line of client code), a retry or a reload continues from the last acknowledged chunk (`resume-store.ts`), and a tile's X **cancels** the bytes in flight (one AbortController per upload in the queue). The **50 MB cap is ONE module** (`upload-rules.ts`; pinned equal to the bucket's limit and swept for stray literals — two were folded: the contest media door and the composer's line). **Quality is defined before any cap is raised:** `TRANSCODE_TARGETS` in `media-jobs.ts` (H.264 High 4.0, 8-bit 4:2:0, ≤ 30 fps, AAC 128k, 720p then 540p, 180 s) is what the ffmpeg command is built from; `docs/MEDIA.md` "Quality targets and the cap" names the three steps a raise takes (targets → budget → bucket → constant). Convention 43 amended; the record is the Nov 5 2026 devlog entry.
 
 ## Phase 3 — the YouTube account connection and direct uploads
 

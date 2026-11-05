@@ -420,7 +420,7 @@ export default function CreatePostModal({
   // Picked files go through the shared media editor before joining the post.
   // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
   // after a full upload — it re-encodes in the editor), and the size cap
-  // matches the server's 50MB (edited images re-encode far smaller anyway).
+  // matches the server's MAX_UPLOAD_BYTES (edited images re-encode far smaller anyway).
   //
   // CAPTURE V2 (Sep 2026): a CAMERA capture attaches immediately as a tile —
   // the original File is the tile and the upload; the editor is one tap away
@@ -1021,7 +1021,7 @@ export default function CreatePostModal({
         <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
           {draggedOver
             ? 'Drop to add'
-            : 'Up to 50MB each — crop, adjust, and filter before posting'}
+            : `Up to ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB each — crop, adjust, and filter before posting`}
         </p>
 
         {/* Visible privacy care for minors' media (Family Console Wave 1;
