@@ -45,6 +45,14 @@ describe('the places (Phase 1b)', () => {
     expect(live).toContain('<EventLiveVideos eventId={eventId} token={token} />');
     expect(read('src/components/sport-events/EventLiveVideos.tsx')).toContain('hideWhenEmpty hideDoor');
   });
+  it('the activity screen lists its videos and offers the owner the door beside the capture buttons; the workout review offers it and the card lists them', () => {
+    const activity = read('src/components/activities/ActivityScreen.tsx');
+    expect(activity).toContain('data-activity-videos=""');
+    expect(activity).toContain('label="Full recording (YouTube)"');
+    expect(activity.indexOf('data-activity-photo-input')).toBeLessThan(activity.indexOf('label="Full recording (YouTube)"'));
+    expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toContain('label="Full session (YouTube)"');
+    expect(read('src/components/workouts/WorkoutCard.tsx')).toContain('<WorkoutVideos sessionId={session.id} />');
+  });
 });
 
 describe('the player', () => {

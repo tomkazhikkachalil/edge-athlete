@@ -6,6 +6,7 @@ import { computeSummary, formatDuration, formatVolume } from '@/lib/workouts/sum
 import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import WorkoutDetailItems from './WorkoutDetailItems';
+import WorkoutVideos from './WorkoutVideos';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 
@@ -230,6 +231,9 @@ export default function WorkoutCard({
               </button>
             </div>
           )}
+
+          {/* Videos (297): the session's linked recording, fetched only once expanded; silent at zero. */}
+          <WorkoutVideos sessionId={session.id} />
 
           {/* Inline save-as-routine prompt — no extra modal layer needed */}
           {isOwnProfile && savePromptOpen && (
