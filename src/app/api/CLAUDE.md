@@ -122,4 +122,16 @@ export async function POST(request: NextRequest) {
 
 ## The general write limit
 
-Every POST/PUT/PATCH/DELETE through `requireAuth` (and its wrappers) first spends one hit of the per-account `write-general` bucket (120 a minute) — inline, before your handler; while the bucket is SHADOW a hit over budget is recorded (console + Sentry by account and route) and the request proceeds; once real, `requireAuth` throws the 429 and your `instanceof Response` catch returns it. A route on `getServerAuth` is NOT covered (see HARDENING.md). Never call the bucket yourself.
+Every POST/PUT/PATCH/DELETE through `requireAuth` (and its wrappers) first spends one hit of the per-account `write-general` bucket (120 a minute) — inline, before your handler; while the bucket is SHADOW a hit over budget is recorded (console + Sentry by account and route) and the request proceeds; once real, `requireAuth` throws the 429 and your `instanceof Response` catch returns it. Never call the bucket yourself.
+
+**A write route on `getServerAuth` names its bucket** (Nov 2 2026) and gets the verdict back as a value — the same one round trip (`write-general` + the bucket), the route keeps its shape:
+
+```typescript
+const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'post-save' });
+if (authError || !user) {
+  return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+}
+if (limited) return limited;
+```
+
+`src/lib/__tests__/write-routes-limited.test.ts` walks every route that exports a write method and refuses one that names no gate (its own, or the `@/lib` handler it delegates to); a route that takes no account (a signed webhook) says why in its `ALLOWED` map. Buckets live in `src/lib/rate-limit-core.ts` — reuse one before adding one.

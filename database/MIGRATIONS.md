@@ -932,6 +932,29 @@ MIGRATION FIRST on both databases (the writers send the columns; a POST before
 the column answers 500 → rollback). Reversal: the two `DROP COLUMN` pairs in
 the file's header. Expected row on both: `291 APPLIED | 4 | 291`.
 
+## The unit system on the account (migration 293, Oct 29 2026 — the golf steps refinements, PR A)
+
+Tom's spec for the golf round's Conditions step: *"Add a Fahrenheit / Celsius
+toggle. Remember the user's choice on their account so it persists across
+rounds and devices."* His call: it is the ONE Metric / Imperial preference
+Settings → Account already offers (temperatures, distances, weights), moved
+from the device onto the account. 293 adds one nullable column to `profiles`:
+`unit_system` (`metric` | `imperial`, CHECK; NULL = not chosen — the device
+decides, metric by default). Owner-only (`OWNER_ONLY_FIELDS` strips it from
+`GET /api/profile`), NULLed by the departure strip, read only through
+`sanitizeUnitSystem` (`unit-prefs.ts`), written only by
+`unit-prefs-server.ts writeUnitSystem` behind `PATCH /api/settings/units`
+(`requireAuth`, the `units` bucket 120/h, `private, no-store`). The device's
+`ea.activities.unit` is the cache: `UnitSystemApplier` seeds it from the
+column on every profile load (server truth first, 069's rule). No new table,
+so no new grants. Deploy order: MIGRATION FIRST on both databases (the route
+writes the column; a PATCH before it answers 500). Reversal: the `DROP
+COLUMN` in the file's header. Expected row on both: `293 APPLIED | 1 | 293`.
+
+## Which picked courses have a card (migration 294, Oct 31 2026)
+
+`golf_course_picks` holds one row per picked course with its card kind (`provider`, `map`, `none`) and a counter; no user ids; RLS on with no policies, service role only. The one writer is `golf_course_pick_hit`, called best-effort from `GET /api/golf/courses`. Run on both databases BEFORE the code; a failed count never blocks a pick. Reversal is in the file's header. Expected row: `294 APPLIED | 1 | 294`.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
@@ -947,3 +970,20 @@ broke tagging once — see migration 025):
 
 If you need something from these, port it into a new numbered migration rather
 than running the file directly.
+
+## The header's numbers in one call (migration 292, Oct 29 2026 — the cost program PR B)
+
+Every signed-in visible tab polled three routes for two numbers (the Live
+dot, the bell): two a minute, one every two minutes — three Vercel function
+calls a minute per tab, each with its own Supabase trips. 292 adds
+`me_pulse(viewer) → {live_golf, live_events, unread_messages}`: the SQL
+mirror of the routes' pure rules (round-status.ts's 48 h window and
+"any status but declined"; live-now.ts's "a live round" and "accepted";
+`get_unread_message_count` as it is), STABLE, invoker, service_role only.
+`GET /api/me/pulse` is its one caller; a deploy ahead of it answers 503.
+Reversal: `DROP FUNCTION public.me_pulse(uuid)`. Expected row on both:
+`292 APPLIED | 1 | true | 292`.
+
+## Closing golf_course_picks to the public roles (migration 295, Oct 31 2026)
+
+294 omitted posture A's table REVOKE. 295 removes anon and authenticated privileges; RLS with no policies already kept the table closed. Run on both databases; no code depends on it. Expected row: `295 APPLIED | 295 | false | false`.

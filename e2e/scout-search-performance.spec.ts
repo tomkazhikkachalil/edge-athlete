@@ -1,3 +1,5 @@
+// Staging only (Nov 2 2026): this spec signs in right after a real sign-up, which needs
+// auto-confirm — staging has it, production confirms by e-mail (Convention 56). Not a prod probe.
 import { purgePost } from './helpers/results';
 import { test, expect } from './helpers/test';
 import { adminClient, apiAs, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, qaEmail } from './helpers/qa-user';

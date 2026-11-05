@@ -115,14 +115,19 @@ function putToStorage(signedUrl: string, file: File, onProgress?: (fraction: num
  * straight from the device to Supabase Storage → complete. The function never
  * carries the file, so Vercel's 4.5 MB request cap no longer applies.
  */
-export async function uploadPostMedia(
+/**
+ * Steps 1 and 2 of the direct upload: the intent, then the bytes straight to
+ * storage. Returns the incoming key the completing route finalizes — the post
+ * media route, or the profile photo route (Nov 2 2026), which finalizes to
+ * the slot's own path. A JPEG loses its metadata on the device first.
+ */
+export async function stageUpload(
   file: File,
   targetProfileId?: string,
   options: UploadOptions = {}
-): Promise<UploadedMedia> {
+): Promise<{ path: string }> {
   const body = file.type.startsWith('video/') ? file : await withoutJpegMetadata(file);
   const target = targetProfileId ? { targetProfileId } : {};
-
   const intent = await fetch('/api/upload/post-media/intent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -130,8 +135,17 @@ export async function uploadPostMedia(
   }).catch(err => { throw new UploadError('network', err instanceof Error && err.message ? 'The upload could not start — check your connection' : 'The upload could not start'); });
   if (!intent.ok) throw new UploadError(intent.status === 413 ? 'too-large' : 'refused', await readError(intent, 'Failed to upload media'));
   const { path, signedUrl } = (await intent.json()) as { path: string; signedUrl: string };
-
   await putToStorage(signedUrl, body, options.onProgress);
+  return { path };
+}
+
+export async function uploadPostMedia(
+  file: File,
+  targetProfileId?: string,
+  options: UploadOptions = {}
+): Promise<UploadedMedia> {
+  const target = targetProfileId ? { targetProfileId } : {};
+  const { path } = await stageUpload(file, targetProfileId, options);
 
   const complete = await fetch('/api/upload/post-media/complete', {
     method: 'POST',

@@ -26,24 +26,3 @@ export function requestPosition(): Promise<DeviceFix> {
     );
   });
 }
-
-/**
- * Whether the device has ALREADY granted location to this site — never asks.
- * The golf round steps (Oct 28 2026, Tom's call) run the one-shot fix on
- * entering the course step only when this is true, so a person who said yes
- * once sees "Playing at X?" without a tap and nobody meets a prompt on
- * arrival. Feature-detected: no Permissions API (iOS 15), a browser that
- * cannot answer for geolocation, or a thrown query all read as "not granted"
- * and the Near me button stands exactly as before.
- */
-export async function geolocationGranted(): Promise<boolean> {
-  try {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return false;
-    const perms = (navigator as Navigator & { permissions?: Permissions }).permissions;
-    if (!perms || typeof perms.query !== 'function') return false;
-    const status = await perms.query({ name: 'geolocation' });
-    return status.state === 'granted';
-  } catch {
-    return false;
-  }
-}

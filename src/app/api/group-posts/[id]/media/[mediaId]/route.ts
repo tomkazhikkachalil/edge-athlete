@@ -57,10 +57,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; mediaId: string }> }
 ) {
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'group-post-edit' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (limited) return limited;
 
   try {
     const { id: groupPostId, mediaId } = await params;
@@ -159,10 +160,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; mediaId: string }> }
 ) {
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'group-post-edit' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (limited) return limited;
 
   try {
     const { id: groupPostId, mediaId } = await params;

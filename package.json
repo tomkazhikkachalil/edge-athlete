@@ -18,6 +18,7 @@
     "check:blocklists": "node scripts/check-blocklists.mjs",
     "test:e2e:prod": "E2E_TARGET=prod E2E_ALLOW_PROD=1 E2E_BASE_URL=${E2E_PROD_URL:-https://edge-athlete.vercel.app} playwright test",
     "check:syntax": "node scripts/check-browser-syntax.mjs",
+    "launch:probe": "node scripts/launch-probe.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
     "verify:media-privacy": "node scripts/verify-media-privacy.mjs",
     "check:schema": "node scripts/schema-inventory.mjs && node scripts/check-table-grants.mjs",
@@ -83,6 +84,9 @@
     "postcss": "8.5.25",
     "sharp": "0.35.5",
     "zod": "^4.6.7",
-    "fast-uri": "^3.1.9"
+    "fast-uri": "^3.1.9",
+    "@sentry/bundler-plugins": {
+      "glob": "^14.0.3"
+    }
   }
 }

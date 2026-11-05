@@ -67,7 +67,7 @@ export default function CourseSummaryCard({ course, holeLines, greensOnly = fals
           <ul className="mt-2 space-y-0.5 text-sm text-secondary" data-course-tees="">
             {totals.map(t => (
               <li key={t.key} className={t.key === teeInPlay ? 'font-bold text-primary' : ''}>
-                {t.label} <span className="font-bold tabular-nums text-primary">{t.yards!.toLocaleString()} yds</span>
+                {t.label} <span className="font-bold tabular-nums text-primary">{t.key === 'map' ? '≈' : ''}{t.yards!.toLocaleString()} yds</span>
                 {t.rating != null && t.slope != null && <span className="text-tertiary"> · {t.rating} / {t.slope}</span>}
               </li>
             ))}

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import * as Sentry from '@sentry/nextjs';
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { destinationFor } from '@/lib/auth-destination';
 
 // ── GET /auth/callback ────────────────────────────────────────────────────────
 // OAuth (PKCE) landing: Supabase redirects here with ?code= after the
@@ -65,21 +66,16 @@ export async function GET(request: Request) {
     return loginWithError('Sign-in failed. Please try again.');
   }
 
-  let dest = '/auth/complete-profile';
+  // Where next is ONE rule (src/lib/auth-destination.ts, Nov 2 2026): the
+  // e-mail confirmation link (/auth/confirm) sends people the same way.
+  let dest = destinationFor(null);
   try {
     const { data: profile } = await getSupabaseAdmin()
       .from('profiles')
       .select('id, onboarded_at, user_type')
       .eq('id', data.user.id)
       .maybeSingle();
-    if (profile) {
-      // Parents (097) route to the console/add-athlete, never the wizard.
-      dest = profile.user_type === 'parent'
-        ? (profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete')
-        : profile.user_type === 'organizer'
-          ? (profile.onboarded_at ? '/feed' : '/club/start') // mig 178: never the athlete wizard
-          : (profile.onboarded_at ? '/athlete' : '/onboarding');
-    }
+    if (profile) dest = destinationFor(profile);
   } catch (lookupError) {
     // Fall through to complete-profile — its own already-has-profile gate
     // self-corrects, and the landing page backstops the reverse case.

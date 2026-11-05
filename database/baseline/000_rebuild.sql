@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-29T11:37:24.017361+00:00 from server 17.6 by
+-- Generated 2026-10-31T22:32:57.001654+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 291.
+-- public.schema_dump() (migration 227). Ledger head at generation: 295.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (133; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (135; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2176,6 +2176,18 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text)
+ RETURNS void
+ LANGUAGE sql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  INSERT INTO public.golf_course_picks (course_id, card) VALUES (p_course_id, p_card)
+  ON CONFLICT (course_id) DO UPDATE
+    SET card = EXCLUDED.card, picks = public.golf_course_picks.picks + 1, last_picked_at = now();
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.golf_courses_search_vector_update()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2401,6 +2413,54 @@ AS $function$
   FROM public.live_cheers c
   WHERE c.context_key = p_context_key
   GROUP BY c.cheer;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'live_golf', (
+      SELECT count(*)
+      FROM public.group_posts gp
+      WHERE gp.type = 'golf_round'
+        AND gp.status IN ('pending', 'active')
+        AND (gp.date::timestamp AT TIME ZONE 'UTC')
+              BETWEEN now() - interval '48 hours' AND now() + interval '48 hours'
+        AND (
+          gp.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.group_post_participants gpp
+            WHERE gpp.group_post_id = gp.id
+              AND gpp.profile_id = p_viewer
+              AND gpp.status IS DISTINCT FROM 'declined'
+          )
+        )
+    ),
+    'live_events', (
+      SELECT count(*)
+      FROM public.sport_events e
+      WHERE e.status = 'live'
+        AND (
+          e.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.sport_event_participants sp
+            WHERE sp.sport_event_id = e.id
+              AND sp.profile_id = p_viewer
+              AND sp.status = 'accepted'
+          )
+        )
+        AND EXISTS (
+          SELECT 1 FROM public.sport_event_rounds r
+          WHERE r.sport_event_id = e.id AND r.status = 'live'
+        )
+    ),
+    'unread_messages', public.get_unread_message_count(p_viewer)
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -4968,7 +5028,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (138) ──────────────────────────────────────────────────────────────
+-- ── Tables (139) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -5558,6 +5618,14 @@ CREATE TABLE IF NOT EXISTS public.golf_clubs (
   lng double precision,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_course_picks (
+  course_id uuid NOT NULL,
+  card text NOT NULL,
+  picks integer DEFAULT 1 NOT NULL,
+  first_picked_at timestamp with time zone DEFAULT now() NOT NULL,
+  last_picked_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_courses (
@@ -6511,7 +6579,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_recipe jsonb,
   cover_source_url text,
   cover_recipe jsonb,
-  favourite_sports jsonb
+  favourite_sports jsonb,
+  unit_system text
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -7253,6 +7322,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_clubs_pkey' AND conrelid = 'public.golf_clubs'::regclass) THEN
     ALTER TABLE public.golf_clubs ADD CONSTRAINT golf_clubs_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_pkey' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_pkey PRIMARY KEY (course_id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8845,6 +8919,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_card_check' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_card_check CHECK ((card = ANY (ARRAY['provider'::text, 'map'::text, 'none'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_courses_section_kind_check' AND conrelid = 'public.golf_courses'::regclass) THEN
     ALTER TABLE public.golf_courses ADD CONSTRAINT golf_courses_section_kind_check CHECK (((section_kind IS NULL) OR (section_kind = ANY (ARRAY['course_18'::text, 'nine'::text, 'unspecified'::text]))));
   END IF;
@@ -9522,6 +9601,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_supervision_state_check' AND conrelid = 'public.profiles'::regclass) THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_supervision_state_check CHECK ((supervision_state = ANY (ARRAY['self'::text, 'supervised'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_unit_system_check' AND conrelid = 'public.profiles'::regclass) THEN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_unit_system_check CHECK (((unit_system IS NULL) OR (unit_system = ANY (ARRAY['metric'::text, 'imperial'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10629,6 +10713,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_clubs_place_id_fkey' AND conrelid = 'public.golf_clubs'::regclass) THEN
     ALTER TABLE public.golf_clubs ADD CONSTRAINT golf_clubs_place_id_fkey FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_course_id_fkey' AND conrelid = 'public.golf_course_picks'::regclass) THEN
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_course_id_fkey FOREIGN KEY (course_id) REFERENCES golf_courses(id) ON DELETE CASCADE;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -11745,6 +11834,7 @@ CREATE INDEX IF NOT EXISTS idx_follows_composite ON public.follows USING btree (
 CREATE INDEX IF NOT EXISTS idx_follows_follower_status ON public.follows USING btree (follower_id, status);
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
 CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
+CREATE INDEX IF NOT EXISTS golf_course_picks_card_picks_idx ON public.golf_course_picks USING btree (card, picks DESC);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name extensions.gin_trgm_ops);
@@ -12113,7 +12203,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (133) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (135) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -14140,6 +14230,16 @@ AS $function$
   ORDER BY n DESC, 1, 3
 $function$;
 
+CREATE OR REPLACE FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text)
+ RETURNS void
+ LANGUAGE sql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  INSERT INTO public.golf_course_picks (course_id, card) VALUES (p_course_id, p_card)
+  ON CONFLICT (course_id) DO UPDATE
+    SET card = EXCLUDED.card, picks = public.golf_course_picks.picks + 1, last_picked_at = now();
+$function$;
+
 CREATE OR REPLACE FUNCTION public.golf_courses_search_vector_update()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14343,6 +14443,52 @@ AS $function$
   FROM public.live_cheers c
   WHERE c.context_key = p_context_key
   GROUP BY c.cheer;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'live_golf', (
+      SELECT count(*)
+      FROM public.group_posts gp
+      WHERE gp.type = 'golf_round'
+        AND gp.status IN ('pending', 'active')
+        AND (gp.date::timestamp AT TIME ZONE 'UTC')
+              BETWEEN now() - interval '48 hours' AND now() + interval '48 hours'
+        AND (
+          gp.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.group_post_participants gpp
+            WHERE gpp.group_post_id = gp.id
+              AND gpp.profile_id = p_viewer
+              AND gpp.status IS DISTINCT FROM 'declined'
+          )
+        )
+    ),
+    'live_events', (
+      SELECT count(*)
+      FROM public.sport_events e
+      WHERE e.status = 'live'
+        AND (
+          e.visibility = 'public'
+          OR EXISTS (
+            SELECT 1 FROM public.sport_event_participants sp
+            WHERE sp.sport_event_id = e.id
+              AND sp.profile_id = p_viewer
+              AND sp.status = 'accepted'
+          )
+        )
+        AND EXISTS (
+          SELECT 1 FROM public.sport_event_rounds r
+          WHERE r.sport_event_id = e.id AND r.status = 'live'
+        )
+    ),
+    'unread_messages', public.get_unread_message_count(p_viewer)
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer)
@@ -17039,6 +17185,7 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.facilities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_clubs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_course_picks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_hole_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_holes ENABLE ROW LEVEL SECURITY;
@@ -18221,6 +18368,8 @@ REVOKE ALL ON TABLE public.golf_clubs FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_clubs TO service_role;
+REVOKE ALL ON TABLE public.golf_course_picks FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_course_picks TO service_role;
 REVOKE ALL ON TABLE public.golf_courses FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_courses TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_courses TO authenticated;
@@ -18607,6 +18756,8 @@ REVOKE EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) FR
 GRANT EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_courses_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_courses_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -18631,6 +18782,8 @@ REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) FROM PUBLIC, anon, authenticated, service_role;
@@ -18811,6 +18964,7 @@ COMMENT ON COLUMN public.contests.sport_event_match_id IS 'The event match this 
 COMMENT ON COLUMN public.conversation_participants.held_at IS 'First-contact hold (131). Non-null on a supervised child''s row = the conversation is invisible to them until a guardian approves; cleared on approve, row severed (left_at) on deny.';
 COMMENT ON COLUMN public.conversations.frozen_at IS 'Frozen by a Critical report (223): no one sends while set; everyone still reads. Distinct from the first-contact hold (131).';
 COMMENT ON COLUMN public.conversations.frozen_ticket_id IS 'The ticket that froze it (223).';
+COMMENT ON TABLE public.golf_course_picks IS 'Picks per course and the card each had at the latest pick (294). No user ids. Service role only.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation IS 'Elevation profile along each hole (254): {holes:[{hole, pts:[[lat,lng]…], elev:[metres…]}], sampled:''line10'', source:''open-meteo''}; NULL = no geometry or no answer. Sampled from hole_geometry; 30-day cache keyed by hole_elevation_at. Written only by src/lib/golf/elevation-server.ts.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation_at IS 'When hole_elevation was last ATTEMPTED (254) — a null answer is stamped too; recomputed after 30 days or when hole_geometry_at is newer.';
 COMMENT ON TABLE public.golf_hole_scores IS 'Per-hole detailed scores for golf participants';
@@ -18948,6 +19102,7 @@ COMMENT ON COLUMN public.profiles.avatar_recipe IS 'The crop recipe that made av
 COMMENT ON COLUMN public.profiles.cover_source_url IS 'The uploaded ORIGINAL behind cover_url (264): private uploads bucket, profile-sources/{id}/; owner-only through /api/media/profile-source. ONE writer: the cover POST.';
 COMMENT ON COLUMN public.profiles.cover_recipe IS 'The crop recipe that made cover_url from cover_source_url (264); Adjust reopens the editor here.';
 COMMENT ON COLUMN public.profiles.favourite_sports IS 'The account''s favourite sports in the post composer''s picker (285): a JSON array of registry sport keys, owner-only, never a declared sport. Read through sanitizeFavouriteSports; ONE writer: favourites-server.ts writeFavouriteSports.';
+COMMENT ON COLUMN public.profiles.unit_system IS 'The account''s unit system (293): metric (°C, km, kg) or imperial (°F, mi, lb) for everything measured; NULL = not chosen (the device decides). Owner-only. Read through sanitizeUnitSystem; ONE writer: unit-prefs-server.ts writeUnitSystem behind PATCH /api/settings/units.';
 COMMENT ON TABLE public.push_subscriptions IS 'Phone notifications (248): one row per device that turned them on (a Web Push subscription). Written by /api/push/subscriptions; pruned by src/lib/push/send-server.ts on 404/410. Posture A: service role only.';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.sanction_grants IS 'The append-only sanction history (167): one row per grant a parent org opened for a child (236: grantor_org_id → grantee_org_id, both organizations; revoked_at closes it). The polymorphic (grantee_kind, grantee_id) and grantor_league_id left in 237.';
@@ -19029,6 +19184,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
+COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
 COMMENT ON FUNCTION public.post_like_allowed(p_viewer uuid, p_post_id uuid) IS 'May this viewer like this post (287): the read gate (owner / guardian always; else published, owner present, public+public or an accepted follow) minus blocks either way. service_role only.';
@@ -19487,7 +19643,12 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (287, '287_post_like_allowed.sql', 'rebuild-000'),
   (288, '288_comment_like_toggle.sql', 'rebuild-000'),
   (289, '289_search_hide_blocked_muted.sql', 'rebuild-000'),
-  (290, '290_search_trigram.sql', 'rebuild-000')
+  (290, '290_search_trigram.sql', 'rebuild-000'),
+  (291, '291_round_conditions_source.sql', 'rebuild-000'),
+  (292, '292_me_pulse.sql', 'rebuild-000'),
+  (293, '293_profiles_unit_system.sql', 'rebuild-000'),
+  (294, '294_golf_course_picks.sql', 'rebuild-000'),
+  (295, '295_golf_course_picks_revoke.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19496,12 +19657,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 138 | 133 | 145 | 291
+-- Expected: 000 REBUILT | 139 | 135 | 145 | 295
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_138,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_139,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_133,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_291;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_295;
 

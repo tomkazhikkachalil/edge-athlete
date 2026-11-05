@@ -32,6 +32,9 @@ test('signed out: coming soon everywhere but the doors; robots forbid; signup re
     expect(await robots.text()).toContain('Disallow: /');
     expect((await page.request.get('/sitemap.xml')).status()).toBe(404);
     expect((await page.request.get('/privacy')).status()).toBe(200);
+    // The support doors (Nov 2 2026): help and contact answer a signed-out visitor.
+    expect((await page.request.get('/help')).status()).toBe(200);
+    expect((await page.request.get('/contact')).status()).toBe(200);
 
     const signup = await page.request.post('/api/signup', { data: { email: 'nobody@example.com', password: 'Xx!12345678', firstName: 'No', lastName: 'Body' } });
     expect(signup.status()).toBe(403);

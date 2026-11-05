@@ -6,7 +6,7 @@ import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
-import { holeCountLabel, holeCountValue, playedHoleCount } from '@/lib/golf/round-display';
+import { holeCountLabel, holeCountValue, playedHoleCount, scorecardHoleNumbers } from '@/lib/golf/round-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useDeleteRound } from '@/hooks/useDeleteRound';
@@ -200,13 +200,15 @@ export default function SharedRoundFullCard({
   });
 
   // Get all hole numbers present (supports flexible holes)
-  const allHoleNumbers = Array.from(
-    new Set(
-      participants.flatMap(p =>
-        p.scores.hole_scores?.map(h => h.hole_number) || []
-      )
-    )
-  ).sort((a, b) => a - b);
+  // Oct 31 2026 (Tom: the scorecard is missing while playing): the columns were
+  // only the holes already scored, so a round with no scores had no table at
+  // all, on every course. Unfinished rounds show the whole card.
+  const allHoleNumbers = scorecardHoleNumbers(
+    participants.flatMap(p => p.scores.hole_scores?.map(h => h.hole_number) || []),
+    golf_data.holes_played,
+    golf_data.hole_data,
+    group_post.status === 'completed'
+  );
 
   // Split into front 9 and back 9 (if applicable)
   const front9 = allHoleNumbers.filter(h => h <= 9);

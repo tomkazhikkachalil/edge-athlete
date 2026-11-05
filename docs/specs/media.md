@@ -16,6 +16,12 @@ intent → a signed PUT from the device to Supabase Storage → complete
 (`src/lib/media/upload-rules.ts`); a Vercel function refuses a body over
 4.5 MB on every plan, so NO route may ever take a media file as its body.
 `MAX_UPLOAD_BYTES` is the one cap and tracks the Supabase project limit.
+**The profile photos too (Nov 2 2026, SCALE_AUDIT hole #9):** the render and
+the kept original each go `stageUpload` (intent → PUT) and ONE JSON
+`POST /api/profile/photo` finalizes both to the slot's managed paths
+(`avatars/…`, `covers/<id>/…`, `profile-sources/…` — the cleanup rules in
+`photo-paths.ts` keep applying) and writes the row through `storeProfilePhoto`;
+the old FormData routes' POSTs stay one release as a fallback and then go.
 
 ## Convention 43 — A video is a poster first, media never looks broken, and the iPhone's clip is converted by a worker (Video posters + never-broken media program, Oct 13 2026, #1167–#1176, migs 261 · 262 — `docs/MEDIA.md` is the reference)
 

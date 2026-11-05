@@ -55,7 +55,7 @@ export default function ProfilePhotoDoor({ slot, hasPhoto, mode, targetProfileId
   const remove = async () => {
     setRemoving(true);
     try {
-      const res = await fetch(def.endpoint, {
+      const res = await fetch(def.removeEndpoint, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

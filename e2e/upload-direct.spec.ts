@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Direct-to-storage upload (Oct 2026, src/lib/media/upload-rules.ts). The old
 // door carried every byte through a Vercel function, and Vercel refuses a
@@ -82,4 +83,48 @@ test('the doors refuse an oversize file, a bad type and someone else\'s upload',
     };
   }, OTHER_OWNER);
   expect(statuses).toEqual({ oversize: 413, badType: 400, forged: 403, shapeless: 403 });
+});
+
+// A profile cover by the direct route (Nov 2 2026, SCALE_AUDIT hole #9): a
+// 6 MB PNG — the size the old FormData door could never carry under Vercel's
+// 4.5 MB — goes intent → PUT → POST /api/profile/photo, lands under
+// covers/<me>/ and the row names it; the refusals by name.
+test('a 6 MB cover goes straight to storage and the row names it; the refusals @mobile', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'brave-android', 'Playwright request routing drops a large body (the Brave lists route every request)');
+  test.setTimeout(180_000);
+  await page.goto('/feed');
+  const result = await page.evaluate(async () => {
+    // Noise does not compress: a 1500 px square PNG of random pixels is ~6 MB.
+    const canvas = document.createElement('canvas');
+    canvas.width = 1500; canvas.height = 1500;
+    const ctx = canvas.getContext('2d')!;
+    const img = ctx.createImageData(1500, 1500);
+    // getRandomValues takes 64 KB at a time.
+    for (let off = 0; off < img.data.length; off += 65536) crypto.getRandomValues(img.data.subarray(off, Math.min(off + 65536, img.data.length)));
+    for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+    ctx.putImageData(img, 0, 0);
+    const blob: Blob = await new Promise(res => canvas.toBlob(b => res(b!), 'image/png'));
+    const size = blob.size;
+    const intent = await fetch('/api/upload/post-media/intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'image/png', size }) });
+    if (!intent.ok) return { step: 'intent', status: intent.status, body: await intent.text() };
+    const { path, signedUrl } = await intent.json();
+    const put = await fetch(signedUrl, { method: 'PUT', headers: { 'content-type': 'image/png', 'x-upsert': 'false' }, body: blob });
+    if (!put.ok) return { step: 'put', status: put.status, body: await put.text() };
+    const save = await fetch('/api/profile/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: 'cover', path }) });
+    const saved = await save.json().catch(() => ({}));
+    const badSlot = await fetch('/api/profile/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: 'banner', path }) });
+    const notMine = await fetch('/api/profile/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: 'cover', path: path.replace(/incoming\/[^/]+/, 'incoming/00000000-0000-4000-8000-0000000000ff') }) });
+    return { step: 'done', size, status: save.status, saved, badSlot: badSlot.status, notMine: notMine.status };
+  });
+  expect(result.step, JSON.stringify(result)).toBe('done');
+  if (result.step !== 'done') return;
+  expect(result.size).toBeGreaterThan(4.5 * 1024 * 1024);
+  expect(result.status, JSON.stringify(result.saved)).toBe(200);
+  expect(result.saved.cover_url).toMatch(/\/uploads\/covers\/[0-9a-f-]+\/\d+\.png$/);
+  // The row names it (the page's session is the default QA user).
+  const me = loadQaUser('user.json');
+  const row = (await adminClient().from('profiles').select('cover_url').eq('id', me.id).single()).data;
+  expect(row?.cover_url).toBe(result.saved.cover_url);
+  expect(result.badSlot).toBe(400);
+  expect(result.notMine).toBe(403);
 });

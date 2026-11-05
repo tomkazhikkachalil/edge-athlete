@@ -98,6 +98,8 @@ export const RATE_LIMITS = {
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Favourite sports (285): a star tap in the sport picker — cheap and reversible, `like`'s shape.
   'favourite-sports': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // The unit system (293): a Metric / Imperial or °F / °C tap — cheap and reversible, the favourites' shape.
+  units: { max: 120, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },
   like: { max: 120, windowSeconds: 600, keyBy: 'user' },
   // Impact beacon (252): per IP, never a 429 — the route answers 204 even when
@@ -245,6 +247,27 @@ export const RATE_LIMITS = {
   // re-subscribes on every app start when its endpoint rotated; 30/h is
   // several devices' worth of normal use.
   'push-subscribe': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // The getServerAuth write routes get their buckets (Nov 2 2026): until
+  // then they met NO limiter, not even the shadow one. Each is per account
+  // and generous — the ceiling is a script's pace, never a person's.
+  // Save / unsave a post: a toggle, the like's pace.
+  'post-save': { max: 120, windowSeconds: 600, keyBy: 'user' },
+  // A handle rename (self or a managed athlete): rare by nature.
+  'handle-update': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Golf scores as they are entered — a scorecard's holes, a group's
+  // players, the quick-entry grid's per-hole saves: 600 in ten minutes is
+  // one save a second for the whole window.
+  'golf-score': { max: 600, windowSeconds: 600, keyBy: 'user' },
+  // A group post's edits after creation (fields, media, attestation).
+  'group-post-edit': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // Account settings writes (theme, body-metrics privacy, sport settings, equipment
+  // prefs, media presets, the Get Started dismissal).
+  'settings-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // The account's own data as a file (Nov 2 2026): every row of theirs,
+  // read table by table — three a day is a person, more is a script.
+  'account-export': { max: 3, windowSeconds: 86400, keyBy: 'user', message: 'You can download your data three times a day — try again tomorrow.' },
+  // A body measurement logged (Body Metrics).
+  'body-metrics-write': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Every authenticated WRITE (POST/PUT/PATCH/DELETE through requireAuth),
   // per account, in SHADOW — logged, never refused (maintenance pass, Oct 10
   // 2026). Generous on purpose: two writes a second for a whole minute is

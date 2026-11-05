@@ -30,13 +30,14 @@ import { validateFiles } from '@/lib/media/validation';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import { parseProfilePhotoRecipe, profileSourceProxyUrl, type ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
-import { assetFromProfilePhoto, prepareProfileSource, profilePhotoFormData } from '@/lib/profiles/photo-upload-client';
+import { assetFromProfilePhoto, prepareProfileSource, uploadProfilePhoto } from '@/lib/profiles/photo-upload-client';
 
 export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
   config: EditorConfig;
   maxBytes: number;
   field: 'avatar' | 'cover';
-  endpoint: string;
+  /** The Remove door (DELETE). The upload itself goes direct to storage (uploadProfilePhoto, Nov 2 2026). */
+  removeEndpoint: string;
   urlKey: 'avatar_url' | 'cover_url';
   facing: 'user' | 'environment';
   pickLabel: string;
@@ -45,9 +46,9 @@ export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
 }> = {
   avatar: {
     config: { aspectRatios: ['1:1'], enforcedRatio: '1:1', circularPreview: true, allowVideo: false, maxAssets: 1, output: { maxDimension: 1024, mime: 'image/jpeg', quality: 0.9 } },
-    maxBytes: 5 * 1024 * 1024, // matches /api/upload/avatar
+    maxBytes: 5 * 1024 * 1024, // the render's cap; the bytes go direct to storage (Nov 2 2026)
     field: 'avatar',
-    endpoint: '/api/upload/avatar',
+    removeEndpoint: '/api/upload/avatar',
     urlKey: 'avatar_url',
     facing: 'user', // a profile picture is a selfie
     pickLabel: 'Choose a profile photo',
@@ -56,9 +57,9 @@ export const PHOTO_SLOTS: Record<ProfilePhotoSlot, {
   },
   cover: {
     config: { aspectRatios: ['3:1'], enforcedRatio: '3:1', allowVideo: false, maxAssets: 1, output: { maxDimension: 1500, mime: 'image/jpeg', quality: 0.85 } },
-    maxBytes: 10 * 1024 * 1024, // matches /api/upload/cover
+    maxBytes: 10 * 1024 * 1024, // the render's cap; the bytes go direct to storage (Nov 2 2026)
     field: 'cover',
-    endpoint: '/api/upload/cover',
+    removeEndpoint: '/api/upload/cover',
     urlKey: 'cover_url',
     facing: 'environment', // a cover is scenery
     pickLabel: 'Choose a cover photo',
@@ -85,7 +86,7 @@ export interface ProfilePhotoUploaderProps {
   profileId?: string;
   current?: CurrentProfilePhoto | null;
   onUploaded?: (url: string) => void | Promise<void>;
-  /** Deferred mode: what the caller POSTs at save time (profilePhotoFormData). */
+  /** Deferred mode: what the caller uploads at save time (uploadProfilePhoto). */
   onPhotoReady?: (payload: ProfilePhotoPayload) => void;
   onError?: (message: string) => void;
   render: (api: { open: () => void; openCamera: () => void; adjust: () => void; canAdjust: boolean; uploading: boolean; busy: boolean }) => ReactNode;
@@ -149,16 +150,13 @@ export default function ProfilePhotoUploader({ slot, mode, targetProfileId, prof
     }
     setUploading(true);
     try {
-      const response = await fetch(def.endpoint, { method: 'POST', body: profilePhotoFormData(slot, payload, targetProfileId) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        reportError(data.error || `Failed to upload the ${def.noun.toLowerCase()}`);
-        return;
-      }
-      await onUploaded?.(data[def.urlKey]);
+      // Direct to storage (Nov 2 2026): the render and the original each PUT
+      // straight to the bucket; one JSON POST finalizes and writes the row.
+      const data = await uploadProfilePhoto(slot, payload, targetProfileId);
+      await onUploaded?.(data[def.urlKey] as string);
     } catch (err) {
       console.error(`${def.noun} upload failed:`, err);
-      reportError('Upload failed — please try again');
+      reportError(err instanceof Error && err.message ? err.message : 'Upload failed — please try again');
     } finally {
       setUploading(false);
     }

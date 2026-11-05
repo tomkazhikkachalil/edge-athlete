@@ -8,6 +8,7 @@ import InviteLinkShare from '@/components/InviteLinkShare';
 import { loadParkedInvite, saveParkedInvite, clearParkedInvite } from '@/lib/parked-invite';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import { COPY } from '@/lib/copy';
 
 // Registration step machine (guardian-profiles feature).
 //
@@ -33,7 +34,7 @@ import type { OrgKind } from '@/lib/orgs/org-ref';
 // with NO date of birth (an adult is assumed, Tom's decision) that mints a
 // user_type 'organizer' profile and lands in the wizard. The athlete/parent
 // role cards are never shown on the org path.
-type Step = 'entry' | 'organizer' | 'scout' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
+type Step = 'entry' | 'organizer' | 'scout' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked' | 'check-email';
 type Role = 'athlete' | 'parent';
 /** Phase 7 C1: the org door lands in the wizard with golf preselected. */
 // Round 4: no default sport on the door — the wizard starts on the creator's
@@ -103,6 +104,28 @@ export default function RegistrationSteps({
   const pendingSubmitRef = useRef(false);
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Confirmations ON (Convention 56): the address the mail went to, and the
+  // Resend door's state. The screen replaces every automatic sign-in.
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [resend, setResend] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const showCheckEmail = (email: string) => {
+    setConfirmEmail(email);
+    setResend('idle');
+    setError('');
+    setSuccess('');
+    setStep('check-email');
+  };
+  const resendConfirmation = async () => {
+    if (!confirmEmail || resend === 'sending') return;
+    setResend('sending');
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: confirmEmail });
+      setResend(resendError ? 'failed' : 'sent');
+    } catch {
+      setResend('failed');
+    }
+  };
   const errorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -167,6 +190,9 @@ export default function RegistrationSteps({
       // "Add your athlete" screen. With auto sign-in below this is a
       // same-session hand-off, so it actually survives now.
       try { window.sessionStorage.setItem('ea:athlete-dob', dob); } catch {}
+      // Confirmations ON (Convention 56): no session until the mail's link is
+      // opened — say so instead of a password sign-in that can only fail.
+      if (result.confirmationRequired) { showCheckEmail(form.email); return; }
 
       // Round J: sign the parent straight in (email confirmations are OFF in
       // this project, so the credentials work immediately) and land them on
@@ -227,6 +253,7 @@ export default function RegistrationSteps({
         setError(result.error || 'An error occurred during registration');
         return;
       }
+      if (result.confirmationRequired) { showCheckEmail(form.email); return; }
       try {
         const { supabase } = await import('@/lib/supabase');
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -284,6 +311,7 @@ export default function RegistrationSteps({
         setError(result.error || 'An error occurred during registration');
         return;
       }
+      if (result.confirmationRequired) { showCheckEmail(form.email); return; }
       // Sign straight in (confirmations are OFF) and land in the wizard —
       // the parent branch's exact hand-off. Stamp onboarding first so `/`
       // never bounces an organizer into the athlete wizard.
@@ -388,6 +416,7 @@ export default function RegistrationSteps({
         setStep('parked');
         return;
       }
+      if (result.confirmationRequired) { showCheckEmail(form.email); return; }
       // Same Round-J treatment the parent branch gets: sign the athlete
       // straight in (email confirmations are OFF, so the credentials work
       // immediately) and land them in onboarding. Hard navigation, not
@@ -721,6 +750,29 @@ export default function RegistrationSteps({
                 </div>
               </form>
             </>
+          )}
+
+          {step === 'check-email' && (
+            <div className="text-center py-8" data-check-email>
+              <i className="fas fa-envelope-open-text text-brand-fg text-4xl mb-4" aria-hidden="true"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">{COPY.AUTH.CHECK_EMAIL_TITLE}</h2>
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-2">
+                {COPY.AUTH.CHECK_EMAIL_BODY.replace('{email}', confirmEmail)}
+              </p>
+              <p className="text-xs text-muted max-w-md mx-auto mb-6">{COPY.AUTH.CHECK_EMAIL_SPAM}</p>
+              <button type="button" onClick={() => void resendConfirmation()} disabled={resend === 'sending'} className={`${primaryBtn} max-w-xs mx-auto`} data-check-email-resend>
+                {resend === 'sending' ? (
+                  <><i className="fas fa-spinner fa-spin mr-2"></i> Sending…</>
+                ) : (
+                  COPY.AUTH.CHECK_EMAIL_RESEND
+                )}
+              </button>
+              {resend === 'sent' && <p className="text-sm text-tertiary mt-3" role="status">{COPY.AUTH.CHECK_EMAIL_RESENT}</p>}
+              {resend === 'failed' && <p className="text-sm text-red-600 dark:text-red-400 mt-3" role="alert">{COPY.AUTH.CHECK_EMAIL_RESEND_FAILED}</p>}
+              <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline mt-4">
+                {COPY.AUTH.CHECK_EMAIL_START_OVER}
+              </button>
+            </div>
           )}
 
           {step === 'parent-done' && (

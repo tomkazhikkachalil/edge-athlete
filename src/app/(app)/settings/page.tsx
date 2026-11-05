@@ -5,6 +5,7 @@ import { backOr } from '@/lib/nav-back';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
+import RouteLoading from '@/components/RouteLoading';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import HiddenResults from '@/components/settings/HiddenResults';
@@ -108,14 +109,8 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-canvas flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-2 text-tertiary">Loading...</p>
-        </div>
-      </div>
-    );
+    // The same view as settings/loading.tsx — one hand-off (PR I, Nov 4 2026).
+    return <RouteLoading message="Loading..." />;
   }
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [

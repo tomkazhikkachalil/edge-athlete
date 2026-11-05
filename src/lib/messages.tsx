@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { useNotifications } from '@/lib/notifications';
 import type { Conversation, Message } from '@/types/messages';
 import { shouldPoll } from '@/lib/net/online';
+import { adjustPulseUnread, fetchPulse, getPulse, resetPulse, subscribePulse } from '@/lib/pulse/pulse-store';
 
 interface MessagesContextType {
   conversations: Conversation[];
@@ -39,7 +40,10 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   // at mount (e.g. ChatWindow's realtime handler) — reading the state directly
   // there would see a stale snapshot and corrupt the unread total.
   const conversationsRef = useRef<Conversation[]>([]);
-  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  // The unread total is the pulse's number (src/lib/pulse/, the cost
+  // program PR B, Oct 29 2026): ONE fetch of /api/me/pulse carries it with
+  // the Live dot's count, shared with the header through the store below.
+  const [totalUnreadCount, setTotalUnreadCount] = useState(() => getPulse().unreadMessages);
   const [loading, setLoading] = useState(false);
   // Conversation-list pagination (migration 127): the server frontier is
   // updated ONLY by the initial load and loadMore — never by the 2-minute poll,
@@ -68,27 +72,17 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   // Aborted on logout / effect cleanup so navigation races don't surface as scary console errors.
   const fetchAbortRef = useRef<AbortController | null>(null);
 
-  const refreshUnreadCount = useCallback(async (signal?: AbortSignal) => {
+  // The count rides the pulse: one coalesced fetch of /api/me/pulse (the
+  // store notifies the subscription below). A failure keeps the last number.
+  const refreshUnreadCount = useCallback(async () => {
     if (!user) return;
-    try {
-      const res = await fetch('/api/messages/unread-count', { signal });
-      if (res.status === 401) return;
-      if (res.ok) {
-        const data = await res.json();
-        setTotalUnreadCount(data.count ?? 0);
-      } else {
-        console.error('Failed to refresh unread count — status:', res.status);
-      }
-    } catch (e) {
-      // Intentional abort (navigation, logout, unmount) is not a real failure.
-      if (e instanceof Error && e.name === 'AbortError') return;
-      // Network-level failure (offline, dev-server restart, flaky radio)
-      // surfaces as a TypeError. This is a background poll: existing data
-      // stands and the next cycle retries — console.error here painted red
-      // dev-overlay errors for a self-healing blip.
-      if (e instanceof TypeError) return;
-      console.error('Failed to refresh unread count:', e);
-    }
+    await fetchPulse();
+  }, [user]);
+
+  // The pulse's unread number is this provider's total.
+  useEffect(() => {
+    if (!user) return;
+    return subscribePulse(s => setTotalUnreadCount(s.unreadMessages));
   }, [user]);
 
   const fetchConversations = useCallback(async (signal?: AbortSignal) => {
@@ -210,7 +204,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       if (!shouldPoll()) return;
       const c = new AbortController();
       fetchConversations(c.signal);
-      refreshUnreadCount(c.signal);
+      refreshUnreadCount();
     }, 1_500);
   }, [notifications, user, fetchConversations, refreshUnreadCount]);
 
@@ -234,7 +228,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       Promise.all([
         fetchConversations(controller.signal),
-        refreshUnreadCount(controller.signal),
+        refreshUnreadCount(),
       ]).finally(() => {
         // If a newer effect run aborted us, don't stomp its loading state.
         if (!controller.signal.aborted) setLoading(false);
@@ -252,19 +246,20 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       // to a focused tab and the visibilitychange catch-up below covers a
       // return; the poll is only the net under a dropped socket (and the
       // two cases the bell does not cover), and at 30 s it was two function
-      // calls per user per half-minute on every page.
+      // calls per user per half-minute on every page. The unread COUNT is
+      // not polled here any more (the cost program PR B, Oct 29 2026): it
+      // rides the pulse store's one fetch, whose timer and resume catch-up
+      // the header shares.
       pollTimerRef.current = setInterval(() => {
         if (!shouldPoll()) return;
         const pollController = new AbortController();
         fetchConversations(pollController.signal);
-        refreshUnreadCount(pollController.signal);
       }, 120_000);
 
       const onVisible = () => {
         if (!shouldPoll()) return;
         const c = new AbortController();
         fetchConversations(c.signal);
-        refreshUnreadCount(c.signal);
       };
       document.addEventListener('visibilitychange', onVisible);
       window.addEventListener('online', onVisible);
@@ -274,6 +269,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       };
     } else {
       // Clear state on logout
+      resetPulse();
       fetchAbortRef.current?.abort();
       fetchAbortRef.current = null;
       setConversations([]);
@@ -331,6 +327,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       );
       if (unread > 0) {
         setTotalUnreadCount(prev => Math.max(0, prev - unread));
+        adjustPulseUnread(-unread); // the store agrees, without a fetch
       }
     } catch (e) {
       console.error('Failed to mark conversation read:', e);

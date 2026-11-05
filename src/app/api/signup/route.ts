@@ -217,10 +217,15 @@ export async function POST(request: NextRequest) {
     }
 
 
-    // Proceed with Supabase Auth signup
+    // Proceed with Supabase Auth signup. With e-mail confirmations ON the
+    // account cannot sign in until the link in the mail is opened — the
+    // "Confirm signup" template points at /auth/confirm by token hash
+    // (Convention 56); emailRedirectTo covers the default template too.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: { emailRedirectTo: `${appUrl}/auth/confirm` },
     });
 
     
@@ -396,8 +401,11 @@ export async function POST(request: NextRequest) {
       console.warn('[SIGNUP] No user data returned from auth signup');
     }
 
+    // confirmationRequired: no session came back — the account must open the
+    // link in the mail before it can sign in (the form shows "check your
+    // email" instead of trying a password sign-in that can only fail).
     return NextResponse.json(
-      { message: 'Account created successfully', user: data.user },
+      { message: 'Account created successfully', user: data.user, confirmationRequired: !data.session },
       { status: 201 }
     );
 

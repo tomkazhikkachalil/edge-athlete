@@ -49,8 +49,15 @@ export async function signIncomingUpload(
 export type FinalizedVideoFacts = Pick<ProbedVideo, 'codec' | 'width' | 'height' | 'durationSeconds'>;
 
 export type FinalizeResult =
-  | { ok: true; url: string; type: 'image' | 'video'; scrubbed: boolean; video?: FinalizedVideoFacts }
+  | { ok: true; url: string; path: string; bucket: string; type: 'image' | 'video'; scrubbed: boolean; video?: FinalizedVideoFacts }
   | { ok: false; status: 400 | 404 | 413 | 500; error: string };
+
+export interface FinalizeOptions {
+  /** Where the finished object lives (default: the posts/ key). The profile
+   *  photo route (Nov 2 2026) names the slot's managed path instead, so the
+   *  cleanup rules in photo-paths.ts keep recognising what is ours. */
+  targetKey?: (id: string, ext: string) => string;
+}
 
 async function storedObjectInfo(
   admin: SupabaseClient,
@@ -77,13 +84,15 @@ async function discard(admin: SupabaseClient, path: string) {
 export async function finalizeIncomingUpload(
   admin: SupabaseClient,
   ownerId: string,
-  incomingPath: unknown
+  incomingPath: unknown,
+  options: FinalizeOptions = {}
 ): Promise<FinalizeResult> {
   const parsed = parseIncomingKey(incomingPath, ownerId);
   if (!parsed) return { ok: false, status: 400, error: 'Unknown upload' };
   const path = incomingPath as string;
   const kind = uploadKindOf(parsed.type);
   if (!kind) return { ok: false, status: 400, error: 'Unknown upload' };
+  const targetFor = (ext: string) => (options.targetKey ? options.targetKey(parsed.id, ext) : postsKey(ownerId, parsed.id, ext));
 
   const info = await storedObjectInfo(admin, path);
   if (!info) return { ok: false, status: 404, error: 'The upload did not arrive — please try again' };
@@ -111,7 +120,7 @@ export async function finalizeIncomingUpload(
       const result = await scrubVideoMetadata(bytes, parsed.type);
       if (result.scrubbed) {
         finalExt = 'mp4'; // a scrubbed MOV becomes an MP4 — the key follows the OUTPUT
-        const target = postsKey(ownerId, parsed.id, finalExt);
+        const target = targetFor(finalExt);
         const { error: writeError } = await admin.storage
           .from(BUCKET)
           .upload(target, new Blob([result.bytes as BlobPart], { type: result.mime }), {
@@ -122,7 +131,7 @@ export async function finalizeIncomingUpload(
         if (!writeError) {
           scrubbed = true;
           await discard(admin, path);
-          return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed, video };
+          return { ok: true, url: publicUrl(admin, target), path: target, bucket: BUCKET, type: kind, scrubbed, video };
         }
         console.warn('[upload] scrubbed write failed; keeping the original:', writeError);
         finalExt = parsed.ext;
@@ -141,7 +150,7 @@ export async function finalizeIncomingUpload(
         return { ok: false, status: 400, error: prepared.error };
       }
       if (prepared.changed) {
-        const target = postsKey(ownerId, parsed.id, finalExt);
+        const target = targetFor(finalExt);
         const { error: writeError } = await admin.storage
           .from(BUCKET)
           .upload(target, new Blob([prepared.bytes as BlobPart], { type: parsed.type }), {
@@ -151,7 +160,7 @@ export async function finalizeIncomingUpload(
           });
         if (!writeError) {
           await discard(admin, path);
-          return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed: true };
+          return { ok: true, url: publicUrl(admin, target), path: target, bucket: BUCKET, type: kind, scrubbed: true };
         }
         console.warn('[upload] stripped image write failed; keeping the original:', writeError);
       }
@@ -161,10 +170,10 @@ export async function finalizeIncomingUpload(
   }
 
   // Not rewritten (a clean image, a webm, or a fail-open scrub): a server-side move.
-  const target = postsKey(ownerId, parsed.id, finalExt);
+  const target = targetFor(finalExt);
   const { error: moveError } = await admin.storage.from(BUCKET).move(path, target);
   if (moveError) return { ok: false, status: 500, error: 'Failed to upload file' };
-  return { ok: true, url: publicUrl(admin, target), type: kind, scrubbed, ...(video ? { video } : {}) };
+  return { ok: true, url: publicUrl(admin, target), path: target, bucket: BUCKET, type: kind, scrubbed, ...(video ? { video } : {}) };
 }
 
 function publicUrl(admin: SupabaseClient, path: string): string {

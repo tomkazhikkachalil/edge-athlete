@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useToast } from './Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useTypeahead } from '@/hooks/useTypeahead';
@@ -253,6 +254,7 @@ export default function TagPeopleModal({
                         width={48}
                         height={48}
                         className="rounded-full object-cover"
+                        unoptimized={!isOptimizableImageSrc(profile.avatar_url)}
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center">

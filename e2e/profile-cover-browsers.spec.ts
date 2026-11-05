@@ -56,7 +56,7 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
   try {
     const page = await ctx.newPage();
     const uploads: Array<Promise<number>> = [];
-    page.on('request', r => { if (r.url().includes('/api/upload/cover') && r.method() === 'POST') uploads.push(bodyBytes(r)); });
+    page.on('request', r => { if (r.url().includes('/api/profile/photo') && r.method() === 'POST') uploads.push(bodyBytes(r)); });
 
     // A first cover — through Edit Profile (Convention 52: no upload button on
     // the profile) — so every step below CHANGES one. /athlete/[id] of one's
@@ -72,7 +72,7 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
     await (await chooser).setFiles(PHOTO);
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
     await expect(editor0.getByAltText('New cover photo')).toBeVisible({ timeout: 30_000 });
-    const saved0 = page.waitForResponse(r => r.url().includes('/api/upload/cover') && r.request().method() === 'POST', { timeout: 60_000 });
+    const saved0 = page.waitForResponse(r => r.url().includes('/api/profile/photo') && r.request().method() === 'POST', { timeout: 60_000 });
     await page.getByRole('button', { name: 'Save Basic' }).click();
     expect((await saved0).status(), 'the first cover uploads').toBe(200);
     await expect(editor0).toBeHidden({ timeout: 30_000 });
@@ -92,7 +92,7 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
     await door.locator('[data-photo-upload]').click();
     await (await chooser).setFiles(await bigPng());
     await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
-    const saved1 = page.waitForResponse(r => r.url().includes('/api/upload/cover') && r.request().method() === 'POST', { timeout: 60_000 });
+    const saved1 = page.waitForResponse(r => r.url().includes('/api/profile/photo') && r.request().method() === 'POST', { timeout: 60_000 });
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
     expect((await saved1).status(), 'the changed cover uploads').toBe(200);
     const second = await coverRow();
@@ -112,7 +112,7 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
     await (await chooser).setFiles(await bigPng());
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 30_000 });
     await expect(editor.getByAltText('New cover photo')).toBeVisible({ timeout: 30_000 });
-    const saved2 = page.waitForResponse(r => r.url().includes('/api/upload/cover') && r.request().method() === 'POST', { timeout: 60_000 });
+    const saved2 = page.waitForResponse(r => r.url().includes('/api/profile/photo') && r.request().method() === 'POST', { timeout: 60_000 });
     await page.getByRole('button', { name: 'Save Basic' }).click();
     expect((await saved2).status(), 'the cover saved with the profile').toBe(200);
     const third = await coverRow();
@@ -121,6 +121,7 @@ test('change an existing cover from the profile and from Edit Profile, by tappin
 
     // Every upload fits a Vercel request.
     expect(uploads.length).toBe(3);
+    // Nov 2 2026: the bytes go direct to storage; the function sees a JSON body of a few hundred bytes.
     for (const b of await Promise.all(uploads)) expect(b, `an upload body of ${(b / 1048576).toFixed(1)} MB`).toBeLessThan(VERCEL_BODY_CAP);
 
     // Both routes show the newest cover, loaded.

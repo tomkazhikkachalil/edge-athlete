@@ -11,7 +11,7 @@ const gatedTo = (path: string) => `${COMING_SOON_PATH}?next=${encodeURIComponent
 
 describe('launchGateRedirect (signed-out visitors while the gate is up)', () => {
   it('sends the app, the public profiles and the org sites to coming-soon, carrying the path as the way back', () => {
-    for (const p of ['/feed', '/u/tom', '/athlete/x', '/org/kmha', '/kmha', '/org/kmha/standings', '/league/00000000-0000-4000-8000-000000000000/standings', '/register', '/help', '/activities/record', '/r/abc']) {
+    for (const p of ['/feed', '/u/tom', '/athlete/x', '/org/kmha', '/kmha', '/org/kmha/standings', '/league/00000000-0000-4000-8000-000000000000/standings', '/register', '/explore', '/activities/record', '/r/abc']) {
       expect(launchGateRedirect(p, ''), p).toBe(gatedTo(p));
     }
     // The path's own query travels with it.
@@ -26,11 +26,11 @@ describe('launchGateRedirect (signed-out visitors while the gate is up)', () => 
     expect(launchGateRedirect('/', '?next=https://evil.example')).toBe(COMING_SOON_PATH);
     expect(launchGateRedirect('/', '?next=/')).toBe(COMING_SOON_PATH);
   });
-  it('lets the doors through: the sign-in query on /, the auth routes, the password flows, the legal pages', () => {
+  it('lets the doors through: the sign-in query on /, the auth routes, the password flows, the legal pages, the support doors', () => {
     expect(launchGateRedirect('/', '?signin=1')).toBeNull();
     expect(launchGateRedirect('/', '?signin=1&next=%2Fapp%2Fworkout%2Fx')).toBeNull();
     expect(launchGateRedirect('/', '?signin=0')).toBe(COMING_SOON_PATH);
-    for (const p of [COMING_SOON_PATH, '/auth/callback', '/auth/complete-profile', '/forgot-password', '/reset-password', '/privacy', '/terms', '/admin', '/admin/login', '/admin/contacts']) {
+    for (const p of [COMING_SOON_PATH, '/auth/callback', '/auth/complete-profile', '/forgot-password', '/reset-password', '/privacy', '/terms', '/admin', '/admin/login', '/admin/contacts', '/help', '/help/verified-stats', '/contact']) {
       expect(launchGateRedirect(p, ''), p).toBeNull();
     }
   });

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
-import { adminClient, apiAs } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
 // The golf round as STEPS (Oct 28 2026): one flow, two modes. Picking golf
@@ -48,7 +48,7 @@ test('log an already-played round through the steps and see the scorecard post',
   const flow = await openGolf(page);
 
   // Step 1 — Already played makes it seven steps (Scores joins the list).
-  await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+  await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
   await page.getByRole('button', { name: /already played/i }).click();
   await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
 
@@ -112,25 +112,25 @@ test('log an already-played round through the steps and see the scorecard post',
 // the seeded creator row is not work in progress.
 test('the steps open on Playing now + Outdoor; only the course step refuses; an untouched flow closes clean', async ({ page }) => {
   const flow = await openGolf(page);
-  await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+  await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
   await expect(page.getByRole('button', { name: 'Playing now' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
   // The composer's own footer is off: one Back / Next row, no second set.
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Preview', exact: true })).toHaveCount(0);
 
-  await next(flow, /Step 2 of 6 · Course/);
+  await next(flow, /Step 2 of 7 · Course/);
   await expect(page.locator('#golf-round-date')).toHaveCount(0); // a live round is today
   await expect(flow.locator('[data-step-next]')).toBeDisabled();
   await expect(flow.locator('[data-step-refusal]')).toHaveText('Pick or type a course first');
 
   // Indoor drops Conditions: five steps.
   await flow.locator('[data-step-back]').click();
-  await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+  await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
   await page.getByRole('button', { name: 'Indoor' }).click();
-  await expect(header(flow)).toHaveText(/Step 1 of 5 · Round type/);
-  await page.getByRole('button', { name: 'Outdoor' }).click();
   await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+  await page.getByRole('button', { name: 'Outdoor' }).click();
+  await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
 
   await page.getByRole('button', { name: 'Close modal' }).click();
   await expect(page.getByText(/discard/i)).toHaveCount(0);
@@ -144,13 +144,16 @@ test('Playing now: the steps end in Go Live and open the live round', async ({ p
   let groupPostId = '';
   try {
     const flow = await openGolf(page);
-    await next(flow, /Step 2 of 6 · Course/);
+    await next(flow, /Step 2 of 7 · Course/);
     await nameCourse(page, courseName);
-    await next(flow, /Step 3 of 6 · Game format/);
-    await next(flow, /Step 4 of 6 · Conditions/);
-    await next(flow, /Step 5 of 6 · Players/);
-    await next(flow, /Step 6 of 6 · Start/);
-    await expect(flow.locator('[data-round-summary-row="players"]')).toContainText('Just you');
+    await next(flow, /Step 3 of 7 · Game format/);
+    await next(flow, /Step 4 of 7 · Conditions/);
+    await next(flow, /Step 5 of 7 · Players/);
+    await next(flow, /Step 6 of 7 · Scores/);
+    await next(flow, /Step 7 of 7 · Start/);
+    // The players, stacked (Oct 29 2026): the creator's row alone — picture, name.
+    await expect(flow.locator('[data-round-summary-row="players"] [data-round-player]')).toHaveCount(1);
+    await expect(flow.locator('[data-round-summary-row="players"]')).toContainText('Edge');
     const finish = flow.locator('[data-step-finish]');
     await expect(finish).toHaveText(/Go Live/);
     await finish.click();
@@ -262,7 +265,7 @@ test('a catalog tee shows its yards and rating / slope; the sport row is one lin
     await expect(row.locator('[data-post-type-clear]')).toBeVisible();
     await expect(page.getByText('Post Type', { exact: true })).toHaveCount(0);
 
-    await next(flow, /Step 2 of 6 · Course/);
+    await next(flow, /Step 2 of 7 · Course/);
     const courseInput = page.getByPlaceholder(/search for a golf course/i);
     await courseInput.fill('QA Tee Links');
     await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
@@ -274,14 +277,302 @@ test('a catalog tee shows its yards and rating / slope; the sport row is one lin
     await expect(tees.locator('option')).toHaveText(['Select tees', 'Blue · 3,420 yds · 72.9 / 134', 'White · 3,150 yds · 71.2 / 128']);
     await tees.selectOption('white');
     // The summary on the last step names the tee the same way.
-    await next(flow, /Step 3 of 6 · Game format/);
-    await next(flow, /Step 4 of 6 · Conditions/);
-    await next(flow, /Step 5 of 6 · Players/);
-    await next(flow, /Step 6 of 6 · Start/);
+    await next(flow, /Step 3 of 7 · Game format/);
+    await next(flow, /Step 4 of 7 · Conditions/);
+    await next(flow, /Step 5 of 7 · Players/);
+    await next(flow, /Step 6 of 7 · Scores/);
+    await next(flow, /Step 7 of 7 · Start/);
     await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('White · 3,150 yds · 71.2 / 128');
   } finally {
     await cleanup('golf-steps-tees', [
       () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+    ]);
+  }
+});
+
+// The live path's look (Oct 29 2026, Tom's refinement spec): purple is the
+// one selected colour; Playing now keeps a red dot while selected; the course
+// card's two buttons open one panel at a time with the HCP row on light
+// purple; no "(optional)" labels, no handicap paragraph; the Conditions
+// step's °F / °C toggle writes the ACCOUNT (293) — Settings shows it after a
+// reload; Playing Partners is a heading without an icon and without the
+// "Playing with anyone" line. Self-seeded course with coordinates.
+test('the live path look: purple selection, Show Map | Official Scorecard one at a time, the °F / °C toggle on the account', async ({ page }) => {
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA Look Links ${stamp}`;
+  let courseId = '';
+  let osmId = '';
+  try {
+    const seeded = await admin
+      .from('golf_courses')
+      .insert({
+        external_source: 'qa-e2e',
+        external_id: `look-${stamp}`,
+        name,
+        total_par: 36,
+        holes_count: 9,
+        section_kind: 'nine',
+        lat: 45.4,
+        lng: -75.7,
+        course_rating: { white: 71.2 },
+        slope_rating: { white: 128 },
+        hole_data: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: 4, yardage: { white: 350 }, handicap: i + 1 })),
+      })
+      .select('id')
+      .single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+
+    // Step 1: the pressed buttons are purple; the dot is red while Playing now is selected, white when not.
+    const flow = await openGolf(page);
+    const playingNow = page.getByRole('button', { name: 'Playing now' });
+    await expect(playingNow).toHaveClass(/bg-brand/);
+    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-red-500/);
+    await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveClass(/bg-brand/);
+    await page.getByRole('button', { name: 'Already played' }).click();
+    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-white/);
+    await playingNow.click();
+
+    // Step 2: the seeded course → Show Map | Official Scorecard, one open at a time; no "(optional)", no handicap line.
+    await next(flow, /Step 2 of 7 · Course/);
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toHaveClass(/bg-brand-soft/);
+    const showMap = page.locator('[data-course-show-map]');
+    const showCard = page.locator('[data-course-show-scorecard]');
+    await expect(showMap).toHaveText(/Show Map/, { timeout: 15_000 });
+    await expect(showCard).toHaveText(/Official Scorecard/);
+    await expect(page.getByText('View on map')).toHaveCount(0);
+    await showCard.click();
+    await expect(showCard).toHaveText(/Hide/);
+    await expect(page.locator('[data-course-scorecard-row="hcp"]').first()).toHaveClass(/bg-brand-soft/, { timeout: 15_000 });
+    // One row (Oct 30 2026): the Total column boxed and bold; a nine ends in Total.
+    await expect(page.locator('[data-course-scorecard-sum="total"]').first()).toHaveClass(/font-bold/);
+    await expect(page.locator('[data-course-scorecard-sum="total"]').first()).toHaveClass(/border-l-2/);
+    await showMap.click();
+    await expect(showMap).toHaveText(/Hide/);
+    await expect(showCard).toHaveText(/Official Scorecard/);
+    await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
+    await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('(optional)')).toHaveCount(0);
+    await expect(page.getByText(/unlock your estimated handicap/)).toHaveCount(0);
+
+    // A course with a location and no sheet — a catalog row whose detail
+    // has already been asked (hydrated_at set) and answered without holes,
+    // the shape of production's map-only rows — gets NO Official Scorecard
+    // button: the summary says "Not fully mapped" and Show Map stands alone
+    // (Oct 30 2026, Tom's empty panel). Seeded as qa-e2e so the sweep owns it.
+    const osmName = `QA Map Only Links ${stamp}`;
+    const osm = await admin
+      .from('golf_courses')
+      .insert({ external_source: 'qa-e2e', external_id: `maponly-${stamp}`, name: osmName, total_par: 72, holes_count: 18, lat: 45.41, lng: -75.71, hydrated_at: new Date().toISOString() })
+      .select('id')
+      .single();
+    expect(osm.error, osm.error?.message).toBeNull();
+    osmId = osm.data!.id as string;
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Only Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: osmName }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(osmName);
+    // The detail answers without holes → the button is dropped (the
+    // summary's "Not fully mapped" follows the slower map-lines request).
+    await expect(page.locator('[data-course-show-scorecard]')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.locator('[data-course-show-map]')).toBeVisible();
+    await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
+    // …and asks for one on its own (Oct 31 2026): the provider by name. A QA-named row matches nothing → the honest line.
+    await expect(page.locator('[data-course-sheet-none]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-course-find-sheet]')).toHaveCount(0);
+    // Back to the real course for the rest of the walk.
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(name);
+
+    // Step 3: the pressed format is purple.
+    await next(flow, /Step 3 of 7 · Game format/);
+    await expect(page.getByRole('button', { name: 'Stroke Play' })).toHaveClass(/bg-brand/);
+
+    // Step 4: no "Optional" line; °C flips the field's unit and lands on the account.
+    await next(flow, /Step 4 of 7 · Conditions/);
+    await expect(page.getByText(/skip if you/)).toHaveCount(0);
+    await page.locator('[data-golf-temp-unit="°C"]').click();
+    await expect(page.locator('[data-golf-temp-unit="°C"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('label[for="golf-temperature"]')).toHaveText('Temperature (°C)');
+    // The ACCOUNT holds it (293): the row itself, not the device.
+    const me = loadQaUser('user.json');
+    await expect.poll(async () => (await admin.from('profiles').select('unit_system').eq('id', me.id).single()).data?.unit_system, { timeout: 15_000 }).toBe('metric');
+
+    // Step 5: the heading, no icon, no helper; Add Others is the purple CTA.
+    await next(flow, /Step 5 of 7 · Players/);
+    await expect(page.getByRole('heading', { name: 'Playing Partners' })).toBeVisible();
+    await expect(page.getByText(/Playing with anyone/)).toHaveCount(0);
+    await expect(page.locator('[data-round-add-players]')).toHaveClass(/ea-cta/);
+
+    // The account's choice shows in Settings after a fresh load — and is restored below.
+    await page.goto('/settings?tab=account');
+    await expect(page.locator('[data-units-choice="km"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
+    await expect(page.getByText(/Saved on your account/)).toBeVisible();
+  } finally {
+    await cleanup('golf-steps-look', [
+      () => api.patch('/api/settings/units', { data: { system: 'imperial' } }),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => osmId && admin.from('golf_courses').delete().eq('id', osmId),
+      () => api.dispose(),
+    ]);
+  }
+});
+
+// Oct 31 2026 (Tom: scorecards missing in the preview and while playing): a
+// course with NO sheet still has a card everywhere, before any score. Holeless
+// row seeded; preview names the player; Go Live, close
+// the scorer, View Full Scorecard shows all 18 holes.
+test('a course with no sheet: the preview and the full scorecard before any score @mobile', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA No Sheet Links ${stamp}`;
+  let courseId = '';
+  let groupPostId = '';
+  try {
+    const seeded = await admin.from('golf_courses').insert({ external_source: 'qa-e2e', external_id: `nosheet-${stamp}`, name, total_par: 72, holes_count: 18, lat: 45.42, lng: -75.72, hydrated_at: new Date().toISOString() }).select('id').single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const pick = async () => {
+      await page.getByPlaceholder(/search for a golf course/i).fill('QA No Sheet Links');
+      await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+      await expect(page.locator('[data-course-chosen]')).toContainText(name);
+    };
+    let flow = await openGolf(page);
+    await page.getByRole('button', { name: /already played/i }).click();
+    await next(flow, /Step 2 of 7/);
+    await pick();
+    // No manual entry on a catalog course (Tom, Oct 31).
+    await expect(page.getByRole('heading', { name: /Course Par & Yardage/ })).toHaveCount(0);
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await page.locator('[data-round-preview]').click();
+    const preview = page.getByText('Post Preview').locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+    await expect(preview).toContainText('Edge');
+    await expect(preview).not.toContainText('LIVE');
+    await page.goto('/feed');
+
+    flow = await openGolf(page);
+    await next(flow, /Step 2 of 7/);
+    await pick();
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    // The scorer opens over the page on arrival; close it to reach the card.
+    await page.waitForTimeout(2500);
+    const closeScorer = page.getByRole('button', { name: /^close/i }).last();
+    if (await closeScorer.count()) await closeScorer.click();
+    await page.getByRole('button', { name: /View Full Scorecard/i }).first().click();
+    const tab = page.getByRole('tab', { name: /Full Scorecard/i });
+    if (await tab.count()) await tab.first().click();
+    const panel = page.locator('#round-panel-scorecard');
+    await expect(panel.locator('table')).toHaveCount(2, { timeout: 15_000 });
+    await expect(panel).toContainText('OUT');
+    await expect(panel).toContainText('18');
+  } finally {
+    await cleanup('golf-no-sheet', [
+      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => api.dispose(),
+    ]);
+  }
+});
+
+// Oct 31 2026: the score grid is back on Playing now, and a score entered
+// there survives Go Live.
+test('Playing now: a score entered in the Scores step reaches the live round', async ({ page }) => {
+  const api = await apiAs('state.json');
+  let groupPostId = '';
+  try {
+    const flow = await openGolf(page);
+    await next(flow, /Step 2 of 7 · Course/);
+    await nameCourse(page, `QA Live Grid ${Date.now()}`);
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7 · Scores/);
+    await expect(page.getByRole('heading', { name: 'Score Entry' })).toBeVisible();
+    await page.getByPlaceholder('-', { exact: true }).first().fill('5');
+    await next(flow, /Step 7 of 7 · Start/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    await expect.poll(async () => {
+      const body = await (await api.get(`/api/group-posts/${groupPostId}/scorecard`)).json();
+      return body.scorecard?.participants?.[0]?.scores?.hole_scores?.find((h: { hole_number: number }) => h.hole_number === 1)?.strokes;
+    }, { timeout: 15_000 }).toBe(5);
+    // …and the round is still the full 18, not a 9 derived from one score.
+    const final = await (await api.get(`/api/group-posts/${groupPostId}/scorecard`)).json();
+    expect(final.scorecard?.golf_data?.holes_played).toBe(18);
+  } finally {
+    await cleanup('golf-live-grid', [
+      // A round with a score is a result the API will not delete; purge QA's own.
+      () => groupPostId && adminClient().from('group_posts').delete().eq('id', groupPostId),
+      () => api.dispose(),
+    ]);
+  }
+});
+
+// Oct 31 2026 (Tom: the map knows the holes, so why no scorecard?): a course with
+// complete map lines and no provider card shows a card built from the map, and
+// the round carries its pars. Real-shaped geometry, 18 holes, par 72.
+test('a course with map lines and no card: the scorecard comes from the map and the round carries its pars', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA Map Card Links ${stamp}`;
+  let courseId = '';
+  let groupPostId = '';
+  try {
+    const pars = [4, 5, 3, 5, 3, 4, 4, 3, 5, 5, 4, 3, 4, 5, 3, 5, 3, 4];
+    const holes = pars.map((par, i) => ({ hole: i + 1, par, line: [[45.4 + i * 0.01, -75.7], [45.4 + i * 0.01 + 0.003, -75.7]] }));
+    const seeded = await admin.from('golf_courses').insert({ external_source: 'qa-e2e', external_id: `mapcard-${stamp}`, name, total_par: 72, holes_count: 18, lat: 45.43, lng: -75.73, hydrated_at: new Date().toISOString(), hole_geometry: { holes, greens: [], source: 'osm' }, hole_geometry_at: new Date().toISOString() }).select('id').single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const flow = await openGolf(page);
+    await next(flow, /Step 2 of 7/);
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Card Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    const show = page.locator('[data-course-show-scorecard]');
+    await expect(show).toBeVisible({ timeout: 15_000 });
+    await show.click();
+    await expect(page.locator('[data-course-scorecard-map]')).toBeVisible();
+    // It also asks for a real card, silently: no line, and the map card stays on a miss.
+    await page.waitForTimeout(2500);
+    await expect(page.locator('[data-course-sheet-looking], [data-course-sheet-none]')).toHaveCount(0);
+    await expect(page.locator('[data-course-scorecard-map]')).toBeVisible();
+    await expect(page.locator('[data-course-scorecard-row="par"] [data-course-scorecard-sum="total"]').first()).toHaveText('72');
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    const body = await (await api.get(`/api/group-posts/${groupPostId}/scorecard`)).json();
+    const stored = body.scorecard?.golf_data?.hole_data as Array<{ hole: number; par: number }>;
+    expect(stored).toHaveLength(18);
+    expect(stored.find(h => h.hole === 2)?.par).toBe(5);
+  } finally {
+    await cleanup('golf-map-card', [
+      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => api.dispose(),
     ]);
   }
 });

@@ -22,6 +22,7 @@ import ResumePill from '@/components/sessions/ResumePill';
 import { RecordingProvider } from '@/components/activities/record/RecordingProvider';
 import OfflineBanner from '@/components/net/OfflineBanner';
 import ThemeApplier from "@/components/ThemeApplier";
+import UnitSystemApplier from "@/components/UnitSystemApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
 import { THEME_COLOR } from "@/lib/theme-colors";
@@ -130,6 +131,7 @@ export default async function RootLayout({
       <body className={`${inter.className} antialiased`}>
         <AuthProvider>
           <ThemeApplier />
+          <UnitSystemApplier />
           <NotificationsProvider>
             <MessagesProvider>
               {/* The ONE Edit Profile pop-up, opened from anywhere over the

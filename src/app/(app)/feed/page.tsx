@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import YourOrgsCard from '@/components/affiliations/YourOrgsCard';
 import AppHeader from '@/components/AppHeader';
+import RouteLoading from '@/components/RouteLoading';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
@@ -466,15 +467,8 @@ export default function FeedPage() {
 
   // Show loading state
   if (loading || !user) {
-    return (
-      <div className="min-h-screen bg-canvas flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-4 text-secondary font-medium">Loading your feed...</p>
-          <p className="mt-1 text-sm text-muted">Getting everything ready</p>
-        </div>
-      </div>
-    );
+    // The same view as feed/loading.tsx — one hand-off (PR I, Nov 4 2026).
+    return <RouteLoading message="Loading your feed..." detail="Getting everything ready" size="lg" />;
   }
 
   return (

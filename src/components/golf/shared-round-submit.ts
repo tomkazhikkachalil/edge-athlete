@@ -50,7 +50,12 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
   // 18, partial when incomplete). Live rounds submit before scores exist and
   // derive to the grid size. Guaranteed ∈ {9,18} — golf_rounds may still
   // carry the 002 CHECK (holes IN (9,18)) in prod.
-  const derived = deriveRecordedRound(playerScores, sharedRoundDetails.holesPlayed);
+  // A LIVE round's size is the grid (Oct 31 2026): a score entered before Go
+  // Live is the start of the round, not all of it — deriving from it turned
+  // an 18 into a 9 ("Thru 1/9"). Only a finished round is derived.
+  const derived = sharedRoundDetails.alreadyPlayed
+    ? deriveRecordedRound(playerScores, sharedRoundDetails.holesPlayed)
+    : deriveRecordedRound([], sharedRoundDetails.holesPlayed);
   const inRange = (hole: number) => hole >= derived.startHole && hole <= derived.endHole;
 
   // Step 1: Create the round ATOMICALLY — group post, participants,

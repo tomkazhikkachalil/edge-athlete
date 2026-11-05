@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { countsAsPick } from '@/lib/golf/map-sheet';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { likePatternFor } from '@/lib/search/patterns';
 import type { GolfCourse } from '@/types/golf';
@@ -7,6 +8,8 @@ import {
   searchCatalog,
   getCatalogRow,
   hydrateCourseDetailed,
+  findOfficialSheet,
+  withMapSheet,
   hydrationDue,
   hydrateCourse,
   globalSearch,
@@ -54,9 +57,11 @@ export async function GET(request: NextRequest) {
     // first (below), which makes the search response per-viewer — so this also
     // decides whether the response may be shared-cached at the return.
     let viewerId: string | null = null;
+    let viewerEmail: string | null = null;
     try {
       const user = await requireAuth(request);
       viewerId = user.id;
+      viewerEmail = user.email ?? null;
     } catch { /* anonymous — platform courses only */ }
 
     // ── Course by id — the hydration touchpoint ──────────────────────────
@@ -96,13 +101,38 @@ export async function GET(request: NextRequest) {
       if (!row) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
+      // ?sheet=1 — "Find the official scorecard" (Oct 31 2026, Tom): a
+      // catalog row without a tee sheet (a thin provider row whose own
+      // provider had nothing, or a map-only OSM row) asks the OTHER provider
+      // by NAME, and a same-facility match writes its sheet onto THIS row.
+      // A deliberate, signed-in tap — budgeted like every provider call.
+      if (searchParams.get('sheet') === '1') {
+        if (!viewerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        const result = await findOfficialSheet(admin, row);
+        // The tracker (294): what card this picked course ended up with. Best
+        // effort; a failed count never blocks a pick.
+        if (countsAsPick(viewerEmail)) {
+          const mapped = result.found ? null : await withMapSheet(admin, rowToCourse(row));
+          const card = result.found ? 'provider' : mapped?.sheetSource === 'map' ? 'map' : 'none';
+          await admin.rpc('golf_course_pick_hit', { p_course_id: row.id, p_card: card }).then(() => undefined, () => undefined);
+        }
+        return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
+      }
+      // ?picked=1 — a course with an official card was picked: counted so the
+      // tracker's totals are real. No provider call.
+      if (searchParams.get('picked') === '1') {
+        if (viewerId && countsAsPick(viewerEmail)) {
+          await admin.rpc('golf_course_pick_hit', { p_course_id: row.id, p_card: 'provider' }).then(() => undefined, () => undefined);
+        }
+        return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'private, no-store' } });
+      }
       // ?home=1 — the info card's lightweight "Home of" read: no hydration
       // (no provider budget spent), just the org link or nothing.
       if (searchParams.get('home') === '1') {
         const home = await findHomeOrg(admin, row);
         return NextResponse.json(home ? { homeOf: home } : {});
       }
-      const course = await hydrateCourse(admin, row);
+      const course = await withMapSheet(admin, await hydrateCourse(admin, row));
       // Phase 6b A2: "Home of {org}" — the org whose venue recognized this
       // course (169's club/course pair) and has a PUBLISHED site. Best-
       // effort and additive; pre-169 or no link → absent.
