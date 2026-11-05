@@ -65,6 +65,16 @@ describe('the player', () => {
     expect(player).not.toMatch(/iframe_api/);
     expect(player).not.toMatch(/<video[\s>]/);
   });
+  it('seeks whenever the link carries a time (a highlight tap, or a share link\'s t= on the poster tap)', () => {
+    expect(player).toContain('const seek = startMs !== null && startMs > 0;');
+  });
+  it('a text message\'s first YouTube link is the poster under the bubble — a preview, never a row', () => {
+    const bubble = read('src/components/messages/MessageBubbleContent.tsx');
+    expect(bubble).toContain('data-message-youtube=');
+    expect(bubble).toContain('<YouTubePlayer videoId={youtube.id}');
+    expect(bubble).not.toMatch(/<iframe/);
+    expect(bubble).toContain("from '@/lib/help/body'");
+  });
   it('remounts on a highlight (key = playKey) and offers the watch page', () => {
     expect(player).toContain('key={playKey}');
     expect(player).toContain('watchUrl(videoId)');
