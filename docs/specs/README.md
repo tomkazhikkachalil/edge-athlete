@@ -25,6 +25,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
 | `golf-round-setup.md` | The golf round setup as steps (Oct 28 2026): StepFlow over `round-steps.ts`, the list follows the first step, only the course step refuses, Near me on entry only when already granted, the date locked while live, Scores for already played only |
+| `videos.md` | Videos (Nov 4 2026): a full game is a YouTube link, not an upload — `videos` + `video_highlights` (296), the one writer, the rights (profile privacy / org gallery gate / `manage_video`), the click-to-play embed that remounts at a highlight, the six doors |
 
 ## Convention number → file
 
@@ -79,3 +80,4 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 54 | The pulse: the header's two numbers (the live count, the unread messages) are ONE call, `/api/me/pulse`, behind one RPC and one module-level store; the rules say when it fetches; the conversation list keeps its own refresh | `pulse.md` |
 | 55 | The account's own data is one file: `POST /api/account/export` answers the profile row and every row of theirs in the named sections as one JSON attachment; export sits next to Delete | `data-foundation.md` |
 | 56 | A sign-up that must confirm says so; the link is `/auth/confirm` by token hash; every door after it is `destinationFor` | `auth-confirmation.md` |
+| 57 | A long video is a link, not an upload: a YouTube id (never a URL) on a profile XOR an org, optionally on a sport event XOR a contest, with highlights as playback cues; who sees is the account's privacy; managers are the owner / guardian or the org's `manage_video` | `videos.md` |

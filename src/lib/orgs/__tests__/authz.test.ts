@@ -140,6 +140,7 @@ describe('roleAllows', () => {
     manage_teams: [true, true, false, false],
     manage_affiliations: [true, true, false, false],
     manage_venues: [true, true, false, false],
+    manage_video: [true, true, false, false], // Videos (296): the website section's intent
     enter_console: [true, true, false, false],
     change_roles: [true, false, false, false],
     manage_owners: [true, false, false, false],
