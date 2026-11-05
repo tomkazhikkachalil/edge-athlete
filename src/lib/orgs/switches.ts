@@ -64,6 +64,7 @@ export const CONSOLE_SECTION_SWITCH: Readonly<Record<string, SwitchRule>> = {
 export const WIDGET_SWITCH: Readonly<Record<string, SwitchRule>> = {
   hero: 'always',
   videos: 'always', // Videos program (296): a linked game needs no module
+  video_list: 'always', // the public Videos tile (Phase 1b): the gallery module gates it, never a switch
   standings: 'competitions',
   schedule: 'always',
   teams: 'teams',

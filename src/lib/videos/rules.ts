@@ -208,6 +208,10 @@ export function highlightRangeOk(stored: { start_ms: number; end_ms: number | nu
 
 export type VideoOwnerInput = { kind: 'profile'; profileId: string | null } | { kind: 'org'; side: OrgKind; orgId: string };
 
+/** The places (296 + 297): at most ONE of them on a video. */
+export const PLACE_KEYS = ['sport_event_id', 'contest_id', 'group_post_id', 'activity_id', 'workout_session_id'] as const;
+export type PlaceKey = (typeof PLACE_KEYS)[number];
+
 export interface VideoCreateInput {
   /** The pasted link, trimmed — the link helper turns it into an id. */
   url: string;
@@ -218,9 +222,12 @@ export interface VideoCreateInput {
   owner: VideoOwnerInput;
   sport_event_id: string | null;
   contest_id: string | null;
+  group_post_id: string | null;
+  activity_id: string | null;
+  workout_session_id: string | null;
 }
 
-const CREATE_KEYS = ['url', 'title', 'description', 'sport_key', 'status', 'profile_id', 'side', 'org_id', 'sport_event_id', 'contest_id'] as const;
+const CREATE_KEYS = ['url', 'title', 'description', 'sport_key', 'status', 'profile_id', 'side', 'org_id', ...PLACE_KEYS] as const;
 
 function parseText(v: unknown, field: string, max: number): Parsed<string | null> {
   if (v === undefined || v === null) return { ok: true, value: null };
@@ -274,11 +281,8 @@ export function parseVideoBody(body: unknown): Parsed<VideoCreateInput> {
   } else {
     owner = { kind: 'profile', profileId: profileId.value };
   }
-  const eventId = parseUuid(body.sport_event_id, 'sport_event_id');
-  if (!eventId.ok) return eventId;
-  const contestId = parseUuid(body.contest_id, 'contest_id');
-  if (!contestId.ok) return contestId;
-  if (eventId.value && contestId.value) return { ok: false, error: 'A video sits on an event or a contest, not both' };
+  const places = parsePlaces(body);
+  if (!places.ok) return places;
   return {
     ok: true,
     value: {
@@ -288,10 +292,36 @@ export function parseVideoBody(body: unknown): Parsed<VideoCreateInput> {
       sport_key: sport.value,
       status: status.value ?? 'published',
       owner,
-      sport_event_id: eventId.value,
-      contest_id: contestId.value,
+      ...places.value,
     },
   };
+}
+
+export type VideoPlaces = Record<PlaceKey, string | null>;
+
+export const ONE_PLACE_ERROR = 'A video sits on one place — an event, a contest, a round, an activity or a workout — not two';
+
+/** The place columns of a body: each a uuid or null; at most one set. */
+export function parsePlaces(body: Record<string, unknown>): Parsed<VideoPlaces> {
+  const out = {} as VideoPlaces;
+  let set = 0;
+  for (const key of PLACE_KEYS) {
+    const v = parseUuid(body[key], key);
+    if (!v.ok) return v;
+    out[key] = v.value;
+    if (v.value) set += 1;
+  }
+  if (set > 1) return { ok: false, error: ONE_PLACE_ERROR };
+  return { ok: true, value: out };
+}
+
+/** The one place a row carries, or null. */
+export function placeOf(row: Partial<VideoPlaces>): { key: PlaceKey; id: string } | null {
+  for (const key of PLACE_KEYS) {
+    const id = row[key];
+    if (id) return { key, id };
+  }
+  return null;
 }
 
 export interface VideoPatch {
@@ -301,9 +331,12 @@ export interface VideoPatch {
   status?: VideoStatus;
   sport_event_id?: string | null;
   contest_id?: string | null;
+  group_post_id?: string | null;
+  activity_id?: string | null;
+  workout_session_id?: string | null;
 }
 
-const PATCH_KEYS = ['title', 'description', 'sport_key', 'status', 'sport_event_id', 'contest_id'] as const;
+const PATCH_KEYS = ['title', 'description', 'sport_key', 'status', ...PLACE_KEYS] as const;
 
 /** PATCH /api/videos/[id] — any subset; the link itself never changes (a different video is a new row). */
 export function parseVideoPatch(body: unknown): Parsed<VideoPatch> {
@@ -333,17 +366,15 @@ export function parseVideoPatch(body: unknown): Parsed<VideoPatch> {
     if (!s.ok) return s;
     if (s.value) out.status = s.value;
   }
-  if (body.sport_event_id !== undefined) {
-    const e = parseUuid(body.sport_event_id, 'sport_event_id');
-    if (!e.ok) return e;
-    out.sport_event_id = e.value;
+  let set = 0;
+  for (const key of PLACE_KEYS) {
+    if (body[key] === undefined) continue;
+    const v = parseUuid(body[key], key);
+    if (!v.ok) return v;
+    out[key] = v.value;
+    if (v.value) set += 1;
   }
-  if (body.contest_id !== undefined) {
-    const c = parseUuid(body.contest_id, 'contest_id');
-    if (!c.ok) return c;
-    out.contest_id = c.value;
-  }
-  if (out.sport_event_id && out.contest_id) return { ok: false, error: 'A video sits on an event or a contest, not both' };
+  if (set > 1) return { ok: false, error: ONE_PLACE_ERROR };
   return { ok: true, value: out };
 }
 

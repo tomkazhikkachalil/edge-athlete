@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -38,13 +39,20 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const prefillProfile = params.get('profileId');
   const sportEventId = params.get('sportEventId');
   const contestId = params.get('contestId');
+  // Phase 1b (297): a golf round, an activity, a workout — the door arrives from the place; the owner is the person's own profile.
+  const groupPostId = params.get('groupPostId');
+  const activityId = params.get('activityId');
+  const workoutSessionId = params.get('workoutSessionId');
+  const placeKind = groupPostId ? 'round' : activityId ? 'activity' : workoutSessionId ? 'workout' : sportEventId ? 'event' : contestId ? 'game' : null;
+  const profileOnly = !!(groupPostId || activityId || workoutSessionId);
 
   const [index, setIndex] = useState(0);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [sportKey, setSportKey] = useState('');
-  const [owner, setOwner] = useState<'me' | { orgId: string } | null>(prefillOrg && UUID_RE.test(prefillOrg) ? { orgId: prefillOrg } : prefillProfile ? 'me' : null);
+  const [owner, setOwner] = useState<'me' | { orgId: string } | null>(prefillOrg && UUID_RE.test(prefillOrg) ? { orgId: prefillOrg } : prefillProfile || groupPostId || activityId || workoutSessionId ? 'me' : null);
+  const [existingId, setExistingId] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,11 +111,15 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     }
     if (sportEventId && UUID_RE.test(sportEventId)) body.sport_event_id = sportEventId;
     if (contestId && UUID_RE.test(contestId)) body.contest_id = contestId;
+    if (groupPostId && UUID_RE.test(groupPostId)) body.group_post_id = groupPostId;
+    if (activityId && UUID_RE.test(activityId)) body.activity_id = activityId;
+    if (workoutSessionId && UUID_RE.test(workoutSessionId)) body.workout_session_id = workoutSessionId;
     try {
       const res = await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = (await res.json().catch(() => ({}))) as { video?: { id: string }; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { video?: { id: string }; error?: string; existing_id?: string };
       if (!res.ok || !data.video) {
         setError(data.error ?? 'Could not save the video.');
+        setExistingId(res.status === 409 && data.existing_id ? data.existing_id : null);
         setSaving(false);
         return;
       }
@@ -194,8 +206,8 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
               <input type="radio" name="owner" checked={owner === 'me'} onChange={() => setOwner('me')} className="h-5 w-5" />
               <span className="text-sm font-semibold text-primary">{prefillProfile && prefillProfile !== userId ? 'The athlete\'s profile' : 'My profile'}</span>
             </label>
-            {orgs === null && <p className="text-xs text-muted">Loading your organizations…</p>}
-            {(orgs ?? []).map(o => (
+            {orgs === null && !profileOnly && <p className="text-xs text-muted">Loading your organizations…</p>}
+            {!profileOnly && (orgs ?? []).map(o => (
               <label key={o.id} className={`flex items-center gap-3 rounded-lg border px-3 min-h-[52px] ea-interactive ${owner !== 'me' && owner?.orgId === o.id ? 'border-brand bg-brand-soft' : 'border-border'}`}>
                 <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === o.id} onChange={() => setOwner({ orgId: o.id })} className="h-5 w-5" />
                 <span className="min-w-0">
@@ -204,16 +216,26 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 </span>
               </label>
             ))}
-            {prefillOrg && orgs !== null && !orgs.some(o => o.id === prefillOrg) && (
+            {!profileOnly && prefillOrg && orgs !== null && !orgs.some(o => o.id === prefillOrg) && (
               <label className={`flex items-center gap-3 rounded-lg border px-3 min-h-[52px] ea-interactive ${owner !== 'me' && owner?.orgId === prefillOrg ? 'border-brand bg-brand-soft' : 'border-border'}`}>
                 <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === prefillOrg} onChange={() => setOwner({ orgId: prefillOrg })} className="h-5 w-5" />
                 <span className="text-sm font-semibold text-primary">This {sideParam}</span>
               </label>
             )}
-            {(sportEventId || contestId) && (
-              <p className="text-xs text-muted" data-new-video-place="">It will also show on the {sportEventId ? 'event' : 'game'} you came from.</p>
+            {placeKind && (
+              <p className="text-xs text-muted" data-new-video-place={placeKind}>It will also show on the {placeKind} you came from.</p>
             )}
-            {error && <p className="text-sm text-red-600" role="alert" data-new-video-error="">{error}</p>}
+            {error && (
+              <p className="text-sm text-red-600" role="alert" data-new-video-error="">
+                {error}
+                {existingId && (
+                  <>
+                    {' '}
+                    <Link href={`/videos/${existingId}`} className="underline font-semibold" data-new-video-existing={existingId}>Open it</Link>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         )}
       </StepFlow>

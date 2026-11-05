@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flag, Hourglass, Layers, MoreVertical, Pause, Play, Plus, Repeat, Timer } from 'lucide-react';
 import ExerciseCard, { SET_MEDIA_EDITOR_CONFIG } from './ExerciseCard';
+import { AddVideoLink } from '@/components/videos/VideoCards';
 import LiveClock from './LiveClock';
 import { useSetMediaUploads } from './useSetMediaUploads';
 import { MediaEditor } from '@/components/media-editor';
@@ -1147,6 +1148,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
                   })}
                 </span>
               )}
+              {/* Videos (297): the session's full recording is a YouTube link — the owner's door, on review. */}
+              {session && <AddVideoLink href={`/videos/new?workoutSessionId=${encodeURIComponent(session.id)}`} label="Full session (YouTube)" className="text-xs" />}
               {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
             </div>
           ) : (

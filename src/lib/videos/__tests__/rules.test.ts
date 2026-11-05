@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultVideoTitle,
+  placeOf,
   formatTimestamp,
   highlightRangeOk,
   manageRight,
@@ -138,7 +139,7 @@ describe('parseVideoBody', () => {
   it('a profile video with defaults: published, own profile, no place', () => {
     expect(parseVideoBody({ url: ' https://youtu.be/dQw4w9WgXcQ ' })).toEqual({
       ok: true,
-      value: { url: 'https://youtu.be/dQw4w9WgXcQ', title: null, description: null, sport_key: null, status: 'published', owner: { kind: 'profile', profileId: null }, sport_event_id: null, contest_id: null },
+      value: { url: 'https://youtu.be/dQw4w9WgXcQ', title: null, description: null, sport_key: null, status: 'published', owner: { kind: 'profile', profileId: null }, sport_event_id: null, contest_id: null, group_post_id: null, activity_id: null, workout_session_id: null },
     });
   });
   it('an org video needs side + org_id and no profile_id', () => {
@@ -158,7 +159,9 @@ describe('parseVideoBody', () => {
     [{ url: 'x', description: 'd'.repeat(2001) }, /at most 2000/],
     [{ url: 'x', status: 'draft' }, /status must be/],
     [{ url: 'x', sport_event_id: 'nope' }, /uuid/],
-    [{ url: 'x', sport_event_id: U, contest_id: V }, /not both/],
+    [{ url: 'x', sport_event_id: U, contest_id: V }, /one place/],
+    [{ url: 'x', group_post_id: U, activity_id: V }, /one place/],
+    [{ url: 'x', workout_session_id: 'nope' }, /uuid/],
     [{ url: 'x', audience: 'followers' }, /Unknown field: audience/],
   ])('%j is refused', (body, re) => {
     const r = parseVideoBody(body);
@@ -174,7 +177,17 @@ describe('parseVideoPatch', () => {
     expect(parseVideoPatch({ title: '  ' })).toMatchObject({ ok: false, error: 'title is required' });
     expect(parseVideoPatch({ url: 'https://youtu.be/x' })).toMatchObject({ ok: false, error: /Unknown field: url/ });
     expect(parseVideoPatch({})).toMatchObject({ ok: false });
-    expect(parseVideoPatch({ sport_event_id: U, contest_id: V })).toMatchObject({ ok: false, error: /not both/ });
+    expect(parseVideoPatch({ sport_event_id: U, contest_id: V })).toMatchObject({ ok: false, error: /one place/ });
+    expect(parseVideoPatch({ activity_id: U })).toEqual({ ok: true, value: { activity_id: U } });
+    expect(parseVideoPatch({ group_post_id: null })).toEqual({ ok: true, value: { group_post_id: null } });
+  });
+});
+
+describe('placeOf', () => {
+  it('the one place a row carries, in the list\'s order; null when none', () => {
+    expect(placeOf({ sport_event_id: null, contest_id: null, group_post_id: U, activity_id: null, workout_session_id: null })).toEqual({ key: 'group_post_id', id: U });
+    expect(placeOf({ workout_session_id: V })).toEqual({ key: 'workout_session_id', id: V });
+    expect(placeOf({})).toBeNull();
   });
 });
 

@@ -18,6 +18,10 @@ interface Props {
   /** Re-fetch when this changes (a parent's reload key). */
   version?: number;
   onLoaded?: (count: number, canAdd: boolean) => void;
+  /** A read-only strip (the live page): render nothing at zero, even for a manager. */
+  hideWhenEmpty?: boolean;
+  /** The door lives elsewhere on this surface. */
+  hideDoor?: boolean;
 }
 
 /**
@@ -26,7 +30,7 @@ interface Props {
  * event tab, the contest section — is this component over its own query;
  * the org bubble reads through its own hook and renders the same cards.
  */
-export default function VideosGrid({ query, addHref, emptyCopy, emptyManagerCopy, version = 0, onLoaded }: Props) {
+export default function VideosGrid({ query, addHref, emptyCopy, emptyManagerCopy, version = 0, onLoaded, hideWhenEmpty = false, hideDoor = false }: Props) {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
 
   useEffect(() => {
@@ -53,15 +57,18 @@ export default function VideosGrid({ query, addHref, emptyCopy, emptyManagerCopy
   }, [query, version]);
 
   if (load.state === 'loading') {
+    if (hideWhenEmpty) return null;
     return <p className="py-6 text-center text-sm text-muted" role="status" aria-live="polite" data-videos-loading="">Loading videos…</p>;
   }
   if (load.state === 'error') {
+    if (hideWhenEmpty) return null;
     return <p className="py-6 text-center text-sm text-muted" data-videos-error="">Could not load the videos. Check your connection and try again.</p>;
   }
   const { videos, canAdd } = load;
+  if (hideWhenEmpty && videos.length === 0) return null;
   return (
     <div className="space-y-4" data-videos={videos.length}>
-      {canAdd && (
+      {canAdd && !hideDoor && (
         <div className="flex justify-end">
           <AddVideoLink href={addHref} />
         </div>

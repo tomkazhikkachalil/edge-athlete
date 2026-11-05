@@ -10,7 +10,9 @@ import { embedSrcAt, thumbUrl, watchUrl } from '@/lib/videos/youtube';
  * (youtube-nocookie.com, in the CSP's frame-src through EMBED_FRAME_HOSTS),
  * its controls and branding untouched. A highlight remounts the frame at
  * its start (`playKey` changes → a new iframe with `start=`): a seek to the
- * second, not the frame — the words say so. An unavailable, private or
+ * second, not the frame — the words say so. A link that carried its own
+ * `t=` (a message's share link, Phase 1b) starts there on the poster tap
+ * too. An unavailable, private or
  * embedding-disabled video shows YouTube's own notice inside the frame; the
  * line under it opens the watch page.
  */
@@ -18,7 +20,7 @@ export default function YouTubePlayer({ videoId, title, startMs, playKey }: { vi
   const [tapped, setTapped] = useState(false);
   // Playing is derived: the poster's tap, or any highlight tap (playKey > 0).
   const playing = tapped || playKey > 0;
-  const seek = playKey > 0 && startMs !== null && startMs > 0;
+  const seek = startMs !== null && startMs > 0;
   const src = seek ? embedSrcAt(videoId, startMs) : `${embedSrcAt(videoId, null)}&autoplay=1`;
   return (
     <div data-video-player={videoId} data-video-start={seek ? Math.floor(startMs / 1000) : 0}>

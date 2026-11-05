@@ -17,6 +17,7 @@ import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
 import MediaGrid from '../media/MediaGrid';
 import RoundMediaManager, { RoundMediaItemControls } from './RoundMediaManager';
+import RoundVideos from './RoundVideos';
 import MediaCollage from '../media/MediaCollage';
 import MediaLightbox from '../media/MediaLightbox';
 import { toCollageItems, groupMediaBySegment, type RoundCollageItem } from '@/lib/golf/round-media';
@@ -1055,6 +1056,8 @@ export default function SharedRoundFullCard({
           {/* Media Tab — everything, grouped by the moment it happened in. */}
           {activeTab === 'media' && (
             <div id="round-panel-media" role="tabpanel" aria-labelledby="round-tab-media">
+              {/* Videos (297): the full recording, linked from YouTube — its own gate, the door for a player. */}
+              <RoundVideos groupPostId={group_post.id} />
               {/* Adding is allowed AFTER the round too — a photo you took on
                   the course but never got round to attaching still knows its
                   moment, because inferSegment suggests one from its capture

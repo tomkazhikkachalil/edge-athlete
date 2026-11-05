@@ -134,6 +134,7 @@ const DECLARED: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
     ]),
     count('count', 'Games', 3, 12, 5),
   ],
+  video_list: [count('count', 'Videos', 1, 12, 4)],
   schedule: [
     choice('variant', 'Layout', [
       ['list', 'List'],

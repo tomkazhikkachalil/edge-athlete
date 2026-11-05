@@ -10,6 +10,7 @@ import {
   fetchPublicCourses,
   fetchPublicDivisions,
   fetchPublicGallery,
+  fetchPublicOrgVideos,
   fetchPublicGolfRounds,
   fetchPublicNewsList,
   fetchPublicOpenWindows,
@@ -26,6 +27,7 @@ import {
   getCachedCourses,
   getCachedDivisions,
   getCachedGallery,
+  getCachedOrgVideos,
   getCachedOrgGames,
   getCachedGolfRounds,
   getCachedLeaders,
@@ -92,6 +94,8 @@ export interface SiteReaders {
   gallery: () => Promise<NonNullable<SiteHomeData['gallery']>>;
   /** G2: the org's games (next game, latest results). */
   games: () => Promise<NonNullable<SiteHomeData['games']>>;
+  /** Videos (Phase 1b): the org's published linked videos. */
+  videos: () => Promise<NonNullable<SiteHomeData['videos']>>;
 }
 
 const EMPTY: SiteHomeData = {
@@ -112,6 +116,7 @@ const EMPTY: SiteHomeData = {
   memberStats: null,
   gallery: [],
   games: { upcoming: [], results: [] },
+  videos: [],
 };
 
 /** The published home's readers: the per-slug ISR cache. */
@@ -135,6 +140,7 @@ export function cachedSiteReaders(slug: string, site: PublicSite): SiteReaders {
     memberStats: () => getCachedMemberStats(slug, side, orgId),
     gallery: () => getCachedGallery(slug, side, orgId),
     games: () => getCachedOrgGames(slug, side, orgId, siteBasePath(site)),
+    videos: () => getCachedOrgVideos(slug, orgId),
   };
 }
 
@@ -166,6 +172,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
     memberStats: () => fetchPublicMemberStats(admin, side, orgId),
     gallery: () => fetchPublicGallery(admin, side, orgId),
     games: () => fetchOrgGames(admin, { side, orgId, links: { contest: siteContestLink(siteBasePath(site), orgId), event: id => `${appBaseUrl()}/events/${id}` } }),
+    videos: () => fetchPublicOrgVideos(admin, orgId),
   };
 }
 
@@ -175,7 +182,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
 export function neededFields(layout: SiteLayout, side: Side): SiteHomeDataKey[] {
   const all: SiteHomeDataKey[] = [
     'standings', 'events', 'teams', 'staff', 'venues', 'affiliations', 'openWindows', 'courses',
-    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats', 'gallery', 'games',
+    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats', 'gallery', 'games', 'videos',
   ];
   const clubOnly = new Set<SiteHomeDataKey>(['clubGolfBoards', 'courseStrip']);
   return all.filter(f => needsData(layout, f) && (side === 'club' || !clubOnly.has(f)));
@@ -188,7 +195,7 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
   const run = <K extends keyof SiteHomeData>(field: K & SiteHomeDataKey, read: () => Promise<SiteHomeData[K]>) =>
     need.has(field) ? read() : Promise.resolve(EMPTY[field]);
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats, gallery, games] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats, gallery, games, videos] =
     await Promise.all([
       run('standings', readers.standings),
       run('events', readers.events),
@@ -206,10 +213,11 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
       run('memberStats', readers.memberStats),
       run('gallery', readers.gallery),
       run('games', readers.games),
+      run('videos', readers.videos),
     ]);
   // S3: the club strip needs the course ids from the read above.
   const courseStrip = need.has('courseStrip') ? await readers.courseStrip(courses) : EMPTY.courseStrip;
 
-  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats, gallery, games };
+  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats, gallery, games, videos };
 }
 

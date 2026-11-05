@@ -36,6 +36,37 @@ describe('the Videos program\'s doors', () => {
   });
 });
 
+describe('the places (Phase 1b)', () => {
+  it('the round card\'s Media tab carries the Videos strip above the capture row; the live page a silent read-only strip', () => {
+    const card = read('src/components/golf/SharedRoundFullCard.tsx');
+    expect(card.indexOf('<RoundVideos groupPostId={group_post.id} />')).toBeLessThan(card.indexOf('<RoundMediaManager'));
+    expect(read('src/components/golf/RoundVideos.tsx')).toContain('groupPostId=');
+    const live = read('src/components/sport-events/EventLiveScreen.tsx');
+    expect(live).toContain('<EventLiveVideos eventId={eventId} token={token} />');
+    expect(read('src/components/sport-events/EventLiveVideos.tsx')).toContain('hideWhenEmpty hideDoor');
+  });
+  it('the activity screen lists its videos and offers the owner the door beside the capture buttons; the workout review offers it and the card lists them', () => {
+    const activity = read('src/components/activities/ActivityScreen.tsx');
+    expect(activity).toContain('data-activity-videos=""');
+    expect(activity).toContain('label="Full recording (YouTube)"');
+    expect(activity.indexOf('data-activity-photo-input')).toBeLessThan(activity.indexOf('label="Full recording (YouTube)"'));
+    expect(read('src/components/workouts/WorkoutEditorScreen.tsx')).toContain('label="Full session (YouTube)"');
+    expect(read('src/components/workouts/WorkoutCard.tsx')).toContain('<WorkoutVideos sessionId={session.id} />');
+  });
+});
+
+describe('the public site\'s Videos tile (Phase 1b)', () => {
+  it('is a server-safe srcdoc poster built from the id, gated by the gallery module, never a client component', () => {
+    const tile = read('src/app/(public)/org/[slug]/_components/VideosList.tsx');
+    expect(tile).not.toMatch(/^'use client'/m);
+    expect(tile).toContain('srcDoc={posterDoc(v.videoId)}');
+    expect(tile).not.toMatch(/from '@\/components\//);
+    expect(tile).toContain("from '@/lib/videos/youtube'");
+    expect(read('src/lib/site-builder/catalog.ts')).toMatch(/video_list: \{[\s\S]*?moduleKey: 'gallery'/);
+    expect(read('src/lib/org-sites/public-data.ts')).toMatch(/fetchPublicOrgVideos[\s\S]*?\.eq\('org_id', orgId\)[\s\S]*?\.eq\('status', 'published'\)/);
+  });
+});
+
 describe('the player', () => {
   const player = read('src/components/videos/YouTubePlayer.tsx');
   it('is an iframe built by the link helper, never a script and never a raw <video>', () => {
@@ -45,6 +76,16 @@ describe('the player', () => {
     expect(player).not.toMatch(/<script/);
     expect(player).not.toMatch(/iframe_api/);
     expect(player).not.toMatch(/<video[\s>]/);
+  });
+  it('seeks whenever the link carries a time (a highlight tap, or a share link\'s t= on the poster tap)', () => {
+    expect(player).toContain('const seek = startMs !== null && startMs > 0;');
+  });
+  it('a text message\'s first YouTube link is the poster under the bubble — a preview, never a row', () => {
+    const bubble = read('src/components/messages/MessageBubbleContent.tsx');
+    expect(bubble).toContain('data-message-youtube=');
+    expect(bubble).toContain('<YouTubePlayer videoId={youtube.id}');
+    expect(bubble).not.toMatch(/<iframe/);
+    expect(bubble).toContain("from '@/lib/help/body'");
   });
   it('remounts on a highlight (key = playKey) and offers the watch page', () => {
     expect(player).toContain('key={playKey}');

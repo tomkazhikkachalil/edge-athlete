@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import CaptureInputs from '@/components/media/CaptureInputs';
+import VideosGrid from '@/components/videos/VideosGrid';
+import { AddVideoLink } from '@/components/videos/VideoCards';
 import MediaTile from '@/components/media/MediaTile';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
 import { grabPreviewsInto } from '@/components/media/grab-poster';
@@ -304,6 +306,10 @@ function ActivityBody({
           </div>
         </section>
       )}
+      {/* Videos (297): the session's full recording, linked from YouTube — silent at zero; the owner's door is in the photo controls below. */}
+      <section data-activity-videos="">
+        <VideosGrid query={`activityId=${encodeURIComponent(a.id)}`} addHref={`/videos/new?activityId=${encodeURIComponent(a.id)}&profileId=${encodeURIComponent(a.profileId)}`} emptyCopy="" hideWhenEmpty hideDoor />
+      </section>
       {!a.owner && a.hasRoute && (
         <p className="text-xs text-muted -mt-4">The first and last part of every route stay private to the athlete.</p>
       )}
@@ -883,6 +889,8 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
             Add from library
             <input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={e => { const f = e.target.files ? Array.from(e.target.files) : []; e.target.value = ''; void attachFiles(f); }} data-activity-photo-input />
           </label>
+          {/* Videos (297): a full recording is a YouTube link, not an upload — the same door the composer offers. */}
+          <AddVideoLink href={`/videos/new?activityId=${encodeURIComponent(a.id)}&profileId=${encodeURIComponent(a.profileId)}`} label="Full recording (YouTube)" />
         </div>
         {a.media.length > 0 && (
           <ul className="flex flex-wrap gap-2">

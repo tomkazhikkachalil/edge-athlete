@@ -12,6 +12,10 @@ export interface VideoRow {
   org_id: string | null;
   sport_event_id: string | null;
   contest_id: string | null;
+  /** Phase 1b (297): a golf round, an activity, a workout session. */
+  group_post_id: string | null;
+  activity_id: string | null;
+  workout_session_id: string | null;
   created_by_user_id: string | null;
   title: string;
   description: string | null;
@@ -38,7 +42,8 @@ export type VideoOwnerView =
   | { kind: 'profile'; id: string; name: string; handle: string | null; avatar_url: string | null }
   | { kind: 'org'; id: string; side: OrgKind; name: string };
 
-export type VideoPlaceView = { kind: 'sport_event' | 'contest'; id: string; name: string } | null;
+export type VideoPlaceKind = 'sport_event' | 'contest' | 'round' | 'activity' | 'workout';
+export type VideoPlaceView = { kind: VideoPlaceKind; id: string; name: string } | null;
 
 /** What the API hands a page: the row, the URLs rebuilt from the id, the
  *  owner and the place by name, the marker count, and the viewer's right. */

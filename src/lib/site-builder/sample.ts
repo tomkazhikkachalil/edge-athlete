@@ -509,6 +509,11 @@ export function sampleHomeData(sportKey: string | null | undefined, side: OrgKin
     memberStats: family === 'golf' ? memberStats(now) : null,
     gallery: gallery(family, now),
     games: games(family, now),
+    // Videos (Phase 1b): the canvas draws SampleFrame for a sampled Videos tile (S2 — never a third-party request), so these ids are never rendered.
+    videos: [
+      { id: 'sample-video-1', videoId: 'sampleVid01', title: 'Championship final — full game', date: now.toISOString().slice(0, 10) },
+      { id: 'sample-video-2', videoId: 'sampleVid02', title: 'Semi-final highlights', date: now.toISOString().slice(0, 10) },
+    ],
   };
 }
 

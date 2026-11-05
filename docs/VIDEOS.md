@@ -6,15 +6,18 @@ Convention 57 (`docs/specs/videos.md`) is the rule; this is the plan. Tom's dire
 
 Profile, org, sport event and contest; the Create menu's Full game door; the composer's too-long hint; highlights as playback cues; no third-party script, no YouTube Data API, zero CSP change. The record is the Nov 4 2026 devlog entry.
 
-## Phase 1b — every upload surface gets the link path
+## Phase 1b — every upload surface gets the link path (built Nov 5 2026, migration 297; the branch `feat/videos-places`)
 
-One PR each, the same `videos` row, a "Full game" door beside the capture inputs, a nullable context column only where a surface needs one:
+The same `videos` row with three more nullable places (`group_post_id`, `activity_id`, `workout_session_id`; the one-place CHECK over five), a "Full game" door beside each surface's capture inputs, and the place's own manager as the attach rule — `docs/specs/videos.md` "Phase 1b" holds the rules:
 
-- the golf round (`RoundMediaManager`) — a round's broadcast; the place is the round's `group_post_id`;
-- activities and workouts (`ActivityScreen`, `ExerciseCard`) — a session's recording;
-- messages (`MessageInput`) — a link PREVIEW (the parser + the poster), not a video row;
-- the org site's gallery (the public server tree) — a read-only videos widget over the same table; no `SectionInfo`, no client components there;
-- the sport event's live page — the broadcast beside the live leaderboard.
+- the golf round — the round card's Media tab (`RoundVideos`), the door for the creator or a confirmed participant;
+- the sport event's live page — the broadcast beside the live stats (`EventLiveVideos`, read-only, silent at zero);
+- activities — the screen's Videos section after Photos, the owner's door beside the capture buttons;
+- workouts — the review header's door, the card's strip once expanded (owner only to attach; the workouts rule to see);
+- messages — a YouTube link in a text message is a click-to-play poster under the bubble (a preview, never a row; `t=` honoured);
+- the public org site — the `video_list` tile over the org's published rows, gallery-gated, an `<iframe srcdoc>` poster (no script, no CSP change).
+
+Not in 1b: a per-exercise link (`ExerciseCard`) — a workout's recording is one link per session, since exercise rows are replaced on every save; the feed's `WorkoutPostCard` count (a later round, through `stats_data`).
 
 ## Phase 2 — native short-video reliability
 

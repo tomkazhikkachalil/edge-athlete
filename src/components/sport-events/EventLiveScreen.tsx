@@ -15,6 +15,7 @@ import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import ScoreControl from './ScoreControl';
 import StatEntryStrip from './StatEntryStrip';
 import LiveCheers from '@/components/play/LiveCheers';
+import EventLiveVideos from './EventLiveVideos';
 
 interface Props {
   eventId: string;
@@ -139,6 +140,8 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
       </div>
       {/* Play (244): cheers on the live round — every sport's. */}
       {roundId && <LiveCheers contextKey={`sport_event_round:${roundId}`} signedIn={!!user} />}
+      {/* Videos (Phase 1b): the broadcast beside the live stats, silent when there is none. */}
+      <EventLiveVideos eventId={eventId} token={token} />
       {data && sides && roundId && (
         <ScoreControl eventId={eventId} roundId={roundId} score={data.round.score} sides={sides} canScore={!!user && live && data.viewer.can_score} onSaved={refresh} />
       )}

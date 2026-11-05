@@ -5,6 +5,9 @@ import LazyImage from '@/components/LazyImage';
 import SharedPostPreview from './SharedPostPreview';
 import SharedProfilePreview from './SharedProfilePreview';
 import MentionText from '@/components/MentionText';
+import YouTubePlayer from '@/components/videos/YouTubePlayer';
+import { parseYouTubeLink } from '@/lib/videos/youtube';
+import { linkify } from '@/lib/help/body';
 import { formatDisplayName } from '@/lib/formatters';
 import type { Message, ParticipantProfile } from '@/types/messages';
 
@@ -25,6 +28,16 @@ interface Props {
  * sheet's replica; the replica wraps this in `pointer-events-none`, which is
  * what neutralises SharedPostPreview's <button> and <video controls> there.
  */
+/** The first link in the text that is a YouTube video, with the time it carries. */
+function firstYouTubeLink(content: string): { id: string; startMs: number | null } | null {
+  for (const part of linkify(content)) {
+    if (part.kind !== 'link') continue;
+    const link = parseYouTubeLink(part.href);
+    if (link) return link;
+  }
+  return null;
+}
+
 export default function MessageBubbleContent({ message, isOwn, onViewPost, participants }: Props) {
   const resolveMention = (handle: string) => {
     const p = participants?.find(
@@ -38,6 +51,10 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost, parti
         }
       : null;
   };
+  // Videos (Phase 1b): the first YouTube link in a text message is a
+  // click-to-play poster under the bubble — a preview, never a row; the
+  // text keeps the link as the person typed it.
+  const youtube = message.type === 'text' && message.content ? firstYouTubeLink(message.content) : null;
   const renderText = (content: string) => (
     <MentionText text={content} resolve={resolveMention} styleUnresolved />
   );
@@ -51,9 +68,16 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost, parti
   return (
     <>
       {message.type === 'text' && (
-        <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
-          <p className="text-sm whitespace-pre-wrap break-words">{message.content && renderText(message.content)}</p>
-        </div>
+        <>
+          <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
+            <p className="text-sm whitespace-pre-wrap break-words">{message.content && renderText(message.content)}</p>
+          </div>
+          {youtube && (
+            <div className="mt-1 rounded-2xl overflow-hidden max-w-xs" data-message-youtube={youtube.id}>
+              <YouTubePlayer videoId={youtube.id} title="YouTube video" startMs={youtube.startMs} playKey={0} />
+            </div>
+          )}
+        </>
       )}
 
       {message.type === 'image' && message.media_url && (

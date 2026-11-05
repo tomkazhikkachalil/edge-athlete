@@ -18,6 +18,7 @@ import {
   fetchPublicCoursePage,
   fetchPublicDivisions,
   fetchPublicGallery,
+  fetchPublicOrgVideos,
   fetchPublicGolfRounds,
   fetchPublicStatLeaders,
   fetchPublicNewsList,
@@ -38,6 +39,7 @@ import {
   type PublicCoursePage,
   type PublicDivision,
   type PublicGalleryItem,
+  type PublicOrgVideo,
   type PublicGolfRound,
   type PublicLeaderBoard,
   type PublicNewsItem,
@@ -242,6 +244,10 @@ export const getCachedGallery = (
   perSlug(['org-site-gallery', slug], slug, () =>
     fetchPublicGallery(getSupabaseAdmin(), side, orgId)
   );
+
+// Videos (Phase 1b): the org's published linked videos — orgId is 1:1 with the slug.
+export const getCachedOrgVideos = (slug: string, orgId: string): Promise<PublicOrgVideo[]> =>
+  perSlug(['org-site-videos', slug], slug, () => fetchPublicOrgVideos(getSupabaseAdmin(), orgId));
 
 // V5: `publicOnly` is the site's visibility — 1:1 with the slug, so safe to
 // close over (a flip revalidates the tag).
