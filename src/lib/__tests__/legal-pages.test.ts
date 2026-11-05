@@ -24,7 +24,7 @@ describe('the legal pages', () => {
   });
 
   it('the privacy policy names every processor and source the app uses', () => {
-    for (const name of ['Supabase', 'Vercel', 'Google', 'Sentry', 'Open-Meteo', 'Golf course data providers', 'GIPHY', 'Logo.dev']) {
+    for (const name of ['Supabase', 'Vercel', 'Google', 'YouTube', 'Sentry', 'Open-Meteo', 'Golf course data providers', 'GIPHY', 'Logo.dev']) {
       expect(privacy, name).toContain(name);
     }
   });

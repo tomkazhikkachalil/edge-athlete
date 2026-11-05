@@ -528,6 +528,9 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   await mustDelete('activity_connections', 'profile_id');
   // Videos (296): the person's own linked games (their markers cascade); an org's videos are the org's.
   await mustDelete('videos', 'profile_id');
+  // The YouTube connection (298): the person's own channel grant, and any org connection their Google account made.
+  await mustDelete('youtube_connections', 'profile_id');
+  await mustDelete('youtube_connections', 'connected_by_user_id');
   // Phone notifications (248): the person's devices stop buzzing.
   await mustDelete('push_subscriptions', 'profile_id');
   // The seen mark (267, the Overview's active-user counts): the person's days leave with them.

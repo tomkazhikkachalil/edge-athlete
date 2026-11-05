@@ -97,7 +97,13 @@ export default function PrivacyPage() {
               </p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  <span className="font-medium">Google</span> — sign-in, if you choose it.
+                  <span className="font-medium">Google</span> — sign-in, if you choose it; and,
+                  if you connect a YouTube channel, the channel&apos;s name, its list of uploads and
+                  the uploads you send to it through Edge Athlete (the video goes from your device to
+                  YouTube — we never download, store or edit it). The connection is yours to remove
+                  at any time from the Videos tab; you can also revoke it in your Google account
+                  settings. YouTube&apos;s own terms and Google&apos;s privacy policy apply to the
+                  channel.
                 </li>
                 <li>
                   <span className="font-medium">Sentry</span> — error reports when something

@@ -57,6 +57,13 @@ export default function TermsPage() {
                 example). Public content is visible to other users; private profiles limit
                 visibility to approved fans.
               </p>
+              <p className="mt-2">
+                A full game or broadcast you link is a YouTube video: it stays on YouTube, under
+                YouTube&apos;s Terms of Service and Google&apos;s Privacy Policy, and Edge Athlete
+                shows it through YouTube&apos;s player. If you connect a YouTube channel and upload
+                through Edge Athlete, the upload goes from your device to YouTube and the video is
+                yours there; we keep only the link.
+              </p>
             </section>
 
             <section>

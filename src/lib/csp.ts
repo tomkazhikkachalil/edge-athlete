@@ -24,6 +24,9 @@
 //   Leaflet's runtime-injected styles. Unavoidable today.
 // * img/media: OSM + ArcGIS tiles, logo.dev, Giphy media, Supabase storage
 //   ride https:; blob: is load-bearing for the media editor (object URLs).
+// * connect-src: www.googleapis.com is the YouTube resumable upload's session
+//   URI (Videos program Phase 3, Nov 5 2026): the device PUTs a full game's
+//   bytes straight to YouTube, never through Vercel. Nothing else of Google's.
 // * connect-src: Supabase REST/realtime, the Giphy PROXY is same-origin but
 //   api.giphy.com stays for any legacy direct call, and BOTH Sentry ingest
 //   wildcard forms (the report-only policy silently killed browser error
@@ -78,7 +81,7 @@ export function buildCsp(nonce: string, opts?: { dev?: boolean; scriptHashes?: r
     `font-src 'self' data:`,
     `worker-src 'self'`,
     FRAME_SRC,
-    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
+    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://www.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
     `frame-ancestors 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,
@@ -109,7 +112,7 @@ export function buildStaticCsp(opts?: { dev?: boolean }): string {
     `media-src 'self' blob: https:`,
     `font-src 'self' data:`,
     FRAME_SRC,
-    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
+    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://www.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
     `frame-ancestors 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,

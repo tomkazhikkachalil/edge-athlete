@@ -34,6 +34,7 @@ describe('buildCsp', () => {
       'blob:',
       'https://*.supabase.co',
       'wss://*.supabase.co',
+      'https://www.googleapis.com', // the YouTube resumable upload's session URI (Phase 3)
       'https://*.ingest.sentry.io',
       'https://*.ingest.us.sentry.io',
     ]) {

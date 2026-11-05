@@ -2,6 +2,7 @@
 
 import SectionInfo from '@/components/SectionInfo';
 import VideosGrid from '@/components/videos/VideosGrid';
+import YouTubeConnectCard from '@/components/videos/YouTubeConnectCard';
 
 interface Props {
   profileId: string;
@@ -24,6 +25,12 @@ export default function ProfileVideosTab({ profileId, isOwnProfile, currentUserI
       <SectionInfo heading="Videos" headingId="profile-videos-heading" className="mb-4">
         Full games, tournaments and long videos live on YouTube; this is where they are linked and their highlights marked. Short clips are posts — find them under Media.
       </SectionInfo>
+      {/* Phase 3 (298): the owner's (or a guardian's) channel — the card hides itself for anyone else. */}
+      {(isOwnProfile || currentUserId === profileId) && (
+        <div className="mb-4">
+          <YouTubeConnectCard owner={`profile:${profileId}`} />
+        </div>
+      )}
       <VideosGrid
         query={`profileId=${encodeURIComponent(profileId)}`}
         addHref={addHref}

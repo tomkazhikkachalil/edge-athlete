@@ -2,6 +2,7 @@
 
 import { resolveCompetitionProfile, type EntrantKind } from '@/lib/sports/competition-profiles';
 import SectionInfo from '@/components/SectionInfo';
+import YouTubeConnectCard from '@/components/videos/YouTubeConnectCard';
 import { useEffect, useState, Fragment, type ReactNode } from 'react';
 // Org staff program (178): the console's section vocabulary IS authz's
 // ORG_SECTIONS (a type-only import — this is a client component).
@@ -2514,6 +2515,10 @@ export default function OrgConsolePage() {
                 : 'Arrange the page, write the welcome, pick colours and a template, fill the contact card — in the editor. Subpages, the address, the domain and what goes live stay here.'}
             </p>
           </SectionInfo>
+          {/* Phase 3 (298): the org's YouTube channel — the connector's own Google grant; managers link, the connector uploads. */}
+          <div className="mb-4">
+            <YouTubeConnectCard owner={`${side}:${orgId}`} compact />
+          </div>
           {site === null ? (
             <>
               {!slugPickerOpen ? (

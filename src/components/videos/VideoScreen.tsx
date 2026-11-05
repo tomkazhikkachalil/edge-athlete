@@ -159,6 +159,26 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     setNote(err);
   };
 
+  // Phase 3: the duration (and whatever else the Data API knows) through the owner's YouTube connection.
+  const refreshFromYouTube = async () => {
+    setSaving(true);
+    setNote(null);
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/refresh`, { method: 'POST' });
+      if (!res.ok) {
+        setNote(res.status === 404 ? 'Connect a YouTube channel on the Videos tab to read the details.' : await readError(res));
+        return;
+      }
+      const body = (await res.json()) as { video: VideoView | null };
+      if (body.video) setLoad(prev => (prev.state === 'ready' ? { ...prev, video: body.video! } : prev));
+      setNote('Details refreshed from YouTube.');
+    } catch {
+      setNote('Could not reach YouTube. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const remove = async () => {
     setConfirmDelete(false);
     if (load.state !== 'ready') return;
@@ -232,6 +252,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
             <button type="button" onClick={() => toggleHidden(video)} disabled={saving} className={BTN} data-video-toggle-hidden="">
               {video.status === 'hidden' ? 'Show' : video.owner.kind === 'org' ? 'Managers only' : 'Only me'}
             </button>
+            <button type="button" onClick={() => void refreshFromYouTube()} disabled={saving} className={BTN} data-video-refresh="">Refresh from YouTube</button>
             <button type="button" onClick={() => setConfirmDelete(true)} disabled={saving} className={`${BTN} text-red-600`} data-video-delete="">Delete</button>
           </div>
         )}
