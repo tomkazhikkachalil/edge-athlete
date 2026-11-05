@@ -171,12 +171,13 @@ async function factsFor(admin: Admin, row: VideoRow, user: User | null): Promise
 export type VideoFilter =
   | { kind: 'profile'; profileId: string; includeHidden: boolean; canManage: boolean }
   | { kind: 'org'; orgId: string; includeHidden: boolean; canManage: boolean }
-  | { kind: 'sport_event'; sportEventId: string; includeHidden: boolean; canManage: boolean }
-  | { kind: 'contest'; contestId: string; includeHidden: boolean; canManage: boolean }
+  // A place's list applies the OWNER's rule row by row — the viewer rides along for it.
+  | { kind: 'sport_event'; sportEventId: string; includeHidden: boolean; canManage: boolean; viewerId: string | null }
+  | { kind: 'contest'; contestId: string; includeHidden: boolean; canManage: boolean; viewerId: string | null }
   // Phase 1b (297): a golf round, an activity, a workout session.
-  | { kind: 'round'; groupPostId: string; includeHidden: boolean; canManage: boolean }
-  | { kind: 'activity'; activityId: string; includeHidden: boolean; canManage: boolean }
-  | { kind: 'workout'; workoutSessionId: string; includeHidden: boolean; canManage: boolean };
+  | { kind: 'round'; groupPostId: string; includeHidden: boolean; canManage: boolean; viewerId: string | null }
+  | { kind: 'activity'; activityId: string; includeHidden: boolean; canManage: boolean; viewerId: string | null }
+  | { kind: 'workout'; workoutSessionId: string; includeHidden: boolean; canManage: boolean; viewerId: string | null };
 
 /** The list for one context, newest first. Hidden rows ride only for a manager. */
 export async function listVideos(admin: Admin, filter: VideoFilter): Promise<VideoView[]> {
@@ -206,8 +207,9 @@ export async function listVideos(admin: Admin, filter: VideoFilter): Promise<Vid
         continue;
       }
       if (row.status !== 'published') continue;
-      if (row.profile_id) {
-        const visible = await anonymousProfileCanView(admin, row.profile_id);
+      if (row.profile_id && row.profile_id !== filter.viewerId) {
+        // The owner's own rule: the profile's privacy for a viewer (a follow counts), public for a stranger.
+        const visible = filter.viewerId ? (await canViewProfile(row.profile_id, filter.viewerId)).canView : await anonymousProfileCanView(admin, row.profile_id);
         if (!visible) continue;
       }
       out.push(projectVideo(row, false));

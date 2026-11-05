@@ -67,27 +67,27 @@ export async function GET(request: NextRequest) {
       if (!UUID_RE.test(sportEventId)) return NOT_FOUND('Event not found');
       const read = await readSportEventAccess(admin, sportEventId, viewerId, url.searchParams.get('token'));
       if (!read) return NOT_FOUND('Event not found');
-      filter = { kind: 'sport_event', sportEventId, includeHidden: read.access.canManage, canManage: read.access.canManage };
+      filter = { kind: 'sport_event', sportEventId, includeHidden: read.access.canManage, canManage: read.access.canManage, viewerId };
     } else if (contestId) {
       if (!UUID_RE.test(contestId)) return NOT_FOUND('Game not found');
       const access = await contestListAccess(admin, contestId, user ?? null);
       if (!access.canView) return NOT_FOUND('Game not found');
-      filter = { kind: 'contest', contestId, includeHidden: access.canManage, canManage: access.canManage };
+      filter = { kind: 'contest', contestId, includeHidden: access.canManage, canManage: access.canManage, viewerId };
     } else if (groupPostId) {
       if (!UUID_RE.test(groupPostId)) return NOT_FOUND('Round not found');
       const a = await roundAccess(admin, groupPostId, viewerId);
       if (!a.canView) return NOT_FOUND('Round not found');
-      filter = { kind: 'round', groupPostId, includeHidden: a.canManage, canManage: a.canManage };
+      filter = { kind: 'round', groupPostId, includeHidden: a.canManage, canManage: a.canManage, viewerId };
     } else if (activityId) {
       if (!UUID_RE.test(activityId)) return NOT_FOUND('Activity not found');
       const a = await activityAccess(admin, activityId, viewerId);
       if (!a.canView) return NOT_FOUND('Activity not found');
-      filter = { kind: 'activity', activityId, includeHidden: a.canManage, canManage: a.canManage };
+      filter = { kind: 'activity', activityId, includeHidden: a.canManage, canManage: a.canManage, viewerId };
     } else if (workoutSessionId) {
       if (!UUID_RE.test(workoutSessionId)) return NOT_FOUND('Workout not found');
       const a = await workoutAccess(admin, workoutSessionId, viewerId);
       if (!a.canView) return NOT_FOUND('Workout not found');
-      filter = { kind: 'workout', workoutSessionId, includeHidden: a.canManage, canManage: a.canManage };
+      filter = { kind: 'workout', workoutSessionId, includeHidden: a.canManage, canManage: a.canManage, viewerId };
     } else {
       return NextResponse.json({ error: 'A context is required: profileId, side + orgId, sportEventId, contestId, groupPostId, activityId or workoutSessionId' }, { status: 400, headers: PRIVATE });
     }
