@@ -36,6 +36,17 @@ describe('the Videos program\'s doors', () => {
   });
 });
 
+describe('the places (Phase 1b)', () => {
+  it('the round card\'s Media tab carries the Videos strip above the capture row; the live page a silent read-only strip', () => {
+    const card = read('src/components/golf/SharedRoundFullCard.tsx');
+    expect(card.indexOf('<RoundVideos groupPostId={group_post.id} />')).toBeLessThan(card.indexOf('<RoundMediaManager'));
+    expect(read('src/components/golf/RoundVideos.tsx')).toContain('groupPostId=');
+    const live = read('src/components/sport-events/EventLiveScreen.tsx');
+    expect(live).toContain('<EventLiveVideos eventId={eventId} token={token} />');
+    expect(read('src/components/sport-events/EventLiveVideos.tsx')).toContain('hideWhenEmpty hideDoor');
+  });
+});
+
 describe('the player', () => {
   const player = read('src/components/videos/YouTubePlayer.tsx');
   it('is an iframe built by the link helper, never a script and never a raw <video>', () => {
