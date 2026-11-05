@@ -279,3 +279,72 @@ describe('createUploadQueue — the runtime', () => {
     await expect(waiting).resolves.toBe('ran'); // never stranded
   });
 });
+
+// Videos program Phase 2 (Nov 5 2026): the cancel and the resume key. One
+// AbortController per upload in flight — forget, replace and destroy abort
+// it; the uploader is handed `<session>:<localId>` to remember a resumable
+// upload under.
+describe('createUploadQueue — cancel and the resume key', () => {
+  const file = (name: string, type = 'video/mp4', size = 10) => new File([new Uint8Array(size)], name, { type });
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  const flush = async (n = 6) => { for (let i = 0; i < n; i++) await tick(); };
+  function harness() {
+    const seen: Array<{ name: string; resumeKey?: string; signal?: AbortSignal }> = [];
+    const releases = new Map<string, (v: UploadedMedia) => void>();
+    const rejects = new Map<string, (e: unknown) => void>();
+    const upload = (f: File, _t?: string, options?: { signal?: AbortSignal; resumeKey?: string }) => {
+      seen.push({ name: f.name, resumeKey: options?.resumeKey, signal: options?.signal });
+      return new Promise<UploadedMedia>((resolve, reject) => {
+        releases.set(f.name, resolve);
+        rejects.set(f.name, reject);
+        options?.signal?.addEventListener('abort', () => reject(new UploadError('network', 'The upload was cancelled')));
+      });
+    };
+    const states: QueueState[] = [];
+    const queue = createUploadQueue({ sessionId: 'sess', stash: null, upload, onChange: s => states.push(s), isOnline: () => true, subscribeOnline: () => () => undefined });
+    return { queue, seen, states, release: (name: string, url = `https://x/${name}`) => releases.get(name)?.({ url, type: 'video' }) };
+  }
+  it('the uploader receives the resume key (session + local id) and a live signal', async () => {
+    const h = harness();
+    const [item] = h.queue.register([file('a.mp4')]);
+    await flush();
+    expect(h.seen[0]).toMatchObject({ name: 'a.mp4', resumeKey: `sess:${item.localId}` });
+    expect(h.seen[0].signal?.aborted).toBe(false);
+    h.release('a.mp4');
+    await flush();
+    expect(h.queue.itemFor(item.localId)?.status).toBe('stored');
+  });
+  it('forget aborts the upload in flight; nothing lands for the forgotten item', async () => {
+    const h = harness();
+    const [item] = h.queue.register([file('a.mp4')]);
+    await flush();
+    const signal = h.seen[0].signal!;
+    h.queue.forget(item.localId);
+    expect(signal.aborted).toBe(true);
+    await flush();
+    expect(h.queue.itemFor(item.localId)).toBeUndefined();
+  });
+  it('replaceWithEdited aborts the OLD bytes and uploads the new ones under a fresh signal', async () => {
+    const h = harness();
+    const [item] = h.queue.register([file('a.mp4')]);
+    await flush();
+    const first = h.seen[0].signal!;
+    h.queue.replaceWithEdited(item.localId, file('a-edited.mp4'));
+    expect(first.aborted).toBe(true);
+    await flush();
+    expect(h.seen.map(s => s.name)).toEqual(['a.mp4', 'a-edited.mp4']);
+    expect(h.seen[1].signal?.aborted).toBe(false);
+    expect(h.seen[1].resumeKey).toBe(`sess:${item.localId}`);
+    h.release('a-edited.mp4');
+    await flush();
+    expect(h.queue.itemFor(item.localId)?.storedUrl).toBe('https://x/a-edited.mp4');
+  });
+  it('destroy aborts every upload in flight', async () => {
+    const h = harness();
+    h.queue.register([file('a.mp4'), file('b.mp4')]);
+    await flush();
+    expect(h.seen).toHaveLength(1); // strictly one at a time
+    h.queue.destroy();
+    expect(h.seen[0].signal?.aborted).toBe(true);
+  });
+});

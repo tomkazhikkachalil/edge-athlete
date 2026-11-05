@@ -26,6 +26,54 @@ export const POSTER_JPEG_QUALITY = 82;
 /** Where the transcode stops: the client's MAX_VIDEO_SECONDS. */
 export const TRANSCODE_MAX_SECONDS = 180;
 
+// ── Quality targets (Videos program Phase 2, Nov 5 2026) ────────────────────
+// "Quality" is a number before it is a cap: what a stored clip is converted
+// TO, written here BEFORE the 50 MB cap is ever raised (docs/MEDIA.md
+// "Quality targets and the cap"). ffmpegArgsFor reads these — nothing in
+// the command is a literal the targets do not name. Two rungs: the full one
+// on the first attempt, the cheap one when the first ran out of time.
+export interface TranscodeRung {
+  /** libx264's speed/size trade — the cheap rung trades bytes for time. */
+  preset: 'veryfast' | 'ultrafast';
+  /** The constant-rate factor (lower = better, bigger). */
+  crf: number;
+  /** The longest the short edge may be; a smaller source is never upscaled. */
+  maxShortEdge: number;
+}
+export const TRANSCODE_TARGETS = {
+  /** The one codec every browser in the floor decodes: H.264 High, level 4.0 (1080p30 ceiling). */
+  videoCodec: 'libx264',
+  profile: 'high',
+  level: '4.0',
+  /** 8-bit 4:2:0 — an iPhone's HDR clip is 10-bit and no browser decodes that over the web. */
+  pixelFormat: 'yuv420p',
+  maxFps: 30,
+  audioCodec: 'aac',
+  audioBitrate: '128k',
+  audioChannels: 2,
+  maxSeconds: TRANSCODE_MAX_SECONDS,
+  rungs: {
+    full: { preset: 'veryfast', crf: 23, maxShortEdge: 720 } as TranscodeRung,
+    cheap: { preset: 'ultrafast', crf: 23, maxShortEdge: 540 } as TranscodeRung,
+  },
+} as const;
+
+/** The rung for an attempt: the first the full one, every retry the cheap one. */
+export function transcodeRungFor(attempt: number): TranscodeRung {
+  return attempt >= 2 ? TRANSCODE_TARGETS.rungs.cheap : TRANSCODE_TARGETS.rungs.full;
+}
+
+/** A readable label for what a stored clip's dims mean on a card or the diag page: '720p', '1080p', '4K', or the short edge. */
+export function qualityLabelFor(width: number | null | undefined, height: number | null | undefined): string | null {
+  if (!width || !height || width <= 0 || height <= 0) return null;
+  const short = Math.min(width, height);
+  if (short >= 2160) return '4K';
+  if (short >= 1080) return '1080p';
+  if (short >= 720) return '720p';
+  if (short >= 540) return '540p';
+  return `${short}p`;
+}
+
 const HEVC: ReadonlySet<string> = new Set(['hevc']);
 const CODECS: ReadonlySet<string> = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1', 'unknown']);
 
@@ -89,20 +137,21 @@ export interface ProbedVideo {
 
 /** The ffmpeg arguments for a transcode — attempt 1 the full rung, 2–3 the cheaper one. */
 export function ffmpegArgsFor(input: string, output: string, probe: Pick<ProbedVideo, 'audioCodec'>, attempt: number): string[] {
-  const cheap = attempt >= 2;
-  const audio = probe.audioCodec === 'aac' ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'];
+  const t = TRANSCODE_TARGETS;
+  const rung = transcodeRungFor(attempt);
+  const audio = probe.audioCodec === t.audioCodec ? ['-c:a', 'copy'] : ['-c:a', t.audioCodec, '-b:a', t.audioBitrate, '-ac', String(t.audioChannels)];
   return [
     '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-threads', '0',
     '-i', input,
     '-map', '0:v:0', '-map', '0:a:0?',
-    '-c:v', 'libx264', '-preset', cheap ? 'ultrafast' : 'veryfast', '-crf', '23', '-profile:v', 'high', '-level', '4.0',
+    '-c:v', t.videoCodec, '-preset', rung.preset, '-crf', String(rung.crf), '-profile:v', t.profile, '-level', t.level,
     // format=yuv420p is load-bearing: an iPhone's HDR clip is 10-bit; 8-bit 4:2:0 is what every browser decodes.
-    '-vf', `scale=-2:'min(${cheap ? 540 : 720},ih)',format=yuv420p`,
-    '-fpsmax', '30',
+    '-vf', `scale=-2:'min(${rung.maxShortEdge},ih)',format=${t.pixelFormat}`,
+    '-fpsmax', String(t.maxFps),
     ...audio,
     '-map_metadata', '-1', '-map_chapters', '-1',
     '-movflags', '+faststart',
-    '-t', String(TRANSCODE_MAX_SECONDS),
+    '-t', String(t.maxSeconds),
     output,
   ];
 }

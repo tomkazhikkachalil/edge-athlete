@@ -31,6 +31,7 @@ import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-no
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
 import { prepareImage } from '@/lib/media/image-meta';
+import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import {
   resolveCompetitionAccess,
   rosterByTeam,
@@ -43,7 +44,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[CONTEST MEDIA]';
 const MEDIA_PER_CONTEST_MAX = 100;
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// The ONE upload cap (Videos program Phase 2, Nov 5 2026): upload-rules.ts — the client, every route and the bucket read the same number.
 const EXT_BY_TYPE: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -215,7 +216,7 @@ export async function contestMediaUploadPOST(
   if (!access) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
 
   if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: 'File size must be less than 50MB' }, { status: 400 });
+    return NextResponse.json({ error: `File size must be less than ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB` }, { status: 400 });
   }
   const ext = EXT_BY_TYPE[file.type];
   if (!ext) {

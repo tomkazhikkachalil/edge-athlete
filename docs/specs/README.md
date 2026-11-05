@@ -66,7 +66,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | 40 | The Security Advisor stays clean; RLS helpers live in `private` | `data-foundation.md` |
 | 41 | A session is a place you can always get back to | `workouts-and-sessions.md` |
 | 42 | A workout has a clock you control, groups done for rounds, a rest timer and a stopwatch, and nothing saved before it changes | `workouts-and-sessions.md` |
-| 43 | A video is a poster first, media never looks broken, and the iPhone's clip is converted by a worker | `media.md` |
+| 43 | A video is a poster first, media never looks broken, and the iPhone's clip is converted by a worker (amended Nov 5 2026: a clip over one chunk uploads resumable, a tile's X cancels, ONE cap, the quality targets named before any raise) | `media.md` |
 | 44 | MMA, boxing, wrestling and jiu-jitsu are sports, and a bout is a result | `combat-sports.md` |
 | 45 | Every activity records what its kind of session records, asks at most three questions, and never invents a number | `activities.md` (+ `workouts-and-sessions.md`) |
 | 46 | Every browser works the same: feature-detect, never sniff; no first-party path a blocker blocks | `browser-support.md` |

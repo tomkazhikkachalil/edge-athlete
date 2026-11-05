@@ -10,6 +10,9 @@ import {
   outputKey,
   planJobKind,
   planJobsForRows,
+  qualityLabelFor,
+  transcodeRungFor,
+  TRANSCODE_TARGETS,
   posterSeekFor,
   retryDelayMs,
   storagePathOf,
@@ -94,5 +97,38 @@ describe('paths and codecs', () => {
     expect(foldCodec('av01.0.04M.08')).toBe('av1');
     expect(foldCodec(null)).toBe('unknown');
     expect(foldCodec('prores')).toBe('unknown');
+  });
+});
+
+// Videos program Phase 2 (Nov 5 2026): the quality targets are named before
+// any cap is raised, and the ffmpeg command is built from them alone.
+describe('quality targets', () => {
+  it('the command reads the targets: codec, profile, level, pixel format, fps, audio, the rung, the stop', () => {
+    const t = TRANSCODE_TARGETS;
+    const full = ffmpegArgsFor('in.mov', 'out.mp4', { audioCodec: 'opus' }, 1);
+    const cheap = ffmpegArgsFor('in.mov', 'out.mp4', { audioCodec: 'aac' }, 2);
+    expect(full).toEqual(expect.arrayContaining(['-c:v', t.videoCodec, '-profile:v', t.profile, '-level', t.level, '-preset', t.rungs.full.preset, '-crf', String(t.rungs.full.crf), '-fpsmax', String(t.maxFps), '-t', String(t.maxSeconds), '-b:a', t.audioBitrate, '-ac', String(t.audioChannels)]));
+    expect(full[full.indexOf('-vf') + 1]).toBe(`scale=-2:'min(${t.rungs.full.maxShortEdge},ih)',format=${t.pixelFormat}`);
+    expect(cheap[cheap.indexOf('-vf') + 1]).toBe(`scale=-2:'min(${t.rungs.cheap.maxShortEdge},ih)',format=${t.pixelFormat}`);
+    expect(cheap).toEqual(expect.arrayContaining(['-preset', t.rungs.cheap.preset, '-c:a', 'copy']));
+    expect(cheap).not.toContain('-b:a');
+  });
+  it('the targets themselves: H.264 High 4.0, 8-bit 4:2:0, ≤ 30 fps, AAC 128k stereo, 720p then 540p, 180 s', () => {
+    expect(TRANSCODE_TARGETS).toMatchObject({ videoCodec: 'libx264', profile: 'high', level: '4.0', pixelFormat: 'yuv420p', maxFps: 30, audioCodec: 'aac', audioBitrate: '128k', audioChannels: 2, maxSeconds: 180 });
+    expect(TRANSCODE_TARGETS.rungs.full).toEqual({ preset: 'veryfast', crf: 23, maxShortEdge: 720 });
+    expect(TRANSCODE_TARGETS.rungs.cheap).toEqual({ preset: 'ultrafast', crf: 23, maxShortEdge: 540 });
+    expect(transcodeRungFor(1)).toBe(TRANSCODE_TARGETS.rungs.full);
+    expect(transcodeRungFor(2)).toBe(TRANSCODE_TARGETS.rungs.cheap);
+    expect(transcodeRungFor(3)).toBe(TRANSCODE_TARGETS.rungs.cheap);
+  });
+  it('qualityLabelFor names the short edge', () => {
+    expect(qualityLabelFor(1920, 1080)).toBe('1080p');
+    expect(qualityLabelFor(1080, 1920)).toBe('1080p');
+    expect(qualityLabelFor(3840, 2160)).toBe('4K');
+    expect(qualityLabelFor(1280, 720)).toBe('720p');
+    expect(qualityLabelFor(960, 540)).toBe('540p');
+    expect(qualityLabelFor(640, 360)).toBe('360p');
+    expect(qualityLabelFor(null, 720)).toBeNull();
+    expect(qualityLabelFor(0, 0)).toBeNull();
   });
 });

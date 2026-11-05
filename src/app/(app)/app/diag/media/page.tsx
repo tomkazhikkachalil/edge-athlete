@@ -317,6 +317,36 @@ export default function MediaDiagPage() {
     }
   }, [append, lastFile]);
 
+  // Videos program Phase 2 (Nov 5 2026): the resumable path, end to end, on a
+  // generated file three chunks long — the SAME uploadPostMedia the composer
+  // runs, so what this logs is what a phone does. The bytes are not a playable
+  // video (the finalize's scrub fails open and moves them as-is); the storage
+  // sweep removes the object. The e2e spec reads these lines.
+  const handleResumableCheck = useCallback(async () => {
+    setBusy('resumable');
+    const t0 = performance.now();
+    try {
+      const { uploadPostMedia } = await import('@/lib/media/upload');
+      const { TUS_CHUNK_BYTES } = await import('@/lib/media/tus');
+      const size = 2 * TUS_CHUNK_BYTES + 4096;
+      const file = new File([new Uint8Array(size)], 'resumable-check.mp4', { type: 'video/mp4' });
+      append(`[resumable] start ${kb(size)} · chunk ${kb(TUS_CHUNK_BYTES)}`);
+      let lastQuarter = -1;
+      const result = await uploadPostMedia(file, undefined, {
+        resumeKey: `diag:resumable:${BOOT_ID}`,
+        onProgress: fraction => {
+          const quarter = Math.floor(fraction * 4);
+          if (quarter > lastQuarter) { lastQuarter = quarter; append(`[resumable] progress ${Math.round(fraction * 100)}%`); }
+        },
+      });
+      append(`[resumable] ok transport=${result.transport ?? 'unknown'} ${ms(t0)} → ${result.url}`);
+    } catch (e) {
+      append(`[resumable] FAILED ${ms(t0)}: ${errText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  }, [append]);
+
   const copyLog = useCallback(async () => {
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -413,6 +443,15 @@ export default function MediaDiagPage() {
             className="min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover disabled:opacity-50"
           >
             Upload last file to the server
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void handleResumableCheck()}
+            data-diag-resumable=""
+            className="min-h-[44px] px-4 rounded-full border border-border-strong text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            Resumable upload check
           </button>
           <button type="button" onClick={() => void copyLog()} className="min-h-[44px] px-4 rounded-full border border-border-strong text-sm font-semibold text-primary">
             Copy log
