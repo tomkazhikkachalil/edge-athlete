@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_BASE_URL, bypassHeaders } from './e2e/helpers/qa-user';
 import { POLAR_E2E_ENV } from './e2e/helpers/polar-mock';
+import { YOUTUBE_E2E_ENV } from './e2e/helpers/youtube-mock';
 import { PUSH_E2E_ENV } from './e2e/helpers/push-mock';
 import { WEATHER_E2E_ENV } from './e2e/helpers/weather-mock';
 
@@ -138,7 +139,7 @@ export default defineConfig({
         // a deployment ignores POLAR_MOCK_BASE in production by itself. The
         // same for phone notifications: throwaway VAPID keys and a stand-in
         // push service (e2e/push.spec.ts).
-        env: { ...POLAR_E2E_ENV, ...PUSH_E2E_ENV, ...WEATHER_E2E_ENV },
+        env: { ...POLAR_E2E_ENV, ...PUSH_E2E_ENV, ...WEATHER_E2E_ENV, ...YOUTUBE_E2E_ENV },
         url: `${E2E_BASE_URL}/`,
         reuseExistingServer: !process.env.CI,
         timeout: 300_000,

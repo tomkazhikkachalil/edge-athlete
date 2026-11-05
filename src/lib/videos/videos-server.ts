@@ -443,6 +443,19 @@ export async function updateVideo(admin: Admin, id: string, patch: VideoPatch): 
 }
 
 /** A link, not a result: the row goes, its markers cascade. */
+/** Phase 3: what the Data API read of the video — the duration Phase 1 left null; the title only when ours is still the default. */
+export async function recordVideoDetails(admin: Admin, id: string, details: { durationMs: number | null }): Promise<Outcome<VideoRow>> {
+  const patch: Record<string, unknown> = {};
+  if (typeof details.durationMs === 'number' && details.durationMs >= 0) patch.duration_ms = Math.round(details.durationMs);
+  if (Object.keys(patch).length === 0) {
+    const { data } = await admin.from('videos').select(VIDEO_COLUMNS).eq('id', id).maybeSingle();
+    return data ? { ok: true, value: data as VideoRow } : { ok: false, status: 404, error: 'Not found' };
+  }
+  const { data, error } = await admin.from('videos').update(patch).eq('id', id).select(VIDEO_COLUMNS).single();
+  if (error || !data) return { ok: false, status: 500, error: 'Could not save the details' };
+  return { ok: true, value: data as VideoRow };
+}
+
 export async function deleteVideo(admin: Admin, id: string, orgId: string | null = null): Promise<Outcome<null>> {
   const { error } = await admin.from('videos').delete().eq('id', id);
   if (error) {

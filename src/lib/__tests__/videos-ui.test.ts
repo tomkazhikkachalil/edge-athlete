@@ -115,3 +115,48 @@ describe('the pages', () => {
     expect(screen).toContain('initialAuthCheckComplete');
   });
 });
+
+describe('the YouTube connection (Phase 3)', () => {
+  it('the channel card sits on the profile Videos tab (the owner) and in the org console website section; it navigates to the start route and confirms a disconnect', () => {
+    const card = read('src/components/videos/YouTubeConnectCard.tsx');
+    expect(card).toContain("'use client'");
+    expect(card).toContain('/api/videos/youtube/start?owner=');
+    expect(card).toContain('<ConfirmModal');
+    expect(card).toContain('data-youtube-connect=""');
+    expect(card).toContain('data-youtube-disconnect=""');
+    expect(card).not.toMatch(/refreshToken|secret_ciphertext/);
+    const tab = read('src/components/profile/ProfileVideosTab.tsx');
+    expect(tab).toContain('<YouTubeConnectCard owner={`profile:${profileId}`} />');
+    expect(tab).toContain('(isOwnProfile || currentUserId === profileId) &&');
+    const console = read('src/app/(app)/app/org/[side]/[id]/page.tsx');
+    expect(console).toContain('<YouTubeConnectCard owner={`${side}:${orgId}`} compact />');
+  });
+  it('the new-video flow offers the channel list and the upload only once the default owner is connected; the upload is a link to the second consent when the scope is missing', () => {
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('<ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />');
+    expect(flow).toContain('connection.canUpload && uploadOpen && (');
+    expect(flow).toContain('data-new-video-needs-scope=""');
+    expect(flow).not.toContain('window.location.assign');
+    const panel = read('src/components/videos/YouTubeUploadPanel.tsx');
+    expect(panel).toContain("import('@/lib/videos/youtube-upload')");
+    expect(panel).toContain('data-youtube-upload-cancel=""');
+    expect(panel).toContain('/api/videos/youtube/upload-session');
+    const picker = read('src/components/videos/ChannelPicker.tsx');
+    expect(picker).toContain('/api/videos/youtube/channel-uploads?owner=');
+  });
+  it('the device upload speaks Google\'s resumable protocol from the pure rules and never a Supabase or Edge Athlete host', () => {
+    const up = read('src/lib/videos/youtube-upload.ts');
+    expect(up).toContain("import { nextOffsetFromRange, youtubeContentRange } from './youtube-connection';");
+    expect(up).toContain("xhr.setRequestHeader('Content-Range', range.header);");
+    expect(up).toContain('res.status === 308');
+    expect(up).not.toMatch(/supabase\.co|fetch\(/); // the only request is the XHR to the session URI
+    const csp = read('src/lib/csp.ts');
+    expect(csp.split('https://www.googleapis.com').length).toBe(3); // both policies, nothing else
+  });
+  it('the video page offers the manager "Refresh from YouTube" through its own route', () => {
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain('data-video-refresh=""');
+    expect(screen).toContain('/refresh`, { method: \'POST\' }');
+    expect(read('src/app/api/videos/[id]/refresh/route.ts')).toContain('recordVideoDetails(');
+  });
+});

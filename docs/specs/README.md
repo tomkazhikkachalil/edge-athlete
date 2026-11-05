@@ -25,7 +25,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `contacts-and-admin.md` | The contact list (sign-ups and inquiries → a row, a mail to ONE setting, a confirmation) and the admin console's own door (Oct 19 2026) |
 | `platform-overview.md` | The platform Overview: the console's numbers from small tables — nightly rollups, the seen mark, sampled health, estimates (Oct 19 2026) |
 | `golf-round-setup.md` | The golf round setup as steps (Oct 28 2026): StepFlow over `round-steps.ts`, the list follows the first step, only the course step refuses, Near me on entry only when already granted, the date locked while live, Scores for already played only |
-| `videos.md` | Videos (Nov 4–5 2026): a full game is a YouTube link, not an upload — `videos` + `video_highlights` (296), the one writer, the rights (profile privacy / org gallery gate / `manage_video`), the click-to-play embed that remounts at a highlight, the six doors; Phase 1b (297): the round, activity and workout places, the message preview, the public site's `video_list` tile |
+| `videos.md` | Videos (Nov 4–5 2026): a full game is a YouTube link, not an upload — `videos` + `video_highlights` (296), the one writer, the rights (profile privacy / org gallery gate / `manage_video`), the click-to-play embed that remounts at a highlight, the six doors; Phase 1b (297): the round, activity and workout places, the message preview, the public site's `video_list` tile; Phase 3 (298): the YouTube channel connection (PKCE, incremental scopes, the sealed refresh), the device → YouTube upload, the one-tap channel list, the duration refresh |
 
 ## Convention number → file
 

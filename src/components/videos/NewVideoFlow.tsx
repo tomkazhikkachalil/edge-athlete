@@ -13,7 +13,10 @@ import { isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { UUID_RE } from '@/lib/uuid';
 import { VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX } from '@/lib/videos/rules';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
-import { parseYouTubeLink, thumbUrl } from '@/lib/videos/youtube';
+import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
+import type { YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import ChannelPicker from '@/components/videos/ChannelPicker';
+import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
@@ -59,6 +62,45 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
 
   const link = useMemo(() => (url.trim() ? parseYouTubeLink(url) : null), [url]);
   const sports = useMemo(() => getEnabledSports(), []);
+
+  // Phase 3 (298): the owner this door would default to — the org it came
+  // from, else the profile — and that owner's YouTube connection. Connected:
+  // the Link step offers the channel's uploads in one tap and, for the person
+  // whose grant it is, an upload from this device straight to YouTube.
+  const defaultOwnerRef = prefillOrg && UUID_RE.test(prefillOrg) && (sideParam === 'league' || sideParam === 'club')
+    ? `${sideParam}:${prefillOrg}`
+    : `profile:${prefillProfile && UUID_RE.test(prefillProfile) ? prefillProfile : userId}`;
+  const [connection, setConnection] = useState<YouTubeConnectionView | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadedNote, setUploadedNote] = useState<string | null>(null);
+  const [needsScope, setNeedsScope] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const fetchConnection = async (): Promise<YouTubeConnectionView | null> => {
+      try {
+        const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(defaultOwnerRef)}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        const body = (await res.json()) as { connection?: YouTubeConnectionView };
+        return body.connection?.connected ? body.connection : null;
+      } catch {
+        return null;
+      }
+    };
+    void fetchConnection().then(next => { if (live) setConnection(next); });
+    return () => { live = false; };
+  }, [defaultOwnerRef]);
+  const pickFromChannel = (videoId: string, pickedTitle: string) => {
+    setUrl(watchUrl(videoId));
+    if (!title.trim() && pickedTitle) setTitle(pickedTitle.slice(0, VIDEO_TITLE_MAX));
+    setUploadOpen(false);
+  };
+  const uploaded = (videoId: string, uploadedTitle: string) => {
+    setUrl(watchUrl(videoId));
+    if (!title.trim()) setTitle(uploadedTitle.slice(0, VIDEO_TITLE_MAX));
+    setUploadOpen(false);
+    setUploadedNote('Uploaded to YouTube. Now the details, then where it goes.');
+    setIndex(1);
+  };
 
   // The orgs this person may link a video to: the ladder's owners and
   // managers. A website-section staff grant also manages video (the API's
@@ -167,6 +209,31 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             <p className="text-xs text-muted">
               A full game, a tournament, a broadcast — anything long lives on YouTube. Upload it there first (your own channel), then paste the link. Edge Athlete keeps the link and your highlights; it never downloads or re-hosts the video. Short clips still go in a post.
             </p>
+            {connection && (
+              <div className="space-y-2" data-new-video-youtube={connection.canUpload ? 'upload' : 'pick'}>
+                <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />
+                {connection.canUpload && !uploadOpen && (
+                  <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
+                    <i className="fas fa-cloud-arrow-up text-brand-fg" aria-hidden="true"></i>
+                    <span className="text-sm font-semibold text-primary flex-1">Upload a file to {connection.channelTitle || 'your channel'}</span>
+                    <i className="fas fa-chevron-right text-muted" aria-hidden="true"></i>
+                  </button>
+                )}
+                {needsScope && (
+                  <p className="text-sm text-secondary" role="status" data-new-video-needs-scope="">
+                    Uploads need one more yes at Google.{' '}
+                    <a href={`/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=upload`} className="underline font-semibold">Allow uploads</a>, then come back to this door.
+                  </p>
+                )}
+                {connection.canUpload && uploadOpen && (
+                  <YouTubeUploadPanel
+                    owner={defaultOwnerRef}
+                    onUploaded={uploaded}
+                    onNeedsScope={() => setNeedsScope(true)}
+                  />
+                )}
+              </div>
+            )}
             {link && (
               <div className="rounded-lg overflow-hidden border border-border" data-new-video-preview={link.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- a third-party thumbnail; not an optimizer candidate */}
@@ -180,6 +247,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
         )}
         {step.id === 'details' && (
           <div className="px-4 pb-4 space-y-3">
+            {uploadedNote && <p className="text-sm text-secondary" role="status" data-new-video-uploaded="">{uploadedNote}</p>}
             <label className="block text-sm text-secondary">
               Title
               <input className={`${FIELD} mt-1`} maxLength={VIDEO_TITLE_MAX} placeholder="Club championship final — full game" value={title} onChange={e => setTitle(e.target.value)} data-new-video-title="" />

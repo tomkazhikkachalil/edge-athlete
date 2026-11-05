@@ -266,6 +266,10 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'user_mutes.muter_id': 'goes',
   // Videos (296): a linked game on the person's own profile leaves with them; an org's videos stay with the org.
   'videos.profile_id': 'goes',
+  // The YouTube connection (298): the owner's channel grant leaves with the owner; a connection someone
+  // else's Google account made for an org also goes when THAT person leaves (only they could upload).
+  'youtube_connections.profile_id': 'goes',
+  'youtube_connections.connected_by_user_id': 'goes',
   'workout_exercises.profile_id': 'goes',
   'workout_routine_exercises.profile_id': 'goes',
   'workout_routines.profile_id': 'goes',
