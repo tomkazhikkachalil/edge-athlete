@@ -8,6 +8,7 @@ import { UUID_RE } from '@/lib/uuid';
 import ContestPage from '@/components/contests/ContestPage';
 import ContestGate from './_components/ContestGate';
 import ContestPosts from './_components/ContestPosts';
+import ContestVideos from './_components/ContestVideos';
 import { appContestLinks } from './_components/links';
 
 // ── /event/[contestId] — a contest as a PLACE (Contest Place E1) ─────────
@@ -55,6 +56,7 @@ export default async function ContestPlacePage({ params }: PageParams) {
           access={result.access}
           links={appContestLinks(result.view, publicSite)}
           postsSlot={<ContestPosts contestId={contestId} />}
+          videosSlot={<ContestVideos contestId={contestId} />}
         />
       </main>
     </div>

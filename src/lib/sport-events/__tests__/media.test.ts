@@ -51,8 +51,11 @@ describe('projectMedia — newest first, mine, can_remove', () => {
     expect(projectMedia(rows, names, { profileId: null, canManage: false, eventStatus: 'live' })[1].can_remove).toBe(false);
     expect(projectMedia(rows, names, { profileId: 'x', canManage: true, eventStatus: 'live' })[1].can_remove).toBe(true);
   });
-  it('the Gallery tab shows for everyone, last', () => {
+  it('the Gallery tab shows for everyone, last; Videos (296) for everyone, just before it', () => {
     expect(tabsFor({ canManage: false })).toContain('gallery');
+    expect(tabsFor({ canManage: false })).toContain('videos');
+    expect(tabsFor({ canManage: false, shape: 'game' }).at(-2)).toBe('videos');
+    expect(parseEventTab('videos', { canManage: false })).toBe('videos');
     expect(tabsFor({ canManage: false, shape: 'game' }).at(-1)).toBe('gallery');
     expect(parseEventTab('gallery', { canManage: false })).toBe('gallery');
   });

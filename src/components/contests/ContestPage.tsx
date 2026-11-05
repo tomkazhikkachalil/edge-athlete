@@ -44,6 +44,8 @@ interface Props {
   /** The "Posts from this event" body (a client island in the app; omitted
    *  where there is none). Rendered only when the view counts posts. */
   postsSlot?: React.ReactNode;
+  /** Videos (296): the full games linked to this contest (a client island; omitted where there is none). Always rendered — the island says "No videos yet" or offers the manager's door. */
+  videosSlot?: React.ReactNode;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -77,7 +79,7 @@ function TierChip({ provenance, disputed }: { provenance: string; disputed?: boo
   );
 }
 
-export default function ContestPage({ view, access, links, postsSlot }: Props) {
+export default function ContestPage({ view, access, links, postsSlot, videosSlot }: Props) {
   const { contest, competition, org, outcome } = view;
   const where = contestWhere(view);
   const liveRounds = view.liveRounds
@@ -91,6 +93,7 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
     { id: 'media', label: 'Media', show: view.media.length > 0 },
     { id: 'live', label: 'Live', show: liveRounds.length > 0 },
     { id: 'posts', label: 'Posts', show: showPosts },
+    { id: 'videos', label: 'Videos', show: !!videosSlot },
   ].filter(s => s.show);
 
   return (
@@ -319,6 +322,14 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
           <h2 className="text-lg font-semibold text-primary mb-1">Posts from this event</h2>
           <p className="text-sm text-tertiary mb-3">Public posts whose rounds were counted here.</p>
           {postsSlot}
+        </section>
+      )}
+
+      {videosSlot && (
+        <section id="videos" aria-label="Videos" className="bg-surface rounded-lg border border-border p-4 sm:p-6 scroll-mt-4" data-contest-videos="">
+          <h2 className="text-lg font-semibold text-primary mb-1">Videos</h2>
+          <p className="text-sm text-tertiary mb-3">Full games linked from YouTube, with their highlights.</p>
+          {videosSlot}
         </section>
       )}
 

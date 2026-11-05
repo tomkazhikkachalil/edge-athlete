@@ -30,6 +30,7 @@ import BackupBanner from '@/components/authority/BackupBanner';
 import RoundEditWindow from './RoundEditWindow';
 import EventStatsTab from './EventStatsTab';
 import EventGalleryTab from './EventGalleryTab';
+import EventVideosTab from './EventVideosTab';
 import type { SportEventSport } from '@/lib/sport-events/types';
 
 /**
@@ -280,6 +281,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
           {visibleTab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} selected={selectedRound} onSelect={changeRound} />}
           {visibleTab === 'stats' && <EventStatsTab view={view} api={api} version={version} selected={selectedRound} onSelect={changeRound} />}
+          {visibleTab === 'videos' && <EventVideosTab view={view} version={version} />}
           {visibleTab === 'gallery' && <EventGalleryTab view={view} api={api} version={version} />}
           {visibleTab === 'matches' && (
             <EventMatchesTab

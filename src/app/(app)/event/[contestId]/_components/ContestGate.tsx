@@ -9,6 +9,7 @@ import type { ContestViewResult } from '@/lib/competitions/contest-view';
 type ContestApiResponse = ContestViewResult & { publicSitePath?: string | null };
 import ContestPage from '@/components/contests/ContestPage';
 import ContestPosts from './ContestPosts';
+import ContestVideos from './ContestVideos';
 import { appContestLinks } from './links';
 
 // ── The gated branch of /event/[contestId] (Contest Place E1) ────────────
@@ -104,6 +105,7 @@ export default function ContestGate({ contestId }: Props) {
       access={result.access}
       links={appContestLinks(result.view, result.publicSitePath ?? null)}
       postsSlot={<ContestPosts contestId={contestId} viewerId={user?.id} />}
+      videosSlot={<ContestVideos contestId={contestId} />}
     />
   );
 }
