@@ -16,13 +16,14 @@ const RECORDED = [
   { key: 'venues', bubbleKey: 'courses', span: 'sm' },
   { key: 'activity', bubbleKey: 'activity', span: 'sm' },
   { key: 'gallery', bubbleKey: 'photos', span: 'md' },
+  { key: 'videos', bubbleKey: 'videos', span: 'md' },
   { key: 'affiliations', bubbleKey: 'affiliations', span: 'sm' },
   { key: 'posts', bubbleKey: 'posts', span: 'lg' },
 ] as const;
 
 // e2e/helpers/org-page.ts OrgWindowKey — the ten windows the grid hosts.
 const HELPER_WINDOW_KEYS = [
-  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos', 'teams',
+  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos', 'teams', 'videos',
 ];
 
 describe('deriveAppLayout', () => {

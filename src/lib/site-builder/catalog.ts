@@ -67,7 +67,7 @@ export const WEB_WIDGET_KEYS = [
 export type WebWidgetKey = (typeof WEB_WIDGET_KEYS)[number];
 
 /** Widgets the in-app org page renders that have no public-site module. */
-export const APP_ONLY_WIDGET_KEYS = ['week', 'announcements', 'activity', 'posts'] as const;
+export const APP_ONLY_WIDGET_KEYS = ['week', 'announcements', 'activity', 'posts', 'videos'] as const;
 export type AppOnlyWidgetKey = (typeof APP_ONLY_WIDGET_KEYS)[number];
 
 /** Phase 6 — content widgets: authored tiles with no module behind them. */
@@ -142,7 +142,9 @@ export type AppBubbleKey =
   | 'affiliations'
   | 'photos'
   | 'posts'
-  | 'teams';
+  | 'teams'
+  // Videos program (296): the org's linked full games.
+  | 'videos';
 
 /** The fields of the public home's `SiteHomeData` a web widget consumes —
  *  page.tsx gates its readers on these (a widget that is not on the page
@@ -379,6 +381,18 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     moduleKey: null,
     constraints: { ...APP, defaultSize: { w: 12, h: 4 } },
     surfaces: { default: APP_ONLY, app: { priority: 110, size: 'lg', bubbleKey: 'posts', ownsWindow: true } },
+    subpage: false,
+    data: [],
+  },
+  // Videos program (296): the org's linked YouTube games — in-app only, at
+  // its registry priority between Photos and Affiliations; never pinned (a
+  // zero face hides for the public and offers the door to a manager).
+  videos: {
+    key: 'videos',
+    family: 'live',
+    moduleKey: null,
+    constraints: APP,
+    surfaces: { default: APP_ONLY, app: { priority: 95, size: 'md', bubbleKey: 'videos' } },
     subpage: false,
     data: [],
   },

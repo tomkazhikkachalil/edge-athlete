@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   Activity,
   CalendarDays,
+  Clapperboard,
   Flag,
   Image as ImageIcon,
   Landmark,
@@ -36,6 +37,7 @@ import { deriveAppLayout, isOrgWindowKey, type AppComposition, type AppSlot, typ
 import OrgContentTile from './OrgContentTile';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
+import { pickVideos, VideosEmptyFace, VideosFace, VideosWindow } from './OrgVideos';
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
 import { pickTeams, TeamsWindow } from './OrgTeams';
 import { SIDE_COPY } from './side-copy';
@@ -255,6 +257,8 @@ export default function OrgGlanceGrid({
   // R4: the gallery — a public org's for everyone, a private org's for
   // members (the route decides; a 403 reads as nothing here).
   const photos = useOrgRead(`${base}/gallery`, pickPhotos, true, reloadKey);
+  // Videos program (296): the org's linked full games — the gallery's gate, the manage_video door.
+  const videos = useOrgRead(`/api/videos?side=${side}&orgId=${encodeURIComponent(orgId)}`, pickVideos, true, reloadKey);
   // Teams & divisions PR 8: the org's teams (the route applies the org's rules
   // and the Teams switch; the tile itself is gated by deriveAppLayout).
   const teams = useOrgRead(switches.teams ? `${base}/teams` : null, pickTeams, switches.teams, reloadKey);
@@ -413,6 +417,15 @@ export default function OrgGlanceGrid({
               : <PhotosEmptyFace read={photos} canManage={canManage} consolePath={consolePath} />,
           }
         : null,
+    videos: () =>
+      videos && show(videos.count)
+        ? {
+            key: 'videos', icon: Clapperboard, label: 'Videos', open: videos.count > 0 || videos.canAdd,
+            face: videos.count > 0
+              ? <VideosFace read={videos} />
+              : <VideosEmptyFace side={side} orgId={orgId} canAdd={videos.canAdd} />,
+          }
+        : null,
     teams: () =>
       teams && show(teams.count)
         ? {
@@ -483,6 +496,8 @@ export default function OrgGlanceGrid({
         return <OrgRecentActivity side={side} orgId={orgId} bare />;
       case 'photos':
         return photos ? <PhotosWindow read={photos} /> : null;
+      case 'videos':
+        return videos ? <VideosWindow read={videos} side={side} orgId={orgId} /> : null;
       case 'teams':
         return teams ? <TeamsWindow side={side} orgId={orgId} read={teams} /> : null;
       case 'affiliations':
