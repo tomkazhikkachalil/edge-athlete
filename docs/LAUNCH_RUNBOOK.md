@@ -213,7 +213,9 @@ every line ends in its probe. Nothing below is started until the morning's
 2. [Tom] Vercel → Settings → Environment Variables → delete
    `NEXT_PUBLIC_LAUNCH_GATE` from Production → **a REAL build** (push an
    empty commit or Redeploy with "use existing build cache" OFF — the flag is
-   inlined, a plain redeploy keeps the gate).
+   inlined, a plain redeploy keeps the gate). The Ignored Build Step does not
+   get in the way: an empty commit diffs to nothing and an empty diff BUILDS
+   (`decideBuild` in `scripts/vercel-ignore-build.mjs`, the safe default).
 3. [Claude] `npm run launch:probe --open`: the gate rows flip (robots allow,
    sitemap 200, `POST /api/signup` no longer 403, the flag absent), the
    sign-up row is judged again, everything else still ✓.

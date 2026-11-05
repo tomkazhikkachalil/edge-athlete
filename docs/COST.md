@@ -24,7 +24,7 @@ Written Oct 29 2026 from the Vercel API, the repo and the billing docs, after To
 
 ## What is in place
 
-- **Observability Plus is off** (Tom, Oct 29 2026). Sentry carries errors and 10 % traces; the free tier keeps 1-day logs and function metrics. Turning it back on makes every request bill ~4 events.
+- **Observability Plus is off** (Tom, Oct 29 2026). Sentry carries errors and 10 % traces; the free tier keeps 1-day logs and function metrics. Turning it back on makes every request bill ~4 events. **It goes back ON at go-public** (Tom, Oct 29 2026): the first hours of real users are the ones to see request-by-request, and the switch-day order in `docs/LAUNCH_RUNBOOK.md` ("The switch itself") carries the step; read the Usage page a week later and decide whether it stays.
 - **Retention policy** (project → Settings → Security): previews 7 days, canceled/errored 1 day, production 30 days. Vercel keeps the last 10 deployments and the last 20 Ready production deployments regardless, so rollback is untouched.
 - **Spend alert** at $50 per cycle (team → Billing → Spend Management).
 - **The Ignored Build Step** — `vercel.json` `ignoreCommand` → `scripts/vercel-ignore-build.mjs`:
