@@ -147,6 +147,9 @@ export type OrgIntent =
   | 'manage_teams'
   | 'manage_affiliations'
   | 'manage_venues'
+  // Videos (296): link a YouTube game to the org and mark its highlights — the
+  // website section's grant (public-facing content), never a new section.
+  | 'manage_video'
   // The console's read aggregates (structure GET): anyone who may enter the
   // console at all — ladder, admin, or any section grant.
   | 'enter_console';
@@ -189,6 +192,7 @@ export const INTENT_SECTION: Partial<Record<OrgIntent, OrgSection>> = {
   manage_registration: 'registrations',
   manage_affiliations: 'external',
   manage_venues: 'venues',
+  manage_video: 'website',
 };
 
 export type StaffScopeType = 'division' | 'team';

@@ -23,6 +23,7 @@ import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliatio
 import TrainingTab from '@/components/TrainingTab';
 import EquipmentSection from '@/components/EquipmentSection';
 import TaggedTab from '@/components/TaggedTab';
+import ProfileVideosTab from '@/components/profile/ProfileVideosTab';
 import { topPills } from '@/lib/achievements/display';
 import {
   formatHeight,
@@ -129,7 +130,7 @@ interface ProfileData {
   skillCards?: SportSkillCard[];
 }
 
-type ProfileSection = 'overview' | 'stats' | 'training' | 'equipment' | 'tagged';
+type ProfileSection = 'overview' | 'videos' | 'stats' | 'training' | 'equipment' | 'tagged';
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -163,7 +164,7 @@ export default function PublicProfilePage() {
     // (`?tab=activities`) opens Training at that section.
     // Training was called Vitals until Oct 14 2026: `?tab=vitals` keeps working.
     if (tab === 'activities' || tab === 'vitals') return 'training';
-    return tab === 'training' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
+    return tab === 'videos' || tab === 'training' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
   });
   const [focusActivities] = useState(
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'activities'
@@ -545,7 +546,7 @@ export default function PublicProfilePage() {
             overflow-hidden is the Training lesson (CLAUDE.md). */}
         <div className="mt-4 -mx-4 px-4 overflow-x-auto">
           <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl whitespace-nowrap" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['stats', 'Stats'], ['training', 'Training'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
+            {([['overview', 'Overview'], ['videos', 'Videos'], ['stats', 'Stats'], ['training', 'Training'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}
@@ -569,6 +570,12 @@ export default function PublicProfilePage() {
         {activeSection === 'equipment' && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-equipment="">
             <EquipmentSection profileId={profile.id} isOwnProfile={false} />
+          </div>
+        )}
+        {/* Videos (296): the same tab /athlete has — route parity is mobile parity. */}
+        {activeSection === 'videos' && (
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-videos="">
+            <ProfileVideosTab profileId={profile.id} currentUserId={user?.id} isOwnProfile={false} />
           </div>
         )}
         {activeSection === 'tagged' && (

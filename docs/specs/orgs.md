@@ -12,7 +12,7 @@ follow rows) plus `kind='staff'` grant rows (`admin`, or `staff` with a
 scope). Routes pass an **intent** to `requireOrgManager(..., { intent,
 scope })`; `manage_org` (identity, settings, slug/domain, delete) is
 ladder-or-admin only — nine ticked sections is never admin; only OWNERS
-change roles, owners or grants. Organizer accounts (`user_type
+change roles, owners or grants. `manage_video` (Videos program, Nov 4 2026, Convention 57) is the website section's intent — link a YouTube game to the org, mark its highlights — so a website staff grant reaches it and no new section exists. Organizer accounts (`user_type
 'organizer'`) have no DOB and never enter the athlete wizard. Staff
 authority never implies guardian visibility. Read DEVLOG Sep 4 2026
 rounds 0–6 before touching any of it.

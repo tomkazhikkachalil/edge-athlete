@@ -860,6 +860,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
           onPost={() => { setIsCreateOpen(false); handleCreatePost(); }}
           onSport={() => { setIsCreateOpen(false); handleCreateSport(); }}
           onEvent={() => { setIsCreateOpen(false); router.push('/sports/events/new'); }}
+          onFullGame={() => { setIsCreateOpen(false); router.push('/videos/new'); }}
           onWorkout={() => { setIsCreateOpen(false); startWorkout.open(); }}
           onRecording={() => { setIsCreateOpen(false); router.push('/activities/record'); }}
         />

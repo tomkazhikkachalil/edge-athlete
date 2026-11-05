@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import VideoFrame from '@/components/media/VideoFrame';
 import { useToast } from '@/components/Toast';
 
@@ -131,6 +132,15 @@ export default function ContestMediaPanel({
           className="text-xs text-secondary"
         />
       </div>
+      {/* Videos (296): a full game is a YouTube link, not an upload — the same door the contest page offers its manager. */}
+      <Link
+        href={`/videos/new?contestId=${encodeURIComponent(contestId)}`}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-fg hover:text-brand-fg-strong min-h-[44px]"
+        data-contest-full-game=""
+      >
+        <i className="fas fa-film" aria-hidden="true"></i>
+        Add a YouTube full game →
+      </Link>
 
       {data.media.length === 0 ? (
         <p className="text-xs text-tertiary">No media on this game yet.</p>

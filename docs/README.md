@@ -25,6 +25,7 @@ addition below as a promise to keep it true.
   Micro, PostgREST 1,000 rows, Realtime 500 connections / 500 msgs/s), the baseline, the static
   sweep of every hot path (round trips, bounds, cache, limiter), the seeded EXPLAIN pass, the
   measured-sweep procedure for the load-test project, and the ranked holes with their fix shapes.
+- `docs/VIDEOS.md` — the Videos program (convention 57): a long video is a YouTube link; Phase 1 (the link, 296) and the phases ahead (every upload surface, TUS, the YouTube connection, live).
 - `docs/MEDIA.md` — video posters + never-broken media (convention 43): the one video
   renderer and the codec rule, the upload queue's two chains, the blur, the worker (jobs,
   ffmpeg, the tick, the doors, the enqueue, the hygiene, the env), `processing` end to end,

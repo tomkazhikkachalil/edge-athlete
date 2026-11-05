@@ -3,12 +3,13 @@
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Clapperboard } from 'lucide-react';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
 import AchievementsTab from './AchievementsTab';
 import TaggedTab from './TaggedTab';
+import ProfileVideosTab from './profile/ProfileVideosTab';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import MediaGridItem, { type MediaItem } from './media/MediaGridItem';
@@ -36,7 +37,7 @@ const ALL_YEARS: number[] = (() => {
   return years;
 })();
 
-type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'training' | 'achievements';
+type TabType = 'all' | 'videos' | 'stats' | 'tagged' | 'equipment' | 'training' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
@@ -63,7 +64,7 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
-const TAB_IDS: TabType[] = ['all', 'stats', 'training', 'tagged', 'equipment', 'achievements'];
+const TAB_IDS: TabType[] = ['all', 'videos', 'stats', 'training', 'tagged', 'equipment', 'achievements'];
 
 /** Activities were their own tab until Oct 1 2026; they are a section of
  *  Training now. The old deep link (`?tab=activities` — the activity screen
@@ -98,6 +99,8 @@ interface ProfileMediaTabsProps {
 
 export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, initialTab, onTabChange, skillCards, initialSport, onSportChange }: ProfileMediaTabsProps) {
   const [activeTab, setActiveTab] = useState<TabType>(() => parseProfileTab(initialTab));
+  // Videos (296): the tab's own fetch reports its count; no badge until it has loaded.
+  const [videosCount, setVideosCount] = useState<number | undefined>(undefined);
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
@@ -441,6 +444,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Tab configuration with icons. A tab without `count` carries no badge.
   const tabs: Array<{ id: TabType; label: string; icon: typeof Camera; count?: number }> = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
+    // Videos program (296): the linked full games, beside Media (a clip is a post; a game is a link).
+    { id: 'videos' as TabType, label: 'Videos', icon: Clapperboard, count: videosCount },
     { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
     // Training sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
     // No count (Tom, Oct 25 2026): a tally makes sense for Media and Stats,
@@ -522,6 +527,16 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           </div>
         </div>
       </div>
+
+      {/* Videos tab (296): the linked full games; the owner's Add is the tab-action exception (Convention 52) */}
+      {activeTab === 'videos' && (
+        <ProfileVideosTab
+          profileId={profileId}
+          currentUserId={currentUserId}
+          isOwnProfile={!!isOwnProfile}
+          onCountsChanged={setVideosCount}
+        />
+      )}
 
       {/* Equipment Section (special tab) */}
       {activeTab === 'equipment' && (

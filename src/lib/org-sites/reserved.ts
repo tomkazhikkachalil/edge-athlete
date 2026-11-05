@@ -50,6 +50,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'settings',
   'terms',
   'u',
+  'videos', // Videos program (296): /videos/[id] and /videos/new (seeded into reserved_handles by mig 296)
   // Root-level entries outside the (app) group.
   'api',
   'clubs', // phase 9 V6: the public club directory (src/app/(public)/clubs)

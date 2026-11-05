@@ -987,3 +987,7 @@ Reversal: `DROP FUNCTION public.me_pulse(uuid)`. Expected row on both:
 ## Closing golf_course_picks to the public roles (migration 295, Oct 31 2026)
 
 294 omitted posture A's table REVOKE. 295 removes anon and authenticated privileges; RLS with no policies already kept the table closed. Run on both databases; no code depends on it. Expected row: `295 APPLIED | 295 | false | false`.
+
+## Linked videos and their markers (migration 296, Nov 4 2026 — the Videos program, PR 1)
+
+Tom: a full game, a tournament, a long broadcast is a YouTube LINK, not an upload (the native path stays a 3-minute clip). 296 adds `videos` — the provider's id (never a URL; the frame is rebuilt from the id against the CSP's one host list), the owner (a profile XOR an org), an optional place (a sport event XOR a contest), a title, a `published | hidden` status — and `video_highlights` — a playback cue: `start_ms >= 0`, an optional `end_ms > start_ms`, a label, sport metadata in `meta`. The same video once per owner (`videos_provider_owner_uidx`). Posture A on both: authorization is the pure rule `src/lib/videos/rules.ts` through the ONE writer `src/lib/videos/videos-server.ts`. Also seeds `reserved_handles` with `videos` (the new root segment). Reversal: `DROP TABLE public.video_highlights; DROP TABLE public.videos; DELETE FROM reserved_handles WHERE handle = 'videos';`. **Staging only until Tom's word** (Nov 4): production runs it the day the program merges. Expected row: `296 APPLIED | 2 | 1 | false | 296`.

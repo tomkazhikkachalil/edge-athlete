@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { afterCreatePath } from '@/lib/golf/round-route';
 import { refreshDrafts } from '@/hooks/useDrafts';
@@ -1557,7 +1558,18 @@ export default function CreatePostModal({
             {!isValidForSubmission() && (
               <span className="text-secondary" data-composer-hint="">
                 <i className="fas fa-circle-info mr-1.5 text-brand-fg" aria-hidden="true"></i>
-                Add a caption or media to post
+                {hasTooLongVideo ? (
+                  // Videos program (296): a game, a tournament, a broadcast is
+                  // longer than a clip — it lives on YouTube and is linked.
+                  <>
+                    Trim the video in the editor, or{' '}
+                    <Link href="/videos/new" className="font-semibold text-brand-fg underline-offset-2 hover:underline" data-full-game-link="">
+                      add the full game as a YouTube video
+                    </Link>
+                  </>
+                ) : (
+                  'Add a caption or media to post'
+                )}
               </span>
             )}
           </div>
