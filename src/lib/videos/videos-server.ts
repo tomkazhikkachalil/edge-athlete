@@ -22,12 +22,18 @@ import { isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { fetchContestView } from '@/lib/competitions/contest-view';
+import { canViewSharedRound } from '@/lib/golf/round-access';
+import { readActivityForViewer } from '@/lib/activities/read-server';
+import { aspectHidden } from '@/lib/training-privacy';
+import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
+import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { embedSrcAt, parseYouTubeLink, thumbUrl, watchUrl } from './youtube';
 import {
   defaultVideoTitle,
   highlightRangeOk,
   manageRight,
+  PLACE_KEYS,
   viewRight,
   type HighlightInput,
   type VideoCreateInput,
@@ -42,12 +48,12 @@ type Admin = SupabaseClient<any, 'public', any>;
 const TAG = '[videos]';
 
 export const VIDEO_COLUMNS =
-  'id, provider, provider_video_id, profile_id, org_id, sport_event_id, contest_id, created_by_user_id, title, description, sport_key, duration_ms, status, created_at, updated_at';
+  'id, provider, provider_video_id, profile_id, org_id, sport_event_id, contest_id, group_post_id, activity_id, workout_session_id, created_by_user_id, title, description, sport_key, duration_ms, status, created_at, updated_at';
 /** The read shape: the row, the marker count, the owner and the place by name. Two FKs reach profiles, so the owner embed names its constraint. */
-const VIEW_COLUMNS = `${VIDEO_COLUMNS}, highlights:video_highlights(count), profile:profiles!videos_profile_id_fkey(id, full_name, display_name, handle, avatar_url), org:organizations(id, name, kind), sport_event:sport_events(id, name), contest:contests(id, round, competition:competitions(id, name))`;
+export const VIEW_COLUMNS = `${VIDEO_COLUMNS}, highlights:video_highlights(count), profile:profiles!videos_profile_id_fkey(id, full_name, display_name, handle, avatar_url), org:organizations(id, name, kind), sport_event:sport_events(id, name), contest:contests(id, round, competition:competitions(id, name)), group_post:group_posts(id, title, date, golf_data:golf_scorecard_data(course_name)), activity:activities(id, name), workout_session:workout_sessions(id, title)`;
 export const HIGHLIGHT_COLUMNS = 'id, video_id, start_ms, end_ms, label, meta, created_by_user_id, created_at, updated_at';
 
-export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 500; error: string };
+export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 500; error: string; existing_id?: string };
 
 interface ReadRow extends VideoRow {
   highlights?: { count: number }[] | null;
@@ -55,6 +61,9 @@ interface ReadRow extends VideoRow {
   org?: { id: string; name: string; kind: string } | null;
   sport_event?: { id: string; name: string } | null;
   contest?: { id: string; round: string | null; competition: { id: string; name: string } | null } | null;
+  group_post?: { id: string; title: string; date: string | null; golf_data: { course_name: string } | { course_name: string }[] | null } | null;
+  activity?: { id: string; name: string } | null;
+  workout_session?: { id: string; title: string | null } | null;
 }
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -70,12 +79,19 @@ export function projectVideo(raw: ReadRow, canManage: boolean): VideoView {
   const owner: VideoOwnerView = org && raw.org_id
     ? { kind: 'org', id: org.id, side: isOrgKind(org.kind) ? org.kind : 'club', name: org.name }
     : { kind: 'profile', id: raw.profile_id ?? '', name: profile?.display_name || profile?.full_name || 'Athlete', handle: profile?.handle ?? null, avatar_url: profile?.avatar_url ?? null };
+  const round = one(raw.group_post);
+  const activity = one(raw.activity);
+  const workout = one(raw.workout_session);
   let place: VideoPlaceView = null;
   if (raw.sport_event_id && event) place = { kind: 'sport_event', id: event.id, name: event.name };
   else if (raw.contest_id && contest) {
     const comp = one(contest.competition);
     place = { kind: 'contest', id: contest.id, name: comp ? (contest.round ? `${comp.name} · ${contest.round}` : comp.name) : 'Game' };
-  }
+  } else if (raw.group_post_id && round) {
+    const course = one(round.golf_data)?.course_name;
+    place = { kind: 'round', id: round.id, name: `${course || round.title || 'Round'}${round.date ? ` · ${round.date}` : ''}` };
+  } else if (raw.activity_id && activity) place = { kind: 'activity', id: activity.id, name: activity.name || 'Activity' };
+  else if (raw.workout_session_id && workout) place = { kind: 'workout', id: workout.id, name: workout.title || 'Workout' };
   const counts = one(raw.highlights);
   return {
     id: raw.id,
@@ -156,7 +172,11 @@ export type VideoFilter =
   | { kind: 'profile'; profileId: string; includeHidden: boolean; canManage: boolean }
   | { kind: 'org'; orgId: string; includeHidden: boolean; canManage: boolean }
   | { kind: 'sport_event'; sportEventId: string; includeHidden: boolean; canManage: boolean }
-  | { kind: 'contest'; contestId: string; includeHidden: boolean; canManage: boolean };
+  | { kind: 'contest'; contestId: string; includeHidden: boolean; canManage: boolean }
+  // Phase 1b (297): a golf round, an activity, a workout session.
+  | { kind: 'round'; groupPostId: string; includeHidden: boolean; canManage: boolean }
+  | { kind: 'activity'; activityId: string; includeHidden: boolean; canManage: boolean }
+  | { kind: 'workout'; workoutSessionId: string; includeHidden: boolean; canManage: boolean };
 
 /** The list for one context, newest first. Hidden rows ride only for a manager. */
 export async function listVideos(admin: Admin, filter: VideoFilter): Promise<VideoView[]> {
@@ -164,7 +184,10 @@ export async function listVideos(admin: Admin, filter: VideoFilter): Promise<Vid
   if (filter.kind === 'profile') q = q.eq('profile_id', filter.profileId);
   else if (filter.kind === 'org') q = q.eq('org_id', filter.orgId);
   else if (filter.kind === 'sport_event') q = q.eq('sport_event_id', filter.sportEventId);
-  else q = q.eq('contest_id', filter.contestId);
+  else if (filter.kind === 'contest') q = q.eq('contest_id', filter.contestId);
+  else if (filter.kind === 'round') q = q.eq('group_post_id', filter.groupPostId);
+  else if (filter.kind === 'activity') q = q.eq('activity_id', filter.activityId);
+  else q = q.eq('workout_session_id', filter.workoutSessionId);
   if (!filter.includeHidden) q = q.eq('status', 'published');
   const { data, error } = await q;
   if (error) {
@@ -175,7 +198,7 @@ export async function listVideos(admin: Admin, filter: VideoFilter): Promise<Vid
   // A place's list may hold videos owned by profiles the viewer cannot see
   // (a private profile's video on a public event): the owner's rule still
   // applies row by row, never the place's alone.
-  if (filter.kind === 'sport_event' || filter.kind === 'contest') {
+  if (filter.kind !== 'profile' && filter.kind !== 'org') {
     const out: VideoView[] = [];
     for (const row of rows) {
       if (filter.canManage) {
@@ -261,6 +284,90 @@ export async function contestListAccess(admin: Admin, contestId: string, user: U
   return { canView: true, canManage: gate.ok };
 }
 
+/** A golf round (group_posts): the viewer's reach (canViewSharedRound over EVERY participant row) and whether they manage its media (the Media tab's rule: the creator or a CONFIRMED participant). */
+export async function roundAccess(admin: Admin, groupPostId: string, viewerId: string | null): Promise<{ canView: boolean; canManage: boolean }> {
+  const { data, error } = await admin
+    .from('group_posts')
+    .select('id, creator_id, visibility, participants:group_post_participants(profile_id, status)')
+    .eq('id', groupPostId)
+    .maybeSingle();
+  if (error || !data) return { canView: false, canManage: false };
+  const row = data as unknown as { creator_id: string | null; visibility: string | null; participants: { profile_id: string; status: string | null }[] | null };
+  const participants = row.participants ?? [];
+  const canView = canViewSharedRound({ viewerId, creatorId: row.creator_id, visibility: row.visibility, participantProfileIds: participants.map(p => p.profile_id) });
+  const canManage = !!viewerId && (viewerId === row.creator_id || participants.some(p => p.profile_id === viewerId && p.status === 'confirmed'));
+  return { canView, canManage };
+}
+
+/** An activity: its own gate (the owner or an approved guardian manage; a viewer passes the profile's privacy and `only_me`). */
+export async function activityAccess(admin: Admin, activityId: string, viewerId: string | null): Promise<{ canView: boolean; canManage: boolean }> {
+  const read = await readActivityForViewer(admin, viewerId, activityId);
+  if (!read.ok) return { canView: false, canManage: false };
+  return { canView: true, canManage: read.audience === 'owner' };
+}
+
+/** A workout session: the owner manages; a viewer passes the `/api/workouts/[id]` rule — completed, decided, not hidden, the training privacy aspect, the profile public or an accepted follow. A refusal is a 404 here (the videos convention). */
+export async function workoutAccess(admin: Admin, sessionId: string, viewerId: string | null): Promise<{ canView: boolean; canManage: boolean }> {
+  const { data, error } = await admin
+    .from('workout_sessions')
+    .select('id, profile_id, status, share_decided_at, profile_hidden_at')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (error || !data) return { canView: false, canManage: false };
+  const session = data as { profile_id: string; status: string; share_decided_at: string | null; profile_hidden_at: string | null };
+  if (viewerId && viewerId === session.profile_id) return { canView: true, canManage: true };
+  if (session.status !== 'completed' || session.profile_hidden_at || !session.share_decided_at) return { canView: false, canManage: false };
+  if (aspectHidden(await fetchTrainingPrivacy(admin, session.profile_id), 'workouts', false)) return { canView: false, canManage: false };
+  const { data: profile } = await admin.from('profiles').select('visibility, departed_at').eq('id', session.profile_id).maybeSingle();
+  if (!profile || profile.departed_at) return { canView: false, canManage: false };
+  if (profile.visibility === 'public') return { canView: true, canManage: false };
+  if (!viewerId) return { canView: false, canManage: false };
+  const { data: follow } = await admin.from('follows').select('id').eq('follower_id', viewerId).eq('following_id', session.profile_id).eq('status', 'accepted').maybeSingle();
+  return { canView: !!follow, canManage: false };
+}
+
+/** Attaching to a place (Phase 1b): the place's own manager — never the video's owner alone. */
+export async function placeRight(admin: Admin, place: { key: string; id: string }, actorProfileId: string, user: User): Promise<Outcome<null>> {
+  if (place.key === 'sport_event_id') {
+    const r = await sportEventPlaceRight(admin, place.id, actorProfileId);
+    return r.ok ? { ok: true, value: null } : r;
+  }
+  if (place.key === 'contest_id') {
+    const r = await contestPlaceRight(admin, place.id, user);
+    return r.ok ? { ok: true, value: null } : r;
+  }
+  if (place.key === 'group_post_id') {
+    const a = await roundAccess(admin, place.id, actorProfileId);
+    if (!a.canView) return { ok: false, status: 404, error: 'Round not found' };
+    if (!a.canManage) return { ok: false, status: 403, error: 'Only a player in this round can add a video to it.' };
+    return { ok: true, value: null };
+  }
+  if (place.key === 'activity_id') {
+    const a = await activityAccess(admin, place.id, user.id);
+    if (!a.canView) return { ok: false, status: 404, error: 'Activity not found' };
+    if (!a.canManage) return { ok: false, status: 403, error: 'Only the activity\'s owner can add a video to it.' };
+    return { ok: true, value: null };
+  }
+  if (place.key === 'workout_session_id') {
+    const a = await workoutAccess(admin, place.id, user.id);
+    if (!a.canView) return { ok: false, status: 404, error: 'Workout not found' };
+    if (!a.canManage) return { ok: false, status: 403, error: 'Only the workout\'s owner can add a video to it.' };
+    return { ok: true, value: null };
+  }
+  return { ok: false, status: 400, error: 'Unknown place' };
+}
+
+/** An org-owned write changes what the org's public site shows (Phase 1b: the Videos tile) — purge its tag. Best-effort. */
+async function purgeOrgSite(admin: Admin, orgId: string | null): Promise<void> {
+  if (!orgId) return;
+  try {
+    const { data } = await admin.from('organizations').select('kind').eq('id', orgId).maybeSingle();
+    if (isOrgKind(data?.kind)) await revalidateOrgSiteForOrg(admin, data.kind, orgId);
+  } catch (err) {
+    console.error(`${TAG} site purge failed:`, err);
+  }
+}
+
 // ── The writer ──────────────────────────────────────────────────────────────
 
 function sportKeyOk(key: string | null): boolean {
@@ -287,7 +394,7 @@ export async function createVideo(admin: Admin, args: CreateVideoArgs): Promise<
     .eq('provider_video_id', link.id)
     .eq(profileId ? 'profile_id' : 'org_id', profileId ?? orgId)
     .maybeSingle();
-  if (existing) return { ok: false, status: 409, error: `This video is already here: ${(existing as { id: string }).id}` };
+  if (existing) return { ok: false, status: 409, error: 'This video is already linked here.', existing_id: (existing as { id: string }).id };
   const { data, error } = await admin
     .from('videos')
     .insert({
@@ -297,6 +404,9 @@ export async function createVideo(admin: Admin, args: CreateVideoArgs): Promise<
       org_id: orgId,
       sport_event_id: args.input.sport_event_id,
       contest_id: args.input.contest_id,
+      group_post_id: args.input.group_post_id,
+      activity_id: args.input.activity_id,
+      workout_session_id: args.input.workout_session_id,
       created_by_user_id: profileId === args.userId ? null : args.userId,
       title: args.input.title ?? defaultVideoTitle(),
       description: args.input.description,
@@ -306,34 +416,38 @@ export async function createVideo(admin: Admin, args: CreateVideoArgs): Promise<
     .select(VIDEO_COLUMNS)
     .single();
   if (error || !data) {
-    if (error?.code === '23505') return { ok: false, status: 409, error: 'This video is already here.' };
+    if (error?.code === '23505') return { ok: false, status: 409, error: 'This video is already linked here.' };
     console.error(`${TAG} insert failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not save the video' };
   }
+  await purgeOrgSite(admin, orgId);
   return { ok: true, value: data as unknown as VideoRow };
 }
 
 export async function updateVideo(admin: Admin, id: string, patch: VideoPatch): Promise<Outcome<VideoRow>> {
   if (patch.sport_key !== undefined && !sportKeyOk(patch.sport_key)) return { ok: false, status: 400, error: 'Unknown sport' };
   const set: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() };
-  // A new place clears the other kind (one place, the DB's CHECK).
-  if (patch.sport_event_id) set.contest_id = null;
-  if (patch.contest_id) set.sport_event_id = null;
+  // A new place clears every other place (one place, the DB's CHECK).
+  const newPlace = PLACE_KEYS.find(k => !!patch[k]);
+  if (newPlace) for (const k of PLACE_KEYS) if (k !== newPlace) set[k] = null;
   const { data, error } = await admin.from('videos').update(set).eq('id', id).select(VIDEO_COLUMNS).single();
   if (error || !data) {
     console.error(`${TAG} update failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not save the video' };
   }
-  return { ok: true, value: data as unknown as VideoRow };
+  const row = data as unknown as VideoRow;
+  await purgeOrgSite(admin, row.org_id);
+  return { ok: true, value: row };
 }
 
 /** A link, not a result: the row goes, its markers cascade. */
-export async function deleteVideo(admin: Admin, id: string): Promise<Outcome<null>> {
+export async function deleteVideo(admin: Admin, id: string, orgId: string | null = null): Promise<Outcome<null>> {
   const { error } = await admin.from('videos').delete().eq('id', id);
   if (error) {
     console.error(`${TAG} delete failed:`, error.message);
     return { ok: false, status: 500, error: 'Could not delete the video' };
   }
+  await purgeOrgSite(admin, orgId);
   return { ok: true, value: null };
 }
 

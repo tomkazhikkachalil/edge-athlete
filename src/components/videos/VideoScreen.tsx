@@ -34,9 +34,17 @@ function ownerHref(v: VideoView): string {
   return v.owner.kind === 'org' ? `/${v.owner.side}/${v.owner.id}` : `/athlete/${v.owner.id}`;
 }
 
+const PLACE_PATH: Record<NonNullable<VideoView['place']>['kind'], string> = {
+  sport_event: '/events/',
+  contest: '/event/',
+  round: '/live/',
+  activity: '/activities/',
+  workout: '/app/workout/',
+};
+
 function placeHref(v: VideoView): string | null {
   if (!v.place) return null;
-  return v.place.kind === 'sport_event' ? `/events/${v.place.id}` : `/event/${v.place.id}`;
+  return `${PLACE_PATH[v.place.kind]}${v.place.id}`;
 }
 
 /**

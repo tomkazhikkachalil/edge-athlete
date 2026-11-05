@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { parseVideoPatch } from '@/lib/videos/rules';
-import { contestPlaceRight, deleteVideo, readVideoForViewer, sportEventPlaceRight, updateVideo } from '@/lib/videos/videos-server';
+import { parseVideoPatch, placeOf } from '@/lib/videos/rules';
+import { deleteVideo, placeRight, readVideoForViewer, updateVideo } from '@/lib/videos/videos-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-/** PATCH {title?, description?, sport_key?, status?, sport_event_id?, contest_id?} — a manager edits; a new place needs that place's manager. */
+/** PATCH {title?, description?, sport_key?, status?, and at most one place id} — a manager edits; a new place needs that place's manager. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return NOT_FOUND();
@@ -45,13 +45,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const read = await readVideoForViewer(admin, id, user);
     if (!read) return NOT_FOUND();
     if (!read.canManage) return NextResponse.json({ error: 'Only a manager can edit this video.' }, { status: 403 });
-    if (parsed.value.sport_event_id) {
-      const place = await sportEventPlaceRight(admin, parsed.value.sport_event_id, read.row.profile_id ?? user.id);
-      if (!place.ok) return NextResponse.json({ error: place.error }, { status: place.status });
-    }
-    if (parsed.value.contest_id) {
-      const place = await contestPlaceRight(admin, parsed.value.contest_id, user);
-      if (!place.ok) return NextResponse.json({ error: place.error }, { status: place.status });
+    const place = placeOf(parsed.value);
+    if (place) {
+      const right = await placeRight(admin, place, read.row.profile_id ?? user.id, user);
+      if (!right.ok) return NextResponse.json({ error: right.error }, { status: right.status });
     }
     const updated = await updateVideo(admin, id, parsed.value);
     if (!updated.ok) return NextResponse.json({ error: updated.error }, { status: updated.status });
@@ -75,7 +72,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const read = await readVideoForViewer(admin, id, user);
     if (!read) return NOT_FOUND();
     if (!read.canManage) return NextResponse.json({ error: 'Only a manager can delete this video.' }, { status: 403 });
-    const gone = await deleteVideo(admin, id);
+    const gone = await deleteVideo(admin, id, read.row.org_id);
     if (!gone.ok) return NextResponse.json({ error: gone.error }, { status: gone.status });
     return NextResponse.json({ ok: true }, { headers: PRIVATE });
   } catch (error) {
