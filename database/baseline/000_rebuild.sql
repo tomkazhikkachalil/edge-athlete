@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-10-31T22:32:57.001654+00:00 from server 17.6 by
+-- Generated 2026-11-05T05:23:32.928669+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 295.
+-- public.schema_dump() (migration 227). Ledger head at generation: 296.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5028,7 +5028,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (139) ──────────────────────────────────────────────────────────────
+-- ── Tables (141) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -7021,6 +7021,36 @@ CREATE TABLE IF NOT EXISTS public.venues (
   org_id uuid
 );
 
+CREATE TABLE IF NOT EXISTS public.video_highlights (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  video_id uuid NOT NULL,
+  start_ms integer NOT NULL,
+  end_ms integer,
+  label text NOT NULL,
+  meta jsonb DEFAULT '{}'::jsonb NOT NULL,
+  created_by_user_id uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.videos (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  provider text DEFAULT 'youtube'::text NOT NULL,
+  provider_video_id text NOT NULL,
+  profile_id uuid,
+  org_id uuid,
+  sport_event_id uuid,
+  contest_id uuid,
+  created_by_user_id uuid,
+  title text NOT NULL,
+  description text,
+  sport_key text,
+  duration_ms integer,
+  status text DEFAULT 'published'::text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.waitlist (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   email text NOT NULL,
@@ -7777,6 +7807,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_pkey' AND conrelid = 'public.venues'::regclass) THEN
     ALTER TABLE public.venues ADD CONSTRAINT venues_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_pkey' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_pkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10064,6 +10104,61 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_check' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_check CHECK (((end_ms IS NULL) OR (end_ms > start_ms)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_label_check' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_label_check CHECK (((char_length(label) >= 1) AND (char_length(label) <= 120)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_start_ms_check' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_start_ms_check CHECK ((start_ms >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_description_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_description_check CHECK (((description IS NULL) OR (char_length(description) <= 2000)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_duration_ms_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_duration_ms_check CHECK (((duration_ms IS NULL) OR (duration_ms > 0)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_one_owner_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_one_owner_check CHECK ((num_nonnulls(profile_id, org_id) = 1));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_one_place_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_one_place_check CHECK ((num_nonnulls(sport_event_id, contest_id) <= 1));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_provider_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_provider_check CHECK ((provider = 'youtube'::text));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_provider_video_id_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_provider_video_id_check CHECK (((char_length(provider_video_id) >= 1) AND (char_length(provider_video_id) <= 64)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_status_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_status_check CHECK ((status = ANY (ARRAY['published'::text, 'hidden'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_title_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 160)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'waitlist_user_type_check' AND conrelid = 'public.waitlist'::regclass) THEN
     ALTER TABLE public.waitlist ADD CONSTRAINT waitlist_user_type_check CHECK ((user_type = ANY (ARRAY['club'::text, 'league'::text, 'fan'::text, 'guest'::text])));
   END IF;
@@ -11661,6 +11756,41 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_created_by_user_id_fkey' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'video_highlights_video_id_fkey' AND conrelid = 'public.video_highlights'::regclass) THEN
+    ALTER TABLE public.video_highlights ADD CONSTRAINT video_highlights_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_contest_id_fkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_created_by_user_id_fkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_org_id_fkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_profile_id_fkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_sport_event_id_fkey' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_sport_event_id_fkey FOREIGN KEY (sport_event_id) REFERENCES sport_events(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_profile_id_fkey' AND conrelid = 'public.workout_exercises'::regclass) THEN
     ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
@@ -12131,6 +12261,14 @@ CREATE INDEX IF NOT EXISTS idx_venues_golf_club_id ON public.venues USING btree 
 CREATE INDEX IF NOT EXISTS idx_venues_golf_course_id ON public.venues USING btree (golf_course_id) WHERE (golf_course_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_org ON public.venues USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_place_id ON public.venues USING btree (place_id);
+CREATE INDEX IF NOT EXISTS video_highlights_created_by_user_id_idx ON public.video_highlights USING btree (created_by_user_id);
+CREATE INDEX IF NOT EXISTS video_highlights_video_id_start_ms_idx ON public.video_highlights USING btree (video_id, start_ms);
+CREATE INDEX IF NOT EXISTS videos_contest_id_idx ON public.videos USING btree (contest_id);
+CREATE INDEX IF NOT EXISTS videos_created_by_user_id_idx ON public.videos USING btree (created_by_user_id);
+CREATE INDEX IF NOT EXISTS videos_org_id_idx ON public.videos USING btree (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS videos_profile_id_idx ON public.videos USING btree (profile_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS videos_provider_owner_uidx ON public.videos USING btree (provider, provider_video_id, COALESCE(profile_id, org_id));
+CREATE INDEX IF NOT EXISTS videos_sport_event_id_idx ON public.videos USING btree (sport_event_id);
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON public.waitlist USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile ON public.workout_exercises USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_session ON public.workout_exercises USING btree (session_id, "position");
@@ -17276,6 +17414,8 @@ ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_media_presets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_mutes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.venues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.video_highlights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.videos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_routine_exercises ENABLE ROW LEVEL SECURITY;
@@ -18618,6 +18758,10 @@ REVOKE ALL ON TABLE public.venues FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.venues TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.venues TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.venues TO service_role;
+REVOKE ALL ON TABLE public.video_highlights FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.video_highlights TO service_role;
+REVOKE ALL ON TABLE public.videos FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.videos TO service_role;
 REVOKE ALL ON TABLE public.waitlist FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.waitlist TO service_role;
 REVOKE ALL ON TABLE public.workout_exercises FROM anon, authenticated, service_role;
@@ -19158,6 +19302,8 @@ COMMENT ON COLUMN public.tickets.report_count IS 'Reports merged into this ticke
 COMMENT ON COLUMN public.tickets.appeal_used_at IS 'The one appeal (222): a user reply on a resolved ticket reopens it once; stamped when used.';
 COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years after close the daily cron nulls the personal columns and stamps this.';
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
+COMMENT ON TABLE public.video_highlights IS 'A playback cue on a linked video (296): start_ms, optional end_ms, a label, sport metadata in meta (hole, score, note). Ordered by start_ms. Never an access-controlled clip. Posture A.';
+COMMENT ON TABLE public.videos IS 'A linked long video (YouTube) owned by a profile XOR an org, optionally placed on a sport event XOR a contest (296). The embed is rebuilt from provider_video_id. ONE writer: src/lib/videos/videos-server.ts. Posture A.';
 COMMENT ON COLUMN public.workout_exercises.client_id IS 'The STABLE exercise id (260): minted once by the editor and carried through every snapshot replace (id is re-minted per save). Unique per session.';
 COMMENT ON COLUMN public.workout_exercises.group_id IS 'A superset or circuit (260): the members share it, consecutive by position; kind and rounds are denormalized on every member.';
 COMMENT ON COLUMN public.workout_exercises.group_kind IS 'superset | circuit (260).';
@@ -19348,6 +19494,7 @@ INSERT INTO public.reserved_handles (handle, reason, reserved_at) VALUES
   ('user', 'System path', '2025-10-07T18:58:50.62396+00:00'),
   ('users', 'System path', '2025-10-07T18:58:50.62396+00:00'),
   ('verified', 'System reserved', '2025-10-07T18:58:50.62396+00:00'),
+  ('videos', 'Root path (vanity namespace, 296): /videos/[id], the video page', '2026-11-05T05:16:28.660771+00:00'),
   ('volleyball', 'Sport name', '2025-10-07T18:58:50.62396+00:00'),
   ('www', 'org-subdomain infrastructure', '2026-08-31T23:54:05.514579+00:00')
 ON CONFLICT DO NOTHING;
@@ -19648,7 +19795,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (292, '292_me_pulse.sql', 'rebuild-000'),
   (293, '293_profiles_unit_system.sql', 'rebuild-000'),
   (294, '294_golf_course_picks.sql', 'rebuild-000'),
-  (295, '295_golf_course_picks_revoke.sql', 'rebuild-000')
+  (295, '295_golf_course_picks_revoke.sql', 'rebuild-000'),
+  (296, '296_videos.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19657,12 +19805,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 139 | 135 | 145 | 295
+-- Expected: 000 REBUILT | 141 | 135 | 145 | 296
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_139,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_141,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_295;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_296;
 
