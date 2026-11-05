@@ -5,6 +5,7 @@ import {
   APP_ONLY_WIDGET_KEYS,
   CONTENT_WIDGET_KEYS,
   GAME_WIDGET_KEYS,
+  MEDIA_WIDGET_KEYS,
   PAGE_WIDGET_KEYS,
   SITE_WIDGET_KEYS,
   WEB_WIDGET_KEYS,
@@ -68,9 +69,9 @@ describe('site-builder catalog', () => {
     expect(WIDGETS.hero.constraints.maxW).toBe(12);
   });
 
-  it('the keys are four disjoint sets: module-backed web, content (phase 6), game-day (G2), app-only', () => {
-    expect([...WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS]);
-    const all = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS];
+  it('the keys are five disjoint sets: module-backed web, content (phase 6), game-day (G2), media (Videos 1b), app-only', () => {
+    expect([...WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...MEDIA_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS]);
+    const all = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...MEDIA_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS];
     expect(new Set(all).size).toBe(all.length);
   });
 

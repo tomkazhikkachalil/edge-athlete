@@ -1053,6 +1053,32 @@ export async function fetchPublicOpenWindows(
 // rule, and SUPERVISED athletes get NO label at all — a consented photo
 // may appear, the identification of a minor never does.
 
+/** Videos (Phase 1b): the org's own PUBLISHED linked videos — the id (the frame is rebuilt from it), the title, the date. Never a profile-owned video, never a profile join. */
+export interface PublicOrgVideo {
+  id: string;
+  videoId: string;
+  title: string;
+  date: string | null;
+}
+
+export async function fetchPublicOrgVideos(admin: Admin, orgId: string): Promise<PublicOrgVideo[]> {
+  const { data, error } = await admin
+    .from('videos')
+    .select('id, provider_video_id, title, created_at')
+    .eq('org_id', orgId)
+    .eq('provider', 'youtube')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (degraded('videos', error)) return [];
+  return ((data ?? []) as { id: string; provider_video_id: string; title: string; created_at: string }[]).map(v => ({
+    id: v.id,
+    videoId: v.provider_video_id,
+    title: v.title,
+    date: v.created_at ? v.created_at.slice(0, 10) : null,
+  }));
+}
+
 export interface PublicGalleryItem {
   id: string;
   url: string; // the tokenless public streamer, gate re-run per request

@@ -254,7 +254,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                 <div ref={observe} className="sb-measure" data-sb-measure={w.id} inert>
                   {w.key === 'hero' ? (
                     <HeroSection site={site} w={w} spec={spec} compact />
-                  ) : isSample && w.key === 'embed' ? (
+                  ) : isSample && (w.key === 'embed' || w.key === 'video_list') ? (
                     <SampleFrame kind="video" />
                   ) : (
                     // S2: a sampled tile renders the WHOLE sample bag through a

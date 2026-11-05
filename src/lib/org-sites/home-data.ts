@@ -9,6 +9,7 @@ import type {
   PublicCourse,
   PublicDivision,
   PublicGalleryItem,
+  PublicOrgVideo,
   PublicGolfRound,
   PublicLeaderBoard,
   PublicNewsItem,
@@ -55,4 +56,6 @@ export interface SiteHomeData {
   gallery?: PublicGalleryItem[];
   /** G2 — the org's games (the Results page's reader) for the game-day sections. */
   games?: OrgGames;
+  /** Videos (Phase 1b) — the org's published linked videos for the Videos tile. */
+  videos?: PublicOrgVideo[];
 }

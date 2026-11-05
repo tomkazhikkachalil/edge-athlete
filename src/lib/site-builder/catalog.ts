@@ -83,6 +83,16 @@ export type GameWidgetKey = (typeof GAME_WIDGET_KEYS)[number];
 export function isGameWidgetKey(key: string): key is GameWidgetKey {
   return (GAME_WIDGET_KEYS as readonly string[]).includes(key);
 }
+/** Videos program, Phase 1b (Nov 5 2026): the public site's Videos tile —
+ *  the org's published linked YouTube games over the `videos` table, gated
+ *  by the GALLERY module (the videos spec: an org's videos follow the
+ *  gallery's gate), so it needs no module row of its own. A new key because
+ *  `videos` is the in-app bubble. */
+export const MEDIA_WIDGET_KEYS = ['video_list'] as const;
+export type MediaWidgetKey = (typeof MEDIA_WIDGET_KEYS)[number];
+export function isMediaWidgetKey(key: string): key is MediaWidgetKey {
+  return (MEDIA_WIDGET_KEYS as readonly string[]).includes(key);
+}
 export const FORM_WIDGET_KEYS = ['contact_form', 'interest_form'] as const;
 export type FormWidgetKey = (typeof FORM_WIDGET_KEYS)[number];
 export function isFormWidgetKey(key: string): key is FormWidgetKey {
@@ -92,7 +102,7 @@ export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
 
 /** Every key a SITE layout may hold (the wire schema's enum): the module-
  *  backed web widgets plus the content widgets. */
-export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS] as const;
+export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...MEDIA_WIDGET_KEYS] as const;
 export type SiteWidgetKey = (typeof SITE_WIDGET_KEYS)[number];
 
 /** Program 2, B (Sep 11 2026): what a custom PAGE may hold — every site
@@ -106,7 +116,7 @@ export type PageWidgetKey = (typeof PAGE_WIDGET_KEYS)[number];
 export const QUERY_WIDGET_KEYS = ['standings', 'schedule', 'leaders'] as const;
 export type QueryWidgetKey = (typeof QUERY_WIDGET_KEYS)[number];
 
-export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
+export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...GAME_WIDGET_KEYS, ...MEDIA_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
 export type WidgetKey = (typeof WIDGET_KEYS)[number];
 
 /** G2: does this tile follow the given module's switch? The module's own
@@ -168,7 +178,9 @@ export type SiteHomeDataKey =
   /** Program 3, D1b: the picked photos, for the gallery's strip / grid on the home. */
   | 'gallery'
   /** G2: the org's games (upcoming + results) — the game-day sections. */
-  | 'games';
+  | 'games'
+  /** Videos (Phase 1b): the org's published linked videos — the Videos tile. */
+  | 'videos';
 
 export interface WidgetConstraints {
   minW: number;
@@ -317,6 +329,20 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     data: ['games'],
     defaultTitle: 'Latest results',
     emptyState: { staff: { label: 'Record a result →', consoleHash: '#competitions' }, public: 'hide' },
+  },
+  // Videos program, Phase 1b: the public Videos tile — the org's own published
+  // linked games; the gallery module's switch and audience; hidden at zero.
+  video_list: {
+    key: 'video_list',
+    family: 'content',
+    moduleKey: 'gallery',
+    constraints: FULL,
+    surfaces: { default: WEB },
+    subpage: false,
+    multiple: true,
+    data: ['videos'],
+    defaultTitle: 'Videos',
+    emptyState: { staff: { label: 'Link a full game from the club page →' }, public: 'hide' },
   },
   news: {
     key: 'news',

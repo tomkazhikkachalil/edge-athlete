@@ -34,6 +34,7 @@ import StaffList from './StaffList';
 import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
+import VideosList from './VideosList';
 import { courseRecordLine } from './CourseStatsCard';
 
 // One widget's body — Site Builder P3-B (Sep 9 2026). Extracted verbatim
@@ -450,6 +451,12 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
           feedUrl={liveFeedUrl}
         />
       );
+    }
+    // Videos (Phase 1b): the org's published linked games, click-to-play without a script.
+    case 'video_list': {
+      const items = (data.videos ?? []).slice(0, count(4));
+      if (items.length === 0) return empty('No videos yet.');
+      return <VideosList items={items} />;
     }
     case 'results': {
       const games = data.games ?? { upcoming: [], results: [] };

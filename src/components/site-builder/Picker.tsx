@@ -6,7 +6,7 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { effectiveSpec } from '@/lib/org-sites/theme';
-import { CONTENT_WIDGET_KEYS, GAME_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isWebWidgetKey, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
+import { CONTENT_WIDGET_KEYS, GAME_WIDGET_KEYS, MEDIA_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isWebWidgetKey, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { newInstanceFor, type SiteLayout } from '@/lib/site-builder/layout';
 import WidgetBody from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { effectiveAudience } from '@/lib/site-builder/audience';
@@ -66,7 +66,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
   // module (the schedule) is on, since a tile of a switched-off module
   // never renders.
   const moduleOn = (k: string) => site.modules.some(m => m.module_key === k && m.enabled);
-  const dataKeys: SiteWidgetKey[] = [...GAME_WIDGET_KEYS.filter(k => moduleOn(WIDGETS[k].moduleKey ?? '')), ...WEB_WIDGET_KEYS];
+  const dataKeys: SiteWidgetKey[] = [...GAME_WIDGET_KEYS.filter(k => moduleOn(WIDGETS[k].moduleKey ?? '')), ...MEDIA_WIDGET_KEYS.filter(k => moduleOn(WIDGETS[k].moduleKey ?? '')), ...WEB_WIDGET_KEYS];
   const missing = dataKeys.filter(k => k !== 'hero' && permitted(k) && !present.has(k));
   const listed = dataKeys.filter(k => k !== 'hero' && permitted(k) && (!present.has(k) || WIDGETS[k].multiple));
   const keysParam = missing.join(',');

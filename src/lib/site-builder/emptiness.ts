@@ -32,6 +32,8 @@ export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: Conten
     case 'hero':
     case 'gallery':
       return false;
+    case 'video_list':
+      return (data.videos ?? []).length === 0;
     case 'standings':
       return !data.standings?.competitions.some(c => c.rows.length > 0 || c.golf);
     case 'schedule':

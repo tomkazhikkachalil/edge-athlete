@@ -55,6 +55,18 @@ describe('the places (Phase 1b)', () => {
   });
 });
 
+describe('the public site\'s Videos tile (Phase 1b)', () => {
+  it('is a server-safe srcdoc poster built from the id, gated by the gallery module, never a client component', () => {
+    const tile = read('src/app/(public)/org/[slug]/_components/VideosList.tsx');
+    expect(tile).not.toMatch(/^'use client'/m);
+    expect(tile).toContain('srcDoc={posterDoc(v.videoId)}');
+    expect(tile).not.toMatch(/from '@\/components\//);
+    expect(tile).toContain("from '@/lib/videos/youtube'");
+    expect(read('src/lib/site-builder/catalog.ts')).toMatch(/video_list: \{[\s\S]*?moduleKey: 'gallery'/);
+    expect(read('src/lib/org-sites/public-data.ts')).toMatch(/fetchPublicOrgVideos[\s\S]*?\.eq\('org_id', orgId\)[\s\S]*?\.eq\('status', 'published'\)/);
+  });
+});
+
 describe('the player', () => {
   const player = read('src/components/videos/YouTubePlayer.tsx');
   it('is an iframe built by the link helper, never a script and never a raw <video>', () => {
