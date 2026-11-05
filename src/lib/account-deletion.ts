@@ -526,6 +526,8 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   // Connected apps (247): the standing deliveries — the sealed provider
   // tokens and the upload link's hash leave with the person.
   await mustDelete('activity_connections', 'profile_id');
+  // Videos (296): the person's own linked games (their markers cascade); an org's videos are the org's.
+  await mustDelete('videos', 'profile_id');
   // Phone notifications (248): the person's devices stop buzzing.
   await mustDelete('push_subscriptions', 'profile_id');
   // The seen mark (267, the Overview's active-user counts): the person's days leave with them.

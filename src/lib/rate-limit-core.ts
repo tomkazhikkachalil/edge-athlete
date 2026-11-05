@@ -94,6 +94,8 @@ export const RATE_LIMITS = {
   // + one complete), raised before write-general goes real (Tom's rule).
   upload: { max: 240, windowSeconds: 3600, keyBy: 'user' },
   'post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Videos (296): link a game, edit it, add / edit / remove a marker — one bucket for every write on /api/videos.
+  'video-write': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Results-kept (241): hide / show a result on your own profile — cheap and reversible, not unbounded.
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Favourite sports (285): a star tap in the sport picker — cheap and reversible, `like`'s shape.

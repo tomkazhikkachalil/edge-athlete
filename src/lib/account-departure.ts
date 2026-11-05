@@ -264,6 +264,8 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'user_media_presets.profile_id': 'goes',
   'user_mutes.muted_id': 'goes',
   'user_mutes.muter_id': 'goes',
+  // Videos (296): a linked game on the person's own profile leaves with them; an org's videos stay with the org.
+  'videos.profile_id': 'goes',
   'workout_exercises.profile_id': 'goes',
   'workout_routine_exercises.profile_id': 'goes',
   'workout_routines.profile_id': 'goes',
