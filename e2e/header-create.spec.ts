@@ -70,14 +70,14 @@ test('header Create → Event opens the wizard', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Create an event' })).toBeVisible({ timeout: 15_000 });
 });
 
-// Create menu redesign (Oct 13 2026): the four doors and the second step.
-test('header Create shows Post, Sport, Event and Record Activity — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
+// Create menu redesign (Oct 13 2026): the four doors and the second step; Videos program (Nov 4 2026): the fifth, Full game.
+test('header Create shows Post, Sport, Event, Full game and Record Activity — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   const sheet = page.locator('[data-create-sheet]');
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('button')).toHaveCount(4);
-  for (const hook of ['post', 'sport', 'event', 'record-activity']) await expect(sheet.locator(`[data-create-${hook}]`)).toBeVisible();
+  await expect(sheet.getByRole('button')).toHaveCount(5);
+  for (const hook of ['post', 'sport', 'event', 'full-game', 'record-activity']) await expect(sheet.locator(`[data-create-${hook}]`)).toBeVisible();
   await expect(sheet.locator('[data-create-activity]')).toHaveCount(0);
   await expect(sheet.getByText(/import/i)).toHaveCount(0);
 

@@ -1,5 +1,5 @@
 /**
- * Videos (296) — the pure rules. Zero imports; every rule pinned by
+ * Videos (296) — the pure rules. Zero runtime imports (one type import, erased); every rule pinned by
  * src/lib/videos/__tests__/rules.test.ts.
  *
  * A linked video is owned by a profile XOR an org and may sit on a sport
@@ -15,6 +15,8 @@
  * (a label on the marker, never a clip boundary), a label, and sport
  * metadata. The list is ordered by start — "reorder" is editing the time.
  */
+
+import type { OrgKind } from '@/lib/orgs/org-ref';
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -204,7 +206,7 @@ export function highlightRangeOk(stored: { start_ms: number; end_ms: number | nu
   return end === null || end > start;
 }
 
-export type VideoOwnerInput = { kind: 'profile'; profileId: string | null } | { kind: 'org'; side: 'league' | 'club'; orgId: string };
+export type VideoOwnerInput = { kind: 'profile'; profileId: string | null } | { kind: 'org'; side: OrgKind; orgId: string };
 
 export interface VideoCreateInput {
   /** The pasted link, trimmed — the link helper turns it into an id. */

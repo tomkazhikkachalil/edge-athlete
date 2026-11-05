@@ -70,8 +70,8 @@ describe('the videos program\'s wiring', () => {
     expect(route).toContain("intent: 'manage_video'");
     expect(read('src/lib/videos/videos-server.ts')).toContain('resolveActingProfile(');
   });
-  it('the pure rules stay pure (zero imports) and the link helper imports only the embed module', () => {
-    expect(read('src/lib/videos/rules.ts')).not.toMatch(/^import /m);
+  it('the pure rules stay pure (one erased type import) and the link helper imports only the embed module', () => {
+    expect(read('src/lib/videos/rules.ts').match(/^import .*$/gm) ?? []).toEqual(["import type { OrgKind } from '@/lib/orgs/org-ref';"]);
     const imports = read('src/lib/videos/youtube.ts').match(/^import .*$/gm) ?? [];
     expect(imports).toEqual(["import { EMBED_FRAME_HOSTS, embedSrc, parseEmbedUrl } from '@/lib/site-builder/embeds';"]);
   });

@@ -1,6 +1,7 @@
 /**
  * Videos (296) — the row and payload shapes. Types only.
  */
+import type { OrgKind } from '@/lib/orgs/org-ref';
 import type { HighlightMeta, VideoStatus } from './rules';
 
 export interface VideoRow {
@@ -35,7 +36,7 @@ export interface HighlightRow {
 
 export type VideoOwnerView =
   | { kind: 'profile'; id: string; name: string; handle: string | null; avatar_url: string | null }
-  | { kind: 'org'; id: string; side: 'league' | 'club'; name: string };
+  | { kind: 'org'; id: string; side: OrgKind; name: string };
 
 export type VideoPlaceView = { kind: 'sport_event' | 'contest'; id: string; name: string } | null;
 

@@ -18,7 +18,7 @@ import StartSessionRows from '@/components/workouts/StartSessionRows';
  * menu, Training and the pill agree. The drawer opens this same sheet; it is the one Create
  * menu at every width.
  */
-export default function CreateSheet({ onPost, onSport, onEvent, onWorkout, onRecording, onClose }: { onPost: () => void; onSport: () => void; onEvent: () => void; onWorkout: () => void; onRecording: () => void; onClose: () => void }) {
+export default function CreateSheet({ onPost, onSport, onEvent, onFullGame, onWorkout, onRecording, onClose }: { onPost: () => void; onSport: () => void; onEvent: () => void; onFullGame: () => void; onWorkout: () => void; onRecording: () => void; onClose: () => void }) {
   const [step, setStep] = useState<'root' | 'record'>('root');
   const row = 'ea-interactive flex items-center gap-4 w-full text-left rounded-lg px-4 py-3 min-h-[56px] hover:bg-surface-muted';
   const icon = 'w-10 h-10 rounded-full bg-brand-soft text-brand-fg flex items-center justify-center shrink-0';
@@ -58,6 +58,14 @@ export default function CreateSheet({ onPost, onSport, onEvent, onWorkout, onRec
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-primary">Event</span>
             <span className="block text-xs text-muted">Invite players, go live, keep a leaderboard.</span>
+          </span>
+        </button>
+        {/* Videos program (296): the fifth door — a game, a tournament, a broadcast is a YouTube link, not an upload. */}
+        <button type="button" onClick={onFullGame} className={row} data-create-full-game="">
+          <span className={icon}><i className="fas fa-film" aria-hidden="true"></i></span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-primary">Full game</span>
+            <span className="block text-xs text-muted">Link a YouTube game or tournament and mark the highlights.</span>
           </span>
         </button>
         <button type="button" onClick={() => setStep('record')} className={row} data-create-record-activity="" aria-haspopup="true">
