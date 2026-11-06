@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-05T12:55:54.086211+00:00 from server 17.6 by
+-- Generated 2026-11-05T23:43:14.378269+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 297.
+-- public.schema_dump() (migration 227). Ledger head at generation: 298.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5028,7 +5028,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (141) ──────────────────────────────────────────────────────────────
+-- ── Tables (142) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -7140,6 +7140,22 @@ CREATE TABLE IF NOT EXISTS public.workout_sets (
   rest_seconds integer
 );
 
+CREATE TABLE IF NOT EXISTS public.youtube_connections (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid,
+  org_id uuid,
+  connected_by_user_id uuid NOT NULL,
+  channel_id text NOT NULL,
+  channel_title text,
+  scopes text[] DEFAULT '{}'::text[] NOT NULL,
+  secret_ciphertext text,
+  status text DEFAULT 'active'::text NOT NULL,
+  last_error text,
+  connected_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- ── Sequence owners ───────────────────────────────────────────────────────────
 
 
@@ -7850,6 +7866,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_sets_pkey' AND conrelid = 'public.workout_sets'::regclass) THEN
     ALTER TABLE public.workout_sets ADD CONSTRAINT workout_sets_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_pkey' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10316,6 +10337,41 @@ DO $$ BEGIN
     ALTER TABLE public.workout_sets ADD CONSTRAINT workout_sets_weight_unit_check CHECK ((weight_unit = ANY (ARRAY['lbs'::text, 'kg'::text])));
   END IF;
 END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_channel_id_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_channel_id_check CHECK (((char_length(channel_id) >= 1) AND (char_length(channel_id) <= 100)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_channel_title_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_channel_title_check CHECK (((channel_title IS NULL) OR ((char_length(channel_title) >= 1) AND (char_length(channel_title) <= 200))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_last_error_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_last_error_check CHECK (((last_error IS NULL) OR ((char_length(last_error) >= 1) AND (char_length(last_error) <= 300))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_one_owner_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_one_owner_check CHECK ((num_nonnulls(profile_id, org_id) = 1));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_secret_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_secret_check CHECK (((status <> 'active'::text) OR (secret_ciphertext IS NOT NULL)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_secret_ciphertext_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_secret_ciphertext_check CHECK (((secret_ciphertext IS NULL) OR ((char_length(secret_ciphertext) >= 1) AND (char_length(secret_ciphertext) <= 8000))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_status_check' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text, 'error'::text])));
+  END IF;
+END $$;
 
 -- ── Foreign keys ──────────────────────────────────────────────────────────────
 DO $$ BEGIN
@@ -11853,6 +11909,21 @@ DO $$ BEGIN
     ALTER TABLE public.workout_sets ADD CONSTRAINT workout_sets_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
 END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_connected_by_user_id_fkey' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_connected_by_user_id_fkey FOREIGN KEY (connected_by_user_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_org_id_fkey' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'youtube_connections_profile_id_fkey' AND conrelid = 'public.youtube_connections'::regclass) THEN
+    ALTER TABLE public.youtube_connections ADD CONSTRAINT youtube_connections_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_activities_post ON public.activities USING btree (post_id) WHERE (post_id IS NOT NULL);
@@ -12303,6 +12374,11 @@ CREATE INDEX IF NOT EXISTS idx_workout_sessions_post_id ON public.workout_sessio
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_profile_started ON public.workout_sessions USING btree (profile_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_sets_exercise ON public.workout_sets USING btree (exercise_id, set_number);
 CREATE INDEX IF NOT EXISTS idx_workout_sets_profile ON public.workout_sets USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS youtube_connections_connected_by_user_id_idx ON public.youtube_connections USING btree (connected_by_user_id);
+CREATE INDEX IF NOT EXISTS youtube_connections_org_id_idx ON public.youtube_connections USING btree (org_id);
+CREATE UNIQUE INDEX IF NOT EXISTS youtube_connections_org_uidx ON public.youtube_connections USING btree (org_id) WHERE (org_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS youtube_connections_profile_id_idx ON public.youtube_connections USING btree (profile_id);
+CREATE UNIQUE INDEX IF NOT EXISTS youtube_connections_profile_uidx ON public.youtube_connections USING btree (profile_id) WHERE (profile_id IS NOT NULL);
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW public.clubs AS
@@ -17300,6 +17376,8 @@ DROP TRIGGER IF EXISTS set_workout_routines_updated_at ON public.workout_routine
 CREATE TRIGGER set_workout_routines_updated_at BEFORE UPDATE ON public.workout_routines FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS set_workout_sessions_updated_at ON public.workout_sessions;
 CREATE TRIGGER set_workout_sessions_updated_at BEFORE UPDATE ON public.workout_sessions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS youtube_connections_updated_at ON public.youtube_connections;
+CREATE TRIGGER youtube_connections_updated_at BEFORE UPDATE ON public.youtube_connections FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 
 -- ── Row level security ────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
@@ -17443,6 +17521,7 @@ ALTER TABLE public.workout_routine_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.youtube_connections ENABLE ROW LEVEL SECURITY;
 
 -- ── Policies (145) ────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS achievements_delete_policy ON public.athlete_achievements;
@@ -18805,6 +18884,8 @@ REVOKE ALL ON TABLE public.workout_sets FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.workout_sets TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.workout_sets TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.workout_sets TO service_role;
+REVOKE ALL ON TABLE public.youtube_connections FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.youtube_connections TO service_role;
 REVOKE ALL ON TABLE public.clubs FROM anon, authenticated, service_role;
 GRANT DELETE, SELECT, UPDATE ON TABLE public.clubs TO service_role;
 REVOKE ALL ON TABLE public.leagues FROM anon, authenticated, service_role;
@@ -19337,6 +19418,7 @@ COMMENT ON COLUMN public.workout_sessions.effort IS 'How hard the session felt, 
 COMMENT ON COLUMN public.workout_sessions.profile_hidden_at IS 'The owner hid this workout from their profile (269; 241''s shape). Viewers'' Training lists skip it; the owner keeps it.';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
+COMMENT ON TABLE public.youtube_connections IS 'A YouTube channel connected to a profile XOR an org (298): the connector''s Google grant (connected_by_user_id — only they upload), the channel, the incremental scopes, the sealed tokens. One per owner. Posture A; the one writer is src/lib/videos/youtube-connections-server.ts.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
 COMMENT ON FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid) IS 'The comment-like toggle in one call (288): the parent post''s gate (post_like_allowed, 287) + the comment published, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/comments/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.counters_recount() IS 'The accuracy rule for the three cached counters (277): corrects every row whose stored count differs from a direct count, returns how many per target. Run once by 277 and nightly by /api/cron/daily (src/lib/counters/recount-server.ts). The triggers add or subtract one.';
@@ -19818,7 +19900,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (294, '294_golf_course_picks.sql', 'rebuild-000'),
   (295, '295_golf_course_picks_revoke.sql', 'rebuild-000'),
   (296, '296_videos.sql', 'rebuild-000'),
-  (297, '297_video_places.sql', 'rebuild-000')
+  (297, '297_video_places.sql', 'rebuild-000'),
+  (298, '298_youtube_connections.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19827,12 +19910,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 141 | 135 | 145 | 297
+-- Expected: 000 REBUILT | 142 | 135 | 145 | 298
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_141,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_297;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_298;
 
