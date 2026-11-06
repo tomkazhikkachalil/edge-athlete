@@ -11,7 +11,9 @@ import { COPY } from '@/lib/copy';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { UUID_RE } from '@/lib/uuid';
-import { VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX } from '@/lib/videos/rules';
+import { formatTimestamp, VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX } from '@/lib/videos/rules';
+import { formatLiveWhen } from '@/lib/videos/live-rules';
+import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
 import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
 import type { YouTubeConnectionView } from '@/lib/videos/youtube-connection';
@@ -92,6 +94,36 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     void fetchConnection().then(next => { if (live) setConnection(next); });
     return () => { live = false; };
   }, [defaultOwnerRef]);
+// Paste and go (Nov 6 2026): what YouTube says about the pasted id — the title, the duration, whether it plays here, its chapters.
+  // One read per link (debounced; the latest paste wins); unavailable = the flow behaves as before.
+  const [lookup, setLookup] = useState<{ id: string; value: VideoLookup } | null>(null);
+  const [importChapters, setImportChapters] = useState(true);
+  const linkId = link?.id ?? null;
+  useEffect(() => {
+    if (!linkId) return;
+    let live = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/videos/youtube/lookup?id=${encodeURIComponent(linkId)}&owner=${encodeURIComponent(defaultOwnerRef)}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = (await res.json()) as { lookup?: VideoLookup };
+        if (!live || !body.lookup) return;
+        setLookup({ id: linkId, value: body.lookup });
+        // YouTube's title fills an EMPTY title field once per link (editable afterwards).
+        const t = body.lookup.title;
+        if (t) setTitle(prev => (prev.trim() ? prev : t.slice(0, VIDEO_TITLE_MAX)));
+      } catch {
+        /* the preview stays YouTube's poster alone */
+      }
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [linkId, defaultOwnerRef]);
+  const looked = lookup && linkId && lookup.id === linkId ? lookup.value : null;
+  const refusal = lookupRefusal(looked);
+
   const pickFromChannel = (videoId: string, pickedTitle: string) => {
     setUrl(watchUrl(videoId));
     if (!title.trim() && pickedTitle) setTitle(pickedTitle.slice(0, VIDEO_TITLE_MAX));
@@ -143,7 +175,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(dirty, () => backOr(router, '/feed'));
 
   const step = VIDEO_STEPS[index];
-  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner });
+  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner, blocked: refusal === 'private' ? LOOKUP_NOTES.private : null });
 
   const finish = async () => {
     if (!advance.ok || !link || saving) return;
@@ -175,6 +207,14 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
         setExistingId(res.status === 409 && data.existing_id ? data.existing_id : null);
         setSaving(false);
         return;
+      }
+      // Paste and go: YouTube's chapters become the first highlights in ONE write; a refusal never blocks the video.
+      if (importChapters && looked && looked.chapters.length > 0) {
+        try {
+          await fetch(`/api/videos/${encodeURIComponent(data.video.id)}/highlights/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ highlights: chaptersToHighlights(looked.chapters, looked.durationMs).map(h => ({ ...h, meta: {} })) }) });
+        } catch {
+          /* the video is saved; the chapters can be added from its page */
+        }
       }
       router.replace(`/videos/${data.video.id}`);
     } catch {
@@ -263,7 +303,27 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             {link && (
               <div className="rounded-lg overflow-hidden border border-border" data-new-video-preview={link.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- a third-party thumbnail; not an optimizer candidate */}
-                <img src={thumbUrl(link.id)} alt="" className="w-full aspect-video object-cover bg-surface-muted" />
+                <img src={looked?.thumbnail ?? thumbUrl(link.id)} alt="" className="w-full aspect-video object-cover bg-surface-muted" />
+                {looked?.title && (
+                  <p className="px-3 pt-2 text-sm font-semibold text-primary" data-new-video-lookup-title="">
+                    {looked.title}
+                    {looked.durationMs ? <span className="ml-2 font-mono text-xs font-normal text-muted" data-new-video-lookup-duration={looked.durationMs}>{formatTimestamp(looked.durationMs)}</span> : null}
+                  </p>
+                )}
+                {looked?.live && looked.live.status !== 'none' && (
+                  <p className="px-3 pt-1 text-xs font-semibold text-brand-fg" data-new-video-lookup-live={looked.live.status}>
+                    {looked.live.status === 'live' ? 'Streaming now on YouTube' : looked.live.status === 'upcoming' ? `A live broadcast${looked.live.scheduledStartAt ? ` — scheduled ${formatLiveWhen(looked.live.scheduledStartAt)}` : ''}` : 'A past live broadcast — the recording'}
+                  </p>
+                )}
+                {refusal && (
+                  <p className={`px-3 pt-1 text-xs ${refusal === 'private' ? 'text-red-600' : 'text-secondary'}`} role="status" data-new-video-lookup={refusal}>{LOOKUP_NOTES[refusal]}</p>
+                )}
+                {looked && looked.chapters.length > 0 && (
+                  <label className="flex items-center gap-2 px-3 pt-2 text-sm text-primary min-h-[44px]" data-new-video-chapters={looked.chapters.length}>
+                    <input type="checkbox" checked={importChapters} onChange={e => setImportChapters(e.target.checked)} className="h-4 w-4" />
+                    {looked.chapters.length} chapters found — add them as highlights
+                  </label>
+                )}
                 <p className="px-3 py-2 text-xs text-secondary">
                   This is a YouTube video{link.startMs !== null ? ' — the link points into it; add that moment as a highlight once it is saved' : ''}.
                 </p>

@@ -159,6 +159,12 @@ export interface LiveDetails {
   actualStartTime: string | null;
   actualEndTime: string | null;
   durationMs: number | null;
+  /** Paste and go (Nov 6): the same read also says what the video is and whether it plays here. */
+  title: string | null;
+  description: string | null;
+  thumbnail: string | null;
+  privacy: string | null;
+  embeddable: boolean | null;
 }
 export type LiveRead = { ok: true; value: LiveDetails | null } | { ok: false; unauthorized: boolean; quota: boolean };
 
@@ -168,7 +174,7 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : nul
 export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessToken: string } | { apiKey: string }), videoId: string): Promise<LiveRead> {
   const key = 'apiKey' in auth ? `&key=${encodeURIComponent(auth.apiKey)}` : '';
   const headers = 'accessToken' in auth ? bearer(auth.accessToken) : { Accept: 'application/json' };
-  const res = await call(`${auth.apiBase}/youtube/v3/videos?part=snippet,contentDetails,liveStreamingDetails&id=${encodeURIComponent(videoId)}${key}`, { method: 'GET', headers });
+  const res = await call(`${auth.apiBase}/youtube/v3/videos?part=snippet,contentDetails,status,liveStreamingDetails&id=${encodeURIComponent(videoId)}${key}`, { method: 'GET', headers });
   if (!res) return { ok: false, unauthorized: false, quota: false };
   if (res.status === 401 || res.status === 403) {
     const body = (await res.json().catch(() => null)) as { error?: { errors?: Array<{ reason?: unknown }> } } | null;
@@ -178,9 +184,11 @@ export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessTo
   if (!res.ok) return { ok: false, unauthorized: false, quota: false };
   const body = (await res.json().catch(() => null)) as { items?: unknown[] } | null;
   if (!body || !Array.isArray(body.items)) return { ok: false, unauthorized: false, quota: false };
-  const first = body.items[0] as { snippet?: { liveBroadcastContent?: unknown }; contentDetails?: { duration?: unknown }; liveStreamingDetails?: { scheduledStartTime?: unknown; actualStartTime?: unknown; actualEndTime?: unknown } } | undefined;
+  const first = body.items[0] as { snippet?: { title?: unknown; description?: unknown; liveBroadcastContent?: unknown; thumbnails?: Record<string, { url?: unknown }> }; contentDetails?: { duration?: unknown }; status?: { privacyStatus?: unknown; embeddable?: unknown }; liveStreamingDetails?: { scheduledStartTime?: unknown; actualStartTime?: unknown; actualEndTime?: unknown } } | undefined;
   if (!first) return { ok: true, value: null };
   const live = first.liveStreamingDetails ?? {};
+  const thumbs = first.snippet?.thumbnails ?? {};
+  const thumb = thumbs.maxres?.url ?? thumbs.high?.url ?? thumbs.medium?.url;
   return {
     ok: true,
     value: {
@@ -189,6 +197,11 @@ export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessTo
       actualStartTime: str(live.actualStartTime),
       actualEndTime: str(live.actualEndTime),
       durationMs: parseIsoDuration(first.contentDetails?.duration),
+      title: str(first.snippet?.title),
+      description: typeof first.snippet?.description === 'string' ? first.snippet.description : null,
+      thumbnail: str(thumb),
+      privacy: str(first.status?.privacyStatus),
+      embeddable: typeof first.status?.embeddable === 'boolean' ? first.status.embeddable : null,
     },
   };
 }
@@ -256,6 +269,9 @@ export async function youtubeVideoDetails(cfg: YouTubeConfig, accessToken: strin
   });
   return read.ok ? { ok: true, value: read.value.details } : read;
 }
+
+/** Paste and go: the same read under the name the lookup route uses. */
+export const youtubeVideoLookup = youtubeLiveDetails;
 
 // ── The resumable upload session ────────────────────────────────────────────
 export type UploadSession = { ok: true; sessionUri: string } | { ok: false; unauthorized: boolean; status: number };
