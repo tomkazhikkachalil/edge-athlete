@@ -204,3 +204,33 @@ describe('live (Phase 4a)', () => {
     expect(read('e2e/helpers/youtube-mock.ts')).toContain('YOUTUBE_API_KEY: YOUTUBE_E2E_API_KEY');
   });
 });
+
+describe('live, PR B — the strip, the order, the public tile', () => {
+  it('Live Now reads the broadcasts from their own route (signed out included), renders them first, and the empty state names them', () => {
+    const strip = read('src/components/LiveNowStrip.tsx');
+    expect(strip).toContain("fetch('/api/videos/live-now', { credentials: 'include' })");
+    expect(strip.indexOf("fetch('/api/videos/live-now'")).toBeLessThan(strip.indexOf('if (!user) return;'));
+    expect(strip).toContain('data-live-broadcast-card={v.id}');
+    expect(strip).toContain('{broadcasts.map(broadcastCard)}\n        {events.map(eventCard)}');
+    expect(strip).toContain('a round, a game, a match, a broadcast');
+    const route = read('src/app/api/videos/live-now/route.ts');
+    expect(route).toContain('listLiveVideos(admin, viewerId)');
+    expect(route).toContain('refreshLiveViews(admin, listed)');
+    expect(route).toContain("'Cache-Control': 'private, max-age=10'");
+  });
+  it('the live list applies the owner\'s own rule row by row and every list puts a live broadcast first', () => {
+    const server = read('src/lib/videos/videos-server.ts');
+    expect(server).toContain("export async function listLiveVideos(");
+    expect(server).toContain(".eq('live_status', 'live')\n    .eq('status', 'published')");
+    expect(server).toContain('anonymousProfileCanView(admin, row.profile_id)');
+    expect(server).toContain('orgVideoAccess(admin, isOrgKind(org?.kind)');
+    expect(server.split('sortLiveFirst(').length - 1).toBe(2);
+  });
+  it('the public tile shows the pill from the org\'s own row, and a change on an org\'s broadcast purges its site', () => {
+    expect(read('src/lib/org-sites/public-data.ts')).toContain("live: v.live_status === 'live',");
+    const tile = read('src/app/(public)/org/[slug]/_components/VideosList.tsx');
+    expect(tile).toContain('data-site-video-live=""');
+    expect(tile).not.toMatch(/fetch\(|'use client'/);
+    expect(read('src/lib/videos/videos-live-server.ts')).toContain('await revalidateOrgSiteForOrg(admin, owner.side, owner.orgId)');
+  });
+});

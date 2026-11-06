@@ -12,6 +12,8 @@ import {
   liveRefreshTtlMs,
   liveStateFromApi,
   durationToRecord,
+  liveRank,
+  sortLiveFirst,
   markNowOffsetMs,
   QUOTA_BACKOFF_MS,
 } from '../live-rules';
@@ -77,6 +79,22 @@ describe('the duration a read carries', () => {
     expect(durationToRecord({ duration_ms: 10_680_000, live_status: 'ended' }, state('ended'), 10_680_000)).toBeNull();
     expect(durationToRecord({ duration_ms: 5, live_status: 'none' }, state('none'), 90_000)).toBeNull();
     expect(durationToRecord({ duration_ms: null, live_status: 'none' }, state('none'), 0)).toBeNull();
+  });
+});
+
+describe('the order of a list', () => {
+  it('live first, then upcoming, then the rest in the order they came — a stable sort', () => {
+    expect([liveRank('live'), liveRank('upcoming'), liveRank('none'), liveRank('ended')]).toEqual([0, 1, 2, 2]);
+    const rows = [
+      { id: 'a', live_status: 'none' as const },
+      { id: 'b', live_status: 'ended' as const },
+      { id: 'c', live_status: 'live' as const },
+      { id: 'd', live_status: 'upcoming' as const },
+      { id: 'e', live_status: 'none' as const },
+      { id: 'f', live_status: 'live' as const },
+    ];
+    expect(sortLiveFirst(rows).map(r => r.id)).toEqual(['c', 'f', 'd', 'a', 'b', 'e']);
+    expect(rows.map(r => r.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']); // the input is untouched
   });
 });
 

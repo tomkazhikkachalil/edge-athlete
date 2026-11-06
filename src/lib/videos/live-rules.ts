@@ -107,6 +107,16 @@ export function markNowOffsetMs(liveStartedAt: string | null, now: number): numb
   return Math.max(0, Math.round(now - start));
 }
 
+/** A list's order: what is live first, then what is about to be, then the rest in their own order. */
+export function liveRank(status: LiveStatus): 0 | 1 | 2 {
+  return status === 'live' ? 0 : status === 'upcoming' ? 1 : 2;
+}
+
+/** A stable sort by liveRank — the rest keep the order they came in. */
+export function sortLiveFirst<T extends { live_status: LiveStatus }>(rows: readonly T[]): T[] {
+  return rows.map((row, i) => ({ row, i })).sort((a, b) => liveRank(a.row.live_status) - liveRank(b.row.live_status) || a.i - b.i).map(x => x.row);
+}
+
 // ── What the surfaces say ───────────────────────────────────────────────────
 export type LiveBadge = { kind: 'live' } | { kind: 'upcoming'; at: string | null } | { kind: 'ended'; at: string | null } | null;
 

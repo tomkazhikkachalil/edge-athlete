@@ -1055,6 +1055,8 @@ export async function fetchPublicOpenWindows(
 
 /** Videos (Phase 1b): the org's own PUBLISHED linked videos — the id (the frame is rebuilt from it), the title, the date. Never a profile-owned video, never a profile join. */
 export interface PublicOrgVideo {
+  /** Phase 4a (PR B): streaming right now — the tile's pill; the org's pages are purged on the change, so ISR lags a request, not an hour. */
+  live: boolean;
   id: string;
   videoId: string;
   title: string;
@@ -1064,18 +1066,19 @@ export interface PublicOrgVideo {
 export async function fetchPublicOrgVideos(admin: Admin, orgId: string): Promise<PublicOrgVideo[]> {
   const { data, error } = await admin
     .from('videos')
-    .select('id, provider_video_id, title, created_at')
+    .select('id, provider_video_id, title, created_at, live_status')
     .eq('org_id', orgId)
     .eq('provider', 'youtube')
     .eq('status', 'published')
     .order('created_at', { ascending: false })
     .limit(12);
   if (degraded('videos', error)) return [];
-  return ((data ?? []) as { id: string; provider_video_id: string; title: string; created_at: string }[]).map(v => ({
+  return ((data ?? []) as { id: string; provider_video_id: string; title: string; created_at: string; live_status?: string | null }[]).map(v => ({
     id: v.id,
     videoId: v.provider_video_id,
     title: v.title,
     date: v.created_at ? v.created_at.slice(0, 10) : null,
+    live: v.live_status === 'live',
   }));
 }
 

@@ -32,7 +32,13 @@ export default function VideosList({ items }: { items: PublicOrgVideo[] }) {
     <ul role="list" className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2" data-site-videos={items.length}>
       {items.map(v => (
         <li key={v.id} data-site-video={v.videoId}>
-          <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-sunken">
+          <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-surface-sunken">
+            {v.live && (
+              <span className="pointer-events-none absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white" data-site-video-live="">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true"></span>
+                Live
+              </span>
+            )}
             <iframe
               srcDoc={posterDoc(v.videoId)}
               title={v.title}
