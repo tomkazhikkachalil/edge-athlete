@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-06T02:36:55.541667+00:00 from server 17.6 by
+-- Generated 2026-11-06T03:46:08.600617+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 299.
+-- public.schema_dump() (migration 227). Ledger head at generation: 300.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -2457,6 +2457,37 @@ AS $function$
         AND EXISTS (
           SELECT 1 FROM public.sport_event_rounds r
           WHERE r.sport_event_id = e.id AND r.status = 'live'
+        )
+    ),
+    'live_broadcasts', (
+      SELECT count(*)
+      FROM public.videos v
+      WHERE v.live_status = 'live'
+        AND v.status = 'published'
+        AND (
+          (v.profile_id IS NOT NULL AND (
+            v.profile_id = p_viewer
+            OR EXISTS (
+              SELECT 1 FROM public.profiles pr
+              WHERE pr.id = v.profile_id AND pr.visibility = 'public' AND pr.departed_at IS NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM public.follows f
+              WHERE f.follower_id = p_viewer AND f.following_id = v.profile_id AND f.status = 'accepted'
+            )
+          ))
+          OR (v.org_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM public.organizations o
+            WHERE o.id = v.org_id
+              AND (
+                o.visibility <> 'private'
+                OR o.owner_profile_id = p_viewer
+                OR EXISTS (
+                  SELECT 1 FROM public.memberships m
+                  WHERE m.org_id = o.id AND m.profile_id = p_viewer AND m.scope_type = 'org'
+                )
+              )
+          ))
         )
     ),
     'unread_messages', public.get_unread_message_count(p_viewer)
@@ -14733,6 +14764,37 @@ AS $function$
           WHERE r.sport_event_id = e.id AND r.status = 'live'
         )
     ),
+    'live_broadcasts', (
+      SELECT count(*)
+      FROM public.videos v
+      WHERE v.live_status = 'live'
+        AND v.status = 'published'
+        AND (
+          (v.profile_id IS NOT NULL AND (
+            v.profile_id = p_viewer
+            OR EXISTS (
+              SELECT 1 FROM public.profiles pr
+              WHERE pr.id = v.profile_id AND pr.visibility = 'public' AND pr.departed_at IS NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM public.follows f
+              WHERE f.follower_id = p_viewer AND f.following_id = v.profile_id AND f.status = 'accepted'
+            )
+          ))
+          OR (v.org_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM public.organizations o
+            WHERE o.id = v.org_id
+              AND (
+                o.visibility <> 'private'
+                OR o.owner_profile_id = p_viewer
+                OR EXISTS (
+                  SELECT 1 FROM public.memberships m
+                  WHERE m.org_id = o.id AND m.profile_id = p_viewer AND m.scope_type = 'org'
+                )
+              )
+          ))
+        )
+    ),
     'unread_messages', public.get_unread_message_count(p_viewer)
   );
 $function$;
@@ -19447,7 +19509,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
-COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
+COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292, 300): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), live BROADCASTS the viewer may see (videos-server.ts listLiveVideos: the owner''s own rule), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
 COMMENT ON FUNCTION public.post_like_allowed(p_viewer uuid, p_post_id uuid) IS 'May this viewer like this post (287): the read gate (owner / guardian always; else published, owner present, public+public or an accepted follow) minus blocks either way. service_role only.';
@@ -19916,7 +19978,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (296, '296_videos.sql', 'rebuild-000'),
   (297, '297_video_places.sql', 'rebuild-000'),
   (298, '298_youtube_connections.sql', 'rebuild-000'),
-  (299, '299_video_live.sql', 'rebuild-000')
+  (299, '299_video_live.sql', 'rebuild-000'),
+  (300, '300_me_pulse_broadcasts.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19925,12 +19988,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 142 | 135 | 145 | 299
+-- Expected: 000 REBUILT | 142 | 135 | 145 | 300
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_299;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_300;
 
