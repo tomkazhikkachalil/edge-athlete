@@ -160,3 +160,47 @@ describe('the YouTube connection (Phase 3)', () => {
     expect(read('src/app/api/videos/[id]/refresh/route.ts')).toContain('recordVideoDetails(');
   });
 });
+
+describe('live (Phase 4a)', () => {
+  it('a card and the page read the live state from the ROW through the pure rules — never a fetch to YouTube from the browser', () => {
+    const cards = read('src/components/videos/VideoCards.tsx');
+    expect(cards).toContain('liveBadgeFor(video)');
+    expect(cards).toContain('data-video-card-live={live?.kind ?? undefined}');
+    expect(cards).toContain('aria-label="Live now"');
+    expect(cards).not.toMatch(/fetch\(|googleapis/);
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain('data-video-live={live.kind}');
+    expect(screen).toContain('liveRefetchMs(load.video)');
+    expect(screen).toContain("liveStartedAt={video.live_status === 'live' ? video.live_started_at : null}");
+    expect(screen).not.toMatch(/googleapis/);
+  });
+  it('"Now" marks the moment of the live stream and the server, not the device, stamps it', () => {
+    const list = read('src/components/videos/HighlightList.tsx');
+    expect(list).toContain('data-highlight-now=""');
+    expect(list).toContain('markNowOffsetMs(liveStartedAt, Date.now())');
+    expect(list).toContain('if (d.live) meta.live = true;');
+    const route = read('src/app/api/videos/[id]/highlights/route.ts');
+    expect(route).toContain('if (parsed.value.meta.live) {');
+    expect(route).toContain("read.row.live_status === 'live' ? markNowOffsetMs(read.row.live_started_at, Date.now()) : null");
+    expect(route).toContain('parsed.value.start_ms = offset;');
+  });
+  it('the state is read when someone looks — the list, the page and the first link — never by a cron; the writer stays acyclic and claims its read', () => {
+    expect(read('src/app/api/videos/route.ts')).toContain('(await refreshLiveViews(admin, listed)) ? await listVideos(admin, filter) : listed');
+    expect(read('src/app/api/videos/route.ts')).toContain('await refreshLiveState(admin, created.value, { force: true });');
+    expect(read('src/app/api/videos/[id]/route.ts')).toContain('if (await refreshLiveViews(admin, [read.view]))');
+    const writer = read('src/lib/videos/videos-live-server.ts');
+    expect(writer).not.toMatch(/from '\.\/videos-server'|videos-server'/);
+    expect(writer).toContain("claim.or(`live_checked_at.is.null,live_checked_at.lt.${new Date(now - ttl).toISOString()}`)"); // hardening-ok: a source pin, not a query
+    expect(writer).toContain('QUOTA_BACKOFF_MS');
+    expect(read('src/lib/videos/videos-server.ts')).not.toMatch(/videos-live-server/);
+    expect(read('vercel.json')).not.toMatch(/videos.*live|live.*videos/);
+  });
+  it('the key is server-only, documented, and the stand-in answers a key read', () => {
+    expect(read('.env.example')).toContain('# YOUTUBE_API_KEY=');
+    const google = read('src/lib/videos/google-youtube-server.ts');
+    expect(google).toContain('export function youtubeReadConfig(');
+    expect(google).toContain('part=snippet,contentDetails,liveStreamingDetails');
+    expect(google).toContain("e?.reason === 'quotaExceeded'");
+    expect(read('e2e/helpers/youtube-mock.ts')).toContain('YOUTUBE_API_KEY: YOUTUBE_E2E_API_KEY');
+  });
+});

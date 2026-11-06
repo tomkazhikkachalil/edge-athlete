@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
+import { LivePill } from '@/components/videos/VideoCards';
+import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
 import YouTubePlayer from '@/components/videos/YouTubePlayer';
 import { useAuth } from '@/lib/auth';
 import { backOr } from '@/lib/nav-back';
@@ -93,6 +95,19 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
       live = false;
     };
   }, [initialAuthCheckComplete, viewerId, fetchVideo]);
+
+  // Phase 4a: while a broadcast is live (or about to be) the page re-reads on its own, so
+  // the pill, the state and the archive arrive without a reload. Nothing polls otherwise.
+  const refetchMs = load.state === 'ready' ? liveRefetchMs(load.video) : null;
+  useEffect(() => {
+    if (refetchMs === null) return;
+    const timer = setInterval(() => {
+      void fetchVideo().then(next => {
+        if (next.state === 'ready') setLoad(prev => (prev.state === 'ready' ? { ...prev, video: next.video, highlights: next.highlights, canManage: next.canManage } : next));
+      });
+    }, refetchMs);
+    return () => clearInterval(timer);
+  }, [refetchMs, fetchVideo]);
 
   const play = (h: HighlightRow) => {
     setStartMs(h.start_ms);
@@ -214,6 +229,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
   const { video, highlights, canManage } = load;
   const sport = video.sport_key ? SPORT_REGISTRY[video.sport_key as SportKey]?.display_name ?? null : null;
   const place = placeHref(video);
+  const live = liveBadgeFor(video);
 
   return (
     <div className="space-y-4" data-video-screen={video.id}>
@@ -228,6 +244,17 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
           </span>
         )}
       </div>
+
+      {live && (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-secondary" data-video-live={live.kind}>
+          {live.kind === 'live' && <LivePill />}
+          {live.kind === 'live'
+            ? 'Streaming now on YouTube — the player follows the broadcast.'
+            : live.kind === 'upcoming'
+              ? (live.at ? `Scheduled to stream ${formatLiveWhen(live.at)}.` : 'Scheduled to stream — the time is not set yet.')
+              : `Streamed live${live.at ? ` ${formatLiveWhen(live.at)}` : ''} — this is the recording.`}
+        </p>
+      )}
 
       <YouTubePlayer videoId={video.provider_video_id} title={video.title} startMs={startMs} playKey={playKey} />
 
@@ -293,6 +320,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onAdd={addHighlight}
         onEdit={editHighlight}
         onDelete={deleteHighlight}
+        liveStartedAt={video.live_status === 'live' ? video.live_started_at : null}
       />
 
       <ConfirmModal

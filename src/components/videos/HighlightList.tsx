@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import SectionInfo from '@/components/SectionInfo';
+import { markNowOffsetMs } from '@/lib/videos/live-rules';
 import { formatTimestamp, HIGHLIGHT_HOLE_MAX, HIGHLIGHT_LABEL_MAX, parseTypedTimestamp, type HighlightInput } from '@/lib/videos/rules';
 import type { HighlightRow } from '@/lib/videos/types';
 
@@ -18,6 +19,8 @@ interface Props {
   onAdd: (input: HighlightInput) => Promise<string | null>;
   onEdit: (id: string, input: HighlightInput) => Promise<string | null>;
   onDelete: (id: string) => Promise<string | null>;
+  /** Phase 4a: YouTube's actual start while the broadcast is LIVE — the "Now" button's zero; null otherwise. */
+  liveStartedAt?: string | null;
 }
 
 interface Draft {
@@ -27,9 +30,11 @@ interface Draft {
   hole: string;
   score: string;
   note: string;
+  /** Set by "Now": the server stamps the time from its own clock (meta.live). */
+  live: boolean;
 }
 
-const EMPTY: Draft = { time: '', end: '', label: '', hole: '', score: '', note: '' };
+const EMPTY: Draft = { time: '', end: '', label: '', hole: '', score: '', note: '', live: false };
 
 function draftOf(h: HighlightRow): Draft {
   return {
@@ -39,6 +44,7 @@ function draftOf(h: HighlightRow): Draft {
     hole: h.meta?.hole === undefined ? '' : String(h.meta.hole),
     score: h.meta?.score === undefined ? '' : String(h.meta.score),
     note: h.meta?.note ?? '',
+    live: false,
   };
 }
 
@@ -66,13 +72,20 @@ function inputOf(d: Draft): { ok: true; value: HighlightInput } | { ok: false; e
     meta.score = n;
   }
   if (d.note.trim()) meta.note = d.note.trim();
+  if (d.live) meta.live = true;
   return { ok: true, value: { start_ms: start, end_ms: end, label, meta } };
 }
 
-function HighlightForm({ initial, onSave, onCancel, saving }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean }) {
+function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null }) {
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
-  const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD(prev => ({ ...prev, [k]: e.target.value }));
+  const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD(prev => ({ ...prev, [k]: e.target.value, ...(k === 'time' ? { live: false } : {}) }));
+  // "Now" (Phase 4a): the offset into the LIVE stream from YouTube's actual start; the server re-stamps it from its own clock.
+  const markNow = () => {
+    const offset = markNowOffsetMs(liveStartedAt, Date.now());
+    if (offset === null) return;
+    setD(prev => ({ ...prev, time: formatTimestamp(offset), live: true }));
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = inputOf(d);
@@ -89,7 +102,14 @@ function HighlightForm({ initial, onSave, onCancel, saving }: { initial: Draft; 
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-sm text-secondary">
           Starts at
-          <input className={`${FIELD} mt-1`} inputMode="numeric" placeholder="12:30" value={d.time} onChange={set('time')} data-highlight-time="" />
+          <div className="mt-1 flex gap-2">
+            <input className={FIELD} inputMode="numeric" placeholder="12:30" value={d.time} onChange={set('time')} data-highlight-time="" />
+            {liveStartedAt && (
+              <button type="button" onClick={markNow} className={`${BTN} shrink-0`} title="This moment of the live stream" data-highlight-now="">
+                Now
+              </button>
+            )}
+          </div>
         </label>
         <label className="block text-sm text-secondary">
           Ends at (optional)
@@ -131,7 +151,7 @@ function HighlightForm({ initial, onSave, onCancel, saving }: { initial: Draft; 
  * the player there; a manager adds, edits and removes them. The count is in
  * the heading. A marker is a cue — an end is a note on it, never a cut.
  */
-export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete }: Props) {
+export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null }: Props) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<HighlightRow | null>(null);
@@ -166,6 +186,7 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
         <div className="mt-4">
           <HighlightForm
             initial={EMPTY}
+            liveStartedAt={liveStartedAt}
             saving={saving}
             onCancel={() => setAdding(false)}
             onSave={input => run(async () => {

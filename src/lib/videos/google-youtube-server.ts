@@ -142,6 +142,57 @@ async function readJson<T>(cfg: YouTubeConfig, path: string, accessToken: string
   return value === null ? { ok: false, unauthorized: false } : { ok: true, value };
 }
 
+// ── The live state (Phase 4a): one id, by the owner's token OR the server-only key ──
+export interface YouTubeReadConfig { apiBase: string; apiKey: string }
+
+/** YOUTUBE_API_KEY — public reads of any video's live state (one unit each); unset = no live state, never an error. */
+export function youtubeReadConfig(env: Record<string, string | undefined> = process.env): YouTubeReadConfig | null {
+  const apiKey = env.YOUTUBE_API_KEY?.trim();
+  if (!apiKey) return null;
+  const mock = env.VERCEL_ENV === 'production' ? undefined : env.YOUTUBE_MOCK_BASE?.trim().replace(/\/+$/, '');
+  return { apiBase: mock || HOSTS.apiBase, apiKey };
+}
+
+export interface LiveDetails {
+  liveBroadcastContent: string | null;
+  scheduledStartTime: string | null;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+  durationMs: number | null;
+}
+export type LiveRead = { ok: true; value: LiveDetails | null } | { ok: false; unauthorized: boolean; quota: boolean };
+
+const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+
+/** `videos.list` part=snippet,contentDetails,liveStreamingDetails. `value: null` = no such video (a read that worked); `quota` = quotaExceeded. */
+export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessToken: string } | { apiKey: string }), videoId: string): Promise<LiveRead> {
+  const key = 'apiKey' in auth ? `&key=${encodeURIComponent(auth.apiKey)}` : '';
+  const headers = 'accessToken' in auth ? bearer(auth.accessToken) : { Accept: 'application/json' };
+  const res = await call(`${auth.apiBase}/youtube/v3/videos?part=snippet,contentDetails,liveStreamingDetails&id=${encodeURIComponent(videoId)}${key}`, { method: 'GET', headers });
+  if (!res) return { ok: false, unauthorized: false, quota: false };
+  if (res.status === 401 || res.status === 403) {
+    const body = (await res.json().catch(() => null)) as { error?: { errors?: Array<{ reason?: unknown }> } } | null;
+    const quota = res.status === 403 && (body?.error?.errors ?? []).some(e => e?.reason === 'quotaExceeded' || e?.reason === 'dailyLimitExceeded');
+    return { ok: false, unauthorized: res.status === 401, quota };
+  }
+  if (!res.ok) return { ok: false, unauthorized: false, quota: false };
+  const body = (await res.json().catch(() => null)) as { items?: unknown[] } | null;
+  if (!body || !Array.isArray(body.items)) return { ok: false, unauthorized: false, quota: false };
+  const first = body.items[0] as { snippet?: { liveBroadcastContent?: unknown }; contentDetails?: { duration?: unknown }; liveStreamingDetails?: { scheduledStartTime?: unknown; actualStartTime?: unknown; actualEndTime?: unknown } } | undefined;
+  if (!first) return { ok: true, value: null };
+  const live = first.liveStreamingDetails ?? {};
+  return {
+    ok: true,
+    value: {
+      liveBroadcastContent: str(first.snippet?.liveBroadcastContent),
+      scheduledStartTime: str(live.scheduledStartTime),
+      actualStartTime: str(live.actualStartTime),
+      actualEndTime: str(live.actualEndTime),
+      durationMs: parseIsoDuration(first.contentDetails?.duration),
+    },
+  };
+}
+
 export interface MyChannel { id: string; title: string; uploadsPlaylistId: string | null }
 
 /** The channel of the Google account that said yes; `channel: null` when the account has none (the `nochannel` word) — a read that worked. */

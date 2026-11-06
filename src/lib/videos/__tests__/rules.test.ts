@@ -103,6 +103,10 @@ describe('parseHighlightMeta — a closed vocabulary', () => {
     expect(parseHighlightMeta({ hole: 18, score: 4, note: ' nice ' })).toEqual({ ok: true, value: { hole: 18, score: 4, note: 'nice' } });
     expect(parseHighlightMeta({ note: '  ', hole: null })).toEqual({ ok: true, value: {} });
     expect(parseHighlightMeta(undefined)).toEqual({ ok: true, value: {} });
+    // Phase 4a: `live` is a flag that is only ever stored as true (the server stamped the time).
+    expect(parseHighlightMeta({ live: true })).toEqual({ ok: true, value: { live: true } });
+    expect(parseHighlightMeta({ live: false })).toEqual({ ok: true, value: {} });
+    expect(parseHighlightMeta({ live: 'yes' }).ok).toBe(false);
   });
   it.each([
     [{ hole: 0 }, /hole/],
