@@ -1,5 +1,15 @@
 # Development Log
 
+## November 6, 2026 — Improvements round, PR 5b: comments page by thread — thirty roots with their replies, and "Show more comments" (SCALE_AUDIT hole 12, zero DDL)
+
+The comments half of Tom's fifth pick. `GET /api/comments` returned a flat page of 100 (offset) that `CommentSection` read ONCE and never paged — the 101st comment did not exist to a reader; the viewer's mutes and blocks thinned the page BEFORE `hasMore` was computed; and a flat page could cut a thread between a reply and its parent.
+
+- **A page of THREADS:** thirty ROOT comments (pinned, then most liked, then oldest — the product's order, unchanged), `limit + 1` for `hasMore` read off the raw page, and every reply of those roots riding along — fetched by parent, round by round (a reply's parent may itself be a reply; four rounds, 300 a round, bounded). `offset` counts roots; the answer's `nextOffset` is the next page's. The viewer rule (published, plus my own pending) and the viewer's-own-likes embed are unchanged.
+- **Not keyset, by decision:** the route runs on the RLS client (a private author reaches a non-follower with the embed stripped — the Oct 2026 author-link rule); a definer RPC would re-implement that visibility, and the sort key moves with likes, which a keyset cannot follow either. At thirty roots a page the offset cost is noise. Recorded in the audit's row 12.
+- **The client:** `CommentSection` keeps `hasMore` and `nextOffset`, offers **"Show more comments"** (`data-comments-more`), appends the next page merged by id (a root that moved between pages as its likes changed never doubles).
+- **Pinned:** `src/lib/__tests__/comments-paging.test.ts` (thirty roots, roots-only page read, `hasMore` before the mute filter, the bounded reply rounds, the client's button and merge); `docs/SCALE_AUDIT.md` row 12.
+
+**Proof:** `npm run verify` exit 0 — **5,846 tests**. e2e on staging: new `comments-paging` mobile **1/1** (33 roots + a reply: page one = 30 roots + the reply under root 1, `hasMore`, `nextOffset` 30; page two = 3 roots, no more; the post opened from the feed shows "Show more comments", a tap brings root 33, the button goes), `likes` mobile **1/1**, `comment-author-link` + `likes` desktop **3/3**.
 ## November 6, 2026 — Improvements round, PR 3: the profile media grid in one pass (SCALE_AUDIT hole 10, zero DDL)
 
 Tom's third pick. `GET /api/profile/[id]/media` — every profile open, every viewer — made up to fourteen reads one after another: the attachments, a second `post_media` read just for the Photos / Videos filter, the tag profiles, the golf rounds, then `posts` THREE times for the same page ids (the shared-round link, the repost link, the owner's hidden rows), the scorecards, the originals, the follows. A plain page was six trips in a row (713 ms on Oct 26).
