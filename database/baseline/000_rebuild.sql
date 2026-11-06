@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-05T23:43:14.378269+00:00 from server 17.6 by
+-- Generated 2026-11-06T02:36:55.541667+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 298.
+-- public.schema_dump() (migration 227). Ledger head at generation: 299.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -7051,7 +7051,12 @@ CREATE TABLE IF NOT EXISTS public.videos (
   updated_at timestamp with time zone DEFAULT now() NOT NULL,
   group_post_id uuid,
   activity_id uuid,
-  workout_session_id uuid
+  workout_session_id uuid,
+  live_status text DEFAULT 'none'::text NOT NULL,
+  scheduled_start_at timestamp with time zone,
+  live_started_at timestamp with time zone,
+  live_ended_at timestamp with time zone,
+  live_checked_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.waitlist (
@@ -10153,6 +10158,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_live_status_check' AND conrelid = 'public.videos'::regclass) THEN
+    ALTER TABLE public.videos ADD CONSTRAINT videos_live_status_check CHECK ((live_status = ANY (ARRAY['none'::text, 'upcoming'::text, 'live'::text, 'ended'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'videos_one_owner_check' AND conrelid = 'public.videos'::regclass) THEN
     ALTER TABLE public.videos ADD CONSTRAINT videos_one_owner_check CHECK ((num_nonnulls(profile_id, org_id) = 1));
   END IF;
@@ -12356,6 +12366,7 @@ CREATE INDEX IF NOT EXISTS videos_activity_id_idx ON public.videos USING btree (
 CREATE INDEX IF NOT EXISTS videos_contest_id_idx ON public.videos USING btree (contest_id);
 CREATE INDEX IF NOT EXISTS videos_created_by_user_id_idx ON public.videos USING btree (created_by_user_id);
 CREATE INDEX IF NOT EXISTS videos_group_post_id_idx ON public.videos USING btree (group_post_id);
+CREATE INDEX IF NOT EXISTS videos_live_idx ON public.videos USING btree (live_status, scheduled_start_at) WHERE (live_status = ANY (ARRAY['upcoming'::text, 'live'::text]));
 CREATE INDEX IF NOT EXISTS videos_org_id_idx ON public.videos USING btree (org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS videos_profile_id_idx ON public.videos USING btree (profile_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS videos_provider_owner_uidx ON public.videos USING btree (provider, provider_video_id, COALESCE(profile_id, org_id));
@@ -19406,6 +19417,9 @@ COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years af
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
 COMMENT ON TABLE public.video_highlights IS 'A playback cue on a linked video (296): start_ms, optional end_ms, a label, sport metadata in meta (hole, score, note). Ordered by start_ms. Never an access-controlled clip. Posture A.';
 COMMENT ON TABLE public.videos IS 'A linked long video (YouTube) owned by a profile XOR an org, optionally placed on ONE of: a sport event, a contest, a golf round (group_posts), an activity, a workout session (296, 297). The embed is rebuilt from provider_video_id. ONE writer: src/lib/videos/videos-server.ts. Posture A.';
+COMMENT ON COLUMN public.videos.live_status IS 'Phase 4a (299): none | upcoming | live | ended — what YouTube last said; read when someone looks (videos-live-server.ts), never by a cron.';
+COMMENT ON COLUMN public.videos.live_started_at IS 'Phase 4a (299): YouTube''s actualStartTime — the zero of a marker made during the stream.';
+COMMENT ON COLUMN public.videos.live_checked_at IS 'Phase 4a (299): the last read of the live state; the conditional-UPDATE lock that makes many viewers one read.';
 COMMENT ON COLUMN public.workout_exercises.client_id IS 'The STABLE exercise id (260): minted once by the editor and carried through every snapshot replace (id is re-minted per save). Unique per session.';
 COMMENT ON COLUMN public.workout_exercises.group_id IS 'A superset or circuit (260): the members share it, consecutive by position; kind and rounds are denormalized on every member.';
 COMMENT ON COLUMN public.workout_exercises.group_kind IS 'superset | circuit (260).';
@@ -19901,7 +19915,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (295, '295_golf_course_picks_revoke.sql', 'rebuild-000'),
   (296, '296_videos.sql', 'rebuild-000'),
   (297, '297_video_places.sql', 'rebuild-000'),
-  (298, '298_youtube_connections.sql', 'rebuild-000')
+  (298, '298_youtube_connections.sql', 'rebuild-000'),
+  (299, '299_video_live.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19910,12 +19925,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 142 | 135 | 145 | 298
+-- Expected: 000 REBUILT | 142 | 135 | 145 | 299
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_298;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_299;
 
