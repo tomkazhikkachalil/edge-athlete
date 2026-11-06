@@ -173,6 +173,41 @@ describe('runMediaJobsTick', () => {
   });
 });
 
+describe('the tick runs the light jobs beside the video (SCALE_AUDIT hole 11, Nov 6 2026)', () => {
+  it('a video and three light jobs are all claimed and all run, and at least two are in flight at once', async () => {
+    const jobs = [
+      job({ id: 'v1', kind: 'video', target_id: 'm1' }),
+      job({ id: 'p1', kind: 'poster', target_id: 'm2' }),
+      job({ id: 'p2', kind: 'poster', target_id: 'm3' }),
+      job({ id: 'p3', kind: 'poster', target_id: 'm4' }),
+    ];
+    const targets = {
+      m1: target({ id: 'm1' }),
+      m2: target({ id: 'm2', codec: 'avc', media_url: 'https://x.supabase.co/storage/v1/object/public/uploads/posts/u1/b.mp4' }),
+      m3: target({ id: 'm3', codec: 'avc', media_url: 'https://x.supabase.co/storage/v1/object/public/uploads/posts/u1/c.mp4' }),
+      m4: target({ id: 'm4', codec: 'avc', media_url: 'https://x.supabase.co/storage/v1/object/public/uploads/posts/u1/d.mp4' }),
+    };
+    const { admin } = fakeAdmin({ jobs, targets });
+    let inFlight = 0;
+    let peak = 0;
+    const d = deps({
+      exec: vi.fn(async (args: string[]) => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise(r => setTimeout(r, 15));
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(args[args.length - 1], new Uint8Array([9, 9, 9]));
+        inFlight--;
+      }),
+    });
+    const s = await runMediaJobsTick(admin, d);
+    expect(s.claimed).toBe(4);
+    expect(s.outcomes.length).toBe(4);
+    expect(s.outcomes.map(o => o.outcome)).toEqual(['done', 'done', 'done', 'done']);
+    expect(peak).toBeGreaterThanOrEqual(2); // the light jobs did not wait for the video
+  });
+});
+
 describe('enqueueMediaJobs', () => {
   it('plans one job per row that needs one, skips a target with an open job, inserts the rest, and never throws', async () => {
     const { admin, calls } = fakeAdmin({ jobs: [], targets: {} });

@@ -86,10 +86,13 @@ export function isMediaCodec(v: unknown): v is MediaCodec {
 export function mediaJobsEnabled(): boolean {
   return process.env.MEDIA_JOBS !== '0';
 }
-/** How many jobs may hold a lease at once (Hobby = one vCPU: effectively one transcode per tick). */
+/** How many jobs may hold a lease at once — one video plus the light jobs
+ *  that now run beside it (Nov 6 2026; was 2, which left no slot for a
+ *  poster while a transcode ran). `MEDIA_JOBS_MAX_RUNNING` overrides. */
+export const DEFAULT_MAX_RUNNING = 3;
 export function maxRunning(): number {
   const n = Number(process.env.MEDIA_JOBS_MAX_RUNNING);
-  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 2;
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_MAX_RUNNING;
 }
 
 /** The codecs a browser outside Safari cannot be trusted to decode. */

@@ -158,7 +158,8 @@ describe('hidden means hidden — and one result is one thing', () => {
     expect(code('src/app/api/golf/stats/route.ts')).toMatch(/viewer\.id === profileId \? scopedRounds : scopedRounds\.filter\(r => !r\.profile_hidden_at\)/);
   });
   it('only the owner is told which of their own tiles are hidden', () => {
-    expect(code('src/app/api/profile/[profileId]/media/route.ts')).toMatch(/if \(viewerId === profileId && items\.length > 0\)/);
+    // Since Nov 6 2026 (PR 3, the one posts read) the owner's hidden ids come from the page's links read — still gated on the viewer being the owner.
+    expect(code('src/app/api/profile/[profileId]/media/route.ts')).toContain("const hiddenIds = new Set(viewerId === profileId ? links.filter(l => l.status === 'profile_hidden').map(l => l.id) : []);");
   });
 
   const round = (id: string, group: string | null) => ({ id, date: '2026-10-01', course: 'Pine Hills', gross_score: 84, profile_hidden_at: '2026-10-02T00:00:00Z', group_post_id: group });
