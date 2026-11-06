@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const listed = await listLiveVideos(admin, viewerId);
     const videos = (await refreshLiveViews(admin, listed)) ? await listLiveVideos(admin, viewerId) : listed;
-    return NextResponse.json({ videos }, { headers: { 'Cache-Control': 'private, max-age=10' } });
+    // `?count=1` answers the number only — the pulse's parity spec compares it with me_pulse's live_broadcasts (300).
+    const countOnly = request.nextUrl.searchParams.get('count') === '1';
+    return NextResponse.json(countOnly ? { count: videos.length } : { videos }, { headers: { 'Cache-Control': 'private, max-age=10' } });
   } catch (error) {
     reportRouteError('[api/videos/live-now] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

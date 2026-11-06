@@ -48,6 +48,39 @@ describe('migration 292: me_pulse mirrors the routes\' rules', () => {
   });
 });
 
+describe('migration 300: me_pulse counts live broadcasts under the owner\'s rule (the Videos program, Phase 4a)', () => {
+  const sql = read('database/migrations/300_me_pulse_broadcasts.sql');
+  it('keeps 292\'s three predicates word for word', () => {
+    const prev = read('database/migrations/292_me_pulse.sql');
+    for (const frag of ["gp.type = 'golf_round'", "gp.status IN ('pending', 'active')", "gpp.status IS DISTINCT FROM 'declined'", "e.status = 'live'", "sp.status = 'accepted'", "r.sport_event_id = e.id AND r.status = 'live'", "'unread_messages', public.get_unread_message_count(p_viewer)"]) {
+      expect(prev).toContain(frag);
+      expect(sql).toContain(frag);
+    }
+  });
+  it('broadcasts: published, live, the owner\'s own rule — the owner, a public present profile or an accepted follow; a non-private org, its owner or an org-scoped member', () => {
+    expect(sql).toMatch(/v\.live_status = 'live'\s+AND v\.status = 'published'/);
+    expect(sql).toMatch(/v\.profile_id = p_viewer/);
+    expect(sql).toMatch(/pr\.id = v\.profile_id AND pr\.visibility = 'public' AND pr\.departed_at IS NULL/);
+    expect(sql).toMatch(/f\.follower_id = p_viewer AND f\.following_id = v\.profile_id AND f\.status = 'accepted'/);
+    expect(sql).toMatch(/o\.visibility <> 'private'\s+OR o\.owner_profile_id = p_viewer/);
+    expect(sql).toMatch(/m\.org_id = o\.id AND m\.profile_id = p_viewer AND m\.scope_type = 'org'/);
+  });
+  it('the pre-flight, STABLE invoker, service_role only, the ledger row and the four-key result', () => {
+    expect(sql).toContain("IF n < 299 THEN RAISE EXCEPTION '300 pre-flight: ledger head is %, expected 299', n; END IF;");
+    expect(sql).toMatch(/LANGUAGE sql STABLE SECURITY INVOKER\s+SET search_path = public/);
+    expect(sql).toMatch(/REVOKE EXECUTE ON FUNCTION public\.me_pulse\(uuid\) FROM PUBLIC, anon, authenticated;/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.me_pulse\(uuid\) TO service_role;/);
+    expect(sql).toMatch(/VALUES \(300, '300_me_pulse_broadcasts\.sql'\)/);
+    expect(sql).toContain("array['live_golf', 'live_events', 'live_broadcasts', 'unread_messages']");
+  });
+  it('the route adds broadcasts into the total and the live-now route answers ?count=1 for the parity spec', () => {
+    const route = read('src/app/api/me/pulse/route.ts');
+    expect(route).toContain('liveNow: { golf, events, broadcasts, total: golf + events + broadcasts }');
+    expect(read('src/app/api/videos/live-now/route.ts')).toContain("searchParams.get('count') === '1'");
+    expect(read('src/lib/pulse/pulse-rules.ts')).toContain('liveNow: { golf: number; events: number; broadcasts: number; total: number };');
+  });
+});
+
 describe('the pulse wiring', () => {
   const files = walk(path.join(ROOT, 'src')).map(f => path.relative(ROOT, f));
   it('only the store fetches /api/me/pulse', () => {
