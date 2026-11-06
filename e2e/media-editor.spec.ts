@@ -272,14 +272,24 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
       .or(page.getByText(/Couldn.t save preset/).first())
   ).toBeVisible({ timeout: 10_000 });
 
-  // Perspective (E3b): the keystone warp runs live on the engine stage —
-  // a vertical correction blacks out an edge, dropping the mean reading.
-  await page.getByRole('button', { name: 'Perspective', exact: true }).click();
-  await page.waitForTimeout(300);
+  // Perspective (E3b; inside Crop's geometry row since Nov 6 2026): choosing
+  // Vertical swaps the crop stage for the engine preview, and the keystone
+  // warp runs live there — a vertical correction blacks out an edge,
+  // dropping the mean reading. Reset appears once the warp is non-neutral.
+  // .first(): the history rail also has a 'Crop' row.
+  await page.getByRole('button', { name: 'Crop', exact: true }).first().click();
+  await expect(page.getByRole('slider', { name: 'Straighten angle' })).toBeVisible();
+  await page.getByRole('button', { name: 'Vertical', exact: true }).click();
+  await expect(previewCanvas).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(500);
   const preWarpLuma = await readLuma();
   await page.getByRole('slider', { name: 'Vertical', exact: true }).fill('60');
   await page.waitForTimeout(300);
   expect(await readLuma()).toBeLessThan(preWarpLuma);
+  await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();
+  // Straighten brings the crop stage back; the warp stays in the recipe.
+  await page.getByRole('button', { name: 'Straighten', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Straighten angle' })).toBeVisible();
 
   // Export settings (E-W2): pick PNG — the exported blob must actually be
   // PNG, proving the preference reaches the encoder. Escape closes the

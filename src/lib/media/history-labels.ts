@@ -35,6 +35,7 @@ const LABELS: Record<string, string> = {
   // Perspective
   'perspective.vertical': 'Perspective',
   'perspective.horizontal': 'Perspective',
+  'reset.perspective': 'Reset perspective',
   // Filters + one-taps
   filterId: 'Filter',
   filterStrength: 'Filter intensity',

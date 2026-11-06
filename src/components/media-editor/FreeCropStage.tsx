@@ -33,6 +33,7 @@ import {
 import { parseAspectRatio } from '@/lib/media/crop-math';
 import type { AspectRatioId, CropRect, EditorConfig, ImageRecipe } from '@/lib/media/types';
 import CropCanvas from './CropCanvas';
+import GeometryRow, { type GeometryAxis } from './GeometryRow';
 
 export const RATIO_LABELS: Record<AspectRatioId, string> = {
   free: 'Free',
@@ -52,6 +53,10 @@ interface FreeCropStageProps {
   onPatch: (patch: Partial<ImageRecipe>, keys?: string) => void;
   /** The picture has its first visible frame — the editor drops its "Opening photo…" overlay (Oct 22 2026). */
   onReady?: () => void;
+  /** The geometry row's chooser (Nov 6 2026): Vertical / Horizontal swap the
+   *  stage for the engine preview — the modal owns that. */
+  onAxisChange: (axis: GeometryAxis) => void;
+  offersPerspective: boolean;
 }
 
 export default function FreeCropStage({
@@ -61,6 +66,8 @@ export default function FreeCropStage({
   cssFilter,
   onPatch,
   onReady,
+  onAxisChange,
+  offersPerspective,
 }: FreeCropStageProps) {
   const [natural, setNatural] = useState<Size | null>(null);
   // The crop WE last derived from the whole picture (none, or the box that
@@ -227,22 +234,13 @@ export default function FreeCropStage({
         </button>
       </div>
 
-      <div className="flex items-center gap-3 px-4 pb-3 w-full max-w-xl mx-auto">
-        <span className="text-chip text-white/60 w-16">Straighten</span>
-        <input
-          type="range"
-          min={-45}
-          max={45}
-          step={0.5}
-          value={recipe.straighten}
-          onChange={e => straightenTo(Number(e.target.value))}
-          className="flex-1 accent-violet-500 min-h-[44px]"
-          aria-label="Straighten angle"
-        />
-        <span className="text-chip text-white/60 w-10 text-right tabular-nums">
-          {recipe.straighten.toFixed(1)}°
-        </span>
-      </div>
+      <GeometryRow
+        axis="straighten"
+        onAxisChange={onAxisChange}
+        offersPerspective={offersPerspective}
+        value={recipe.straighten}
+        onValueChange={straightenTo}
+      />
     </div>
   );
 }

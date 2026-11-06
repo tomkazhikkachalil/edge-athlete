@@ -6,7 +6,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | --- | --- |
 | `architecture.md` | environments, the gate's heap and lint rules, the route tree and the (public) iron rules, libraries, middleware, sport adapters, database patterns, privacy, common tasks |
 | `ui-conventions.md` | navigation (no dead ends), web + mobile parity, the browser floor, spacing / type / contrast, the interaction classes, the Create menu (Post · Sport · Event · Record Activity; one start path for workouts), the sport picker (search first, favourites per account — migration 285), light + dark on every phone (the `only` schemes vs Android forced dark); explanatory text behind an (i) — `SectionInfo`, one dismiss hook, always collapsed, h1 subtitles deleted (Oct 28 2026) |
-| `media.md` | Media: capture, upload, video |
+| `media.md` | Media: capture, upload, video, the photo editor's tools |
 | `browser-support.md` | every browser the same: the six Playwright projects (Brave Shields, Firefox), feature-detect never sniff, `check:blocklists`, the Sentry relay |
 | `orgs.md` | Organizations: staff, onboarding, pages, unification, authority, teams |
 | `site-builder.md` | Site Builder (public org sites) |
