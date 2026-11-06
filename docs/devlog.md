@@ -1,5 +1,15 @@
 # Development Log
 
+## November 6, 2026 — Improvements round, PR 3: the profile media grid in one pass (SCALE_AUDIT hole 10, zero DDL)
+
+Tom's third pick. `GET /api/profile/[id]/media` — every profile open, every viewer — made up to fourteen reads one after another: the attachments, a second `post_media` read just for the Photos / Videos filter, the tag profiles, the golf rounds, then `posts` THREE times for the same page ids (the shared-round link, the repost link, the owner's hidden rows), the scorecards, the originals, the follows. A plain page was six trips in a row (713 ms on Oct 26).
+
+- **Two `Promise.all` stages after the bucket RPC:** stage 2 — the attachments (the one `post_media` read; the Photos / Videos filter reads it, nothing extra), ONE `posts.select('id, group_post_id, shared_post_id, status')` for the page, the tag profiles, the golf rounds; stage 3 — the shared rounds' scorecards and the reposts' originals together; the follows read stays bounded by the originals' owners. Every rule unchanged (the URL forms, the per-viewer repost gate, the owner-only hidden flag — now read off the links row).
+- **`Cache-Control: private, no-store`** on the answer: the house rule for a viewer-dependent payload (the audit's `max-age=30` idea would have served a stale grid for half a minute after a post). Offset paging stays — the four 269 RPCs are SECURITY DEFINER, keyset is a migration for the day depth shows in a trace.
+- **Pinned:** `src/lib/__tests__/profile-media-trips.test.ts` (the two stages, the one posts read, the one post_media read, the bounded follows, the header); `results-hide.test.ts` follows the hidden flag to its new line. `docs/SCALE_AUDIT.md` row 10 marked done.
+
+**Proof:** `npm run verify` exit 0 — **5,846 tests in 633 files**, 286 chunks within the floor. **Measured** (`scripts/db-trace-inventory.mjs`, the built app on staging, `docs/load/2026-11-06/trips.md`): `GET /api/profile/{id}/media` **6 trips / 715 ms → 5 trips / 556 ms** (the two remaining page reads run together). e2e on staging: `profile-buckets` + `drafts` (+ `workout-drafts`) mobile **4/4**, `contest-media` + `round-lifecycle` desktop **2/2**, `tagged` + `profile-buckets` desktop **2/2**.
+
 ## November 6, 2026 — Improvements round, PR 1: the pulse's change signals — the database broadcasts, the tab fetches once (migration 301, the cost program PR C)
 
 Tom: *"What other fixes should we do to improve the app?"* — five picks from the docs' owed list and the code's own markers; this is the first. The pulse (PR B, Oct 29; migrations 292 + 300) had made the header's numbers ONE call, but every visible tab still polled it once a minute, the conversation list every two minutes and the Live Now strip three lists every minute on /feed — the user-scaling cost line, and a Live dot that lagged up to a minute. PR C was designed Oct 29 and never built. `docs/specs/pulse.md` rules 6–8 are the reference.
