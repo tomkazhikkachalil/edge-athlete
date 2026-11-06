@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
-import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
+import { searchPeople } from '@/lib/search/people-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/mentions/search?q= ───────────────────────────────────────────────
@@ -23,12 +23,11 @@ export async function GET(request: NextRequest) {
     if (!q) return NextResponse.json({ profiles: [] });
 
     // ONE-directional: people I follow. See the header — 'either' here would
-    // silently make anyone who follows me taggable by me.
-    const followed = await accessibleProfileIds(user.id, 'following');
-
+    // silently make anyone who follows me taggable by me. Computed in SQL
+    // (303) — the list never crosses the wire.
     const profiles = await searchPeople({
       query: q,
-      visibleIds: followed,
+      viewer: { id: user.id, direction: 'following' },
       includePublic: true,
       limit: LIMIT,
       requireHandle: true,

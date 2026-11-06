@@ -20,31 +20,26 @@ export async function GET(request: NextRequest) {
     const viewer = await requireAuth(request);
     const supabase = getSupabaseAdmin();
 
-    // Who the viewer follows (accepted) + themself
-    const { data: following } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', viewer.id)
-      .eq('status', 'accepted');
-    const watchIds = [...new Set([viewer.id, ...(following || []).map(f => f.following_id)])];
-
-    // Rounds any of them are playing in (recent participant rows only —
-    // live rounds are by definition recent)
+    // Whose rounds: the viewer's and their accepted followees' recent
+    // participant rows (live rounds are by definition recent) — ONE RPC
+    // (303) that joins the follows in SQL. It used to be a follows read
+    // with no limit whose ids went back out as an IN list: PostgREST cut
+    // the list at 1,000 silently, and the URL carried 37 KB of uuids.
     const { data: participantRows, error: participantsError } = await supabase
-      .from('group_post_participants')
-      .select('group_post_id, profile_id, status')
-      .in('profile_id', watchIds)
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .rpc('live_now_participants', { p_viewer: viewer.id, p_limit: 100 });
 
     if (participantsError) {
+      if ((participantsError as { code?: string }).code === 'PGRST202') {
+        // The deploy beat migration 303 — a nicety, never an error state.
+        return NextResponse.json({ error: 'Live Now updating' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+      }
       reportRouteError('live-now: participants fetch failed:', participantsError);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
     const followedRoundIds = [
       ...new Set(
-        (participantRows || [])
+        ((participantRows || []) as { group_post_id: string; profile_id: string; status: string }[])
           .filter(r => isActiveParticipant(r.status))
           .map(r => r.group_post_id)
       ),

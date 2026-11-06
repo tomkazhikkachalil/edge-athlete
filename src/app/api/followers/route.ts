@@ -140,7 +140,8 @@ export async function GET(request: NextRequest) {
         .select('id, message, created_at, follower_id')
         .eq('following_id', profileId)
         .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200); // bounded (303): the newest two hundred requests
 
       if (followError) {
         reportRouteError('[FOLLOWERS API] Error fetching follow requests:', followError);

@@ -42,6 +42,14 @@ export interface SearchPeopleParams {
    *  radius for "near". With any of these set, an EMPTY query is a filtered
    *  browse ("athletes in Ontario") rather than "no suggestions". */
   location?: LocationParams;
+  /**
+   * The viewer's OWN follows as the audience beyond the public set, computed
+   * in SQL (migration 303 `search_people_for`) — never read into a list
+   * here (PostgREST cut that list at 1,000). 'following' = accepted follows
+   * I made (the @mention rule); 'either' = either direction (the invite
+   * rule). When given, `visibleIds` is ignored.
+   */
+  viewer?: { id: string; direction: 'following' | 'either' };
 }
 
 /**
@@ -56,12 +64,32 @@ export async function searchPeople({
   requireHandle = false,
   excludeId = null,
   location = {},
+  viewer,
 }: SearchPeopleParams): Promise<PersonSuggestion[]> {
   const q = normalizeQuery(query);
   const filtered = hasLocationFilter(location);
   if (!q && !filtered) return [];
 
   const admin = getSupabaseAdmin();
+  if (viewer) {
+    const { data, error } = await admin.rpc('search_people_for', {
+      p_viewer: viewer.id,
+      p_direction: viewer.direction,
+      search_term: q,
+      include_public: includePublic,
+      max_results: limit,
+      require_handle: requireHandle,
+      exclude_id: excludeId,
+      ...rpcLocationArgs(location),
+    });
+    if (!error) return (data ?? []) as PersonSuggestion[];
+    const code = (error as { code?: string }).code;
+    if (code !== '42883' && code !== 'PGRST202') throw error;
+    // The deploy beat migration 303: the bounded id-list path, which is
+    // right up to 2,000 follows and shouts past it.
+    console.error('[search] search_people_for is missing — MIGRATION 303 HAS NOT BEEN RUN. Serving the id-list path.');
+    visibleIds = await accessibleProfileIds(viewer.id, viewer.direction);
+  }
   // requireHandle/excludeId go to the RPC rather than being filtered off the
   // result: applied after the LIMIT they would quietly return fewer rows than
   // the caller asked for. Location args are OMITTED when unset
@@ -166,12 +194,16 @@ export async function accessibleProfileIds(
 ): Promise<string[]> {
   const admin = getSupabaseAdmin();
 
+  // Bounded (303): the list is an argument to search_people and PostgREST
+  // cuts an unbounded read at 1,000 silently; the SQL path (search_people_for)
+  // is the one that never sends it.
   if (direction === 'following') {
     const { data } = await admin
       .from('follows')
       .select('following_id')
       .eq('follower_id', viewerId)
-      .eq('status', 'accepted');
+      .eq('status', 'accepted')
+      .limit(2000);
     return (data ?? [])
       .map(f => f.following_id as string)
       .filter(id => id !== viewerId);
@@ -181,7 +213,8 @@ export async function accessibleProfileIds(
     .from('follows')
     .select('follower_id, following_id')
     .eq('status', 'accepted')
-    .or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`);  // hardening-ok: session UUID
+    .or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`)  // hardening-ok: session UUID
+    .limit(2000);
 
   const related = new Set<string>();
   for (const f of data ?? []) {

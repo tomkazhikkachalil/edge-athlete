@@ -51,10 +51,14 @@ export async function GET(request: NextRequest) {
 
       // Fallback: Get profiles that user doesn't follow
       // First get who the user already follows
+      // Bounded (303): an unbounded read is cut at 1,000 by PostgREST and
+      // would re-suggest people already followed.
       const { data: following } = await supabase
         .from('follows')
         .select('following_id')
-        .eq('follower_id', profileId);
+        .eq('follower_id', profileId)
+        .eq('status', 'accepted')
+        .limit(1000);
 
       const followingIds = following?.map(f => f.following_id) || [];
       followingIds.push(profileId); // Exclude self
