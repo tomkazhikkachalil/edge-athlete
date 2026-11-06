@@ -85,8 +85,13 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     return subscribePulse(s => setTotalUnreadCount(s.unreadMessages));
   }, [user]);
 
+  // When page one was last refreshed — the count-moved path below skips a
+  // refresh the bell just made (a message from someone else is one bell AND
+  // one pulse signal; the list goes once).
+  const lastListFetchRef = useRef(0);
   const fetchConversations = useCallback(async (signal?: AbortSignal) => {
     if (!user) return;
+    lastListFetchRef.current = Date.now();
     try {
       const res = await fetch('/api/messages?limit=30', { signal });
       if (res.status === 401) return;
@@ -178,6 +183,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       const moved = s.unreadMessages !== last.unread;
       lastFetchedUnreadRef.current = { at: s.fetchedAt, unread: s.unreadMessages };
       if (!moved) return;
+      if (Date.now() - lastListFetchRef.current < 6_000) return; // the bell already refreshed the list
       if (signalTimerRef.current) clearTimeout(signalTimerRef.current);
       signalTimerRef.current = setTimeout(() => {
         signalTimerRef.current = null;
@@ -236,9 +242,13 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       if (!shouldPoll()) return;
       const c = new AbortController();
       fetchConversations(c.signal);
-      refreshUnreadCount();
+      // The COUNT is not fetched here any more (Nov 6 2026, PR C's follow-up):
+      // the same message reaches the tab as a pulse signal on the private
+      // topic, and that one fetch carries the number. Fetching it here too
+      // made every message from someone else two pulse calls on production
+      // (the prod probe caught it: the two no longer coincided).
     }, 1_500);
-  }, [notifications, user, fetchConversations, refreshUnreadCount]);
+  }, [notifications, user, fetchConversations]);
 
   // The debounce never outlives the provider.
   useEffect(() => () => {

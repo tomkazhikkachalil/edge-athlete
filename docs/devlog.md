@@ -1,5 +1,11 @@
 # Development Log
 
+## November 6, 2026 — Pulse signals follow-up: a message from someone else is ONE pulse fetch, not two (zero DDL)
+
+The production probe of PR 1 (#1420, the change signals) caught it on its first attempt: *"a message: still one fetch after the burst — expected 4, received 5"*. A message from someone else reaches a tab twice — as the `new_message` bell on the notifications channel (scale fix 3) AND as the pulse signal on the private topic (301). The bell's handler still called `refreshUnreadCount()` → `fetchPulse()` beside the signal's own fetch; on staging the two coincided inside the in-flight coalescing window and the spec never saw it, on production's latency they did not. **The bell now refreshes the LIST only; the pulse signal carries the count.** And the count-moved path (the provider's "a fetched pulse whose number moved refreshes page one") skips a refresh made within the last 6 s — so a message is one bell → one list fetch, one signal → one pulse fetch. Pinned in `me-pulse.test.ts` (the bell slice holds no `refreshUnreadCount()`; the 6 s skip) and `realtime-subscriptions.test.ts` (the effect's deps).
+
+**Proof:** `npm run verify` exit 0; staging `pulse.spec` mobile (the one-fetch case) and `chat-dock` · `direct-message` desktop; the prod probe `pulse.spec` mobile after the merge.
+
 ## November 6, 2026 — Improvements round, PR 1: the pulse's change signals — the database broadcasts, the tab fetches once (migration 301, the cost program PR C)
 
 Tom: *"What other fixes should we do to improve the app?"* — five picks from the docs' owed list and the code's own markers; this is the first. The pulse (PR B, Oct 29; migrations 292 + 300) had made the header's numbers ONE call, but every visible tab still polled it once a minute, the conversation list every two minutes and the Live Now strip three lists every minute on /feed — the user-scaling cost line, and a Live dot that lagged up to a minute. PR C was designed Oct 29 and never built. `docs/specs/pulse.md` rules 6–8 are the reference.
