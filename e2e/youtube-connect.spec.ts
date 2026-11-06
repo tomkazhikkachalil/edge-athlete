@@ -68,9 +68,10 @@ test('a profile connects its channel, links an upload in one tap, allows uploads
     expect(res.status(), await readErrorBody(res)).toBe(201);
     const linked = (await res.json()).video as { id: string; duration_ms: number | null };
     videoIds.push(linked.id);
-    expect(linked.duration_ms).toBeNull();
+    // Phase 4a: the first read on the link (the connection's token) already fills the duration.
+    expect(linked.duration_ms).toBe((2 * 3600 + 15 * 60 + 3) * 1000);
 
-    // 3. The details refresh through the connection fills the duration.
+    // 3. The details refresh through the connection answers the same duration.
     res = await api.post(`/api/videos/${linked.id}/refresh`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect((await res.json()).duration_ms).toBe((2 * 3600 + 15 * 60 + 3) * 1000);

@@ -3,6 +3,7 @@
  */
 import type { OrgKind } from '@/lib/orgs/org-ref';
 import type { HighlightMeta, VideoStatus } from './rules';
+import type { LiveStatus } from './live-rules';
 
 export interface VideoRow {
   id: string;
@@ -22,6 +23,12 @@ export interface VideoRow {
   sport_key: string | null;
   duration_ms: number | null;
   status: VideoStatus;
+  /** Phase 4a (299): what YouTube last said about a broadcast; a plain video is `none`. */
+  live_status: LiveStatus;
+  scheduled_start_at: string | null;
+  live_started_at: string | null;
+  live_ended_at: string | null;
+  live_checked_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +68,11 @@ export interface VideoView {
   status: VideoStatus;
   created_at: string;
   updated_at: string;
+  /** Phase 4a: the live state from the row — a card never asks YouTube itself. */
+  live_status: LiveStatus;
+  scheduled_start_at: string | null;
+  live_started_at: string | null;
+  live_ended_at: string | null;
   owner: VideoOwnerView;
   place: VideoPlaceView;
   highlight_count: number;

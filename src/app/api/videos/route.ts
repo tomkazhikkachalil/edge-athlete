@@ -22,6 +22,7 @@ import {
   workoutAccess,
   type VideoFilter,
 } from '@/lib/videos/videos-server';
+import { refreshLiveState, refreshLiveViews } from '@/lib/videos/videos-live-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -92,7 +93,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'A context is required: profileId, side + orgId, sportEventId, contestId, groupPostId, activityId or workoutSessionId' }, { status: 400, headers: PRIVATE });
     }
 
-    const videos = await listVideos(admin, filter);
+    const listed = await listVideos(admin, filter);
+    // Phase 4a: a broadcast's state is read when someone looks, never by a clock; a change re-lists.
+    const videos = (await refreshLiveViews(admin, listed)) ? await listVideos(admin, filter) : listed;
     return NextResponse.json({ videos, can_add: filter.canManage }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos] GET error:', error);
@@ -145,6 +148,8 @@ export async function POST(request: NextRequest) {
 
     const created = await createVideo(admin, { input, owner, userId: user.id });
     if (!created.ok) return NextResponse.json({ error: created.error, ...(created.existing_id ? { existing_id: created.existing_id } : {}) }, { status: created.status });
+    // Phase 4a: the first read — upcoming, live, an archive, or a plain video (its duration).
+    await refreshLiveState(admin, created.value, { force: true });
     const { data } = await admin.from('videos').select(VIEW_COLUMNS).eq('id', created.value.id).single();
     const video = data ? projectVideo(data as never, true) : projectVideo(created.value as never, true);
     return NextResponse.json({ video }, { status: 201, headers: PRIVATE });

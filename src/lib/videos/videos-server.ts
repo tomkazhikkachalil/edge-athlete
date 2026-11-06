@@ -48,7 +48,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 const TAG = '[videos]';
 
 export const VIDEO_COLUMNS =
-  'id, provider, provider_video_id, profile_id, org_id, sport_event_id, contest_id, group_post_id, activity_id, workout_session_id, created_by_user_id, title, description, sport_key, duration_ms, status, created_at, updated_at';
+  'id, provider, provider_video_id, profile_id, org_id, sport_event_id, contest_id, group_post_id, activity_id, workout_session_id, created_by_user_id, title, description, sport_key, duration_ms, status, live_status, scheduled_start_at, live_started_at, live_ended_at, live_checked_at, created_at, updated_at';
 /** The read shape: the row, the marker count, the owner and the place by name. Two FKs reach profiles, so the owner embed names its constraint. */
 export const VIEW_COLUMNS = `${VIDEO_COLUMNS}, highlights:video_highlights(count), profile:profiles!videos_profile_id_fkey(id, full_name, display_name, handle, avatar_url), org:organizations(id, name, kind), sport_event:sport_events(id, name), contest:contests(id, round, competition:competitions(id, name)), group_post:group_posts(id, title, date, golf_data:golf_scorecard_data(course_name)), activity:activities(id, name), workout_session:workout_sessions(id, title)`;
 export const HIGHLIGHT_COLUMNS = 'id, video_id, start_ms, end_ms, label, meta, created_by_user_id, created_at, updated_at';
@@ -107,6 +107,10 @@ export function projectVideo(raw: ReadRow, canManage: boolean): VideoView {
     status: raw.status,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
+    live_status: raw.live_status ?? 'none',
+    scheduled_start_at: raw.scheduled_start_at ?? null,
+    live_started_at: raw.live_started_at ?? null,
+    live_ended_at: raw.live_ended_at ?? null,
     owner,
     place,
     highlight_count: counts?.count ?? 0,

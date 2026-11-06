@@ -92,6 +92,8 @@ export interface HighlightMeta {
   hole?: number;
   score?: number;
   note?: string;
+  /** Phase 4a: made DURING the broadcast — the server set start_ms from its own clock and YouTube's actual start. Only ever true. */
+  live?: true;
 }
 
 export interface HighlightInput {
@@ -133,6 +135,9 @@ export function parseHighlightMeta(raw: unknown): Parsed<HighlightMeta> {
       const t = v.trim();
       if (t.length > HIGHLIGHT_NOTE_MAX) return { ok: false, error: `note must be at most ${HIGHLIGHT_NOTE_MAX} characters` };
       if (t) out.note = t;
+    } else if (key === 'live') {
+      if (v !== true && v !== false) return { ok: false, error: 'live must be true or false' };
+      if (v) out.live = true;
     } else {
       return { ok: false, error: `Unknown meta field: ${key}` };
     }

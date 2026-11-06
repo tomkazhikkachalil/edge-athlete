@@ -3,6 +3,7 @@ import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseVideoPatch, placeOf } from '@/lib/videos/rules';
 import { deleteVideo, placeRight, readVideoForViewer, updateVideo } from '@/lib/videos/videos-server';
+import { refreshLiveViews } from '@/lib/videos/videos-live-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -22,8 +23,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!UUID_RE.test(id)) return NOT_FOUND();
   try {
     const { user } = await getServerAuth(request);
-    const read = await readVideoForViewer(getSupabaseAdmin(), id, user ?? null);
+    const admin = getSupabaseAdmin();
+    let read = await readVideoForViewer(admin, id, user ?? null);
     if (!read) return NOT_FOUND();
+    // Phase 4a: a broadcast's state is read when someone looks; a change re-reads the one projection.
+    if (await refreshLiveViews(admin, [read.view])) read = (await readVideoForViewer(admin, id, user ?? null)) ?? read;
     return NextResponse.json({ video: read.view, highlights: read.highlights, can_manage: read.canManage }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/id] GET error:', error);
