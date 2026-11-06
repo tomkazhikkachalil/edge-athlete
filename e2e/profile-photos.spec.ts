@@ -53,7 +53,8 @@ test('photos: no upload buttons on the profile; both through Edit Profile, tap â
     expect((await admin.from('profiles').select('avatar_url').eq('id', u.id).single()).data?.avatar_url ?? null).toBeNull();
     await door.locator('input[aria-label="Choose a profile photo"]').setInputFiles(PHOTO);
     await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 30_000 });
-    for (const tool of ['Crop', 'Adjust', 'Filters', 'Masks', 'Retouch', 'Text', 'Perspective']) {
+    // Six tools (Nov 6 2026); Perspective is Crop's Vertical / Horizontal chooser.
+    for (const tool of ['Crop', 'Adjust', 'Filters', 'Text', 'Retouch', 'Masks', 'Vertical', 'Horizontal']) {
       await expect(page.getByRole('button', { name: tool, exact: true }), `${tool} is offered`).toBeVisible();
     }
     await page.getByRole('button', { name: 'Filters', exact: true }).click();

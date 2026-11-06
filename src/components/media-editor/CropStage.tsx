@@ -7,6 +7,7 @@ import { FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react';
 import { isFullFrameCrop, parseAspectRatio, scaleRect, totalRotation } from '@/lib/media/crop-math';
 import { MAX_CANVAS_DIM } from '@/lib/media/limits';
 import type { AspectRatioId, CropRect, EditorConfig, ImageRecipe } from '@/lib/media/types';
+import GeometryRow, { type GeometryAxis } from './GeometryRow';
 
 const RATIO_LABELS: Record<AspectRatioId, string> = {
   free: 'Original',
@@ -26,6 +27,9 @@ interface CropStageProps {
   onPatch: (patch: Partial<ImageRecipe>) => void;
   /** The picture has its first visible frame — the editor drops its "Opening photo…" overlay (Oct 22 2026). */
   onReady?: () => void;
+  /** The geometry row's chooser (Nov 6 2026) — see FreeCropStage. */
+  onAxisChange: (axis: GeometryAxis) => void;
+  offersPerspective: boolean;
 }
 
 /**
@@ -39,7 +43,7 @@ interface CropStageProps {
  * (The ratio chips and the 'free' = "Original" branch below are unreachable
  * from those surfaces; they stay so the component is still whole on its own.)
  */
-export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch, onReady }: CropStageProps) {
+export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch, onReady, onAxisChange, offersPerspective }: CropStageProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
@@ -229,25 +233,16 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
         </button>
       </div>
 
-      <div className="flex items-center gap-3 px-4 pb-3 w-full max-w-xl mx-auto">
-        <span className="text-chip text-white/60 w-16">Straighten</span>
-        <input
-          type="range"
-          min={-45}
-          max={45}
-          step={0.5}
-          value={recipe.straighten}
-          onChange={e => {
-            interactedRef.current = true;
-            onPatch({ straighten: Number(e.target.value) });
-          }}
-          className="flex-1 accent-violet-500 min-h-[44px]"
-          aria-label="Straighten angle"
-        />
-        <span className="text-chip text-white/60 w-10 text-right tabular-nums">
-          {recipe.straighten.toFixed(1)}°
-        </span>
-      </div>
+      <GeometryRow
+        axis="straighten"
+        onAxisChange={onAxisChange}
+        offersPerspective={offersPerspective}
+        value={recipe.straighten}
+        onValueChange={degrees => {
+          interactedRef.current = true;
+          onPatch({ straighten: degrees });
+        }}
+      />
     </div>
   );
 }

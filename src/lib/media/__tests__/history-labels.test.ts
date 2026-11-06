@@ -22,6 +22,8 @@ describe('labelForKeys', () => {
     expect(labelForKeys('filterStrength')).toBe('Filter intensity');
     expect(labelForKeys('auto')).toBe('Auto enhance');
     expect(labelForKeys('reset.light')).toBe('Reset light');
+    expect(labelForKeys('perspective.vertical')).toBe('Perspective');
+    expect(labelForKeys('reset.perspective')).toBe('Reset perspective');
     expect(labelForKeys('clips')).toBe('Clips');
   });
 

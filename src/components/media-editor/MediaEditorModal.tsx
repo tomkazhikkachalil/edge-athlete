@@ -12,7 +12,23 @@
  */
 
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { X, Undo2, Redo2, Eye, History, Settings2 } from 'lucide-react';
+import {
+  X,
+  Undo2,
+  Redo2,
+  Eye,
+  History,
+  Settings2,
+  Crop,
+  SlidersHorizontal,
+  Sparkles,
+  Type,
+  Bandage,
+  CircleDashed,
+  Scissors,
+  Image as ImageIcon,
+  type LucideIcon,
+} from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -33,6 +49,7 @@ import {
 } from '@/lib/media/engine/sample';
 import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
 import { MAX_MASKS, NEUTRAL_MASK_ADJUST } from '@/lib/media/engine/mask-math';
+import { isNeutralPerspective, NEUTRAL_PERSPECTIVE } from '@/lib/media/engine/perspective-math';
 import { getAiRunner, isAiAvailable } from '@/lib/media/ai';
 import { extractLook, isNeutralLook, lookToPatch, type Look } from '@/lib/media/look';
 import type { UserPreset } from './FilterStrip';
@@ -49,7 +66,7 @@ import FreeCropStage from './FreeCropStage';
 import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
 import HistoryRail from './HistoryRail';
-import PerspectivePanel from './PerspectivePanel';
+import GeometryRow, { type GeometryAxis } from './GeometryRow';
 import MaskPanel, { DEFAULT_BRUSH_SETTINGS, type BrushSettings } from './MaskPanel';
 import MaskOverlay from './MaskOverlay';
 import RetouchPanel from './RetouchPanel';
@@ -62,30 +79,24 @@ import VideoStage from './VideoStage';
 import VideoCropStage from './VideoCropStage';
 import { useEditorSession } from './useEditorSession';
 
-type Tool =
-  | 'crop'
-  | 'adjust'
-  | 'filter'
-  | 'masks'
-  | 'retouch'
-  | 'text'
-  | 'perspective'
-  | 'clips'
-  | 'poster';
+type Tool = 'crop' | 'adjust' | 'filter' | 'masks' | 'retouch' | 'text' | 'clips' | 'poster';
 
-const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
-  { id: 'crop', label: 'Crop' },
-  { id: 'adjust', label: 'Adjust' },
-  { id: 'filter', label: 'Filters' },
-  { id: 'masks', label: 'Masks' },
-  { id: 'retouch', label: 'Retouch' },
-  { id: 'text', label: 'Text' },
-  { id: 'perspective', label: 'Perspective' },
+// Six image tools, simple → advanced, every one on screen at 375 px (icon
+// over a label, equal widths — the seven text pills used to scroll and hid
+// the last tools). Perspective (Vertical / Horizontal) lives in Crop's
+// geometry row since Nov 6 2026, the way iOS Photos keeps it.
+const IMAGE_TOOLS: Array<{ id: Tool; label: string; icon: LucideIcon }> = [
+  { id: 'crop', label: 'Crop', icon: Crop },
+  { id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
+  { id: 'filter', label: 'Filters', icon: Sparkles },
+  { id: 'text', label: 'Text', icon: Type },
+  { id: 'retouch', label: 'Retouch', icon: Bandage },
+  { id: 'masks', label: 'Masks', icon: CircleDashed },
 ];
-const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
-  { id: 'clips', label: 'Clips' },
-  { id: 'crop', label: 'Crop' },
-  { id: 'poster', label: 'Cover' },
+const VIDEO_TOOLS: Array<{ id: Tool; label: string; icon: LucideIcon }> = [
+  { id: 'clips', label: 'Clips', icon: Scissors },
+  { id: 'crop', label: 'Crop', icon: Crop },
+  { id: 'poster', label: 'Cover', icon: ImageIcon },
 ];
 
 export interface MediaEditorModalProps {
@@ -135,6 +146,14 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // that it is happening). Each stage reports through onReady.
   const [readyFor, setReadyFor] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
+  // Crop's geometry row: Straighten shows the crop stage; Vertical /
+  // Horizontal (the keystone warp, applied to the FRAMED picture) show the
+  // engine preview. Back to Straighten whenever the tool or the photo changes.
+  const [geometryAxis, setGeometryAxis] = useState<GeometryAxis>('straighten');
+  const selectTool = (next: Tool) => {
+    setTool(next);
+    setGeometryAxis('straighten');
+  };
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
   // Hold-to-compare: while pressed, the stage renders the untouched source.
   const [comparing, setComparing] = useState(false);
@@ -157,6 +176,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // were crop-only until Oct 15 2026): the tab row, the keyboard cycle and
   // the active tool all read this list.
   const imageTools = useMemo(() => (config.tools ? IMAGE_TOOLS.filter(t => config.tools!.includes(t.id as ImageToolId)) : IMAGE_TOOLS), [config.tools]);
+  // 'perspective' in `tools` means Crop's row offers Vertical / Horizontal.
+  const offersPerspective = !config.tools || config.tools.includes('perspective');
   // Phase 4 (E-W2): export preferences. Lazy-init from localStorage is
   // safe HERE (unlike the RegistrationSteps hydration trap): the editor
   // mounts only after user interaction, never in server-rendered HTML.
@@ -282,7 +303,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         const currentTool = toolList.some(t => t.id === tool) ? tool : toolList[0].id;
         const index = toolList.findIndex(t => t.id === currentTool);
         const step = e.key === ']' ? 1 : -1;
-        setTool(toolList[(index + step + toolList.length) % toolList.length].id);
+        selectTool(toolList[(index + step + toolList.length) % toolList.length].id);
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -419,13 +440,6 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             engineAvailable={isEngineSupported()}
           />
         )}
-        {activeTool === 'perspective' && (
-          <PerspectivePanel
-            recipe={imageRecipe}
-            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
-            engineAvailable={isEngineSupported()}
-          />
-        )}
         {activeTool === 'text' && (
           <TextPanel
             recipe={imageRecipe}
@@ -482,29 +496,31 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       </>
     ) : null;
 
-  // Tool tabs (GIFs have no tools). Scrolls, not clips — and centering is
-  // done with FIRST/LAST auto margins, NOT justify-center: justify-center
-  // on an overflowing flex row overflows BOTH sides, and in the 320px
-  // desktop column the left tabs floated out over the crop stage, which
-  // swallowed their clicks (caught by e2e when the 7th tool landed). Auto
-  // margins center when content fits and degrade to a normal scroll row
-  // when it doesn't.
-  // One tool (a profile photo's crop): no tab row — the stage IS the editor.
+  // Tool tabs (GIFs have no tools): equal-width icon-over-label buttons,
+  // nothing scrolls. One tool (a crop-only surface): no tab row — the stage
+  // IS the editor.
   const toolTabs =
     activeUrl && !isGif && tools.length > 1 ? (
-      <div className="flex gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto">
-        {tools.map(t => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTool(t.id)}
-            className={`px-4 min-h-[44px] rounded-full text-label transition-colors shrink-0 whitespace-nowrap ${
-              activeTool === t.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex gap-1 px-3 py-1.5 flex-shrink-0">
+        {tools.map(t => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => selectTool(t.id)}
+              aria-pressed={activeTool === t.id}
+              className={`flex-1 min-w-0 min-h-[56px] flex flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
+                activeTool === t.id ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <Icon className="w-5 h-5" aria-hidden="true" />
+              <span className={`text-chip whitespace-nowrap ${activeTool === t.id ? 'font-semibold' : ''}`}>
+                {t.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     ) : null;
 
@@ -662,7 +678,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         )
       ) : !isGif && imageRecipe ? (
         <>
-          {activeTool === 'crop' ? (
+          {activeTool === 'crop' && geometryAxis === 'straighten' ? (
             // A surface that ENFORCES a ratio (avatar, cover, logo) keeps the
             // fixed frame the picture moves under; everywhere else the person
             // shapes the crop box by hand.
@@ -675,6 +691,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                 cssFilter={liveFilter}
                 onPatch={patch => patchRecipe(active.id, patch)}
                 onReady={() => setReadyFor(active.id)}
+                onAxisChange={setGeometryAxis}
+                offersPerspective={offersPerspective}
               />
             ) : (
               <FreeCropStage
@@ -685,9 +703,12 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                 cssFilter={liveFilter}
                 onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
                 onReady={() => setReadyFor(active.id)}
+                onAxisChange={setGeometryAxis}
+                offersPerspective={offersPerspective}
               />
             )
           ) : (
+            <>
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
               {/* WebGL preview of the FULL recipe (geometry + engine color);
                   falls back internally to <img> + CSS trio on no-WebGL.
@@ -790,6 +811,39 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                 <Eye className="w-5 h-5" />
               </button>
             </div>
+            {/* Crop's Vertical / Horizontal: the keystone warp over the
+                engine preview (it applies to the FRAMED picture — exposed
+                edges render black, honestly; crop afterwards). */}
+            {activeTool === 'crop' && (
+              <div className="flex-shrink-0">
+                <GeometryRow
+                  axis={geometryAxis}
+                  onAxisChange={setGeometryAxis}
+                  offersPerspective={offersPerspective}
+                  value={(imageRecipe.perspective ?? NEUTRAL_PERSPECTIVE)[geometryAxis === 'vertical' ? 'vertical' : 'horizontal']}
+                  onValueChange={value => {
+                    const current = imageRecipe.perspective ?? NEUTRAL_PERSPECTIVE;
+                    const axis = geometryAxis === 'vertical' ? 'vertical' : 'horizontal';
+                    patchRecipe(active.id, { perspective: { ...current, [axis]: value } }, `perspective.${axis}`);
+                  }}
+                />
+                <div className="flex items-center gap-3 px-4 pb-3 w-full max-w-xl mx-auto">
+                  <p className="text-chip text-white/40 flex-1">
+                    Straightens leaning lines. Exposed edges turn black — crop afterwards to taste.
+                  </p>
+                  {!isNeutralPerspective(imageRecipe.perspective) && (
+                    <button
+                      type="button"
+                      onClick={() => patchRecipe(active.id, { perspective: undefined }, 'reset.perspective')}
+                      className="px-3 min-h-[36px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white shrink-0"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            </>
           )}
         </>
       ) : (
@@ -892,7 +946,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           onSelect={id => {
             setActiveId(id);
             const next = assets.find(a => a.id === id);
-            setTool(next?.kind === 'video' ? 'clips' : 'crop');
+            selectTool(next?.kind === 'video' ? 'clips' : 'crop');
           }}
         />
       )}
