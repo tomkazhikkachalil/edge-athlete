@@ -1,9 +1,13 @@
 'use client';
 
 /**
- * Local-adjustment masks panel: mask list (add radial/linear up to 4,
- * select, delete), geometry sliders for the selected radial (size,
- * feather, invert), and the local Exposure / Saturation / Warmth sliders.
+ * Masks: edit PART of the photo. To the person a mask is a Circle, a
+ * Gradient, a painted area (Paint) or the AI-found Subject (Nov 6 2026,
+ * plain words — the recipe kinds stay radial / linear / brush / data).
+ *
+ * Layout rule shared with Retouch and Text: the item chips scroll in their
+ * own strip with Remove OUTSIDE it (always on screen), the add buttons on
+ * their own row, then the selected item's controls under a one-line hint.
  * Geometry dragging happens on the stage overlay; everything here goes
  * through onPatch with per-control history keys.
  */
@@ -32,11 +36,22 @@ export const DEFAULT_BRUSH_SETTINGS: BrushSettings = {
 };
 
 const MASK_KIND_LABELS: Record<Mask['kind'], string> = {
-  radial: 'Radial',
-  linear: 'Linear',
-  brush: 'Brush',
+  radial: 'Circle',
+  linear: 'Gradient',
+  brush: 'Paint',
   data: 'Subject',
 };
+
+const MASK_HINTS: Record<Mask['kind'], string> = {
+  radial: 'Drag the circle over the area to change.',
+  linear: 'Drag the two ends: full effect at the filled dot, fading to none at the hollow one.',
+  brush: 'Paint on the photo. Each stroke keeps its size and softness.',
+  data: '',
+};
+
+const CHIP = 'px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0';
+const CHIP_IDLE = `${CHIP} bg-white/10 text-white/70 hover:bg-white/20`;
+const CHIP_ON = `${CHIP} bg-white/20 text-white font-semibold`;
 
 interface MaskPanelProps {
   recipe: ImageRecipe;
@@ -67,6 +82,7 @@ export default function MaskPanel({
 }: MaskPanelProps) {
   const masks = recipe.masks ?? [];
   const selected: Mask | undefined = masks[selectedIndex];
+  const full = masks.length >= MAX_MASKS;
 
   const patchMasks = (next: Mask[], keys: string) =>
     onPatch({ masks: next.length > 0 ? next : undefined }, keys);
@@ -95,75 +111,73 @@ export default function MaskPanel({
           Live preview isn&apos;t available on this device — masks still apply on save.
         </p>
       )}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        {masks.map((mask, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onSelectIndex(i)}
-            className={`px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 ${
-              i === selectedIndex
-                ? 'bg-brand text-white font-semibold'
-                : 'bg-white/10 text-white/70 hover:bg-white/20'
-            }`}
-          >
-            {MASK_KIND_LABELS[mask.kind]} {i + 1}
+
+      {masks.length > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            {masks.map((mask, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onSelectIndex(i)}
+                aria-pressed={i === selectedIndex}
+                className={i === selectedIndex ? `${CHIP} bg-brand text-white font-semibold` : CHIP_IDLE}
+              >
+                {MASK_KIND_LABELS[mask.kind]} {i + 1}
+              </button>
+            ))}
+          </div>
+          {selected && (
+            <button
+              type="button"
+              onClick={() => {
+                patchMasks(masks.filter((_, i) => i !== selectedIndex), 'mask.delete');
+                onSelectIndex(Math.max(0, selectedIndex - 1));
+              }}
+              className={`${CHIP_IDLE} hover:text-white`}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      )}
+
+      {full ? (
+        <p className="text-chip text-white/50">Up to {MAX_MASKS} masks on a photo.</p>
+      ) : (
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <button type="button" onClick={() => addMask(defaultRadialMask())} className={CHIP_IDLE}>
+            + Circle
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => addMask(defaultRadialMask())}
-          disabled={masks.length >= MAX_MASKS}
-          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-        >
-          + Radial
-        </button>
-        <button
-          type="button"
-          onClick={() => addMask(defaultLinearMask())}
-          disabled={masks.length >= MAX_MASKS}
-          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-        >
-          + Linear
-        </button>
-        <button
-          type="button"
-          onClick={() => addMask(defaultBrushMask())}
-          disabled={masks.length >= MAX_MASKS}
-          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-        >
-          + Brush
-        </button>
-        {aiAvailable && (
-          <button
-            type="button"
-            onClick={onSelectSubject}
-            disabled={aiBusy || masks.length >= MAX_MASKS}
-            className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-          >
-            {aiBusy ? 'Finding subject…' : '✦ Select subject'}
+          <button type="button" onClick={() => addMask(defaultLinearMask())} className={CHIP_IDLE}>
+            + Gradient
           </button>
-        )}
-        {selected && (
-          <button
-            type="button"
-            onClick={() => {
-              patchMasks(masks.filter((_, i) => i !== selectedIndex), 'mask.delete');
-              onSelectIndex(Math.max(0, selectedIndex - 1));
-            }}
-            className="ml-auto px-3 min-h-[36px] rounded-full text-chip shrink-0 text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
-          >
-            Remove
+          <button type="button" onClick={() => addMask(defaultBrushMask())} className={CHIP_IDLE}>
+            + Paint
           </button>
-        )}
-      </div>
+          {aiAvailable && (
+            <button
+              type="button"
+              onClick={onSelectSubject}
+              disabled={aiBusy}
+              className={`${CHIP_IDLE} disabled:opacity-40`}
+            >
+              {aiBusy ? 'Finding subject…' : '✦ Subject'}
+            </button>
+          )}
+        </div>
+      )}
 
       {!selected ? (
         <p className="text-chip text-white/50">
-          Add a mask, then drag it into place on the photo and shape the light underneath it.
+          Edit part of the photo. Add a circle, a gradient or paint an area, then adjust what&apos;s
+          inside it.
         </p>
       ) : (
         <div className="space-y-1 max-h-[32vh] overflow-y-auto">
+          {MASK_HINTS[selected.kind] && (
+            <p className="text-chip text-white/50">{MASK_HINTS[selected.kind]}</p>
+          )}
           {selected.kind === 'radial' && (
             <>
               <EditorSlider
@@ -176,7 +190,7 @@ export default function MaskPanel({
                 }}
               />
               <EditorSlider
-                label="Feather"
+                label="Soft edge"
                 value={unsignedToUi(selected.feather)}
                 min={0}
                 onChange={ui =>
@@ -190,28 +204,22 @@ export default function MaskPanel({
                 <button
                   type="button"
                   aria-pressed={selected.invert}
+                  title="Change everything outside the circle instead"
                   onClick={() =>
                     patchSelected(
                       { ...selected, invert: !selected.invert },
                       `mask.${selectedIndex}.invert`
                     )
                   }
-                  className={`px-3 min-h-[36px] rounded-full text-chip ${
-                    selected.invert
-                      ? 'bg-white/20 text-white font-semibold'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
+                  className={selected.invert ? CHIP_ON : CHIP_IDLE}
                 >
-                  Invert
+                  Outside
                 </button>
               </div>
             </>
           )}
           {selected.kind === 'brush' && (
             <>
-              <p className="text-chip text-white/50">
-                Paint on the photo. Strokes keep the size and feather they were painted with.
-              </p>
               <EditorSlider
                 label="Brush size"
                 value={Math.round(((brushSettings.radius - 0.01) / 0.49) * 100)}
@@ -224,7 +232,7 @@ export default function MaskPanel({
                 }
               />
               <EditorSlider
-                label="Brush feather"
+                label="Brush soft edge"
                 value={unsignedToUi(brushSettings.feather)}
                 min={0}
                 onChange={ui =>
@@ -238,11 +246,7 @@ export default function MaskPanel({
                   onClick={() =>
                     onBrushSettingsChange({ ...brushSettings, erase: !brushSettings.erase })
                   }
-                  className={`px-3 min-h-[36px] rounded-full text-chip ${
-                    brushSettings.erase
-                      ? 'bg-white/20 text-white font-semibold'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
+                  className={brushSettings.erase ? CHIP_ON : CHIP_IDLE}
                 >
                   Erase
                 </button>
@@ -252,7 +256,7 @@ export default function MaskPanel({
           {selected.kind === 'data' && (
             <>
               <EditorSlider
-                label="Edge feather"
+                label="Edge soft edge"
                 value={unsignedToUi(selected.feather)}
                 min={0}
                 onChange={ui =>
@@ -272,17 +276,14 @@ export default function MaskPanel({
                       `mask.${selectedIndex}.invert`
                     )
                   }
-                  className={`px-3 min-h-[36px] rounded-full text-chip ${
-                    selected.invert
-                      ? 'bg-white/20 text-white font-semibold'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
+                  className={selected.invert ? CHIP_ON : CHIP_IDLE}
                 >
                   {selected.invert ? 'Background' : 'Subject'} — tap to flip
                 </button>
               </div>
             </>
           )}
+          <p className="pt-1 text-chip font-semibold uppercase tracking-wide text-white/50">Effect</p>
           <EditorSlider
             label="Exposure"
             value={signedToUi(selected.adjust.exposure)}

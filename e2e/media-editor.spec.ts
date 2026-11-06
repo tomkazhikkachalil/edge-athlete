@@ -119,11 +119,12 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // The point registered in the editor (2 endpoints + the new one).
   await expect(page.getByRole('button', { name: 'Curve point 3' })).toBeVisible();
 
-  // Local masks (Phase 2 E4c): add a radial, lift its exposure — the
+  // Local masks (Phase 2 E4c; plain words since Nov 6 2026 — a radial is a
+  // Circle, a brush is Paint): add a circle, lift its exposure — the
   // center-weighted mask must brighten the stage, and its outline renders.
   await page.getByRole('button', { name: 'Masks', exact: true }).click();
-  await page.getByRole('button', { name: '+ Radial', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Radial mask 1' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Circle', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Circle mask 1' })).toBeVisible();
   const preMaskLuma = await readLuma();
   await page.getByRole('slider', { name: 'Exposure' }).fill('80');
   await page.waitForTimeout(300);
@@ -144,7 +145,7 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // Brush masks (E4f): paint a stroke across the stage, lift its exposure
   // — the painted corridor must brighten the mean reading. Then remove it
   // so the rest of the flow sees stable state.
-  await page.getByRole('button', { name: '+ Brush', exact: true }).click();
+  await page.getByRole('button', { name: '+ Paint', exact: true }).click();
   const overlayBox = (await page.locator('[aria-label="Mask overlay"]').boundingBox())!;
   await page.mouse.move(overlayBox.x + overlayBox.width * 0.25, overlayBox.y + overlayBox.height * 0.5);
   await page.mouse.down();
