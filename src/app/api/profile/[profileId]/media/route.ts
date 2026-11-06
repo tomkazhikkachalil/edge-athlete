@@ -226,66 +226,72 @@ export async function GET(
     // (duplicate tiles + duplicate React keys under Photos/Videos filters).
     const rawCount = items.length;
 
-    // Client-side filtering for media type
-    if (mediaType !== 'all' && items.length > 0) {
-      // Fetch media details for filtering
+    // ── One pass over the page in three stages (SCALE_AUDIT hole 10, Nov 6
+    // 2026). This used to be up to fourteen reads one after another; the
+    // independent ones now run together, and the three reads of `posts` for
+    // the same ids (the shared-round link, the repost link, the owner's
+    // hidden rows) are ONE read. Trips for a plain page: 6 → 4.
+    if (items.length > 0) {
       const postIds = items.map((item: MediaItem) => item.id);
-      const { data: mediaDetails } = await supabase
-        .from('post_media')
-        .select('post_id, media_type')
-        .in('post_id', postIds);
+      const allTagIds = new Set<string>();
+      items.forEach((item: MediaItem) => item.tags?.forEach(tagId => allTagIds.add(tagId)));
+      const roundIds = items.filter((item: MediaItem) => item.round_id).map((item: MediaItem) => item.round_id as string);
 
-      if (mediaDetails) {
-        // Create a map of post_id -> has video/photo
+      // Stage 2: everything the page ids alone decide.
+      const [mediaRes, linksRes, profilesRes, roundsRes] = await Promise.all([
+        // Attachments (thumbnail_url = video poster frames — the grid renders
+        // videos as posters, never raw <video> elements). The same rows feed
+        // the Photos / Videos filter below — no separate read for it.
+        supabase
+          .from('post_media')
+          .select('id, post_id, media_url, media_type, display_order, thumbnail_url, blur_hash, codec, processing_at')
+          .in('post_id', postIds)
+          .order('display_order', { ascending: true }),
+        // The links the RPC rows do not carry (a SHARED round's group_post_id,
+        // a REPOST's shared_post_id) and the owner's hidden status, for the
+        // ids the RPC already visibility-vetted.
+        supabaseAdmin.from('posts').select('id, group_post_id, shared_post_id, status').in('id', postIds),
+        allTagIds.size > 0
+          ? supabase
+              .from('profiles')
+              .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+              .in('id', Array.from(allTagIds))
+          : Promise.resolve({ data: null, error: null }),
+        roundIds.length > 0
+          ? supabaseAdmin.from('golf_rounds').select('*').in('id', roundIds)
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      const media = (mediaRes.data ?? []) as MediaAttachment[];
+      if (linksRes.error) reportRouteError('[PROFILE MEDIA API] Error fetching post links:', linksRes.error);
+      if (roundsRes.error) reportRouteError('[PROFILE MEDIA API] Error fetching golf rounds:', roundsRes.error);
+      const links = (linksRes.data ?? []) as { id: string; group_post_id: string | null; shared_post_id: string | null; status: string | null }[];
+
+      // Client-side filtering for media type, from the attachments read.
+      if (mediaType !== 'all') {
         const postMediaMap = new Map<string, { hasVideo: boolean; hasPhoto: boolean }>();
-        mediaDetails.forEach((media: { post_id: string; media_type: string }) => {
-          if (!postMediaMap.has(media.post_id)) {
-            postMediaMap.set(media.post_id, { hasVideo: false, hasPhoto: false });
-          }
-          const entry = postMediaMap.get(media.post_id)!;
-          if (media.media_type === 'video') entry.hasVideo = true;
-          if (media.media_type === 'image') entry.hasPhoto = true;
+        media.forEach(m => {
+          if (!postMediaMap.has(m.post_id)) postMediaMap.set(m.post_id, { hasVideo: false, hasPhoto: false });
+          const entry = postMediaMap.get(m.post_id)!;
+          if (m.media_type === 'video') entry.hasVideo = true;
+          if (m.media_type === 'image') entry.hasPhoto = true;
         });
-
-        // Filter based on mediaType
         items = items.filter((item: MediaItem) => {
           const mediaInfo = postMediaMap.get(item.id);
           if (!mediaInfo && mediaType !== 'posts') return false; // Attachment-less (stats/round) posts only match 'posts' filter
-
-          if (mediaType === 'photos') {
-            return mediaInfo?.hasPhoto || false;
-          } else if (mediaType === 'videos') {
-            return mediaInfo?.hasVideo || false;
-          } else if (mediaType === 'posts') {
-            // Include all posts (with or without media)
-            return true;
-          }
-          return true;
+          if (mediaType === 'photos') return mediaInfo?.hasPhoto || false;
+          if (mediaType === 'videos') return mediaInfo?.hasVideo || false;
+          return true; // 'posts': with or without media
         });
       }
-    }
 
-    // Apply sorting
-    if (sort === 'most_engaged') {
-      items.sort((a: MediaItem, b: MediaItem) => {
-        const engagementA = (a.likes_count || 0) + (a.comments_count || 0) + (a.saves_count || 0);
-        const engagementB = (b.likes_count || 0) + (b.comments_count || 0) + (b.saves_count || 0);
-        return engagementB - engagementA;
-      });
-    }
-    // 'newest' is already sorted by created_at DESC in SQL
-
-    // Fetch media attachments and tagged profiles for each post
-    if (items.length > 0) {
-      const postIds = items.map((item: MediaItem) => item.id);
-
-      // Fetch media attachments (thumbnail_url = video poster frames — the
-      // grid renders videos as posters, never raw <video> elements)
-      const { data: media } = await supabase
-        .from('post_media')
-        .select('id, post_id, media_url, media_type, display_order, thumbnail_url, blur_hash, codec, processing_at')
-        .in('post_id', postIds)
-        .order('display_order', { ascending: true });
+      // Apply sorting ('newest' is already sorted by created_at DESC in SQL)
+      if (sort === 'most_engaged') {
+        items.sort((a: MediaItem, b: MediaItem) => {
+          const engagementA = (a.likes_count || 0) + (a.comments_count || 0) + (a.saves_count || 0);
+          const engagementB = (b.likes_count || 0) + (b.comments_count || 0) + (b.saves_count || 0);
+          return engagementB - engagementA;
+        });
+      }
 
       // Attach media to posts — proxy protected-bucket bytes (the viewer is
       // re-authorized at load; post_id is the governing entity).
@@ -300,223 +306,154 @@ export async function GET(
         if (v === 'public' && ownerPublic) return { visibility: 'public' as const };
         return {};
       };
-      if (media) {
-        media.forEach((m: MediaAttachment) => {
-          if (!mediaMap.has(m.post_id)) {
-            mediaMap.set(m.post_id, []);
-          }
-          const { processing_at, ...rest } = m;
-          mediaMap.get(m.post_id)!.push({
-            ...rest,
-            media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)) ?? m.media_url,
-            thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)),
-            // 261 / PR 8: whether the worker still owes the playable file — never the timestamp.
-            processing: !!processing_at,
-          });
+      media.forEach((m: MediaAttachment) => {
+        if (!mediaMap.has(m.post_id)) mediaMap.set(m.post_id, []);
+        const { processing_at, ...rest } = m;
+        mediaMap.get(m.post_id)!.push({
+          ...rest,
+          media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)) ?? m.media_url,
+          thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }, lifeOf(m.post_id)),
+          // 261 / PR 8: whether the worker still owes the playable file — never the timestamp.
+          processing: !!processing_at,
         });
-      }
+      });
 
-      // Fetch tagged profiles for posts that have tags
+      // Tagged profiles per post.
       const taggedProfilesMap = new Map<string, TaggedProfile[]>();
-
-      // Collect all unique profile IDs from tags
-      const allTagIds = new Set<string>();
+      const profileMap = new Map((profilesRes.data ?? []).map(p => [p.id, p]));
       items.forEach((item: MediaItem) => {
         if (item.tags && item.tags.length > 0) {
-          item.tags.forEach(tagId => allTagIds.add(tagId));
+          taggedProfilesMap.set(
+            item.id,
+            item.tags.map(tagId => profileMap.get(tagId)).filter((profile): profile is TaggedProfile => profile !== undefined)
+          );
         }
       });
 
-      // Fetch all tagged profiles in one query if there are any tags
-      if (allTagIds.size > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
-          .in('id', Array.from(allTagIds));
+      const golfRoundsMap = new Map<string, GolfRound>();
+      ((roundsRes.data ?? []) as GolfRound[]).forEach(round => golfRoundsMap.set(round.id, round));
 
-        // Create a map of profile ID -> profile data
-        const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      // Stage 3: what the links point at — the SHARED rounds' scorecards and
+      // the REPOSTS' originals, together.
+      const groupLinks = links.filter(l => l.group_post_id);
+      const repostLinks = links.filter(l => l.shared_post_id);
+      const groupPostIds = [...new Set(groupLinks.map(l => l.group_post_id as string))];
+      const originalIds = [...new Set(repostLinks.map(l => l.shared_post_id as string))];
+      const [groupRes, originalsRes] = await Promise.all([
+        groupPostIds.length > 0
+          ? supabaseAdmin
+              .from('group_posts')
+              .select(`
+                id,
+                date,
+                golf_data:golf_scorecard_data ( course_name, holes_played, game_format ),
+                participants:group_post_participants (
+                  id,
+                  profile_id,
+                  position,
+                  created_at,
+                  profile:profiles ( first_name, last_name, full_name, avatar_url ),
+                  scores:golf_participant_scores ( total_score, to_par )
+                )
+              `)
+              .in('id', groupPostIds)
+          : Promise.resolve({ data: null, error: null }),
+        originalIds.length > 0
+          ? supabaseAdmin
+              .from('posts')
+              .select(`
+                id, caption, visibility, status, created_at, profile_id,
+                profile:profile_id ( id, first_name, last_name, full_name, avatar_url, handle, visibility ),
+                media:post_media ( media_url, media_type )
+              `)
+              .in('id', originalIds)
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      if (groupRes.error) reportRouteError('[PROFILE MEDIA API] Error fetching shared rounds:', groupRes.error);
+      if (originalsRes.error) reportRouteError('[PROFILE MEDIA API] Error fetching repost originals:', originalsRes.error);
 
-        // Build tagged profiles map for each post
-        items.forEach((item: MediaItem) => {
-          if (item.tags && item.tags.length > 0) {
-            const taggedProfiles = item.tags
-              .map(tagId => profileMap.get(tagId))
-              .filter((profile): profile is TaggedProfile => profile !== undefined); // Remove any undefined profiles
-            taggedProfilesMap.set(item.id, taggedProfiles);
-          }
+      // SHARED rounds: the scorecard tile (the feed's scorecard contract).
+      const scorecardsByPostId = new Map<string, TileScorecard>();
+      const byGroupId = new Map<string, TileScorecard>();
+      for (const row of groupRes.data || []) {
+        // Supabase returns to-one embeds as arrays; normalise here so the
+        // shape matches the feed's scorecard contract exactly.
+        const golfData = Array.isArray(row.golf_data) ? row.golf_data[0] : row.golf_data;
+        byGroupId.set(row.id, {
+          group_post: { id: row.id, date: row.date ?? null },
+          golf_data: golfData ?? null,
+          // Canonical creation order — same comparator as the feed's
+          // scorecard transform, so tiles and cards agree.
+          participants: (row.participants || []).slice().sort(participantOrder).map((p: Record<string, unknown>) => {
+            const profile = Array.isArray(p.profile) ? p.profile[0] : p.profile;
+            const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
+            return {
+              participant: {
+                profile_id: (p.profile_id as string) ?? null,
+                profile: (profile as TileScorecard['participants'][number]['participant']['profile']) ?? null,
+              },
+              scores: (scores as TileScorecard['participants'][number]['scores']) ?? null,
+            };
+          }),
         });
       }
+      for (const link of groupLinks) {
+        const card = byGroupId.get(link.group_post_id as string);
+        if (card) scorecardsByPostId.set(link.id, card);
+      }
 
-      // Fetch golf round data for posts with round_id
-      const roundIds = items
-        .filter((item: MediaItem) => item.round_id)
-        .map((item: MediaItem) => item.round_id as string);
-
-      const golfRoundsMap = new Map<string, GolfRound>();
-
-      if (roundIds.length > 0) {
-        const { data: golfRounds, error: roundsError } = await supabaseAdmin
-          .from('golf_rounds')
-          .select('*')
-          .in('id', roundIds);
-
-        if (roundsError) {
-          reportRouteError('[PROFILE MEDIA API] Error fetching golf rounds:', roundsError);
-        } else {
+      // REPOSTS: hydrate + per-viewer-gate the quoted originals (the feed's
+      // read-time rule via canViewSharedPost). The one follows read is
+      // bounded by the originals' owners.
+      const repostLinkByPostId = new Map<string, string>();
+      for (const link of repostLinks) repostLinkByPostId.set(link.id, link.shared_post_id as string);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sharedPostByPostId = new Map<string, any>();
+      const originals = originalsRes.data || [];
+      if (originals.length > 0) {
+        const ownerIds = [...new Set(originals.map(o => o.profile_id as string))];
+        let viewerFollows = new Set<string>();
+        if (viewerId && ownerIds.length > 0) {
+          const { data: follows } = await supabaseAdmin
+            .from('follows')
+            .select('following_id')
+            .eq('follower_id', viewerId)
+            .in('following_id', ownerIds)
+            .eq('status', 'accepted');
+          viewerFollows = new Set((follows || []).map(f => f.following_id as string));
         }
-
-        if (golfRounds) {
-          golfRounds.forEach((round: GolfRound) => {
-            golfRoundsMap.set(round.id, round);
+        for (const orig of originals) {
+          const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
+          if (!owner?.id) continue;
+          if (orig.status && orig.status !== 'published' && orig.profile_id !== viewerId) continue;
+          const visible = canViewSharedPost({
+            postVisibility: orig.visibility as string,
+            ownerVisibility: owner.visibility as string,
+            isOwner: viewerId === owner.id,
+            isFollower: viewerFollows.has(owner.id as string),
+          });
+          if (!visible) continue;
+          sharedPostByPostId.set(orig.id as string, {
+            id: orig.id,
+            caption: orig.caption,
+            created_at: orig.created_at,
+            profile: {
+              id: owner.id,
+              first_name: owner.first_name,
+              last_name: owner.last_name,
+              full_name: owner.full_name,
+              avatar_url: owner.avatar_url,
+              handle: owner.handle,
+            },
+            media: orig.media || [],
           });
         }
       }
 
-      // SHARED rounds reach the grid through none of the above: they carry
-      // no stats_data and no round_id, and the RPC feeding this route does not
-      // return group_post_id — so a shared-round tile had literally nothing to
-      // draw but its caption. Reading the column for the ids the RPC already
-      // returned (and already visibility-vetted) gets there without new SQL.
-      const scorecardsByPostId = new Map<string, TileScorecard>();
-      const sharedLookupIds = items.map((item: MediaItem) => item.id);
-
-      if (sharedLookupIds.length > 0) {
-        const { data: groupLinks, error: linkError } = await supabaseAdmin
-          .from('posts')
-          .select('id, group_post_id')
-          .in('id', sharedLookupIds)
-          .not('group_post_id', 'is', null);
-
-        if (linkError) {
-          reportRouteError('[PROFILE MEDIA API] Error fetching group post links:', linkError);
-        } else if (groupLinks && groupLinks.length > 0) {
-          const groupPostIds = [...new Set(groupLinks.map(l => l.group_post_id as string))];
-          const { data: groupRows, error: groupError } = await supabaseAdmin
-            .from('group_posts')
-            .select(`
-              id,
-              date,
-              golf_data:golf_scorecard_data ( course_name, holes_played, game_format ),
-              participants:group_post_participants (
-                id,
-                profile_id,
-                position,
-                created_at,
-                profile:profiles ( first_name, last_name, full_name, avatar_url ),
-                scores:golf_participant_scores ( total_score, to_par )
-              )
-            `)
-            .in('id', groupPostIds);
-
-          if (groupError) {
-            reportRouteError('[PROFILE MEDIA API] Error fetching shared rounds:', groupError);
-          } else {
-            const byGroupId = new Map<string, TileScorecard>();
-            for (const row of groupRows || []) {
-              // Supabase returns to-one embeds as arrays; normalise here so the
-              // shape matches the feed's scorecard contract exactly.
-              const golfData = Array.isArray(row.golf_data) ? row.golf_data[0] : row.golf_data;
-              byGroupId.set(row.id, {
-                group_post: { id: row.id, date: row.date ?? null },
-                golf_data: golfData ?? null,
-                // Canonical creation order — same comparator as the feed's
-                // scorecard transform, so tiles and cards agree.
-                participants: (row.participants || []).slice().sort(participantOrder).map((p: Record<string, unknown>) => {
-                  const profile = Array.isArray(p.profile) ? p.profile[0] : p.profile;
-                  const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
-                  return {
-                    participant: {
-                      profile_id: (p.profile_id as string) ?? null,
-                      profile: (profile as TileScorecard['participants'][number]['participant']['profile']) ?? null,
-                    },
-                    scores: (scores as TileScorecard['participants'][number]['scores']) ?? null,
-                  };
-                }),
-              });
-            }
-            for (const link of groupLinks) {
-              const card = byGroupId.get(link.group_post_id as string);
-              if (card) scorecardsByPostId.set(link.id as string, card);
-            }
-          }
-        }
-      }
-
-      // REPOSTS reach the grid the same way shared rounds do: the RPC row
-      // doesn't carry shared_post_id, so re-read it for the ids the RPC
-      // already visibility-vetted, then hydrate + per-viewer-gate the quoted
-      // originals (the feed's read-time rule via canViewSharedPost).
-      const repostLinkByPostId = new Map<string, string>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sharedPostByPostId = new Map<string, any>();
-      {
-        const { data: repostLinks, error: repostLinkError } = await supabaseAdmin
-          .from('posts')
-          .select('id, shared_post_id')
-          .in('id', sharedLookupIds)
-          .not('shared_post_id', 'is', null);
-
-        if (repostLinkError) {
-          reportRouteError('[PROFILE MEDIA API] Error fetching repost links:', repostLinkError);
-        } else if (repostLinks && repostLinks.length > 0) {
-          for (const link of repostLinks) {
-            repostLinkByPostId.set(link.id as string, link.shared_post_id as string);
-          }
-          const originalIds = [...new Set(repostLinks.map(l => l.shared_post_id as string))];
-          const { data: originals, error: origError } = await supabaseAdmin
-            .from('posts')
-            .select(`
-              id, caption, visibility, status, created_at, profile_id,
-              profile:profile_id ( id, first_name, last_name, full_name, avatar_url, handle, visibility ),
-              media:post_media ( media_url, media_type )
-            `)
-            .in('id', originalIds);
-
-          if (origError) {
-            reportRouteError('[PROFILE MEDIA API] Error fetching repost originals:', origError);
-          } else if (originals && originals.length > 0) {
-            // One follows query for the viewer against all original owners.
-            const ownerIds = [...new Set(originals.map(o => o.profile_id as string))];
-            let viewerFollows = new Set<string>();
-            if (viewerId && ownerIds.length > 0) {
-              const { data: follows } = await supabaseAdmin
-                .from('follows')
-                .select('following_id')
-                .eq('follower_id', viewerId)
-                .in('following_id', ownerIds)
-                .eq('status', 'accepted');
-              viewerFollows = new Set((follows || []).map(f => f.following_id as string));
-            }
-            for (const orig of originals) {
-              const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
-              if (!owner?.id) continue;
-              if (orig.status && orig.status !== 'published' && orig.profile_id !== viewerId) continue;
-              const visible = canViewSharedPost({
-                postVisibility: orig.visibility as string,
-                ownerVisibility: owner.visibility as string,
-                isOwner: viewerId === owner.id,
-                isFollower: viewerFollows.has(owner.id as string),
-              });
-              if (!visible) continue;
-              sharedPostByPostId.set(orig.id as string, {
-                id: orig.id,
-                caption: orig.caption,
-                created_at: orig.created_at,
-                profile: {
-                  id: owner.id,
-                  first_name: owner.first_name,
-                  last_name: owner.last_name,
-                  full_name: owner.full_name,
-                  avatar_url: owner.avatar_url,
-                  handle: owner.handle,
-                },
-                media: orig.media || [],
-              });
-            }
-          }
-        }
-      }
+      // The owner's own grid keeps the results they hid from their profile
+      // (the RPCs' owner arm) — mark them, so the tile and the opened post can
+      // say so and offer "Show on profile". Nobody else is ever sent one.
+      const hiddenIds = new Set(viewerId === profileId ? links.filter(l => l.status === 'profile_hidden').map(l => l.id) : []);
 
       items = items.map((item: MediaItem) => ({
         ...item,
@@ -527,33 +464,20 @@ export async function GET(
         shared_post_id: repostLinkByPostId.get(item.id) || null,
         shared_post: repostLinkByPostId.has(item.id)
           ? sharedPostByPostId.get(repostLinkByPostId.get(item.id)!) ?? null
-          : null
+          : null,
+        ...(hiddenIds.has(item.id) ? { profile_hidden: true } : {}),
       }));
-    }
-
-    // The owner's own grid keeps the results they hid from their profile
-    // (the RPCs' owner arm) — mark them, so the tile and the opened post can
-    // say so and offer "Show on profile". Nobody else is ever sent one.
-    if (viewerId === profileId && items.length > 0) {
-      const { data: hiddenRows } = await supabaseAdmin
-        .from('posts')
-        .select('id')
-        .in('id', items.map((item: MediaItem) => item.id))
-        .eq('status', 'profile_hidden');
-      const hiddenIds = new Set(((hiddenRows ?? []) as { id: string }[]).map(r => r.id));
-      if (hiddenIds.size > 0) {
-        items = items.map((item: MediaItem) => (hiddenIds.has(item.id) ? { ...item, profile_hidden: true } : item));
-      }
     }
 
     // Calculate hasMore for pagination — from the raw (pre-filter) page size
     const hasMore = rawCount === limit;
 
-    return NextResponse.json({
-      items,
-      hasMore,
-      nextOffset: offset + rawCount
-    });
+    // A viewer-dependent payload (the owner's hidden rows, the per-viewer
+    // repost gate, the URL forms): private, never stored.
+    return NextResponse.json(
+      { items, hasMore, nextOffset: offset + rawCount },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
 
   } catch (error) {
     reportRouteError('Error in profile media API:', error);
