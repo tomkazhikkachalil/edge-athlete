@@ -34,7 +34,7 @@ describe('GET /api/comments: a page of threads', () => {
   });
   it('the sort and the viewer rule are unchanged', () => {
     expect(route).toMatch(/\.order\('is_pinned', \{ ascending: false, nullsFirst: false \}\)\s+\.order\('likes_count', \{ ascending: false \}\)\s+\.order\('created_at', \{ ascending: true \}\)/);
-    expect(route).toContain("out.or(`status.eq.published,profile_id.eq.${viewer.id}`)");
+    expect(route).toContain("out.or(`status.eq.published,profile_id.eq.${viewer.id}`)"); // hardening-ok: a pin of the route's text (the route's own site is annotated), not a query
     expect(route).toContain("out.eq('comment_likes.profile_id', viewer.id)");
   });
 });

@@ -1,5 +1,25 @@
 # Development Log
 
+## November 6, 2026 — Improvements round closed: all five picks on production, baseline at 303
+
+The round Tom chose after the photo editor pass ("what other fixes should we do?"): five picks, seven PRs, three migrations, every one merged and proven on production the same day. The closing pass of the maintenance checklist ran on the merged main (8e72b900).
+
+| Pick | PRs | Migration | Production proof |
+| --- | --- | --- | --- |
+| Instant Live Now + unread badge (the pulse's change signals) | #1420 + #1422 | 301 `pulse_broadcast` | `pulse` mobile 2/2 |
+| Calendar: a repeating event's schedule changes from one event on | #1421 | 302 `calendar_series_split` | `calendar-series-split` mobile 1/1, `calendar-timezone` desktop 4/4 |
+| Profile media grid in one pass (6 → 5 trips, 715 → 556 ms) | #1423 | — | `profile-buckets` mobile |
+| Media worker: light jobs beside a transcode; the queue's age on the panel | #1424 | — | `media-processing` mobile |
+| Comments page by thread; "Show more comments" | #1425 | — | `comments-paging` mobile 1/1 |
+| The viewer's follows never cross the wire | #1426 | 303 `live_now_participants` + `search_people_for` | `people-search-bounded` mobile 1/1, `pulse` mobile 2/2 |
+| The rebuild baseline from production at ledger 303 | #1427 | — | self-check OK (142 tables, 145 functions, 145 policies, 119 triggers) |
+
+**Closing gates on main:** `npm run verify` exit 0 (**5,868 tests in 635 files**); `npm audit --omit=dev` 0; `hardening-guardrails` ✓ (its one new advisory was the comments-paging test's PIN of the route's `.or()` text, annotated `hardening-ok` here — the route's own site already carried the annotation); `check:blocklists` ✓; `check:schema` and `check:schema:prod` OK, both ledgers at head 303; `/api/health` on the merge commit after every merge.
+
+**Two lessons for the record.** (1) Every PR of this round added its entry at the top of this file, so each one conflicted with the ones merged before it and had to have main merged in again (a conflicted PR gets NO CI run — it looks like an Actions outage). A round of several PRs should write ONE devlog entry at the end, or each PR's entry should land in the closing PR. (2) Squashing a branch stacked on another PR with `git reset --soft origin/main` stages REVERTS of every PR the branch never merged; the safe recipe is to restore main's tree (`git reset origin/main && git checkout origin/main -- .`) and apply only the branch's own diff (`git diff <base> <tip> -- <own files> | git apply -3`).
+
+**Owed by Tom, on a phone:** the editor's six tabs (Crop → Vertical, Masks → + Circle, Text) and the calendar's "Change schedule…" flow on a repeating event.
+
 ## November 6, 2026 — Improvements round, PR 4: the viewer's follows never cross the wire (SCALE_AUDIT hole 6's leftovers, migration 303)
 
 Tom's fourth pick. Three routes read a viewer's follows with no limit and shipped the id list back out as a filter: the Live Now strip (`group_post_participants … IN (viewer + followees)` — a GET URL of 37 KB at a thousand follows), the @mention and invite people searches (`search_people(visible_ids)`), the suggestions fallback. PostgREST's `max-rows` is 1,000: past it the list was cut silently — a followee's live round not shown, a private friend not found, someone already followed suggested again. The fix of record is 281's: the follows are joined INSIDE SQL, bounded, and only the answer comes back.
