@@ -5,7 +5,7 @@ import { X, CalendarPlus } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import { EVENT_CATEGORIES } from '@/lib/calendar/events';
-import { describeRecurrence, MAX_OCCURRENCES } from '@/lib/calendar/recurrence';
+import { describeRecurrence, MAX_OCCURRENCES, wallClockInZone } from '@/lib/calendar/recurrence';
 import { buildEventTimestamps, formPartsFromEvent } from '@/lib/calendar/form-times';
 import { listTimeZones, viewerTimeZone, zoneShortName } from '@/lib/calendar/venue-time';
 import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
@@ -69,6 +69,25 @@ interface RepeatState {
 }
 
 const DOW_CHIP_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+/** A series' stored rule as the form's repeat state (Nov 6 2026: the
+ *  schedule can be changed from an event on — the controls open on it). */
+function repeatFromSeries(series: NonNullable<EventDetail['series']>, timeZone: string): RepeatState {
+  let until = '';
+  if (series.ends === 'until' && series.until_at) {
+    // until_at is the EXCLUSIVE instant (the midnight after the chosen day).
+    const w = wallClockInZone(Date.parse(series.until_at) - 60_000, timeZone);
+    until = `${w.y}-${String(w.m).padStart(2, '0')}-${String(w.d).padStart(2, '0')}`;
+  }
+  return {
+    freq: series.freq,
+    interval: series.interval_n,
+    byweekday: series.byweekday ?? [],
+    endsKind: series.ends,
+    until,
+    count: series.count_n ?? 10,
+  };
+}
 
 const emptyRepeat = (): RepeatState => ({
   freq: 'none', interval: 1, byweekday: [], endsKind: 'never', until: '', count: 10,
@@ -189,6 +208,10 @@ export default function EventFormModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [scopeOpen, setScopeOpen] = useState(false);
+  // Editing a series event: the repeat controls and the zone picker stay
+  // behind "Change schedule" until asked for (the change is a split — from
+  // this event on; src/app/api/calendar/events/[id]/route.ts).
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   // Zone select is collapsed behind a text affordance — most events are in
   // the creator's own zone. UI state only; not part of the dirty snapshot.
   const [tzOpen, setTzOpen] = useState(false);
@@ -322,8 +345,9 @@ export default function EventFormModal({
         setChips([]);
         setMoreOpen(false);
       }
-      setRepeat(emptyRepeat());
+      setRepeat(editing?.series ? repeatFromSeries(editing.series, editing.timezone) : emptyRepeat());
       setScopeOpen(false);
+      setScheduleOpen(false);
       setTzOpen(false);
       setError('');
     }
@@ -336,7 +360,7 @@ export default function EventFormModal({
     snapRef.current = JSON.stringify({
       form: editing ? formFromEvent(editing) : emptyForm(defaultDay, defaultRange),
       chips: editing ? chipsFromEvent(editing) : [],
-      repeat: emptyRepeat(),
+      repeat: editing?.series ? repeatFromSeries(editing.series, editing.timezone) : emptyRepeat(),
     });
   }, [isOpen, editing, defaultDay, defaultRange]);
 
@@ -378,6 +402,13 @@ export default function EventFormModal({
     }
     await doSubmit('this');
   };
+
+  // A changed repeat rule or zone on a series event (Nov 6 2026): the server
+  // SPLITS the series from this event on, so the only scope is 'following'.
+  const scheduleChanged =
+    !!editing?.series &&
+    (form.timezone !== editing.timezone ||
+      JSON.stringify(repeat) !== JSON.stringify(repeatFromSeries(editing.series, editing.timezone)));
 
   const doSubmit = async (scope: EditScope) => {
     const times = buildTimestamps();
@@ -423,6 +454,21 @@ export default function EventFormModal({
           body: JSON.stringify({
             ...eventFields,
             scope,
+            ...(scheduleChanged && repeat.freq !== 'none'
+              ? {
+                  recurrence: {
+                    freq: repeat.freq,
+                    interval: repeat.interval,
+                    ...(repeat.freq === 'weekly' ? { byweekday: repeat.byweekday } : {}),
+                    ends:
+                      repeat.endsKind === 'until'
+                        ? { kind: 'until', until: repeat.until }
+                        : repeat.endsKind === 'count'
+                          ? { kind: 'count', count: repeat.count }
+                          : { kind: 'never' },
+                  },
+                }
+              : {}),
             add_guests: {
               profile_ids: added.filter(c => c.kind === 'profile').map(c => c.id),
               emails: added.filter(c => c.kind === 'email').map(c => c.id),
@@ -579,10 +625,9 @@ export default function EventFormModal({
               zone (a 10am game is 10am AT the venue). Collapsed by default;
               immutable on series events (the cron re-anchors stepping on the
               stored zone — see the PATCH guard). */}
-          {editing?.series_id ? (
-            <p className="text-xs text-muted">
-              Times are in {form.timezone.replace(/_/g, ' ')}. A repeating
-              event&apos;s time zone can&apos;t be changed.
+          {editing?.series_id && !scheduleOpen ? (
+            <p className="text-xs text-muted" data-series-zone="">
+              Times are in {form.timezone.replace(/_/g, ' ')}. Change schedule below to move the time zone.
             </p>
           ) : (
             !tzOpen ? (
@@ -625,20 +670,31 @@ export default function EventFormModal({
             )
           )}
 
-          {/* Repeat — create only; the rule can't change after creation. */}
-          {editing ? (
+          {/* Repeat — on create, and on a series event once "Change schedule"
+              opens it (Nov 6 2026): the change applies from this event on. */}
+          {editing && !scheduleOpen ? (
             editing.series && (
-              <p className="text-sm text-muted">
-                <i className="fas fa-arrows-rotate text-decor mr-1.5"></i>
-                {describeRecurrence(editing.series, editing.timezone)}
-                <span className="block text-xs text-faint mt-0.5">
-                  The repeat schedule can&apos;t be changed — cancel the series and
-                  create a new one instead.
-                </span>
-              </p>
+              <div className="text-sm text-muted" data-series-rule="">
+                <p>
+                  <i className="fas fa-arrows-rotate text-decor mr-1.5"></i>
+                  {describeRecurrence(editing.series, editing.timezone)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setScheduleOpen(true)}
+                  className="mt-1 inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
+                >
+                  Change schedule…
+                </button>
+              </div>
             )
-          ) : (
-            <div className="space-y-3">
+          ) : (editing && !editing.series) ? null : (
+            <div className="space-y-3" data-repeat-controls="">
+              {editing && (
+                <p className="text-xs text-muted">
+                  The new schedule starts with this event. Earlier events keep the old one.
+                </p>
+              )}
               <div className="flex items-center gap-3">
                 <label htmlFor="ev-repeat" className="text-sm font-semibold text-primary">Repeat</label>
                 <select
@@ -654,7 +710,7 @@ export default function EventFormModal({
                   }}
                   className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
                 >
-                  <option value="none">Does not repeat</option>
+                  {!editing && <option value="none">Does not repeat</option>}
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
@@ -1076,13 +1132,18 @@ export default function EventFormModal({
 
       <ScopeChooserModal
         isOpen={scopeOpen}
-        title="Edit repeating event"
-        options={[
-          { value: 'this', label: 'This event only', description: 'Other events in the series stay as they are.' },
-          { value: 'following', label: 'This and following events' },
-          { value: 'series', label: 'All events in the series' },
-        ]}
-        defaultValue="this"
+        title={scheduleChanged ? 'Change the schedule' : 'Edit repeating event'}
+        message={scheduleChanged ? 'The new schedule starts with this event. Earlier events keep the old one.' : undefined}
+        options={
+          scheduleChanged
+            ? [{ value: 'following', label: 'This and following events' }]
+            : [
+                { value: 'this', label: 'This event only', description: 'Other events in the series stay as they are.' },
+                { value: 'following', label: 'This and following events' },
+                { value: 'series', label: 'All events in the series' },
+              ]
+        }
+        defaultValue={scheduleChanged ? 'following' : 'this'}
         confirmText="Save changes"
         onConfirm={scope => {
           setScopeOpen(false);

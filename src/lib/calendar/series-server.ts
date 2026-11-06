@@ -208,3 +208,47 @@ export async function extendRecurringSeries(
   }
   return summary;
 }
+
+/**
+ * Change the schedule from one occurrence on (302 calendar_series_split):
+ * ONE transaction ends the old series before the anchor, cancels its
+ * remaining active occurrences and creates the new series with the given
+ * occurrences and guest rows. `null` = the function is not there yet
+ * (PGRST202) — the route answers 503. Throws on any other failure.
+ */
+export async function splitSeries(
+  admin: Admin,
+  input: {
+    oldSeriesId: string;
+    organizerId: string;
+    fromStartsAt: string;
+    rule: SeriesRule;
+    occurrences: GeneratedOccurrence[];
+    template: OccurrenceEventFields;
+    guests: (GuestIdentity & { reminder_minutes?: number | null })[];
+  }
+): Promise<{ newSeriesId: string; firstEventId: string; cancelled: number; created: number } | null> {
+  const { data, error } = await admin.rpc('calendar_series_split', {
+    p_old_series: input.oldSeriesId,
+    p_organizer: input.organizerId,
+    p_from: input.fromStartsAt,
+    p_series: {
+      freq: input.rule.freq,
+      interval_n: input.rule.interval_n,
+      byweekday: input.rule.byweekday,
+      ends: input.rule.ends,
+      until_at: input.rule.until_at,
+      count_n: input.rule.count_n,
+      generated_until: input.occurrences[input.occurrences.length - 1].starts_at,
+    },
+    p_template: input.template,
+    p_occurrences: input.occurrences.map(o => ({ starts_at: o.starts_at, ends_at: o.ends_at })),
+    p_guests: input.guests,
+  });
+  if (error) {
+    if (error.code === 'PGRST202') return null;
+    throw new Error(`series split failed: ${error.message}`);
+  }
+  const row = data as { new_series_id: string; first_event_id: string; cancelled: number; created: number };
+  return { newSeriesId: row.new_series_id, firstEventId: row.first_event_id, cancelled: row.cancelled, created: row.created };
+}

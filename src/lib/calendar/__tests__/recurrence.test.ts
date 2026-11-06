@@ -235,3 +235,59 @@ describe('describeRecurrence', () => {
       .toBe('Repeats daily');
   });
 });
+
+// Change the schedule from this event on (Nov 6 2026, migration 302): the
+// split is planned here — the anchor keeps its wall clock in the new zone, a
+// rule not given is the old one carried over with the count still to come.
+import { carriedRecurrence, planSeriesSplit } from '../recurrence';
+
+describe('planSeriesSplit', () => {
+  const weekly = { id: 's', freq: 'weekly' as const, interval_n: 1, byweekday: [4], ends: 'count' as const, until_at: null, count_n: 6 };
+  // Thursday Nov 19 2026, 7 pm Denver (UTC-7 in November).
+  const anchor = { starts: '2026-11-20T02:00:00.000Z', ends: '2026-11-20T03:00:00.000Z' };
+
+  it('a new rule from the anchor: four every two weeks, the anchor first, the instants unchanged', () => {
+    const plan = planSeriesSplit({
+      anchorStartsAt: anchor.starts, anchorEndsAt: anchor.ends, oldTimezone: 'America/Denver', newTimezone: 'America/Denver',
+      rawRecurrence: { freq: 'weekly', interval: 2, ends: { kind: 'count', count: 4 } }, oldRule: weekly, occurrencesBefore: 2,
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.firstStartsAt).toBe(anchor.starts);
+    expect(plan.occurrences.length).toBe(4);
+    expect(plan.occurrences[0].starts_at).toBe(anchor.starts);
+    expect(Date.parse(plan.occurrences[1].starts_at) - Date.parse(plan.occurrences[0].starts_at)).toBe(14 * 86_400_000);
+    expect(plan.rule.interval_n).toBe(2);
+  });
+
+  it('a zone change keeps the wall clock: 7 pm Denver becomes 7 pm Toronto, the old count carries over minus what came before', () => {
+    const plan = planSeriesSplit({
+      anchorStartsAt: anchor.starts, anchorEndsAt: anchor.ends, oldTimezone: 'America/Denver', newTimezone: 'America/Toronto',
+      rawRecurrence: null, oldRule: weekly, occurrencesBefore: 2,
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.firstStartsAt).toBe('2026-11-20T00:00:00.000Z'); // 7 pm Toronto = 00:00 UTC
+    expect(plan.rule.ends).toBe('count');
+    expect(plan.rule.count_n).toBe(4);
+    expect(plan.occurrences.length).toBe(4);
+    expect(plan.rule.byweekday).toEqual([4]); // Thursday still
+  });
+
+  it('carries an until rule as the chosen day in the new zone, and a never rule as never', () => {
+    const until = carriedRecurrence({ ...weekly, ends: 'until', until_at: '2026-12-25T07:00:00.000Z', count_n: null }, 0, 'America/Denver');
+    expect(until.ends).toEqual({ kind: 'until', until: '2026-12-24' }); // the exclusive midnight-after → the day
+    expect(carriedRecurrence({ ...weekly, ends: 'never', count_n: null }, 5, 'America/Denver').ends).toEqual({ kind: 'never' });
+    expect(carriedRecurrence(weekly, 9, 'America/Denver').ends).toEqual({ kind: 'count', count: 1 }); // never below one
+  });
+
+  it('refuses what validateRecurrenceInput refuses — a weekly rule without the anchor day', () => {
+    const plan = planSeriesSplit({
+      anchorStartsAt: anchor.starts, anchorEndsAt: anchor.ends, oldTimezone: 'America/Denver', newTimezone: 'America/Denver',
+      rawRecurrence: { freq: 'weekly', interval: 1, byweekday: [1], ends: { kind: 'never' } }, oldRule: weekly, occurrencesBefore: 0,
+    });
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.error).toContain("start day");
+  });
+});

@@ -357,3 +357,63 @@ export function describeRecurrence(rule: SeriesRule, timeZone: string): string {
   }
   return base;
 }
+
+// ── Change the schedule from this event on (Nov 6 2026) ─────────────────────
+// A repeating event's rule or zone changes as a SPLIT: the old series ends
+// before the anchor occurrence, a new one starts there (302
+// calendar_series_split persists it; this plans it). The anchor keeps its
+// WALL CLOCK in the new zone (a 7 pm practice stays 7 pm at the venue); a
+// rule that is not given is the old rule carried over — a count becomes the
+// count that was still to come.
+
+export interface SeriesSplitInput {
+  /** The anchor occurrence as stored. */
+  anchorStartsAt: string;
+  anchorEndsAt: string;
+  oldTimezone: string;
+  /** The zone the new series lives in (the old one when unchanged). */
+  newTimezone: string;
+  /** The POST-shaped recurrence body, or null to carry the old rule over. */
+  rawRecurrence: unknown;
+  oldRule: SeriesRule;
+  /** Old occurrences BEFORE the anchor (any status) — a count carries over minus these. */
+  occurrencesBefore: number;
+}
+
+export type SeriesSplitPlan =
+  | { ok: true; rule: SeriesRule; occurrences: GeneratedOccurrence[]; firstStartsAt: string; firstEndsAt: string }
+  | { ok: false; error: string };
+
+/** The old rule as the POST body shape, relative to the anchor. */
+export function carriedRecurrence(rule: SeriesRule, occurrencesBefore: number, timeZone: string): Record<string, unknown> {
+  const ends: Record<string, unknown> =
+    rule.ends === 'until' && rule.until_at
+      ? (() => {
+          // until_at is the EXCLUSIVE instant (the midnight after the chosen day) — back to that day in the zone.
+          const w = wallClockInZone(Date.parse(rule.until_at) - 60_000, timeZone);
+          return { kind: 'until', until: `${w.y}-${String(w.m).padStart(2, '0')}-${String(w.d).padStart(2, '0')}` };
+        })()
+      : rule.ends === 'count' && rule.count_n
+        ? { kind: 'count', count: Math.max(1, rule.count_n - occurrencesBefore) }
+        : { kind: 'never' };
+  return {
+    freq: rule.freq,
+    interval: rule.interval_n,
+    ...(rule.freq === 'weekly' && rule.byweekday ? { byweekday: rule.byweekday } : {}),
+    ends,
+  };
+}
+
+export function planSeriesSplit(input: SeriesSplitInput): SeriesSplitPlan {
+  const startWall = wallClockInZone(Date.parse(input.anchorStartsAt), input.oldTimezone);
+  const endWall = wallClockInZone(Date.parse(input.anchorEndsAt), input.oldTimezone);
+  const firstStartsMs = zonedWallClockToUtc(startWall.y, startWall.m, startWall.d, startWall.hh, startWall.mm, input.newTimezone);
+  let firstEndsMs = zonedWallClockToUtc(endWall.y, endWall.m, endWall.d, endWall.hh, endWall.mm, input.newTimezone);
+  if (firstEndsMs <= firstStartsMs) firstEndsMs = firstStartsMs + 60_000;
+  const firstStartsAt = new Date(firstStartsMs).toISOString();
+  const firstEndsAt = new Date(firstEndsMs).toISOString();
+  const raw = input.rawRecurrence ?? carriedRecurrence(input.oldRule, input.occurrencesBefore, input.newTimezone);
+  const validated = validateRecurrenceInput(raw, firstStartsAt, firstEndsAt, input.newTimezone);
+  if (!validated.ok) return validated;
+  return { ok: true, rule: validated.rule, occurrences: validated.occurrences, firstStartsAt, firstEndsAt };
+}
