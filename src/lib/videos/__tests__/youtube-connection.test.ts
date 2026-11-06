@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  accessTokenFresh, CONNECT_ERRORS, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
+  accessTokenFresh, BROADCAST_ERRORS, broadcastErrorWord, CONNECT_ERRORS, defaultBroadcastStart, parseBroadcastBody, studioUrlFor, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
   ownerColumns, ownerRef, parseIsoDuration, parseOwnerRef, parseUploadPrivacy, parseUploadSessionBody, problemFor, projectConnection,
   returnPathFor, scopeKeysOf, scopesFor, secretContextFor, uploadsPlaylistFor, TOKEN_REFRESH_SKEW_MS, YOUTUBE_CHUNK_BYTES, YOUTUBE_SCOPES, youtubeContentRange,
   type YouTubeConnectionRow,
@@ -25,6 +25,11 @@ describe('scopes', () => {
     expect(mergeGrantedScopes(null, undefined)).toEqual([]);
     expect(isScopeKey('upload')).toBe(true);
     expect(isScopeKey('all')).toBe(false);
+    // Phase 4b: the third incremental scope, force-ssl (sensitive), asked only when a broadcast is scheduled.
+    expect(YOUTUBE_SCOPES.live).toBe('https://www.googleapis.com/auth/youtube.force-ssl');
+    expect(scopesFor('live')).toEqual([YOUTUBE_SCOPES.readonly, YOUTUBE_SCOPES.live]);
+    expect(scopeKeysOf([YOUTUBE_SCOPES.live, YOUTUBE_SCOPES.readonly, YOUTUBE_SCOPES.upload])).toEqual(['readonly', 'upload', 'live']);
+    expect(isScopeKey('live')).toBe(true);
   });
 });
 
@@ -72,7 +77,7 @@ describe('the secret and the token', () => {
 describe('the projection', () => {
   it('never carries the secret; canUpload needs manage + the connector + active', () => {
     const mine = projectConnection(row, { userId: 'u1', canManage: true, available: true });
-    expect(Object.keys(mine)).toEqual(['available', 'connected', 'channelId', 'channelTitle', 'scopes', 'status', 'connectedAt', 'connectedByMe', 'canManage', 'canUpload', 'problem']);
+    expect(Object.keys(mine)).toEqual(['available', 'connected', 'channelId', 'channelTitle', 'scopes', 'status', 'connectedAt', 'connectedByMe', 'canManage', 'canUpload', 'canBroadcast', 'problem']);
     expect(mine).toMatchObject({ connected: true, channelId: 'UCabc', scopes: ['readonly'], connectedByMe: true, canUpload: true, problem: null });
     expect(projectConnection(row, { userId: 'u2', canManage: true, available: true })).toMatchObject({ connectedByMe: false, canUpload: false, canManage: true });
     expect(projectConnection({ ...row, status: 'revoked' }, { userId: 'u1', canManage: true, available: true })).toMatchObject({ canUpload: false, problem: expect.stringContaining('reconnect') });
@@ -116,6 +121,39 @@ describe('the upload words', () => {
     expect(parseIsoDuration('PT')).toBeNull();
     expect(parseIsoDuration('1:02:03')).toBeNull();
     expect(parseIsoDuration(null)).toBeNull();
+  });
+});
+
+describe('the broadcast (Phase 4b)', () => {
+  const now = Date.parse('2026-11-08T19:00:00.000Z');
+  it('the body: a title within YouTube’s 100, a start at least a minute ahead and within a year, a privacy', () => {
+    const ok = parseBroadcastBody({ title: ' Final ', scheduledStartAt: new Date(now + 3_600_000).toISOString(), privacy: 'unlisted' }, now);
+    expect(ok).toEqual({ ok: true, value: { title: 'Final', scheduledStartAt: new Date(now + 3_600_000).toISOString(), privacy: 'unlisted' } });
+    expect(parseBroadcastBody({ title: '', scheduledStartAt: new Date(now + 3_600_000).toISOString(), privacy: 'public' }, now).ok).toBe(false);
+    expect(parseBroadcastBody({ title: 'x', scheduledStartAt: 'soon', privacy: 'public' }, now).ok).toBe(false);
+    expect(parseBroadcastBody({ title: 'x', scheduledStartAt: new Date(now + 30_000).toISOString(), privacy: 'public' }, now).ok).toBe(false);
+    expect(parseBroadcastBody({ title: 'x', scheduledStartAt: new Date(now + 400 * 24 * 3_600_000).toISOString(), privacy: 'public' }, now).ok).toBe(false);
+    expect(parseBroadcastBody({ title: 'x', scheduledStartAt: new Date(now + 3_600_000).toISOString(), privacy: 'friends' }, now).ok).toBe(false);
+  });
+  it('the channel’s eligibility becomes a word with a sentence; Studio is where the key lives afterwards', () => {
+    expect(broadcastErrorWord(403, 'liveStreamingNotEnabled')).toBe('not_enabled');
+    expect(broadcastErrorWord(403, 'livePermissionBlocked')).toBe('blocked');
+    expect(broadcastErrorWord(403, 'insufficientLivePermissions')).toBe('blocked');
+    expect(broadcastErrorWord(403, 'forbidden')).toBe('refused');
+    expect(broadcastErrorWord(503, null)).toBe('failed');
+    for (const word of Object.keys(BROADCAST_ERRORS)) expect(BROADCAST_ERRORS[word as keyof typeof BROADCAST_ERRORS].length).toBeGreaterThan(20);
+    expect(studioUrlFor('abc123DEF45')).toBe('https://studio.youtube.com/video/abc123DEF45/livestreaming');
+  });
+  it('the default start is the next full hour on the viewer’s clock, in the datetime-local shape', () => {
+    const d = new Date(2026, 10, 8, 14, 23, 45);
+    expect(defaultBroadcastStart(d)).toBe('2026-11-08T15:00');
+    expect(defaultBroadcastStart(new Date(2026, 11, 31, 23, 5))).toBe('2027-01-01T00:00');
+  });
+  it('the projection’s canBroadcast is canUpload’s three facts', () => {
+    const row = { id: 'c', profile_id: 'p', org_id: null, connected_by_user_id: 'u', channel_id: 'UCx', channel_title: 't', scopes: [YOUTUBE_SCOPES.readonly], status: 'active' as const, last_error: null, connected_at: '2026-11-05T00:00:00Z' };
+    expect(projectConnection(row, { userId: 'u', canManage: true, available: true }).canBroadcast).toBe(true);
+    expect(projectConnection(row, { userId: 'v', canManage: true, available: true }).canBroadcast).toBe(false);
+    expect(projectConnection({ ...row, status: 'revoked' }, { userId: 'u', canManage: true, available: true }).canBroadcast).toBe(false);
   });
 });
 

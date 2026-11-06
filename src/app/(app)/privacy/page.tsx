@@ -100,7 +100,9 @@ export default function PrivacyPage() {
                   <span className="font-medium">Google</span> — sign-in, if you choose it; and,
                   if you connect a YouTube channel, the channel&apos;s name, its list of uploads and
                   the uploads you send to it through Edge Athlete (the video goes from your device to
-                  YouTube — we never download, store or edit it). The connection is yours to remove
+                  YouTube — we never download, store or edit it); and, if you schedule a live broadcast
+                  from Edge Athlete, we create that broadcast and its stream on your channel and show you
+                  the stream key once — we never store it. The connection is yours to remove
                   at any time from the Videos tab; you can also revoke it in your Google account
                   settings. YouTube&apos;s own terms and Google&apos;s privacy policy apply to the
                   channel.

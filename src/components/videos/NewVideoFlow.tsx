@@ -17,6 +17,7 @@ import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
 import type { YouTubeConnectionView } from '@/lib/videos/youtube-connection';
 import ChannelPicker from '@/components/videos/ChannelPicker';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
+import YouTubeBroadcastPanel from '@/components/videos/YouTubeBroadcastPanel';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
@@ -72,8 +73,10 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     : `profile:${prefillProfile && UUID_RE.test(prefillProfile) ? prefillProfile : userId}`;
   const [connection, setConnection] = useState<YouTubeConnectionView | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Phase 4b: the third door — schedule a live broadcast (the connector only).
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [uploadedNote, setUploadedNote] = useState<string | null>(null);
-  const [needsScope, setNeedsScope] = useState(false);
+  const [needsScope, setNeedsScope] = useState<'upload' | 'live' | null>(null);
   useEffect(() => {
     let live = true;
     const fetchConnection = async (): Promise<YouTubeConnectionView | null> => {
@@ -99,6 +102,14 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     if (!title.trim()) setTitle(uploadedTitle.slice(0, VIDEO_TITLE_MAX));
     setUploadOpen(false);
     setUploadedNote('Uploaded to YouTube. Now the details, then where it goes.');
+    setIndex(1);
+  };
+  // Phase 4b: the broadcast exists on YouTube; the row is an ordinary link and the first read makes it upcoming.
+  const scheduled = (videoId: string, scheduledTitle: string) => {
+    setUrl(watchUrl(videoId));
+    if (!title.trim()) setTitle(scheduledTitle.slice(0, VIDEO_TITLE_MAX));
+    setBroadcastOpen(false);
+    setUploadedNote('Scheduled on YouTube — it will show as upcoming, then live, then the recording. Now the details, then where it goes.');
     setIndex(1);
   };
 
@@ -212,24 +223,39 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             {connection && (
               <div className="space-y-2" data-new-video-youtube={connection.canUpload ? 'upload' : 'pick'}>
                 <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />
-                {connection.canUpload && !uploadOpen && (
+                {connection.canUpload && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
                     <i className="fas fa-cloud-arrow-up text-brand-fg" aria-hidden="true"></i>
                     <span className="text-sm font-semibold text-primary flex-1">Upload a file to {connection.channelTitle || 'your channel'}</span>
                     <i className="fas fa-chevron-right text-muted" aria-hidden="true"></i>
                   </button>
                 )}
+                {connection.canBroadcast && !uploadOpen && !broadcastOpen && (
+                  <button type="button" onClick={() => setBroadcastOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-broadcast-door="">
+                    <i className="fas fa-tower-broadcast text-brand-fg" aria-hidden="true"></i>
+                    <span className="text-sm font-semibold text-primary flex-1">Schedule a live broadcast on {connection.channelTitle || 'your channel'}</span>
+                    <i className="fas fa-chevron-right text-muted" aria-hidden="true"></i>
+                  </button>
+                )}
                 {needsScope && (
-                  <p className="text-sm text-secondary" role="status" data-new-video-needs-scope="">
-                    Uploads need one more yes at Google.{' '}
-                    <a href={`/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=upload`} className="underline font-semibold">Allow uploads</a>, then come back to this door.
+                  <p className="text-sm text-secondary" role="status" data-new-video-needs-scope={needsScope}>
+                    {needsScope === 'live' ? 'Live broadcasts need one more yes at Google.' : 'Uploads need one more yes at Google.'}{' '}
+                    <a href={`/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=${needsScope}`} className="underline font-semibold">{needsScope === 'live' ? 'Allow live broadcasts' : 'Allow uploads'}</a>, then come back to this door.
                   </p>
                 )}
                 {connection.canUpload && uploadOpen && (
                   <YouTubeUploadPanel
                     owner={defaultOwnerRef}
                     onUploaded={uploaded}
-                    onNeedsScope={() => setNeedsScope(true)}
+                    onNeedsScope={() => setNeedsScope('upload')}
+                  />
+                )}
+                {connection.canBroadcast && broadcastOpen && (
+                  <YouTubeBroadcastPanel
+                    owner={defaultOwnerRef}
+                    initialTitle={title}
+                    onScheduled={scheduled}
+                    onNeedsScope={() => setNeedsScope('live')}
                   />
                 )}
               </div>

@@ -57,6 +57,12 @@ export interface YouTubeMock {
   live: Map<string, MockLive>;
   /** Phase 4a: every videos.list answers 403 quotaExceeded while on. */
   quota(on: boolean): void;
+  /** Phase 4b: the channel's live eligibility — the 403 reasons liveBroadcasts.insert answers. */
+  liveEligibility: 'ok' | 'not_enabled' | 'blocked';
+  /** Phase 4b: the broadcasts created, by video id. */
+  broadcasts: Map<string, { title: string; scheduledStartTime: string; privacy: string; streamId: string | null }>;
+  /** Phase 4b: the streams created, by id — the key the route handed out once. */
+  streams: Map<string, { key: string; title: string }>;
   /** Access tokens minted so far (the refresh count). */
   tokensMinted(): number;
   close(): Promise<void>;
@@ -74,6 +80,11 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   let minted = 0;
   let quotaOut = false;
   const live = new Map<string, MockLive>();
+  // Phase 4b: which scopes each token carries (the force-ssl scope gates the live writes).
+  const tokenScope = new Map<string, string>();
+  const refreshScope = new Map<string, string>();
+  const broadcasts = new Map<string, { title: string; scheduledStartTime: string; privacy: string; streamId: string | null }>();
+  const streams = new Map<string, { key: string; title: string }>();
   const mock: YouTubeMock = {
     signInAs: c => { current = c; },
     deny: on => { denying = on; },
@@ -83,6 +94,9 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
     uploaded,
     live,
     quota: on => { quotaOut = on; },
+    liveEligibility: 'ok',
+    broadcasts,
+    streams,
     tokensMinted: () => minted,
     close: () => new Promise(resolve => server.close(() => resolve())),
   };
@@ -128,11 +142,14 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
           codes.delete(form.get('code')!);
           current = entry.channel;
           minted += 1;
+          tokenScope.set(`yt-access-${minted}`, entry.scope);
+          refreshScope.set(`yt-refresh-${minted}`, entry.scope);
           return send(res, 200, { access_token: `yt-access-${minted}`, refresh_token: `yt-refresh-${minted}`, expires_in: 3599, scope: entry.scope, token_type: 'Bearer' });
         }
         if (form.get('grant_type') === 'refresh_token') {
           if (refreshRevoked || !/^yt-refresh-\d+$/.test(form.get('refresh_token') ?? '')) return send(res, 400, { error: 'invalid_grant' });
           minted += 1;
+          tokenScope.set(`yt-access-${minted}`, refreshScope.get(form.get('refresh_token') ?? '') ?? '');
           return send(res, 200, { access_token: `yt-access-${minted}`, expires_in: 3599, scope: '', token_type: 'Bearer' });
         }
         return send(res, 400, { error: 'unsupported_grant_type' });
@@ -197,6 +214,44 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
         const id = String(++seq);
         sessions.set(id, { size, received: 0, title: body.snippet?.title ?? '', privacy: body.status?.privacyStatus ?? 'private', contentType: String(req.headers['x-upload-content-type'] ?? ''), chunks: [] });
         return send(res, 200, undefined, { Location: `${YOUTUBE_MOCK_BASE}/upload/session/${id}` });
+      }
+
+      // Phase 4b: the live writes — the force-ssl scope on THIS token, then the channel's eligibility.
+      const isLiveWrite = /^\/youtube\/v3\/(liveBroadcasts|liveStreams)(\/bind)?$/.test(url.pathname);
+      if (isLiveWrite) {
+        const scope = tokenScope.get((req.headers.authorization ?? '').replace(/^Bearer /, '')) ?? '';
+        if (!/youtube\.force-ssl|\/auth\/youtube(\s|$)/.test(scope)) return send(res, 403, { error: { code: 403, errors: [{ reason: 'insufficientPermissions', domain: 'global' }] } });
+        if (!ch) return send(res, 403, { error: { code: 403, errors: [{ reason: 'liveStreamingNotEnabled', domain: 'youtube.liveBroadcast' }] } });
+        if (mock.liveEligibility === 'not_enabled') return send(res, 403, { error: { code: 403, errors: [{ reason: 'liveStreamingNotEnabled', domain: 'youtube.liveBroadcast' }] } });
+        if (mock.liveEligibility === 'blocked') return send(res, 403, { error: { code: 403, errors: [{ reason: 'livePermissionBlocked', domain: 'youtube.liveBroadcast' }] } });
+        if (req.method === 'POST' && url.pathname === '/youtube/v3/liveBroadcasts') {
+          const body = JSON.parse((await readBody(req)).toString('utf8') || '{}') as { snippet?: { title?: string; scheduledStartTime?: string }; status?: { privacyStatus?: string } };
+          if (!body.snippet?.title || !body.snippet.scheduledStartTime || !body.status?.privacyStatus) return send(res, 400, { error: { code: 400, errors: [{ reason: 'invalidRequest' }] } });
+          const id = `e2eLive${String(++seq).padStart(4, '0')}`.slice(0, 11);
+          broadcasts.set(id, { title: body.snippet.title, scheduledStartTime: body.snippet.scheduledStartTime, privacy: body.status.privacyStatus, streamId: null });
+          live.set(id, { content: 'upcoming', scheduledStartTime: body.snippet.scheduledStartTime, title: body.snippet.title });
+          return send(res, 200, { id, kind: 'youtube#liveBroadcast', snippet: body.snippet, status: { ...body.status, lifeCycleStatus: 'created' } });
+        }
+        if (req.method === 'POST' && url.pathname === '/youtube/v3/liveStreams') {
+          const body = JSON.parse((await readBody(req)).toString('utf8') || '{}') as { snippet?: { title?: string } };
+          const id = `stream-${++seq}`;
+          const key = `e2e-stream-key-${seq}-${Math.random().toString(36).slice(2, 8)}`;
+          streams.set(id, { key, title: body.snippet?.title ?? '' });
+          return send(res, 200, { id, kind: 'youtube#liveStream', cdn: { ingestionType: 'rtmp', resolution: 'variable', frameRate: 'variable', ingestionInfo: { streamName: key, ingestionAddress: 'rtmp://a.rtmp.youtube.com/live2', rtmpsIngestionAddress: 'rtmps://a.rtmps.youtube.com/live2' } } });
+        }
+        if (req.method === 'POST' && url.pathname === '/youtube/v3/liveBroadcasts/bind') {
+          const b = broadcasts.get(url.searchParams.get('id') ?? '');
+          const sid = url.searchParams.get('streamId') ?? '';
+          if (!b || !streams.has(sid)) return send(res, 404, { error: { code: 404, errors: [{ reason: 'liveBroadcastNotFound' }] } });
+          b.streamId = sid;
+          return send(res, 200, { id: url.searchParams.get('id'), kind: 'youtube#liveBroadcast' });
+        }
+        if (req.method === 'DELETE' && url.pathname === '/youtube/v3/liveBroadcasts') {
+          const id = url.searchParams.get('id') ?? '';
+          broadcasts.delete(id);
+          live.delete(id);
+          return send(res, 204);
+        }
       }
       return send(res, 404, { error: 'not_found' });
     })();
