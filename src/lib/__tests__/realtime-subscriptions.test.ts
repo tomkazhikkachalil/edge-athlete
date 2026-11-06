@@ -62,6 +62,19 @@ describe('Realtime: every postgres_changes listener on a published table is filt
     expect(provider).toMatch(/notifications\.filter\(n => n\.type === 'new_message'\)/);
     expect(provider).toMatch(/\[notifications, user, fetchConversations, refreshUnreadCount\]/);
   });
+  // The cost program PR C (Nov 6 2026, migration 301): the notifications
+  // channel is the person's OWN private topic (`user:{id}`) and carries the
+  // pulse's broadcast; the public `live-now` topic has exactly one host.
+  it('the notifications provider holds ONE channel, the private per-user topic; PulseHost holds the one public topic', () => {
+    const notifications = read('src/lib/notifications.tsx');
+    expect(notifications.match(/\.channel\(/g)?.length).toBe(1);
+    expect(notifications).toMatch(/\.channel\(`user:\$\{user\.id\}`, \{ config: \{ private: true \} \}\)/);
+    expect(notifications).not.toMatch(/\.channel\('notifications'\)/);
+    const host = read('src/lib/pulse/PulseHost.tsx');
+    expect(host.match(/\.channel\(/g)?.length).toBe(1);
+    expect(host).toMatch(/\.channel\('live-now'\)/);
+    expect(host).toMatch(/if \(!user\) return;/); // a guest opens nothing
+  });
   it('presence joins only while the dock is in use (panel open or a thread open / minimized)', () => {
     const dock = read('src/components/chat-dock/ChatDock.tsx');
     expect(dock).toMatch(/const presenceWanted = enabled && !suppressed && \(\(open && !hidden\) \|\| hasWindows\);/);

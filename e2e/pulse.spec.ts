@@ -82,3 +82,78 @@ test('one pulse equals the three polls it replaces; a round and a message move i
     await s.dispose();
   }
 });
+
+/**
+ * The change signals (the cost program PR C, Nov 6 2026; migration 301): the
+ * database broadcasts, the open tab fetches ONCE per burst. A's tab on /feed
+ * hears B start a private round with A on it (a public `live-now` tick AND
+ * A's private roster tick, 1.5 s apart at most → one fetch), the dot lights;
+ * B's message reaches A's private topic; A's read on ANOTHER device (the API)
+ * reaches the tab too — the gap the bell never closed; then the tab sits idle
+ * and makes no pulse call at all (the timer is a 10-minute net now).
+ */
+test('the signals: one fetch per change, the dot and the badge follow, an idle tab is silent @mobile', async ({ page }) => {
+  test.setTimeout(240_000);
+  const s = await openEventSession();
+  let groupPostId: string | null = null;
+  let pulseRequests = 0;
+  page.on('request', r => { if (r.url().includes('/api/me/pulse')) pulseRequests++; });
+  const settle = async (label: string, expected: number) => {
+    await expect.poll(() => pulseRequests, { message: `${label}: one pulse fetch`, timeout: 12_000 }).toBe(expected);
+    await page.waitForTimeout(4_000); // past the debounce + jitter window: a burst stays ONE fetch
+    expect(pulseRequests, `${label}: still one fetch after the burst`).toBe(expected);
+  };
+  try {
+    const a0 = await pulse(s.apiA);
+    await page.goto('/feed');
+    await page.waitForResponse(r => r.url().includes('/api/me/pulse')); // the mount's fetch
+    await page.waitForTimeout(3_000); // the two channels join
+    const base = pulseRequests;
+
+    // B starts a private round with A on the roster: a `live-now` tick for
+    // everyone AND a `user:{A}` roster tick — one fetch, the dot on.
+    const created = await s.apiB.post('/api/group-posts', {
+      data: {
+        type: 'golf_round',
+        title: `QA Pulse signal ${s.stamp}`,
+        date: new Date().toISOString().split('T')[0],
+        visibility: 'private',
+        participant_ids: [s.userA.id],
+        golf_data: { course_name: `QA Pulse Course ${s.stamp}`, round_type: 'outdoor', holes_played: 9 },
+      },
+    });
+    expect(created.ok(), await readErrorBody(created)).toBe(true);
+    groupPostId = ((await created.json()) as { group_post: { id: string } }).group_post.id;
+    await settle('a round going live', base + 1);
+    // The header's dot is in the DOM at every width (hidden on a phone, where the tab bar's dot shows): the visible one.
+    await expect(page.locator('[data-tab-live-dot]:visible, [data-live-dot="on"]:visible').first()).toBeVisible({ timeout: 5_000 });
+
+    // B messages A: A's private topic → one fetch, the number up by one.
+    const conv = await s.apiB.post('/api/messages', { data: { type: 'direct', participantId: s.userA.id } });
+    expect([200, 201], await readErrorBody(conv)).toContain(conv.status());
+    const { conversationId } = (await conv.json()) as { conversationId: string };
+    const sent = await s.apiB.post(`/api/messages/${conversationId}/messages`, { data: { type: 'text', content: `qa pulse signal ${s.stamp}` } });
+    expect(sent.status(), await readErrorBody(sent)).toBe(201);
+    await settle('a message', base + 2);
+    expect((await pulse(s.apiA)).unread.messages).toBe(a0.unread.messages + 1);
+
+    // A reads it on ANOTHER device (the API): the tab hears the read too.
+    const readRes = await s.apiA.patch(`/api/messages/${conversationId}/read`);
+    expect(readRes.ok(), await readErrorBody(readRes)).toBe(true);
+    await settle('a read on another device', base + 3);
+
+    // The round ends: the public tick → one fetch; the dot goes if nothing else is live.
+    const ended = await s.apiB.delete(`/api/group-posts/${groupPostId}`);
+    expect(ended.ok(), await readErrorBody(ended)).toBe(true);
+    groupPostId = null;
+    await settle('a round ending', base + 4);
+    if (a0.liveNow.total === 0) await expect(page.locator('[data-tab-live-dot]:visible, [data-live-dot="on"]:visible')).toHaveCount(0, { timeout: 5_000 });
+
+    // Idle: no poll. 90 s of nothing (the net is 10 minutes).
+    await page.waitForTimeout(90_000);
+    expect(pulseRequests, 'an idle tab makes no pulse call').toBe(base + 4);
+  } finally {
+    if (groupPostId) await s.apiB.delete(`/api/group-posts/${groupPostId}`);
+    await s.dispose();
+  }
+});

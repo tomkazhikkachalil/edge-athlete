@@ -100,10 +100,10 @@ describe('the pulse wiring', () => {
     expect(provider).toMatch(/subscribePulse\(s => setTotalUnreadCount\(s\.unreadMessages\)\)/);
     expect(provider).toMatch(/adjustPulseUnread\(-unread\)/);
     expect(provider).toMatch(/resetPulse\(\);/);
-    // The two-minute list poll fetches the LIST only.
-    const poll = provider.slice(provider.indexOf('pollTimerRef.current = setInterval'), provider.indexOf('}, 120_000);'));
-    expect(poll).toMatch(/fetchConversations\(pollController\.signal\);/);
-    expect(poll).not.toMatch(/refreshUnreadCount/);
+    // No list poll since PR C (301): the bell and the pulse's signal carry
+    // the changes; the provider never calls setInterval.
+    expect(provider).not.toMatch(/setInterval\(/);
+    expect(provider).not.toMatch(/pollTimerRef/);
   });
   it('the store is a module-level store: one timer, one coalesced fetch, resume catch-up, no provider', () => {
     const store = read('src/lib/pulse/pulse-store.ts');
@@ -117,5 +117,67 @@ describe('the pulse wiring', () => {
     expect(route).toMatch(/'Cache-Control': 'private, no-store'/);
     expect(route).toMatch(/PGRST202/);
     expect(route).toMatch(/rpc\('me_pulse', \{ p_viewer: viewer\.id \}\)/);
+  });
+});
+
+describe('migration 301: the change signals — the database broadcasts, the client fetches (the cost program PR C)', () => {
+  const sql = read('database/migrations/301_pulse_broadcast.sql');
+  it('the pre-flight proves realtime.send and realtime.topic exist, and the ledger head', () => {
+    expect(sql).toContain("to_regprocedure('realtime.send(jsonb,text,text,boolean)') IS NULL");
+    expect(sql).toContain("to_regprocedure('realtime.topic()') IS NULL");
+    expect(sql).toContain("IF n < 300 THEN RAISE EXCEPTION '301 pre-flight: ledger head is %, expected 300', n; END IF;");
+  });
+  it('a person may read broadcasts on their OWN topic only', () => {
+    expect(sql).toMatch(/CREATE POLICY "pulse: own user topic" ON realtime\.messages\s+FOR SELECT TO authenticated\s+USING \(realtime\.topic\(\) = 'user:' \|\| \(SELECT auth\.uid\(\)\)::text AND extension = 'broadcast'\)/);
+  });
+  it('one sender that never fails a write; every trigger function is a definer with an empty search_path', () => {
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.pulse_send\(p_topic text, p_payload jsonb, p_private boolean\)/);
+    expect(sql).toMatch(/PERFORM realtime\.send\(p_payload \|\| jsonb_build_object\('at', extract\(epoch FROM now\(\)\)\), 'pulse', p_topic, p_private\);\s+EXCEPTION WHEN OTHERS THEN\s+RAISE WARNING/);
+    expect(sql.match(/SECURITY DEFINER\s+SET search_path = ''/g)?.length).toBe(7); // the sender + six trigger functions
+    expect(sql).toMatch(/REVOKE EXECUTE ON FUNCTION public\.pulse_send\(text, jsonb, boolean\) FROM PUBLIC, anon, authenticated;/);
+  });
+  it('live-now (public): golf rounds pending | active, events and their rounds entering or leaving live, broadcasts live + published', () => {
+    expect(sql).toMatch(/OLD\.type = 'golf_round' AND OLD\.status IN \('pending', 'active'\)/);
+    expect(sql).toMatch(/NEW\.type = 'golf_round' AND NEW\.status IN \('pending', 'active'\)/);
+    expect(sql).toMatch(/AFTER INSERT OR DELETE OR UPDATE OF status, visibility, date ON public\.group_posts/);
+    expect(sql).toMatch(/OLD\.status IS DISTINCT FROM NEW\.status AND \(OLD\.status = 'live' OR NEW\.status = 'live'\)/);
+    expect(sql).toMatch(/AFTER UPDATE OF status ON public\.sport_events/);
+    expect(sql).toMatch(/AFTER UPDATE OF status ON public\.sport_event_rounds/);
+    expect(sql).toMatch(/OLD\.live_status = 'live' AND OLD\.status = 'published'/);
+    expect(sql).toMatch(/AFTER INSERT OR DELETE OR UPDATE OF live_status, status ON public\.videos/);
+    for (const kind of ['golf', 'event', 'broadcast']) expect(sql).toContain(`pulse_send('live-now', jsonb_build_object('kind', '${kind}'), false)`);
+  });
+  it('user:{id} (private): every active unheld participant on a message (the sender included), the reader on a read, my seat on a live round', () => {
+    expect(sql).toMatch(/WHERE cp\.conversation_id = NEW\.conversation_id\s+AND cp\.left_at IS NULL\s+AND cp\.held_at IS NULL/);
+    expect(sql).not.toMatch(/sender_id <> /);
+    expect(sql).not.toMatch(/is_muted/);
+    expect(sql).toMatch(/AFTER INSERT ON public\.messages/);
+    expect(sql).toMatch(/OLD\.last_read_at IS DISTINCT FROM NEW\.last_read_at/);
+    expect(sql).toMatch(/AFTER UPDATE OF last_read_at ON public\.conversation_participants/);
+    expect(sql).toMatch(/gp\.id = round_id AND gp\.type = 'golf_round' AND gp\.status IN \('pending', 'active'\)/);
+    expect(sql).toMatch(/AFTER INSERT OR DELETE OR UPDATE OF status ON public\.group_post_participants/);
+    expect(sql.match(/pulse_send\('user:' \|\| /g)?.length).toBe(3);
+  });
+  it('the ledger row and the result row', () => {
+    expect(sql).toMatch(/NOTIFY pgrst, 'reload schema';/);
+    expect(sql).toMatch(/VALUES \(301, '301_pulse_broadcast\.sql'\)/);
+    expect(sql).toMatch(/triggers_expect_7/);
+    expect(sql).toMatch(/ledger_head_expect_301/);
+  });
+  it('the client: the per-user private topic carries the signal; the public topic has one host; the timer is a 10-minute net; the list poll is gone', () => {
+    const notifications = read('src/lib/notifications.tsx');
+    expect(notifications).toContain(".channel(`user:${user.id}`, { config: { private: true } })");
+    expect(notifications).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
+    const host = read('src/lib/pulse/PulseHost.tsx');
+    expect(host).toContain(".channel('live-now')");
+    expect(host).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
+    expect(read('src/app/(app)/layout.tsx')).toContain('<PulseHost />');
+    expect(read('src/lib/pulse/pulse-rules.ts')).toContain('export const PULSE_REFRESH_MS = 600_000;');
+    const provider = read('src/lib/messages.tsx');
+    expect(provider).not.toMatch(/setInterval\(/);
+    expect(provider).toContain('if (s.fetchedAt === last.at) return; // a local correction, not an answer');
+    const strip = read('src/components/LiveNowStrip.tsx');
+    expect(strip).not.toContain('REFRESH_MS = 60_000');
+    expect(strip).toContain('if (s.liveNow === lastTotal) return;');
   });
 });

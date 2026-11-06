@@ -12,6 +12,7 @@ import { useToast } from '@/components/Toast';
 import { closeShownNotifications } from '@/lib/push/client';
 import { pushTag } from '@/lib/push/payload';
 import { shouldPoll } from '@/lib/net/online';
+import { requestPulse } from '@/lib/pulse/pulse-store';
 
 /** A return to the foreground re-reads the list at most this often (the
  *  feed's own tab-return gap) — reads done elsewhere (a tap on a phone
@@ -464,8 +465,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setConnectionStatus('connecting');
 
+    // The person's OWN private topic (migration 301, the cost program PR C):
+    // `user:{id}`, authorized by the realtime.messages policy (the JWT is
+    // bound in auth.tsx through supabase.realtime.setAuth). It carries the
+    // two notification listeners below AND the pulse's change signals — a
+    // message in one of my conversations (any device, muted or not), a read,
+    // my seat on a live round. It was the GLOBAL 'notifications' topic
+    // before; a broadcast on that would have reached everyone.
     const channel = supabase
-      .channel('notifications')
+      .channel(`user:${user.id}`, { config: { private: true } })
       // Listen for new notifications
       .on('postgres_changes', {
         event: 'INSERT',
@@ -540,10 +548,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           );
         }
       })
+      // The pulse's signal: fetch the numbers (debounced + jittered in the store).
+      .on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))
       .subscribe((status: string) => {
         // Track connection status
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
+          // The pulse closes its reconnect gap the same way (an answer
+          // younger than 30 s is reused, so a fresh mount costs nothing).
+          requestPulse('resume');
           // The initial read happens HERE, once the channel is live — no row
           // can be missed between the read and the subscription. (After a
           // reconnect, the same read closes the reconnect's gap.)

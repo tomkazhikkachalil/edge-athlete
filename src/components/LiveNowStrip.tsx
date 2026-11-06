@@ -10,6 +10,7 @@ import type { LiveEventCard } from '@/lib/sport-events/live-now';
 import type { VideoView } from '@/lib/videos/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { shouldPoll } from '@/lib/net/online';
+import { getPulse, subscribePulse } from '@/lib/pulse/pulse-store';
 
 interface LivePlayer {
   profile_id: string;
@@ -41,7 +42,8 @@ interface LiveNowStripProps {
   hideHeading?: boolean;
 }
 
-const REFRESH_MS = 60_000;
+/** Signed OUT (the /explore guests): the public lists refresh this often. */
+const GUEST_REFRESH_MS = 300_000;
 
 /**
  * "Live Now" — live rounds from people you follow (and you). Renders nothing
@@ -55,8 +57,8 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   // Phase 4a (PR B): the broadcasts streaming now that this viewer may see — signed out included.
   const [broadcasts, setBroadcasts] = useState<VideoView[]>([]);
 
-  // Inlined cancellable IIFE. The 60s poll calls the SAME effect-local
-  // closure, so the cancelled flag also stops a late poll response landing
+  // Inlined cancellable IIFE. Every refetch calls the SAME effect-local
+  // closure, so the cancelled flag also stops a late response landing
   // after unmount. Gated on user: /explore mounts this strip for signed-out
   // guests, and the endpoint is authenticated — polling it anonymously is a
   // guaranteed 401 every minute.
@@ -86,17 +88,31 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     // A hidden tab does not poll (Round 3); returning to it catches up — but
     // only when what it shows is older than 30 s (speed round, Oct 2026: a
     // phone switching apps every few seconds refetched both lists each time).
-    const tick = () => { if (shouldPoll()) run(); };
     const onVisible = () => {
       if (shouldPoll() && Date.now() - lastRun > 30_000) run();
     };
-    const interval = setInterval(tick, REFRESH_MS);
+    // Signed in, the lists follow the PULSE (the cost program PR C, Nov 6
+    // 2026; migration 301): a round, an event or a broadcast entering or
+    // leaving "live" is a database broadcast → the store fetches the count
+    // → a changed total refetches these lists. No 60-second poll any more
+    // (it was the third function call per minute on /feed). A guest has no
+    // pulse: the two public lists refresh every five minutes.
+    let lastTotal = user ? getPulse().liveNow : -1;
+    const unsubscribe = user
+      ? subscribePulse(s => {
+          if (s.liveNow === lastTotal) return;
+          lastTotal = s.liveNow;
+          if (shouldPoll()) run();
+        })
+      : null;
+    const interval = user ? null : setInterval(() => { if (shouldPoll()) run(); }, GUEST_REFRESH_MS);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onVisible);
     return () => {
       document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
       cancelled = true;
-      clearInterval(interval);
+      unsubscribe?.();
+      if (interval) clearInterval(interval);
     };
   }, [user]);
 

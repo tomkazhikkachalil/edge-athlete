@@ -46,8 +46,9 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   const [totalUnreadCount, setTotalUnreadCount] = useState(() => getPulse().unreadMessages);
   const [loading, setLoading] = useState(false);
   // Conversation-list pagination (migration 127): the server frontier is
-  // updated ONLY by the initial load and loadMore — never by the 2-minute poll,
-  // which refreshes PAGE ONE and merges by id (see fetchConversations).
+  // updated ONLY by the initial load and loadMore — never by a page-one
+  // refresh (a bell, a pulse signal, a return), which merges by id (see
+  // fetchConversations).
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const nextConvCursorRef = useRef<string | null>(null);
   const loadMoreInFlightRef = useRef(false);
@@ -66,7 +67,6 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const visibilityCleanupRef = useRef<(() => void) | null>(null);
   // Controller for the auto-fetches kicked off by the user-change effect.
   // Aborted on logout / effect cleanup so navigation races don't surface as scary console errors.
@@ -156,6 +156,38 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // The pulse's private signal reaches the list through the COUNT (the cost
+  // program PR C, Nov 6 2026): when a fetched answer's unread number differs
+  // from the last fetched one, page one is refreshed (debounced with the
+  // bell's timer). A local read corrects the count through adjustPulseUnread
+  // without a fetch — fetchedAt does not move, so this never refires for it.
+  const lastFetchedUnreadRef = useRef<{ at: number; unread: number } | null>(null);
+  useEffect(() => {
+    if (!user) {
+      lastFetchedUnreadRef.current = null;
+      return;
+    }
+    return subscribePulse(s => {
+      const last = lastFetchedUnreadRef.current;
+      if (s.fetchedAt === 0) return;
+      if (!last) {
+        lastFetchedUnreadRef.current = { at: s.fetchedAt, unread: s.unreadMessages };
+        return;
+      }
+      if (s.fetchedAt === last.at) return; // a local correction, not an answer
+      const moved = s.unreadMessages !== last.unread;
+      lastFetchedUnreadRef.current = { at: s.fetchedAt, unread: s.unreadMessages };
+      if (!moved) return;
+      if (signalTimerRef.current) clearTimeout(signalTimerRef.current);
+      signalTimerRef.current = setTimeout(() => {
+        signalTimerRef.current = null;
+        if (!shouldPoll()) return;
+        const c = new AbortController();
+        fetchConversations(c.signal);
+      }, 1_500);
+    });
+  }, [user, fetchConversations]);
+
   // ONE live signal for the list instead of one Realtime channel per listed
   // conversation (scale fix 3, Oct 25 2026): the send route writes a
   // `new_message` notification per recipient on every message, and that row
@@ -234,28 +266,15 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setLoading(false);
       });
 
-      // The poll is the net under realtime gaps. This provider mounts in the
-      // ROOT layout, so it runs for every logged-in user on every page — a
-      // backgrounded tab must NOT keep polling all day (the single largest
-      // sustained cost in the app). Skip a cycle when the tab is hidden;
-      // realtime covers a focused tab, and a visibilitychange catch-up fires
-      // one refresh the moment the tab returns to the foreground.
-      // Each poll cycle gets its own controller so a stale abort never kills future polls.
-      // Speed round 2: 30 s → 2 min. The `new_message` bell on the
-      // notifications channel (the effect above) carries every new message
-      // to a focused tab and the visibilitychange catch-up below covers a
-      // return; the poll is only the net under a dropped socket (and the
-      // two cases the bell does not cover), and at 30 s it was two function
-      // calls per user per half-minute on every page. The unread COUNT is
-      // not polled here any more (the cost program PR B, Oct 29 2026): it
-      // rides the pulse store's one fetch, whose timer and resume catch-up
-      // the header shares.
-      pollTimerRef.current = setInterval(() => {
-        if (!shouldPoll()) return;
-        const pollController = new AbortController();
-        fetchConversations(pollController.signal);
-      }, 120_000);
-
+      // No list poll any more (the cost program PR C, Nov 6 2026; migration
+      // 301): the `new_message` bell carries a message from someone else to a
+      // focused tab, the pulse's private signal carries the two cases the
+      // bell never did (a muted conversation, a read on another device) —
+      // the subscription below refreshes page one when a FETCHED count
+      // moves — and the visibilitychange catch-up covers a return. The
+      // pulse's own 10-minute net sits under a dropped socket. Before: a
+      // 2-minute poll, one `get_conversation_list` RPC per tab per two
+      // minutes on every page, all day.
       const onVisible = () => {
         if (!shouldPoll()) return;
         const c = new AbortController();
@@ -283,20 +302,12 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         clearTimeout(signalTimerRef.current);
         signalTimerRef.current = null;
       }
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
       visibilityCleanupRef.current?.();
       visibilityCleanupRef.current = null;
     }
 
     return () => {
       fetchAbortRef.current?.abort();
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
       visibilityCleanupRef.current?.();
       visibilityCleanupRef.current = null;
     };

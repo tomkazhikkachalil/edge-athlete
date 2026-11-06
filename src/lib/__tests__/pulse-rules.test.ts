@@ -35,7 +35,7 @@ describe('planPulseFetch', () => {
     }
   });
   it('the safety-net cadence is the old Live dot cadence (one minute) until the signals land', () => {
-    expect(PULSE_REFRESH_MS).toBe(60_000);
+    expect(PULSE_REFRESH_MS).toBe(600_000); // PR C: the signals carry the changes; the timer is the net
     expect(PULSE_STALE_MS).toBe(30_000);
   });
 });
