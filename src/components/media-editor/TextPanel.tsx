@@ -1,11 +1,17 @@
 'use client';
 
 /**
- * Text & sticker panel (E4h): add/select/remove overlays, edit the
- * selected one (content, font, color, size, rotation, pill — or emoji
- * grid + free entry). Placement is a drag on the stage's OverlayLayer.
+ * Text & sticker panel (E4h): add / select / remove overlays, edit the
+ * selected one (content, font, colour, size, rotation, backdrop — or the
+ * emoji grid + free entry). Placement is a drag on the stage's OverlayLayer.
+ *
+ * Nov 6 2026: "+ Text" focuses the field with its content selected, so
+ * typing replaces the placeholder words; the field can be EMPTIED while
+ * typing (a local draft — the overlay itself never holds an empty string,
+ * the schema's floor); Remove sits outside the chips' scrolling strip.
  */
 
+import { useEffect, useRef, useState } from 'react';
 import {
   defaultEmojiOverlay,
   defaultTextOverlay,
@@ -27,9 +33,27 @@ interface TextPanelProps {
 
 const FONT_IDS: OverlayFontId[] = ['inter', 'lora', 'caveat'];
 
+const CHIP = 'px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0';
+const CHIP_IDLE = `${CHIP} bg-white/10 text-white/70 hover:bg-white/20`;
+const CHIP_ON = `${CHIP} bg-white/20 text-white font-semibold`;
+
 export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatch }: TextPanelProps) {
   const overlays = recipe.overlays ?? [];
   const selected: Overlay | undefined = overlays[selectedIndex];
+  const full = overlays.length >= MAX_OVERLAYS;
+
+  // The field's draft while it is being typed in: may be empty, which the
+  // overlay never is. Keyed by index so another selection shows its own text.
+  const [draft, setDraft] = useState<{ index: number; value: string } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // "+ Text" asks for the field to take focus once it has rendered.
+  const focusNextRef = useRef(false);
+  useEffect(() => {
+    if (!focusNextRef.current || selected?.kind !== 'text') return;
+    focusNextRef.current = false;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [selected, selectedIndex]);
 
   const patchOverlays = (next: Overlay[], keys: string) =>
     onPatch({ overlays: next.length > 0 ? next : undefined }, keys);
@@ -45,50 +69,59 @@ export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatc
 
   return (
     <div className="px-4 py-3 space-y-2 w-full max-w-xl mx-auto">
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        {overlays.map((overlay, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onSelectIndex(i)}
-            className={`px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 max-w-[8rem] truncate ${
-              i === selectedIndex
-                ? 'bg-brand text-white font-semibold'
-                : 'bg-white/10 text-white/70 hover:bg-white/20'
-            }`}
-          >
-            {overlay.kind === 'text' ? overlay.content : overlay.emoji}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => addOverlay(defaultTextOverlay())}
-          disabled={overlays.length >= MAX_OVERLAYS}
-          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-        >
-          + Text
-        </button>
-        <button
-          type="button"
-          onClick={() => addOverlay(defaultEmojiOverlay())}
-          disabled={overlays.length >= MAX_OVERLAYS}
-          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
-        >
-          + Sticker
-        </button>
-        {selected && (
+      {overlays.length > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            {overlays.map((overlay, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onSelectIndex(i)}
+                aria-pressed={i === selectedIndex}
+                className={`${CHIP} max-w-[8rem] truncate ${
+                  i === selectedIndex
+                    ? 'bg-brand text-white font-semibold'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+              >
+                {overlay.kind === 'text' ? overlay.content : overlay.emoji}
+              </button>
+            ))}
+          </div>
+          {selected && (
+            <button
+              type="button"
+              onClick={() => {
+                patchOverlays(overlays.filter((_, i) => i !== selectedIndex), 'overlay.delete');
+                onSelectIndex(Math.max(0, selectedIndex - 1));
+              }}
+              className={`${CHIP_IDLE} hover:text-white`}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      )}
+
+      {full ? (
+        <p className="text-chip text-white/50">Up to {MAX_OVERLAYS} on a photo.</p>
+      ) : (
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
           <button
             type="button"
             onClick={() => {
-              patchOverlays(overlays.filter((_, i) => i !== selectedIndex), 'overlay.delete');
-              onSelectIndex(Math.max(0, selectedIndex - 1));
+              focusNextRef.current = true;
+              addOverlay(defaultTextOverlay());
             }}
-            className="ml-auto px-3 min-h-[36px] rounded-full text-chip shrink-0 text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+            className={CHIP_IDLE}
           >
-            Remove
+            + Text
           </button>
-        )}
-      </div>
+          <button type="button" onClick={() => addOverlay(defaultEmojiOverlay())} className={CHIP_IDLE}>
+            + Sticker
+          </button>
+        </div>
+      )}
 
       {!selected ? (
         <p className="text-chip text-white/50">
@@ -99,15 +132,20 @@ export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatc
           {selected.kind === 'text' ? (
             <>
               <input
+                ref={inputRef}
                 type="text"
-                value={selected.content}
+                value={draft?.index === selectedIndex ? draft.value : selected.content}
                 maxLength={120}
                 aria-label="Overlay text"
                 onChange={e => {
                   const content = e.target.value;
-                  if (content.length === 0) return; // schema floor — keep last char
-                  patchSelected({ ...selected, content }, `overlay.${selectedIndex}.content`);
+                  setDraft({ index: selectedIndex, value: content });
+                  // The overlay keeps its last words while the field is empty.
+                  if (content.length > 0) {
+                    patchSelected({ ...selected, content }, `overlay.${selectedIndex}.content`);
+                  }
                 }}
+                onBlur={() => setDraft(null)}
                 className="w-full min-h-[44px] px-3 rounded-lg bg-white/10 text-white text-label placeholder-white/40 focus-visible:bg-white/15"
                 placeholder="Your text"
               />
@@ -118,11 +156,7 @@ export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatc
                     type="button"
                     onClick={() => patchSelected({ ...selected, fontId: id }, `overlay.${selectedIndex}.font`)}
                     aria-pressed={selected.fontId === id}
-                    className={`px-3 min-h-[36px] rounded-full text-chip ${
-                      selected.fontId === id
-                        ? 'bg-white/20 text-white font-semibold'
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
+                    className={selected.fontId === id ? CHIP_ON : CHIP_IDLE}
                   >
                     {OVERLAY_FONT_LABELS[id]}
                   </button>
@@ -133,13 +167,10 @@ export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatc
                     patchSelected({ ...selected, pill: !selected.pill }, `overlay.${selectedIndex}.pill`)
                   }
                   aria-pressed={selected.pill === true}
-                  className={`ml-auto px-3 min-h-[36px] rounded-full text-chip ${
-                    selected.pill
-                      ? 'bg-white/20 text-white font-semibold'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
+                  title="A dark box behind the words"
+                  className={`ml-auto ${selected.pill ? CHIP_ON : CHIP_IDLE}`}
                 >
-                  Pill
+                  Backdrop
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -175,18 +206,21 @@ export default function TextPanel({ recipe, selectedIndex, onSelectIndex, onPatc
                   </button>
                 ))}
               </div>
-              <input
-                type="text"
-                value={selected.emoji}
-                maxLength={16}
-                aria-label="Custom emoji"
-                onChange={e => {
-                  const emoji = e.target.value;
-                  if (emoji.length === 0) return;
-                  patchSelected({ ...selected, emoji }, `overlay.${selectedIndex}.emoji`);
-                }}
-                className="w-32 min-h-[44px] px-3 rounded-lg bg-white/10 text-white text-label"
-              />
+              <label className="flex items-center gap-3 text-chip text-white/60">
+                Or type any emoji
+                <input
+                  type="text"
+                  value={selected.emoji}
+                  maxLength={16}
+                  aria-label="Custom emoji"
+                  onChange={e => {
+                    const emoji = e.target.value;
+                    if (emoji.length === 0) return;
+                    patchSelected({ ...selected, emoji }, `overlay.${selectedIndex}.emoji`);
+                  }}
+                  className="w-28 min-h-[44px] px-3 rounded-lg bg-white/10 text-white text-label"
+                />
+              </label>
             </>
           )}
           <EditorSlider

@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Mask outlines over the live stage. Absolute SVG in normalized viewBox
+ * Mask outlines over the live stage (named Circle / Gradient / Paint to the
+ * person since Nov 6 2026 — the recipe kinds stay radial / linear / brush). Absolute SVG in normalized viewBox
  * (0..100, stretched to the image box) so mask coordinates map 1:1.
  * Interaction math is pure (mask-math.moveMask/moveLinearEndpoint) — this
  * component only turns pointer deltas into those calls. Dragging an
@@ -155,7 +156,7 @@ export default function MaskOverlay({
           // stroke widths render slightly elliptical under the stretched
           // viewBox — acceptable for a translucent guide.
           return (
-            <g key={i} role="img" aria-label={`Brush mask ${i + 1}`} opacity={selected ? 0.4 : 0.2}>
+            <g key={i} role="img" aria-label={`Paint mask ${i + 1}`} opacity={selected ? 0.4 : 0.2}>
               {mask.strokes.map((s, si) => (
                 <polyline
                   key={si}
@@ -185,7 +186,7 @@ export default function MaskOverlay({
               strokeDasharray={mask.invert ? '2 2' : undefined}
               vectorEffect="non-scaling-stroke"
               role="button"
-              aria-label={`Radial mask ${i + 1}`}
+              aria-label={`Circle mask ${i + 1}`}
               className="cursor-move"
               style={{ pointerEvents: shapePointerEvents }}
               onPointerDown={e => {
@@ -206,7 +207,7 @@ export default function MaskOverlay({
               strokeWidth={selected ? 0.8 : 0.5}
               vectorEffect="non-scaling-stroke"
               role="button"
-              aria-label={`Linear mask ${i + 1}`}
+              aria-label={`Gradient mask ${i + 1}`}
               className="cursor-move"
               style={{ pointerEvents: shapePointerEvents, strokeLinecap: 'round' }}
               strokeDasharray="3 1.5"
@@ -226,7 +227,7 @@ export default function MaskOverlay({
                 strokeWidth={0.5}
                 vectorEffect="non-scaling-stroke"
                 role="button"
-                aria-label={`Linear mask ${i + 1} ${end === 0 ? 'start' : 'end'} handle`}
+                aria-label={`Gradient mask ${i + 1} ${end === 0 ? 'start' : 'end'} handle`}
                 style={{ pointerEvents: shapePointerEvents }}
                 onPointerDown={e =>
                   startDrag(e, { index: i, mode: 'endpoint', endpoint: end as 0 | 1 }, i)
