@@ -19,6 +19,8 @@ type Status = {
   recent: Array<{ id: string; kind: string; target_table: string; status: string; attempts: number; error: string | null; finished_at: string | null; created_at: string }>;
   enabled: boolean;
   maxRunning: number;
+  /** How long the oldest queued job has waited (computed on the server) — null when nothing waits. */
+  oldestQueuedMinutes?: number | null;
 };
 
 type PlanResult = { ok: true; counts: Record<string, number>; sample: Array<{ table: string; id: string; kind: string }>; enqueued: number; dryRun: boolean };
@@ -131,6 +133,19 @@ export default function MediaJobsPanel() {
         </p>
       )}
 
+      {status && typeof status.oldestQueuedMinutes === 'number' && (() => {
+        const minutes = status.oldestQueuedMinutes;
+        const late = minutes >= 10;
+        return (
+          <p
+            className={`mb-3 text-sm ${late ? 'rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200' : 'text-secondary'}`}
+            role="status"
+            data-media-jobs-queue-age={late ? 'late' : 'ok'}
+          >
+            Oldest waiting: {minutes} min{late ? ' — the worker is behind (a tick runs every minute; is it on, and is the cap enough?)' : ''}
+          </p>
+        );
+      })()}
       {status && (
         <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 text-sm" data-media-jobs-counts="">
           {(['queued', 'running', 'parked', 'done', 'failed'] as const).map(k => (

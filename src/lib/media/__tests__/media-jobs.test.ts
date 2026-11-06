@@ -132,3 +132,17 @@ describe('quality targets', () => {
     expect(qualityLabelFor(0, 0)).toBeNull();
   });
 });
+
+
+describe('the lease cap', () => {
+  it('defaults to three — one video plus the light jobs beside it (Nov 6 2026); the env overrides', async () => {
+    const { maxRunning, DEFAULT_MAX_RUNNING } = await import('../media-jobs');
+    const prev = process.env.MEDIA_JOBS_MAX_RUNNING;
+    delete process.env.MEDIA_JOBS_MAX_RUNNING;
+    expect(DEFAULT_MAX_RUNNING).toBe(3);
+    expect(maxRunning()).toBe(3);
+    process.env.MEDIA_JOBS_MAX_RUNNING = '5';
+    expect(maxRunning()).toBe(5);
+    if (prev === undefined) delete process.env.MEDIA_JOBS_MAX_RUNNING; else process.env.MEDIA_JOBS_MAX_RUNNING = prev;
+  });
+});
