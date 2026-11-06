@@ -27,8 +27,9 @@ export interface PulseSnapshot {
 
 export const EMPTY_PULSE: PulseSnapshot = { liveNow: 0, unreadMessages: 0, fetchedAt: 0 };
 
-/** The safety-net timer: the Live dot's old cadence, until the change signals land (PR C). */
-export const PULSE_REFRESH_MS = 60_000;
+/** The safety-net timer under the change signals (migration 301, PR C): a
+ *  time-only transition (the 48 h window lapsing) lags at most this long. */
+export const PULSE_REFRESH_MS = 600_000;
 /** A fetched answer is reused this long on a mount or a return to the tab. */
 export const PULSE_STALE_MS = 30_000;
 /** A change signal waits this long before fetching, so a burst is one fetch… */

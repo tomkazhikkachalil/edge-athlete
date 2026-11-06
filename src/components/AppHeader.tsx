@@ -477,6 +477,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                         // static literal, which made it decoration pretending
                         // to be status.
                         <span
+                          data-live-dot={liveCount > 0 ? 'on' : 'off'}
                           className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${
                             liveCount > 0 ? 'bg-red-600 ea-live-dot' : 'bg-gray-400'
                           }`}
