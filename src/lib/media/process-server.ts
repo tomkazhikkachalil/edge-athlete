@@ -179,6 +179,9 @@ export async function enqueueForPostMedia(
 /** The columns a writer selects back from its insert so the planner can read the row. */
 export const MEDIA_JOB_PLAN_COLUMNS = 'id, media_url, media_type, codec, thumbnail_url, blur_hash';
 
+/** How many light jobs (poster, blur, probe) a tick runs at once, beside the video. */
+export const LIGHT_CONCURRENCY = 4;
+
 /** The tick. */
 export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryRun?: boolean; maxVideos?: number; maxLight?: number } = {}): Promise<TickSummary> {
   const t0 = deps.now();
@@ -197,26 +200,42 @@ export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryR
     return (data ?? []) as MediaJobRow[];
   };
   try {
-    // One video while the reserve holds, then the light jobs in the remaining budget.
+    // One video while the reserve holds, AND the light jobs — beside it, not
+    // after it (SCALE_AUDIT hole 11, Nov 6 2026). A tick that claimed a video
+    // used to claim nothing else and run everything one after another: one
+    // video a minute, the posters and blurs queued behind it. The transcode is
+    // ffmpeg's process; the light jobs are sharp's — they share the budget,
+    // not the CPU. The claim RPC's cap (maxRunning) still bounds the leases.
     const jobs: MediaJobRow[] = [];
     if (mayStartTranscode(deps.now() - t0)) jobs.push(...(await claim(1)));
-    if (jobs.length === 0 || jobs[0].kind !== 'video') jobs.push(...(await claim(Math.max(0, (opts.maxLight ?? 20) - jobs.length))));
+    jobs.push(...(await claim(Math.max(0, (opts.maxLight ?? 20) - jobs.length))));
     summary.claimed = jobs.length;
     if (opts.dryRun) {
       summary.outcomes = jobs.map(j => ({ id: j.id, kind: j.kind, outcome: 'skipped' as const, ms: 0 }));
       return { ...summary, elapsedMs: deps.now() - t0 };
     }
-    for (const job of jobs) {
+    const runOne = async (job: MediaJobRow) => {
       if (deps.now() - t0 > WORK_BUDGET_MS) {
         await park(admin, job, 'budget');
         summary.outcomes.push({ id: job.id, kind: job.kind, outcome: 'parked', ms: 0, error: 'budget' });
-        continue;
+        return;
       }
       const started = deps.now();
       const result = await runJob(admin, deps, job, t0);
       summary.outcomes.push({ id: job.id, kind: job.kind, outcome: result.outcome, ms: deps.now() - started, ...(result.error ? { error: result.error } : {}) });
       log(result.outcome, { id: job.id, kind: job.kind, table: job.target_table, target: job.target_id, ms: deps.now() - started, error: result.error ?? null });
-    }
+    };
+    const videos = jobs.filter(j => j.kind === 'video');
+    const light = jobs.filter(j => j.kind !== 'video');
+    // The light jobs through a small pool, in claim order; the video beside them.
+    const queue = [...light];
+    const worker = async () => {
+      for (let job = queue.shift(); job; job = queue.shift()) await runOne(job);
+    };
+    await Promise.all([
+      ...videos.map(runOne),
+      ...Array.from({ length: Math.min(LIGHT_CONCURRENCY, light.length) }, worker),
+    ]);
   } catch (err) {
     summary.ok = false;
     log('tick-failed', { error: err instanceof Error ? err.message : String(err) });
@@ -429,17 +448,36 @@ export async function runMediaJobsHygiene(admin: Admin): Promise<{ ok: boolean; 
   return { ok: true, cleared, pruned };
 }
 
-/** The dashboard's numbers. */
-export async function readMediaJobsStatus(admin: Admin): Promise<{ ok: true; counts: Record<string, number>; recent: Array<Record<string, unknown>>; enabled: boolean; maxRunning: number } | { ok: false; error: string }> {
-  const { data, error } = await admin.from('media_jobs').select('status, kind');
-  if (error) return { ok: false, error: error.code === 'PGRST205' || error.code === '42P01' ? 'migration 261 has not run here' : error.message };
+/** The dashboard's numbers — counted in the database (the row read was cut at PostgREST's 1,000), plus how long the oldest queued job has waited. */
+export async function readMediaJobsStatus(admin: Admin): Promise<{ ok: true; counts: Record<string, number>; recent: Array<Record<string, unknown>>; enabled: boolean; maxRunning: number; oldestQueuedAt: string | null; oldestQueuedMinutes: number | null } | { ok: false; error: string }> {
+  const STATUSES = ['queued', 'running', 'parked', 'done', 'failed'] as const;
+  const KINDS = ['video', 'poster', 'blur', 'probe'] as const;
+  const countOf = async (status: string, kind?: string) => {
+    let q = admin.from('media_jobs').select('id', { count: 'exact', head: true }).eq('status', status);
+    if (kind) q = q.eq('kind', kind);
+    const { count, error } = await q;
+    if (error) throw error;
+    return count ?? 0;
+  };
   const counts: Record<string, number> = {};
-  for (const r of (data ?? []) as Array<{ status: string; kind: string }>) {
-    counts[r.status] = (counts[r.status] ?? 0) + 1;
-    counts[`${r.status}:${r.kind}`] = (counts[`${r.status}:${r.kind}`] ?? 0) + 1;
+  try {
+    const keys: Array<[string, string | undefined]> = [
+      ...STATUSES.map(s => [s, undefined] as [string, undefined]),
+      ...STATUSES.flatMap(s => KINDS.map(k => [s, k] as [string, string])),
+    ];
+    const values = await Promise.all(keys.map(([s, k]) => countOf(s, k)));
+    keys.forEach(([s, k], i) => { counts[k ? `${s}:${k}` : s] = values[i]; });
+  } catch (err) {
+    const error = err as { code?: string; message?: string };
+    return { ok: false, error: error.code === 'PGRST205' || error.code === '42P01' ? 'migration 261 has not run here' : (error.message ?? 'failed') };
   }
-  const { data: recent } = await admin.from('media_jobs').select('id, kind, target_table, status, attempts, error, finished_at, created_at').order('created_at', { ascending: false }).limit(20);
-  return { ok: true, counts, recent: (recent ?? []) as Array<Record<string, unknown>>, enabled: mediaJobsEnabled(), maxRunning: maxRunning() };
+  const [{ data: recent }, { data: oldest }] = await Promise.all([
+    admin.from('media_jobs').select('id, kind, target_table, status, attempts, error, finished_at, created_at').order('created_at', { ascending: false }).limit(20),
+    admin.from('media_jobs').select('created_at').eq('status', 'queued').order('created_at', { ascending: true }).limit(1).maybeSingle(),
+  ]);
+  const oldestQueuedAt = (oldest as { created_at?: string } | null)?.created_at ?? null;
+  const oldestQueuedMinutes = oldestQueuedAt ? Math.max(0, Math.round((Date.now() - Date.parse(oldestQueuedAt)) / 60_000)) : null;
+  return { ok: true, counts, recent: (recent ?? []) as Array<Record<string, unknown>>, enabled: mediaJobsEnabled(), maxRunning: maxRunning(), oldestQueuedAt, oldestQueuedMinutes };
 }
 
 /** The default deps — the world. */
