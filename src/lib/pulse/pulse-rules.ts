@@ -12,7 +12,8 @@
 
 /** The wire shape of GET /api/me/pulse. */
 export interface PulsePayload {
-  liveNow: { golf: number; events: number; total: number };
+  /** `broadcasts` (300, Videos Phase 4a): linked YouTube broadcasts streaming now that the viewer may see. */
+  liveNow: { golf: number; events: number; broadcasts: number; total: number };
   unread: { messages: number };
 }
 

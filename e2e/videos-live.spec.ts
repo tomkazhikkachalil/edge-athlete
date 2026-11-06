@@ -74,6 +74,11 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
     expect(strangerSees).not.toContain(videoId);
     await page.goto('/live');
     await expect(page.locator(`[data-live-broadcast-card="${videoId}"]`)).toBeVisible();
+    // 300: the header's dot counts it — the pulse mirrors live-now for the owner, and the parity holds.
+    const pulse = (await (await api.get('/api/me/pulse')).json()).liveNow as { golf: number; events: number; broadcasts: number; total: number };
+    expect(pulse.broadcasts).toBeGreaterThanOrEqual(1);
+    expect(pulse.broadcasts).toBe(((await (await api.get('/api/videos/live-now?count=1')).json()) as { count: number }).count);
+    expect(pulse.total).toBe(pulse.golf + pulse.events + pulse.broadcasts);
 
     // The page: the pill, the "Now" button, a marker at the server's offset into the stream.
     await page.goto(`/videos/${videoId}`);

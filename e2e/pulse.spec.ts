@@ -12,7 +12,7 @@ import { openEventSession } from './helpers/sport-events';
  * stranger) and a message arriving (A's unread rises by one and falls on
  * the read). Private, no-store. Zero UI: the API is the contract.
  */
-type Pulse = { liveNow: { golf: number; events: number; total: number }; unread: { messages: number } };
+type Pulse = { liveNow: { golf: number; events: number; broadcasts: number; total: number }; unread: { messages: number } };
 
 async function pulse(api: APIRequestContext): Promise<Pulse> {
   const res = await api.get('/api/me/pulse');
@@ -21,10 +21,11 @@ async function pulse(api: APIRequestContext): Promise<Pulse> {
   return (await res.json()) as Pulse;
 }
 
-async function theThree(api: APIRequestContext): Promise<{ golf: number; events: number; unread: number }> {
-  const [g, e, u] = await Promise.all([api.get('/api/golf/live-now/count'), api.get('/api/sport-events/live-now?count=1'), api.get('/api/messages/unread-count')]);
-  expect(g.ok() && e.ok() && u.ok()).toBe(true);
-  return { golf: ((await g.json()) as { count: number }).count, events: ((await e.json()) as { count: number }).count, unread: ((await u.json()) as { count: number }).count };
+// The three polls the pulse replaced, plus the broadcasts count (300, the Videos program Phase 4a) it mirrors.
+async function theThree(api: APIRequestContext): Promise<{ golf: number; events: number; broadcasts: number; unread: number }> {
+  const [g, e, b, u] = await Promise.all([api.get('/api/golf/live-now/count'), api.get('/api/sport-events/live-now?count=1'), api.get('/api/videos/live-now?count=1'), api.get('/api/messages/unread-count')]);
+  expect(g.ok() && e.ok() && b.ok() && u.ok()).toBe(true);
+  return { golf: ((await g.json()) as { count: number }).count, events: ((await e.json()) as { count: number }).count, broadcasts: ((await b.json()) as { count: number }).count, unread: ((await u.json()) as { count: number }).count };
 }
 
 test('one pulse equals the three polls it replaces; a round and a message move it @mobile', async () => {
@@ -33,7 +34,7 @@ test('one pulse equals the three polls it replaces; a round and a message move i
   try {
     const a0 = await pulse(s.apiA);
     const three = await theThree(s.apiA);
-    expect(a0.liveNow).toEqual({ golf: three.golf, events: three.events, total: three.golf + three.events });
+    expect(a0.liveNow).toEqual({ golf: three.golf, events: three.events, broadcasts: three.broadcasts, total: three.golf + three.events + three.broadcasts });
     expect(a0.unread.messages).toBe(three.unread);
     const b0 = await pulse(s.apiB);
     const c0 = s.apiC ? await pulse(s.apiC) : null;
@@ -54,7 +55,7 @@ test('one pulse equals the three polls it replaces; a round and a message move i
 
     const a1 = await pulse(s.apiA);
     expect(a1.liveNow.golf).toBe(a0.liveNow.golf + 1);
-    expect(a1.liveNow.total).toBe(a1.liveNow.golf + a1.liveNow.events);
+    expect(a1.liveNow.total).toBe(a1.liveNow.golf + a1.liveNow.events + a1.liveNow.broadcasts);
     expect((await pulse(s.apiB)).liveNow.golf).toBe(b0.liveNow.golf + 1); // on the roster
     if (s.apiC && c0) expect((await pulse(s.apiC)).liveNow.golf).toBe(c0.liveNow.golf); // a stranger: private
     // Parity holds with the round live.
