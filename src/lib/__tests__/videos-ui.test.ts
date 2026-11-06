@@ -308,3 +308,42 @@ describe('paste and go (Nov 6 2026)', () => {
     expect(read('src/components/videos/VideoCards.tsx')).toContain('data-video-card-duration={video.duration_ms}');
   });
 });
+
+describe('the player that knows the time (polish B, Nov 6 2026)', () => {
+  it('the API is loaded once by trusted code — createElement, never parser-inserted — and the plain frame stays the fallback; no CSP line changes', () => {
+    const api = read('src/lib/videos/youtube-player-api.ts');
+    expect(api).toContain("document.createElement('script')");
+    expect(api).toContain('document.head.appendChild(script)');
+    expect(api).not.toMatch(/innerHTML|insertAdjacentHTML|document\.write/);
+    expect(api).toContain('PLAYER_READY_TIMEOUT_MS');
+    const player = read('src/components/videos/YouTubePlayer.tsx');
+    expect(player).toContain("host: PLAYER_HOST");
+    expect(player).toContain("data-video-player-mode={mode ?? (playing ? 'loading' : 'poster')}");
+    expect(player).toContain("mode === 'frame' ? (");
+    expect(player).toContain('youtube-nocookie');
+    expect(read('src/lib/csp.ts')).not.toMatch(/iframe_api|script-src[^\n]*youtube\.com/);
+  });
+  it('"This moment" reads the player for a VOD and is absent in frame mode; the live "Now" keeps the server stamp', () => {
+    const list = read('src/components/videos/HighlightList.tsx');
+    expect(list).toContain('const canMark = !!currentMs && !liveStartedAt;');
+    expect(list).toContain('data-highlight-mark=""');
+    expect(list).toContain('data-highlight-now=""');
+    expect(list).toContain("setD(prev => ({ ...prev, time: formatTimestamp(ms), live: false }));");
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain("currentMs={playerMode === 'api' ? () => playerRef.current?.currentMs() ?? null : undefined}");
+  });
+  it('"Play highlights" walks the pure playlist; the active row follows the playhead; resume is a fail-open local chip, never automatic', () => {
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain("data-video-play-highlights={playAll ? 'on' : 'off'}");
+    expect(screen).toContain('nextInPlaylist(pa.list, pa.index, ms)');
+    expect(screen).toContain('setActiveId(activeHighlightAt(load.highlights, ms))');
+    expect(screen).toContain('data-video-resume={resumeAt}');
+    expect(screen).toContain('resumeOffer(readResumeMs(defaultPlayerStorage()');
+    expect(screen).toContain('clearResumeMs(defaultPlayerStorage(), providerVideoId)');
+    expect(screen).not.toMatch(/autoplay.*resume|resume.*autoplay/i);
+    // Off the video page nothing loads the API: the feed card and the message poster stay poster-first, plain frame on tap.
+    for (const f of ['src/components/videos/VideoCards.tsx', 'src/components/messages/MessageBubbleContent.tsx']) expect(read(f)).not.toMatch(/youtube-player-api|loadYouTubeApi|<YouTubePlayer[^>]*\bapi\b/);
+    expect(screen).toContain('<YouTubePlayer\n          api\n');
+    expect(read('src/components/videos/YouTubePlayer.tsx')).toContain("(api ? loadYouTubeApi() : Promise.reject(new Error('plain frame')))");
+  });
+});

@@ -21,6 +21,8 @@ interface Props {
   onDelete: (id: string) => Promise<string | null>;
   /** Phase 4a: YouTube's actual start while the broadcast is LIVE — the "Now" button's zero; null otherwise. */
   liveStartedAt?: string | null;
+  /** Polish B: the player's playhead in ms when the IFrame API answers — "Mark this moment"; null/undefined = no such button. */
+  currentMs?: () => number | null;
 }
 
 interface Draft {
@@ -76,7 +78,7 @@ function inputOf(d: Draft): { ok: true; value: HighlightInput } | { ok: false; e
   return { ok: true, value: { start_ms: start, end_ms: end, label, meta } };
 }
 
-function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null }) {
+function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null, currentMs }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null; currentMs?: () => number | null }) {
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD(prev => ({ ...prev, [k]: e.target.value, ...(k === 'time' ? { live: false } : {}) }));
@@ -85,6 +87,13 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
     const offset = markNowOffsetMs(liveStartedAt, Date.now());
     if (offset === null) return;
     setD(prev => ({ ...prev, time: formatTimestamp(offset), live: true }));
+  };
+  // "Mark this moment" (polish B): the playhead the IFrame API reports — a VOD's moment, typed for you; the live "Now" keeps the server's stamp.
+  const canMark = !!currentMs && !liveStartedAt;
+  const markMoment = () => {
+    const ms = currentMs?.();
+    if (ms === null || ms === undefined) return;
+    setD(prev => ({ ...prev, time: formatTimestamp(ms), live: false }));
   };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +116,11 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
             {liveStartedAt && (
               <button type="button" onClick={markNow} className={`${BTN} shrink-0`} title="This moment of the live stream" data-highlight-now="">
                 Now
+              </button>
+            )}
+            {canMark && (
+              <button type="button" onClick={markMoment} className={`${BTN} shrink-0`} title="The moment the player is at" data-highlight-mark="">
+                This moment
               </button>
             )}
           </div>
@@ -151,7 +165,7 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
  * the player there; a manager adds, edits and removes them. The count is in
  * the heading. A marker is a cue — an end is a note on it, never a cut.
  */
-export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null }: Props) {
+export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null, currentMs }: Props) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<HighlightRow | null>(null);
@@ -187,6 +201,7 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
           <HighlightForm
             initial={EMPTY}
             liveStartedAt={liveStartedAt}
+            currentMs={currentMs}
             saving={saving}
             onCancel={() => setAdding(false)}
             onSave={input => run(async () => {

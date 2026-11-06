@@ -65,7 +65,8 @@ test('link a full game → profile Videos tab → the video page → a highlight
     await row.locator('[data-highlight-play]').click();
     const frame = player.locator('iframe');
     await expect(frame).toHaveCount(1, { timeout: 10_000 });
-    await expect(frame).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/jNQXAC9IVRw\?rel=0&start=90&autoplay=1/);
+    // Polish B: in API mode the frame is YouTube's own (enablejsapi=…); in frame mode ours — both carry start=90 on the privacy-enhanced host.
+    await expect(frame).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/jNQXAC9IVRw\?[^"]*start=90/);
     await expect(player).toHaveAttribute('data-video-start', '90');
 
     // The API agrees: the list carries the count; the detail carries the marker.

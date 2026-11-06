@@ -62,7 +62,7 @@ test('videos at phone width: the tab, the page, the player, the steps @mobile', 
     expect(rowBox!.height).toBeGreaterThanOrEqual(44);
     await expect(play).toContainText('Hole 3');
     await play.click();
-    await expect(player.locator('iframe')).toHaveAttribute('src', /start=12&autoplay=1/, { timeout: 10_000 });
+    await expect(player.locator('iframe')).toHaveAttribute('src', /start=12/, { timeout: 10_000 });
     expect(await fitsViewportWidth(page)).toBe(true);
 
     // The steps: one column, the link step refuses Next until a link is pasted, then advances.
