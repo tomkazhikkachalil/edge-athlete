@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-06T03:46:08.600617+00:00 from server 17.6 by
+-- Generated 2026-11-06T21:00:19.038019+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 300.
+-- public.schema_dump() (migration 227). Ledger head at generation: 303.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (135; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (145; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -452,6 +452,108 @@ BEGIN
         is_complete = (total_holes >= holes),
         updated_at = now()
     WHERE id = round_uuid;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.calendar_series_split(p_old_series uuid, p_organizer uuid, p_from timestamp with time zone, p_series jsonb, p_template jsonb, p_occurrences jsonb, p_guests jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_owner uuid;
+  v_series uuid;
+  v_first uuid;
+  v_cancelled int := 0;
+  v_created int := 0;
+BEGIN
+  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series;
+  IF v_owner IS NULL THEN RAISE EXCEPTION 'calendar_series_split: series % not found', p_old_series; END IF;
+  IF v_owner <> p_organizer THEN RAISE EXCEPTION 'calendar_series_split: not the organizer'; END IF;
+  IF jsonb_typeof(p_occurrences) <> 'array' OR jsonb_array_length(p_occurrences) = 0 THEN
+    RAISE EXCEPTION 'calendar_series_split: no occurrences';
+  END IF;
+
+  -- 1. The old series ends here.
+  UPDATE public.event_series
+     SET ends = 'until', until_at = p_from, updated_at = now()
+   WHERE id = p_old_series;
+
+  -- 2. Its remaining occurrences are cancelled, never deleted.
+  UPDATE public.events
+     SET status = 'cancelled', cancelled_at = now(), updated_at = now()
+   WHERE series_id = p_old_series
+     AND starts_at >= p_from
+     AND status = 'active';
+  GET DIAGNOSTICS v_cancelled = ROW_COUNT;
+
+  -- 3. The new series, its occurrences, their guests.
+  INSERT INTO public.event_series (organizer_id, freq, interval_n, byweekday, ends, until_at, count_n, generated_until)
+  VALUES (
+    p_organizer,
+    p_series->>'freq',
+    (p_series->>'interval_n')::int,
+    CASE WHEN jsonb_typeof(p_series->'byweekday') = 'array'
+         THEN ARRAY(SELECT (x)::smallint FROM jsonb_array_elements_text(p_series->'byweekday') x)
+         ELSE NULL END,
+    p_series->>'ends',
+    (p_series->>'until_at')::timestamptz,
+    (p_series->>'count_n')::int,
+    (p_series->>'generated_until')::timestamptz
+  )
+  RETURNING id INTO v_series;
+
+  INSERT INTO public.events (
+    organizer_id, title, description, location, all_day, timezone, category,
+    routine_id, routine_snapshot, org_id, division_id, team_id, venue_id, facility_id,
+    starts_at, ends_at, series_id
+  )
+  SELECT
+    p_organizer,
+    p_template->>'title',
+    p_template->>'description',
+    p_template->>'location',
+    COALESCE((p_template->>'all_day')::boolean, false),
+    p_template->>'timezone',
+    COALESCE(p_template->>'category', 'other'),
+    (p_template->>'routine_id')::uuid,
+    NULLIF(p_template->'routine_snapshot', 'null'::jsonb),
+    (p_template->>'org_id')::uuid,
+    (p_template->>'division_id')::uuid,
+    (p_template->>'team_id')::uuid,
+    (p_template->>'venue_id')::uuid,
+    (p_template->>'facility_id')::uuid,
+    (o->>'starts_at')::timestamptz,
+    (o->>'ends_at')::timestamptz,
+    v_series
+  FROM jsonb_array_elements(p_occurrences) o;
+  GET DIAGNOSTICS v_created = ROW_COUNT;
+
+  IF jsonb_typeof(p_guests) = 'array' AND jsonb_array_length(p_guests) > 0 THEN
+    INSERT INTO public.event_guests (event_id, profile_id, invited_email, role, status, responded_at, reminder_minutes)
+    SELECT e.id,
+           (g->>'profile_id')::uuid,
+           g->>'invited_email',
+           COALESCE(g->>'role', 'guest'),
+           COALESCE(g->>'status', 'invited'),
+           (g->>'responded_at')::timestamptz,
+           (g->>'reminder_minutes')::int
+      FROM public.events e
+     CROSS JOIN jsonb_array_elements(p_guests) g
+     WHERE e.series_id = v_series;
+  END IF;
+
+  SELECT id INTO v_first FROM public.events WHERE series_id = v_series ORDER BY starts_at ASC LIMIT 1;
+
+  RETURN jsonb_build_object(
+    'new_series_id', v_series,
+    'first_event_id', v_first,
+    'cancelled', v_cancelled,
+    'created', v_created
+  );
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -2417,6 +2519,27 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer DEFAULT 100)
+ RETURNS TABLE(group_post_id uuid, profile_id uuid, status text)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT gpp.group_post_id, gpp.profile_id, gpp.status
+  FROM public.group_post_participants gpp
+  WHERE gpp.profile_id = p_viewer
+     OR gpp.profile_id IN (
+          SELECT f.following_id
+          FROM public.follows f
+          WHERE f.follower_id = p_viewer AND f.status = 'accepted'
+          LIMIT 2000
+        )
+  ORDER BY gpp.created_at DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 500));
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
  RETURNS jsonb
  LANGUAGE sql
@@ -3378,6 +3501,137 @@ SELECT CASE
     'memberships',      COALESCE((SELECT jsonb_agg(to_jsonb(m)) FROM mem m), '[]'::jsonb),
     'organizations',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM orgs o), '[]'::jsonb)
   )
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, p_private);
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'pulse_send(%): %', p_topic, SQLERRM;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_broadcast()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND OLD.live_status = 'live' AND OLD.status = 'published';
+  new_live boolean := (TG_OP <> 'DELETE') AND NEW.live_status = 'live' AND NEW.status = 'published';
+BEGIN
+  IF old_live <> new_live THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'broadcast'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_event()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status AND (OLD.status = 'live' OR NEW.status = 'live') THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'event'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_golf()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND OLD.type = 'golf_round' AND OLD.status IN ('pending', 'active');
+  new_live boolean := (TG_OP <> 'DELETE') AND NEW.type = 'golf_round' AND NEW.status IN ('pending', 'active');
+BEGIN
+  IF old_live OR new_live THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'golf'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT cp.profile_id
+    FROM public.conversation_participants cp
+    WHERE cp.conversation_id = NEW.conversation_id
+      AND cp.left_at IS NULL
+      AND cp.held_at IS NULL
+  LOOP
+    PERFORM public.pulse_send('user:' || r.profile_id::text, jsonb_build_object('kind', 'messages', 'conversation_id', NEW.conversation_id), true);
+  END LOOP;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_read()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF OLD.last_read_at IS DISTINCT FROM NEW.last_read_at THEN
+    PERFORM public.pulse_send('user:' || NEW.profile_id::text, jsonb_build_object('kind', 'messages', 'conversation_id', NEW.conversation_id), true);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.pulse_signal_roster()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  who uuid := CASE WHEN TG_OP = 'DELETE' THEN OLD.profile_id ELSE NEW.profile_id END;
+  round_id uuid := CASE WHEN TG_OP = 'DELETE' THEN OLD.group_post_id ELSE NEW.group_post_id END;
+  changed boolean := TG_OP <> 'UPDATE' OR (OLD.status IS DISTINCT FROM NEW.status AND (OLD.status = 'declined' OR NEW.status = 'declined'));
+BEGIN
+  IF changed AND EXISTS (
+    SELECT 1 FROM public.group_posts gp
+    WHERE gp.id = round_id AND gp.type = 'golf_round' AND gp.status IN ('pending', 'active')
+  ) THEN
+    PERFORM public.pulse_send('user:' || who::text, jsonb_build_object('kind', 'live'), true);
+  END IF;
+  RETURN NULL;
 END;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -4600,6 +4854,43 @@ BEGIN
     p.id
   LIMIT GREATEST(COALESCE(max_results, 20), 1);
 END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_people_for(p_viewer uuid, p_direction text, search_term text, include_public boolean DEFAULT true, max_results integer DEFAULT 20, require_handle boolean DEFAULT false, exclude_id uuid DEFAULT NULL::uuid, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(id uuid, handle text, first_name text, middle_name text, last_name text, full_name text, avatar_url text, location text, sport text, school text, visibility text, city text, region text, region_code text, country text, country_code text, distance_km double precision, match_rank integer)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT *
+  FROM public.search_people(
+    search_term,
+    CASE
+      WHEN p_direction = 'following' THEN ARRAY(
+        SELECT f.following_id
+        FROM public.follows f
+        WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id <> p_viewer
+        LIMIT 2000
+      )
+      ELSE ARRAY(
+        SELECT CASE WHEN f.follower_id = p_viewer THEN f.following_id ELSE f.follower_id END
+        FROM public.follows f
+        WHERE f.status = 'accepted' AND (f.follower_id = p_viewer OR f.following_id = p_viewer)
+        LIMIT 2000
+      )
+    END,
+    include_public,
+    max_results,
+    require_handle,
+    exclude_id,
+    p_country_code,
+    p_region_code,
+    p_near_lat,
+    p_near_lng,
+    p_radius_km
+  );
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -12480,7 +12771,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (135) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (145) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -12859,6 +13150,106 @@ BEGIN
         is_complete = (total_holes >= holes),
         updated_at = now()
     WHERE id = round_uuid;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.calendar_series_split(p_old_series uuid, p_organizer uuid, p_from timestamp with time zone, p_series jsonb, p_template jsonb, p_occurrences jsonb, p_guests jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_owner uuid;
+  v_series uuid;
+  v_first uuid;
+  v_cancelled int := 0;
+  v_created int := 0;
+BEGIN
+  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series;
+  IF v_owner IS NULL THEN RAISE EXCEPTION 'calendar_series_split: series % not found', p_old_series; END IF;
+  IF v_owner <> p_organizer THEN RAISE EXCEPTION 'calendar_series_split: not the organizer'; END IF;
+  IF jsonb_typeof(p_occurrences) <> 'array' OR jsonb_array_length(p_occurrences) = 0 THEN
+    RAISE EXCEPTION 'calendar_series_split: no occurrences';
+  END IF;
+
+  -- 1. The old series ends here.
+  UPDATE public.event_series
+     SET ends = 'until', until_at = p_from, updated_at = now()
+   WHERE id = p_old_series;
+
+  -- 2. Its remaining occurrences are cancelled, never deleted.
+  UPDATE public.events
+     SET status = 'cancelled', cancelled_at = now(), updated_at = now()
+   WHERE series_id = p_old_series
+     AND starts_at >= p_from
+     AND status = 'active';
+  GET DIAGNOSTICS v_cancelled = ROW_COUNT;
+
+  -- 3. The new series, its occurrences, their guests.
+  INSERT INTO public.event_series (organizer_id, freq, interval_n, byweekday, ends, until_at, count_n, generated_until)
+  VALUES (
+    p_organizer,
+    p_series->>'freq',
+    (p_series->>'interval_n')::int,
+    CASE WHEN jsonb_typeof(p_series->'byweekday') = 'array'
+         THEN ARRAY(SELECT (x)::smallint FROM jsonb_array_elements_text(p_series->'byweekday') x)
+         ELSE NULL END,
+    p_series->>'ends',
+    (p_series->>'until_at')::timestamptz,
+    (p_series->>'count_n')::int,
+    (p_series->>'generated_until')::timestamptz
+  )
+  RETURNING id INTO v_series;
+
+  INSERT INTO public.events (
+    organizer_id, title, description, location, all_day, timezone, category,
+    routine_id, routine_snapshot, org_id, division_id, team_id, venue_id, facility_id,
+    starts_at, ends_at, series_id
+  )
+  SELECT
+    p_organizer,
+    p_template->>'title',
+    p_template->>'description',
+    p_template->>'location',
+    COALESCE((p_template->>'all_day')::boolean, false),
+    p_template->>'timezone',
+    COALESCE(p_template->>'category', 'other'),
+    (p_template->>'routine_id')::uuid,
+    NULLIF(p_template->'routine_snapshot', 'null'::jsonb),
+    (p_template->>'org_id')::uuid,
+    (p_template->>'division_id')::uuid,
+    (p_template->>'team_id')::uuid,
+    (p_template->>'venue_id')::uuid,
+    (p_template->>'facility_id')::uuid,
+    (o->>'starts_at')::timestamptz,
+    (o->>'ends_at')::timestamptz,
+    v_series
+  FROM jsonb_array_elements(p_occurrences) o;
+  GET DIAGNOSTICS v_created = ROW_COUNT;
+
+  IF jsonb_typeof(p_guests) = 'array' AND jsonb_array_length(p_guests) > 0 THEN
+    INSERT INTO public.event_guests (event_id, profile_id, invited_email, role, status, responded_at, reminder_minutes)
+    SELECT e.id,
+           (g->>'profile_id')::uuid,
+           g->>'invited_email',
+           COALESCE(g->>'role', 'guest'),
+           COALESCE(g->>'status', 'invited'),
+           (g->>'responded_at')::timestamptz,
+           (g->>'reminder_minutes')::int
+      FROM public.events e
+     CROSS JOIN jsonb_array_elements(p_guests) g
+     WHERE e.series_id = v_series;
+  END IF;
+
+  SELECT id INTO v_first FROM public.events WHERE series_id = v_series ORDER BY starts_at ASC LIMIT 1;
+
+  RETURN jsonb_build_object(
+    'new_series_id', v_series,
+    'first_event_id', v_first,
+    'cancelled', v_cancelled,
+    'created', v_created
+  );
 END;
 $function$;
 
@@ -14722,6 +15113,25 @@ AS $function$
   GROUP BY c.cheer;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer DEFAULT 100)
+ RETURNS TABLE(group_post_id uuid, profile_id uuid, status text)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT gpp.group_post_id, gpp.profile_id, gpp.status
+  FROM public.group_post_participants gpp
+  WHERE gpp.profile_id = p_viewer
+     OR gpp.profile_id IN (
+          SELECT f.following_id
+          FROM public.follows f
+          WHERE f.follower_id = p_viewer AND f.status = 'accepted'
+          LIMIT 2000
+        )
+  ORDER BY gpp.created_at DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 500));
+$function$;
+
 CREATE OR REPLACE FUNCTION public.me_pulse(p_viewer uuid)
  RETURNS jsonb
  LANGUAGE sql
@@ -15629,6 +16039,123 @@ SELECT CASE
     'memberships',      COALESCE((SELECT jsonb_agg(to_jsonb(m)) FROM mem m), '[]'::jsonb),
     'organizations',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM orgs o), '[]'::jsonb)
   )
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, p_private);
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'pulse_send(%): %', p_topic, SQLERRM;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_broadcast()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND OLD.live_status = 'live' AND OLD.status = 'published';
+  new_live boolean := (TG_OP <> 'DELETE') AND NEW.live_status = 'live' AND NEW.status = 'published';
+BEGIN
+  IF old_live <> new_live THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'broadcast'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_event()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status AND (OLD.status = 'live' OR NEW.status = 'live') THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'event'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_golf()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND OLD.type = 'golf_round' AND OLD.status IN ('pending', 'active');
+  new_live boolean := (TG_OP <> 'DELETE') AND NEW.type = 'golf_round' AND NEW.status IN ('pending', 'active');
+BEGIN
+  IF old_live OR new_live THEN
+    PERFORM public.pulse_send('live-now', jsonb_build_object('kind', 'golf'), false);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT cp.profile_id
+    FROM public.conversation_participants cp
+    WHERE cp.conversation_id = NEW.conversation_id
+      AND cp.left_at IS NULL
+      AND cp.held_at IS NULL
+  LOOP
+    PERFORM public.pulse_send('user:' || r.profile_id::text, jsonb_build_object('kind', 'messages', 'conversation_id', NEW.conversation_id), true);
+  END LOOP;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_read()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF OLD.last_read_at IS DISTINCT FROM NEW.last_read_at THEN
+    PERFORM public.pulse_send('user:' || NEW.profile_id::text, jsonb_build_object('kind', 'messages', 'conversation_id', NEW.conversation_id), true);
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.pulse_signal_roster()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  who uuid := CASE WHEN TG_OP = 'DELETE' THEN OLD.profile_id ELSE NEW.profile_id END;
+  round_id uuid := CASE WHEN TG_OP = 'DELETE' THEN OLD.group_post_id ELSE NEW.group_post_id END;
+  changed boolean := TG_OP <> 'UPDATE' OR (OLD.status IS DISTINCT FROM NEW.status AND (OLD.status = 'declined' OR NEW.status = 'declined'));
+BEGIN
+  IF changed AND EXISTS (
+    SELECT 1 FROM public.group_posts gp
+    WHERE gp.id = round_id AND gp.type = 'golf_round' AND gp.status IN ('pending', 'active')
+  ) THEN
+    PERFORM public.pulse_send('user:' || who::text, jsonb_build_object('kind', 'live'), true);
+  END IF;
+  RETURN NULL;
 END;
 $function$;
 
@@ -16811,6 +17338,41 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.search_people_for(p_viewer uuid, p_direction text, search_term text, include_public boolean DEFAULT true, max_results integer DEFAULT 20, require_handle boolean DEFAULT false, exclude_id uuid DEFAULT NULL::uuid, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(id uuid, handle text, first_name text, middle_name text, last_name text, full_name text, avatar_url text, location text, sport text, school text, visibility text, city text, region text, region_code text, country text, country_code text, distance_km double precision, match_rank integer)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT *
+  FROM public.search_people(
+    search_term,
+    CASE
+      WHEN p_direction = 'following' THEN ARRAY(
+        SELECT f.following_id
+        FROM public.follows f
+        WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id <> p_viewer
+        LIMIT 2000
+      )
+      ELSE ARRAY(
+        SELECT CASE WHEN f.follower_id = p_viewer THEN f.following_id ELSE f.follower_id END
+        FROM public.follows f
+        WHERE f.status = 'accepted' AND (f.follower_id = p_viewer OR f.following_id = p_viewer)
+        LIMIT 2000
+      )
+    END,
+    include_public,
+    max_results,
+    require_handle,
+    exclude_id,
+    p_country_code,
+    p_region_code,
+    p_near_lat,
+    p_near_lng,
+    p_radius_km
+  );
+$function$;
+
 CREATE OR REPLACE FUNCTION public.search_places(q text, max_results integer DEFAULT 10, p_country_code text DEFAULT NULL::text)
  RETURNS TABLE(id uuid, name text, region text, region_code text, country text, country_code text, lat double precision, lng double precision, population integer, match_rank integer)
  LANGUAGE plpgsql
@@ -17267,6 +17829,8 @@ DROP TRIGGER IF EXISTS contest_stat_lines_updated_at ON public.contest_stat_line
 CREATE TRIGGER contest_stat_lines_updated_at BEFORE UPDATE ON public.contest_stat_lines FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS contests_updated_at ON public.contests;
 CREATE TRIGGER contests_updated_at BEFORE UPDATE ON public.contests FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS pulse_read ON public.conversation_participants;
+CREATE TRIGGER pulse_read AFTER UPDATE OF last_read_at ON public.conversation_participants FOR EACH ROW EXECUTE FUNCTION pulse_signal_read();
 DROP TRIGGER IF EXISTS update_conversations_updated_at ON public.conversations;
 CREATE TRIGGER update_conversations_updated_at BEFORE UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 DROP TRIGGER IF EXISTS handle_updated_at_carpool_offers ON public.event_carpool_offers;
@@ -17313,12 +17877,18 @@ DROP TRIGGER IF EXISTS trigger_update_golf_scores_timestamp ON public.golf_parti
 CREATE TRIGGER trigger_update_golf_scores_timestamp BEFORE UPDATE ON public.golf_participant_scores FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
 DROP TRIGGER IF EXISTS trigger_update_golf_data_timestamp ON public.golf_scorecard_data;
 CREATE TRIGGER trigger_update_golf_data_timestamp BEFORE UPDATE ON public.golf_scorecard_data FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
+DROP TRIGGER IF EXISTS pulse_roster ON public.group_post_participants;
+CREATE TRIGGER pulse_roster AFTER INSERT OR DELETE OR UPDATE OF status ON public.group_post_participants FOR EACH ROW EXECUTE FUNCTION pulse_signal_roster();
 DROP TRIGGER IF EXISTS trigger_update_participant_timestamp ON public.group_post_participants;
 CREATE TRIGGER trigger_update_participant_timestamp BEFORE UPDATE ON public.group_post_participants FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
+DROP TRIGGER IF EXISTS pulse_golf ON public.group_posts;
+CREATE TRIGGER pulse_golf AFTER INSERT OR DELETE OR UPDATE OF status, visibility, date ON public.group_posts FOR EACH ROW EXECUTE FUNCTION pulse_signal_golf();
 DROP TRIGGER IF EXISTS trigger_update_group_post_timestamp ON public.group_posts;
 CREATE TRIGGER trigger_update_group_post_timestamp BEFORE UPDATE ON public.group_posts FOR EACH ROW EXECUTE FUNCTION update_group_post_timestamp();
 DROP TRIGGER IF EXISTS help_articles_updated_at ON public.help_articles;
 CREATE TRIGGER help_articles_updated_at BEFORE UPDATE ON public.help_articles FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS pulse_message ON public.messages;
+CREATE TRIGGER pulse_message AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION pulse_signal_message();
 DROP TRIGGER IF EXISTS trg_update_conv_on_msg ON public.messages;
 CREATE TRIGGER trg_update_conv_on_msg AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION update_conversation_on_message();
 DROP TRIGGER IF EXISTS update_messages_updated_at ON public.messages;
@@ -17427,10 +17997,14 @@ DROP TRIGGER IF EXISTS sport_event_matches_updated_at ON public.sport_event_matc
 CREATE TRIGGER sport_event_matches_updated_at BEFORE UPDATE ON public.sport_event_matches FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS sport_event_participants_updated_at ON public.sport_event_participants;
 CREATE TRIGGER sport_event_participants_updated_at BEFORE UPDATE ON public.sport_event_participants FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS pulse_event_round ON public.sport_event_rounds;
+CREATE TRIGGER pulse_event_round AFTER UPDATE OF status ON public.sport_event_rounds FOR EACH ROW EXECUTE FUNCTION pulse_signal_event();
 DROP TRIGGER IF EXISTS sport_event_rounds_updated_at ON public.sport_event_rounds;
 CREATE TRIGGER sport_event_rounds_updated_at BEFORE UPDATE ON public.sport_event_rounds FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS sport_event_stat_lines_updated_at ON public.sport_event_stat_lines;
 CREATE TRIGGER sport_event_stat_lines_updated_at BEFORE UPDATE ON public.sport_event_stat_lines FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS pulse_event ON public.sport_events;
+CREATE TRIGGER pulse_event AFTER UPDATE OF status ON public.sport_events FOR EACH ROW EXECUTE FUNCTION pulse_signal_event();
 DROP TRIGGER IF EXISTS sport_events_updated_at ON public.sport_events;
 CREATE TRIGGER sport_events_updated_at BEFORE UPDATE ON public.sport_events FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_sport_settings ON public.sport_settings;
@@ -17445,6 +18019,8 @@ DROP TRIGGER IF EXISTS user_media_presets_updated_at ON public.user_media_preset
 CREATE TRIGGER user_media_presets_updated_at BEFORE UPDATE ON public.user_media_presets FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS venues_updated_at ON public.venues;
 CREATE TRIGGER venues_updated_at BEFORE UPDATE ON public.venues FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS pulse_broadcast ON public.videos;
+CREATE TRIGGER pulse_broadcast AFTER INSERT OR DELETE OR UPDATE OF live_status, status ON public.videos FOR EACH ROW EXECUTE FUNCTION pulse_signal_broadcast();
 DROP TRIGGER IF EXISTS set_workout_routines_updated_at ON public.workout_routines;
 CREATE TRIGGER set_workout_routines_updated_at BEFORE UPDATE ON public.workout_routines FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS set_workout_sessions_updated_at ON public.workout_sessions;
@@ -19001,6 +19577,8 @@ REVOKE EXECUTE ON FUNCTION public.calculate_golf_participant_totals() FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.calculate_golf_participant_totals() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.calendar_series_split(p_old_series uuid, p_organizer uuid, p_from timestamp with time zone, p_series jsonb, p_template jsonb, p_occurrences jsonb, p_guests jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.calendar_series_split(p_old_series uuid, p_organizer uuid, p_from timestamp with time zone, p_series jsonb, p_template jsonb, p_occurrences jsonb, p_guests jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.check_handle_availability(input_handle text, current_profile_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -19101,6 +19679,8 @@ REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.live_cheer_totals(p_context_key text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -19157,6 +19737,20 @@ REVOKE EXECUTE ON FUNCTION public.provenance_inventory() FROM PUBLIC, anon, auth
 GRANT EXECUTE ON FUNCTION public.provenance_inventory() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_broadcast() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_broadcast() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_event() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_event() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_golf() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_golf() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_message() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_message() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_read() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_read() TO PUBLIC, anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.pulse_signal_roster() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_roster() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) FROM PUBLIC, anon, authenticated, service_role;
@@ -19199,6 +19793,8 @@ REVOKE EXECUTE ON FUNCTION public.search_normalize(t text) FROM PUBLIC, anon, au
 GRANT EXECUTE ON FUNCTION public.search_normalize(t text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.search_people_for(p_viewer uuid, p_direction text, search_term text, include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_people_for(p_viewer uuid, p_direction text, search_term text, include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_places(q text, max_results integer, p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_places(q text, max_results integer, p_country_code text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_posts(search_query text, max_results integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -19496,6 +20092,7 @@ COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video}
 COMMENT ON COLUMN public.workout_sets.rest_seconds IS 'The rest taken BEFORE this set, seconds (260; the rest timer). Not data: a rest-only row is not a set.';
 COMMENT ON TABLE public.youtube_connections IS 'A YouTube channel connected to a profile XOR an org (298): the connector''s Google grant (connected_by_user_id — only they upload), the channel, the incremental scopes, the sealed tokens. One per owner. Posture A; the one writer is src/lib/videos/youtube-connections-server.ts.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
+COMMENT ON FUNCTION public.calendar_series_split(p_old_series uuid, p_organizer uuid, p_from timestamp with time zone, p_series jsonb, p_template jsonb, p_occurrences jsonb, p_guests jsonb) IS 'Change a repeating event''s schedule from one occurrence on (302): the old series ends at p_from (its remaining active occurrences cancelled, never deleted), a new series with the given rule, template, occurrences (generated in TS) and guest rows starts there — one transaction. PATCH /api/calendar/events/[id] with scope=following. service_role only.';
 COMMENT ON FUNCTION public.comment_like_toggle(p_viewer uuid, p_comment_id uuid) IS 'The comment-like toggle in one call (288): the parent post''s gate (post_like_allowed, 287) + the comment published, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/comments/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.counters_recount() IS 'The accuracy rule for the three cached counters (277): corrects every row whose stored count differs from a direct count, returns how many per target. Run once by 277 and nightly by /api/cron/daily (src/lib/counters/recount-server.ts). The triggers add or subtract one.';
 COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230 + 269: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak, on-feed posts only (269); the route applies the privacy filter. Service-role only.';
@@ -19509,6 +20106,7 @@ COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds int
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
+COMMENT ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) IS 'The Live Now strip''s "whose rounds" read (303): participant rows of the viewer and their accepted followees, newest first — the follows joined in SQL, never sent back as an IN list. GET /api/golf/live-now. service_role only.';
 COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292, 300): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), live BROADCASTS the viewer may see (videos-server.ts listLiveVideos: the owner''s own rule), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
 COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
@@ -19516,6 +20114,7 @@ COMMENT ON FUNCTION public.post_like_allowed(p_viewer uuid, p_post_id uuid) IS '
 COMMENT ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) IS 'The like toggle in one call (282, gate 287): post_like_allowed, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/posts/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
+COMMENT ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) IS 'The pulse signal (301): one realtime.send on the given topic, event ''pulse'', the payload plus ''at''. Swallows every error — a signal never fails a write. Called by the pulse_signal_* triggers only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) IS 'Several rate-limit buckets in one call (286): each key through 094''s rate_limit_hit, in array order; one row per key. Service-role only — src/lib/rate-limit.ts enforceRateLimitMany is the caller.';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
@@ -19524,6 +20123,7 @@ COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integ
 COMMENT ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) IS 'search_all plus its decoration in one call (283; 289 adds blocked + hidden): the ranked rows, the raw display rows per entity type in the route''s column order, the post authors'' visibility and the viewer''s accepted follows among the private ones — raw; GET /api/search applies every rule. json (key order kept). service_role only.';
 COMMENT ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked, location-aware course search over the tsvector + trigram fallback. Service-role only (104).';
 COMMENT ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Ranked people search with location tier + filters (108). Privacy is the CALLER''s job. Service-role only.';
+COMMENT ON FUNCTION public.search_people_for(p_viewer uuid, p_direction text, search_term text, include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'search_people (238) with the viewer''s visible ids computed in SQL (303): ''following'' = accepted follows I made (the @mention rule), ''either'' = either direction (the invite rule), capped at 2000. GET /api/mentions/search, /api/calendar/invite-search. service_role only.';
 
 -- ── Storage buckets ───────────────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -19979,7 +20579,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (297, '297_video_places.sql', 'rebuild-000'),
   (298, '298_youtube_connections.sql', 'rebuild-000'),
   (299, '299_video_live.sql', 'rebuild-000'),
-  (300, '300_me_pulse_broadcasts.sql', 'rebuild-000')
+  (300, '300_me_pulse_broadcasts.sql', 'rebuild-000'),
+  (301, '301_pulse_broadcast.sql', 'rebuild-000'),
+  (302, '302_calendar_series_split.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -19988,12 +20590,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 142 | 135 | 145 | 300
+-- Expected: 000 REBUILT | 142 | 145 | 145 | 303
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_135,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_145,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_300;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_303;
 
