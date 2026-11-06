@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { secretBoxReady } from '@/lib/crypto/secret-box-server';
 import { isOrgKind } from '@/lib/orgs/org-ref';
+import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { durationToRecord, liveRefreshDue, liveRefreshTtlMs, liveStateFromApi, QUOTA_BACKOFF_MS, type LiveStatus } from './live-rules';
 import type { ConnectionOwner } from './youtube-connection';
 import { withAccessToken } from './youtube-connections-server';
@@ -122,6 +123,11 @@ export async function refreshLiveState(admin: Admin, row: LiveRow, opts: { force
     if (error) {
       console.error(`${TAG} update failed:`, error.message);
       return unchanged;
+    }
+    // PR B: the public site's tile shows the pill — purge the org's pages so ISR does not keep a stale state.
+    if (row.org_id && state.live_status !== row.live_status) {
+      const owner = await ownerOf(admin, row);
+      if (owner?.kind === 'org') await revalidateOrgSiteForOrg(admin, owner.side, owner.orgId).catch(() => undefined);
     }
   }
   return { changed, row: { ...row, ...state, live_checked_at: nowIso, ...(patch.duration_ms !== undefined ? { duration_ms: patch.duration_ms as number } : {}) } };

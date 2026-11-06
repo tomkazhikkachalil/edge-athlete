@@ -27,6 +27,7 @@ import { readActivityForViewer } from '@/lib/activities/read-server';
 import { aspectHidden } from '@/lib/training-privacy';
 import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
+import { sortLiveFirst } from './live-rules';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { embedSrcAt, parseYouTubeLink, thumbUrl, watchUrl } from './youtube';
 import {
@@ -218,9 +219,49 @@ export async function listVideos(admin: Admin, filter: VideoFilter): Promise<Vid
       }
       out.push(projectVideo(row, false));
     }
-    return out;
+    return sortLiveFirst(out);
   }
-  return rows.map(r => projectVideo(r, filter.canManage));
+  // Phase 4a: a broadcast that is live (or about to be) sits first on every list.
+  return sortLiveFirst(rows.map(r => projectVideo(r, filter.canManage)));
+}
+
+/** Phase 4a, PR B: the broadcasts streaming now that THIS viewer may see — the owner's own rule row by row; newest start first; at most ten. */
+export async function listLiveVideos(admin: Admin, viewerId: string | null): Promise<VideoView[]> {
+  const { data, error } = await admin
+    .from('videos')
+    .select(VIEW_COLUMNS)
+    .eq('live_status', 'live')
+    .eq('status', 'published')
+    .order('live_started_at', { ascending: false, nullsFirst: false })
+    .limit(40);
+  if (error) {
+    console.error(`${TAG} live list failed:`, error.message);
+    return [];
+  }
+  const out: VideoView[] = [];
+  const orgReach = new Map<string, boolean>();
+  for (const row of (data ?? []) as unknown as ReadRow[]) {
+    if (out.length >= 10) break;
+    if (row.org_id) {
+      let reach = orgReach.get(row.org_id);
+      if (reach === undefined) {
+        const org = one(row.org);
+        const a = await orgVideoAccess(admin, isOrgKind(org?.kind) ? org!.kind : 'club', row.org_id, viewerId);
+        reach = a.known && a.access !== null;
+        orgReach.set(row.org_id, reach);
+      }
+      if (!reach) continue;
+      out.push(projectVideo(row, false));
+      continue;
+    }
+    if (!row.profile_id) continue;
+    const visible = row.profile_id === viewerId
+      ? true
+      : viewerId ? (await canViewProfile(row.profile_id, viewerId)).canView : await anonymousProfileCanView(admin, row.profile_id);
+    if (!visible) continue;
+    out.push(projectVideo(row, false));
+  }
+  return out;
 }
 
 export interface VideoRead {

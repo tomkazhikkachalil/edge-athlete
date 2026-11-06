@@ -29,6 +29,7 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
   const admin = adminClient();
   await resetRateBucket(admin, 'video-write', a.id);
   const api = await ctxFor(a);
+  const stranger = await ctxFor(loadQaUser('user-b.json'));
   const page = await (await browser.newContext({ storageState: await mintStorageState(a), extraHTTPHeaders: bypassHeaders() })).newPage();
   let videoId: string | null = null;
   const stale = () => admin.from('videos').update({ live_checked_at: past(10 * 60_000) }).eq('id', videoId!);
@@ -64,6 +65,15 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
     expect(live.live_status).toBe('live');
     expect(live.live_started_at).not.toBeNull();
     expect(mock.calls.filter(c => c === 'GET /youtube/v3/videos').length).toBe(calls + 1);
+
+    // PR B: the broadcast is on Live Now for its owner (the /live page's card), not for a stranger (the QA profile is private).
+    res = await api.get('/api/videos/live-now');
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(((await res.json()).videos as Array<{ id: string }>).map(v => v.id)).toContain(videoId);
+    const strangerSees = ((await (await stranger.get('/api/videos/live-now')).json()).videos as Array<{ id: string }>).map(v => v.id);
+    expect(strangerSees).not.toContain(videoId);
+    await page.goto('/live');
+    await expect(page.locator(`[data-live-broadcast-card="${videoId}"]`)).toBeVisible();
 
     // The page: the pill, the "Now" button, a marker at the server's offset into the stream.
     await page.goto(`/videos/${videoId}`);
@@ -102,6 +112,9 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
     await page.locator('[data-highlight-play]').first().click();
     await expect(page.locator('iframe[src*="youtube-nocookie.com"]')).toHaveAttribute('src', /start=(8[5-9]|9\d|1[0-2]\d)&/);
 
+    // PR B: an ended broadcast is off Live Now.
+    expect(((await (await api.get('/api/videos/live-now')).json()).videos as Array<{ id: string }>).map(v => v.id)).not.toContain(videoId);
+
     // 4. An archive is never asked about again; the quota running out leaves a live row's last truth.
     const before = mock.calls.filter(c => c === 'GET /youtube/v3/videos').length;
     await stale();
@@ -119,6 +132,7 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     mock.live.clear();
     await api.dispose();
+    await stranger.dispose();
     await page.context().close();
   }
 });

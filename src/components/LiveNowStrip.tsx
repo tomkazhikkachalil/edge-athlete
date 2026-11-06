@@ -7,6 +7,7 @@ import LazyImage from './LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import type { LiveEventCard } from '@/lib/sport-events/live-now';
+import type { VideoView } from '@/lib/videos/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { shouldPoll } from '@/lib/net/online';
 
@@ -51,6 +52,8 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   const { user } = useAuth();
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [events, setEvents] = useState<LiveEventCard[]>([]);
+  // Phase 4a (PR B): the broadcasts streaming now that this viewer may see — signed out included.
+  const [broadcasts, setBroadcasts] = useState<VideoView[]>([]);
 
   // Inlined cancellable IIFE. The 60s poll calls the SAME effect-local
   // closure, so the cancelled flag also stops a late poll response landing
@@ -66,6 +69,10 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       try {
         const res = await fetch('/api/sport-events/live-now', { credentials: 'include' });
         if (res.ok) { const data = await res.json(); if (!cancelled) setEvents(data.events || []); }
+      } catch { /* a nicety */ }
+      try {
+        const res = await fetch('/api/videos/live-now', { credentials: 'include' });
+        if (res.ok) { const data = await res.json(); if (!cancelled) setBroadcasts(data.videos || []); }
       } catch { /* a nicety */ }
       if (!user) return;
       try {
@@ -93,7 +100,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     };
   }, [user]);
 
-  if (rounds.length === 0 && events.length === 0) {
+  if (rounds.length === 0 && events.length === 0 && broadcasts.length === 0) {
     if (!showEmptyState) return null;
     return (
       <div className="bg-surface rounded-lg border-2 border-border p-8 text-center">
@@ -102,7 +109,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
         </div>
         <h3 className="text-lg font-semibold text-primary mb-1">No live events right now</h3>
         <p className="text-sm text-tertiary">
-          When someone you follow goes live — a round, a game, a match — it shows up here.
+          When someone you follow goes live — a round, a game, a match, a broadcast — it shows up here.
         </p>
       </div>
     );
@@ -139,6 +146,28 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       </button>
     );
   };
+
+  // Phase 4a (PR B): a BROADCAST streaming now — its title, who is streaming, one door to the video page.
+  const broadcastCard = (v: VideoView) => (
+    <button
+      key={`broadcast:${v.id}`}
+      onClick={() => router.push(`/videos/${v.id}`)}
+      className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'}`}
+      data-live-broadcast-card={v.id}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded-full">
+          <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+          LIVE
+        </span>
+        <span className="text-sm font-bold text-primary truncate">{v.title}</span>
+      </div>
+      <div className="text-xs text-tertiary min-w-0 truncate">
+        <i className="fas fa-film mr-1" aria-hidden="true"></i>
+        {v.owner.name}{v.place ? ` · ${v.place.name}` : ''} · streaming on YouTube
+      </div>
+    </button>
+  );
 
   const card = (round: LiveRound) => {
     const leader = round.players
@@ -210,6 +239,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
             : 'grid gap-3 sm:grid-cols-2'
         }
       >
+        {broadcasts.map(broadcastCard)}
         {events.map(eventCard)}
         {rounds.map(card)}
       </div>
