@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
 import { watchUrl } from '@/lib/videos/youtube';
 import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type Chapter, type VideoLookup } from '@/lib/videos/youtube-connection';
-import YouTubePlayer from '@/components/videos/YouTubePlayer';
+import YouTubePlayer, { type YouTubePlayerHandle } from '@/components/videos/YouTubePlayer';
+import { activeHighlightAt, clearResumeMs, defaultPlayerStorage, nextInPlaylist, playlistOf, readResumeMs, RESUME_SAVE_EVERY_MS, resumeOffer, writeResumeMs, type PlayerMode, type PlaylistItem } from '@/lib/videos/player-rules';
+import { formatTimestamp } from '@/lib/videos/rules';
 import { useAuth } from '@/lib/auth';
 import { backOr } from '@/lib/nav-back';
 import { VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX, type HighlightInput } from '@/lib/videos/rules';
@@ -75,6 +77,16 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
   // the chapters in its description are offered as highlights when the list is empty. Silent when the lookup is unavailable.
   const [lookup, setLookup] = useState<VideoLookup | null>(null);
   const [chapters, setChapters] = useState<Chapter[] | null>(null);
+  // Polish B (Nov 6): the player that knows the time — the IFrame API's playhead, "Play highlights", resume. All of it only in API mode.
+  const playerRef = useRef<YouTubePlayerHandle | null>(null);
+  const [playerMode, setPlayerMode] = useState<PlayerMode | null>(null);
+  const [playAll, setPlayAll] = useState<{ list: PlaylistItem[]; index: number } | null>(null);
+  const playAllRef = useRef(playAll);
+  useEffect(() => {
+    playAllRef.current = playAll;
+  }, [playAll]);
+  const lastSavedRef = useRef(0);
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
 
   const fetchVideo = useCallback(async (): Promise<Load> => {
     try {
@@ -95,7 +107,10 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     if (!initialAuthCheckComplete) return;
     let live = true;
     void fetchVideo().then(next => {
-      if (live) setLoad(next);
+      if (!live) return;
+      setLoad(next);
+      // The resume chip: a saved position worth offering, read once the video is known (polish B).
+      if (next.state === 'ready') setResumeAt(resumeOffer(readResumeMs(defaultPlayerStorage(), next.video.provider_video_id), next.video.duration_ms));
     });
     return () => {
       live = false;
@@ -133,7 +148,52 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     return () => clearInterval(timer);
   }, [refetchMs, fetchVideo]);
 
+  const onTime = (ms: number) => {
+    if (!providerVideoId) return;
+    // The active row follows the playhead.
+    if (load.state === 'ready') setActiveId(activeHighlightAt(load.highlights, ms));
+    // Resume: the position every few seconds.
+    if (Date.now() - lastSavedRef.current > RESUME_SAVE_EVERY_MS) {
+      lastSavedRef.current = Date.now();
+      writeResumeMs(defaultPlayerStorage(), providerVideoId, ms);
+    }
+    // Play highlights: stay, step, or stop.
+    const pa = playAllRef.current;
+    if (pa) {
+      const step = nextInPlaylist(pa.list, pa.index, ms);
+      if (step.action === 'next') {
+        setPlayAll({ list: pa.list, index: step.index });
+        playerRef.current?.seekTo(pa.list[step.index].startMs, true);
+      } else if (step.action === 'done') {
+        setPlayAll(null);
+      }
+    }
+  };
+  const onEnded = () => {
+    if (providerVideoId) clearResumeMs(defaultPlayerStorage(), providerVideoId);
+    setResumeAt(null);
+    setPlayAll(null);
+  };
+  const playHighlights = () => {
+    if (load.state !== 'ready' || load.highlights.length === 0) return;
+    const list = playlistOf(load.highlights);
+    setPlayAll({ list, index: 0 });
+    setActiveId(list[0].id);
+    if (playerMode === 'api') playerRef.current?.seekTo(list[0].startMs, true);
+    else {
+      setStartMs(list[0].startMs);
+      setPlayKey(k => k + 1);
+    }
+  };
+  const resume = () => {
+    if (resumeAt === null) return;
+    setStartMs(resumeAt);
+    setPlayKey(k => k + 1);
+    setResumeAt(null);
+  };
+
   const play = (h: HighlightRow) => {
+    setPlayAll(null);
     setStartMs(h.start_ms);
     setActiveId(h.id);
     setPlayKey(k => k + 1);
@@ -313,7 +373,32 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
           </span>
         </a>
       ) : (
-        <YouTubePlayer videoId={video.provider_video_id} title={video.title} startMs={startMs} playKey={playKey} />
+        <YouTubePlayer
+          api
+          ref={playerRef}
+          videoId={video.provider_video_id}
+          title={video.title}
+          startMs={startMs}
+          playKey={playKey}
+          onTime={onTime}
+          onEnded={onEnded}
+          onMode={setPlayerMode}
+          overlay={resumeAt !== null ? (
+            <button type="button" onClick={resume} className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-black/75 px-4 min-h-[44px] text-sm font-semibold text-white" data-video-resume={resumeAt}>
+              <i className="fas fa-rotate-left" aria-hidden="true"></i>
+              Resume at {formatTimestamp(resumeAt)}
+            </button>
+          ) : null}
+        />
+      )}
+      {playerMode === 'api' && highlights.length >= 2 && (
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={playAll ? () => setPlayAll(null) : playHighlights} className={BTN} data-video-play-highlights={playAll ? 'on' : 'off'}>
+            <i className={`fas ${playAll ? 'fa-stop' : 'fa-forward'} mr-1.5`} aria-hidden="true"></i>
+            {playAll ? 'Stop the highlights' : 'Play highlights'}
+          </button>
+          {playAll && <span className="text-xs text-secondary" role="status">Highlight {playAll.index + 1} of {playAll.list.length}</span>}
+        </div>
       )}
 
       <div className="bg-surface rounded-lg border border-border p-4 sm:p-6 space-y-3" data-video-owner={video.owner.id}>
@@ -382,6 +467,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onEdit={editHighlight}
         onDelete={deleteHighlight}
         liveStartedAt={video.live_status === 'live' ? video.live_started_at : null}
+        currentMs={playerMode === 'api' ? () => playerRef.current?.currentMs() ?? null : undefined}
       />
 
       <ConfirmModal
