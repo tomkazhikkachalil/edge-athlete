@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
-import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
+import { searchPeople } from '@/lib/search/people-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/calendar/invite-search?q= ────────────────────────────────────────
@@ -21,11 +21,10 @@ export async function GET(request: NextRequest) {
     const q = (new URL(request.url).searchParams.get('q') ?? '').trim();
     if (!q) return NextResponse.json({ profiles: [] });
 
-    const related = await accessibleProfileIds(user.id, 'either');
-
+    // Either direction, computed in SQL (303) — the list never crosses the wire.
     const profiles = await searchPeople({
       query: q,
-      visibleIds: related,
+      viewer: { id: user.id, direction: 'either' },
       includePublic: true,
       limit: LIMIT,
       excludeId: user.id,
