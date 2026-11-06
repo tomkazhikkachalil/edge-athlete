@@ -1,5 +1,16 @@
 # Development Log
 
+## November 6, 2026 — Improvements round, PR 5a: the media worker runs the light jobs beside the video; the panel shows the queue's age (SCALE_AUDIT hole 11, zero DDL)
+
+The worker half of Tom's fifth pick. A tick that claimed a video claimed nothing else and ran its jobs one after another — one HEVC conversion a minute, every poster and blur queued behind it — and the lease cap (2) left no slot for a poster while a transcode ran. The admin panel counted its queue from a row read PostgREST cut at 1,000, and showed no queue age.
+
+- **The tick** (`runMediaJobsTick`): claims the video while the 200 s reserve holds AND up to 20 light jobs, and runs the light ones BESIDE the video through a pool of four (`LIGHT_CONCURRENCY`); the budget check is per job as before; one transcode per tick by the reserve rule as before. The transcode is ffmpeg's process, the light jobs are sharp's — they share the budget, not the CPU.
+- **The cap** `MEDIA_JOBS_MAX_RUNNING` defaults to **3** (`DEFAULT_MAX_RUNNING`; the env still overrides). A kind-aware claim (`p_kinds`) is the next step if videos ever back up across overlapping ticks — recorded in the audit, not built.
+- **The panel** (`readMediaJobsStatus`, `MediaJobsPanel`): the counts come from head counts in the database (five statuses × four kinds, in parallel), plus **"Oldest waiting: N min"** computed on the server (`oldestQueuedMinutes`), amber past ten with the line "the worker is behind". `docs/MEDIA.md` and `docs/SCALE_AUDIT.md` row 11 updated.
+- **Pinned:** `process-server.test.ts` (a video + three posters: all four claimed and done, at least two in flight at once); `media-jobs.test.ts` (the cap's default and the override).
+
+**Proof:** `npm run verify` exit 0 — **5,843 tests**. e2e on staging: `media-processing` mobile **1/1** (a posted clip's job through the tick, the card refreshing when the file is ready); `admin-media-jobs` self-skips here (no `E2E_ADMIN_EMAIL` locally — the panel's new line is typed and lint-clean; Tom's console is where it shows).
+
 ## November 6, 2026 — Pulse signals follow-up: a message from someone else is ONE pulse fetch, not two (zero DDL)
 
 The production probe of PR 1 (#1420, the change signals) caught it on its first attempt: *"a message: still one fetch after the burst — expected 4, received 5"*. A message from someone else reaches a tab twice — as the `new_message` bell on the notifications channel (scale fix 3) AND as the pulse signal on the private topic (301). The bell's handler still called `refreshUnreadCount()` → `fetchPulse()` beside the signal's own fetch; on staging the two coincided inside the in-flight coalescing window and the spec never saw it, on production's latency they did not. **The bell now refreshes the LIST only; the pulse signal carries the count.** And the count-moved path (the provider's "a fetched pulse whose number moved refreshes page one") skips a refresh made within the last 6 s — so a message is one bell → one list fetch, one signal → one pulse fetch. Pinned in `me-pulse.test.ts` (the bell slice holds no `refreshUnreadCount()`; the 6 s skip) and `realtime-subscriptions.test.ts` (the effect's deps).
