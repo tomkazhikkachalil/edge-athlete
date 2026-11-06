@@ -13,6 +13,7 @@ Each file holds the conventions of one area, moved verbatim from CLAUDE.md on Oc
 | `contests-recruiting.md` | Contest place and recruiting |
 | `data-foundation.md` | Data foundation: provenance, performances, departed accounts, results kept, RLS helpers |
 | `events.md` | Events: phases 1–4, competition formats, leftovers |
+| `calendar.md` | Calendar: a repeating event's schedule changes from one event on, as a split (migration 302) |
 | `support.md` | Support and reporting |
 | `play.md` | Play: badges, rivalries, cheers, challenges |
 | `activities.md` | Activities: imported, connected, live-recorded; set up before Start and the per-type layout table (Programs E and F, Oct 20 2026) |

@@ -79,7 +79,7 @@ test('single events may change zone; series zones are immutable (400)', async ()
     });
     expect(back.ok()).toBe(true);
 
-    // Series: the zone is pinned at creation.
+    // Series: a zone change is a SPLIT from one event on (Nov 6 2026) — on scope 'this' it still refuses.
     const startMs = zonedWallClockToUtc(denverWall.y, denverWall.m, denverWall.d, 8, 0, DENVER);
     const series = await api.post('/api/calendar/events', {
       data: {
@@ -98,7 +98,7 @@ test('single events may change zone; series zones are immutable (400)', async ()
       data: { scope: 'this', timezone: 'America/New_York' },
     });
     expect(denied.status()).toBe(400);
-    expect(((await denied.json()).error as string)).toContain("time zone can't be changed");
+    expect(((await denied.json()).error as string)).toContain("from one event on");
   } finally {
     await api.dispose();
   }
@@ -168,11 +168,17 @@ test.describe('viewer in New York', () => {
       await tzButton.click();
       await expect(page.locator('#ev-tz')).toHaveValue(DENVER);
 
-      // Series event: no picker, the immutability copy instead.
+      // Series event: the zone and the rule sit behind "Change schedule" (Nov
+      // 6 2026 — a change is a split from this event on); the picker appears
+      // once it opens, with the line that says where the change starts.
       await page.goto(`/calendar?event=${seriesId}`);
       await page.getByRole('button', { name: 'Edit event' }).click();
-      await expect(page.getByText(/time zone can.t be changed/)).toBeVisible();
+      await expect(page.locator('[data-series-zone]')).toBeVisible();
       await expect(page.getByRole('button', { name: /change time zone/ })).toHaveCount(0);
+      await page.getByRole('button', { name: /Change schedule/ }).click();
+      await expect(page.getByText(/The new schedule starts with this event/)).toBeVisible();
+      await expect(page.getByRole('button', { name: /change time zone/ })).toBeVisible();
+      await expect(page.locator('#ev-repeat')).toHaveValue('daily');
     } finally {
       if (singleId) await api.delete(`/api/calendar/events/${singleId}?scope=this`);
       if (seriesId) await api.delete(`/api/calendar/events/${seriesId}?scope=series`);

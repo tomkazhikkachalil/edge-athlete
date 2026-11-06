@@ -3,7 +3,8 @@ import { isUuid } from '@/lib/uuid';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEventInput, validateGuestInput, MAX_GUESTS } from '@/lib/calendar/events';
-import { applyWallTime, wallClockInZone, wallDurationMinutes } from '@/lib/calendar/recurrence';
+import { applyWallTime, planSeriesSplit, wallClockInZone, wallDurationMinutes, type SeriesRule } from '@/lib/calendar/recurrence';
+import { splitSeries, type GuestIdentity } from '@/lib/calendar/series-server';
 import {
   notifyEventInvites,
   notifyEventUpdated,
@@ -29,7 +30,10 @@ import { reportRouteError } from '@/lib/observability/report';
 //         anchor); guest changes and cancellation never skip. Scoped TIME
 //         edits keep each occurrence's own date and apply the new local
 //         time (applyWallTime) — moving a repeating event to different
-//         DAYS requires editing just that occurrence.
+//         DAYS requires editing just that occurrence. A new REPEAT RULE
+//         (body.recurrence) or a new ZONE on a series event is a SPLIT
+//         (Nov 6 2026, migration 302): scope 'following' only — the old
+//         series ends before this occurrence, a new one starts here.
 // DELETE→ organizer only: cancel. ?scope= as above; 'following'/'series'
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
@@ -234,11 +238,19 @@ export async function PATCH(
     // freely. Refuse on CHANGE, not presence: the form echoes the stored
     // zone. (Also stops the pre-picker latent bug where every cross-zone
     // edit silently rewrote events.timezone to the editor's browser zone.)
-    if (event.series_id && validated.event.timezone !== event.timezone) {
+    // Since Nov 6 2026 a zone change IS possible — as a split, from this
+    // event on (below); any other scope still refuses.
+    const wantsRule = body.recurrence !== undefined && body.recurrence !== null;
+    const zoneChanged = validated.event.timezone !== event.timezone;
+    const scheduleChange = !!event.series_id && (wantsRule || zoneChanged);
+    if (scheduleChange && scope !== 'following') {
       return NextResponse.json(
-        { error: "A repeating event's time zone can't be changed — cancel the series and create a new one instead." },
+        { error: "A repeating event's schedule or time zone changes from one event on — choose \"This and following events\"." },
         { status: 400 }
       );
+    }
+    if (wantsRule && !event.series_id) {
+      return NextResponse.json({ error: 'This event does not repeat — create a repeating event instead.' }, { status: 400 });
     }
 
     // Scope linkage (119/146): whenever the FINAL value carries a scope,
@@ -289,6 +301,87 @@ export async function PATCH(
       } else {
         routineSnapshot = null;
       }
+    }
+
+    // ── Change the schedule from this event on: a SPLIT (migration 302) ──
+    // The old series ends before this occurrence (its remaining active
+    // occurrences cancelled, never deleted); a new series with the new rule
+    // and/or zone starts here, the anchor keeping its wall clock, the
+    // template (this save's fields) and the guest rows carried over — ONE
+    // transaction in calendar_series_split. Guests change in their own save.
+    if (scheduleChange && event.series_id) {
+      const hasGuestChanges =
+        (Array.isArray(body.remove_guest_ids) && body.remove_guest_ids.length > 0) ||
+        (body.add_guests && ((body.add_guests.profile_ids?.length ?? 0) > 0 || (body.add_guests.emails?.length ?? 0) > 0));
+      if (hasGuestChanges) {
+        return NextResponse.json({ error: 'Change the guests and the schedule in two separate saves.' }, { status: 400 });
+      }
+      const { data: oldSeries } = await admin
+        .from('event_series')
+        .select('id, freq, interval_n, byweekday, ends, until_at, count_n')
+        .eq('id', event.series_id)
+        .maybeSingle();
+      if (!oldSeries) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      const { count: before } = await admin
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('series_id', event.series_id)
+        .lt('starts_at', event.starts_at);
+      const plan = planSeriesSplit({
+        anchorStartsAt: event.starts_at,
+        anchorEndsAt: event.ends_at,
+        oldTimezone: event.timezone,
+        newTimezone: validated.event.timezone,
+        rawRecurrence: wantsRule ? body.recurrence : null,
+        oldRule: oldSeries as SeriesRule,
+        occurrencesBefore: before ?? 0,
+      });
+      if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
+      const { data: guestRows } = await admin
+        .from('event_guests')
+        .select('profile_id, invited_email, role, status, responded_at, reminder_minutes')
+        .eq('event_id', event.id);
+      const split = await splitSeries(admin, {
+        oldSeriesId: event.series_id,
+        organizerId: user.id,
+        fromStartsAt: event.starts_at,
+        rule: plan.rule,
+        occurrences: plan.occurrences,
+        template: {
+          organizer_id: user.id,
+          title: validated.event.title,
+          description: validated.event.description,
+          location: validated.event.location,
+          all_day: validated.event.all_day,
+          timezone: validated.event.timezone,
+          category: validated.event.category,
+          routine_id: validated.event.routine_id,
+          routine_snapshot: routineSnapshot,
+          org_id: validated.event.org_id ?? null,
+          division_id: validated.event.division_id ?? null,
+          team_id: validated.event.team_id ?? null,
+          venue_id: (event as { venue_id?: string | null }).venue_id ?? null,
+          facility_id: (event as { facility_id?: string | null }).facility_id ?? null,
+        },
+        guests: (guestRows ?? []) as GuestIdentity[],
+      });
+      if (!split) {
+        return NextResponse.json({ error: 'Calendar updating — try again in a minute.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+      }
+      // ONE notification per guest for the whole change.
+      const notifyIds = (guestRows ?? [])
+        .filter(g => g.profile_id && g.role !== 'organizer' && g.status !== 'declined')
+        .map(g => g.profile_id as string);
+      await notifyEventUpdated(
+        { supabase: admin, eventId: split.firstEventId, title: validated.event.title, series: true, seriesId: split.newSeriesId },
+        user.id,
+        notifyIds
+      );
+      const { data: first } = await admin.from('events').select(EVENT_FIELDS).eq('id', split.firstEventId).single();
+      return NextResponse.json({
+        event: await fullDetail(admin, first!),
+        split: { new_series_id: split.newSeriesId, cancelled: split.cancelled, created: split.created },
+      });
     }
 
     const timeChanged =
