@@ -60,7 +60,7 @@ describe('Realtime: every postgres_changes listener on a published table is filt
     expect(provider).not.toMatch(/\.channel\(/);
     expect(provider).not.toMatch(/from '@\/lib\/supabase'/);
     expect(provider).toMatch(/notifications\.filter\(n => n\.type === 'new_message'\)/);
-    expect(provider).toMatch(/\[notifications, user, fetchConversations, refreshUnreadCount\]/);
+    expect(provider).toMatch(/\[notifications, user, fetchConversations\]/); // the bell refreshes the LIST; the pulse signal carries the count (PR C)
   });
   // The cost program PR C (Nov 6 2026, migration 301): the notifications
   // channel is the person's OWN private topic (`user:{id}`) and carries the

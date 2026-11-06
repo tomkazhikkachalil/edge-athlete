@@ -176,6 +176,10 @@ describe('migration 301: the change signals — the database broadcasts, the cli
     const provider = read('src/lib/messages.tsx');
     expect(provider).not.toMatch(/setInterval\(/);
     expect(provider).toContain('if (s.fetchedAt === last.at) return; // a local correction, not an answer');
+    expect(provider).toContain('if (Date.now() - lastListFetchRef.current < 6_000) return; // the bell already refreshed the list');
+    // The bell path fetches the list only — the pulse signal carries the count.
+    const bell = provider.slice(provider.indexOf('if (!fresh) return;'), provider.indexOf('}, [notifications, user, fetchConversations]);'));
+    expect(bell).not.toContain('refreshUnreadCount()');
     const strip = read('src/components/LiveNowStrip.tsx');
     expect(strip).not.toContain('REFRESH_MS = 60_000');
     expect(strip).toContain('if (s.liveNow === lastTotal) return;');

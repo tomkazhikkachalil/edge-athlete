@@ -9,6 +9,11 @@ Tom's third pick. `GET /api/profile/[id]/media` — every profile open, every vi
 - **Pinned:** `src/lib/__tests__/profile-media-trips.test.ts` (the two stages, the one posts read, the one post_media read, the bounded follows, the header); `results-hide.test.ts` follows the hidden flag to its new line. `docs/SCALE_AUDIT.md` row 10 marked done.
 
 **Proof:** `npm run verify` exit 0 — **5,846 tests in 633 files**, 286 chunks within the floor. **Measured** (`scripts/db-trace-inventory.mjs`, the built app on staging, `docs/load/2026-11-06/trips.md`): `GET /api/profile/{id}/media` **6 trips / 715 ms → 5 trips / 556 ms** (the two remaining page reads run together). e2e on staging: `profile-buckets` + `drafts` (+ `workout-drafts`) mobile **4/4**, `contest-media` + `round-lifecycle` desktop **2/2**, `tagged` + `profile-buckets` desktop **2/2**.
+## November 6, 2026 — Pulse signals follow-up: a message from someone else is ONE pulse fetch, not two (zero DDL)
+
+The production probe of PR 1 (#1420, the change signals) caught it on its first attempt: *"a message: still one fetch after the burst — expected 4, received 5"*. A message from someone else reaches a tab twice — as the `new_message` bell on the notifications channel (scale fix 3) AND as the pulse signal on the private topic (301). The bell's handler still called `refreshUnreadCount()` → `fetchPulse()` beside the signal's own fetch; on staging the two coincided inside the in-flight coalescing window and the spec never saw it, on production's latency they did not. **The bell now refreshes the LIST only; the pulse signal carries the count.** And the count-moved path (the provider's "a fetched pulse whose number moved refreshes page one") skips a refresh made within the last 6 s — so a message is one bell → one list fetch, one signal → one pulse fetch. Pinned in `me-pulse.test.ts` (the bell slice holds no `refreshUnreadCount()`; the 6 s skip) and `realtime-subscriptions.test.ts` (the effect's deps).
+
+**Proof:** `npm run verify` exit 0; staging `pulse.spec` mobile (the one-fetch case) and `chat-dock` · `direct-message` desktop; the prod probe `pulse.spec` mobile after the merge.
 
 ## November 6, 2026 — Improvements round, PR 1: the pulse's change signals — the database broadcasts, the tab fetches once (migration 301, the cost program PR C)
 
