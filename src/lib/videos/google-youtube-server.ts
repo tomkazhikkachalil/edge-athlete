@@ -284,3 +284,68 @@ export async function youtubeCreateUploadSession(cfg: YouTubeConfig, accessToken
   if (!res.ok || !location) return { ok: false, unauthorized: res.status === 401, status: res.status };
   return { ok: true, sessionUri: location };
 }
+
+// ── Phase 4b: the broadcast created from Edge Athlete ───────────────────────
+// liveBroadcasts.insert + liveStreams.insert + liveBroadcasts.bind under the
+// force-ssl scope. The stream KEY passes through this process once, into the
+// route's answer, and is never written anywhere — not a row, not a log.
+
+export type YouTubeWrite<T> = { ok: true; value: T } | { ok: false; status: number; unauthorized: boolean; reason: string | null };
+
+async function writeJson<T>(cfg: YouTubeConfig, path: string, accessToken: string, body: unknown, pick: (json: unknown) => T | null, method: 'POST' | 'DELETE' = 'POST'): Promise<YouTubeWrite<T>> {
+  const res = await call(`${cfg.apiBase}${path}`, { method, headers: { ...bearer(accessToken), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!res) return { ok: false, status: 0, unauthorized: false, reason: null };
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: { errors?: Array<{ reason?: unknown }> } } | null;
+    const reason = err?.error?.errors?.find(e => typeof e?.reason === 'string')?.reason;
+    return { ok: false, status: res.status, unauthorized: res.status === 401, reason: typeof reason === 'string' ? reason : null };
+  }
+  if (res.status === 204) return { ok: true, value: pick(null) as T };
+  const value = pick(await res.json().catch(() => null));
+  return value === null ? { ok: false, status: res.status, unauthorized: false, reason: null } : { ok: true, value };
+}
+
+export interface BroadcastCreateInput { title: string; scheduledStartAt: string; privacy: string }
+
+/** The broadcast: a scheduled video on the channel; auto start/stop so YouTube itself moves it live when bytes arrive. */
+export async function youtubeCreateBroadcast(cfg: YouTubeConfig, accessToken: string, input: BroadcastCreateInput): Promise<YouTubeWrite<{ videoId: string }>> {
+  return writeJson(cfg, '/youtube/v3/liveBroadcasts?part=snippet,status,contentDetails', accessToken, {
+    snippet: { title: input.title, scheduledStartTime: input.scheduledStartAt },
+    status: { privacyStatus: input.privacy, selfDeclaredMadeForKids: false },
+    contentDetails: { enableAutoStart: true, enableAutoStop: true, monitorStream: { enableMonitorStream: false }, enableDvr: true, recordFromStart: true },
+  }, json => {
+    const id = (json as { id?: unknown } | null)?.id;
+    return typeof id === 'string' && id ? { videoId: id } : null;
+  });
+}
+
+export interface StreamCreated { streamId: string; streamKey: string; rtmpUrl: string | null; rtmpsUrl: string | null }
+
+/** One new stream per broadcast — the key and the ingestion addresses come back once. */
+export async function youtubeCreateStream(cfg: YouTubeConfig, accessToken: string, title: string): Promise<YouTubeWrite<StreamCreated>> {
+  return writeJson(cfg, '/youtube/v3/liveStreams?part=snippet,cdn,contentDetails', accessToken, {
+    snippet: { title },
+    cdn: { resolution: 'variable', frameRate: 'variable', ingestionType: 'rtmp' },
+    contentDetails: { isReusable: false },
+  }, json => {
+    const j = json as { id?: unknown; cdn?: { ingestionInfo?: { streamName?: unknown; ingestionAddress?: unknown; rtmpsIngestionAddress?: unknown } } } | null;
+    const key = j?.cdn?.ingestionInfo?.streamName;
+    if (typeof j?.id !== 'string' || typeof key !== 'string' || !key) return null;
+    const rtmp = j.cdn?.ingestionInfo?.ingestionAddress;
+    const rtmps = j.cdn?.ingestionInfo?.rtmpsIngestionAddress;
+    return { streamId: j.id, streamKey: key, rtmpUrl: typeof rtmp === 'string' ? rtmp : null, rtmpsUrl: typeof rtmps === 'string' ? rtmps : null };
+  });
+}
+
+export async function youtubeBindBroadcast(cfg: YouTubeConfig, accessToken: string, broadcastId: string, streamId: string): Promise<YouTubeWrite<{ id: string }>> {
+  return writeJson(cfg, `/youtube/v3/liveBroadcasts/bind?part=id&id=${encodeURIComponent(broadcastId)}&streamId=${encodeURIComponent(streamId)}`, accessToken, undefined, json => {
+    const id = (json as { id?: unknown } | null)?.id;
+    return typeof id === 'string' ? { id } : null;
+  });
+}
+
+/** Best effort: no orphan broadcast when the stream or the bind failed. */
+export async function youtubeDeleteBroadcast(cfg: YouTubeConfig, accessToken: string, broadcastId: string): Promise<boolean> {
+  const out = await writeJson(cfg, `/youtube/v3/liveBroadcasts?id=${encodeURIComponent(broadcastId)}`, accessToken, undefined, () => ({ ok: true }), 'DELETE');
+  return out.ok;
+}

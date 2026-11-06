@@ -164,6 +164,9 @@ export async function disconnectYouTube(admin: Admin, owner: ConnectionOwner): P
 }
 
 /** The upload gate: the owner's manager AND the person whose Google account made the connection, on a standing connection. */
+/** Phase 4b: scheduling a broadcast is the SAME right as uploading — the owner's manager who is the connector, on a standing connection. One function, two names. */
+export const broadcastRight = (admin: Admin, owner: ConnectionOwner, userId: string): Promise<Outcome<YouTubeConnectionRow>> => uploadRight(admin, owner, userId);
+
 export async function uploadRight(admin: Admin, owner: ConnectionOwner, userId: string): Promise<Outcome<YouTubeConnectionRow>> {
   const [read, manages] = await Promise.all([readConnection(admin, owner), ownerManaged(admin, owner, userId)]);
   if (!manages) return { ok: false, status: 404, error: 'Not found' };

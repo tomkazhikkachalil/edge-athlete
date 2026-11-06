@@ -8,21 +8,22 @@
 
 import type { OrgKind } from '@/lib/orgs/org-ref';
 
-/** Google's scopes, incremental: `readonly` at connect (the channel + its uploads), `upload` on the first upload. */
+/** Google's scopes, incremental: `readonly` at connect (the channel + its uploads), `upload` on the first upload, `live` (force-ssl — sensitive) on the first scheduled broadcast (Phase 4b). */
 export const YOUTUBE_SCOPES = {
   readonly: 'https://www.googleapis.com/auth/youtube.readonly',
   upload: 'https://www.googleapis.com/auth/youtube.upload',
+  live: 'https://www.googleapis.com/auth/youtube.force-ssl',
 } as const;
 export type ScopeKey = keyof typeof YOUTUBE_SCOPES;
-export const SCOPE_KEYS: readonly ScopeKey[] = ['readonly', 'upload'];
+export const SCOPE_KEYS: readonly ScopeKey[] = ['readonly', 'upload', 'live'];
 
 export function isScopeKey(v: unknown): v is ScopeKey {
-  return v === 'readonly' || v === 'upload';
+  return v === 'readonly' || v === 'upload' || v === 'live';
 }
 
-/** The scope URLs a consent screen asks for: always readonly, plus upload when asked. */
+/** The scope URLs a consent screen asks for: always readonly, plus the one asked (Google's include_granted_scopes keeps the earlier grants). */
 export function scopesFor(key: ScopeKey): string[] {
-  return key === 'upload' ? [YOUTUBE_SCOPES.readonly, YOUTUBE_SCOPES.upload] : [YOUTUBE_SCOPES.readonly];
+  return key === 'readonly' ? [YOUTUBE_SCOPES.readonly] : [YOUTUBE_SCOPES.readonly, YOUTUBE_SCOPES[key]];
 }
 
 /** The keys a stored (or granted) scope list carries. */
@@ -151,6 +152,8 @@ export interface YouTubeConnectionView {
   canManage: boolean;
   /** The viewer may upload to the channel: manages, is the connector, and the connection stands. */
   canUpload: boolean;
+  /** The viewer may schedule a live broadcast on the channel (Phase 4b): the same three facts — the scope is asked at the moment of need. */
+  canBroadcast: boolean;
   /** Why the connection needs attention, in our words. */
   problem: string | null;
 }
@@ -183,6 +186,7 @@ export function projectConnection(
     connectedByMe,
     canManage: viewer.canManage,
     canUpload: !!row && row.status === 'active' && viewer.canManage && connectedByMe,
+    canBroadcast: !!row && row.status === 'active' && viewer.canManage && connectedByMe,
     problem: problemFor(row),
   };
 }
@@ -253,4 +257,58 @@ export function nextOffsetFromRange(header: string | null | undefined): number {
   if (!header) return 0;
   const m = /bytes=0-(\d+)/.exec(header);
   return m ? Number(m[1]) + 1 : 0;
+}
+
+// ── Phase 4b: the broadcast created from Edge Athlete ───────────────────────
+export interface BroadcastInput {
+  title: string;
+  /** ISO — at least a minute ahead, within a year. */
+  scheduledStartAt: string;
+  privacy: UploadPrivacy;
+}
+
+export const BROADCAST_MIN_LEAD_MS = 60_000;
+export const BROADCAST_MAX_LEAD_MS = 365 * 24 * 3600_000;
+
+/** POST /api/videos/youtube/broadcast's body. */
+export function parseBroadcastBody(body: unknown, now = Date.now()): { ok: true; value: BroadcastInput } | { ok: false; error: string } {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const title = typeof b.title === 'string' ? b.title.trim() : '';
+  if (!title || title.length > UPLOAD_TITLE_MAX) return { ok: false, error: `A title of 1–${UPLOAD_TITLE_MAX} characters is required` };
+  const at = typeof b.scheduledStartAt === 'string' ? Date.parse(b.scheduledStartAt) : NaN;
+  if (Number.isNaN(at)) return { ok: false, error: 'Pick when the broadcast starts' };
+  if (at - now < BROADCAST_MIN_LEAD_MS) return { ok: false, error: 'The start must be at least a minute from now' };
+  if (at - now > BROADCAST_MAX_LEAD_MS) return { ok: false, error: 'The start must be within a year' };
+  const privacy = parseUploadPrivacy(b.privacy);
+  if (!privacy) return { ok: false, error: 'The privacy must be public, unlisted or private' };
+  return { ok: true, value: { title, scheduledStartAt: new Date(at).toISOString(), privacy } };
+}
+
+/** The channel's eligibility, in our words — Google's `errors[].reason` → a word → a sentence. Never a stack trace. */
+export const BROADCAST_ERRORS = {
+  not_enabled: 'Turn on live streaming for this channel in YouTube Studio first — it takes up to a day.',
+  blocked: 'YouTube is not letting this channel stream right now.',
+  refused: 'YouTube refused to create the broadcast for this channel.',
+  failed: 'YouTube did not create the broadcast — try again.',
+} as const;
+export type BroadcastErrorWord = keyof typeof BROADCAST_ERRORS;
+
+export function broadcastErrorWord(status: number, reason: string | null | undefined): BroadcastErrorWord {
+  if (reason === 'liveStreamingNotEnabled') return 'not_enabled';
+  if (reason === 'livePermissionBlocked' || reason === 'insufficientLivePermissions') return 'blocked';
+  return status === 403 ? 'refused' : 'failed';
+}
+
+/** YouTube Studio's live page for the broadcast — where the key can be read again; we never store it. */
+export function studioUrlFor(videoId: string): string {
+  return `https://studio.youtube.com/video/${encodeURIComponent(videoId)}/livestreaming`;
+}
+
+/** The next full hour, as `<input type="datetime-local">` wants it (the viewer's clock). */
+export function defaultBroadcastStart(now: Date = new Date()): string {
+  const d = new Date(now);
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }

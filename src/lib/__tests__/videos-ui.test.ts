@@ -135,7 +135,7 @@ describe('the YouTube connection (Phase 3)', () => {
     const flow = read('src/components/videos/NewVideoFlow.tsx');
     expect(flow).toContain('<ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />');
     expect(flow).toContain('connection.canUpload && uploadOpen && (');
-    expect(flow).toContain('data-new-video-needs-scope=""');
+    expect(flow).toContain('data-new-video-needs-scope={needsScope}');
     expect(flow).not.toContain('window.location.assign');
     const panel = read('src/components/videos/YouTubeUploadPanel.tsx');
     expect(panel).toContain("import('@/lib/videos/youtube-upload')");
@@ -232,5 +232,43 @@ describe('live, PR B — the strip, the order, the public tile', () => {
     expect(tile).toContain('data-site-video-live=""');
     expect(tile).not.toMatch(/fetch\(|'use client'/);
     expect(read('src/lib/videos/videos-live-server.ts')).toContain('await revalidateOrgSiteForOrg(admin, owner.side, owner.orgId)');
+  });
+});
+
+describe('live, 4b — the broadcast created from Edge Athlete', () => {
+  it('the door is the connector\'s (canBroadcast), the panel shows the key once and never stores or logs it', () => {
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('connection.canBroadcast && !uploadOpen && !broadcastOpen && (');
+    expect(flow).toContain('data-new-video-broadcast-door=""');
+    expect(flow).toContain("onNeedsScope={() => setNeedsScope('live')}");
+    expect(flow).toContain('&scope=${needsScope}');
+    const panel = read('src/components/videos/YouTubeBroadcastPanel.tsx');
+    expect(panel).toContain('/api/videos/youtube/broadcast');
+    expect(panel).toContain('data-youtube-broadcast-key=""');
+    expect(panel).toContain('data-youtube-broadcast-continue=""');
+    expect(panel).toContain('rel="noopener noreferrer"');
+    expect(panel).not.toMatch(/localStorage|sessionStorage|console\.|document\.cookie/);
+    expect(panel).toContain('50 subscribers');
+  });
+  it('the route asks the live scope at the moment of need, speaks the eligibility words, leaves no orphan broadcast, and the key is in its answer only', () => {
+    const route = read('src/app/api/videos/youtube/broadcast/route.ts');
+    expect(route).toContain("requireActiveWriter(request, { limit: 'video-write' })");
+    expect(route).toContain('broadcastRight(admin, owner, user.id)');
+    expect(route).toContain("needs_scope: 'live'");
+    expect(route).toContain('broadcastErrorWord(status, reason)');
+    expect(route.split('youtubeDeleteBroadcast(cfg, token.accessToken, broadcast.value.videoId)').length - 1).toBe(2);
+    expect(route).toContain('stream_key: stream.value.streamKey');
+    expect(route).not.toMatch(/console\./);
+    const google = read('src/lib/videos/google-youtube-server.ts');
+    expect(google).toContain('/youtube/v3/liveBroadcasts?part=snippet,status,contentDetails');
+    expect(google).toContain('enableAutoStart: true, enableAutoStop: true, monitorStream: { enableMonitorStream: false }');
+    expect(google).toContain('/youtube/v3/liveStreams?part=snippet,cdn,contentDetails');
+    expect(google).toContain('/youtube/v3/liveBroadcasts/bind?part=id&id=');
+    expect(read('src/lib/videos/youtube-connections-server.ts')).toContain('export const broadcastRight = ');
+  });
+  it('the privacy page says the key is shown once and never stored; no new host for the CSP', () => {
+    expect(read('src/app/(app)/privacy/page.tsx')).toMatch(/show you\s+the stream key once/);
+    const hosts = read('src/lib/videos/google-youtube-server.ts').match(/https:\/\/[a-z0-9.-]+/g) ?? [];
+    expect(hosts.every(h => ['https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://www.googleapis.com'].includes(h))).toBe(true);
   });
 });
