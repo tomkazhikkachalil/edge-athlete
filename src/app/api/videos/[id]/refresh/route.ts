@@ -5,7 +5,8 @@ import { isOrgKind } from '@/lib/orgs/org-ref';
 import { readVideoForViewer, recordVideoDetails } from '@/lib/videos/videos-server';
 import type { ConnectionOwner } from '@/lib/videos/youtube-connection';
 import { recordError, withAccessToken } from '@/lib/videos/youtube-connections-server';
-import { youtubeConfig, youtubeVideoDetails } from '@/lib/videos/google-youtube-server';
+import { youtubeConfig, youtubeVideoLookup } from '@/lib/videos/google-youtube-server';
+import { parseChapters } from '@/lib/videos/youtube-connection';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PRIVATE = { 'Cache-Control': 'private, no-store' } as const;
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     const token = await withAccessToken(admin, cfg, owner);
     if (!token.ok) return NextResponse.json({ error: token.error }, { status: token.status });
-    const details = await youtubeVideoDetails(cfg, token.accessToken, read.row.provider_video_id);
+    const details = await youtubeVideoLookup({ apiBase: cfg.apiBase, accessToken: token.accessToken }, read.row.provider_video_id);
     if (!details.ok) {
       if (details.unauthorized) await recordError(admin, token.row.id, 'YouTube refused the read — reconnect');
       return NextResponse.json({ error: 'YouTube did not answer — try again' }, { status: 503 });
@@ -49,7 +50,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const saved = await recordVideoDetails(admin, id, { durationMs: details.value.durationMs });
     if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: saved.status });
     const after = await readVideoForViewer(admin, id, user);
-    return NextResponse.json({ video: after?.view ?? null, duration_ms: saved.value.duration_ms, privacy: details.value.privacy }, { headers: PRIVATE });
+    // Paste and go (Nov 6): the chapters in the description (for "Add N chapters as highlights") and whether it embeds.
+    return NextResponse.json({ video: after?.view ?? null, duration_ms: saved.value.duration_ms, privacy: details.value.privacy, embeddable: details.value.embeddable, chapters: parseChapters(details.value.description) }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/id/refresh] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

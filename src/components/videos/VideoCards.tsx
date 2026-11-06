@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import LazyImage from '@/components/LazyImage';
 import { formatLiveWhen, liveBadgeFor } from '@/lib/videos/live-rules';
+import { formatTimestamp } from '@/lib/videos/rules';
 import type { VideoView } from '@/lib/videos/types';
 
 /**
@@ -43,6 +44,11 @@ export function VideoCard({ video, priority = false }: { video: VideoView; prior
         <span className="absolute bottom-2 right-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-black/70 text-white" data-video-card-count={n}>
           {n} {n === 1 ? 'highlight' : 'highlights'}
         </span>
+        {video.duration_ms !== null && video.duration_ms > 0 && live?.kind !== 'live' && (
+          <span className="absolute bottom-2 left-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-black/70 text-white font-mono" data-video-card-duration={video.duration_ms}>
+            {formatTimestamp(video.duration_ms)}
+          </span>
+        )}
       </div>
       <div className="p-3">
         <p className="text-sm font-semibold text-primary truncate">{video.title}</p>

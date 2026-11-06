@@ -312,3 +312,73 @@ export function defaultBroadcastStart(now: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+// ── Paste and go (Nov 6 2026): what YouTube says about a pasted id ───────────
+export interface VideoLookup {
+  available: boolean;
+  title: string | null;
+  thumbnail: string | null;
+  durationMs: number | null;
+  privacy: string | null;
+  /** YouTube's `status.embeddable`; null when the read did not say. */
+  embeddable: boolean | null;
+  live: { status: 'none' | 'upcoming' | 'live' | 'ended'; scheduledStartAt: string | null } | null;
+  chapters: Chapter[];
+}
+
+export interface Chapter { startMs: number; label: string }
+
+/** The sentences the flow and the page say about a looked-up video. */
+export const LOOKUP_NOTES = {
+  private: 'This video is private on YouTube — make it unlisted or public first, or it will play for nobody here.',
+  no_embed: 'Embedding is turned off for this video on YouTube — it will open on YouTube instead of playing here.',
+} as const;
+export type LookupRefusal = keyof typeof LOOKUP_NOTES;
+
+/** `private` refuses the link; `no_embed` lets it through with the sentence; null = plays here. */
+export function lookupRefusal(l: Pick<VideoLookup, 'available' | 'privacy' | 'embeddable'> | null | undefined): LookupRefusal | null {
+  if (!l || !l.available) return null;
+  if (l.privacy === 'private') return 'private';
+  if (l.embeddable === false) return 'no_embed';
+  return null;
+}
+
+/** YouTube's own rule for chapters in a description: a timestamp at a line start, the first at 0:00, ascending, at least three, at least ten seconds apart. */
+export const CHAPTER_MIN_COUNT = 3;
+export const CHAPTER_MIN_GAP_MS = 10_000;
+export const CHAPTER_MAX_COUNT = 100;
+const CHAPTER_LINE = /^\s*(?:[-•*]\s*)?(?:\(?\[?)((?:\d{1,2}:)?\d{1,2}:\d{2})(?:\]?\)?)\s*[-–—:|·]?\s*(.+?)\s*$/;
+
+function timestampToMs(ts: string): number | null {
+  const parts = ts.split(':').map(Number);
+  if (parts.some(n => !Number.isFinite(n))) return null;
+  const [a, b, c] = parts.length === 3 ? parts : [0, parts[0], parts[1]];
+  if (b > 59 || c > 59) return null;
+  return ((a * 60 + b) * 60 + c) * 1000;
+}
+
+export function parseChapters(description: string | null | undefined): Chapter[] {
+  if (!description) return [];
+  const out: Chapter[] = [];
+  for (const line of description.split(/\r?\n/)) {
+    const m = CHAPTER_LINE.exec(line);
+    if (!m) continue;
+    const startMs = timestampToMs(m[1]);
+    const label = m[2].replace(/\s+/g, ' ').trim();
+    if (startMs === null || !label) continue;
+    out.push({ startMs, label: label.slice(0, HIGHLIGHT_LABEL_MAX_FOR_CHAPTERS) });
+    if (out.length >= CHAPTER_MAX_COUNT) break;
+  }
+  if (out.length < CHAPTER_MIN_COUNT || out[0].startMs !== 0) return [];
+  for (let i = 1; i < out.length; i++) if (out[i].startMs - out[i - 1].startMs < CHAPTER_MIN_GAP_MS) return [];
+  return out;
+}
+const HIGHLIGHT_LABEL_MAX_FOR_CHAPTERS = 120; // rules.ts HIGHLIGHT_LABEL_MAX — a literal here keeps this module at one type import
+
+/** A chapter becomes a marker from its start to the next chapter's start; the last one runs to the end (open when the duration is unknown). */
+export function chaptersToHighlights(chapters: readonly Chapter[], durationMs: number | null): Array<{ start_ms: number; end_ms: number | null; label: string }> {
+  return chapters.map((c, i) => {
+    const next = chapters[i + 1]?.startMs ?? (durationMs && durationMs > c.startMs ? durationMs : null);
+    return { start_ms: c.startMs, end_ms: next !== null && next > c.startMs ? next : null, label: c.label };
+  });
+}

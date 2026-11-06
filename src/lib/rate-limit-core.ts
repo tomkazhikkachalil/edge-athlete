@@ -75,6 +75,8 @@ export const RATE_LIMITS = {
   // as course-search: a typing user fires one debounced request per
   // keystroke, so 30/min breaks normal use; 120 still crawls enumeration.
   search: { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // Paste and go (Nov 6 2026): one YouTube read per pasted link, per person — a quota unit each.
+  'video-lookup': { max: 60, windowSeconds: 60, keyBy: 'user' },
   // Org Pages R4: the in-app org gallery read fans out ~10 queries (two
   // gates re-run per read); ip-keyed because visitors of a public org may
   // call it signed out. One page load = one call.

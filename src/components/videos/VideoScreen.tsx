@@ -7,6 +7,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
+import { watchUrl } from '@/lib/videos/youtube';
+import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type Chapter, type VideoLookup } from '@/lib/videos/youtube-connection';
 import YouTubePlayer from '@/components/videos/YouTubePlayer';
 import { useAuth } from '@/lib/auth';
 import { backOr } from '@/lib/nav-back';
@@ -69,6 +71,10 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Paste and go (Nov 6): what YouTube says — a video that will not embed shows the watch door instead of a blank frame;
+  // the chapters in its description are offered as highlights when the list is empty. Silent when the lookup is unavailable.
+  const [lookup, setLookup] = useState<VideoLookup | null>(null);
+  const [chapters, setChapters] = useState<Chapter[] | null>(null);
 
   const fetchVideo = useCallback(async (): Promise<Load> => {
     try {
@@ -95,6 +101,24 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
       live = false;
     };
   }, [initialAuthCheckComplete, viewerId, fetchVideo]);
+
+  const providerVideoId = load.state === 'ready' ? load.video.provider_video_id : null;
+  const ownerRef = load.state === 'ready' ? (load.video.owner.kind === 'org' ? `${load.video.owner.side}:${load.video.owner.id}` : `profile:${load.video.owner.id}`) : null;
+  useEffect(() => {
+    if (!providerVideoId || !ownerRef || !user) return;
+    let live = true;
+    void fetch(`/api/videos/youtube/lookup?id=${encodeURIComponent(providerVideoId)}&owner=${encodeURIComponent(ownerRef)}`, { cache: 'no-store' })
+      .then(async res => (res.ok ? ((await res.json()) as { lookup?: VideoLookup }).lookup ?? null : null))
+      .catch(() => null)
+      .then(next => {
+        if (!live || !next) return;
+        setLookup(next);
+        if (next.chapters.length > 0) setChapters(next.chapters);
+      });
+    return () => {
+      live = false;
+    };
+  }, [providerVideoId, ownerRef, user]);
 
   // Phase 4a: while a broadcast is live (or about to be) the page re-reads on its own, so
   // the pill, the state and the archive arrive without a reload. Nothing polls otherwise.
@@ -184,11 +208,33 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         setNote(res.status === 404 ? 'Connect a YouTube channel on the Videos tab to read the details.' : await readError(res));
         return;
       }
-      const body = (await res.json()) as { video: VideoView | null };
+      const body = (await res.json()) as { video: VideoView | null; chapters?: Chapter[] };
       if (body.video) setLoad(prev => (prev.state === 'ready' ? { ...prev, video: body.video! } : prev));
+      if (body.chapters && body.chapters.length > 0) setChapters(body.chapters);
       setNote('Details refreshed from YouTube.');
     } catch {
       setNote('Could not reach YouTube. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Paste and go: YouTube's chapters as the first highlights, ONE write; offered only while the list is empty.
+  const importChapters = async () => {
+    if (load.state !== 'ready' || !chapters || chapters.length === 0) return;
+    setSaving(true);
+    setNote(null);
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/highlights/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ highlights: chaptersToHighlights(chapters, load.video.duration_ms).map(h => ({ ...h, meta: {} })) }) });
+      if (!res.ok) {
+        setNote(await readError(res));
+        return;
+      }
+      const body = (await res.json()) as { highlights: HighlightRow[] };
+      setLoad(prev => (prev.state === 'ready' ? { ...prev, highlights: body.highlights, video: { ...prev.video, highlight_count: body.highlights.length } } : prev));
+      setNote(`${body.highlights.length} chapters added as highlights.`);
+    } catch {
+      setNote('Could not add the chapters. Try again.');
     } finally {
       setSaving(false);
     }
@@ -256,7 +302,19 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         </p>
       )}
 
-      <YouTubePlayer videoId={video.provider_video_id} title={video.title} startMs={startMs} playKey={playKey} />
+      {lookupRefusal(lookup) === 'no_embed' ? (
+        <a href={watchUrl(video.provider_video_id)} target="_blank" rel="noopener noreferrer" className="ea-interactive relative block aspect-video w-full overflow-hidden rounded-lg bg-surface-muted" data-video-no-embed="">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a third-party thumbnail; not an optimizer candidate */}
+          <img src={video.thumb_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-white">
+            <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-black/70"><i className="fab fa-youtube text-xl" aria-hidden="true"></i></span>
+            <span className="text-sm font-semibold drop-shadow">Open on YouTube</span>
+            <span className="text-xs drop-shadow">{LOOKUP_NOTES.no_embed}</span>
+          </span>
+        </a>
+      ) : (
+        <YouTubePlayer videoId={video.provider_video_id} title={video.title} startMs={startMs} playKey={playKey} />
+      )}
 
       <div className="bg-surface rounded-lg border border-border p-4 sm:p-6 space-y-3" data-video-owner={video.owner.id}>
         <p className="text-sm text-secondary">
@@ -280,6 +338,9 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
               {video.status === 'hidden' ? 'Show' : video.owner.kind === 'org' ? 'Managers only' : 'Only me'}
             </button>
             <button type="button" onClick={() => void refreshFromYouTube()} disabled={saving} className={BTN} data-video-refresh="">Refresh from YouTube</button>
+            {chapters && chapters.length > 0 && highlights.length === 0 && (
+              <button type="button" onClick={() => void importChapters()} disabled={saving} className={BTN} data-video-import-chapters={chapters.length}>Add {chapters.length} chapters as highlights</button>
+            )}
             <button type="button" onClick={() => setConfirmDelete(true)} disabled={saving} className={`${BTN} text-red-600`} data-video-delete="">Delete</button>
           </div>
         )}

@@ -524,6 +524,22 @@ export async function addHighlight(admin: Admin, videoId: string, input: Highlig
   return { ok: true, value: data as unknown as HighlightRow };
 }
 
+/** Paste and go (Nov 6): YouTube's chapters as markers — ONE insert, refused when the video already has any marker (never a duplicate pile). */
+export async function addHighlights(admin: Admin, videoId: string, inputs: readonly HighlightInput[], userId: string): Promise<Outcome<HighlightRow[]>> {
+  if (inputs.length === 0) return { ok: false, status: 400, error: 'Nothing to add' };
+  const { count } = await admin.from('video_highlights').select('id', { count: 'exact', head: true }).eq('video_id', videoId);
+  if ((count ?? 0) > 0) return { ok: false, status: 409, error: 'This video already has highlights — add chapters only to an empty list.' };
+  const { data, error } = await admin
+    .from('video_highlights')
+    .insert(inputs.map(i => ({ video_id: videoId, start_ms: i.start_ms, end_ms: i.end_ms, label: i.label, meta: i.meta, created_by_user_id: userId })))
+    .select(HIGHLIGHT_COLUMNS);
+  if (error || !data) {
+    console.error(`${TAG} highlights import failed:`, error?.message);
+    return { ok: false, status: 500, error: 'Could not add the highlights' };
+  }
+  return { ok: true, value: data as unknown as HighlightRow[] };
+}
+
 export async function updateHighlight(admin: Admin, videoId: string, highlightId: string, patch: Partial<HighlightInput>): Promise<Outcome<HighlightRow>> {
   const { data: stored } = await admin.from('video_highlights').select('id, start_ms, end_ms').eq('id', highlightId).eq('video_id', videoId).maybeSingle();
   if (!stored) return { ok: false, status: 404, error: 'Highlight not found' };

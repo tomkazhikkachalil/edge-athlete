@@ -32,6 +32,10 @@ export interface MockLive {
   actualEndTime?: string;
   durationIso?: string;
   title?: string;
+  /** Paste and go: the description (chapters live in it), whether the video embeds, its privacy. */
+  description?: string;
+  embeddable?: boolean;
+  privacy?: string;
 }
 
 export interface MockChannel {
@@ -183,8 +187,8 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
         return send(res, 200, { items: [{
           id,
           contentDetails: { duration: lv && lv.content !== 'none' ? 'PT0S' : (lv?.durationIso ?? u?.durationIso ?? 'PT1M30S') },
-          snippet: { title: lv?.title ?? u?.title ?? up?.title ?? 'Broadcast', liveBroadcastContent: lv?.content ?? 'none', thumbnails: { high: { url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } } },
-          status: { privacyStatus: up?.privacy ?? 'public' },
+          snippet: { title: lv?.title ?? u?.title ?? up?.title ?? 'Broadcast', description: lv?.description ?? '', liveBroadcastContent: lv?.content ?? 'none', thumbnails: { high: { url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } } },
+          status: { privacyStatus: lv?.privacy ?? up?.privacy ?? 'public', embeddable: lv?.embeddable ?? true },
           ...(details ? { liveStreamingDetails: details } : {}),
         }] });
       };

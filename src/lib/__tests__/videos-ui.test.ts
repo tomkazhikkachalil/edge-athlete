@@ -272,3 +272,39 @@ describe('live, 4b — the broadcast created from Edge Athlete', () => {
     expect(hosts.every(h => ['https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://www.googleapis.com'].includes(h))).toBe(true);
   });
 });
+
+describe('paste and go (Nov 6 2026)', () => {
+  it('the flow looks a pasted id up once (debounced, the latest wins), prefills only an empty title, refuses a private video through the step rule, and imports chapters in ONE write', () => {
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('/api/videos/youtube/lookup?id=');
+    expect(flow).toContain('}, 400);');
+    expect(flow).toContain('if (t) setTitle(prev => (prev.trim() ? prev : t.slice(0, VIDEO_TITLE_MAX)));');
+    expect(flow).toContain("blocked: refusal === 'private' ? LOOKUP_NOTES.private : null");
+    expect(flow).toContain('data-new-video-lookup={refusal}');
+    expect(flow).toContain('data-new-video-chapters={looked.chapters.length}');
+    expect(flow.split('/highlights/import').length - 1).toBe(1);
+    expect(read('src/lib/videos/video-steps.ts')).toContain('if (s.videoId && s.blocked) return { ok: false, refusal: s.blocked };');
+  });
+  it('the lookup route is signed-in, one read per paste, the owner\'s token first then the key, and unavailable is a quiet answer', () => {
+    const route = read('src/app/api/videos/youtube/lookup/route.ts');
+    expect(route).toContain("enforceRateLimit(request, 'video-lookup', { userId: user.id })");
+    expect(route).toContain('ownerManaged(admin, owner, user.id)');
+    expect(route).toContain('youtubeReadConfig()');
+    expect(route).toContain('{ lookup: UNAVAILABLE }');
+    expect(route).toContain('chapters: parseChapters(v.description)');
+    expect(read('src/lib/rate-limit-core.ts')).toContain("'video-lookup': { max: 60, windowSeconds: 60, keyBy: 'user' }");
+    expect(read('src/lib/videos/google-youtube-server.ts')).toContain('part=snippet,contentDetails,status,liveStreamingDetails');
+  });
+  it('the import is one insert refused on a non-empty list; the page shows the watch door for a video that will not embed and offers the chapters while the list is empty; the card shows the duration', () => {
+    const route = read('src/app/api/videos/[id]/highlights/import/route.ts');
+    expect(route).toContain("getServerAuth(request, { limit: 'video-write' })");
+    expect(route).toContain('addHighlights(admin, id, inputs, user.id)');
+    expect(read('src/lib/videos/videos-server.ts')).toContain("if ((count ?? 0) > 0) return { ok: false, status: 409, error: 'This video already has highlights");
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain("lookupRefusal(lookup) === 'no_embed' ? (");
+    expect(screen).toContain('data-video-no-embed=""');
+    expect(screen).toContain('chapters && chapters.length > 0 && highlights.length === 0 && (');
+    expect(screen).toContain('data-video-import-chapters={chapters.length}');
+    expect(read('src/components/videos/VideoCards.tsx')).toContain('data-video-card-duration={video.duration_ms}');
+  });
+});

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  accessTokenFresh, BROADCAST_ERRORS, broadcastErrorWord, CONNECT_ERRORS, defaultBroadcastStart, parseBroadcastBody, studioUrlFor, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
+  accessTokenFresh, BROADCAST_ERRORS, chaptersToHighlights, lookupRefusal, parseChapters, broadcastErrorWord, CONNECT_ERRORS, defaultBroadcastStart, parseBroadcastBody, studioUrlFor, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
   ownerColumns, ownerRef, parseIsoDuration, parseOwnerRef, parseUploadPrivacy, parseUploadSessionBody, problemFor, projectConnection,
   returnPathFor, scopeKeysOf, scopesFor, secretContextFor, uploadsPlaylistFor, TOKEN_REFRESH_SKEW_MS, YOUTUBE_CHUNK_BYTES, YOUTUBE_SCOPES, youtubeContentRange,
   type YouTubeConnectionRow,
@@ -154,6 +154,37 @@ describe('the broadcast (Phase 4b)', () => {
     expect(projectConnection(row, { userId: 'u', canManage: true, available: true }).canBroadcast).toBe(true);
     expect(projectConnection(row, { userId: 'v', canManage: true, available: true }).canBroadcast).toBe(false);
     expect(projectConnection({ ...row, status: 'revoked' }, { userId: 'u', canManage: true, available: true }).canBroadcast).toBe(false);
+  });
+});
+
+describe('paste and go — the chapters and the refusal', () => {
+  const desc = ['Club final, full game', '0:00 Warm-up', '12:30 Kick-off', '1:02:05 - Second half', '[1:45:00] Final whistle', 'Thanks for watching'].join('\n');
+  it('a timestamp at a line start, the first at 0:00, ascending, at least three, ten seconds apart — else nothing', () => {
+    expect(parseChapters(desc)).toEqual([
+      { startMs: 0, label: 'Warm-up' },
+      { startMs: 750_000, label: 'Kick-off' },
+      { startMs: 3_725_000, label: 'Second half' },
+      { startMs: 6_300_000, label: 'Final whistle' },
+    ]);
+    expect(parseChapters('0:00 a\n0:05 b\n1:00 c')).toEqual([]); // too close
+    expect(parseChapters('0:10 a\n1:00 b\n2:00 c')).toEqual([]); // the first is not 0:00
+    expect(parseChapters('0:00 a\n2:00 b\n1:00 c')).toEqual([]); // not ascending
+    expect(parseChapters('0:00 a\n1:00 b')).toEqual([]); // fewer than three
+    expect(parseChapters('see 1:00 for the goal')).toEqual([]); // not at the line start
+    expect(parseChapters(null)).toEqual([]);
+  });
+  it('a chapter runs to the next one; the last runs to the end, or stays open without a duration', () => {
+    const c = parseChapters(desc);
+    expect(chaptersToHighlights(c, 7_200_000).map(h => [h.start_ms, h.end_ms])).toEqual([[0, 750_000], [750_000, 3_725_000], [3_725_000, 6_300_000], [6_300_000, 7_200_000]]);
+    expect(chaptersToHighlights(c, null)[3].end_ms).toBeNull();
+    expect(chaptersToHighlights(c, 6_000_000)[3].end_ms).toBeNull(); // a duration shorter than the chapter: open
+  });
+  it('private refuses, embedding off lets through with the sentence, anything else (or no lookup) is silent', () => {
+    expect(lookupRefusal({ available: true, privacy: 'private', embeddable: true })).toBe('private');
+    expect(lookupRefusal({ available: true, privacy: 'unlisted', embeddable: false })).toBe('no_embed');
+    expect(lookupRefusal({ available: true, privacy: 'public', embeddable: true })).toBeNull();
+    expect(lookupRefusal({ available: false, privacy: 'private', embeddable: false })).toBeNull();
+    expect(lookupRefusal(null)).toBeNull();
   });
 });
 
