@@ -81,6 +81,11 @@ function toMentionProfile(p: {
 }
 
 // GET - Fetch comments for a post
+/** How many rounds of replies-of-replies a page follows (a reply's parent may itself be a reply). */
+const REPLY_DEPTH_ROUNDS = 4;
+/** The replies one round may return — bounded, never the whole thread of a viral post. */
+const REPLIES_PER_ROUND = 300;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -93,10 +98,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Bounded page (was unbounded — a viral post's thread would load every
-    // comment in one response). Default generous enough that current clients
-    // see no behavior change at MVP scale; hasMore lets a future UI paginate.
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10) || 100, 1), 200);
+    // A PAGE OF THREADS (SCALE_AUDIT hole 12, Nov 6 2026): the page is over
+    // ROOT comments — thirty, pinned first, then most liked, then oldest —
+    // and every reply of those roots rides along (fetched by parent, a few
+    // bounded rounds deep), so a thread is never cut between a reply and its
+    // parent. It used to be a flat page of 100 the client read once and never
+    // paged: the 101st comment did not exist to a reader. `offset` counts
+    // roots; the client's "Show more comments" takes `nextOffset`.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '30', 10) || 30, 1), 100);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
     // Viewer-aware (095): everyone sees published; an authenticated viewer
@@ -105,11 +114,11 @@ export async function GET(request: NextRequest) {
     // queue, not inline.
     const { supabase, user: viewer } = await getServerAuth(request);
 
-    // Fetch comments with profile data and likes
-    // Sort: pinned first, then by likes (most liked on top), then chronological
-    let commentsQuery = supabase
-      .from('post_comments')
-      .select(`
+    // One select shape for roots and replies: profile data and the viewer's
+    // own like. The viewer's OWN comment likes only (Oct 4 2026): the client
+    // tests `comment_likes.some(l => l.profile_id === viewer)`; a full list
+    // is capped at 1000 rows by PostgREST. Anonymous readers keep the count only.
+    const COMMENT_SELECT = `
         *,
         profile:profile_id(
           id,
@@ -128,24 +137,33 @@ export async function GET(request: NextRequest) {
           full_name
         ),
         comment_likes(profile_id)
-      `)
-      .eq('post_id', postId);
-    // The viewer's OWN comment likes only (Oct 4 2026): the client tests
-    // `comment_likes.some(l => l.profile_id === viewer)`; a full list is
-    // capped at 1000 rows by PostgREST. Anonymous readers keep the count only.
-    if (viewer) commentsQuery = commentsQuery.eq('comment_likes.profile_id', viewer.id);
-    commentsQuery = viewer
-      ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)  // hardening-ok: session UUID
-      : commentsQuery.eq('status', 'published');
-    const [{ data: rawComments, error }, hiddenAuthors] = await Promise.all([
-      commentsQuery
+      `;
+    const visible = <Q extends { eq: (k: string, v: unknown) => Q; or: (f: string) => Q }>(q: Q): Q => {
+      let out = q;
+      if (viewer) out = out.eq('comment_likes.profile_id', viewer.id);
+      return viewer
+        ? out.or(`status.eq.published,profile_id.eq.${viewer.id}`)  // hardening-ok: session UUID
+        : out.eq('status', 'published');
+    };
+
+    // The roots' page: pinned first, then by likes (most liked on top), then
+    // chronological. limit + 1 rows, so hasMore is known BEFORE the viewer's
+    // mutes and blocks thin the page (they used to be filtered first, which
+    // could end the list early).
+    const [{ data: rawRoots, error }, hiddenAuthors] = await Promise.all([
+      visible(
+        supabase
+          .from('post_comments')
+          .select(COMMENT_SELECT)
+          .eq('post_id', postId)
+          .is('parent_comment_id', null)
+      )
         .order('is_pinned', { ascending: false, nullsFirst: false })
         .order('likes_count', { ascending: false })
         .order('created_at', { ascending: true })
         .range(offset, offset + limit), // limit+1 rows to compute hasMore
       hiddenAuthorsFor(getSupabaseAdmin(), viewer?.id ?? null), // Spec 2: the viewer's mutes + blocks
     ]);
-    const comments = viewer && rawComments ? rawComments.filter(c => !hiddenAuthors.has(c.profile_id as string) || c.profile_id === viewer.id) : rawComments;
 
     if (error) {
       reportRouteError('Error fetching comments:', error);
@@ -155,9 +173,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rows = comments || [];
-    const hasMore = rows.length > limit;
-    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const allRoots = rawRoots || [];
+    const hasMore = allRoots.length > limit;
+    const pageRoots = hasMore ? allRoots.slice(0, limit) : allRoots;
+    const notHidden = (c: { profile_id: string }) => !viewer || !hiddenAuthors.has(c.profile_id) || c.profile_id === viewer.id;
+
+    // The replies of this page's roots: by parent, round by round (a reply
+    // to a reply has a reply's id as its parent), each round bounded.
+    const replies: typeof pageRoots = [];
+    let parentIds = pageRoots.map(r => r.id as string);
+    for (let depth = 0; depth < REPLY_DEPTH_ROUNDS && parentIds.length > 0; depth++) {
+      const { data: round, error: roundError } = await visible(
+        supabase
+          .from('post_comments')
+          .select(COMMENT_SELECT)
+          .eq('post_id', postId)
+          .in('parent_comment_id', parentIds)
+      )
+        .order('created_at', { ascending: true })
+        .limit(REPLIES_PER_ROUND);
+      if (roundError) {
+        reportRouteError('Error fetching replies:', roundError);
+        break;
+      }
+      const batch = round || [];
+      replies.push(...batch);
+      parentIds = batch.map(r => r.id as string);
+    }
+
+    const pageRows = [...pageRoots, ...replies].filter(notHidden);
 
     // A commenter whose profile is PRIVATE reaches a viewer who does not
     // follow them with the author embed stripped by RLS: the comment drew as
@@ -203,7 +247,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       comments: pageRows,
       hasMore,
-      nextOffset: offset + Math.min(rows.length, limit),
+      nextOffset: offset + pageRoots.length,
       mentionProfiles
     });
   } catch (error) {

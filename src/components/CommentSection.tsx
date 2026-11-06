@@ -55,6 +55,10 @@ export default function CommentSection({
 }: CommentSectionProps) {
   const { user, activeProfile, managedProfiles } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
+  // The next page of threads (Nov 6 2026): the list is thirty roots at a time.
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [commentsCount, setCommentsCount] = useState(initialCommentsCount);
   const [newComment, setNewComment] = useState('');
   const [gifUrl, setGifUrl] = useState<string | null>(null);
@@ -171,6 +175,8 @@ export default function CommentSection({
         const data = await response.json();
         if (cancelled) return;
         setComments(data.comments || []);
+        setHasMore(!!data.hasMore);
+        setNextOffset(typeof data.nextOffset === 'number' ? data.nextOffset : 0);
         mergeMentionProfiles(data.mentionProfiles);
       } catch (e) {
         console.error('Failed to load comments:', e);
@@ -183,6 +189,29 @@ export default function CommentSection({
       cancelled = true;
     };
   }, [showComments, postId, mergeMentionProfiles]);
+
+  // The next page of threads, merged by id (a reply posted meanwhile, or a
+  // root that moved between pages as its likes changed, never doubles).
+  const loadMoreComments = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const response = await fetch(`/api/comments?postId=${postId}&offset=${nextOffset}`);
+      if (!response.ok) throw new Error('Failed to fetch comments');
+      const data = await response.json();
+      setComments(prev => {
+        const seen = new Set(prev.map(c => c.id));
+        return [...prev, ...((data.comments || []) as Comment[]).filter(c => !seen.has(c.id))];
+      });
+      setHasMore(!!data.hasMore);
+      setNextOffset(typeof data.nextOffset === 'number' ? data.nextOffset : nextOffset);
+      mergeMentionProfiles(data.mentionProfiles);
+    } catch (e) {
+      console.error('Failed to load more comments:', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Both mirror props — synchronise during render so neither is a frame late.
   const [syncedProps, setSyncedProps] = useState({ isOpen, initialCommentsCount });
@@ -1117,6 +1146,19 @@ export default function CommentSection({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {!isLoading && hasMore && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => void loadMoreComments()}
+                disabled={loadingMore}
+                data-comments-more=""
+                className="ea-interactive inline-flex min-h-[44px] items-center text-sm font-medium text-brand-fg hover:underline disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : 'Show more comments'}
+              </button>
             </div>
           )}
         </div>

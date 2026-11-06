@@ -1,5 +1,16 @@
 # Development Log
 
+## November 6, 2026 — Improvements round, PR 5b: comments page by thread — thirty roots with their replies, and "Show more comments" (SCALE_AUDIT hole 12, zero DDL)
+
+The comments half of Tom's fifth pick. `GET /api/comments` returned a flat page of 100 (offset) that `CommentSection` read ONCE and never paged — the 101st comment did not exist to a reader; the viewer's mutes and blocks thinned the page BEFORE `hasMore` was computed; and a flat page could cut a thread between a reply and its parent.
+
+- **A page of THREADS:** thirty ROOT comments (pinned, then most liked, then oldest — the product's order, unchanged), `limit + 1` for `hasMore` read off the raw page, and every reply of those roots riding along — fetched by parent, round by round (a reply's parent may itself be a reply; four rounds, 300 a round, bounded). `offset` counts roots; the answer's `nextOffset` is the next page's. The viewer rule (published, plus my own pending) and the viewer's-own-likes embed are unchanged.
+- **Not keyset, by decision:** the route runs on the RLS client (a private author reaches a non-follower with the embed stripped — the Oct 2026 author-link rule); a definer RPC would re-implement that visibility, and the sort key moves with likes, which a keyset cannot follow either. At thirty roots a page the offset cost is noise. Recorded in the audit's row 12.
+- **The client:** `CommentSection` keeps `hasMore` and `nextOffset`, offers **"Show more comments"** (`data-comments-more`), appends the next page merged by id (a root that moved between pages as its likes changed never doubles).
+- **Pinned:** `src/lib/__tests__/comments-paging.test.ts` (thirty roots, roots-only page read, `hasMore` before the mute filter, the bounded reply rounds, the client's button and merge); `docs/SCALE_AUDIT.md` row 12.
+
+**Proof:** `npm run verify` exit 0 — **5,846 tests**. e2e on staging: new `comments-paging` mobile **1/1** (33 roots + a reply: page one = 30 roots + the reply under root 1, `hasMore`, `nextOffset` 30; page two = 3 roots, no more; the post opened from the feed shows "Show more comments", a tap brings root 33, the button goes), `likes` mobile **1/1**, `comment-author-link` + `likes` desktop **3/3**.
+
 ## November 6, 2026 — Pulse signals follow-up: a message from someone else is ONE pulse fetch, not two (zero DDL)
 
 The production probe of PR 1 (#1420, the change signals) caught it on its first attempt: *"a message: still one fetch after the burst — expected 4, received 5"*. A message from someone else reaches a tab twice — as the `new_message` bell on the notifications channel (scale fix 3) AND as the pulse signal on the private topic (301). The bell's handler still called `refreshUnreadCount()` → `fetchPulse()` beside the signal's own fetch; on staging the two coincided inside the in-flight coalescing window and the spec never saw it, on production's latency they did not. **The bell now refreshes the LIST only; the pulse signal carries the count.** And the count-moved path (the provider's "a fetched pulse whose number moved refreshes page one") skips a refresh made within the last 6 s — so a message is one bell → one list fetch, one signal → one pulse fetch. Pinned in `me-pulse.test.ts` (the bell slice holds no `refreshUnreadCount()`; the 6 s skip) and `realtime-subscriptions.test.ts` (the effect's deps).
