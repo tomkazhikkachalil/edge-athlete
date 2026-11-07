@@ -1,5 +1,19 @@
 # Development Log
 
+## November 7, 2026 — Maintenance pass after scale round 2: every gate green on a15a16ee; web, large screen, phone and the installed app proven
+
+Tom: "run the full project maintenance checklist … make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues." The checklist in `CLAUDE.md`'s order, on main `a15a16ee` (scale round 2 complete: #1431–#1435, zero DDL, both databases at 304).
+
+**Gates:** `npm run verify` exit 0 — typecheck, `eslint --max-warnings 0` clean, **5,893 tests in 638 files**, the production build, `check:syntax` (287 client chunks within the iOS 15 / Safari 15 floor). `npm audit --omit=dev` 0 vulnerabilities. `scripts/hardening-guardrails.sh` ✓. `check:blocklists` ✓ (703 URLs, 1,107 classes, 238 ids, 1,505 data attributes against Brave's lists). `check:schema` and `check:schema:prod` OK at ledger head 304 (142 tables, every one reachable by service_role).
+
+**The surfaces, on staging with the built app, one project at a time:**
+- **Web / large screen (desktop, 1280):** the `@smoke` set **16/16** — login, the feed composer, a follow request both ways, the golf steps, the header's Create menu, health, the landing page, the media proxy at the byte layer, an org site create → publish → anon → unpublish, the round lifecycle, the tab bar absent on a large screen, training, the GPS strip on upload; plus `install-app`'s desktop door 1/1 (the manifest, the desktop doors, a Back that is never dead).
+- **Phone (the `mobile` project, Chromium at phone width):** `@smoke` **4/4** (capture attaches as a tile, the first-run checklist, Quick entry, the five-place tab bar) + `install-app` 4/4 (Android's one-tap install, the iPhone Share steps, Get Started before the install card, opened-from-the-icon) + `offline` 2/3 and `sw-static-cache` 0/1 — the two skips are by configuration: `NEXT_PUBLIC_SW_STATIC_CACHE` is unset for this deployment, so the static-cache worker and its offline page are OFF here and the specs say so.
+- **The installed app on iPhone (`webkit-mobile`, real WebKit):** the same `@smoke` **4/4** and `install-app` 4/4, `offline` 2/3 (the same configuration skip, plus the WebKit harness's service-worker block the spec names).
+- The phone-width sweep for every program this round touched ran inside its own PR (live scores, cheers, messaging, the thread on a phone, people search, comments paging).
+
+**Production (after the merge, one project at a time):** recorded below.
+
 ## November 7, 2026 — Scale round 2, the send path: a message is 8 database trips, not 14 (zero DDL); the inventory measures the writes
 
 Tom: "continue." With nothing open, the next pick was MEASURED rather than guessed: `scripts/db-trace-inventory.mjs` grew the writes and the live reads (it now creates a conversation with the seed subject and a public golf round of its own, and sweeps what the passes leave) — 26 routes, `docs/load/2026-11-07/trips.md`. Every list read sits at 2–4 trips, the writes at 6–7 — and `POST /api/messages/{id}/messages` at **14 trips in 13 sequential stages, 1.5 s**, for a plain text message: the sender's profile read twice, the participants three times, the conversation twice, the moderation freeze once more, and a second `message-send` limiter call right after `requireActiveWriter` had already spent it (free through the memo, but a line that lied).
