@@ -216,6 +216,14 @@ export async function extendRecurringSeries(
  * occurrences and guest rows. `null` = the function is not there yet
  * (PGRST202) — the route answers 503. Throws on any other failure.
  */
+/** The split found nothing to split: a second, crossed save of the same change (304 raises P0004). */
+export class SeriesSplitConflict extends Error {
+  constructor() {
+    super('series split: nothing to split');
+    this.name = 'SeriesSplitConflict';
+  }
+}
+
 export async function splitSeries(
   admin: Admin,
   input: {
@@ -247,6 +255,7 @@ export async function splitSeries(
   });
   if (error) {
     if (error.code === 'PGRST202') return null;
+    if (error.code === 'P0004' || /nothing to split/.test(error.message)) throw new SeriesSplitConflict();
     throw new Error(`series split failed: ${error.message}`);
   }
   const row = data as { new_series_id: string; first_event_id: string; cancelled: number; created: number };

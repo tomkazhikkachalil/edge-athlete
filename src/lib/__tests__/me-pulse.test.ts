@@ -169,7 +169,7 @@ describe('migration 301: the change signals — the database broadcasts, the cli
     expect(notifications).toContain(".channel(`user:${user.id}`, { config: { private: true } })");
     expect(notifications).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
     const host = read('src/lib/pulse/PulseHost.tsx');
-    expect(host).toContain(".channel('live-now')");
+    expect(host).toContain(".channel('live-now', { config: { private: true } })"); // private since 304
     expect(host).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
     expect(read('src/app/(app)/layout.tsx')).toContain('<PulseHost />');
     expect(read('src/lib/pulse/pulse-rules.ts')).toContain('export const PULSE_REFRESH_MS = 600_000;');
@@ -183,5 +183,17 @@ describe('migration 301: the change signals — the database broadcasts, the cli
     const strip = read('src/components/LiveNowStrip.tsx');
     expect(strip).not.toContain('REFRESH_MS = 60_000');
     expect(strip).toContain('if (s.liveNow === lastTotal) return;');
+  });
+});
+
+describe('304: every pulse topic is private', () => {
+  it('a SELECT policy for live-now, no INSERT policy, the sender sends private whatever its third argument, the client and the probe join privately', () => {
+    const h = read('database/migrations/304_harden_round.sql');
+    expect(h).toMatch(/CREATE POLICY "pulse: live-now topic" ON realtime\.messages\s+FOR SELECT TO authenticated\s+USING \(realtime\.topic\(\) = 'live-now' AND extension = 'broadcast'\);/);
+    expect(h).not.toMatch(/FOR INSERT/);
+    expect(h).toMatch(/PERFORM realtime\.send\(p_payload \|\| jsonb_build_object\('at', extract\(epoch FROM now\(\)\)\), 'pulse', p_topic, true\);/);
+    expect(h).toMatch(/REVOKE EXECUTE ON FUNCTION public\.pulse_send\(text, jsonb, boolean\) FROM PUBLIC, anon, authenticated;/);
+    expect(read('src/lib/pulse/PulseHost.tsx')).toContain(".channel('live-now', { config: { private: true } })");
+    expect(read('scripts/pulse-broadcast-probe.mjs')).toContain(".channel('live-now', { config: { private: true } })");
   });
 });

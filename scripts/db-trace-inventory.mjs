@@ -58,6 +58,11 @@ const ROUTES = [
   ['GET /api/notifications/unread-count', `/api/notifications/unread-count`, { cookie }],
   ['GET /api/search?q=seed', `/api/search?q=seed`, { cookie }],
   ['GET /api/golf/live-now', `/api/golf/live-now`, { cookie }],
+  ['GET /api/me/pulse', `/api/me/pulse`, { cookie }],
+  ['GET /api/comments?postId= (page one)', `/api/comments?postId=${aPost?.id}`, { cookie }],
+  ['GET /api/mentions/search?q=seed', `/api/mentions/search?q=seed`, { cookie }],
+  ['GET /api/calendar/invite-search?q=seed', `/api/calendar/invite-search?q=seed`, { cookie }],
+  ['GET /api/suggestions?profileId=me', `/api/suggestions?profileId=${signed.user?.id}`, { cookie }],
   ['POST /api/posts/like (toggle)', `/api/posts/like`, { cookie, method: 'POST', body: JSON.stringify({ postId: aPost?.id }) }],
 ];
 const rows = [];

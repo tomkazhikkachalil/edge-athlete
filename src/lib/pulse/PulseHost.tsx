@@ -21,7 +21,7 @@ export default function PulseHost() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel('live-now')
+      .channel('live-now', { config: { private: true } })
       .on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))
       .subscribe((status: string) => {
         // (Re)joined: close the gap a dropped socket may have opened — the

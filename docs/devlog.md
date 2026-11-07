@@ -1,5 +1,26 @@
 # Development Log
 
+## November 6, 2026 — The hardening pass over the improvements round: six findings, migration 304, the sweep and the trip inventory
+
+Tom: "harden the app, test the new features and run through them to make sure it's running efficiently and well." Three things, in this order: a security review of everything merged today (`e677d1ab..4da90aef`: the photo editor pass and the improvements round's seven PRs), the e2e suite by area against staging, and the trip inventory extended to the round's routes.
+
+**The review found six things, verified against the code and fixed where each lives (migration 304 `harden_round` + this PR):**
+
+1. **The `live-now` pulse topic was PUBLIC** — any client holding the anon key (it ships in the bundle) could broadcast a `pulse` event on it and make every signed-in tab fetch its pulse every few seconds, indefinitely. Now every pulse topic is PRIVATE: a SELECT policy "pulse: live-now topic" for `authenticated`, still NO insert policy (so only the triggers' `pulse_send` writes), `pulse_send` sends private whatever its third argument; `PulseHost` and the probe join with `config.private`. Defence in depth: `SIGNAL_FLOOR_MS = 5 s` — a signal fires no sooner than five seconds after the last fetch (`signalDelayMs(random, sinceLastFetch)`), so even a runaway signal costs a tab one fetch per floor. **Proven on staging** by `scripts/pulse-broadcast-probe.mjs`, which now signs in a second listener: a forged send from A reaches nobody; the genuine golf signals reach both.
+2. **The split dropped a time or all-day change made in the same save** (the planner re-anchors the STORED wall clock). The route now refuses it — "Change the time and the schedule in two separate saves." — comparing wall clocks in each side's own zone, so the form's zone-only change (7 pm Denver → 7 pm Toronto, the times sent on every save) still passes. e2e covers both.
+3. **`calendar_series_split` was not idempotent under crossed saves** (a double tap, two tabs: both passed the organizer check, the second created a SECOND new series). 304 takes the series row `FOR UPDATE` and raises P0004 when the split cancels nothing; `SeriesSplitConflict` → the route answers 409 `no-store`.
+4. **`search_people_for` widened on any unknown `p_direction`** (the ELSE arm was "either direction"). 304: `'following'`, `'either'`, else nobody private.
+5. **The message trigger's fan-out is unbounded by conversation size** (one `realtime.send` per active participant inside the sender's INSERT). Left as is — a product cap on group membership is Tom's number; recorded here.
+6. **The worker never reached its light pool**: the 261 claim takes videos first and counts EVERY running job against the one cap, so a tick got two light jobs beside a video and stopped (the devlog's "up to 20" never happened). 304 adds `media_jobs_claim(n, lease, cap, kinds)` — only the kinds asked for, only THEIR running rows against the cap; the worker claims one video (cap 3), then the light kinds (cap 8), and the pool DRAINS while the budget holds. Before 304 (PGRST202) the 261 claim still works.
+
+**Checked and sound (the review's list):** 301's policies and payloads; 302's organizer check and bounds; 303's `search_term` sanitizing and `p_limit` clamp; comments' limit/offset parsing, `hasMore` before the mute filter, minimal fields for private authors; the profile media gate before every stage; the worker's lease over its budget; the channels' cleanup and the CHANNEL_ERROR retry (no storm); the editor's slider bounds and overlay caps.
+
+**The sweep (staging, the built app served by hand, desktop then mobile):** desktop — pulse/messaging 10/10 · calendar 14/14 · profile media 3/3 · media jobs + comments 5/5 (admin-media-jobs skipped: no `E2E_ADMIN_EMAIL` locally) · people search, suggestions, round lifecycle, editor 4/4 = **36 passed, 0 failed**. Mobile (the new build, 304 on staging) — pulse 2/2 (the signals over the private topic, one fetch per change, an idle tab silent), calendar-series-split 1/1 (with the time-plus-schedule refusal and the form-shaped zone change), people-search-bounded 1/1, comments-paging 1/1, media-processing + profile media + media-editor 4/4 = **9 passed, 0 failed**.
+
+**The trip inventory** (`docs/load/2026-11-06/trips-after-the-round.md`, `scripts/db-trace-inventory.mjs` now requests the pulse, comments, the two people searches and suggestions too): every route the round touched is 2–3 trips including the session check — the pulse 2, comments 3, mentions 2, invite search 2, live-now 3, suggestions 3; the profile grid 5.
+
+**Proof:** `npm run verify` exit 0 — **5,873 tests in 635 files**; audit 0; guardrails ✓; `check:blocklists` ✓; staging `304 APPLIED | 2 | 1 | 304`, `check:schema` OK at head 304. **Tom runs 304 on production before the merge.**
+
 ## November 6, 2026 — Improvements round closed: all five picks on production, baseline at 303
 
 The round Tom chose after the photo editor pass ("what other fixes should we do?"): five picks, seven PRs, three migrations, every one merged and proven on production the same day. The closing pass of the maintenance checklist ran on the merged main (8e72b900).

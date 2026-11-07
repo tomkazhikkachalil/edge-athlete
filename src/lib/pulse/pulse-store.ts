@@ -70,7 +70,7 @@ export function requestPulse(reason: PulseReason): void {
     signalTimer = setTimeout(() => {
       signalTimer = null;
       if (planPulseFetch({ reason, lastFetchedAt: snapshot.fetchedAt, now: Date.now(), visible: visible(), online: getOnline() }) === 'fetch') void fetchPulse();
-    }, signalDelayMs(Math.random()));
+    }, signalDelayMs(Math.random(), Date.now() - snapshot.fetchedAt));
     return;
   }
   const plan = planPulseFetch({ reason, lastFetchedAt: snapshot.fetchedAt, now: Date.now(), visible: visible(), online: getOnline() });

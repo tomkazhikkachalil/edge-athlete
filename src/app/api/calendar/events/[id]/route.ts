@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEventInput, validateGuestInput, MAX_GUESTS } from '@/lib/calendar/events';
 import { applyWallTime, planSeriesSplit, wallClockInZone, wallDurationMinutes, type SeriesRule } from '@/lib/calendar/recurrence';
-import { splitSeries, type GuestIdentity } from '@/lib/calendar/series-server';
+import { splitSeries, SeriesSplitConflict, type GuestIdentity } from '@/lib/calendar/series-server';
 import {
   notifyEventInvites,
   notifyEventUpdated,
@@ -252,6 +252,21 @@ export async function PATCH(
     if (wantsRule && !event.series_id) {
       return NextResponse.json({ error: 'This event does not repeat — create a repeating event instead.' }, { status: 400 });
     }
+    // The split re-anchors the stored occurrence's wall clock (planSeriesSplit);
+    // a time or all-day change sent in the same save would be dropped silently
+    // (the hardening pass, Nov 6 2026). The form sends the times on every
+    // save, so the comparison is by wall clock in each side's own zone: a
+    // zone-only change keeps 7 pm and passes, 7 pm → 6 pm does not.
+    if (scheduleChange && (body.starts_at !== undefined || body.ends_at !== undefined || body.all_day !== undefined)) {
+      const wallKey = (iso: string, tz: string) => JSON.stringify(wallClockInZone(Date.parse(iso), tz));
+      const timeChanged =
+        wallKey(validated.event.starts_at, validated.event.timezone) !== wallKey(event.starts_at, event.timezone) ||
+        wallKey(validated.event.ends_at, validated.event.timezone) !== wallKey(event.ends_at, event.timezone) ||
+        validated.event.all_day !== event.all_day;
+      if (timeChanged) {
+        return NextResponse.json({ error: 'Change the time and the schedule in two separate saves.' }, { status: 400 });
+      }
+    }
 
     // Scope linkage (119/146): whenever the FINAL value carries a scope,
     // the editor must be the OWNING org's owner/manager — covers attach,
@@ -341,7 +356,9 @@ export async function PATCH(
         .from('event_guests')
         .select('profile_id, invited_email, role, status, responded_at, reminder_minutes')
         .eq('event_id', event.id);
-      const split = await splitSeries(admin, {
+      let split: Awaited<ReturnType<typeof splitSeries>>;
+      try {
+        split = await splitSeries(admin, {
         oldSeriesId: event.series_id,
         organizerId: user.id,
         fromStartsAt: event.starts_at,
@@ -364,7 +381,15 @@ export async function PATCH(
           facility_id: (event as { facility_id?: string | null }).facility_id ?? null,
         },
         guests: (guestRows ?? []) as GuestIdentity[],
-      });
+        });
+      } catch (err) {
+        // 304: the series row is locked per split and a split that cancels
+        // nothing raises — a second, crossed save of the same change.
+        if (err instanceof SeriesSplitConflict) {
+          return NextResponse.json({ error: 'This series was just changed — reload the calendar and try again.' }, { status: 409, headers: { 'Cache-Control': 'no-store' } });
+        }
+        throw err;
+      }
       if (!split) {
         return NextResponse.json({ error: 'Calendar updating — try again in a minute.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
       }

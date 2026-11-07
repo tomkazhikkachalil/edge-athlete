@@ -36,6 +36,13 @@ export const PULSE_STALE_MS = 30_000;
 export const SIGNAL_DEBOUNCE_MS = 1_500;
 /** …and a platform-wide signal spreads its fetches over this window. */
 export const SIGNAL_JITTER_MS = 3_000;
+/**
+ * The floor between a fetch and the next signal-driven one (the hardening
+ * pass, Nov 6 2026): a signal that arrives sooner waits for it. Defence in
+ * depth behind the private topics — a forged or runaway signal costs a tab
+ * at most one fetch per floor, and a burst still coalesces into one.
+ */
+export const SIGNAL_FLOOR_MS = 5_000;
 
 export type PulseReason =
   /** A subscriber mounted (a navigation, the first paint). */
@@ -68,10 +75,15 @@ export function planPulseFetch(input: {
   return 'fetch';
 }
 
-/** How long a signal waits: the debounce plus a share of the jitter window (`random` in [0, 1)). */
-export function signalDelayMs(random: number): number {
+/**
+ * How long a signal waits: the debounce plus a share of the jitter window
+ * (`random` in [0, 1)), and never less than what remains of the floor since
+ * the last fetch (`sinceLastFetchMs`; omitted = long ago).
+ */
+export function signalDelayMs(random: number, sinceLastFetchMs: number = Number.POSITIVE_INFINITY): number {
   const r = Number.isFinite(random) ? Math.min(Math.max(random, 0), 0.999_999) : 0;
-  return SIGNAL_DEBOUNCE_MS + Math.floor(r * SIGNAL_JITTER_MS);
+  const since = Number.isFinite(sinceLastFetchMs) ? Math.max(sinceLastFetchMs, 0) : Number.POSITIVE_INFINITY;
+  return Math.max(SIGNAL_DEBOUNCE_MS + Math.floor(r * SIGNAL_JITTER_MS), SIGNAL_FLOOR_MS - since);
 }
 
 /** The payload → the snapshot. A malformed payload keeps the previous numbers. */
