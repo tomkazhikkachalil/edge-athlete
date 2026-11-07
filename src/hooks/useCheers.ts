@@ -15,12 +15,19 @@ export interface Float { id: string; emoji: string; left: number }
 
 type SendOutcome = 'ok' | 'not_live' | 'slow_down' | 'signed_out' | 'error';
 
+/** Ids older than this are forgotten — the server's recent window is 30 s. */
+const SEEN_TTL_MS = 60_000;
+
 /**
  * A live round's cheers (the Play program, 244): the counts, and a float per
  * NEW cheer — polled every 10 s while the tab is visible (the round-stats
  * poll's shape; posture-A tables emit no realtime), quiet while hidden,
  * once on return. `send` floats the viewer's own tap at once (optimistic)
  * and remembers its id so the next poll never floats it twice.
+ *
+ * The poll carries no `since` (scale round 2, Nov 7 2026): the server
+ * answers the last 30 s for every reader alike, so a public round's feed is
+ * ONE CDN copy; this hook dedupes by id and forgets ids after a minute.
  */
 export function useCheers(contextKey: string, enabled = true) {
   const [totals, setTotals] = useState<Record<CheerKey, number>>(emptyTotals);
@@ -28,8 +35,8 @@ export function useCheers(contextKey: string, enabled = true) {
   const [live, setLive] = useState(false);
   const [ready, setReady] = useState(false);
   const [floats, setFloats] = useState<Float[]>([]);
-  const since = useRef<string | null>(null);
-  const seen = useRef(new Set<string>());
+  const baselined = useRef(false);
+  const seen = useRef(new Map<string, number>());
   const inFlight = useRef(false);
   const liveRef = useRef<boolean | null>(null);
   const lastPoll = useRef(0);
@@ -46,7 +53,6 @@ export function useCheers(contextKey: string, enabled = true) {
     lastPoll.current = Date.now();
     try {
       const q = new URLSearchParams({ context: contextKey });
-      if (since.current) q.set('since', since.current);
       const res = await fetch(`/api/live/cheers?${q}`, { credentials: 'include' });
       if (!res.ok) return;
       const feed = (await res.json()) as CheerFeed & { live: boolean };
@@ -55,14 +61,13 @@ export function useCheers(contextKey: string, enabled = true) {
       setLive(feed.live);
       liveRef.current = feed.live;
       setReady(true);
+      const nowMs = Date.now();
+      for (const [id, at] of seen.current) if (nowMs - at > SEEN_TTL_MS) seen.current.delete(id);
       // The first read is the baseline: past cheers are counted, never floated.
-      if (since.current) {
-        for (const e of freshEvents(feed.recent, seen.current)) {
-          seen.current.add(e.id);
-          float(e.id, e.cheer);
-        }
-      }
-      since.current = feed.now;
+      const fresh = freshEvents(feed.recent, seen.current);
+      for (const e of fresh) seen.current.set(e.id, nowMs);
+      if (baselined.current) for (const e of fresh) float(e.id, e.cheer);
+      baselined.current = true;
     } catch {
       /* a missed poll is the next poll's job */
     } finally {
@@ -106,7 +111,7 @@ export function useCheers(contextKey: string, enabled = true) {
       });
       if (res.status === 201) {
         const body = (await res.json()) as { id: string; totals: Record<CheerKey, number>; total: number };
-        seen.current.add(body.id);
+        seen.current.set(body.id, Date.now());
         setTotals(body.totals);
         setTotal(body.total);
         return 'ok';

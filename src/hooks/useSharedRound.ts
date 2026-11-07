@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { isRoundLive, shouldShowStaleNotice } from '@/lib/golf/round-status';
-import { classifyScoreEvent } from '@/lib/golf/round-access';
+import { classifyScoreEvent, refreshDelayMs } from '@/lib/golf/round-access';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import { shouldPoll } from '@/lib/net/online';
 
@@ -22,6 +22,12 @@ import { shouldPoll } from '@/lib/net/online';
 //     publishes the table — unpublished, only that channel fails),
 //     and on this round's group_posts row (status flips: LIVE → FINAL streams
 //     to viewers, e.g. End Round),
+//   • COALESCES the refetches those events ask for (scale round 2, Nov 7
+//     2026: a realtime event schedules ONE refresh 1.5–3 s out, never sooner
+//     than 3 s after the last — a burst of score writes is one scorecard
+//     fetch per viewer, not one per write; refreshDelayMs in round-access.ts).
+//     The imperative refresh() — your own save, the poll, a return to the
+//     tab — stays immediate,
 //   • retries failed subscriptions with backoff and reports connectionState,
 //   • polls ALWAYS while enabled — 30s when the channel is degraded, 60s even
 //     when it reports 'live'. SUBSCRIBED only means the channel joined; it
@@ -75,6 +81,19 @@ export function useSharedRound({
   const [retryNonce, setRetryNonce] = useState(0);
   // Re-render pulse so time-based display rules expire while a card sits open
   const [, setNowTick] = useState(0);
+  // When the last refresh of ANY kind started — the floor a scheduled
+  // (realtime-triggered) refresh keeps from it. Zero = never.
+  const lastRefreshAtRef = useRef(0);
+  // The one pending scheduled refresh; a second event inside the window joins
+  // it. It OUTLIVES a resubscribe (a roster change, a channel retry): an event
+  // already delivered must still land its refetch. It is cleared only when the
+  // round changes or the hook is disabled / unmounted (the effect below), and
+  // it fires the LATEST refresh through a ref, never a stale closure.
+  const pendingRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The round the channel last reached SUBSCRIBED for — a later SUBSCRIBED on
+  // the same round is a RESUBSCRIBE, and whatever was written during its join
+  // gap is caught up by one scheduled refresh.
+  const subscribedRoundRef = useRef<string | null>(null);
 
   // Keep in sync when the parent re-provides a scorecard (e.g. feed refetch).
   // Render-phase synchronisation — an effect here left the previous round's
@@ -89,6 +108,7 @@ export function useSharedRound({
    *  (callers that NEED freshness — e.g. opening score entry — can decide
    *  whether to proceed with cached data). Never throws. */
   const refresh = useCallback(async (): Promise<boolean> => {
+    lastRefreshAtRef.current = Date.now();
     try {
       const url = postId
         ? `/api/posts?postId=${postId}`
@@ -113,6 +133,13 @@ export function useSharedRound({
       return false;
     }
   }, [postId, groupPostId]);
+
+  // The latest refresh, for the scheduled timer (it may outlive the effect
+  // that armed it; a stale closure would fetch a previous round's card).
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   // The seeded scorecard can be minutes old — sync once when going live.
   // ANNOTATED, not refactored: refresh() is part of this hook's PUBLIC API
@@ -159,6 +186,17 @@ export function useSharedRound({
     setConnectionState('connecting');
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // A realtime event asks for a refresh; the window coalesces the burst
+    // (refreshDelayMs: 1.5–3 s out, never within 3 s of the last refresh).
+    const scheduleRefresh = () => {
+      if (pendingRefreshRef.current) return;
+      const since = lastRefreshAtRef.current ? Date.now() - lastRefreshAtRef.current : Number.POSITIVE_INFINITY;
+      pendingRefreshRef.current = setTimeout(() => {
+        pendingRefreshRef.current = null;
+        refreshRef.current();
+      }, refreshDelayMs(Math.random(), since));
+    };
+
     // The scores listener is FILTERED to this round's roster (server-side:
     // other rounds' scores never leave the database). An empty roster (the
     // scorecard loaded without participants) subscribes to nothing here —
@@ -188,10 +226,10 @@ export function useSharedRound({
             Date.now()
           );
           if (action === 'refresh') {
-            refresh();
+            scheduleRefresh();
           } else if (action === 'refresh-unknown') {
             unknownEventRefreshAtRef.current = Date.now();
-            refresh();
+            scheduleRefresh();
           }
         }
       );
@@ -203,13 +241,18 @@ export function useSharedRound({
         // viewer — the badge and leaderboard state follow without a reload.
         { event: 'UPDATE', schema: 'public', table: 'group_posts', filter: `id=eq.${groupPostId}` },
         () => {
-          refresh();
+          scheduleRefresh();
         }
       )
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           attemptRef.current = 0;
           setConnectionState('live');
+          // A RESUBSCRIBE (the roster widened, a retry): a score written while
+          // the new channel was joining reached nobody — catch it up once.
+          // The first join is covered by the enable-time refresh.
+          if (subscribedRoundRef.current === groupPostId) scheduleRefresh();
+          subscribedRoundRef.current = groupPostId;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           // Silent-failure was the old behavior — now we degrade visibly
           // (poll fallback takes over) and retry with backoff.
@@ -237,18 +280,32 @@ export function useSharedRound({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'group_post_participants', filter: `group_post_id=eq.${groupPostId}` },
         () => {
-          refresh();
+          scheduleRefresh();
         }
       )
       .subscribe();
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer);
+      // The pending scheduled refresh is NOT cleared here — see pendingRefreshRef.
       supabase.removeChannel(channel);
       supabase.removeChannel(rosterChannel);
       setConnectionState('idle');
     };
   }, [enabled, groupPostId, refresh, retryNonce, rosterKey]);
+
+  // The scheduled refresh dies with the round: a new groupPostId, disabled, or
+  // unmount — never on a mere resubscribe (that effect's deps include the
+  // roster key and the retry nonce; this one's do not).
+  useEffect(() => {
+    subscribedRoundRef.current = null;
+    return () => {
+      if (pendingRefreshRef.current) {
+        clearTimeout(pendingRefreshRef.current);
+        pendingRefreshRef.current = null;
+      }
+    };
+  }, [enabled, groupPostId]);
 
   // Poll ALWAYS while enabled — fast when degraded, relaxed when the channel
   // reports 'live'. SUBSCRIBED is not proof events are flowing (publication

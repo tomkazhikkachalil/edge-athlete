@@ -51,7 +51,16 @@ test('a spectator cheers a live round: the API, the player\'s live page floats i
     // Anyone who may watch reads the count — signed out too, on a public round.
     const first = await feed(s.anon);
     expect(first.status()).toBe(200);
-    expect(first.headers()['cache-control']).toContain('no-store');
+    // A PUBLIC round's read is one CDN copy (Nov 7 2026). Vercel's CDN
+    // CONSUMES s-maxage into its own layer and rewrites the client-facing
+    // header (assert x-vercel-cache there, the raw directive only locally).
+    const cc = first.headers()['cache-control'] ?? '';
+    if (first.headers()['x-vercel-cache']) {
+      expect(cc).toContain('public');
+      expect(cc).not.toContain('no-store');
+    } else {
+      expect(cc).toContain('s-maxage=10');
+    }
     expect(await first.json()).toMatchObject({ total: 0, live: true });
 
     // Only signed-in watchers cheer; a key from the six; a target must be a player.
@@ -62,10 +71,10 @@ test('a spectator cheers a live round: the API, the player\'s live page floats i
     expect(cheered.status(), await readErrorBody(cheered)).toBe(201);
     expect(await cheered.json()).toMatchObject({ total: 1, totals: { fire: 1 } });
 
-    // Anonymous: the feed never says who cheered.
-    const since = new Date(Date.now() - 60_000).toISOString();
-    const recent = await (await s.apiP.get(`/api/live/cheers?context=${encodeURIComponent(context)}&since=${since}`)).json();
-    expect(recent.recent).toHaveLength(1);
+    // Anonymous: the feed never says who cheered. The recent list is the
+    // server's last 30 s, no `since` (a CDN copy may lag the write by 10 s).
+    await expect.poll(async () => ((await (await feed(s.apiP)).json()) as { recent: unknown[] }).recent.length, { timeout: 15_000 }).toBe(1);
+    const recent = await (await feed(s.apiP)).json();
     expect(JSON.stringify(recent)).not.toContain(s.fan.id);
 
     // The player's live page: the bar, then a fresh cheer floats in without a reload.
@@ -106,8 +115,13 @@ test('a private round is the 404 to a stranger — reading and cheering', async 
     const context = `group_post:${s.gp}`;
     expect((await s.apiF.get(`/api/live/cheers?context=${encodeURIComponent(context)}`)).status()).toBe(404);
     expect((await s.apiF.post('/api/live/cheers', { data: { context, cheer: 'fire' } })).status()).toBe(404);
-    expect((await s.anon.get(`/api/live/cheers?context=${encodeURIComponent(context)}`)).status()).toBe(404);
-    expect((await s.apiP.get(`/api/live/cheers?context=${encodeURIComponent(context)}`)).status()).toBe(200);
+    const anonRead = await s.anon.get(`/api/live/cheers?context=${encodeURIComponent(context)}`);
+    expect(anonRead.status()).toBe(404);
+    expect(anonRead.headers()['cache-control']).toContain('no-store');
+    // The participant's read of a PRIVATE round is never a CDN copy.
+    const own = await s.apiP.get(`/api/live/cheers?context=${encodeURIComponent(context)}`);
+    expect(own.status()).toBe(200);
+    expect(own.headers()['cache-control']).toContain('no-store');
     expect((await s.apiF.get('/api/live/cheers?context=contest:00000000-0000-4000-8000-000000000000')).status()).toBe(404);
   } finally {
     await dispose(s);
