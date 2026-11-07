@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'crypto';
+import { shadowPassword } from '@/lib/auth/shadow-password';
 import {
   TRANSFER_COOLING_OFF_DAYS,
   TRANSFER_STEP_EXPIRY_DAYS,
@@ -183,7 +184,7 @@ export async function executeTransfer(
     // 3. Rotate credentials (revokes all sessions) + app-owned reset token.
     if (!done('rotate_credentials')) {
       const { error } = await admin.auth.admin.updateUserById(transfer.profile_id, {
-        password: randomBytes(32).toString('base64url'),
+        password: shadowPassword(), // production's policy applies to a rotation too
       });
       if (error) throw new Error(`rotate: ${error.message}`);
       const raw = randomBytes(32).toString('base64url');

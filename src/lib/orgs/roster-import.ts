@@ -64,7 +64,8 @@ export function parseRosterImport(text: string): RosterImportParse {
 
 import { resolveTeamSeason } from '@/lib/teams/roster-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
+import { shadowPassword } from '@/lib/auth/shadow-password';
 import { mapBounded } from '@/lib/bounded-map';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
 import { makeStubEmail, isStubEmail } from '@/lib/config/stubs-config';
@@ -139,7 +140,7 @@ export async function importRoster(
       let { data: created, error: userError } = await admin.auth.admin.createUser({
         id: minted,
         email: makeStubEmail(minted),
-        password: randomBytes(32).toString('base64url'),
+        password: shadowPassword(),
         email_confirm: true,
       });
       if (userError || !created?.user) {
@@ -151,7 +152,7 @@ export async function importRoster(
         ({ data: created, error: userError } = await admin.auth.admin.createUser({
           id: minted,
           email: makeStubEmail(minted),
-          password: randomBytes(32).toString('base64url'),
+          password: shadowPassword(),
           email_confirm: true,
         }));
         if (userError || !created?.user) {

@@ -6,6 +6,7 @@ import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
+import { shadowPassword } from '../../src/lib/auth/shadow-password';
 
 /**
  * Disposable QA user machinery for the smoke suite.
@@ -262,7 +263,7 @@ export async function createQaChild(
   const admin = adminClient();
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email: `pending-${randomBytes(8).toString('hex')}@minors.invalid`,
-    password: randomBytes(32).toString('base64url'),
+    password: shadowPassword(),
     email_confirm: true,
   });
   if (createError || !created?.user) {
