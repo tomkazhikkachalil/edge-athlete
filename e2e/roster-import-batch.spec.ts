@@ -36,14 +36,16 @@ test(`a pasted roster of ${ROWS} athletes imports as one batch — every row lan
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const body = await res.json() as { report: Array<{ name: string; profileId: string | null; claimUrl: string | null; error?: string }>; lineErrors: unknown[] };
     console.log(`[roster-import-batch] ${ROWS} rows imported in ${ms} ms (${Math.round(ms / ROWS)} ms per row)`);
+    // Every minted stub is ours to delete, whatever the assertions below say.
+    for (const row of body.report ?? []) if (row.profileId) stubIds.push(row.profileId);
     expect(body.lineErrors).toEqual([]);
     expect(body.report).toHaveLength(ROWS);
+    const failed = body.report.map((row, i) => (row.error ? `row ${i + 1} (${row.name}): ${row.error}` : null)).filter(Boolean);
+    expect(failed, 'every row landed').toEqual([]);
     body.report.forEach((row, i) => {
-      expect(row.error, `row ${i + 1} (${row.name})`).toBeUndefined();
       expect(row.name, 'the report keeps the pasted order').toBe(`${names[i].first} ${names[i].last}`);
       expect(row.profileId).toBeTruthy();
       expect(row.claimUrl).toMatch(/\/athlete-claim\/[A-Za-z0-9_-]+$/);
-      stubIds.push(row.profileId!);
     });
     expect(new Set(stubIds).size, 'fifty distinct stubs').toBe(ROWS);
 

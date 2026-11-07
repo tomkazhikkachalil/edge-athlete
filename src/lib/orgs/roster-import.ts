@@ -87,6 +87,8 @@ export interface ImportReportRow {
  *  time keeps the Auth admin API and the stub RPC comfortable and the
  *  manager's wait a fraction. The report keeps the pasted order. */
 export const ROSTER_IMPORT_CONCURRENCY = 5;
+/** The pause before a row's one retry of its Auth call. */
+const RETRY_PAUSE_MS = 400;
 
 /** Import a pasted roster into ONE team: per row, a stub profile (shadow
  *  auth user + create_stub_profile RPC) + THREE membership rows (org
@@ -134,14 +136,28 @@ export async function importRoster(
       // guardian-athletes recipe). An Auth that ignored the id would hand
       // back a stranger's row — refuse it rather than re-key.
       const minted = randomUUID();
-      const { data: created, error: userError } = await admin.auth.admin.createUser({
+      let { data: created, error: userError } = await admin.auth.admin.createUser({
         id: minted,
         email: makeStubEmail(minted),
         password: randomBytes(32).toString('base64url'),
         email_confirm: true,
       });
       if (userError || !created?.user) {
-        return { name, profileId: null, claimUrl: null, emailSent: false, error: 'account' };
+        // Named in the log (status + message) — the report's word is 'account'.
+        // One retry after a short pause: a batch's concurrent Auth calls can
+        // hit a transient refusal that a lone call does not.
+        console.error('[ROSTER IMPORT] shadow user create failed:', (userError as { status?: number } | null)?.status ?? '?', userError?.message ?? 'no user');
+        await new Promise(r => setTimeout(r, RETRY_PAUSE_MS));
+        ({ data: created, error: userError } = await admin.auth.admin.createUser({
+          id: minted,
+          email: makeStubEmail(minted),
+          password: randomBytes(32).toString('base64url'),
+          email_confirm: true,
+        }));
+        if (userError || !created?.user) {
+          console.error('[ROSTER IMPORT] shadow user create failed again:', (userError as { status?: number } | null)?.status ?? '?', userError?.message ?? 'no user');
+          return { name, profileId: null, claimUrl: null, emailSent: false, error: 'account' };
+        }
       }
       if (created.user.id !== minted) {
         await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
