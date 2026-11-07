@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { PARTICIPANT_COLUMNS, readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { applyOverride } from '@/lib/sport-events/handicap';
@@ -35,9 +34,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id, pid } = await params;
   if (!UUID_RE.test(id) || !UUID_RE.test(pid)) return NOT_FOUND();
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event-join' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const limited = await enforceRateLimit(request, 'sport-event-join', { userId: user.id });
     if (limited) return limited;
     const body = await readJson(request);
     const action = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).action : null;
@@ -78,9 +76,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id, pid } = await params;
   if (!UUID_RE.test(id) || !UUID_RE.test(pid)) return NOT_FOUND();
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
     if (limited) return limited;
     const body = await readJson(request);
     const actor = await resolveActor(user.id, bodyProfileId(body));

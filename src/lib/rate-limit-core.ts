@@ -105,6 +105,17 @@ export const RATE_LIMITS = {
   // The unit system (293): a Metric / Imperial or °F / °C tap — cheap and reversible, the favourites' shape.
   units: { max: 120, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },
+  // A comment's edit, moderation action or delete (hole 8, Nov 7 2026): its own
+  // budget, not the create's — a moderator clearing a queue is not a flood.
+  'comment-edit': { max: 60, windowSeconds: 600, keyBy: 'user' },
+  // Tagging people on a post, and untagging yourself (hole 8, Nov 7 2026).
+  'tag-write': { max: 120, windowSeconds: 600, keyBy: 'user' },
+  // The two signed-in typeaheads — @mentions and the calendar's guest picker —
+  // each keystroke is a `search_people_for` query (303). The client debounces
+  // at 250 ms, so 120/min (2 a second) never meets a typist; a held key does.
+  // Per account (both routes require a session); the IP-keyed `search` bucket
+  // is the ⌘K palette's, anonymous-reachable.
+  'people-search': { max: 120, windowSeconds: 60, keyBy: 'user' },
   like: { max: 120, windowSeconds: 600, keyBy: 'user' },
   // Impact beacon (252): per IP, never a 429 — the route answers 204 even when
   // limited (the csp-report precedent); the budget only caps the database work.

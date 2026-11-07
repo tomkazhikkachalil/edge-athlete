@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
+import { enforceRateLimitMany } from '@/lib/rate-limit';
 import { todayUTC } from '@/lib/views/client';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
     const { user, error } = await getServerAuth(request);
     if (error || !user) return res;
     if (request.cookies.get(COOKIE)?.value === day) return res;
-    const limited = await enforceRateLimit(request, 'seen', { userId: user.id });
+    // After the cookie short-circuit (a free 204), so the bucket counts database
+    // work only; write-general rides in the same trip (hole 8, Nov 7 2026).
+    const limited = await enforceRateLimitMany(request, ['write-general', 'seen'], { userId: user.id });
     if (limited) return res;
 
     const admin = getSupabaseAdmin();

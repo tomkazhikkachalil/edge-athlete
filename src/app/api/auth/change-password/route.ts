@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
+import { enforceRateLimitMany } from '@/lib/rate-limit';
 import { MIN_PASSWORD_LENGTH } from '@/lib/supervised-credentials';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -40,8 +40,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Brute-force surface (signInWithPassword below) — IP-keyed like reauth.
-    const limited = await enforceRateLimit(request, 'reauth');
+    // Brute-force surface (signInWithPassword below) — IP-keyed like reauth;
+    // write-general (by account) rides in the same trip (hole 8, Nov 7 2026).
+    const limited = await enforceRateLimitMany(request, ['write-general', 'reauth'], { userId: user.id });
     if (limited) return limited;
 
     const { error: reauthError } = await supabase.auth.signInWithPassword({

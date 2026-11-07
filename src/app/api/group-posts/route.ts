@@ -5,7 +5,6 @@ import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { parseComposition } from '@/lib/golf/course-sections';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -105,7 +104,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'group-post-create' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
@@ -114,7 +113,6 @@ export async function POST(request: NextRequest) {
 
   try {
     // Creates a post + fans out to N participants — bucketed like posts.
-    const limited = await enforceRateLimit(request, 'group-post-create', { userId: user.id });
     if (limited) return limited;
 
     const body = await request.json();

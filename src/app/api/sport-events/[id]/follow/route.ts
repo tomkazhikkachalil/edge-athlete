@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { applyJoin } from '@/lib/sport-events/join-server';
@@ -12,9 +11,8 @@ import { reportRouteError } from '@/lib/observability/report';
 async function handle(request: NextRequest, id: string, action: JoinAction) {
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event-join' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const limited = await enforceRateLimit(request, 'sport-event-join', { userId: user.id });
     if (limited) return limited;
     const url = new URL(request.url);
     const actor = await resolveActor(user.id, action === 'follow' ? bodyProfileId(await readJson(request)) : url.searchParams.get('as'));

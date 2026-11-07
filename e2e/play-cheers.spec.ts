@@ -102,7 +102,9 @@ test('a spectator cheers a live round: the API, the player\'s live page floats i
     const done = await s.apiP.post(`/api/sport-events/${s.eventId}/transition`, { data: { to: 'completed', override: true } });
     expect(done.ok(), await readErrorBody(done)).toBe(true);
     expect((await s.apiF.post('/api/live/cheers', { data: { context, cheer: 'wow' } })).status()).toBe(409);
-    expect(await (await feed(s.anon)).json()).toMatchObject({ total: 3, live: false });
+    // The anonymous read of a PUBLIC round is a CDN copy up to 10 s old (Nov 7
+    // 2026) — the finished state arrives within the window, so poll for it.
+    await expect.poll(async () => (await (await feed(s.anon)).json()) as { total: number; live: boolean }, { timeout: 20_000 }).toMatchObject({ total: 3, live: false });
   } finally {
     await dispose(s);
   }
