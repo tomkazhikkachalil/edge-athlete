@@ -140,6 +140,9 @@ describe('the lease cap', () => {
     const prev = process.env.MEDIA_JOBS_MAX_RUNNING;
     delete process.env.MEDIA_JOBS_MAX_RUNNING;
     expect(DEFAULT_MAX_RUNNING).toBe(3);
+    const { LIGHT_MAX_RUNNING, LIGHT_KINDS } = await import('../media-jobs');
+    expect(LIGHT_MAX_RUNNING).toBe(8); // 304's kind-aware claim: the light kinds' own cap
+    expect([...LIGHT_KINDS]).toEqual(['probe', 'poster', 'blur']);
     expect(maxRunning()).toBe(3);
     process.env.MEDIA_JOBS_MAX_RUNNING = '5';
     expect(maxRunning()).toBe(5);

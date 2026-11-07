@@ -3,8 +3,9 @@
  * pulse-broadcast-probe — proves migration 301's change signals end to end
  * on STAGING (the cost program PR C, Nov 6 2026; docs/specs/pulse.md): a
  * browser-style client signs in as a seed user, joins its PRIVATE topic
- * (`user:{id}`, authorized by the realtime.messages policy) and the public
- * `live-now` topic, then the service role performs the writes the triggers
+ * (`user:{id}`, authorized by the realtime.messages policy) and the
+ * `live-now` topic (private too since 304 — a client-side send on it must
+ * be refused, which this probe also checks), then the service role performs the writes the triggers
  * watch — a message to the user, a read, a golf round going live, the user
  * added to its roster, the round deleted — and the script counts what the
  * client heard. Cleans up its rows. Refuses production.
@@ -46,17 +47,28 @@ const { data: signIn, error: signErr } = await client.auth.signInWithPassword({ 
 if (signErr || !signIn.session) { console.error('pulse-probe: sign-in failed —', signErr?.message); process.exit(2); }
 await client.realtime.setAuth(signIn.session.access_token);
 
-const heard = { user: [], live: [] };
+const heard = { user: [], live: [], other: [] };
+
+// A second listener as B on live-now: the one who would hear a forged signal.
+const other = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+const { data: signInB, error: signErrB } = await other.auth.signInWithPassword({ email: b.email, password });
+if (signErrB || !signInB.session) { console.error('pulse-probe: sign-in as B failed —', signErrB?.message); process.exit(2); }
+await other.realtime.setAuth(signInB.session.access_token);
+let stateOther = 'joining';
+const otherChannel = other
+  .channel('live-now', { config: { private: true } })
+  .on('broadcast', { event: 'pulse' }, m => heard.other.push(m.payload))
+  .subscribe(s => { stateOther = s; });
 const states = { user: 'joining', live: 'joining' };
 const userChannel = client
   .channel(`user:${a.id}`, { config: { private: true } })
   .on('broadcast', { event: 'pulse' }, m => heard.user.push(m.payload))
   .subscribe(s => { states.user = s; });
 const liveChannel = client
-  .channel('live-now')
+  .channel('live-now', { config: { private: true } })
   .on('broadcast', { event: 'pulse' }, m => heard.live.push(m.payload))
   .subscribe(s => { states.live = s; });
-for (let i = 0; i < 100 && !(states.user === 'SUBSCRIBED' && states.live === 'SUBSCRIBED'); i++) await sleep(100);
+for (let i = 0; i < 100 && !(states.user === 'SUBSCRIBED' && states.live === 'SUBSCRIBED' && stateOther === 'SUBSCRIBED'); i++) await sleep(100);
 console.log(`channels: user:${a.id.slice(0, 8)} ${states.user} · live-now ${states.live}`);
 if (states.user !== 'SUBSCRIBED' || states.live !== 'SUBSCRIBED') { console.error('pulse-probe: a channel did not join (is the realtime.messages policy there? 301)'); process.exit(1); }
 
@@ -72,6 +84,10 @@ try {
   conversationId = conv.id;
   const { error: partErr } = await admin.from('conversation_participants').insert([{ conversation_id: conversationId, profile_id: a.id }, { conversation_id: conversationId, profile_id: b.id }]);
   if (partErr) throw partErr;
+  // 0. A forged signal from a client (304): no INSERT policy on realtime.messages, so a private-channel send is refused — the other client hears nothing.
+  const forged = await liveChannel.send({ type: 'broadcast', event: 'pulse', payload: { kind: 'forged', at: stamp } }).catch(e => `threw: ${e?.message ?? e}`);
+  await sleep(2000);
+  expect(`a forged live-now send from A (send → ${forged}) reaches nobody`, !heard.other.some(p => p.kind === 'forged') && !heard.live.some(p => p.kind === 'forged'));
   const before = countUser('messages');
   const { error: msgErr } = await admin.from('messages').insert({ conversation_id: conversationId, sender_id: b.id, type: 'text', content: `pulse probe ${stamp}` });
   if (msgErr) throw msgErr;
@@ -90,7 +106,7 @@ try {
   if (roundErr) throw roundErr;
   roundId = round.id;
   await sleep(2500);
-  expect('a round going live reaches the public topic', heard.live.length === liveBefore + 1 && heard.live[heard.live.length - 1]?.kind === 'golf');
+  expect('a round going live reaches the live-now topic', heard.live.length === liveBefore + 1 && heard.live[heard.live.length - 1]?.kind === 'golf');
 
   // 4. A is added to the live round's roster → her private topic, kind 'live'.
   const { error: rosterErr } = await admin.from('group_post_participants').insert({ group_post_id: roundId, profile_id: a.id, status: 'pending', role: 'participant' });
@@ -103,7 +119,7 @@ try {
   if (delErr) throw delErr;
   roundId = null;
   await sleep(2500);
-  expect('a live round deleted reaches the public topic', heard.live.length === liveBefore + 2);
+  expect('a live round deleted reaches the live-now topic', heard.live.length === liveBefore + 2);
   expect('nothing else reached the private topic', heard.user.length === 3);
   expect('every payload carries at and a kind, nothing personal', [...heard.user, ...heard.live].every(p => typeof p.at === 'number' && typeof p.kind === 'string' && !('content' in p) && !('profile_id' in p)));
 } catch (err) {
@@ -114,8 +130,11 @@ try {
   if (conversationId) await admin.from('conversations').delete().eq('id', conversationId);
   await userChannel.unsubscribe();
   await liveChannel.unsubscribe();
+  await otherChannel.unsubscribe();
   await client.auth.signOut();
+  await other.auth.signOut();
 }
-console.log(`heard: private ${heard.user.length} (${heard.user.map(p => p.kind).join(', ')}) · public ${heard.live.length} (${heard.live.map(p => p.kind).join(', ')})`);
+expect('the genuine live-now signals reached B too', heard.other.filter(p => p.kind === 'golf').length >= 2);
+console.log(`heard: private ${heard.user.length} (${heard.user.map(p => p.kind).join(', ')}) · live-now A ${heard.live.length} (${heard.live.map(p => p.kind).join(', ')}) · live-now B ${heard.other.length} (${heard.other.map(p => p.kind).join(', ')})`);
 console.log(fail.length === 0 ? 'pulse-probe: every signal arrived' : `pulse-probe: MISSED ${fail.join('; ')}`);
 process.exit(fail.length === 0 ? 0 : 1);

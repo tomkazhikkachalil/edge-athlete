@@ -42,7 +42,12 @@ function fakeAdmin(rows: { jobs: MediaJobRow[]; targets: Record<string, Record<s
   const admin = {
     from: builder,
     // The real claim marks what it hands out `running`: a second claim in the same tick returns the REST, never the same job.
-    rpc: vi.fn(async (_fn: string, args: { p_n: number }) => ({ data: rows.jobs.splice(0, args.p_n), error: null })),
+    rpc: vi.fn(async (_fn: string, args: { p_n: number; p_kinds?: string[] | null }) => {
+      // 304's claim: only the kinds asked for (NULL = every kind), in queue order.
+      const picked = rows.jobs.filter(j => !args.p_kinds || args.p_kinds.includes(j.kind)).slice(0, args.p_n);
+      rows.jobs = rows.jobs.filter(j => !picked.includes(j));
+      return { data: picked, error: null };
+    }),
   };
   return { admin: admin as never, calls };
 }
@@ -205,6 +210,35 @@ describe('the tick runs the light jobs beside the video (SCALE_AUDIT hole 11, No
     expect(s.outcomes.length).toBe(4);
     expect(s.outcomes.map(o => o.outcome)).toEqual(['done', 'done', 'done', 'done']);
     expect(peak).toBeGreaterThanOrEqual(2); // the light jobs did not wait for the video
+  });
+  it('the video claim asks for video only and the light claim for the light kinds; the pool drains the queue in further claims', async () => {
+    const jobs = [
+      job({ id: 'p1', kind: 'poster', target_id: 'm2' }),
+      job({ id: 'v1', kind: 'video', target_id: 'm1' }),
+      job({ id: 'p2', kind: 'poster', target_id: 'm3' }),
+    ];
+    const targets = {
+      m1: target({ id: 'm1' }),
+      m2: target({ id: 'm2', codec: 'avc', media_url: 'https://x.supabase.co/storage/v1/object/public/uploads/posts/u1/b.mp4' }),
+      m3: target({ id: 'm3', codec: 'avc', media_url: 'https://x.supabase.co/storage/v1/object/public/uploads/posts/u1/c.mp4' }),
+    };
+    const { admin } = fakeAdmin({ jobs, targets });
+    const d = deps({
+      exec: vi.fn(async (args: string[]) => {
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(args[args.length - 1], new Uint8Array([9, 9, 9]));
+      }),
+    });
+    // The first light claim hands over ONE job (maxLight 1): the drain claims the second.
+    const s = await runMediaJobsTick(admin, d, { maxLight: 1 });
+    const claims = (admin as unknown as { rpc: { mock: { calls: [string, { p_n: number; p_kinds: string[] | null; p_max_running: number }][] } } }).rpc.mock.calls;
+    expect(claims[0][1].p_kinds).toEqual(['video']);
+    expect(claims[1][1].p_kinds).toEqual(['probe', 'poster', 'blur']);
+    expect(claims[1][1].p_max_running).toBe(8);
+    expect(claims.length).toBeGreaterThanOrEqual(3); // the drain
+    expect(s.claimed).toBe(3);
+    expect(s.outcomes.map(o => o.id).sort()).toEqual(['p1', 'p2', 'v1']);
+    expect(s.outcomes.every(o => o.outcome === 'done')).toBe(true);
   });
 });
 

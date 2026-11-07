@@ -9,6 +9,7 @@ import {
   planPulseFetch,
   readPulsePayload,
   signalDelayMs,
+  SIGNAL_FLOOR_MS,
 } from '../pulse/pulse-rules';
 
 // The pulse (the cost program PR B, Oct 29 2026): the header's two numbers
@@ -48,6 +49,15 @@ describe('signalDelayMs', () => {
     expect(signalDelayMs(1)).toBeLessThan(SIGNAL_DEBOUNCE_MS + SIGNAL_JITTER_MS);
     expect(signalDelayMs(-3)).toBe(SIGNAL_DEBOUNCE_MS);
     expect(signalDelayMs(Number.NaN)).toBe(SIGNAL_DEBOUNCE_MS);
+  });
+  it('the floor: a signal within SIGNAL_FLOOR_MS of the last fetch waits for the rest of it; later ones keep the debounce', () => {
+    expect(SIGNAL_FLOOR_MS).toBe(5_000);
+    expect(signalDelayMs(0, 1_000)).toBe(SIGNAL_FLOOR_MS - 1_000);
+    expect(signalDelayMs(0, 0)).toBe(SIGNAL_FLOOR_MS);
+    expect(signalDelayMs(0, SIGNAL_FLOOR_MS)).toBe(SIGNAL_DEBOUNCE_MS);
+    expect(signalDelayMs(0.5, 4_000)).toBe(SIGNAL_DEBOUNCE_MS + SIGNAL_JITTER_MS / 2); // the debounce + jitter already clears the floor
+    expect(signalDelayMs(0, -5)).toBe(SIGNAL_FLOOR_MS); // a clock step is "just fetched"
+    expect(signalDelayMs(0, Number.NaN)).toBe(SIGNAL_DEBOUNCE_MS); // no last fetch known = long ago
   });
 });
 

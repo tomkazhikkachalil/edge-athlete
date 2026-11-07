@@ -58,6 +58,19 @@ test('a new rule from the 3rd of six: 1–2 keep the old series, 3–6 are cance
       data: { scope: 'following', recurrence: { freq: 'weekly', interval: 2, ends: { kind: 'count', count: 4 } }, remove_guest_ids: ['00000000-0000-4000-8000-000000000000'] },
     });
     expect(twoThings.status()).toBe(400);
+    // A time change and the schedule change in one save are refused too (the
+    // hardening pass): the split re-anchors the stored wall clock, so the new
+    // time would have been dropped silently.
+    const timeToo = await api.patch(`/api/calendar/events/${third.id}`, {
+      data: {
+        scope: 'following',
+        recurrence: { freq: 'weekly', interval: 2, ends: { kind: 'count', count: 4 } },
+        starts_at: new Date(Date.parse(third.starts_at) - 3_600_000).toISOString(),
+        ends_at: third.starts_at,
+      },
+    });
+    expect(timeToo.status()).toBe(400);
+    expect(await readErrorBody(timeToo)).toContain('time and the schedule');
 
     // Every two weeks from the 3rd on, a new title too — the template rides along.
     const split = await api.patch(`/api/calendar/events/${third.id}`, {
@@ -95,8 +108,15 @@ test('a new rule from the 3rd of six: 1–2 keep the old series, 3–6 are cance
     expect(guestRows!.filter(g => g.role === 'organizer').length).toBe(4);
 
     // A zone-only change from the new series' 2nd occurrence: the wall clock stays 7 pm, now in Toronto.
+    // Sent the way the form sends it — the times on every save, built from
+    // the same wall clock in the NEW zone — the guard compares wall clocks and
+    // lets it through.
     const second = newRows![1];
-    const moved = await api.patch(`/api/calendar/events/${second.id}`, { data: { scope: 'following', timezone: TORONTO } });
+    const w2 = wallClockInZone(Date.parse(second.starts_at), DENVER);
+    const torontoMs = zonedWallClockToUtc(w2.y, w2.m, w2.d, 19, 0, TORONTO);
+    const moved = await api.patch(`/api/calendar/events/${second.id}`, {
+      data: { scope: 'following', timezone: TORONTO, starts_at: new Date(torontoMs).toISOString(), ends_at: new Date(torontoMs + 3_600_000).toISOString() },
+    });
     expect(moved.ok(), await readErrorBody(moved)).toBe(true);
     const movedAnswer = (await moved.json()) as { event: { id: string; starts_at: string; timezone: string }; split: { new_series_id: string; cancelled: number; created: number } };
     expect(movedAnswer.split.cancelled).toBe(3);

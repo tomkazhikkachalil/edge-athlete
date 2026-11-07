@@ -76,3 +76,12 @@ describe('migration 303: the follows join in SQL', () => {
     expect(server).toContain("visibleIds = await accessibleProfileIds(viewer.id, viewer.direction);"); // the pre-303 fallback
   });
 });
+
+describe("304: search_people_for answers 'following' and 'either' only", () => {
+  it('any other direction sees nobody private, never everybody', () => {
+    const h = read('database/migrations/304_harden_round.sql');
+    expect(h).toMatch(/WHEN p_direction = 'following' THEN ARRAY\(/);
+    expect(h).toMatch(/WHEN p_direction = 'either' THEN ARRAY\(/);
+    expect(h).toMatch(/ELSE NULL::uuid\[\]/);
+  });
+});

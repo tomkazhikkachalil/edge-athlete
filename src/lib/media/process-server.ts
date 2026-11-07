@@ -28,6 +28,8 @@ import {
   ffmpegPosterArgs,
   foldCodec,
   LEASE_SECONDS,
+  LIGHT_KINDS,
+  LIGHT_MAX_RUNNING,
   maxRunning,
   mayStartTranscode,
   mediaJobsEnabled,
@@ -190,14 +192,20 @@ export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryR
     summary.disabled = true;
     return { ...summary, elapsedMs: deps.now() - t0 };
   }
-  const claim = async (n: number): Promise<MediaJobRow[]> => {
+  const claim = async (n: number, pick: { kinds?: MediaJobKind[] } = {}): Promise<MediaJobRow[]> => {
     if (opts.dryRun) {
       const { data } = await admin.from('media_jobs').select('*').in('status', ['queued', 'parked']).lte('run_after', new Date().toISOString()).order('created_at').limit(n);
       return (data ?? []) as MediaJobRow[];
     }
-    const { data, error } = await admin.rpc('media_jobs_claim', { p_n: n, p_lease_seconds: LEASE_SECONDS, p_max_running: maxRunning() });
-    if (error) throw new Error(`claim failed: ${error.message}`);
-    return (data ?? []) as MediaJobRow[];
+    // 304's kind-aware claim: only the kinds asked for, only THEIR running
+    // rows against the cap. Before 304 (PGRST202) the 261 claim — every kind,
+    // videos first, one cap — so a deploy ahead of the migration still works.
+    const kinds = pick.kinds ?? null;
+    const cap = kinds && !kinds.includes('video') ? LIGHT_MAX_RUNNING : maxRunning();
+    let res = await admin.rpc('media_jobs_claim', { p_n: n, p_lease_seconds: LEASE_SECONDS, p_max_running: cap, p_kinds: kinds });
+    if (res.error?.code === 'PGRST202') res = await admin.rpc('media_jobs_claim', { p_n: n, p_lease_seconds: LEASE_SECONDS, p_max_running: maxRunning() });
+    if (res.error) throw new Error(`claim failed: ${res.error.message}`);
+    return (res.data ?? []) as MediaJobRow[];
   };
   try {
     // One video while the reserve holds, AND the light jobs — beside it, not
@@ -206,9 +214,10 @@ export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryR
     // video a minute, the posters and blurs queued behind it. The transcode is
     // ffmpeg's process; the light jobs are sharp's — they share the budget,
     // not the CPU. The claim RPC's cap (maxRunning) still bounds the leases.
+    const maxLight = opts.maxLight ?? 20;
     const jobs: MediaJobRow[] = [];
-    if (mayStartTranscode(deps.now() - t0)) jobs.push(...(await claim(1)));
-    jobs.push(...(await claim(Math.max(0, (opts.maxLight ?? 20) - jobs.length))));
+    if (mayStartTranscode(deps.now() - t0)) jobs.push(...(await claim(1, { kinds: ['video'] })));
+    jobs.push(...(await claim(maxLight, { kinds: [...LIGHT_KINDS] })));
     summary.claimed = jobs.length;
     if (opts.dryRun) {
       summary.outcomes = jobs.map(j => ({ id: j.id, kind: j.kind, outcome: 'skipped' as const, ms: 0 }));
@@ -227,10 +236,31 @@ export async function runMediaJobsTick(admin: Admin, deps: JobDeps, opts: { dryR
     };
     const videos = jobs.filter(j => j.kind === 'video');
     const light = jobs.filter(j => j.kind !== 'video');
-    // The light jobs through a small pool, in claim order; the video beside them.
+    // The light jobs through a small pool, in claim order; the video beside
+    // them. When the pool drains and the budget holds, it claims MORE light
+    // work (the hardening pass, Nov 6 2026): a tick used to take one claim
+    // of light jobs — two beside a video under the old cap — and stop.
     const queue = [...light];
+    let drained = light.length === 0; // a dry run returned above
+    let refilling: Promise<void> | null = null;
+    const refill = () => (refilling ??= (async () => {
+      try {
+        if (drained || deps.now() - t0 > WORK_BUDGET_MS) { drained = true; return; }
+        const more = (await claim(maxLight, { kinds: [...LIGHT_KINDS] })).filter(j => j.kind !== 'video');
+        if (more.length === 0) { drained = true; return; }
+        summary.claimed += more.length;
+        queue.push(...more);
+      } finally {
+        refilling = null;
+      }
+    })());
     const worker = async () => {
-      for (let job = queue.shift(); job; job = queue.shift()) await runOne(job);
+      for (;;) {
+        let job = queue.shift();
+        if (!job && !drained) { await refill(); job = queue.shift(); }
+        if (!job) return;
+        await runOne(job);
+      }
     };
     await Promise.all([
       ...videos.map(runOne),

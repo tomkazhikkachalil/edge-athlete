@@ -90,6 +90,10 @@ export function mediaJobsEnabled(): boolean {
  *  that now run beside it (Nov 6 2026; was 2, which left no slot for a
  *  poster while a transcode ran). `MEDIA_JOBS_MAX_RUNNING` overrides. */
 export const DEFAULT_MAX_RUNNING = 3;
+/** The light kinds' own running cap across overlapping ticks (304's kind-aware claim): a pool of four per tick, two ticks deep. */
+export const LIGHT_MAX_RUNNING = 8;
+/** Every kind but the transcode: seconds of sharp beside minutes of ffmpeg. */
+export const LIGHT_KINDS: readonly MediaJobKind[] = ['probe', 'poster', 'blur'];
 export function maxRunning(): number {
   const n = Number(process.env.MEDIA_JOBS_MAX_RUNNING);
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_MAX_RUNNING;

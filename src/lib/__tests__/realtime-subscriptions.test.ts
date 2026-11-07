@@ -64,15 +64,15 @@ describe('Realtime: every postgres_changes listener on a published table is filt
   });
   // The cost program PR C (Nov 6 2026, migration 301): the notifications
   // channel is the person's OWN private topic (`user:{id}`) and carries the
-  // pulse's broadcast; the public `live-now` topic has exactly one host.
-  it('the notifications provider holds ONE channel, the private per-user topic; PulseHost holds the one public topic', () => {
+  // pulse's broadcast; the `live-now` topic (private since 304) has exactly one host.
+  it('the notifications provider holds ONE channel, the private per-user topic; PulseHost holds the one live-now topic', () => {
     const notifications = read('src/lib/notifications.tsx');
     expect(notifications.match(/\.channel\(/g)?.length).toBe(1);
     expect(notifications).toMatch(/\.channel\(`user:\$\{user\.id\}`, \{ config: \{ private: true \} \}\)/);
     expect(notifications).not.toMatch(/\.channel\('notifications'\)/);
     const host = read('src/lib/pulse/PulseHost.tsx');
     expect(host.match(/\.channel\(/g)?.length).toBe(1);
-    expect(host).toMatch(/\.channel\('live-now'\)/);
+    expect(host).toMatch(/\.channel\('live-now', \{ config: \{ private: true \} \}\)/); // private since 304: a client cannot forge the signal
     expect(host).toMatch(/if \(!user\) return;/); // a guest opens nothing
   });
   it('presence joins only while the dock is in use (panel open or a thread open / minimized)', () => {

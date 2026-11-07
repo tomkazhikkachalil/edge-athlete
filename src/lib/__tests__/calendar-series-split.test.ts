@@ -21,6 +21,18 @@ describe('migration 302: calendar_series_split', () => {
     expect(sql).toMatch(/CROSS JOIN jsonb_array_elements\(p_guests\) g/);
     expect(sql).toMatch(/IF v_owner <> p_organizer THEN RAISE EXCEPTION/);
   });
+  it('304: the series row is taken FOR UPDATE and a split that cancels nothing raises P0004; the route answers 409; a time change rides no split', () => {
+    const h = read('database/migrations/304_harden_round.sql');
+    expect(h).toMatch(/SELECT organizer_id INTO v_owner FROM public\.event_series WHERE id = p_old_series FOR UPDATE;/);
+    expect(h).toMatch(/IF v_cancelled = 0 THEN\s+RAISE EXCEPTION 'calendar_series_split: nothing to split' USING ERRCODE = 'P0004';/);
+    const server = read('src/lib/calendar/series-server.ts');
+    expect(server).toContain("if (error.code === 'P0004' || /nothing to split/.test(error.message)) throw new SeriesSplitConflict();");
+    const route = read('src/app/api/calendar/events/[id]/route.ts');
+    expect(route).toContain('if (err instanceof SeriesSplitConflict) {');
+    expect(route).toContain("{ status: 409, headers: { 'Cache-Control': 'no-store' } }");
+    expect(route).toContain("return NextResponse.json({ error: 'Change the time and the schedule in two separate saves.' }, { status: 400 });");
+    expect(route).toMatch(/wallKey\(validated\.event\.starts_at, validated\.event\.timezone\) !== wallKey\(event\.starts_at, event\.timezone\)/);
+  });
   it('definer, service_role only, the ledger row and the result row', () => {
     expect(sql).toMatch(/LANGUAGE plpgsql VOLATILE SECURITY DEFINER\s+SET search_path = public/);
     expect(sql).toMatch(/REVOKE EXECUTE ON FUNCTION public\.calendar_series_split\(uuid, uuid, timestamptz, jsonb, jsonb, jsonb, jsonb\) FROM PUBLIC, anon, authenticated;/);
@@ -36,7 +48,7 @@ describe('the route and the form', () => {
     expect(route).toContain("const scheduleChange = !!event.series_id && (wantsRule || zoneChanged);");
     expect(route).toContain("if (scheduleChange && scope !== 'following') {");
     expect(route).toContain("Change the guests and the schedule in two separate saves.");
-    expect(route).toContain("const split = await splitSeries(admin, {");
+    expect(route).toContain("split = await splitSeries(admin, {");
     expect(route).toContain("status: 503, headers: { 'Cache-Control': 'no-store' }");
     expect(route).not.toContain("cancel the series and create a new one instead");
   });
