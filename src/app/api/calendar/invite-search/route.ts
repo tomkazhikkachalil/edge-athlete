@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { searchPeople } from '@/lib/search/people-server';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -18,6 +19,10 @@ const LIMIT = 8;
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+    // A GET runs no bucket through requireAuth; this one is a database query
+    // per keystroke, so it names its own (hole 8, Nov 7 2026).
+    const limited = await enforceRateLimit(request, 'people-search', { userId: user.id });
+    if (limited) return limited;
     const q = (new URL(request.url).searchParams.get('q') ?? '').trim();
     if (!q) return NextResponse.json({ profiles: [] });
 

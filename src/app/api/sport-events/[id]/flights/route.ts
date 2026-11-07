@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { parseFlightsPlan } from '@/lib/sport-events/flights';
@@ -20,9 +19,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
     if (limited) return limited;
     const body = await readJson(request);
     const actor = await resolveActor(user.id, bodyProfileId(body));

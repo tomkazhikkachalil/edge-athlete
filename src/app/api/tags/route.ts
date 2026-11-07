@@ -3,7 +3,7 @@ import { OFFICIAL_RESULT_REFUSAL } from '@/lib/results/official';
 import { NextRequest, NextResponse } from 'next/server';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
-import { getSupabaseAdmin, requireAuth, getServerClient, activeWriterRefusal } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth, getServerAuth, activeWriterRefusal } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -13,12 +13,13 @@ import { reportRouteError } from '@/lib/observability/report';
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabaseClient = getServerClient(request);
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    // The standard gate (hole 8, Nov 7 2026): the bucket rides on the auth call.
+    const { user, limited } = await getServerAuth(request, { limit: 'tag-write' });
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (limited) return limited;
     const refusal = await activeWriterRefusal(user.id);
     if (refusal) return refusal;
 
@@ -314,12 +315,12 @@ async function stripFromPostTags(
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabaseClient = getServerClient(request);
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { user, limited } = await getServerAuth(request, { limit: 'tag-write' });
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (limited) return limited;
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);

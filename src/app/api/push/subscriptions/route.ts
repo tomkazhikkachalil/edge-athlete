@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { reportRouteError } from '@/lib/observability/report';
@@ -30,11 +29,10 @@ const UnsubscribeSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error } = await getServerAuth(request);
+    const { user, error, limited } = await getServerAuth(request, { limit: 'push-subscribe' });
     if (error || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401, headers: NO_STORE });
     }
-    const limited = await enforceRateLimit(request, 'push-subscribe', { userId: user.id });
     if (limited) return limited;
     const parsed = await parseBody(request, SubscribeSchema);
     if (!parsed.success) return parsed.response;
@@ -70,11 +68,10 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { user, error } = await getServerAuth(request);
+    const { user, error, limited } = await getServerAuth(request, { limit: 'push-subscribe' });
     if (error || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401, headers: NO_STORE });
     }
-    const limited = await enforceRateLimit(request, 'push-subscribe', { userId: user.id });
     if (limited) return limited;
     const parsed = await parseBody(request, UnsubscribeSchema);
     if (!parsed.success) return parsed.response;

@@ -6,7 +6,6 @@ import { extractHandles } from '@/lib/mentions';
 import { formatDisplayName } from '@/lib/formatters';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
 // Resolve @mentions SERVER-SIDE from the text (unforgeable — the client sends
@@ -278,7 +277,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { supabase, user, error: userError } = await getServerAuth(request);
+    const { supabase, user, error: userError, limited } = await getServerAuth(request, { limit: 'comment-create' });
 
     if (userError || !user) {
       return NextResponse.json(
@@ -289,7 +288,6 @@ export async function POST(request: NextRequest) {
     const refusal = await activeWriterRefusal(user.id);
     if (refusal) return refusal;
 
-    const limited = await enforceRateLimit(request, 'comment-create', { userId: user.id });
     if (limited) return limited;
 
     // Get user's profile to get profile_id
@@ -517,7 +515,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { supabase, user, error: userError } = await getServerAuth(request);
+    const { supabase, user, error: userError, limited } = await getServerAuth(request, { limit: 'comment-edit' });
 
     if (userError || !user) {
       return NextResponse.json(
@@ -525,6 +523,7 @@ export async function DELETE(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (limited) return limited;
 
     // Get the post_id + author before deleting so we can update the cached
     // count and decide the guardian path. Admin lookup on purpose: the RLS
@@ -608,10 +607,11 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { user, error: userError } = await getServerAuth(request);
+    const { user, error: userError, limited } = await getServerAuth(request, { limit: 'comment-edit' });
     if (userError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (limited) return limited;
 
     const admin = getSupabaseAdmin();
 

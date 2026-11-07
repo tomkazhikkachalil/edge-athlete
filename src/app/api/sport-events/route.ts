@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin, activeWriterRefusal } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { LINK_REFUSAL_COPY, linkRefusal, type CompetitionForLink, eventShape } from '@/lib/sport-events/contest-link';
 import { parseFormatConfig } from '@/lib/sport-events/format-config';
@@ -38,11 +37,10 @@ import { reportRouteError } from '@/lib/observability/report';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const refusal = await activeWriterRefusal(user.id);
     if (refusal) return refusal;
-    const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
     if (limited) return limited;
 
     const parsed = parseCreateBody(await readJson(request));

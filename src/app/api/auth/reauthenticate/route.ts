@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
+import { enforceRateLimitMany } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
@@ -22,8 +22,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // Brute-force surface (signInWithPassword below) — IP-keyed like login.
-    const limited = await enforceRateLimit(request, 'reauth');
+    // Brute-force surface (signInWithPassword below) — IP-keyed like login;
+    // write-general (by account) rides in the same trip (hole 8, Nov 7 2026).
+    const limited = await enforceRateLimitMany(request, ['write-general', 'reauth'], { userId: user.id });
     if (limited) return limited;
 
     // Verify the email matches the current user

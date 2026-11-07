@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { readJson } from '@/lib/sport-events/actor-server';
@@ -28,11 +27,12 @@ const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return NOT_FOUND();
-  const limited = await enforceRateLimit(request, 'sport-event');
-  if (limited) return limited;
   try {
-    const { user } = await getServerAuth(request);
+    // The bucket rides on the auth call (hole 8, Nov 7 2026) — it used to run
+    // BEFORE auth with no user id, so a user-keyed bucket counted by IP.
+    const { user, limited } = await getServerAuth(request, { limit: 'sport-event' });
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (limited) return limited;
     const admin = getSupabaseAdmin();
     const read = await readSportEventAccess(admin, id, user.id, null);
     if (!read) return NOT_FOUND();
