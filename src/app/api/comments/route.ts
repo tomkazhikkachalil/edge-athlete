@@ -434,11 +434,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // The TRIGGER recounts; the route READS (scale fix 4, Oct 25 2026,
-    // Convention 32 amended): 095's `trigger_update_post_comments_count`
-    // recounted `posts.comments_count` — published only, so a held comment
-    // does not bump the public count — inside the insert's own statement.
-    // The route's second count + update was the same work twice.
+    // The TRIGGER adds or subtracts one; the route READS (Convention 32 —
+    // scale fix 4, Oct 25 2026, then migration 277, Oct 26): 277's
+    // `update_post_comments_count` is ±1 on insert, delete and a status flip,
+    // published only (a held comment does not bump the public count), inside
+    // the insert's own statement; `counters_recount()` runs nightly. The
+    // route's own count + update (pre-Oct 25) was the same work twice.
     const { data: counted } = await admin.from('posts').select('comments_count').eq('id', postId).maybeSingle();
     const trueCount = counted?.comments_count ?? 0;
 
@@ -572,8 +573,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // The delete's trigger (095, published only) recounted the column; read it
-    // (scale fix 4, Convention 32 amended).
+    // The delete's trigger (277, ±1, published only) kept the column; read it
+    // (scale fix 4, Convention 32).
     let commentsCount = 0;
     if (postId) {
       const { data: counted } = await getSupabaseAdmin().from('posts').select('comments_count').eq('id', postId).maybeSingle();
