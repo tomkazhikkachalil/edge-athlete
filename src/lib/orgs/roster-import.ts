@@ -64,9 +64,10 @@ export function parseRosterImport(text: string): RosterImportParse {
 
 import { resolveTeamSeason } from '@/lib/teams/roster-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
+import { mapBounded } from '@/lib/bounded-map';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
-import { makeStubEmail, isStubEmail, STUB_EMAIL_DOMAIN } from '@/lib/config/stubs-config';
+import { makeStubEmail, isStubEmail } from '@/lib/config/stubs-config';
 
 import { ORG_ID, pairFor, type OrgKind } from './org-ref';
 
@@ -81,12 +82,20 @@ export interface ImportReportRow {
   error?: string;
 }
 
+/** Rows in flight at once (scale audit row 12, Nov 7 2026): a 50-row paste
+ *  was 50 × 5 sequential admin operations (32.6 s on staging); five at a
+ *  time keeps the Auth admin API and the stub RPC comfortable and the
+ *  manager's wait a fraction. The report keeps the pasted order. */
+export const ROSTER_IMPORT_CONCURRENCY = 5;
+
 /** Import a pasted roster into ONE team: per row, a stub profile (shadow
  *  auth user + create_stub_profile RPC) + THREE membership rows (org
  *  follow, org roster active, TEAM roster active — the first sub-org
  *  membership writer) + a claim invite (+ optional email). Per-row
  *  BEST-EFFORT: a failed row compensates its own writes and lands in the
- *  report; the batch never aborts. */
+ *  report; the batch never aborts. The shadow user is ONE Auth call: the id
+ *  is minted here, so the stub address (`<id>@stubs.invalid`) is final at
+ *  creation and needs no re-key. */
 export async function importRoster(
   admin: Admin,
   input: {
@@ -117,26 +126,28 @@ export async function importRoster(
   const seasonId = await resolveTeamSeason(admin, input.orgId, input.teamId);
   if (!seasonId) return { ok: false, reason: 'no_season' };
 
-  const report: ImportReportRow[] = [];
-  for (const row of input.rows) {
+  const importRow = async (row: RosterImportRow): Promise<ImportReportRow> => {
     const name = [row.firstName, row.lastName].filter(Boolean).join(' ');
     let profileId: string | null = null;
     try {
-      // Shadow user two-step (the guardian-athletes recipe).
+      // The shadow user, one call: our id, the final stub address (the
+      // guardian-athletes recipe). An Auth that ignored the id would hand
+      // back a stranger's row — refuse it rather than re-key.
+      const minted = randomUUID();
       const { data: created, error: userError } = await admin.auth.admin.createUser({
-        email: `pending-${randomBytes(8).toString('hex')}@${STUB_EMAIL_DOMAIN}`,
+        id: minted,
+        email: makeStubEmail(minted),
         password: randomBytes(32).toString('base64url'),
         email_confirm: true,
       });
       if (userError || !created?.user) {
-        report.push({ name, profileId: null, claimUrl: null, emailSent: false, error: 'account' });
-        continue;
+        return { name, profileId: null, claimUrl: null, emailSent: false, error: 'account' };
       }
-      profileId = created.user.id;
-      await admin.auth.admin.updateUserById(profileId, {
-        email: makeStubEmail(profileId),
-        email_confirm: true,
-      });
+      if (created.user.id !== minted) {
+        await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+        return { name, profileId: null, claimUrl: null, emailSent: false, error: 'account' };
+      }
+      profileId = minted;
 
       const { error: rpcError } = await admin.rpc('create_stub_profile', {
         p_id: profileId,
@@ -148,8 +159,7 @@ export async function importRoster(
       if (rpcError) {
         console.error('[ROSTER IMPORT] stub RPC failed:', rpcError);
         await admin.auth.admin.deleteUser(profileId).catch(() => {});
-        report.push({ name, profileId: null, claimUrl: null, emailSent: false, error: 'profile' });
-        continue;
+        return { name, profileId: null, claimUrl: null, emailSent: false, error: 'profile' };
       }
 
       // THREE membership rows. PGRST102: batch inserts need HOMOGENEOUS
@@ -165,8 +175,7 @@ export async function importRoster(
         // then drop the shadow user.
         await admin.from('profiles').delete().eq('id', profileId);
         await admin.auth.admin.deleteUser(profileId).catch(() => {});
-        report.push({ name, profileId: null, claimUrl: null, emailSent: false, error: 'membership' });
-        continue;
+        return { name, profileId: null, claimUrl: null, emailSent: false, error: 'membership' };
       }
 
       const invite = await createAthleteClaimInvite(admin, {
@@ -187,12 +196,13 @@ export async function importRoster(
           claimUrl
         );
       }
-      report.push({ name, profileId, claimUrl, emailSent });
+      return { name, profileId, claimUrl, emailSent };
     } catch (e) {
       console.error('[ROSTER IMPORT] row failed:', e);
-      report.push({ name, profileId, claimUrl: null, emailSent: false, error: 'unexpected' });
+      return { name, profileId, claimUrl: null, emailSent: false, error: 'unexpected' };
     }
-  }
+  };
+  const report = await mapBounded(input.rows, ROSTER_IMPORT_CONCURRENCY, importRow);
   return { ok: true, report };
 }
 

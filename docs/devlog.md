@@ -1,5 +1,15 @@
 # Development Log
 
+## November 7, 2026 — Scale audit row 12: the roster import is one Auth call per stub and five rows at a time (50 rows 32.6 s → 7.5 s)
+
+Tom: "continue." Nothing of the scale round was open, so the next decision-free item on `docs/SCALE_AUDIT.md` row 12: a pasted roster of 50 athletes ran **50 × 5 sequential admin operations** — two Auth calls per stub (create the shadow user under a throwaway `pending-…` address, then re-key the address to the id Auth chose), the `create_stub_profile` RPC, the three membership rows, the claim invite. A manager waited 32.6 s on staging for one paste.
+
+**What changed (zero DDL, `src/lib/orgs/roster-import.ts`):** the caller mints the id (`randomUUID()`), so `createUser` carries `id` and the FINAL stub address — one Auth call, no re-key (staging's Auth honours the id: probed before the change, and the row refuses a stranger's id rather than re-keying). The rows run through a new zero-import `mapBounded(items, limit, fn)` (`src/lib/bounded-map.ts`: at most `limit` in flight, results in input order, a bad limit serialises) at `ROSTER_IMPORT_CONCURRENCY = 5`; per-row best-effort is unchanged — every failure arm still compensates its own writes (profile delete cascades, then the shadow user) and lands its error word in the report, and the report keeps the pasted order. The guardian route (`POST /api/guardian/athletes`) mints its shadow minor the same way — one call, the synthetic address keyed to the id from the start.
+
+**Measured (staging, the built app, `e2e/roster-import-batch.spec.ts` — the measurement AND the pin):** 50 rows **32,643 ms → 7,474 ms** (653 → 149 ms per row). Before and after: 50 report rows in the pasted order with a claim link each, 50 profiles at `<id>@stubs.invalid`, **150** membership rows (org follow, org roster, team roster in the season), 50 live claim invites; the spec deletes every stub and the org. Production runs it at 12 rows.
+
+**Proof:** `npm run verify` exit 0; `npm audit --omit=dev` 0; guardrails ✓; blocklists ✓; `check:schema` + `:prod` OK (no DDL, both at 304). Pins: `bounded-map.test.ts` (order, the ceiling, bad limits, a rejection), `roster-import-trips.test.ts` (no `updateUserById` / no throwaway address in either minter, the id refusal arm, `mapBounded` at the concurrency, the four error words, the compensation order). Staging, one project at a time, against the served build: `guardian-console` 20/20, `guardian-claim-gate` (mobile) 1/1, `transfer-ceremony` 4/4, `org-site` 5/5 (its masking fixture imports a stub through this route). Docs: SCALE_AUDIT row 12 + a §6 line, `docs/TEAMS.md` writers line.
+
 ## November 7, 2026 — Maintenance pass after scale round 2: every gate green on a15a16ee; web, large screen, phone and the installed app proven
 
 Tom: "run the full project maintenance checklist … make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues." The checklist in `CLAUDE.md`'s order, on main `a15a16ee` (scale round 2 complete: #1431–#1435, zero DDL, both databases at 304).

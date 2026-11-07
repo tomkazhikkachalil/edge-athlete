@@ -9,7 +9,7 @@ import {
   getMinorThreshold,
   jurisdictionFromHeaders,
 } from '@/lib/config/minors-config';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { validateSupervisedHandle } from '@/lib/supervised-credentials';
 import { buildAthleteSummaries } from '@/lib/guardian-rollup';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
@@ -203,20 +203,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Shadow auth identity: synthetic email, unknown random password —
-    // unloginable by construction until Phase-4 credential issuance.
+    // unloginable by construction until Phase-4 credential issuance. ONE
+    // Auth call (Nov 7 2026): the id is minted here, so the synthetic
+    // address is keyed to it from the start — no re-key round trip.
+    const childId = randomUUID();
+    const syntheticEmail = makeSyntheticEmail(childId);
     const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email: `pending-${randomBytes(8).toString('hex')}@minors.invalid`,
+      id: childId,
+      email: syntheticEmail,
       password: randomBytes(32).toString('base64url'),
       email_confirm: true,
     });
-    if (createError || !created?.user) {
-      Sentry.captureException(new Error(`guardian: shadow user create failed: ${createError?.message}`));
+    if (createError || !created?.user || created.user.id !== childId) {
+      if (created?.user && created.user.id !== childId) await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+      Sentry.captureException(new Error(`guardian: shadow user create failed: ${createError?.message ?? 'id not honoured'}`));
       return NextResponse.json({ error: 'Could not create the profile. Please try again.' }, { status: 500 });
     }
-    const childId = created.user.id;
-    const syntheticEmail = makeSyntheticEmail(childId);
-    // Re-key the synthetic address to the real id for isSyntheticEmail parity.
-    await admin.auth.admin.updateUserById(childId, { email: syntheticEmail, email_confirm: true });
 
     const jurisdiction = jurisdictionFromHeaders(
       request.headers.get('x-vercel-ip-country'),

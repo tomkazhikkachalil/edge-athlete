@@ -49,8 +49,10 @@ migration 242). DEVLOG Sep 26–27 has the round-by-round record.
 - **One roster writer:** `src/lib/teams/roster-server.ts` — `addToTeam`,
   `moveBetweenTeams`, `removeFromTeam`, `endCurrentTeamSpots`. Sanctioned twins
   that write the same rows: the CSV import (`orgs/roster-import.ts`, the season
-  from `resolveTeamSeason`), registration placement (its own season), and the
-  rollover carry (`orgs/rollover-server.ts`).
+  from `resolveTeamSeason`; one Auth call per stub and five rows in flight
+  since Nov 7 2026 — `mapBounded`, the report in the pasted order),
+  registration placement (its own season), and the rollover carry
+  (`orgs/rollover-server.ts`).
 - **One roster reader:** `currentTeamRosterRows` / `currentTeamRosterProfileIds` /
   `currentTeamRowsForProfiles` / `keepCurrent`. Event sides, stat attribution,
   meet affiliation, the calendar audience, the team-event bells and the public
