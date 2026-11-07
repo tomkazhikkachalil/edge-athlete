@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-06T21:00:19.038019+00:00 from server 17.6 by
+-- Generated 2026-11-07T00:08:20.210487+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 303.
+-- public.schema_dump() (migration 227). Ledger head at generation: 304.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (145; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (146; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -470,7 +470,7 @@ DECLARE
   v_cancelled int := 0;
   v_created int := 0;
 BEGIN
-  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series;
+  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series FOR UPDATE; -- 304: one split at a time
   IF v_owner IS NULL THEN RAISE EXCEPTION 'calendar_series_split: series % not found', p_old_series; END IF;
   IF v_owner <> p_organizer THEN RAISE EXCEPTION 'calendar_series_split: not the organizer'; END IF;
   IF jsonb_typeof(p_occurrences) <> 'array' OR jsonb_array_length(p_occurrences) = 0 THEN
@@ -489,6 +489,12 @@ BEGIN
      AND starts_at >= p_from
      AND status = 'active';
   GET DIAGNOSTICS v_cancelled = ROW_COUNT;
+  -- 304: the anchor is always an active row on a legitimate call (the route
+  -- refuses a cancelled event), so nothing cancelled means a second, crossed
+  -- save of the same split — it must not create a second new series.
+  IF v_cancelled = 0 THEN
+    RAISE EXCEPTION 'calendar_series_split: nothing to split' USING ERRCODE = 'P0004';
+  END IF;
 
   -- 3. The new series, its occurrences, their guests.
   INSERT INTO public.event_series (organizer_id, freq, interval_n, byweekday, ends, until_at, count_n, generated_until)
@@ -2652,6 +2658,40 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer, p_kinds text[])
+ RETURNS SETOF media_jobs
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH running AS (
+    SELECT count(*) AS n FROM public.media_jobs
+     WHERE status = 'running'
+       AND claimed_at IS NOT NULL
+       AND claimed_at > timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))
+       AND (p_kinds IS NULL OR kind = ANY(p_kinds))
+  ), picked AS (
+    SELECT j.id FROM public.media_jobs j
+     WHERE (SELECT n FROM running) < GREATEST(p_max_running, 1)
+       AND (p_kinds IS NULL OR j.kind = ANY(p_kinds))
+       AND (
+         (j.status IN ('queued', 'parked') AND j.run_after <= timezone('utc'::text, now()))
+         OR (j.status = 'running' AND (j.claimed_at IS NULL OR j.claimed_at < timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))))
+       )
+     ORDER BY CASE j.kind WHEN 'video' THEN 0 WHEN 'probe' THEN 1 WHEN 'poster' THEN 2 ELSE 3 END, j.created_at
+     LIMIT GREATEST(LEAST(p_n, GREATEST(p_max_running, 1) - (SELECT n FROM running)), 0)
+     FOR UPDATE OF j SKIP LOCKED
+  )
+  UPDATE public.media_jobs j
+     SET status = 'running',
+         claimed_at = timezone('utc'::text, now()),
+         attempts = j.attempts + 1
+    FROM picked
+   WHERE j.id = picked.id
+  RETURNING j.*;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer DEFAULT 20, p_cursor timestamp with time zone DEFAULT NULL::timestamp with time zone, p_unread_only boolean DEFAULT false, p_type text DEFAULT NULL::text)
  RETURNS json
  LANGUAGE sql
@@ -3513,7 +3553,9 @@ CREATE OR REPLACE FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_pr
  SET search_path TO ''
 AS $function$
 BEGIN
-  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, p_private);
+  -- 304: private on every topic — the public live-now topic was spoofable.
+  -- The parameter stays for the 301 callers; it no longer decides.
+  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, true);
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'pulse_send(%): %', p_topic, SQLERRM;
 END;
@@ -4874,12 +4916,13 @@ AS $function$
         WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id <> p_viewer
         LIMIT 2000
       )
-      ELSE ARRAY(
+      WHEN p_direction = 'either' THEN ARRAY(
         SELECT CASE WHEN f.follower_id = p_viewer THEN f.following_id ELSE f.follower_id END
         FROM public.follows f
         WHERE f.status = 'accepted' AND (f.follower_id = p_viewer OR f.following_id = p_viewer)
         LIMIT 2000
       )
+      ELSE NULL::uuid[] -- 304: an unknown direction sees nobody private, never everybody
     END,
     include_public,
     max_results,
@@ -12771,7 +12814,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (145) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (146) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -13166,7 +13209,7 @@ DECLARE
   v_cancelled int := 0;
   v_created int := 0;
 BEGIN
-  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series;
+  SELECT organizer_id INTO v_owner FROM public.event_series WHERE id = p_old_series FOR UPDATE; -- 304: one split at a time
   IF v_owner IS NULL THEN RAISE EXCEPTION 'calendar_series_split: series % not found', p_old_series; END IF;
   IF v_owner <> p_organizer THEN RAISE EXCEPTION 'calendar_series_split: not the organizer'; END IF;
   IF jsonb_typeof(p_occurrences) <> 'array' OR jsonb_array_length(p_occurrences) = 0 THEN
@@ -13185,6 +13228,12 @@ BEGIN
      AND starts_at >= p_from
      AND status = 'active';
   GET DIAGNOSTICS v_cancelled = ROW_COUNT;
+  -- 304: the anchor is always an active row on a legitimate call (the route
+  -- refuses a cancelled event), so nothing cancelled means a second, crossed
+  -- save of the same split — it must not create a second new series.
+  IF v_cancelled = 0 THEN
+    RAISE EXCEPTION 'calendar_series_split: nothing to split' USING ERRCODE = 'P0004';
+  END IF;
 
   -- 3. The new series, its occurrences, their guests.
   INSERT INTO public.event_series (organizer_id, freq, interval_n, byweekday, ends, until_at, count_n, generated_until)
@@ -15240,6 +15289,38 @@ AS $function$
   RETURNING j.*;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer, p_kinds text[])
+ RETURNS SETOF media_jobs
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH running AS (
+    SELECT count(*) AS n FROM public.media_jobs
+     WHERE status = 'running'
+       AND claimed_at IS NOT NULL
+       AND claimed_at > timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))
+       AND (p_kinds IS NULL OR kind = ANY(p_kinds))
+  ), picked AS (
+    SELECT j.id FROM public.media_jobs j
+     WHERE (SELECT n FROM running) < GREATEST(p_max_running, 1)
+       AND (p_kinds IS NULL OR j.kind = ANY(p_kinds))
+       AND (
+         (j.status IN ('queued', 'parked') AND j.run_after <= timezone('utc'::text, now()))
+         OR (j.status = 'running' AND (j.claimed_at IS NULL OR j.claimed_at < timezone('utc'::text, now()) - make_interval(secs => GREATEST(p_lease_seconds, 1))))
+       )
+     ORDER BY CASE j.kind WHEN 'video' THEN 0 WHEN 'probe' THEN 1 WHEN 'poster' THEN 2 ELSE 3 END, j.created_at
+     LIMIT GREATEST(LEAST(p_n, GREATEST(p_max_running, 1) - (SELECT n FROM running)), 0)
+     FOR UPDATE OF j SKIP LOCKED
+  )
+  UPDATE public.media_jobs j
+     SET status = 'running',
+         claimed_at = timezone('utc'::text, now()),
+         attempts = j.attempts + 1
+    FROM picked
+   WHERE j.id = picked.id
+  RETURNING j.*;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer DEFAULT 20, p_cursor timestamp with time zone DEFAULT NULL::timestamp with time zone, p_unread_only boolean DEFAULT false, p_type text DEFAULT NULL::text)
  RETURNS json
  LANGUAGE sql
@@ -16049,7 +16130,9 @@ CREATE OR REPLACE FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_pr
  SET search_path TO ''
 AS $function$
 BEGIN
-  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, p_private);
+  -- 304: private on every topic — the public live-now topic was spoofable.
+  -- The parameter stays for the 301 callers; it no longer decides.
+  PERFORM realtime.send(p_payload || jsonb_build_object('at', extract(epoch FROM now())), 'pulse', p_topic, true);
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'pulse_send(%): %', p_topic, SQLERRM;
 END;
@@ -17354,12 +17437,13 @@ AS $function$
         WHERE f.follower_id = p_viewer AND f.status = 'accepted' AND f.following_id <> p_viewer
         LIMIT 2000
       )
-      ELSE ARRAY(
+      WHEN p_direction = 'either' THEN ARRAY(
         SELECT CASE WHEN f.follower_id = p_viewer THEN f.following_id ELSE f.follower_id END
         FROM public.follows f
         WHERE f.status = 'accepted' AND (f.follower_id = p_viewer OR f.following_id = p_viewer)
         LIMIT 2000
       )
+      ELSE NULL::uuid[] -- 304: an unknown direction sees nobody private, never everybody
     END,
     include_public,
     max_results,
@@ -19685,6 +19769,8 @@ REVOKE EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) FROM PUBLIC, anon, aut
 GRANT EXECUTE ON FUNCTION public.me_pulse(p_viewer uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer, p_kinds text[]) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer, p_kinds text[]) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notifications_skip_departed() FROM PUBLIC, anon, authenticated, service_role;
@@ -20109,12 +20195,13 @@ COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer c
 COMMENT ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) IS 'The Live Now strip''s "whose rounds" read (303): participant rows of the viewer and their accepted followees, newest first — the follows joined in SQL, never sent back as an IN list. GET /api/golf/live-now. service_role only.';
 COMMENT ON FUNCTION public.me_pulse(p_viewer uuid) IS 'The header''s numbers in one call (292, 300): live golf rounds the viewer may open (round-status.ts rules), live events with a live round the viewer may open (live-now.ts rules), live BROADCASTS the viewer may see (videos-server.ts listLiveVideos: the owner''s own rule), unread messages (get_unread_message_count). GET /api/me/pulse. service_role only.';
 COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer) IS 'Claim up to n due media jobs (261) under a lease, videos first, within a running cap; an expired lease is reclaimable. FOR UPDATE SKIP LOCKED — a cron tick and the dashboard may overlap. Service role only.';
+COMMENT ON FUNCTION public.media_jobs_claim(p_n integer, p_lease_seconds integer, p_max_running integer, p_kinds text[]) IS 'The 261 claim with the kinds to claim (304): only those kinds are picked and only their running rows meet the cap. NULL = every kind (the 261 behaviour). The worker claims video with cap 3, then the light kinds. service_role only.';
 COMMENT ON FUNCTION public.notifications_bell_page(p_viewer uuid, p_limit integer, p_cursor timestamp with time zone, p_unread_only boolean, p_type text) IS 'The notifications page in one call (284): the route''s page read (limit + 1, newest first, the optional filters and keyset cursor) with the actor embed, the hidden actors (281) and the unread count — raw; GET /api/notifications applies the rules. service_role only.';
 COMMENT ON FUNCTION public.post_like_allowed(p_viewer uuid, p_post_id uuid) IS 'May this viewer like this post (287): the read gate (owner / guardian always; else published, owner present, public+public or an accepted follow) minus blocks either way. service_role only.';
 COMMENT ON FUNCTION public.post_like_toggle(p_viewer uuid, p_post_id uuid) IS 'The like toggle in one call (282, gate 287): post_like_allowed, remove-or-insert the viewer''s like, read the trigger-written likes_count — {outcome, likes_count}; POST /api/posts/like maps the outcome. service_role only.';
 COMMENT ON FUNCTION public.provenance_inventory() IS 'Read-only pg_catalog inventory (rls, policies, functions with body checksums, triggers) for npm run check:schema. Service-role only (migration 195).';
 COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything GET /api/public/profile reads, as one jsonb of raw rows (280): the profile, the three counts, 24 recent public posts with media, repost originals, achievements, sport settings, posted sport keys, the golf round count, public stat-line posts per sport, raw membership rows and their orgs. Rules stay in TypeScript (src/app/api/public/profile/route.ts). service_role only.';
-COMMENT ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) IS 'The pulse signal (301): one realtime.send on the given topic, event ''pulse'', the payload plus ''at''. Swallows every error — a signal never fails a write. Called by the pulse_signal_* triggers only.';
+COMMENT ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) IS 'The pulse signal (301, private on every topic since 304): one realtime.send on the given topic, event ''pulse'', the payload plus ''at''. Swallows every error — a signal never fails a write. Called by the pulse_signal_* triggers only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) IS 'Several rate-limit buckets in one call (286): each key through 094''s rate_limit_hit, in array order; one row per key. Service-role only — src/lib/rate-limit.ts enforceRateLimitMany is the caller.';
 COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
@@ -20581,7 +20668,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (299, '299_video_live.sql', 'rebuild-000'),
   (300, '300_me_pulse_broadcasts.sql', 'rebuild-000'),
   (301, '301_pulse_broadcast.sql', 'rebuild-000'),
-  (302, '302_calendar_series_split.sql', 'rebuild-000')
+  (302, '302_calendar_series_split.sql', 'rebuild-000'),
+  (303, '303_follows_bounded.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -20590,12 +20678,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 142 | 145 | 145 | 303
+-- Expected: 000 REBUILT | 142 | 146 | 145 | 304
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_145,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_303;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_304;
 
