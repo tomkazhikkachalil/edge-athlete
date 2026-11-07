@@ -18,7 +18,11 @@ describe('the roster import mints a stub with ONE Auth call and runs its rows bo
   it('no re-key: createUser carries the minted id and the final stub address', () => {
     expect(src).not.toContain('updateUserById');
     expect(src).not.toContain('pending-');
-    expect(src).toMatch(/const minted = randomUUID\(\);\s*const \{ data: created, error: userError \} = await admin\.auth\.admin\.createUser\(\{\s*id: minted,\s*email: makeStubEmail\(minted\),/);
+    expect(src).toMatch(/const minted = randomUUID\(\);\s*let \{ data: created, error: userError \} = await admin\.auth\.admin\.createUser\(\{\s*id: minted,\s*email: makeStubEmail\(minted\),/);
+    // A refused Auth call is NAMED in the log (status + message) and retried once, same id, same address.
+    expect(src).toContain("console.error('[ROSTER IMPORT] shadow user create failed:'");
+    expect(src).toMatch(/await new Promise\(r => setTimeout\(r, RETRY_PAUSE_MS\)\);\s*\(\{ data: created, error: userError \} = await admin\.auth\.admin\.createUser\(\{\s*id: minted,\s*email: makeStubEmail\(minted\),/);
+    expect(src).toContain("console.error('[ROSTER IMPORT] shadow user create failed again:'");
     // An Auth that ignored the id is refused, not re-keyed.
     expect(src).toMatch(/if \(created\.user\.id !== minted\) \{\s*await admin\.auth\.admin\.deleteUser\(created\.user\.id\)\.catch\(\(\) => \{\}\);\s*return \{ name, profileId: null, claimUrl: null, emailSent: false, error: 'account' \};/);
   });
