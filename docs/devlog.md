@@ -12,7 +12,7 @@ Tom: "run the full project maintenance checklist … make sure it gets to produc
 - **The installed app on iPhone (`webkit-mobile`, real WebKit):** the same `@smoke` **4/4** and `install-app` 4/4, `offline` 2/3 (the same configuration skip, plus the WebKit harness's service-worker block the spec names).
 - The phone-width sweep for every program this round touched ran inside its own PR (live scores, cheers, messaging, the thread on a phone, people search, comments paging).
 
-**Production (after the merge, one project at a time):** recorded below.
+**Production (#1436 merged as `1f8dc8cb`, `/api/health` on it; `/manifest.webmanifest` and `/sw.js` 200; one project at a time):** desktop `@smoke` **14/16** — the two failures are the LAUNCH GATE, as every probe since Sep 30: `landing` meets "Edge Athlete is coming soon", `org-site` meets the gated `robots.txt` (`Disallow: /`, no sitemap — the middleware's `GATED_ROBOTS`) and the anonymous shell; rerun alone, the same two. Phone `@smoke` **3/4** on `mobile` and **3/4** on `webkit-mobile` — the one failure each is `tab-bar`'s signed-out step (`/sports/explore` sends a visitor to `/?signin=1`, so no "Log in" link), the gate again. **The installed app:** `install-app` **4/4 on both phone projects** (Android's one-tap install, the iPhone Share steps for its browser, Get Started before the install card, opened-from-the-icon with nothing inviting). Every signed-in probe passed on every surface. Nothing to fix; the by-design list is unchanged.
 
 ## November 7, 2026 — Scale round 2, the send path: a message is 8 database trips, not 14 (zero DDL); the inventory measures the writes
 
