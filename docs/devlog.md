@@ -1,5 +1,15 @@
 # Development Log
 
+## November 7, 2026 — Scale round 2, leftovers: the live page opens with one scorecard read; a thread's shared cards are read in batches; a doubled devlog entry removed (zero DDL)
+
+Tom: "continue." With the round closed, the remaining open rows of SCALE_AUDIT §1 were re-read against the code (most were stale too — bounded by 303, bucketed by #1385 and PR 2, paged by 5b). Three were real, small and needed no decision:
+
+1. **The live page read the scorecard twice on open.** `/live/[groupPostId]` fetches the scorecard itself (the gate decides sign-in vs not-found), then mounts `useSharedRound`, whose enable-time sync ("the seed may be minutes old" — true for a feed card) fetched the identical card again at once. The page now passes `initialFreshAt`; a seed under 5 s old IS the sync, and the coalescing floor (PR 1) starts from it. A feed card passes nothing and is synced once as before. `live-score-arrival` counts the scorecard reads from the first byte: **one** on open.
+2. **The message list read every shared post and shared profile one at a time** inside the page's map, and the owner's visibility + the viewer's follow once per owner — a page of 30 shares was 30–90 trips (SCALE_AUDIT §1.3's "per-message reads"). Now the page's shared posts, shared profiles, owners and follows are four batched `.in()` reads at most, the reply previews' owners one more pair through the same incremental loader, and the map that builds the payload reads nothing. The privacy rule is unchanged and pinned: the owner's profile visible (public, or followed) AND the post public or followed; your own always. The new `direct-message` case shows both branches — the owner sees the cards; a non-follower of a PRIVATE owner (the QA accounts are private) sees the shared PROFILE card and a null shared post.
+3. **The devlog carried the Nov 6 "one pulse fetch, not two" entry twice** (byte-identical — two stacked PRs each brought it). One copy remains.
+
+**Proof:** `npm run verify` exit 0 — **5,890 tests in 637 files**; audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` + `:prod` OK at 304 (no DDL). Staging, the built app: desktop `direct-message` 2/2 (the new shared-cards case), `media-proxy-messages` 1/1; mobile `live-score-arrival` 1/1 (**one scorecard read on open**; the burst: five writes over 6.5 s → 3 fetches, the rule allows 4), `messages-mobile` 1/1 on its second attempt — the first ran straight after a long chain and hit its own 240 s budget during the seed (staging strain, the known trap: pace the chunks), alone it took 1.7 min. `messages-list-trips.test.ts` and `live-refresh-coalesce.test.ts` pin the shapes; SCALE_AUDIT §1.3 and §1.4 carry the notes.
+
 ## November 7, 2026 — Scale round 2 closed: the audit's ranked table catches up with the code; three zero-DDL PRs on production
 
 Tom: "What is next?" → "go ahead, let's plan and execute." The round's first finding was about the map, not the territory: `docs/SCALE_AUDIT.md` §4 — the ranked holes — still read holes 1–5 as open, though §6 recorded every closure (fixes 1–5, migrations 273–277, Oct 25–26), hole 8's `posts/save` as bucketless (fixed Nov 2, #1385) and hole 9's 6 MB cover as a 413 (proven by #1392). A plan built on that table would have re-done closed work. The re-based round, Tom's pick, was what the CODE still showed open:
@@ -127,12 +137,6 @@ The worker half of Tom's fifth pick. A tick that claimed a video claimed nothing
 - **Pinned:** `process-server.test.ts` (a video + three posters: all four claimed and done, at least two in flight at once); `media-jobs.test.ts` (the cap's default and the override).
 
 **Proof:** `npm run verify` exit 0 — **5,843 tests**. e2e on staging: `media-processing` mobile **1/1** (a posted clip's job through the tick, the card refreshing when the file is ready); `admin-media-jobs` self-skips here (no `E2E_ADMIN_EMAIL` locally — the panel's new line is typed and lint-clean; Tom's console is where it shows).
-
-## November 6, 2026 — Pulse signals follow-up: a message from someone else is ONE pulse fetch, not two (zero DDL)
-
-The production probe of PR 1 (#1420, the change signals) caught it on its first attempt: *"a message: still one fetch after the burst — expected 4, received 5"*. A message from someone else reaches a tab twice — as the `new_message` bell on the notifications channel (scale fix 3) AND as the pulse signal on the private topic (301). The bell's handler still called `refreshUnreadCount()` → `fetchPulse()` beside the signal's own fetch; on staging the two coincided inside the in-flight coalescing window and the spec never saw it, on production's latency they did not. **The bell now refreshes the LIST only; the pulse signal carries the count.** And the count-moved path (the provider's "a fetched pulse whose number moved refreshes page one") skips a refresh made within the last 6 s — so a message is one bell → one list fetch, one signal → one pulse fetch. Pinned in `me-pulse.test.ts` (the bell slice holds no `refreshUnreadCount()`; the 6 s skip) and `realtime-subscriptions.test.ts` (the effect's deps).
-
-**Proof:** `npm run verify` exit 0; staging `pulse.spec` mobile (the one-fetch case) and `chat-dock` · `direct-message` desktop; the prod probe `pulse.spec` mobile after the merge.
 
 ## November 6, 2026 — Improvements round, PR 1: the pulse's change signals — the database broadcasts, the tab fetches once (migration 301, the cost program PR C)
 
