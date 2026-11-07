@@ -1,5 +1,6 @@
 import { test, expect, request } from './helpers/test';
 import { randomBytes } from 'crypto';
+import { shadowPassword } from '../src/lib/auth/shadow-password';
 import {
   E2E_BASE_URL, adminClient, bypassHeaders, createQaChild, createQaUser, deleteQaUser, listStaleQaShapes,
   loadQaUser, mintStorageState, readErrorBody, registrationFlagOnTarget, resetRateBucket,
@@ -22,7 +23,7 @@ import { SWEEP_CUTOFF_MS } from './helpers/qa-sweep-rules';
 async function seedStub(admin: ReturnType<typeof adminClient>, orgId: string, firstName: string): Promise<string> {
   const { data: created, error } = await admin.auth.admin.createUser({
     email: `pending-${randomBytes(8).toString('hex')}@stubs.invalid`,
-    password: randomBytes(32).toString('base64url'),
+    password: shadowPassword(),
     email_confirm: true,
   });
   expect(error, error?.message).toBeNull();

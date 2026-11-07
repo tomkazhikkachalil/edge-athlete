@@ -9,7 +9,8 @@ import {
   getMinorThreshold,
   jurisdictionFromHeaders,
 } from '@/lib/config/minors-config';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
+import { shadowPassword } from '@/lib/auth/shadow-password';
 import { validateSupervisedHandle } from '@/lib/supervised-credentials';
 import { buildAthleteSummaries } from '@/lib/guardian-rollup';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       id: childId,
       email: syntheticEmail,
-      password: randomBytes(32).toString('base64url'),
+      password: shadowPassword(),
       email_confirm: true,
     });
     if (createError || !created?.user || created.user.id !== childId) {

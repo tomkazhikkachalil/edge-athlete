@@ -9,7 +9,7 @@ All cookie parsing and Supabase client construction for API routes lives in
 and unit-tested). Do **not** create per-route `createServerClient` helpers or
 split cookie headers by hand — that pattern was deleted in July 2026 (~19
 copies, one of which shipped a `split('=')` bug that truncated base64 cookie
-values app-wide) and must not come back.
+values app-wide) and must not come back. An account the code MINTS or whose credentials it ROTATES (a roster stub, a supervised minor, a transferred athlete) takes `shadowPassword()` from `@/lib/auth/shadow-password` — production's Auth enforces the strongest policy and a raw random string is refused one time in four (Nov 7 2026).
 
 Routes must read auth from the `cookie` **header** via these helpers (NOT
 `await cookies()` — API routes receive the header, they never write cookies).

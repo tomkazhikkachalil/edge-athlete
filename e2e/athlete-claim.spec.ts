@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { shadowPassword } from '../src/lib/auth/shadow-password';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { test, expect } from './helpers/test';
 import { adminClient, deleteQaUser, loadQaUser } from './helpers/qa-user';
@@ -13,7 +14,7 @@ import { adminClient, deleteQaUser, loadQaUser } from './helpers/qa-user';
 async function seedStub(admin: ReturnType<typeof adminClient>, leagueId: string, firstName: string) {
   const { data: created, error } = await admin.auth.admin.createUser({
     email: `pending-${randomBytes(8).toString('hex')}@stubs.invalid`,
-    password: randomBytes(32).toString('base64url'),
+    password: shadowPassword(),
     email_confirm: true,
   });
   expect(error, error?.message).toBeNull();
