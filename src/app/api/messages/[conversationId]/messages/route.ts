@@ -3,7 +3,6 @@ import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -15,9 +14,8 @@ export async function POST(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const user = await requireActiveWriter(request, { limit: 'message-send' }); // 286
-    const limited = await enforceRateLimit(request, 'message-send', { userId: user.id });
-    if (limited) return limited;
+    // 286: the message-send bucket rides on the gate with write-general — one trip.
+    const user = await requireActiveWriter(request, { limit: 'message-send' });
 
     const { conversationId } = await params;
     const body = await request.json();
@@ -27,14 +25,32 @@ export async function POST(
       return NextResponse.json({ error: 'Message type is required' }, { status: 400 });
     }
 
+    // ONE pass over the rows every rule below reads (scale round 2 leftovers,
+    // Nov 7 2026 — a plain send was 14 trips in 13 stages; now 8 in 7): the
+    // sender's profile, and the conversation's ACTIVE rows (left_at null) with
+    // each member's profile and the conversation itself embedded. The checks
+    // keep their order and their answers; only the reads moved up.
+    const GUARDIAN_BLOCK_COPY = "Your guardian's messaging setting doesn't allow this conversation.";
+    type MemberProfile = { id: string; handle: string | null; supervision_state: string | null; messaging_permission: string | null };
+    type Conversation = { type: string; name: string | null; frozen_at: string | null };
+    type MemberRow = { profile_id: string; is_muted: boolean | null; held_at: string | null; conversation: Conversation | Conversation[] | null; profile: MemberProfile | MemberProfile[] | null };
+    const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null);
+    const [{ data: senderProfile }, { data: memberRows }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('supervision_state, messaging_permission, first_name, last_name, full_name')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('conversation_participants')
+        .select('profile_id, is_muted, held_at, conversation:conversations!inner (type, name, frozen_at), profile:profiles (id, handle, supervision_state, messaging_permission)')
+        .eq('conversation_id', conversationId)
+        .is('left_at', null),
+    ]);
+    const members = (memberRows ?? []) as MemberRow[];
+
     // Supervised sender kill-switch: 'nobody' bites immediately, even on
     // existing conversations — it's the emergency lever a guardian pulls.
-    const GUARDIAN_BLOCK_COPY = "Your guardian's messaging setting doesn't allow this conversation.";
-    const { data: senderProfile } = await supabase
-      .from('profiles')
-      .select('supervision_state, messaging_permission')
-      .eq('id', user.id)
-      .maybeSingle();
     const senderSupervised = senderProfile?.supervision_state === 'supervised';
     if (senderSupervised && senderProfile?.messaging_permission === 'nobody') {
       return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
@@ -42,23 +58,16 @@ export async function POST(
 
     // Guard: verify user is an active, unheld participant (a held child
     // can't see the conversation, so they can't send into it either).
-    const { data: myParticipant } = await supabase
-      .from('conversation_participants')
-      .select('id, conversation:conversations!inner (type)')
-      .eq('conversation_id', conversationId)
-      .eq('profile_id', user.id)
-      .is('left_at', null)
-      .is('held_at', null)
-      .maybeSingle();
-
-    if (!myParticipant) {
+    const me = members.find(m => m.profile_id === user.id && !m.held_at) ?? null;
+    if (!me) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
+    const conversation = one(me.conversation);
 
     // Spec 2 (mig 223): a thread frozen by a Critical report takes no new
-    // messages from either side until the review; reading stays open.
-    const { conversationFrozen } = await import('@/lib/moderation/server');
-    if (await conversationFrozen(getSupabaseAdmin(), conversationId)) {
+    // messages from either side until the review; reading stays open (the
+    // moderation module's rule — `frozen_at` set — read off the embed).
+    if (conversation?.frozen_at) {
       return NextResponse.json({ error: 'This conversation is paused while a report is reviewed.', code: 'conversation_frozen' }, { status: 403 });
     }
 
@@ -69,31 +78,27 @@ export async function POST(
     // an existing DM with a child now re-passes blocks, the child's inbound
     // tier, and the first-contact gate. Groups stay create-side-gated
     // (their membership is fixed by people who passed the gate).
-    const conversationType = (myParticipant as unknown as { conversation: { type: string } }).conversation?.type;
+    const conversationType = conversation?.type;
+    const others = members.filter(m => m.profile_id !== user.id);
     if (conversationType === 'direct') {
-      const { data: others } = await supabase
-        .from('conversation_participants')
-        .select('profile_id')
-        .eq('conversation_id', conversationId)
-        .neq('profile_id', user.id)
-        .is('left_at', null);
-      const otherId = others?.[0]?.profile_id;
+      const other = others[0] ?? null;
+      const otherId = other?.profile_id;
       if (otherId) {
-        const { data: otherProfile } = await supabase
-          .from('profiles')
-          .select('supervision_state, messaging_permission')
-          .eq('id', otherId)
-          .maybeSingle();
+        const otherProfile = one(other.profile);
         const otherSupervised = otherProfile?.supervision_state === 'supervised';
 
         if (senderSupervised || otherSupervised) {
-          const [{ data: iFollowRow }, { data: followsMeRow }, { data: blockRow }] = await Promise.all([
-            supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', otherId).eq('status', 'accepted').maybeSingle(),
-            supabase.from('follows').select('id').eq('follower_id', otherId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
+          // The two follow directions in one read, the block pair in another.
+          const [{ data: followRows }, { data: blockRow }] = await Promise.all([
+            supabase.from('follows').select('follower_id, following_id').eq('status', 'accepted')
+              .or(`and(follower_id.eq.${user.id},following_id.eq.${otherId}),and(follower_id.eq.${otherId},following_id.eq.${user.id})`),  // hardening-ok: session UUID + DB-sourced UUID
             supabase.from('user_blocks').select('id')
               .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)  // hardening-ok: session UUID + DB-sourced UUID
               .maybeSingle(),
           ]);
+          const follows = (followRows ?? []) as Array<{ follower_id: string; following_id: string }>;
+          const iFollow = follows.some(f => f.follower_id === user.id && f.following_id === otherId);
+          const followsMe = follows.some(f => f.follower_id === otherId && f.following_id === user.id);
           if (blockRow) {
             return NextResponse.json({ error: 'Cannot message this user' }, { status: 403 });
           }
@@ -101,7 +106,7 @@ export async function POST(
             const permission = (senderProfile?.messaging_permission || 'everyone') as
               import('@/lib/supervised-gates').MessagingPermission;
             const { outboundAllowed } = await import('@/lib/supervised-gates');
-            if (!outboundAllowed(permission, !!iFollowRow, !!followsMeRow)) {
+            if (!outboundAllowed(permission, iFollow, followsMe)) {
               return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
             }
           }
@@ -111,10 +116,10 @@ export async function POST(
             if (perm === 'nobody') {
               return NextResponse.json({ error: 'This user is not accepting messages' }, { status: 403 });
             }
-            if (perm === 'fans_only' && !iFollowRow) {
+            if (perm === 'fans_only' && !iFollow) {
               return NextResponse.json({ error: 'This user only accepts messages from their fans' }, { status: 403 });
             }
-            if (perm === 'mutual_fans' && !(iFollowRow && followsMeRow)) {
+            if (perm === 'mutual_fans' && !(iFollow && followsMe)) {
               return NextResponse.json({ error: 'This user only accepts messages from mutual fans' }, { status: 403 });
             }
             // First-contact hold (mig 131): an unknown sender's message still
@@ -222,38 +227,19 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 
-    // Fan out notifications to non-muted, non-sender active participants.
-    // Held children (131) are excluded — their bell rings on approval, via
-    // the conversation simply appearing with its unread count.
-    const { data: recipients } = await supabase
-      .from('conversation_participants')
-      .select('profile_id')
-      .eq('conversation_id', conversationId)
-      .neq('profile_id', user.id)
-      .eq('is_muted', false)
-      .is('left_at', null)
-      .is('held_at', null);
+    // Fan out notifications to non-muted, non-sender active participants —
+    // the rows from the one pass above. Held children (131) are excluded —
+    // their bell rings on approval, via the conversation simply appearing
+    // with its unread count.
+    const recipients = others.filter(m => m.is_muted === false && !m.held_at);
 
-    if (recipients && recipients.length > 0) {
-      // Get conversation name for notification context
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('type, name')
-        .eq('id', conversationId)
-        .single();
-
-      const { data: senderProfile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, full_name')
-        .eq('id', user.id)
-        .single();
-
+    if (recipients.length > 0) {
       const senderName = senderProfile?.full_name ||
         [senderProfile?.first_name, senderProfile?.last_name].filter(Boolean).join(' ') ||
         'Someone';
 
-      const notifTitle = conv?.type === 'group' && conv?.name
-        ? `New message in ${conv.name}`
+      const notifTitle = conversation?.type === 'group' && conversation?.name
+        ? `New message in ${conversation.name}`
         : `${senderName} sent you a message`;
 
       const notifMessage = type === 'text'
@@ -296,24 +282,19 @@ export async function POST(
     // a distinct 'mention' row on top of new_message. Deliberately NOT
     // filtered by is_muted — mute silences the room, a direct mention is
     // personal (Slack/Discord semantics). Non-member @names notify no one
-    // by construction. Best-effort; never fails the send.
+    // by construction. Best-effort; never fails the send. The handles come
+    // from the one pass above (an unheld member's profile embed).
     if (type === 'text' && content) {
       const handles = extractHandles(content);
       if (handles.length > 0) {
-        const { data: mentionables } = await supabase
-          .from('conversation_participants')
-          .select('profile_id, profile:profiles(id, handle)')
-          .eq('conversation_id', conversationId)
-          .neq('profile_id', user.id)
-          .is('left_at', null)
-          .is('held_at', null);
         const handleSet = new Set(handles);
-        const mentionedIds = (mentionables ?? [])
-          .filter(r => {
-            const prof = r.profile as unknown as { handle: string | null } | null;
-            return prof?.handle && handleSet.has(prof.handle.toLowerCase());
+        const mentionedIds = others
+          .filter(m => {
+            if (m.held_at) return false;
+            const handle = one(m.profile)?.handle;
+            return !!handle && handleSet.has(handle.toLowerCase());
           })
-          .map(r => r.profile_id);
+          .map(m => m.profile_id);
         if (mentionedIds.length > 0) {
           await notifyChatMentions(supabase, {
             conversationId,
