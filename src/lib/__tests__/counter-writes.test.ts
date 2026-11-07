@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Scale fix 4 (Oct 25 2026, docs/SCALE_AUDIT.md hole 4; Convention 32
-// amended): the TRIGGER recounts a cached counter inside the write's own
-// statement — 015 for posts.likes_count, 095 for posts.comments_count
-// (published only), 252 for post_comments.likes_count. A route READS the
-// column after its write; it never counts the rows again and never writes
-// the column itself. Two counts + two writes per like became one of each.
+// amended) and migration 277 (Oct 26): the TRIGGER keeps a cached counter
+// inside the write's own statement — since 277 by ADDING OR SUBTRACTING ONE
+// (posts.likes_count, posts.comments_count published only,
+// post_comments.likes_count), with `counters_recount()` nightly as the
+// accuracy rule; before 277 (015 / 095 / 252) it recounted the set. A route
+// READS the column after its write; it never counts the rows and never writes
+// the column itself. Two counts + two writes per like became one ±1.
 const ROOT = process.cwd();
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
@@ -19,7 +21,7 @@ const ROUTES: Array<{ file: string; table: string; column: string; via?: { rpc: 
   { file: 'src/app/api/comments/route.ts', table: 'post_comments', column: 'comments_count' },
 ];
 
-describe('Counters: the trigger recounts, the route reads', () => {
+describe('Counters: the trigger adds or subtracts one (277), the route reads', () => {
   for (const { file, table, column, via } of ROUTES) {
     it(`${file} never recounts ${table} nor writes ${column}`, () => {
       const code = read(file);
