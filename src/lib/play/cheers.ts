@@ -42,7 +42,8 @@ export interface CheerFeed {
   totals: Record<CheerKey, number>;
   total: number;
   recent: CheerEvent[];
-  /** The server's clock — the next poll's `since`. */
+  /** The server's clock when the window was read (informational since Nov 7
+   *  2026 — the poll no longer sends it back as `since`). */
   now: string;
 }
 
@@ -63,6 +64,6 @@ export function tally(rows: ReadonlyArray<{ cheer: string }>): { totals: Record<
 }
 
 /** The feed's new events, oldest first, never one already seen (poll overlap, the viewer's own optimistic float). */
-export function freshEvents(recent: readonly CheerEvent[], seen: ReadonlySet<string>): CheerEvent[] {
+export function freshEvents(recent: readonly CheerEvent[], seen: { has(id: string): boolean }): CheerEvent[] {
   return [...recent].filter(e => !seen.has(e.id)).sort((a, b) => a.at.localeCompare(b.at));
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { canViewSharedRound } from '@/lib/golf/round-access';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
+import { resolveSportEventAccess } from '@/lib/sport-events/access';
 import { isMissingTableError } from '@/lib/orgs/validate';
 import { CHEER_KEYS, emptyTotals, parseCheerContext, type CheerEvent, type CheerFeed, type CheerKey } from './cheers';
 
@@ -23,6 +24,10 @@ export interface CheerGate {
   live: boolean;
   /** Who plays — a cheer's optional target must be one of them. */
   players: ReadonlySet<string>;
+  /** True when ANYONE may watch (a public round / event): the read's payload
+   *  is then the same for every viewer and the route may let the CDN hold
+   *  one copy (scale round 2, Nov 7 2026). A private round is never cached. */
+  publicView: boolean;
 }
 
 export async function cheerGate(admin: Admin, contextKey: string, viewerId: string | null): Promise<CheerGate | null> {
@@ -31,20 +36,17 @@ export async function cheerGate(admin: Admin, contextKey: string, viewerId: stri
   if (ctx.kind === 'group_post') {
     const [{ data: gp }, { data: parts }] = await Promise.all([
       admin.from('group_posts').select('id, creator_id, visibility, status, sport_event_round_id').eq('id', ctx.id).maybeSingle(),
-      // last_score_activity_at is not a column — it is the newest card write (scorecard-transform's rule).
-      admin.from('group_post_participants').select('profile_id, golf_participant_scores(updated_at)').eq('group_post_id', ctx.id),
+      // The roster only — no scores embed: liveness is the STORED status
+      // (nothing finishes at read time since the Drafts round), so the newest
+      // card write was read for every poll and used by nothing (Nov 7 2026).
+      admin.from('group_post_participants').select('profile_id').eq('group_post_id', ctx.id),
     ]);
     if (!gp) return null;
-    const partRows = (parts ?? []) as Array<{ profile_id: string; golf_participant_scores: Array<{ updated_at: string | null }> | { updated_at: string | null } | null }>;
-    const ids = partRows.map(p => p.profile_id);
-    let lastActivity: string | null = null;
-    for (const p of partRows) {
-      const cards = Array.isArray(p.golf_participant_scores) ? p.golf_participant_scores : p.golf_participant_scores ? [p.golf_participant_scores] : [];
-      for (const c of cards) if (c.updated_at && (!lastActivity || c.updated_at > lastActivity)) lastActivity = c.updated_at;
-    }
-    const g = { ...(gp as { creator_id: string | null; visibility: string | null; status: string | null; sport_event_round_id: string | null }), last_score_activity_at: lastActivity };
-    if (!canViewSharedRound({ viewerId, creatorId: g.creator_id, visibility: g.visibility, participantProfileIds: ids })) return null;
-    return { live: await groupPostLive(admin, g), players: new Set(ids) };
+    const ids = ((parts ?? []) as Array<{ profile_id: string }>).map(p => p.profile_id);
+    const g = gp as { creator_id: string | null; visibility: string | null; status: string | null; sport_event_round_id: string | null };
+    const round = { creatorId: g.creator_id, visibility: g.visibility, participantProfileIds: ids };
+    if (!canViewSharedRound({ viewerId, ...round })) return null;
+    return { live: await groupPostLive(admin, g), players: new Set(ids), publicView: canViewSharedRound({ viewerId: null, ...round }) };
   }
   const { data: round } = await admin.from('sport_event_rounds').select('id, sport_event_id, status').eq('id', ctx.id).maybeSingle();
   if (!round) return null;
@@ -52,14 +54,23 @@ export async function cheerGate(admin: Admin, contextKey: string, viewerId: stri
   const access = await readSportEventAccess(admin, r.sport_event_id, viewerId, null);
   if (!access) return null;
   const { data: parts } = await admin.from('sport_event_participants').select('profile_id').eq('sport_event_id', r.sport_event_id).eq('status', 'accepted');
-  return { live: r.status === 'live', players: new Set(((parts ?? []) as Array<{ profile_id: string }>).map(p => p.profile_id)) };
+  // Would a stranger with no link see it? The pure rule over the row already in hand — no trip.
+  const ev = access.event;
+  const publicView = resolveSportEventAccess({
+    event: { hostProfileId: ev.host_profile_id, visibility: ev.visibility, status: ev.status, linkToken: ev.link_token },
+    viewerId: null,
+    presentedToken: null,
+    participant: null,
+    viewerHoldsAuthority: true,
+  }) !== null;
+  return { live: r.status === 'live', players: new Set(((parts ?? []) as Array<{ profile_id: string }>).map(p => p.profile_id)), publicView };
 }
 
 /** A golf round is live when its EVENT round is (an event's round owns its
  *  lifecycle — its group post stays 'pending' until the first score); a
  *  casual shared round while it is pending or active (the stored status —
  *  nothing finishes at read time since the Drafts round). */
-async function groupPostLive(admin: Admin, g: { status: string | null; last_score_activity_at: string | null; sport_event_round_id: string | null }): Promise<boolean> {
+async function groupPostLive(admin: Admin, g: { status: string | null; sport_event_round_id: string | null }): Promise<boolean> {
   if (g.sport_event_round_id) {
     const { data } = await admin.from('sport_event_rounds').select('status').eq('id', g.sport_event_round_id).maybeSingle();
     return (data as { status?: string } | null)?.status === 'live';
@@ -68,6 +79,11 @@ async function groupPostLive(admin: Admin, g: { status: string | null; last_scor
 }
 
 const RECENT_CAP = 50;
+/** The recent list is the last 30 s, for EVERY reader alike (scale round 2,
+ *  Nov 7 2026): a per-client `since` split the CDN's copy of a public
+ *  round's feed into one per watcher; the client dedupes by id (useCheers'
+ *  `seen`), and the poll's 10 s cadence sits well inside the window. */
+export const RECENT_WINDOW_MS = 30_000;
 
 /**
  * The counts are ONE grouped query in the database (`live_cheer_totals`,
@@ -78,13 +94,13 @@ const RECENT_CAP = 50;
  * (PostgREST cannot GROUP BY): nine statements per poll per watcher with the
  * gate's two and the recent read; now four.
  */
-export async function readCheerFeed(admin: Admin, contextKey: string, since: string | null): Promise<CheerFeed> {
-  const now = new Date().toISOString();
+export async function readCheerFeed(admin: Admin, contextKey: string): Promise<CheerFeed> {
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const windowStart = new Date(nowMs - RECENT_WINDOW_MS).toISOString();
   const [grouped, recent] = await Promise.all([
     admin.rpc('live_cheer_totals', { p_context_key: contextKey }),
-    since
-      ? admin.from('live_cheers').select('id, cheer, target_profile_id, created_at').eq('context_key', contextKey).gt('created_at', since).order('created_at', { ascending: false }).limit(RECENT_CAP)
-      : Promise.resolve({ data: [], error: null }),
+    admin.from('live_cheers').select('id, cheer, target_profile_id, created_at').eq('context_key', contextKey).gt('created_at', windowStart).order('created_at', { ascending: false }).limit(RECENT_CAP),
   ]);
   const totals = emptyTotals();
   let total = 0;

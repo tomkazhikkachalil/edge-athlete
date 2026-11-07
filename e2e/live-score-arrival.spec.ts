@@ -43,6 +43,32 @@ test('live scores arrive on a spectator\'s card without a reload — a late join
     await expect(page.getByText(/thru 1/)).toHaveCount(1, { timeout: 20_000 });
     expect(await stillSameDocument(), 'no reload happened').toBe(true);
 
+    // 1b. A BURST coalesces (scale round 2, Nov 7 2026): five score writes
+    //     back to back are NOT five scorecard refetches on the spectator's
+    //     page. The rule (refreshDelayMs): an event opens a 1.5–3 s window
+    //     and no scheduled fetch lands within 3 s of the last — so a burst
+    //     lasting T seconds is at most 1 + ceil(T / 3) fetches (the writes
+    //     themselves take 0.5–1 s each from here through staging).
+    let scorecardFetches = 0;
+    const count = (req: { url(): string }) => { if (req.url().includes(`/api/group-posts/${gp}/scorecard`)) scorecardFetches += 1; };
+    page.on('request', count);
+    const burstStart = Date.now();
+    for (let hole = 2; hole <= 6; hole += 1) {
+      const r = await score(userA.id, hole, 4);
+      expect(r.ok(), await readErrorBody(r)).toBe(true);
+    }
+    const burstMs = Date.now() - burstStart;
+    await expect(page.getByText(/thru 6/)).toHaveCount(1, { timeout: 20_000 });
+    // Let the window close before counting — a straggler lands within the floor.
+    await page.waitForTimeout(3_500);
+    page.off('request', count);
+    const allowed = 1 + Math.ceil(burstMs / 3_000);
+    console.log(`[live-score-arrival] burst of 5 writes over ${burstMs} ms → ${scorecardFetches} scorecard fetch(es) (rule allows ${allowed})`);
+    expect(scorecardFetches, `five writes over ${burstMs} ms: at most ${allowed} refetches by the rule`).toBeLessThanOrEqual(allowed);
+    expect(scorecardFetches, 'fewer refetches than writes').toBeLessThan(5);
+    expect(scorecardFetches, 'the burst did refetch').toBeGreaterThanOrEqual(1);
+    expect(await stillSameDocument(), 'no reload during the burst').toBe(true);
+
     // 2. A late joiner: the creator adds them mid-round → the participant count
     //    moves (the participants listener → refresh), then their first score
     //    arrives (the resubscribed filter now includes them).
@@ -52,7 +78,8 @@ test('live scores arrive on a spectator\'s card without a reload — a late join
     expect(await stillSameDocument(), 'no reload after the joiner').toBe(true);
     const theirs = await score(joiner.id, 1, 4);
     expect(theirs.ok(), await readErrorBody(theirs)).toBe(true);
-    await expect(page.getByText(/thru 1/)).toHaveCount(2, { timeout: 25_000 });
+    // The creator is thru 6 after the burst; the joiner's row is the one "thru 1".
+    await expect(page.getByText(/thru 1\b/)).toHaveCount(1, { timeout: 25_000 });
     expect(await stillSameDocument(), 'no reload after the joiner\'s score').toBe(true);
   } finally {
     await ctxB.close();

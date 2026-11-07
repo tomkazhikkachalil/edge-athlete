@@ -64,3 +64,24 @@ export function classifyScoreEvent(
   if (now - lastUnknownRefreshAt >= UNKNOWN_EVENT_REFRESH_WINDOW_MS) return 'refresh-unknown';
   return 'ignore';
 }
+
+// ── Refetch coalescing (scale round 2, Nov 7 2026) ──────────────────────────
+// Fix 1 bounded DELIVERY to the round; every delivered event was still one
+// scorecard refetch per viewer (100 spectators × 5 writes/s = 500 fetches/s).
+// A realtime event now SCHEDULES a refresh: the first event opens a window
+// of COALESCE + jitter (a burst of writes is one fetch; the jitter spreads
+// N spectators over the window), and no scheduled refresh lands sooner than
+// FLOOR after the last one. The imperative refresh (after your own save, the
+// poll, a return to the tab) stays immediate — it is the user's own ask.
+
+export const REFRESH_COALESCE_MS = 1_500;
+export const REFRESH_JITTER_MS = 1_500;
+export const REFRESH_FLOOR_MS = 3_000;
+
+/** How long a realtime event waits before its refresh: `random` in [0, 1),
+ *  `sinceLastRefreshMs` the time since the last refresh of any kind. */
+export function refreshDelayMs(random: number, sinceLastRefreshMs: number = Number.POSITIVE_INFINITY): number {
+  const r = Number.isFinite(random) ? Math.min(Math.max(random, 0), 0.999_999) : 0;
+  const since = Number.isFinite(sinceLastRefreshMs) ? Math.max(sinceLastRefreshMs, 0) : Number.POSITIVE_INFINITY;
+  return Math.max(REFRESH_COALESCE_MS + Math.floor(r * REFRESH_JITTER_MS), REFRESH_FLOOR_MS - since);
+}
