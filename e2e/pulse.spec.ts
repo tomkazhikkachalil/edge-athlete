@@ -66,14 +66,20 @@ test('one pulse equals the three polls it replaces; a round and a message move i
     const conv = await s.apiB.post('/api/messages', { data: { type: 'direct', participantId: s.userA.id } });
     expect([200, 201], await readErrorBody(conv)).toContain(conv.status());
     const { conversationId } = (await conv.json()) as { conversationId: string };
+    // The direct thread is the ONE between A and B — a spec before this one may
+    // have left unread messages in it (the phone thread spec seeds 60). Read it
+    // first, so the baseline is this conversation at zero and "+1, then back"
+    // measures B's message alone (Nov 7 2026).
+    expect((await s.apiA.patch(`/api/messages/${conversationId}/read`)).ok()).toBe(true);
+    const base = await pulse(s.apiA);
     const sent = await s.apiB.post(`/api/messages/${conversationId}/messages`, { data: { type: 'text', content: `qa pulse ${s.stamp}` } });
     expect(sent.status(), await readErrorBody(sent)).toBe(201);
     const a2 = await pulse(s.apiA);
-    expect(a2.unread.messages).toBe(a0.unread.messages + 1);
+    expect(a2.unread.messages).toBe(base.unread.messages + 1);
     expect(a2.unread.messages).toBe((await theThree(s.apiA)).unread);
     const readRes = await s.apiA.patch(`/api/messages/${conversationId}/read`);
     expect(readRes.ok(), await readErrorBody(readRes)).toBe(true);
-    expect((await pulse(s.apiA)).unread.messages).toBe(a0.unread.messages);
+    expect((await pulse(s.apiA)).unread.messages).toBe(base.unread.messages);
 
     // Signed out: nothing.
     expect((await s.anon.get('/api/me/pulse')).status()).toBe(401);

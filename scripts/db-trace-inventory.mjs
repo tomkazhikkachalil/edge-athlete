@@ -46,6 +46,13 @@ server.stdout.on('data', onData); server.stderr.on('data', onData);
 const base = `http://localhost:${port}`;
 for (let i = 0; i < 120; i++) { try { const r = await fetch(`${base}/api/health`); if (r.ok) break; } catch { /* not yet */ } await new Promise(r => setTimeout(r, 1000)); }
 
+// ── the writes' subjects (Nov 7 2026): a conversation with the seed subject and a public golf round of our own — the round is deleted at the end, the comments / posts / messages the passes leave are swept below.
+const postJson = async (p, body) => { const r = await fetch(base + p, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) { console.error(`${p} → ${r.status}`); return null; } return r.json(); };
+const conv = await postJson('/api/messages', { type: 'direct', participantId: subject?.id });
+const conversationId = conv?.conversationId ?? null;
+const round = await postJson('/api/group-posts', { type: 'golf_round', title: `Trips ${Date.now()}`, date: new Date().toISOString().slice(0, 10), visibility: 'public', participant_ids: [], golf_data: { course_name: 'Trips Links', round_type: 'outdoor', holes_played: 9 } });
+const roundId = round?.group_post?.id ?? null;
+
 const ROUTES = [
   ['GET /api/health (reference)', `/api/health`, {}],
   ['GET /api/posts (the feed)', `/api/posts?limit=20`, { cookie }],
@@ -64,6 +71,16 @@ const ROUTES = [
   ['GET /api/calendar/invite-search?q=seed', `/api/calendar/invite-search?q=seed`, { cookie }],
   ['GET /api/suggestions?profileId=me', `/api/suggestions?profileId=${signed.user?.id}`, { cookie }],
   ['POST /api/posts/like (toggle)', `/api/posts/like`, { cookie, method: 'POST', body: JSON.stringify({ postId: aPost?.id }) }],
+  // Nov 7 2026: the writes and the live reads the audit's §1.3 / §1.4 / §1.6 name.
+  ['GET /api/messages/{id} (the thread)', `/api/messages/${conversationId}`, { cookie }],
+  ['POST /api/messages/{id}/messages (send text)', `/api/messages/${conversationId}/messages`, { cookie, method: 'POST', body: JSON.stringify({ type: 'text', content: 'trips' }) }],
+  ['POST /api/comments (create)', `/api/comments`, { cookie, method: 'POST', body: JSON.stringify({ postId: aPost?.id, content: 'trips' }) }],
+  ['POST /api/posts (a general post)', `/api/posts`, { cookie, method: 'POST', body: JSON.stringify({ postType: 'general', caption: 'trips', visibility: 'public' }) }],
+  ['POST /api/follow (toggle)', `/api/follow`, { cookie, method: 'POST', body: JSON.stringify({ followingId: subject?.id }) }],
+  ['GET /api/group-posts/{id}/scorecard', `/api/group-posts/${roundId}/scorecard`, { cookie }],
+  ['GET /api/live/cheers?context=group_post:', `/api/live/cheers?context=group_post:${roundId}`, { cookie }],
+  ['GET /api/golf/live-now/count', `/api/golf/live-now/count`, { cookie }],
+  ['GET /api/sport-events/live-now', `/api/sport-events/live-now`, { cookie }],
 ];
 const rows = [];
 for (const [name, p, o] of ROUTES) {
@@ -80,6 +97,11 @@ for (const [name, p, o] of ROUTES) {
   rows.push(kept);
   console.log(`${kept.name.padEnd(44)} ${String(kept.status).padStart(3)}  ${String(kept.trips).padStart(3)} trips  ${String(kept.ms).padStart(5)} ms`);
 }
+// The subjects go: the round through its route, the passes' comments / posts / messages through the admin client (seed data on staging).
+if (roundId) await fetch(`${base}/api/group-posts/${roundId}`, { method: 'DELETE', headers: { cookie } }).catch(() => null);
+await admin.from('post_comments').delete().eq('profile_id', signed.user.id).eq('content', 'trips');
+await admin.from('posts').delete().eq('profile_id', signed.user.id).eq('caption', 'trips');
+if (conversationId) await admin.from('messages').delete().eq('conversation_id', conversationId).eq('content', 'trips');
 server.kill('SIGTERM');
 
 fs.mkdirSync(path.dirname(out), { recursive: true });
