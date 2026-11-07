@@ -3,7 +3,6 @@ import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { syncMirrorPostTags } from '@/lib/group-posts/mirror-tags';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -69,7 +68,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'group-post-add' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
@@ -79,7 +78,6 @@ export async function POST(
     if (!isUuid(id)) {
       return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
     }
-    const limited = await enforceRateLimit(request, 'group-post-add', { userId: user.id });
     if (limited) return limited;
 
     const body = await request.json();
@@ -220,11 +218,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  // Verify authentication — the roster bucket, both directions (hole 8, Nov 7 2026).
+  const { supabase, user, error: authError, limited } = await getServerAuth(request, { limit: 'group-post-add' });
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (limited) return limited;
 
   try {
     const { id } = await params;

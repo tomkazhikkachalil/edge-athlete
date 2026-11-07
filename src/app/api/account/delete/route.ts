@@ -3,7 +3,7 @@ import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
 import { findSoleAuthority, soleAuthorityMessage } from '@/lib/account-sole-authority';
 import { formatDisplayName } from '@/lib/formatters';
-import { enforceRateLimit } from '@/lib/rate-limit';
+import { enforceRateLimitMany } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 
 export async function DELETE(request: NextRequest) {
@@ -34,8 +34,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'User email not found' }, { status: 400 });
     }
 
-    // Brute-force surface (signInWithPassword below).
-    const limited = await enforceRateLimit(request, 'account-delete', { userId });
+    // Brute-force surface (signInWithPassword below); write-general rides in
+    // the same trip (hole 8, Nov 7 2026 — this gate is the documented custom one).
+    const limited = await enforceRateLimitMany(request, ['write-general', 'account-delete'], { userId });
     if (limited) return limited;
 
     const { error: signInError } = await supabase.auth.signInWithPassword({

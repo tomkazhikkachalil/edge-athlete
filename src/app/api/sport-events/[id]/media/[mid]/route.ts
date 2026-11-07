@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { resolveActor } from '@/lib/sport-events/actor-server';
 import { mediaRight } from '@/lib/sport-events/media';
@@ -15,9 +14,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id, mid } = await params;
   if (!UUID_RE.test(id) || !UUID_RE.test(mid)) return NOT_FOUND();
   try {
-    const { user, error: authError } = await getServerAuth(request);
+    const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
     if (limited) return limited;
     const url = new URL(request.url);
     const actor = await resolveActor(user.id, url.searchParams.get('as'));

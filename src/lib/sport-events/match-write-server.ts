@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from './access-server';
 import { bodyProfileId, readJson, resolveActor } from './actor-server';
 import { MATCH_REFUSAL_COPY } from './match';
@@ -39,9 +38,8 @@ export const refuse = (reason: keyof typeof MATCH_REFUSAL_COPY, status: 400 | 40
 export async function openMatchWrite(request: NextRequest, params: Promise<{ id: string; mid: string }>): Promise<{ ok: true; ctx: MatchWriteContext } | { ok: false; response: NextResponse }> {
   const { id, mid } = await params;
   if (!UUID_RE.test(id) || !UUID_RE.test(mid)) return { ok: false, response: NextResponse.json({ error: 'Event not found' }, { status: 404 }) };
-  const { user, error: authError } = await getServerAuth(request);
+  const { user, error: authError, limited } = await getServerAuth(request, { limit: 'sport-event' });
   if (authError || !user) return { ok: false, response: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) };
-  const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
   if (limited) return { ok: false, response: limited };
   const raw = await readJson(request);
   const body = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};

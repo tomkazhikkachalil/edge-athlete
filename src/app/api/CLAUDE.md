@@ -134,4 +134,6 @@ if (authError || !user) {
 if (limited) return limited;
 ```
 
-`src/lib/__tests__/write-routes-limited.test.ts` walks every route that exports a write method and refuses one that names no gate (its own, or the `@/lib` handler it delegates to); a route that takes no account (a signed webhook) says why in its `ALLOWED` map. Buckets live in `src/lib/rate-limit-core.ts` — reuse one before adding one.
+`src/lib/__tests__/write-routes-limited.test.ts` walks every route that exports a write method and judges each write HANDLER (Nov 7 2026): a bare `getServerAuth(request)` or a raw `.auth.getUser()` beside the route's own `enforceRateLimit` is NOT coverage — it never met `write-general`; the bucket rides on the auth call, or, for the documented custom gates (`account/delete`, `auth/reauthenticate`, `auth/change-password`, `seen`'s free cookie path), the handler calls `enforceRateLimitMany(request, ['write-general', '<own>'], { userId })` itself — the one exception to "never call the bucket yourself". A route that takes no account (a signed webhook, a public form, sign-in) says why in its `ALLOWED` map. Buckets live in `src/lib/rate-limit-core.ts` — reuse one before adding one.
+
+**A GET that is a database query per keystroke names a bucket too** (`mentions/search`, `calendar/invite-search` → `people-search`, by account): `requireAuth` spends nothing on a GET, so the route calls `enforceRateLimit(request, 'people-search', { userId: user.id })` right after it.

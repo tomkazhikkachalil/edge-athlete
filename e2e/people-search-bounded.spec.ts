@@ -61,3 +61,27 @@ test('people search: mentions one-way, invites either way, both from SQL @mobile
     await s.dispose();
   }
 });
+
+// Hole 8's remainder (scale round 2 PR 2, Nov 7 2026): a GET through
+// requireAuth runs NO bucket, and these two typeaheads are a database query
+// per keystroke — they now spend `people-search` (120 a minute per account).
+// The client debounces at 250 ms, so a typist never meets it; a held key does.
+test('the @mention typeahead meets its bucket: the 121st request in a minute is a 429', async () => {
+  test.skip(process.env.E2E_TARGET === 'prod', 'the bucket is per account per minute — never spent on production');
+  test.setTimeout(120_000);
+  const s = await openEventSession();
+  try {
+    let first429 = -1;
+    for (let i = 1; i <= 125; i += 1) {
+      const res = await s.apiA.get(`/api/mentions/search?q=qa${i % 7}`);
+      if (res.status() === 429) { first429 = i; break; }
+      expect(res.ok(), await readErrorBody(res)).toBe(true);
+    }
+    expect(first429, 'a 429 arrived within the 125 requests').toBeGreaterThan(0);
+    expect(first429, 'the budget is 120 a minute').toBeGreaterThan(100);
+    // The invite search spends the SAME bucket (one budget for a person's typeaheads).
+    expect((await s.apiA.get('/api/calendar/invite-search?q=qa')).status()).toBe(429);
+  } finally {
+    await s.dispose();
+  }
+});
