@@ -131,48 +131,20 @@ export async function GET(
       ? messages[messages.length - 1].created_at
       : null;
 
-    // Privacy filter for shared posts: this route runs on the admin client
-    // (bypasses posts RLS), so post visibility must be enforced here. A shared
-    // post is viewable when the owner's profile is visible to the viewer AND
-    // (the post is public OR the viewer follows the owner). Per-owner access
-    // is cached for the duration of the request.
-    const ownerAccessCache = new Map<string, { profilePublic: boolean; isFollower: boolean }>();
-    const filterViewableSharedPost = async <T extends { visibility?: string | null; profile: unknown } | null>(post: T): Promise<T | null> => {
-      if (!post) return null;
-      const owner = (Array.isArray(post.profile) ? post.profile[0] : post.profile) as { id?: string } | null;
-      const ownerId = owner?.id;
-      if (!ownerId) return null;
-      if (ownerId === user.id) return post;
-      let access = ownerAccessCache.get(ownerId);
-      if (!access) {
-        const [{ data: ownerProfile }, { data: follow }] = await Promise.all([
-          supabase.from('profiles').select('visibility').eq('id', ownerId).maybeSingle(),
-          supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', ownerId).eq('status', 'accepted').maybeSingle(),
-        ]);
-        access = { profilePublic: ownerProfile?.visibility !== 'private', isFollower: !!follow };
-        ownerAccessCache.set(ownerId, access);
-      }
-      const profileOk = access.profilePublic || access.isFollower;
-      const postOk = post.visibility !== 'private' || access.isFollower;
-      return profileOk && postOk ? post : null;
-    };
-
-    // Enrich shared content for non-deleted messages
-    const enrichedMessages = await Promise.all(
-      messages.map(async (msg) => {
-        if (msg.deleted_at) {
-          // Soft-deleted: the UI shows "Message deleted" — never ship the
-          // original content/media back to clients.
-          return { ...msg, content: null, media_url: null, media_type: null, shared_post_id: null, shared_profile_id: null };
-        }
-
-        // The message's own media (image/video) is proxied and re-authorized
-        // per participant. A gif_reaction is an external Giphy URL, which
-        // toProxyUrl leaves untouched (not a protected bucket).
-        const mediaUrl = toProxyUrl(msg.media_url, { type: 'message', id: msg.id }, { visibility: 'private' });
-
-        if (msg.type === 'shared_post' && msg.shared_post_id) {
-          const { data: post } = await supabase
+    // Shared content for the page's non-deleted messages — the shared posts,
+    // the shared profiles, then the post owners' visibility and the viewer's
+    // follows among them: FOUR batched reads at most (scale round 2
+    // leftovers, Nov 7 2026). It was one read per shared message plus one
+    // pair per owner — a page of 30 shares was 30–90 trips.
+    const live = messages.filter(m => !m.deleted_at);
+    const sharedPostIds = [...new Set(live.filter(m => m.type === 'shared_post' && m.shared_post_id).map(m => m.shared_post_id as string))];
+    const sharedProfileIds = [...new Set(live.filter(m => m.type === 'shared_profile' && m.shared_profile_id).map(m => m.shared_profile_id as string))];
+    type SharedMedia = { media_url: string; media_type: string; thumbnail_url?: string | null };
+    type SharedPostRow = { id: string; caption: string | null; visibility: string | null; created_at: string; profile: { id?: string } | { id?: string }[] | null; media: SharedMedia[] | null };
+    type SharedProfileRow = { id: string };
+    const [sharedPostsResult, sharedProfilesResult] = await Promise.all([
+      sharedPostIds.length > 0
+        ? supabase
             .from('posts')
             .select(`
               id, caption, visibility, created_at,
@@ -183,36 +155,88 @@ export async function GET(
                 media_url, media_type, thumbnail_url
               )
             `)
-            .eq('id', msg.shared_post_id)
-            .maybeSingle();
-          const viewable = await filterViewableSharedPost(post);
-          // The shared original's media is post media — proxied under the
-          // original post's id (its own visibility governs it).
-          const shared_post = viewable
-            ? {
-                ...viewable,
-                media: (viewable.media || []).map((m: { media_url: string; media_type: string; thumbnail_url?: string | null }) => ({
-                  ...m,
-                  media_url: toProxyUrl(m.media_url, { type: 'post', id: viewable.id }),
-                  thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: viewable.id }),
-                })),
-              }
-            : null;
-          return { ...msg, media_url: mediaUrl, shared_post };
-        }
+            .in('id', sharedPostIds)
+        : Promise.resolve({ data: [] as SharedPostRow[] }),
+      sharedProfileIds.length > 0
+        ? supabase.from('profiles').select('id, first_name, last_name, full_name, avatar_url, handle, bio, sport').in('id', sharedProfileIds)
+        : Promise.resolve({ data: [] as SharedProfileRow[] }),
+    ]);
+    const sharedPosts = new Map(((sharedPostsResult.data ?? []) as SharedPostRow[]).map(post => [post.id, post]));
+    const sharedProfiles = new Map(((sharedProfilesResult.data ?? []) as SharedProfileRow[]).map(profile => [profile.id, profile]));
 
-        if (msg.type === 'shared_profile' && msg.shared_profile_id) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, full_name, avatar_url, handle, bio, sport')
-            .eq('id', msg.shared_profile_id)
-            .maybeSingle();
-          return { ...msg, media_url: mediaUrl, shared_profile: profile };
-        }
+    // Privacy filter for shared posts: this route runs on the admin client
+    // (bypasses posts RLS), so post visibility must be enforced here. A shared
+    // post is viewable when the owner's profile is visible to the viewer AND
+    // (the post is public OR the viewer follows the owner).
+    const ownerOf = (post: SharedPostRow): string | null => {
+      const owner = Array.isArray(post.profile) ? post.profile[0] : post.profile;
+      return owner?.id ?? null;
+    };
+    const ownerPublic = new Map<string, boolean>();
+    const followed = new Set<string>();
+    const knownOwners = new Set<string>();
+    /** The owners' visibility and the viewer's follows among them — one pair of
+     *  batched reads for the owners not loaded yet (the page's shares first,
+     *  the reply previews' shares after). */
+    const loadOwnerAccess = async (ids: readonly (string | null)[]) => {
+      const missing = [...new Set(ids.filter((id): id is string => !!id && id !== user.id && !knownOwners.has(id)))];
+      if (missing.length === 0) return;
+      const [ownersResult, followsResult] = await Promise.all([
+        supabase.from('profiles').select('id, visibility').in('id', missing),
+        supabase.from('follows').select('following_id').eq('follower_id', user.id).eq('status', 'accepted').in('following_id', missing),
+      ]);
+      for (const o of (ownersResult.data ?? []) as Array<{ id: string; visibility: string | null }>) ownerPublic.set(o.id, o.visibility !== 'private');
+      for (const f of (followsResult.data ?? []) as Array<{ following_id: string }>) followed.add(f.following_id);
+      for (const id of missing) knownOwners.add(id);
+    };
+    await loadOwnerAccess([...sharedPosts.values()].map(ownerOf));
+    const viewableSharedPost = (post: SharedPostRow | undefined): SharedPostRow | null => {
+      if (!post) return null;
+      const ownerId = ownerOf(post);
+      if (!ownerId) return null;
+      if (ownerId === user.id) return post;
+      const isFollower = followed.has(ownerId);
+      const profileOk = (ownerPublic.get(ownerId) ?? true) || isFollower;
+      const postOk = post.visibility !== 'private' || isFollower;
+      return profileOk && postOk ? post : null;
+    };
 
-        return { ...msg, media_url: mediaUrl };
-      })
-    );
+    // Enrich shared content for non-deleted messages — no reads in here.
+    const enrichedMessages = messages.map((msg) => {
+      if (msg.deleted_at) {
+        // Soft-deleted: the UI shows "Message deleted" — never ship the
+        // original content/media back to clients.
+        return { ...msg, content: null, media_url: null, media_type: null, shared_post_id: null, shared_profile_id: null };
+      }
+
+      // The message's own media (image/video) is proxied and re-authorized
+      // per participant. A gif_reaction is an external Giphy URL, which
+      // toProxyUrl leaves untouched (not a protected bucket).
+      const mediaUrl = toProxyUrl(msg.media_url, { type: 'message', id: msg.id }, { visibility: 'private' });
+
+      if (msg.type === 'shared_post' && msg.shared_post_id) {
+        const viewable = viewableSharedPost(sharedPosts.get(msg.shared_post_id));
+        // The shared original's media is post media — proxied under the
+        // original post's id (its own visibility governs it).
+        const shared_post = viewable
+          ? {
+              ...viewable,
+              media: (viewable.media || []).map((m: SharedMedia) => ({
+                ...m,
+                media_url: toProxyUrl(m.media_url, { type: 'post', id: viewable.id }),
+                thumbnail_url: toProxyUrl(m.thumbnail_url ?? null, { type: 'post', id: viewable.id }),
+              })),
+            }
+          : null;
+        return { ...msg, media_url: mediaUrl, shared_post };
+      }
+
+      if (msg.type === 'shared_profile' && msg.shared_profile_id) {
+        return { ...msg, media_url: mediaUrl, shared_profile: sharedProfiles.get(msg.shared_profile_id) ?? null };
+      }
+
+      return { ...msg, media_url: mediaUrl };
+    });
 
     // Enrich with emoji reactions (the chip-style reactions on each message).
     // GIF reactions are now part of `enrichedMessages` itself — they are
@@ -359,10 +383,11 @@ export async function GET(
       const parentProfilesById = new Map((parentProfilesResult.data || []).map(p => [p.id, p]));
 
       // Attach to parentMessagesMap entries (privacy-filtered, same as
-      // top-level shared posts)
+      // top-level shared posts; their owners join the batched lookup first).
+      await loadOwnerAccess(((parentPostsResult.data || []) as SharedPostRow[]).map(ownerOf));
       for (const pm of postParents) {
         const entry = parentMessagesMap.get(pm.id);
-        if (entry) entry.shared_post = await filterViewableSharedPost(parentPostsById.get(pm.shared_post_id) ?? null);
+        if (entry) entry.shared_post = viewableSharedPost(parentPostsById.get(pm.shared_post_id) as SharedPostRow | undefined);
       }
       for (const pm of profileParents) {
         const entry = parentMessagesMap.get(pm.id);

@@ -12,7 +12,9 @@ import { shouldPoll } from '@/lib/net/online';
 // the live-scoring system builds on (feed cards, scorecard modal, score entry —
 // and, later, tournament/leaderboard pages). It:
 //   • seeds from the scorecard the feed already loaded (no extra fetch on mount),
-//   • refreshes once when enabled (the seeded data may be minutes old),
+//   • refreshes once when enabled (the seeded data may be minutes old) —
+//     unless the caller fetched the seed itself within 5 s (`initialFreshAt`;
+//     the live page), in which case that read IS the sync,
 //   • subscribes to Supabase Realtime on THIS ROUND's golf_participant_scores
 //     rows (filtered to the roster's participant ids — scale fix 1, Oct 25
 //     2026: a table-wide subscription delivered every score written anywhere
@@ -56,11 +58,15 @@ const RETRY_BASE_MS = 2_000;
 const RETRY_MAX_MS = 30_000;
 // Supabase Realtime's `in.(…)` filter accepts at most 100 values.
 const REALTIME_IN_FILTER_MAX = 100;
+// A seed fetched this recently IS the sync — the live page reads the scorecard
+// itself and then mounts the hook, which used to read it again at once.
+const SEED_FRESH_MS = 5_000;
 
 export function useSharedRound({
   groupPostId,
   postId,
   initialScorecard,
+  initialFreshAt = null,
   enabled,
 }: {
   groupPostId: string | null;
@@ -69,6 +75,11 @@ export function useSharedRound({
    *  back to the group-post scorecard endpoint. */
   postId?: string | null;
   initialScorecard: CompleteGolfScorecard | null;
+  /** When the caller fetched `initialScorecard` itself (ms). Within
+   *  SEED_FRESH_MS of now the enable-time sync is skipped — the seed is the
+   *  sync (scale round 2 leftovers, Nov 7 2026). Absent = the seed may be
+   *  minutes old (a feed card) and is synced once. */
+  initialFreshAt?: number | null;
   enabled: boolean;
 }) {
   const [scorecard, setScorecard] = useState<CompleteGolfScorecard | null>(initialScorecard);
@@ -148,9 +159,15 @@ export function useSharedRound({
   // into this effect would mean re-exporting a wrapper and risking drift from
   // the `cache: 'no-store'` guarantee on live leaderboards. Not worth it.
   useEffect(() => {
+    if (!enabled) return;
+    if (initialFreshAt && Date.now() - initialFreshAt < SEED_FRESH_MS) {
+      // The caller's own read is the sync; the coalescing floor starts from it.
+      lastRefreshAtRef.current = initialFreshAt;
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (enabled) refresh();
-  }, [enabled, refresh]);
+    refresh();
+  }, [enabled, refresh, initialFreshAt]);
 
   // Participant RECORD ids (group_post_participants.id): the server-side
   // filter of the scores subscription AND the client-side classifier. The

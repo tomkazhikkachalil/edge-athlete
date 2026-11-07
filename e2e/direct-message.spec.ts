@@ -68,3 +68,63 @@ test('direct message: A sends via API, B reads and replies in UI, A sees reply',
     await expect(page.getByText(`qa-reply-${stamp}`).first()).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
 });
+
+// Scale round 2 leftovers (Nov 7 2026): the thread's shared posts and shared
+// profiles are read in batches (four `.in()` reads for the page), not one per
+// message. The payload is unchanged — this pins that the cards still ride
+// along, and that a private owner's post stays hidden from a non-follower.
+test('a thread with shared posts and profiles: the owner sees the cards, a non-follower of a private owner sees the profile card and no post', async () => {
+  test.setTimeout(90_000);
+  const userA = loadQaUser('user.json');
+  const userB = loadQaUser('user-b.json');
+  const stamp = Date.now();
+  const apiA = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  let postId: string | null = null;
+  try {
+    const post = await apiA.post('/api/posts', { data: { postType: 'general', caption: `qa-share-${stamp}`, visibility: 'public' } });
+    expect(post.ok(), await readErrorBody(post)).toBe(true);
+    const created = (await post.json()) as { post?: { id: string }; id?: string };
+    postId = created.post?.id ?? created.id ?? null;
+    expect(postId).toBeTruthy();
+
+    const convRes = await apiA.post('/api/messages', { data: { type: 'direct', participantId: userB.id } });
+    expect(convRes.ok(), await readErrorBody(convRes)).toBe(true);
+    const conversationId = (await convRes.json()).conversationId as string;
+
+    for (const data of [
+      { type: 'shared_post', shared_post_id: postId },
+      { type: 'shared_profile', shared_profile_id: userA.id },
+      { type: 'shared_post', shared_post_id: postId }, // the same post twice — one read, two cards
+      { type: 'text', content: `qa-after-${stamp}` },
+    ]) {
+      const sent = await apiA.post(`/api/messages/${conversationId}/messages`, { data });
+      expect(sent.ok(), await readErrorBody(sent)).toBe(true);
+    }
+
+    // The owner reads their own cards (always viewable); the QA accounts are
+    // PRIVATE and B does not follow A, so B gets the shared PROFILE card and a
+    // null shared post — the rule the batched lookup must keep.
+    type Thread = { messages: Array<{ type: string; shared_post?: { id: string; media: unknown[] } | null; shared_profile?: { id: string } | null }> };
+    const own = (await (await apiA.get(`/api/messages/${conversationId}`)).json()) as Thread;
+    const ownShares = own.messages.filter(m => m.type === 'shared_post');
+    expect(ownShares.length).toBeGreaterThanOrEqual(2);
+    for (const m of ownShares) {
+      expect(m.shared_post?.id).toBe(postId);
+      expect(Array.isArray(m.shared_post?.media)).toBe(true);
+    }
+    expect(own.messages.filter(m => m.type === 'shared_profile')[0]?.shared_profile?.id).toBe(userA.id);
+
+    const read = await apiB.get(`/api/messages/${conversationId}`);
+    expect(read.ok(), await readErrorBody(read)).toBe(true);
+    const theirs = (await read.json()) as Thread;
+    const theirShares = theirs.messages.filter(m => m.type === 'shared_post');
+    expect(theirShares.length).toBeGreaterThanOrEqual(2);
+    for (const m of theirShares) expect(m.shared_post, 'a private owner\'s post hides from a non-follower').toBeNull();
+    expect(theirs.messages.filter(m => m.type === 'shared_profile')[0]?.shared_profile?.id).toBe(userA.id);
+  } finally {
+    if (postId) await apiA.delete(`/api/posts/${postId}`).catch(() => undefined);
+    await apiA.dispose();
+    await apiB.dispose();
+  }
+});

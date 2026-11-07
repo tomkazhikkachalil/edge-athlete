@@ -56,6 +56,8 @@ export default function LiveRoundPage() {
   const router = useRouter();
 
   const [initial, setInitial] = useState<CompleteGolfScorecard | null>(null);
+  // When `initial` was read — the hook skips its own identical refetch (Nov 7 2026).
+  const [initialAt, setInitialAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showFullCard, setShowFullCard] = useState(false);
@@ -111,7 +113,10 @@ export default function LiveRoundPage() {
           return;
         }
         const data = await res.json();
-        if (!cancelled) setInitial(data.scorecard ?? null);
+        if (!cancelled) {
+          setInitial(data.scorecard ?? null);
+          setInitialAt(Date.now());
+        }
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
@@ -127,6 +132,7 @@ export default function LiveRoundPage() {
   const { scorecard, refresh, stale } = useSharedRound({
     groupPostId: groupPostId ?? null,
     initialScorecard: initial,
+    initialFreshAt: initialAt,
     enabled: !!initial,
   });
 

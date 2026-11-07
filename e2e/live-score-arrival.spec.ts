@@ -27,10 +27,17 @@ test('live scores arrive on a spectator\'s card without a reload — a late join
     gp = (await created.json()).group_post.id as string;
 
     const page = await ctxB.newPage();
+    // Count the scorecard reads from the first byte: the page reads it once
+    // and the hook must NOT read it again on mount (the seed is the sync).
+    let scorecardFetches = 0;
+    const count = (req: { url(): string }) => { if (req.url().includes(`/api/group-posts/${gp}/scorecard`)) scorecardFetches += 1; };
+    page.on('request', count);
     await page.goto(`/live/${gp}`);
     // A plain round's live page is the quick view: a row per participant with
     // "thru N" once they have scored, and the "Participants: N" summary.
     await expect(page.getByText(/Participants:\s*2/)).toBeVisible({ timeout: 20_000 });
+    await page.waitForTimeout(1_500); // room for a would-be second read
+    expect(scorecardFetches, 'the live page opens with ONE scorecard read (Nov 7 2026)').toBe(1);
     await page.evaluate(() => { (window as unknown as { __liveArrival?: number }).__liveArrival = 1; });
     const stillSameDocument = () => page.evaluate(() => (window as unknown as { __liveArrival?: number }).__liveArrival === 1);
     const score = (profileId: string, hole: number, strokes: number) =>
@@ -49,9 +56,7 @@ test('live scores arrive on a spectator\'s card without a reload — a late join
     //     and no scheduled fetch lands within 3 s of the last — so a burst
     //     lasting T seconds is at most 1 + ceil(T / 3) fetches (the writes
     //     themselves take 0.5–1 s each from here through staging).
-    let scorecardFetches = 0;
-    const count = (req: { url(): string }) => { if (req.url().includes(`/api/group-posts/${gp}/scorecard`)) scorecardFetches += 1; };
-    page.on('request', count);
+    scorecardFetches = 0; // the burst's own count (step 1's read above excluded)
     const burstStart = Date.now();
     for (let hole = 2; hole <= 6; hole += 1) {
       const r = await score(userA.id, hole, 4);

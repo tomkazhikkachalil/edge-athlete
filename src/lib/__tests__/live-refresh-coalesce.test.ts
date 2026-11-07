@@ -69,3 +69,18 @@ describe('useSharedRound: realtime events schedule, the imperative refresh stays
     expect(hook).toMatch(/const refresh = useCallback\(async \(\): Promise<boolean> => \{\s*lastRefreshAtRef\.current = Date\.now\(\);/);
   });
 });
+
+describe('a seed the caller just fetched is the sync (the live page opened with ONE scorecard read)', () => {
+  const hook = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useSharedRound.ts'), 'utf8');
+  const page = fs.readFileSync(path.join(process.cwd(), 'src/app/(app)/live/[groupPostId]/page.tsx'), 'utf8');
+  it('the hook skips its enable-time refresh within SEED_FRESH_MS of initialFreshAt and starts the floor there', () => {
+    expect(hook).toContain('const SEED_FRESH_MS = 5_000;');
+    expect(hook).toMatch(/if \(initialFreshAt && Date\.now\(\) - initialFreshAt < SEED_FRESH_MS\) \{\s*(\/\/[^\n]*\n\s*)?lastRefreshAtRef\.current = initialFreshAt;\s*return;\s*\}\s*(\/\/[^\n]*\n\s*)?refresh\(\);\s*\}, \[enabled, refresh, initialFreshAt\]\);/);
+  });
+  it('the live page passes the time of its own read; a feed card passes nothing and is synced once', () => {
+    expect(page).toContain('setInitialAt(Date.now());');
+    expect(page).toContain('initialFreshAt: initialAt,');
+    const card = fs.readFileSync(path.join(process.cwd(), 'src/components/PostCard.tsx'), 'utf8');
+    expect(card).not.toContain('initialFreshAt');
+  });
+});
