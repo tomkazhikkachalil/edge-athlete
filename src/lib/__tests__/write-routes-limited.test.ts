@@ -47,6 +47,7 @@ const ALLOWED: Record<string, string> = {
   'contact': 'the public contact form: IP-keyed `contact`, a session is optional',
   'contacts': 'the public contact capture: IP-keyed `contacts`',
   'tickets/guest': 'a guest support ticket: IP-keyed `contact`',
+  'page-timings': 'the real-user page-timings beacon (migration 305): IP-keyed `page-timings`, anonymous visitors count too, 204 whatever happens — a measurement about a build, never a write for an account',
   'posts/views': 'the impact beacon: IP-keyed `post-views`, answers 204 even when limited',
   'public/site-forms/[siteId]/[widgetId]': 'an org site form from the public web: IP-keyed `site-form` + `site-form-site`',
   'csp-report': 'the browser\'s CSP report sink: IP-keyed, no account',

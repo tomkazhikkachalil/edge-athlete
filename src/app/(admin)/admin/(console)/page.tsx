@@ -13,6 +13,7 @@ import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPane
 import GolfMapSweepPanel from '@/components/admin/GolfMapSweepPanel';
 import GolfCoursePicksPanel from '@/components/admin/GolfCoursePicksPanel';
 import MediaJobsPanel from '@/components/admin/MediaJobsPanel';
+import PageTimingsPanel from '@/components/admin/PageTimingsPanel';
 import AccountPurgePanel from '@/components/admin/AccountPurgePanel';
 import ConnectedAppsSetupPanel from '@/components/admin/ConnectedAppsSetupPanel';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -378,6 +379,7 @@ export default function AdminDashboardPage() {
 
         {/* Media jobs (Oct 13 2026, mig 261): the video worker's door — the queue, a tick, the backfill. */}
         <MediaJobsPanel />
+        <PageTimingsPanel />
 
         {/* Departed accounts (Sep 24 2026): purge a parked account now — the door. */}
         <AccountPurgePanel />

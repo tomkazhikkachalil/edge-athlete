@@ -30,6 +30,7 @@ import { runMediaJobsHygiene } from '@/lib/media/enqueue-server';
 import { recordJobSummary } from '@/lib/platform-jobs/record';
 import { runPlatformRollup } from '@/lib/platform-stats/rollup-server';
 import { addDays, dayUTC } from '@/lib/platform-stats/metrics';
+import { runPageTimingsPrune } from '@/lib/observability/page-timings-server';
 
 export const maxDuration = 60;
 
@@ -181,6 +182,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     reportRouteError('[DAILY] post views prune phase failed:', e);
     summary.postViews = { ok: false };
+  }
+
+  // Real-user page timings (305): rows older than 30 days go — a number about a build, kept a month.
+  try {
+    summary.pageTimings = await runPageTimingsPrune(admin);
+  } catch (e) {
+    reportRouteError('[DAILY] page timings prune phase failed:', e);
+    summary.pageTimings = { ok: false };
   }
 
   // Counters (277): the like / comment / comment-like triggers add or subtract
