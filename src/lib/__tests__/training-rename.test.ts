@@ -20,6 +20,8 @@ const ALLOWED: RegExp[] = [
   /\bvitals: (0|number;|data\.vitals|bodyMetrics|\[\]|filterTrainingRows)/,
   /counts\.vitals/, /data\.vitals/, /data\.vitalsPrivacy/, /data\.currentVitals/,
   /called Vitals until Oct 14 2026/,
+  // Next's own API for the browser's timing metrics (the page-timings beacon, migration 305) — the framework's name, not ours.
+  /next\/web-vitals/, /useReportWebVitals/,
 ];
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

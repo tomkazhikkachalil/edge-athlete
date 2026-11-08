@@ -47,6 +47,8 @@ export const RATE_LIMITS = {
   'admin-login-ip': { max: 20, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   'admin-login': { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   'handle-check': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  // Real-user page timings beacons (305): a page sends one batch; sixty a minute from one address is a browser, more is a script.
+  'page-timings': { max: 60, windowSeconds: 60, keyBy: 'ip' },
   // Course picker search — anonymous-reachable and it reads cross-user
   // course history; the golf_courses catalog makes it a scraping target.
   // 120/min, not 30: a typing user fires one request per debounced
