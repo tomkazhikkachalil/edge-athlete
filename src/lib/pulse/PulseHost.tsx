@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { requestPulse } from '@/lib/pulse/pulse-store';
+import { hydratePulse, requestPulse } from '@/lib/pulse/pulse-store';
 
 /**
  * The public `live-now` topic (the cost program PR C, Nov 6 2026; migration
@@ -20,6 +20,8 @@ export default function PulseHost() {
 
   useEffect(() => {
     if (!user) return;
+    // The device's copy of this account's numbers paints first (Phase 2b).
+    hydratePulse(user.id);
     const channel = supabase
       .channel('live-now', { config: { private: true } })
       .on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))

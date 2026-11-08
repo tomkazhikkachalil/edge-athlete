@@ -11,6 +11,7 @@
  * src/lib/__tests__/me-pulse.test.ts).
  */
 import { getOnline } from '@/lib/net/online';
+import { readDevice, writeDevice } from '@/lib/net/device-store';
 import {
   EMPTY_PULSE,
   PULSE_REFRESH_MS,
@@ -25,6 +26,8 @@ import {
 type Listener = (snapshot: PulseSnapshot) => void;
 
 let snapshot: PulseSnapshot = EMPTY_PULSE;
+/** The account whose numbers the device keeps (Phase 2b); null until hydratePulse. */
+let deviceUserId: string | null = null;
 const listeners = new Set<Listener>();
 let inFlight: Promise<PulseSnapshot> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -52,6 +55,7 @@ export function fetchPulse(): Promise<PulseSnapshot> {
       if (!res.ok) return snapshot;
       snapshot = readPulsePayload(await res.json(), snapshot, Date.now());
       notify();
+      if (deviceUserId) writeDevice(deviceUserId, 'pulse', snapshot);
       return snapshot;
     } catch {
       // The numbers are a nicety: a blip shows the last answer, never an error.
@@ -77,6 +81,22 @@ export function requestPulse(reason: PulseReason): void {
   if (plan === 'fetch') void fetchPulse();
 }
 
+/**
+ * Paint the device's copy of this account's numbers before the first fetch
+ * (Phase 2b, Nov 2026): the badge and the Live dot show what they showed
+ * last time the moment the app reopens. `fetchedAt` is NOT restored — the
+ * copy is a paint, so the mount read still fetches. Another account's copy
+ * never applies (the key carries the id); an empty store changes nothing.
+ */
+export function hydratePulse(userId: string): void {
+  deviceUserId = userId;
+  if (snapshot.fetchedAt !== 0) return;
+  const remembered = readDevice<PulseSnapshot>(userId, 'pulse');
+  if (!remembered) return;
+  snapshot = { ...remembered, fetchedAt: 0 };
+  notify();
+}
+
 /** A conversation was read here: correct the number without a fetch. */
 export function adjustPulseUnread(delta: number): void {
   const next = adjustUnread(snapshot, delta);
@@ -88,6 +108,7 @@ export function adjustPulseUnread(delta: number): void {
 /** Logout: nothing is live and nothing is unread for nobody. */
 export function resetPulse(): void {
   snapshot = EMPTY_PULSE;
+  deviceUserId = null;
   notify();
 }
 

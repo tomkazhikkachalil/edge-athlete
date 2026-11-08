@@ -1,5 +1,21 @@
 # Development Log
 
+## November 7, 2026 — Performance program, Phase 2b: the installed app reopens to what it had — the profile, the badges and the feed's first page paint from the device before any network answer
+
+**Why.** Every reopen of the installed app started from an empty shell: no name in the header, no numbers on the badges, a spinner for the feed, until the session check, the profile read and the first page each came back — three round trips in sequence, and after a deploy each one a possible cold function. Tom's decision (Nov 7 2026): the profile, the counts and the last feed page may live on the device, keyed by the account, cleared on sign-out.
+
+**What changed (zero DDL):**
+- **The device store.** `src/lib/net/hydration-rules.ts` (zero imports — the allowlist of three kinds with a lifetime each: `profile` 7 days, `pulse` 24 h, `feed` 24 h; the key `ea:hyd:v1:<userId>:<kind>` with the account FIRST; an envelope accepted only when it is this account's, this shape's and within its lifetime, never from a clock set into the future; the feed trimmed to its first 20) and `device-store.ts` (every read and write wrapped — a private window, a blocked origin or a full quota leaves the app exactly as it was).
+- **The profile paints first.** `AuthProvider` reads the device's copy right after the session check and, when there is one, sets the profile, drops `loading` and marks the auth check complete BEFORE the profile read — the header has its name and every page that gates on `loading` proceeds; the read then revalidates and writes the fresh copy back. A copy that is another account's or stale is null and nothing changes.
+- **The badges paint first.** `PulseHost` calls `hydratePulse(user.id)`: the pulse store paints the remembered numbers with `fetchedAt` left at 0, so the mount read still fetches (a paint, never a reason to skip); every successful fetch writes the copy back.
+- **The feed paints first.** On the default scope, when the read cache holds nothing, the page shows the device's first page and keeps the spinner off it while `loadFeed` revalidates; a first-page success on the default scope saves the trimmed copy.
+- **Sign-out forgets everything** — the explicit sign-out and both dead-session branches call `clearDevice()`, which removes every `ea:hyd:v1:*` key whoever's it is.
+- **Pinned:** `hydration-rules.test.ts` (keys, the allowlist, acceptance, the trim), `hydration-adoption.test.ts` (the wiring in the four files, every sign-out path), and `e2e/hydration.spec.ts` (`@mobile`): after one ordinary open the next one has the feed read, the profile read and the pulse HELD BACK for twenty seconds — and the person's own post is on screen within eight.
+
+**Phase 2d on production (25befb8c, the same spec on edgeathlete.ca with the budget ASSERTED):** **14 API calls** on a cold `/feed` — `/api/follow/stats` 0, `/api/me/pulse` 1, `/api/relay` 0, `/api/live-now` 1 — where the first measurement of the day read 23.
+
+**Proof:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **5,960 tests in 650 files**, the build, `check:weight` ✓, `check:syntax` ✓ (290 chunks); `e2e/hydration.spec.ts` on the built app: `mobile` 1/1 and `webkit-mobile` (real WebKit) 1/1 — the remembered post on screen while the feed, profile and pulse answers were held back twenty seconds; `perf-feed.spec.ts` unchanged at 14. The production run of the hydration spec follows the merge.
+
 ## November 7, 2026 — Performance program, Phase 2d: the three cuts the budget exposed — the suggestions carry the follow stats, one pulse read, no Sentry beacon without an error (23 → 14 API calls on a cold feed)
 
 **Phase 2 on production (e0302910, `e2e/perf-feed.spec.ts` on the `mobile` project against edgeathlete.ca):** `/api/live-now` **1**, the three routes it replaced **0**, 22 API calls before the page settled, first post at 2,886 ms on the CPU-throttled phone emulation. The count's breakdown named the next three cuts, and this PR is them (zero DDL):
