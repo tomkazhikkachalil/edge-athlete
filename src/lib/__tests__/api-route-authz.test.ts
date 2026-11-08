@@ -39,6 +39,8 @@ const PROFILE_GATE_RE =
  * posix-style, without the trailing /route.ts.
  */
 const PUBLIC_ROUTES: Record<string, string> = {
+  'live-now':
+    'performance program Phase 2 (Nov 2026): the Live Now strip\'s ONE read — it calls the golf, sport-events and videos live-now GET handlers in-process with the same request, so their gates (requireAuth on the rounds, getServerAuth + the sport-event-view limiter on the events, getServerAuth on the broadcasts) run exactly as before; this file adds no rule and reads no table (open-path-cache.test.ts pins that)',
   health: 'liveness probe; returns no user data',
   'csp-report': 'browser-sent CSP violation sink; write-only, rate-limited',
   'posts/views': 'impact beacon (252, Oct 4 2026): a view / play signal signed in or out — answers 204 whatever happens (limited, bot, Sec-GPC / DNT, no salt, junk); the server decides whose view it was from a hashed daily mark and keeps only published posts the viewer may see and did not write; nothing about who is stored',

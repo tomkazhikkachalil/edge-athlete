@@ -16,6 +16,16 @@ import { test, expect, type Page } from './helpers/test';
 // how the "before" numbers were taken.
 
 const BASELINE = process.env.PERF_BASELINE === '1';
+/**
+ * The most /api calls a cold /feed may make before it settles. Measured on the
+ * `mobile` project against the built app, Nov 7 2026, after Phase 2's strip
+ * change: 23 — posts 1, notifications 1, messages 1, drafts 1, live-now 1,
+ * suggestions 1, follow/stats 5 (one per suggestion — the next cut), me/pulse 2
+ * (one too many — the next cut), relay 3 (the Sentry browser tunnel — the next
+ * cut), guardian/athletes 1, calendar/events 1, workout-routines 1,
+ * getting-started 1, organizations 1, seen 1, push/config 1. It ratchets DOWN.
+ */
+const OPEN_PATH_API_BUDGET = 23;
 
 interface Sample {
   engine: string;
@@ -138,6 +148,15 @@ async function run(page: Page, engine: string) {
   expect(sample.afterTokenRefresh.profile, 'the profile was re-read on a token refresh').toBe(0);
   // The bell loads once.
   expect(sample.apiByPath['/api/notifications'] ?? 0, '/api/notifications fetched more than once on load').toBeLessThanOrEqual(1);
+  // The open path's budget (performance program, Phase 2 — Nov 2026): how
+  // many /api calls a cold /feed makes before it settles. Each one is a round
+  // trip, and right after a deploy each one may land on a cold function
+  // (docs/load/2026-11-07/cold-after-warm.md). The Live Now strip is ONE
+  // call (`/api/live-now`), not three. The number ratchets DOWN; raising it
+  // is a decision written in the devlog.
+  expect(sample.apiOnLoad, `the open path grew: ${JSON.stringify(sample.apiByPath)}`).toBeLessThanOrEqual(OPEN_PATH_API_BUDGET);
+  expect(sample.apiByPath['/api/live-now'] ?? 0, 'the Live Now strip reads /api/live-now once').toBe(1);
+  expect((sample.apiByPath['/api/golf/live-now'] ?? 0) + (sample.apiByPath['/api/sport-events/live-now'] ?? 0) + (sample.apiByPath['/api/videos/live-now'] ?? 0), 'the strip no longer calls the three live-now routes').toBe(0);
 }
 
 test('perf: a cold /feed and a return to the app (desktop)', async ({ page }) => {

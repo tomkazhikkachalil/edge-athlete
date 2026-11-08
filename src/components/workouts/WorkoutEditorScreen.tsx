@@ -1,4 +1,5 @@
 'use client';
+import { invalidate } from '@/lib/net/query-cache';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -701,6 +702,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
         setRoutineError(data.error || 'Failed to save routine');
         return;
       }
+      invalidate('/api/workout-routines');
       setRoutineSaved(true);
     } catch (err) {
       console.error('Failed to save routine:', err);

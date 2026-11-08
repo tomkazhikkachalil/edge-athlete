@@ -9,6 +9,7 @@ import WorkoutDetailItems from './WorkoutDetailItems';
 import WorkoutVideos from './WorkoutVideos';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
+import { invalidate } from '@/lib/net/query-cache';
 
 interface WorkoutCardProps {
   session: ServerWorkoutSession;
@@ -81,6 +82,7 @@ export default function WorkoutCard({
         setRoutineError(data.error || 'Failed to save routine');
         return;
       }
+      invalidate('/api/workout-routines');
       showNotice('Routine saved', `Pick “${name}” next time you start a workout.`);
       setSavePromptOpen(false);
     } catch (err) {

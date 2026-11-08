@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { refreshDrafts } from '@/hooks/useDrafts';
 import type { WorkoutRoutine } from '@/lib/workouts/routines';
+import { fetchJson, invalidate, readCached } from '@/lib/net/query-cache';
+
+const ROUTINES_KEY = '/api/workout-routines';
+/** A routine changes only when the viewer acts (and every door that acts refreshes). */
+const ROUTINES_STALE_MS = 5 * 60_000;
 
 /**
  * ONE way to start a live workout (Create menu redesign, Oct 13 2026) —
@@ -25,18 +30,23 @@ export function useStartWorkout(enabled: boolean) {
   const [starting, setStarting] = useState(false);
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
 
-  // Saved routines feed the Start Workout picker. Inlined cancellable IIFE
-  // (not a callback call) so it stays out of the set-state-in-effect warning
-  // list; event handlers refresh by bumping routinesReload.
+  // Saved routines feed the Start Workout picker. Through the read cache
+  // (performance program, Phase 2 — Nov 2026): the header mounts this hook
+  // on every page, so the list used to be fetched on EVERY navigation; now
+  // it is read once and kept five minutes, and every door that changes a
+  // routine calls refreshRoutines() (invalidate + read). Inlined cancellable
+  // IIFE so it stays out of the set-state-in-effect warning list.
   const [routinesReload, setRoutinesReload] = useState(0);
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch('/api/workout-routines', { credentials: 'include' });
-        if (!response.ok) return;
-        const data = await response.json();
+        const data = await readCached<{ routines?: WorkoutRoutine[] }>(
+          ROUTINES_KEY,
+          () => fetchJson<{ routines?: WorkoutRoutine[] }>(ROUTINES_KEY),
+          { staleMs: ROUTINES_STALE_MS }
+        );
         if (!cancelled) setRoutines(data.routines ?? []);
       } catch {
         /* keep whatever we had */
@@ -46,7 +56,10 @@ export function useStartWorkout(enabled: boolean) {
       cancelled = true;
     };
   }, [enabled, routinesReload]);
-  const refreshRoutines = () => setRoutinesReload(k => k + 1);
+  const refreshRoutines = () => {
+    invalidate(ROUTINES_KEY);
+    setRoutinesReload(k => k + 1);
+  };
 
   const start = async (routineId: string | null = null, opts: { title?: string; timed?: boolean } = {}) => {
     if (starting) return;

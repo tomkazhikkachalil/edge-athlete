@@ -15,7 +15,7 @@ import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import type { EventListItem } from './types';
 import FilterChip from './FilterChip';
 import { useHouseholdRoster } from './useHouseholdRoster';
-import { FEATURE_FLAGS } from '@/lib/features';
+import { fetchJson, readCached } from '@/lib/net/query-cache';
 
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
@@ -202,18 +202,20 @@ export default function FeedCalendarWidget() {
   // failure is the Retry path; a child's failure only logs (family-week
   // doctrine: a child's fetch never blanks the widget). Retry bumps refetchKey.
   useEffect(() => {
-    // Wait for the household roster (null = not read yet) so the calendar is
-    // read ONCE with every layer, not once bare and again when the roster
-    // lands (speed round, Oct 2026). Without the guardian feature the roster
-    // is never read, so there is nothing to wait for.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && people === null) return;
+    // The viewer's OWN calendar is read at once; the household's layers are
+    // read when the roster has landed (people null = not read yet). The
+    // speed round (Oct 2026) waited for the roster so the calendar was read
+    // once with every layer; that put the roster's round trip in front of
+    // every viewer's calendar, a solo viewer's included (performance
+    // program, Phase 2 — Nov 2026). Now the own read never waits, and a
+    // guardian's children arrive in their own pass — the same number of
+    // calls, one hop sooner. Each read goes through the read cache: a return
+    // to the page within ten seconds paints what it had.
     let cancelled = false;
     (async () => {
       const base = `/api/calendar/events?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
       const fetchSet = async (personId: string, url: string) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const data = await res.json();
+        const data = await readCached<{ events?: EventListItem[] }>(url, () => fetchJson(url));
         return { personId, events: (data.events ?? []) as EventListItem[] };
       };
       try {
