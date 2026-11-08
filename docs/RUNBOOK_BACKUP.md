@@ -177,3 +177,12 @@ recreate the auth users with their original ids, load with row triggers off,
 rewrite the storage host, upload the files, verify). It ran on Sep 30 2026 —
 the reset's snapshot restored into staging in about two minutes, every
 count matching — which is the quarterly drill this runbook asks for.
+
+**Where the Sep 30 snapshots live (Nov 7 2026):** on Tom's Mac at
+`database/ops/snapshots/2026-09-30-{prod,staging}-…/` (gitignored, 141 MB) and
+restored in staging. They were tracked in git until the performance program
+found Vercel uploading them with every deploy and the file tracer folding
+their 601 PNGs into every function (`docs/specs/performance-budgets.md`,
+Convention 59) — `git rm --cached` removed them from the index; the files
+themselves were not touched. A new export lands in the same gitignored path
+and `.vercelignore` keeps it off the deploy.

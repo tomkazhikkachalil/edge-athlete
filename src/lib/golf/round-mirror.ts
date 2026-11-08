@@ -12,7 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { golfWindBandFromMph } from '@/lib/weather/weather';
-import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/enqueue-server';
 import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { isActiveParticipant } from './round-status';
 import { hiddenProfileIdsForRound } from '@/lib/sport-events/opt-out';

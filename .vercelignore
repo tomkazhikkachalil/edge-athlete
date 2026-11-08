@@ -1,0 +1,12 @@
+# What never leaves this machine for a deploy (performance program, Nov 7 2026).
+# The Sep 30 snapshots (141 MB of JSON + uploaded photos) were being uploaded
+# with every deploy and TRACED into the functions (see next.config.ts
+# outputFileTracingExcludes); the rest is reference material a function never
+# reads. Vercel reads this file like .gitignore. NOT e2e/: `next build`'s type
+# check covers playwright.config.ts and the tests that import its helpers
+# (the first preview build proved it); the tracing excludes keep e2e out of
+# the functions anyway.
+database/ops/snapshots
+database/provenance
+docs
+.github

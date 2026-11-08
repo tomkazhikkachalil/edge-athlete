@@ -48,6 +48,13 @@ jobs:
       - name: Check browser syntax
         run: npm run check:syntax
 
+      # The weight gates (performance program, Nov 7 2026): no route's
+      # function traces more than 25 MB unless it carries a binary on purpose,
+      # and the client code every page loads stays under its gzipped budget.
+      # The feed's function traced ~175 MB before this gate existed.
+      - name: Check function and bundle weight
+        run: npm run check:weight
+
   # Hardening guardrails — cheap pattern checks that encode the exact
   # regressions the pre-scale audit fixed (backslash .or() sanitizer, thrown
   # Response in a route, await cookies() outside the auth exceptions) plus a

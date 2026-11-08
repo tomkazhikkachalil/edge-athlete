@@ -7,7 +7,7 @@
 // once). Best-effort, like every mirror here.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { enqueueForPostMedia, enqueueMediaJobs, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import { enqueueForPostMedia, enqueueMediaJobs, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/enqueue-server';
 import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { buildMirrorMedia, type RoundMediaInput } from '@/lib/golf/round-mirror';
 import { toProxyUrl } from '@/lib/media/proxy-url';
