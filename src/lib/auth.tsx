@@ -9,6 +9,7 @@ import { FEATURE_FLAGS } from './features';
 import { setChatDockHidden } from './chat-dock-visibility';
 import { disablePush, setIconBadge } from './push/client';
 import { planAuthEvent } from './auth-events';
+import { resetQueryCache } from '@/lib/net/query-cache';
 
 const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
@@ -342,7 +343,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Sign out from Supabase
       await supabase.auth.signOut();
 
-      // Clear local state
+      // Clear local state — the read cache included (a shared phone must
+      // not paint the last person's feed or profile for a moment).
+      resetQueryCache();
       applyUser(null);
       setProfile(null);
       setProfileCheckedFor(null);

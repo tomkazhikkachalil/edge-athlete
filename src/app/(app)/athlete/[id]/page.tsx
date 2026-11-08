@@ -28,6 +28,7 @@ import ProfileSocialLinks from '@/components/profile/ProfileSocialLinks';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
+import { fetchJson, httpStatus, readCached, type HttpError } from '@/lib/net/query-cache';
 // Privacy checks moved to API route
 import {
   formatDisplayName,
@@ -35,6 +36,11 @@ import {
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { COPY } from '@/lib/copy';
+
+/** `GET /api/profile?id=` as this page reads it (the rest of the answer passes through). */
+type ProfileAnswer = { profile: Profile; canView?: boolean; [key: string]: unknown };
+/** A profile seen in the last minute paints at once; Edit Profile's save invalidates it. */
+const PROFILE_STALE_MS = 60_000;
 
 export default function AthleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -130,43 +136,40 @@ export default function AthleteProfilePage() {
       setLoading(true);
       setError(null);
 
-      // Load profile + achievements in parallel. The achievements API's own
-      // gate ladder (owner → public → accepted follow → 403) is exactly this
-      // page's privacy model, so a 403/error simply means "show none".
-      const [response, achievementsResponse, skillCardsResponse] = await Promise.all([
-        fetch(`/api/profile?id=${athleteId}`),
-        fetch(`/api/achievements?profileId=${athleteId}`, { credentials: 'include' })
-          .catch(() => null),
-        // Resolved with the page load so the sports section is in the layout
-        // before ProfileMediaTabs mounts (its ?tab= deep-link scroll must run
-        // against final layout). Endpoint owns the privacy gate; a 403 just
-        // means no cards.
-        fetch(`/api/profile/${athleteId}/skill-cards`).catch(() => null),
+      // Load profile + achievements + skill cards in parallel, THROUGH THE
+      // READ CACHE (performance program, Phase 2 — Nov 2026): a return to a
+      // profile seen in the last minute paints at once and revalidates behind
+      // it; before, every visit started from a spinner. The achievements
+      // API's own gate ladder (owner → public → accepted follow → 403) is
+      // exactly this page's privacy model, so a 403/error simply means "show
+      // none"; the skill cards resolve with the page load so the sports
+      // section is in the layout before ProfileMediaTabs mounts (its ?tab=
+      // deep-link scroll must run against final layout).
+      const profileUrl = `/api/profile?id=${athleteId}`;
+      const achievementsUrl = `/api/achievements?profileId=${athleteId}`;
+      const skillCardsUrl = `/api/profile/${athleteId}/skill-cards`;
+      const [profileResult, achievementsPayload, skillCardsPayload] = await Promise.all([
+        readCached<ProfileAnswer>(profileUrl, () => fetchJson<ProfileAnswer>(profileUrl), { staleMs: PROFILE_STALE_MS })
+          .then(data => ({ data, error: null as unknown }))
+          .catch((error: unknown) => ({ data: null, error })),
+        readCached<{ achievements?: Achievement[] }>(achievementsUrl, () => fetchJson(achievementsUrl), { staleMs: PROFILE_STALE_MS }).catch(() => null),
+        readCached<{ skillCards?: SportSkillCard[] }>(skillCardsUrl, () => fetchJson(skillCardsUrl), { staleMs: PROFILE_STALE_MS }).catch(() => null),
       ]);
       if (seq !== requestSeqRef.current) return; // stale response
-      if (!response.ok) {
-        if (response.status === 404) {
+      if (!profileResult.data) {
+        if (httpStatus(profileResult.error) === 404) {
           // 238: a departed account says so — its results stay with the
           // clubs, leagues and events it played in.
-          const body = await response.json().catch(() => null) as { departed?: boolean } | null;
+          const body = (profileResult.error as HttpError).body as { departed?: boolean } | null;
           setError(body?.departed ? COPY.ACCOUNT.DEPARTED_PAGE : 'Athlete not found');
           return;
         }
         throw new Error('Failed to load profile');
       }
 
-      const profileData = await response.json();
-      let achievementsData: Achievement[] = [];
-      if (achievementsResponse?.ok) {
-        const payload = await achievementsResponse.json();
-        achievementsData = payload.achievements || [];
-      }
-      let skillCardsData: SportSkillCard[] = [];
-      if (skillCardsResponse?.ok) {
-        const payload = await skillCardsResponse.json();
-        skillCardsData = payload.skillCards || [];
-      }
-      if (seq !== requestSeqRef.current) return; // stale response
+      const profileData = profileResult.data;
+      const achievementsData: Achievement[] = achievementsPayload?.achievements || [];
+      const skillCardsData: SportSkillCard[] = skillCardsPayload?.skillCards || [];
       setProfile(profileData.profile);
       setAchievements(achievementsData);
       setSkillCards(skillCardsData);

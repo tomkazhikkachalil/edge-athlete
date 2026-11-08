@@ -11,6 +11,7 @@ import type { VideoView } from '@/lib/videos/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { shouldPoll } from '@/lib/net/online';
 import { getPulse, subscribePulse } from '@/lib/pulse/pulse-store';
+import { fetchJson, readCached } from '@/lib/net/query-cache';
 
 interface LivePlayer {
   profile_id: string;
@@ -49,6 +50,10 @@ const GUEST_REFRESH_MS = 300_000;
  * "Live Now" — live rounds from people you follow (and you). Renders nothing
  * when nobody's live. Same surface will later carry tournament leaderboards.
  */
+/** `GET /api/live-now` — the three lists in one answer. */
+const LIVE_NOW_KEY = '/api/live-now';
+type LiveNowPayload = { rounds: LiveRound[]; events: LiveEventCard[]; videos: VideoView[] };
+
 export default function LiveNowStrip({ variant = 'strip', showEmptyState = false, hideHeading = false }: LiveNowStripProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -65,24 +70,27 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   useEffect(() => {
     let cancelled = false;
     let lastRun = 0;
-    const run = async () => {
+    // ONE read for the three lists (performance program, Phase 2 — Nov 2026):
+    // `/api/live-now` composes the golf, event and broadcast routes in one
+    // function call; three sequential fetches used to be the strip's cost on
+    // every feed open. Through the read cache: a return to the page within
+    // ten seconds paints what it had and revalidates behind it (a pulse
+    // signal forces a fresh read). Phase 4: live EVENTS and broadcasts
+    // answer signed out too (a public event is a place anyone can watch);
+    // the rounds are [] for a guest.
+    const run = async (force = false) => {
       lastRun = Date.now();
-      // Phase 4: live EVENTS answer signed out too (a public event is a place anyone can watch).
       try {
-        const res = await fetch('/api/sport-events/live-now', { credentials: 'include' });
-        if (res.ok) { const data = await res.json(); if (!cancelled) setEvents(data.events || []); }
-      } catch { /* a nicety */ }
-      try {
-        const res = await fetch('/api/videos/live-now', { credentials: 'include' });
-        if (res.ok) { const data = await res.json(); if (!cancelled) setBroadcasts(data.videos || []); }
-      } catch { /* a nicety */ }
-      if (!user) return;
-      try {
-        const res = await fetch('/api/golf/live-now', { credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setRounds(data.rounds || []);
-      } catch { /* strip is a nicety — never break the page */ }
+        const data = await readCached<LiveNowPayload>(
+          LIVE_NOW_KEY,
+          () => fetchJson<LiveNowPayload>(LIVE_NOW_KEY),
+          { staleMs: 10_000, force }
+        );
+        if (cancelled) return;
+        setEvents(data.events || []);
+        setBroadcasts(data.videos || []);
+        setRounds(user ? data.rounds || [] : []);
+      } catch { /* the strip is a nicety — never break the page */ }
     };
     run();
     // A hidden tab does not poll (Round 3); returning to it catches up — but
@@ -102,7 +110,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       ? subscribePulse(s => {
           if (s.liveNow === lastTotal) return;
           lastTotal = s.liveNow;
-          if (shouldPoll()) run();
+          if (shouldPoll()) run(true);
         })
       : null;
     const interval = user ? null : setInterval(() => { if (shouldPoll()) run(); }, GUEST_REFRESH_MS);

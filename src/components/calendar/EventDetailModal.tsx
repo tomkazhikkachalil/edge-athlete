@@ -1,4 +1,5 @@
 'use client';
+import { invalidate } from '@/lib/net/query-cache';
 
 import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
@@ -269,6 +270,7 @@ export default function EventDetailModal({
         showError('Not saved', data.error || 'Could not save the routine');
         return;
       }
+      invalidate('/api/workout-routines');
       setRoutineSaved(true);
       showNotice('Routine saved', `Pick “${event.routine.name}” next time you start a workout.`);
     } catch (err) {

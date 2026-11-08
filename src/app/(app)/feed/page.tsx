@@ -23,6 +23,7 @@ import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
 import InstallCard from '@/components/install/InstallCard';
 import PushCard from '@/components/push/PushCard';
+import { fetchJson, invalidate, readCached } from '@/lib/net/query-cache';
 
 /** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
 const NEW_POSTS_POLL_MS = 60_000;
@@ -95,6 +96,11 @@ function PostParamReader({ onPost }: { onPost: (id: string) => void }) {
   }, [searchParams, onPost]);
   return null;
 }
+
+/** `GET /api/posts` — the fields the page reads. */
+type FeedPage = { posts?: Post[]; viewer?: string; nextCursor?: string | null; hasMore?: boolean; noOrgs?: boolean; noFollowing?: boolean };
+/** The first page's lifetime in the read cache: a back-navigation, not a session. */
+const FEED_STALE_MS = 30_000;
 
 export default function FeedPage() {
   const { user, profile, loading } = useAuth();
@@ -271,13 +277,15 @@ export default function FeedPage() {
       const cursorParam = loadMore
         ? `&cursor=${encodeURIComponent(nextCursorRef.current ?? '')}`
         : '&cursor=';
-      const response = await fetch(`/api/posts?limit=20${cursorParam}${scopeParam}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to load feed');
-      }
-
-      const data = await response.json();
+      // The FIRST page goes through the read cache (performance program,
+      // Phase 2 — Nov 2026): coming back to the feed within thirty seconds
+      // paints the page the tab already had and revalidates behind it; a
+      // post created or deleted here invalidates it. Load More is a fresh
+      // read as before (its cursor is the page's own).
+      const url = `/api/posts?limit=20${cursorParam}${scopeParam}`;
+      const data = loadMore
+        ? await fetchJson<FeedPage>(url)
+        : await readCached<FeedPage>(url, () => fetchJson<FeedPage>(url), { staleMs: FEED_STALE_MS });
       const newPosts = data.posts || [];
       // The liked flags are recorded only from a read that resolved THIS
       // viewer (src/lib/likes/store.ts) — never from one that resolved nobody.
@@ -385,6 +393,7 @@ export default function FeedPage() {
   }, []);
 
   const handlePostCreated = async (newPost: unknown) => {
+    invalidate('/api/posts');
 
     // For group posts (shared rounds), we need to fetch the complete data with scorecard
     // For regular posts, add immediately to feed
@@ -427,6 +436,7 @@ export default function FeedPage() {
   };
 
   const handleDelete = useCallback(async (postId: string, mode?: 'delete') => {
+    invalidate('/api/posts');
     // Optimistic (Oct 2026): the card leaves at the tap. It used to stay
     // until the server answered — seconds on a slow connection, which read
     // as "nothing happened". A refusal or a failure puts it back in place.

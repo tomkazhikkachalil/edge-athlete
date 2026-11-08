@@ -6,6 +6,7 @@ import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import RoutineEditorModal from './RoutineEditorModal';
 import { MAX_ROUTINES, type WorkoutRoutine } from '@/lib/workouts/routines';
+import { invalidate } from '@/lib/net/query-cache';
 
 /**
  * The one routine-management surface, shared by main Settings (Routines tab)
@@ -57,6 +58,7 @@ export default function RoutineManager() {
         credentials: 'include',
       });
       if (!response.ok) throw new Error(`${response.status}`);
+      invalidate('/api/workout-routines');
       setRoutines(prev => (prev ?? []).filter(r => r.id !== deleteTarget.id));
     } catch (e) {
       console.error('Failed to delete routine:', e);

@@ -208,8 +208,14 @@ describe('live (Phase 4a)', () => {
 describe('live, PR B — the strip, the order, the public tile', () => {
   it('Live Now reads the broadcasts from their own route (signed out included), renders them first, and the empty state names them', () => {
     const strip = read('src/components/LiveNowStrip.tsx');
-    expect(strip).toContain("fetch('/api/videos/live-now', { credentials: 'include' })");
-    expect(strip.indexOf("fetch('/api/videos/live-now'")).toBeLessThan(strip.indexOf('if (!user) return;'));
+    // Since the performance program's Phase 2 (Nov 2026) the strip's ONE read
+    // is /api/live-now, which composes the videos route in-process; the
+    // broadcasts land signed out included (only the rounds are gated on user).
+    expect(strip).toContain("const LIVE_NOW_KEY = '/api/live-now'");
+    expect(strip).toContain('setBroadcasts(data.videos || [])');
+    expect(strip.indexOf('setBroadcasts(data.videos || [])')).toBeLessThan(strip.indexOf('setRounds(user ? data.rounds || [] : [])'));
+    const aggregate = read('src/app/api/live-now/route.ts');
+    expect(aggregate).toContain("import { GET as videosLiveNow } from '@/app/api/videos/live-now/route'");
     expect(strip).toContain('data-live-broadcast-card={v.id}');
     expect(strip).toContain('{broadcasts.map(broadcastCard)}\n        {events.map(eventCard)}');
     expect(strip).toContain('a round, a game, a match, a broadcast');
