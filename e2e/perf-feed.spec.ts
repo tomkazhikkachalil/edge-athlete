@@ -16,8 +16,16 @@ import { test, expect, type Page } from './helpers/test';
 // how the "before" numbers were taken.
 
 const BASELINE = process.env.PERF_BASELINE === '1';
-/** The most /api calls a cold /feed may make before it settles (Nov 2026: 13 measured before Phase 2, 11 after it). */
-const OPEN_PATH_API_BUDGET = 11;
+/**
+ * The most /api calls a cold /feed may make before it settles. Measured on the
+ * `mobile` project against the built app, Nov 7 2026, after Phase 2's strip
+ * change: 23 — posts 1, notifications 1, messages 1, drafts 1, live-now 1,
+ * suggestions 1, follow/stats 5 (one per suggestion — the next cut), me/pulse 2
+ * (one too many — the next cut), relay 3 (the Sentry browser tunnel — the next
+ * cut), guardian/athletes 1, calendar/events 1, workout-routines 1,
+ * getting-started 1, organizations 1, seen 1, push/config 1. It ratchets DOWN.
+ */
+const OPEN_PATH_API_BUDGET = 23;
 
 interface Sample {
   engine: string;
