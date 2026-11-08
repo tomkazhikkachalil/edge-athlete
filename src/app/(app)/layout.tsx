@@ -16,6 +16,7 @@ import PushHost from '@/components/push/PushHost';
 import PulseHost from '@/lib/pulse/PulseHost';
 import SeenBeacon from '@/components/seen/SeenBeacon';
 import StaticCacheRegistrar from '@/components/sw/StaticCacheRegistrar';
+import PageTimingBeacon from '@/components/observability/PageTimingBeacon';
 import { EditProfileProvider } from '@/components/EditProfileHost';
 import { InstallAppProvider } from '@/components/install/InstallAppProvider';
 import ReopenPromptHost from '@/components/drafts/ReopenPromptHost';
@@ -168,6 +169,8 @@ export default async function RootLayout({
               <PulseHost />
               <SeenBeacon />
               <StaticCacheRegistrar />
+              {/* Real-user page timings by build (305): one beacon per page view, nothing about the person. */}
+              <PageTimingBeacon />
               {/* Offline: a calm banner; pollers pause (net/online.ts). */}
               <OfflineBanner />
               {/* Persistent chat dock (big screens; flag-gated internally).

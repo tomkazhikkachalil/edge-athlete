@@ -474,3 +474,6 @@ from it.*
 
 `.github/workflows/warm.yml` runs when Vercel reports the Production deployment ready: `scripts/warm.mjs --base https://edgeathlete.ca --expect <sha>` waits for `/api/health` to carry the sha, then loads every function the feed's open path touches, once in parallel and once in sequence (no secrets — a 401 loads the function). Read its run under Actions → "Warm production": the second column is the cold start the first visitor would have paid, the third is what they will. If the run is red, the deploy never reported its sha within ten minutes — look at the deployment, not the script. `scripts/cold-probe.mjs` (`TARGET_ENV=prod E2E_ALLOW_PROD=1`) is the hand-run version with a signed-in QA user; `/api/health`'s `boot_ms` tells both how long the instance took to boot.
 
+## Real-user page timings (migration 305, Nov 2026)
+
+`/admin` → "Page timings by build": p75 LCP / INP / CLS / TTFB per deploy, phones and desktops, the last ten builds. Production needs migration 305 run once in the SQL editor (`database/migrations/305_page_timings.sql`; the code deploys first and drops beacons until then). After a merge, the new sha's row fills with the first opens; a build whose phone LCP p75 is red where the previous was green is the regression this card exists to catch — read it beside the prod probe in the maintenance checklist.
