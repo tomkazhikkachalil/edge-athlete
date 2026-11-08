@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useSyncExternalStore } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-browser';
 import { THEME_RESOLVED_COOKIE } from '@/lib/theme-cookie';
 
 // This boundary REPLACES the root layout, so neither the stylesheet nor the

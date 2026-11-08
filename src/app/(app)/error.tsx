@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-browser';
 import { isChunkLoadError, shouldReloadForSkew, SKEW_RELOAD_KEY } from '@/lib/version-skew';
 
 export default function Error({
