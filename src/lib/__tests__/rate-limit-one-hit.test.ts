@@ -11,7 +11,8 @@ import path from 'node:path';
 const rpc = vi.fn();
 const captureMessage = vi.fn();
 vi.mock('@/lib/auth-server', () => ({ getSupabaseAdmin: () => ({ rpc }) }));
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a) }));
+// The lazy server module (the boot diet, Nov 2026) is what the code calls; mocked here so the capture is observable at once.
+vi.mock('@/lib/observability/sentry-server', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a) }));
 
 const { enforceRateLimit, enforceRateLimitMany, RATE_LIMITS } = await import('../rate-limit');
 

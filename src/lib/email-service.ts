@@ -1,7 +1,7 @@
 // nodemailer 10 ships its own types (no @types/nodemailer): the Transporter
 // and SendMailOptions types are named exports, not a namespace.
 import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { onlyReservedRecipients, recipientList } from './email-recipients';
 
 /** What the ticket mails read — a projection, never the whole row (src/lib/tickets/types.ts TicketRow satisfies it). */

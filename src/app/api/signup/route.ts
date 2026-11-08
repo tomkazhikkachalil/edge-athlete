@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLaunchGateOn } from '@/lib/launch-gate';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { mapProfileUpsertError, isObfuscatedDuplicateSignUp } from '@/lib/signup-errors';

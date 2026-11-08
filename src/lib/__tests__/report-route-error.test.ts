@@ -8,7 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const captureException = vi.fn();
 const captureMessage = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureException: (...a: unknown[]) => captureException(...a), captureMessage: (...a: unknown[]) => captureMessage(...a) }));
+// The lazy server module (the boot diet, Nov 2026) is what the code calls; mocked here so the capture is observable at once.
+vi.mock('@/lib/observability/sentry-server', () => ({ captureException: (...a: unknown[]) => captureException(...a), captureMessage: (...a: unknown[]) => captureMessage(...a) }));
 
 import { reportRouteError } from '../observability/report';
 

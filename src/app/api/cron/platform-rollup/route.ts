@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runPlatformRollup } from '@/lib/platform-stats/rollup-server';
 import { DAY_RE, recomputableDay, yesterdayUTC } from '@/lib/platform-stats/metrics';

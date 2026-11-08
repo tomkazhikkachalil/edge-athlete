@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { validateEventInput, validateGuestInput } from '@/lib/calendar/events';
 import { validateRecurrenceInput, describeRecurrence } from '@/lib/calendar/recurrence';

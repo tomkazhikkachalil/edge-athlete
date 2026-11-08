@@ -28,7 +28,7 @@
 //                   classification test reads this file to hold it true.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { collectSetMediaPaths } from './storage-sweep';
 import { healSetMediaValue } from './workouts/entries-heal-server';
 import { orgRefOf } from './orgs/org-ref';
