@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { redeemGuardianInvite } from '@/lib/guardian-invites';

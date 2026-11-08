@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEventInput, validateGuestInput, MAX_GUESTS } from '@/lib/calendar/events';
 import { applyWallTime, planSeriesSplit, wallClockInZone, wallDurationMinutes, type SeriesRule } from '@/lib/calendar/recurrence';

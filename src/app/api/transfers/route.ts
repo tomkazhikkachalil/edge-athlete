@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';

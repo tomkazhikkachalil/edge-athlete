@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 
 /**
  * The ONE place an API route's failure is recorded (Round 1 PR 4, Sep 2026).

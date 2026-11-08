@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@/lib/observability/sentry-server';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { getConsentState, parseConsentMethod, CONSENT_POLICY_VERSION } from '@/lib/consent';

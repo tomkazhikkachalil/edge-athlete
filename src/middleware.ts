@@ -29,9 +29,10 @@
 // Neither trigger is met; the deprecation warning remains the project's one
 // accepted build warning.
 //
-// Migrating is also three changes, not one: rename the file, rename the export,
-// and prune sentry.edge.config.ts plus the NEXT_RUNTIME === 'edge' branch in
-// instrumentation.ts, which go dead once middleware runs on Node.
+// Migrating is two changes, not one: rename the file, rename the export (the
+// Sentry edge config and the NEXT_RUNTIME === 'edge' branch of
+// instrumentation.ts went with the boot diet, Nov 2026 — the SDK loads on the
+// first error on either runtime).
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { verifySessionLocally } from '@/lib/auth/edge-session'
