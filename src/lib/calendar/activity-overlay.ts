@@ -15,6 +15,9 @@ import { isStatLineData } from '@/lib/sports/stat-schemas';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { utcDay } from './day';
 
+/** A calendar range's rows from one table, at most (Nov 2026): PostgREST cuts an unbounded read at 1,000 silently — a month of one athlete's training posts or game logs is far under this. */
+export const OVERLAY_ROWS_MAX = 1000;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
@@ -272,7 +275,9 @@ async function resolveRoundPostIds(
     .select('id, round_id, group_post_id, created_at')
     .eq('status', 'published')
     .or(filters.join(','))
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    // Bounded (Nov 2026): one post per round in practice; the ids given set the ceiling.
+    .limit((roundIds.length + groupPostIds.length) * 4 + 50);
   if (error || !data) return out;
 
   const byRound = new Map<string, string>();
@@ -330,6 +335,7 @@ export async function fetchActivityOverlay(
       .eq('post_category', 'training')
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
+      .limit(OVERLAY_ROWS_MAX)
       .then(({ data }) => (data ?? []) as (TrainingPostSourceRow & { status: string | null })[]),
     // Stat-line game logs, positioned by the athlete-entered date (092's
     // partial functional index covers exactly this filter shape).
@@ -340,6 +346,7 @@ export async function fetchActivityOverlay(
       .filter('stats_data->>type', 'eq', 'stat_line')
       .gte('stats_data->>date', utcDay(fromMs))
       .lte('stats_data->>date', utcDay(toMs))
+      .limit(OVERLAY_ROWS_MAX)
       .then(({ data }) => (data ?? []) as (StatLinePostSourceRow & { status: string | null })[]),
   ]);
 

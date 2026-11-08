@@ -99,7 +99,9 @@ export async function structureAggregateGET(
     .from('seasons')
     .select('id, label, starts_on, ends_on, sport_key, created_at')
     .eq(ORG_ID, scope.orgId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    // Bounded (SCALE_AUDIT §1.8, Nov 2026): an org's rows, 500 at most — PostgREST cuts an unbounded read at 1,000 silently.
+    .limit(500);
   if (error) {
     if (isMissingTableError(error.code)) return NextResponse.json({ seasons: [], teams: [] });
     console.error(`${TAG} seasons error:`, error);
@@ -123,7 +125,9 @@ export async function structureAggregateGET(
       .from('teams')
       .select('id, name, display_name, status, created_at, sport_key, primary_color, secondary_color, logo_path')
       .eq(ORG_ID, scope.orgId)
-      .order('name', { ascending: true }),
+      .order('name', { ascending: true })
+    // Bounded (SCALE_AUDIT §1.8, Nov 2026): an org's rows, 500 at most — PostgREST cuts an unbounded read at 1,000 silently.
+    .limit(500),
   ]);
 
   const divisions = divisionsRes.data ?? [];

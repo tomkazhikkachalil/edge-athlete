@@ -254,6 +254,9 @@ export async function GET(
           .from('message_reactions')
           .select('message_id, emoji, profile_id')
           .in('message_id', messageIds)
+          // Bounded (SCALE_AUDIT §1.3, Nov 2026): a page of messages carries at most
+          // this many reactions back; PostgREST would otherwise cut at 1,000 silently.
+          .limit(messageIds.length * 24)
       : { data: [] };
 
     // Aggregate emoji reactions per message, tracking reactor profiles per emoji.

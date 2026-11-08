@@ -49,6 +49,7 @@ function mockAdmin(
           return chain;
         },
         order: () => chain,
+        limit: () => chain, // the org-scoped reads are bounded since Nov 2026
         select: () => chain,
         single: async () => result,
         maybeSingle: async () => result,
