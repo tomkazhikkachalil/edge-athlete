@@ -23,7 +23,9 @@ import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
 import InstallCard from '@/components/install/InstallCard';
 import PushCard from '@/components/push/PushCard';
-import { fetchJson, invalidate, readCached } from '@/lib/net/query-cache';
+import { fetchJson, invalidate, peekCached, readCached } from '@/lib/net/query-cache';
+import { readDevice, writeDevice } from '@/lib/net/device-store';
+import { trimFeedForDevice } from '@/lib/net/hydration-rules';
 
 /** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
 const NEW_POSTS_POLL_MS = 60_000;
@@ -101,6 +103,8 @@ function PostParamReader({ onPost }: { onPost: (id: string) => void }) {
 type FeedPage = { posts?: Post[]; viewer?: string; nextCursor?: string | null; hasMore?: boolean; noOrgs?: boolean; noFollowing?: boolean };
 /** The first page's lifetime in the read cache: a back-navigation, not a session. */
 const FEED_STALE_MS = 30_000;
+/** The scope whose first page the device remembers (Phase 2b): the one every open starts on. */
+const DEFAULT_FEED_SCOPE = 'all';
 
 export default function FeedPage() {
   const { user, profile, loading } = useAuth();
@@ -185,10 +189,25 @@ export default function FeedPage() {
     }
   }, [user, loading, router]);
 
-  // Load feed on mount and on scope switch
+  // Load feed on mount and on scope switch. Phase 2b (Nov 2026): on the
+  // default scope, the device's copy of this account's first page paints
+  // BEFORE the read — the installed app reopens to the feed it had, then
+  // revalidates; another account's copy, a stale one or none paints nothing.
+  const hydratedRef = useRef(false);
   useEffect(() => {
     if (user) {
-      loadFeed();
+      // Inlined IIFE (the codebase's shape for a state write inside an effect).
+      (async () => {
+        if (feedScope === DEFAULT_FEED_SCOPE && !hydratedRef.current && peekCached<FeedPage>(`/api/posts?limit=20&cursor=`) === undefined) {
+          const remembered = readDevice<Post[]>(user.id, 'feed');
+          if (remembered && remembered.length > 0) {
+            hydratedRef.current = true;
+            setPosts(remembered);
+            setFeedLoading(false);
+          }
+        }
+        await loadFeed();
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, feedScope]);
@@ -266,7 +285,9 @@ export default function FeedPage() {
     if (loadMore && loadInFlightRef.current) return;
     loadInFlightRef.current = true;
     try {
-      if (!loadMore) {
+      // The spinner only over an EMPTY page: a device copy (hydratedRef) or a
+      // cached page already on screen stays while the read revalidates.
+      if (!loadMore && !hydratedRef.current) {
         setFeedLoading(true);
       }
 
@@ -305,6 +326,8 @@ export default function FeedPage() {
         });
       } else {
         setPosts(newPosts);
+        hydratedRef.current = newPosts.length > 0;
+        if (feedScope === DEFAULT_FEED_SCOPE && user?.id) writeDevice(user.id, 'feed', trimFeedForDevice(newPosts as Post[]));
       }
       // Advance the frontier from the response; a legacy response (no
       // nextCursor — first page carries none either when it's the last)

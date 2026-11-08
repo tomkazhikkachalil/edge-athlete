@@ -10,6 +10,7 @@ import { setChatDockHidden } from './chat-dock-visibility';
 import { disablePush, setIconBadge } from './push/client';
 import { planAuthEvent } from './auth-events';
 import { resetQueryCache } from '@/lib/net/query-cache';
+import { clearDevice, readDevice, writeDevice } from '@/lib/net/device-store';
 
 const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
@@ -145,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
           await supabase.auth.signOut().catch(() => {});
+            clearDevice();
           applyUser(null);
         }
         setProfile(null);
@@ -152,6 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setProfile(data);
+      // The device keeps this account's copy (Phase 2b, Nov 2026): the next
+      // open paints it before the network answers.
+      writeDevice(userId, 'profile', data);
     } catch {
       // Error in fetchProfile
       if (!keepOnError) setProfile(null);
@@ -184,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
             // Clear session silently
             await supabase.auth.signOut().catch(() => {});
+            clearDevice();
             // Reset state
             applyUser(null);
             setProfile(null);
@@ -201,6 +207,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         applyUser(currentUser);
 
         if (currentUser) {
+          // Phase 2b (Nov 2026): the device's copy of this account's profile
+          // paints the shell NOW — the header's name, the pages that gate on
+          // `loading` — and the read below revalidates it. A copy that is
+          // another account's, stale or absent is null and nothing changes.
+          const remembered = readDevice<Profile>(currentUser.id, 'profile');
+          if (remembered && isMounted) {
+            setProfile(remembered);
+            setLoading(false);
+            setInitialAuthCheckComplete(true);
+          }
           // Fetch profile (simplified, no background refresh)
           await fetchProfile(currentUser.id);
         } else {
@@ -343,9 +359,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Sign out from Supabase
       await supabase.auth.signOut();
 
-      // Clear local state — the read cache included (a shared phone must
-      // not paint the last person's feed or profile for a moment).
+      // Clear local state — the read cache and the device's copies included
+      // (a shared phone must not paint the last person's feed or profile for
+      // a moment).
       resetQueryCache();
+      clearDevice();
       applyUser(null);
       setProfile(null);
       setProfileCheckedFor(null);
