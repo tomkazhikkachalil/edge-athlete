@@ -1,0 +1,24 @@
+name: Warm production
+
+# The post-deploy warm step (performance program, Nov 2026). Vercel reports
+# every deployment to GitHub; when the PRODUCTION one is ready, one pass over
+# the open path (scripts/warm.mjs) loads each function the first real open
+# would otherwise cold-start — at <10 users every instance has idled out, and
+# a deploy replaces them all. No secrets: a 401 loads the function too.
+on:
+  deployment_status:
+
+jobs:
+  warm:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Warm the open path on edgeathlete.ca
+        run: node scripts/warm.mjs --base https://edgeathlete.ca --expect "${{ github.event.deployment.sha }}"

@@ -54,6 +54,13 @@ export function staticCacheName(build: string = buildTag()): string {
   return `ea-static-${buildTag(build)}`;
 }
 
+/** A cache this worker family owns (any build's) — the previous build's is
+ *  carried forward on activate, every other cache is deleted. */
+export const STATIC_CACHE_PREFIX = 'ea-static-';
+export function isOurStaticCache(name: string): boolean {
+  return name.startsWith(STATIC_CACHE_PREFIX);
+}
+
 /** The only requests the worker may answer from its cache. */
 export function isStaticAssetPath(pathname: string): boolean {
   return pathname.startsWith('/_next/static/') && !pathname.includes('..');

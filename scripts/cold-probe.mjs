@@ -127,7 +127,16 @@ try {
     const t = performance.now();
     const res = await fetch(`${base}${r.path}`, { headers, redirect: 'manual', cache: 'no-store' });
     const text = await res.text();
-    return { ms: Math.round(performance.now() - t), status: res.status, bytes: text.length, vercelId: res.headers.get('x-vercel-id') ?? '', cache: res.headers.get('x-vercel-cache') ?? '' };
+    let boot = null;
+    if (r.path === '/api/health') {
+      try {
+        const body = JSON.parse(text);
+        boot = typeof body.boot_ms === 'number' ? { bootMs: body.boot_ms, served: body.requests_served } : null;
+      } catch {
+        /* an older build without the field */
+      }
+    }
+    return { ms: Math.round(performance.now() - t), status: res.status, bytes: text.length, vercelId: res.headers.get('x-vercel-id') ?? '', cache: res.headers.get('x-vercel-cache') ?? '', boot };
   };
 
   // Phase A — the open: everything at once, as a feed open does it.
@@ -164,7 +173,9 @@ try {
   console.log(`cold-probe (${label}): ${base} — ${ROUTES.length} requests of the open path at once, then ${warmRuns} warm runs each\n`);
   console.log('route'.padEnd(24) + 'status'.padEnd(8) + 'first ms'.padEnd(10) + 'warm ms'.padEnd(9) + 'ratio'.padEnd(7) + 'bytes'.padEnd(9) + 'region');
   for (const r of rows) console.log(r.route.padEnd(24) + String(r.status).padEnd(8) + String(r.cold).padEnd(10) + String(r.warm).padEnd(9) + String(r.ratio ?? '—').padEnd(7) + String(r.bytes).padEnd(9) + r.region + (r.cache ? ` ${r.cache}` : ''));
-  console.log(`\nthe open (all ${ROUTES.length} in parallel, first time): ${openMs} ms · slowest first request: ${worst.route} ${worst.cold} ms (warm ${worst.warm} ms)`);
+  const healthBoot = first[ROUTES.findIndex((r) => r.path === '/api/health')]?.boot;
+  const bootLine = healthBoot ? ` · the health instance had been up ${healthBoot.bootMs} ms and had served ${healthBoot.served} request(s) when it answered` : '';
+  console.log(`\nthe open (all ${ROUTES.length} in parallel, first time): ${openMs} ms · slowest first request: ${worst.route} ${worst.cold} ms (warm ${worst.warm} ms)${bootLine}`);
 
   if (outDir) {
     mkdirSync(outDir, { recursive: true });
@@ -184,7 +195,7 @@ try {
       '| --- | ---: | ---: | ---: | ---: | ---: |',
       ...rows.map((r) => `| ${r.route} | ${r.status} | ${r.cold} | ${r.warm} | ${r.ratio ?? '—'} | ${r.bytes} |`),
       '',
-      `The whole open, first time: **${openMs} ms**. Slowest first request: ${worst.route} ${worst.cold} ms (warm ${worst.warm} ms).`,
+      `The whole open, first time: **${openMs} ms**. Slowest first request: ${worst.route} ${worst.cold} ms (warm ${worst.warm} ms).${bootLine}`,
       '',
     ].join('\n');
     writeFileSync(file, md);
