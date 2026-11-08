@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +18,13 @@ export async function GET(request: NextRequest) {
       viewerId = null;
     }
 
+    // A database query per keystroke names a bucket (the API pattern, Nov 2026 —
+    // SCALE_AUDIT §1.2): the viewer's `people-search` when signed in, the IP's
+    // `handle-check` when not (this route answers anonymous callers).
+    const limited = viewerId
+      ? await enforceRateLimit(request, 'people-search', { userId: viewerId })
+      : await enforceRateLimit(request, 'handle-check');
+    if (limited) return limited;
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '10', 10);

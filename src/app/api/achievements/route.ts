@@ -72,7 +72,10 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('profile_id', profileId)
       .order('achieved_on', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      // Bounded (SCALE_AUDIT §1.8, Nov 2026): PostgREST cuts an unbounded read at
+      // 1,000 silently; an athlete's achievements are read newest first, 500 at most.
+      .limit(500);
 
     if (error) {
       reportRouteError('Error fetching achievements:', error);

@@ -1,5 +1,19 @@
 # Development Log
 
+## November 8, 2026 — Performance program, Phase 5: the audit's small open rows — five reads bounded, the handle search behind a bucket (zero DDL)
+
+The last decision-free items on `docs/SCALE_AUDIT.md` §6, each a read that could one day cross PostgREST's silent 1,000-row cut or a query-per-keystroke route without a bucket:
+
+- **`GET /api/achievements`** — an athlete's achievements read newest first, **500 at most** (was unbounded).
+- **`GET /api/messages/[conversationId]`** — a page's reactions bounded by the ids it asked for (**`messageIds.length × 24`**; was the id list alone, with the 1,000 cut behind it).
+- **The calendar overlay** (`src/lib/calendar/activity-overlay.ts`) — the round → post lookup bounded by the ids given (`(rounds + group posts) × 4 + 50`), the training posts and the stat-line logs of a range at **`OVERLAY_ROWS_MAX` = 1,000** each (explicit, named, tested).
+- **The org structure reads** (`src/lib/orgs/structure-server.ts`) — an org's seasons and teams **500 at most** each (were unbounded org-scoped reads).
+- **`GET /api/handles/search`** — spends **`people-search`** by account when signed in and **`handle-check`** by IP for an anonymous caller (it answers both; the convention since Nov 7: a database query per keystroke names a bucket).
+
+Left on the list, with the reason: the moderation memo on `requireActiveWriter` (a 30 s per-account cache of the moderation state would change what a freshly frozen account can do for up to 30 s — a product decision, not a cut); keyset paging for the profile media grid (a migration); the `.limit()` sweep's remaining routes read by id. Pinned by `audit-rows-bounded.test.ts`.
+
+**Proof:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **5,991 tests in 655 files**, the build, `check:weight` ✓, `check:syntax` ✓ (299 chunks); the structure-server test's fake query builder learned `.limit` (the only test touched). The production line: the routes answer the same rows for every real org and athlete today (none near a bound); the prod probe after the merge is the usual sweep.
+
 ## November 8, 2026 — Performance program, Phase 3a: the icons round — Font Awesome's webfont is gone; every icon is a symbol on one cached sprite, the same glyphs, no font files, no stylesheet
 
 Tom: "continue." The plan's next rung was the icon set: every page loaded Font Awesome's whole stylesheet (90 KB, 23 KB gz) and three font files (259 KB) for the ~220 icons the app draws, and each `<i className="fas fa-x">` waited for the font (FOIT). The plan had said "→ lucide"; this round kept the glyphs the app already draws — Font Awesome Free's own SVG paths, CC BY 4.0 — so nothing changes to the eye and no phone walk is owed for the shapes.
