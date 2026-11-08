@@ -9,12 +9,14 @@
 // `/feed` ~450 KB gzipped (the athlete page ~630 KB), and nothing in the gate
 // would have noticed the next 50 KB. Budgets are gzipped bytes (what crosses the wire); they start
 // where the app is today and RATCHET DOWN as the diet lands — a PR that
-// raises one says why in its body and the devlog.
+// raises one says why in its body and the devlog. The ratchet so far: root
+// 200 → 150 KB (the browser Sentry SDK off the page load, Phase 3b: 185 →
+// 132 KB measured), route 640 → 600 KB (the athlete page 627 → 575).
 
 /** The chunks every page loads (build-manifest.json rootMainFiles), gzipped. */
-export const ROOT_GZIP_BUDGET_BYTES = 200 * 1024;
+export const ROOT_GZIP_BUDGET_BYTES = 150 * 1024;
 /** Any one route's first-paint client chunks (root included), gzipped. */
-export const ROUTE_GZIP_BUDGET_BYTES = 640 * 1024;
+export const ROUTE_GZIP_BUDGET_BYTES = 600 * 1024;
 
 /** `.next/server/app/(app)/feed/page_client-reference-manifest.js` → `(app)/feed`. */
 export function routeIdFromReferenceManifestPath(p) {

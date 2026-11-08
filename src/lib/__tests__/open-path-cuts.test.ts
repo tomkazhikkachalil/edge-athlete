@@ -46,9 +46,11 @@ describe('the suggestions carry the follow stats', () => {
 
 describe('the browser sends nothing without an error', () => {
   it('the client init drops the session + tracing integrations and the client reports; traces are 0 everywhere', () => {
-    const client = read('src/instrumentation-client.ts');
+    // Phase 3b moved the browser init into the lazy module (loaded on the first error); the rules ride with it.
+    const client = read('src/lib/observability/sentry-browser.ts');
     expect(client).toContain('integrations: browserBeaconIntegrations,');
     expect(client).toContain('sendClientReports: false,');
+    expect(read('src/instrumentation-client.ts')).not.toMatch(/@sentry\/nextjs/);
     const env = read('src/lib/observability/sentry-env.ts');
     expect(env).toMatch(/new Set\(\['BrowserSession', 'BrowserTracing'\]\)/);
     expect(env).toMatch(/function tracesSampleRateFor\(environment: AppEnvironment\): number \{\s*void environment;\s*return 0;/);
