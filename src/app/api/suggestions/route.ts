@@ -14,6 +14,13 @@ interface ConnectionSuggestion {
   suggested_location: string | null;
   similarity_score: number;
   reason: string;
+  /** The follow button's stats, carried with the suggestion (performance
+   *  program Phase 2d, Nov 2026) so five cards no longer ask
+   *  /api/follow/stats one by one: the same fields that route answers. */
+  followers_count?: number;
+  is_private?: boolean;
+  /** The viewer's follow row toward this person: null = none. */
+  follow_status?: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -108,6 +115,33 @@ export async function GET(request: NextRequest) {
       const { allowed } = await filterBlockedBidirectional(supabase, profileId, candidateIds);
       const allowedSet = new Set(allowed);
       suggestions = suggestions.filter(s => allowedSet.has(s.suggested_id));
+    }
+
+    // The follow buttons' stats ride along (Phase 2d): TWO batched reads for
+    // the whole list — the counts and visibility the stats route reads per
+    // person, and the viewer's follow rows toward them — instead of one
+    // /api/follow/stats call (two trips each) per card on every feed open.
+    // The same answers as that route: a missing profile reads as private
+    // (the request flow is the fail-safe), a follow row of any status counts.
+    const ids = suggestions.map(s => s.suggested_id);
+    if (ids.length > 0) {
+      const [profilesRes, followsRes] = await Promise.all([
+        supabase.from('profiles').select('id, visibility, followers_count').in('id', ids),
+        supabase.from('follows').select('following_id, status').eq('follower_id', profileId).in('following_id', ids),
+      ]);
+      if (!profilesRes.error && !followsRes.error) {
+        const byId = new Map(((profilesRes.data ?? []) as { id: string; visibility: string | null; followers_count: number | null }[]).map(r => [r.id, r]));
+        const followOf = new Map(((followsRes.data ?? []) as { following_id: string; status: string | null }[]).map(r => [r.following_id, r.status]));
+        suggestions = suggestions.map(s => {
+          const row = byId.get(s.suggested_id);
+          return {
+            ...s,
+            followers_count: row?.followers_count ?? 0,
+            is_private: row ? row.visibility === 'private' : true,
+            follow_status: followOf.has(s.suggested_id) ? (followOf.get(s.suggested_id) ?? 'accepted') : null,
+          };
+        });
+      }
     }
 
     return NextResponse.json({ suggestions });

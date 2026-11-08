@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAppEnvironment, resolveSentryConfig } from '../sentry-env';
+import { resolveAppEnvironment, resolveSentryConfig, browserBeaconIntegrations } from '../sentry-env';
 
 describe('resolveAppEnvironment', () => {
   it('maps each recognized vercelEnv to itself', () => {
@@ -49,8 +49,10 @@ describe('resolveAppEnvironment', () => {
 
 describe('resolveSentryConfig', () => {
   it('samples traces in deployed environments but never locally', () => {
-    expect(resolveSentryConfig({ vercelEnv: 'production' }).tracesSampleRate).toBe(0.1);
-    expect(resolveSentryConfig({ vercelEnv: 'preview' }).tracesSampleRate).toBe(0.1);
+    // Phase 2d (Nov 2026): no traces anywhere — the browser's sampled loads
+    // were beacons on the open path and the server SDK loads on the first error.
+    expect(resolveSentryConfig({ vercelEnv: 'production' }).tracesSampleRate).toBe(0);
+    expect(resolveSentryConfig({ vercelEnv: 'preview' }).tracesSampleRate).toBe(0);
     // Local dev spawns a transaction per HMR navigation — pure noise.
     expect(resolveSentryConfig({ vercelEnv: 'development' }).tracesSampleRate).toBe(0);
   });
@@ -82,5 +84,12 @@ describe('resolveSentryConfig', () => {
     });
     expect(config.enabled).toBe(true);
     expect(config.environment).toBe('development');
+  });
+});
+
+describe('the browser beacons', () => {
+  it('drops the session and tracing integrations and keeps every error-capturing one', () => {
+    const kept = browserBeaconIntegrations([{ name: 'BrowserSession' }, { name: 'BrowserTracing' }, { name: 'GlobalHandlers' }, { name: 'Breadcrumbs' }, { name: 'Dedupe' }]);
+    expect(kept.map((i) => i.name)).toEqual(['GlobalHandlers', 'Breadcrumbs', 'Dedupe']);
   });
 });

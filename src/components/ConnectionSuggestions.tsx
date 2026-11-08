@@ -14,6 +14,10 @@ interface Suggestion {
   suggested_school: string | null;
   similarity_score: number;
   reason: string;
+  /** The follow button's stats, when the answer carried them (Phase 2d). */
+  followers_count?: number;
+  is_private?: boolean;
+  follow_status?: string | null;
 }
 
 interface ConnectionSuggestionsProps {
@@ -247,6 +251,16 @@ export default function ConnectionSuggestions({
                 currentUserId={profileId}
                 size="sm"
                 compactLabel={compact}
+                initialStats={
+                  typeof suggestion.followers_count === 'number'
+                    ? {
+                        followersCount: suggestion.followers_count,
+                        isFollowing: suggestion.follow_status != null,
+                        followStatus: suggestion.follow_status ?? null,
+                        isPrivate: suggestion.is_private !== false,
+                      }
+                    : undefined
+                }
                 onFollowChange={(isFollowing) => {
                   // Only dismiss once they actually followed — an unfollow
                   // used to permanently dismiss the suggestion too

@@ -18,6 +18,18 @@ interface FollowButtonProps {
   /** A narrow card (the feed's suggestions): "Become a Fan" reads "Fan" on
    *  screen; the accessible name stays "Become a Fan". */
   compactLabel?: boolean;
+  /** The stats a LIST already carried for this person (the suggestions
+   *  answer — performance program Phase 2d, Nov 2026): the button starts
+   *  from them and never asks /api/follow/stats itself. The follow action
+   *  still reloads them after it writes. */
+  initialStats?: FollowStats;
+}
+
+export interface FollowStats {
+  followersCount: number;
+  isFollowing: boolean;
+  followStatus: string | null;
+  isPrivate: boolean;
 }
 
 export default function FollowButton({
@@ -28,7 +40,8 @@ export default function FollowButton({
   size = 'md',
   showCount = false,
   className = '',
-  compactLabel = false
+  compactLabel = false,
+  initialStats
 }: FollowButtonProps) {
   const { user, activeProfile } = useAuth();
   const currentUserId = propCurrentUserId || user?.id;
@@ -36,17 +49,20 @@ export default function FollowButton({
   // fence) — disabled with a tooltip while "posting as" a managed athlete.
   const actingAs = !!activeProfile;
 
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followStatus, setFollowStatus] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState(initialStats?.isFollowing ?? false);
+  const [followStatus, setFollowStatus] = useState<string | null>(initialStats?.followStatus ?? null);
   // Default true (fail safe): unknown visibility gets the request modal,
   // never a silent instant follow of a private profile.
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [followersCount, setFollowersCount] = useState(0);
+  const [isPrivate, setIsPrivate] = useState(initialStats?.isPrivate ?? true);
+  const [followersCount, setFollowersCount] = useState(initialStats?.followersCount ?? 0);
   const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(!initialStats);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [followMessage, setFollowMessage] = useState('');
   const { showError, showNotice } = useToast();
+  // Whether a list handed the stats in — read inside the loader effect
+  // without joining its deps (a new list answer remounts the card anyway).
+  const initialStatsRef = useRef(!!initialStats);
   // Published on a ref so the loader effect's deps stay [profileId, currentUserId].
   const onStatsLoadedRef = useRef(onStatsLoaded);
   useEffect(() => {
@@ -107,7 +123,9 @@ export default function FollowButton({
         }
     };
     loadFollowStatsRef.current = run;
-    if (profileId && currentUserId) run();
+    // A list that carried the stats spares the read; the follow action's own
+    // reload (loadFollowStatsRef) still runs after it writes.
+    if (profileId && currentUserId && !initialStatsRef.current) run();
   }, [profileId, currentUserId]);
 
   const handleFollowClick = () => {

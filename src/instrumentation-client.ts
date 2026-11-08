@@ -6,10 +6,16 @@
 // deployed environments, 0% locally, no session replay. Errors themselves are
 // always sent. PII is never attached (athlete data is personal).
 import * as Sentry from '@sentry/nextjs';
-import { resolveSentryConfig } from '@/lib/observability/sentry-env';
+import { browserBeaconIntegrations, resolveSentryConfig } from '@/lib/observability/sentry-env';
 
-Sentry.init(
-  resolveSentryConfig({
+// Phase 2d (Nov 2026): nothing leaves the browser without an error. The
+// session envelope every page load used to send, the tracing transaction and
+// the client reports were three /api/relay calls on the open path of a clean
+// /feed (e2e/perf-feed.spec.ts counted them); errors go out exactly as before.
+Sentry.init({
+  integrations: browserBeaconIntegrations,
+  sendClientReports: false,
+  ...resolveSentryConfig({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     explicitEnv: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
     // NEXT_PUBLIC_VERCEL_ENV, NOT VERCEL_ENV: Next inlines only NEXT_PUBLIC_*
@@ -19,7 +25,7 @@ Sentry.init(
     // event as 'production' — the exact bug this is fixing.
     vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV,
     nodeEnv: process.env.NODE_ENV,
-  })
-);
+  }),
+});
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

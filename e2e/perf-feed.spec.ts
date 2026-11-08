@@ -18,14 +18,14 @@ import { test, expect, type Page } from './helpers/test';
 const BASELINE = process.env.PERF_BASELINE === '1';
 /**
  * The most /api calls a cold /feed may make before it settles. Measured on the
- * `mobile` project against the built app, Nov 7 2026, after Phase 2's strip
- * change: 23 — posts 1, notifications 1, messages 1, drafts 1, live-now 1,
- * suggestions 1, follow/stats 5 (one per suggestion — the next cut), me/pulse 2
- * (one too many — the next cut), relay 3 (the Sentry browser tunnel — the next
- * cut), guardian/athletes 1, calendar/events 1, workout-routines 1,
- * getting-started 1, organizations 1, seen 1, push/config 1. It ratchets DOWN.
+ * `mobile` project against the built app, Nov 7 2026: 23 after Phase 2's strip
+ * change (follow/stats 5, me/pulse 2, relay 3 among them); 14 after Phase 2d
+ * cut those three — posts 1, notifications 1, messages 1, drafts 1, live-now 1,
+ * suggestions 1 (the follow stats ride inside it), me/pulse 1, guardian/athletes
+ * 1, calendar/events 1, workout-routines 1, getting-started 1, organizations 1,
+ * seen 1, push/config 1. It ratchets DOWN; raising it is a decision in the devlog.
  */
-const OPEN_PATH_API_BUDGET = 23;
+const OPEN_PATH_API_BUDGET = 14;
 
 interface Sample {
   engine: string;
@@ -157,6 +157,10 @@ async function run(page: Page, engine: string) {
   expect(sample.apiOnLoad, `the open path grew: ${JSON.stringify(sample.apiByPath)}`).toBeLessThanOrEqual(OPEN_PATH_API_BUDGET);
   expect(sample.apiByPath['/api/live-now'] ?? 0, 'the Live Now strip reads /api/live-now once').toBe(1);
   expect((sample.apiByPath['/api/golf/live-now'] ?? 0) + (sample.apiByPath['/api/sport-events/live-now'] ?? 0) + (sample.apiByPath['/api/videos/live-now'] ?? 0), 'the strip no longer calls the three live-now routes').toBe(0);
+  // Phase 2d: the suggestions carry the follow stats, the pulse is read once, the browser sends no beacon without an error.
+  expect(sample.apiByPath['/api/follow/stats'] ?? 0, 'the suggested people asked /api/follow/stats one by one').toBe(0);
+  expect(sample.apiByPath['/api/me/pulse'] ?? 0, 'the pulse was read more than once on load').toBeLessThanOrEqual(1);
+  expect(sample.apiByPath['/api/relay'] ?? 0, 'the browser sent Sentry beacons on a clean load').toBe(0);
 }
 
 test('perf: a cold /feed and a return to the app (desktop)', async ({ page }) => {
