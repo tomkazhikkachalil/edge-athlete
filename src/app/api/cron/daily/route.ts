@@ -26,7 +26,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { reportRouteError } from '@/lib/observability/report';
 import { runPolarSync } from '@/lib/activities/providers/polar-sync-server';
 import { runPushSweep } from '@/lib/push/sweep-server';
-import { runMediaJobsHygiene } from '@/lib/media/process-server';
+import { runMediaJobsHygiene } from '@/lib/media/enqueue-server';
 import { recordJobSummary } from '@/lib/platform-jobs/record';
 import { runPlatformRollup } from '@/lib/platform-stats/rollup-server';
 import { addDays, dayUTC } from '@/lib/platform-stats/metrics';

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
-import type { TickSummary } from '@/lib/media/process-server';
+import type { TickSummary } from '@/lib/media/enqueue-server';
 
 // ── The media worker — the dashboard's door (video posters PR 7, Oct 2026) ──
 // `GET /api/admin/media-jobs` is the queue's numbers; `POST` is dry-run by

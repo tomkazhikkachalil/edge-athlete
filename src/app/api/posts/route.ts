@@ -31,7 +31,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { isMediaCodec, mediaJobsEnabled, needsTranscode, type MediaRowForPlan } from '@/lib/media/media-jobs';
-import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/enqueue-server';
 import { isPublicPostMedia } from '@/lib/media/visibility';
 
 /** The URL life a post's media gets: a public post's is stable, a private post's expires. */

@@ -7,7 +7,7 @@
  * a late upload re-mirrors once). Best-effort, like the golf mirror.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/process-server';
+import { enqueueForPostMedia, MEDIA_JOB_PLAN_COLUMNS } from '@/lib/media/enqueue-server';
 import type { MediaRowForPlan } from '@/lib/media/media-jobs';
 import { buildMirrorMedia, type RoundMediaInput } from '@/lib/golf/round-mirror';
 import { toProxyUrl } from '@/lib/media/proxy-url';

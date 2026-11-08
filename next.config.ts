@@ -7,8 +7,38 @@ const nextConfig: NextConfig = {
   // that run it (and nowhere else: the function that carries it is ~80 MB).
   serverExternalPackages: ['ffmpeg-static'],
   outputFileTracingIncludes: {
-    '/api/cron/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg'],
-    '/api/admin/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg'],
+    '/api/cron/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/sharp/**', './node_modules/@img/**'],
+    '/api/admin/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/sharp/**', './node_modules/@img/**'],
+    // The org card renderers crop the hero with sharp (the vanity twin
+    // re-exports the org route's GET) — the ONLY other users of the library.
+    // The keys are picomatch globs against the normalized app path, so the
+    // dynamic segment's brackets are escaped (a bare `[slug]` is a character
+    // class and matches nothing here).
+    '/org/\\[slug\\]/card.png': ['./node_modules/sharp/**', './node_modules/@img/**'],
+    '/\\[slug\\]/card.png': ['./node_modules/sharp/**', './node_modules/@img/**'],
+  },
+  // The function diet (performance program, Nov 7 2026). The tracer followed
+  // a dynamic `./ffmpeg-bin` import and a `readFile(join(dir, `${id}.png`))`
+  // it could not resolve, so EVERY function that merely enqueued a media job
+  // carried the 45 MB binary, sharp's 28 MB and every *.png in the project —
+  // 95 MB of Sep 30 snapshot photos among them (~170 MB per function, a
+  // 1.5–1.8 s cold start on the feed's own API). Nothing under these paths is
+  // read by a function at runtime: the binary is traced into the two worker
+  // routes above, sharp into the worker and the two org-card renderers above, and no route
+  // reads the repo's docs, tests, snapshots or public PNGs from disk (public/
+  // is served by the CDN). `scripts/check-function-weight.mjs` (in `npm run
+  // verify`) fails the build if a route grows past 25 MB again.
+  outputFileTracingExcludes: {
+    '*': [
+      './database/**',
+      './docs/**',
+      './e2e/**',
+      './public/**',
+      './scripts/**',
+      './node_modules/ffmpeg-static/**',
+      './node_modules/sharp/**',
+      './node_modules/@img/**',
+    ],
   },
   // The build id the service worker's URL carries (src/lib/sw/static-cache.ts):
   // the deploy's commit on Vercel, 'local' elsewhere.
