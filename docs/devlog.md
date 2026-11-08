@@ -10,6 +10,24 @@
 
 **Proof:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **5,967 tests in 651 files**, the build, `check:weight` ✓ at the ratcheted budgets (root 132 KB gz ≤ 150, every route ≤ 600), `check:syntax` ✓ (287 chunks). The production line follows the merge: `perf-feed.spec.ts` with `/api/relay` = 0 still, and a page error on production reaching Sentry through the lazy path is the next probe.
 
+## November 7, 2026 — Performance program, Phase 0.4: real-user page timings by build — the instrument that says whether a deploy made the app slower (migration 305)
+
+**Why.** Every number in this program so far came from a probe or a spec run by hand. Tom's complaint — "the app slows down a lot after I ship an update" — had no instrument: Speed Insights has been off since March, no beacon existed, and the first thing the plan asked for was a measurement that keys on the BUILD. Tom's decision (Nov 7): first-party, in our own table; Speed Insights stays off.
+
+**What changed:**
+- **Migration 305 — `page_timings`:** one row per browser timing metric a browser reported: `build` (the deploy's commit, `NEXT_PUBLIC_BUILD_ID`), `route` (ids, handles and org slugs masked), `metric` (LCP | INP | CLS | TTFB | FCP), `value`, `rating`, `device` (phone | tablet | desktop — from the viewport, never the user agent), `navigation`, `signed_in`. **No person**: no id, no IP, no user agent (the 252 posture). Posture A — RLS on, no policies, service role only. Applied on staging (`305 APPLIED | 1 | false | 305`); **production is Tom's SQL-editor step** — the code deploys first and the writer answers 204 and drops the beacon until the table exists.
+- **The beacon** (`components/observability/PageTimingBeacon.tsx`, mounted once in the app layout): Next's `useReportWebVitals` → a two-second batch → ONE `navigator.sendBeacon` to `POST /api/page-timings` (a `fetch` with `keepalive` when the browser has no beacon); a page that is hidden sends what it has. Nothing about the person travels (pinned).
+- **The writer** (`POST /api/page-timings`): the `page-timings` IP bucket (60 a minute — anonymous visitors count too), `readPageTimingsPayload` checks every field (ten rows at most, a value past 120 s is a broken clock), 204 whatever happens.
+- **The reader** (`GET /api/admin/page-timings`, the console cookie) and the console's **Page timings card**: p75 of LCP / INP / CLS / TTFB per build per device for the last ten builds, newest first, coloured by the browser timing thresholds' good / poor lines, from a bounded read (5,000 rows, 14 days — the RPC comes when that is the bottleneck).
+- **The daily cron** prunes rows older than 30 days (`runPageTimingsPrune`, tolerant of the table's absence).
+- **Pins:** `page-timings-rules.test.ts` (masking, device class, the payload's acceptance and cap, p75, the per-build summary), `page-timings-wiring.test.ts` (the beacon's fields, the writer's posture and bucket, the reader's gate, the card, the prune, the migration's grants and its no-person rule); `migration-grants.test.ts` covers 305 like every migration since 270.
+
+**How Tom reads it:** `/admin` → "Page timings by build". After a merge, the new sha's row fills with the first opens; phone p75 LCP is the number this program is judged by. The maintenance checklist's production step now includes reading it.
+
+**Phase 2b on production (df299c5e):** `e2e/hydration.spec.ts` on edgeathlete.ca, the `mobile` project — the remembered post on screen while the feed, profile and pulse answers were held back: 1/1 in 13.6 s.
+
+**Proof:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **5,969 tests in 651 files**, the build, `check:weight` ✓, `check:syntax` ✓ (290 chunks); `check:schema` on staging OK at ledger head **305** (143 tables, every one reachable by service_role); the migration's own result on staging `305 APPLIED | 1 | false | 305`. Production's first rows arrive once Tom runs 305 — until then the beacon is dropped at 204 and the card says the migration has not run.
+
 ## November 7, 2026 — Performance program, Phase 2b: the installed app reopens to what it had — the profile, the badges and the feed's first page paint from the device before any network answer
 
 **Why.** Every reopen of the installed app started from an empty shell: no name in the header, no numbers on the badges, a spinner for the feed, until the session check, the profile read and the first page each came back — three round trips in sequence, and after a deploy each one a possible cold function. Tom's decision (Nov 7 2026): the profile, the counts and the last feed page may live on the device, keyed by the account, cleared on sign-out.
