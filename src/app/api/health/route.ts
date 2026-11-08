@@ -6,8 +6,16 @@ import { probeDatabase } from '@/lib/platform-stats/health-server';
 // Lightweight liveness + dependency check for uptime monitors (UptimeRobot,
 // BetterStack, Vercel checks). Returns 200 when the app can reach Supabase,
 // 503 otherwise. No auth — exposes no data beyond up/down.
+// How old this INSTANCE is and how many requests it has answered — the cold
+// start made visible (performance program, Nov 2026). `boot_ms` on a first
+// request is the time Node spent booting the function before it could answer
+// anything (the server, the instrumentation hook, the route); the cold-start
+// probe (scripts/cold-probe.mjs) and the warm step (scripts/warm.mjs) read it.
+let requestsServed = 0;
+
 export async function GET() {
   const startedAt = Date.now();
+  requestsServed += 1;
   try {
     // The cheapest round-trip PostgREST offers without DDL: a HEAD for one
     // primary-key row — an index probe, no count. This used to be
@@ -32,6 +40,8 @@ export async function GET() {
       // prod e2e setup waits for the merged commit before probing — every
       // probe run right after a merge used to hit the previous build.
       commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+      boot_ms: Math.round(process.uptime() * 1000),
+      requests_served: requestsServed,
     });
   } catch {
     return NextResponse.json(

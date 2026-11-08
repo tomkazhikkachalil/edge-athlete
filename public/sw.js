@@ -22,8 +22,11 @@
  * cache hashed JS/CSS only, never pages, API responses or user data; ONE
  * precached static offline page). The registration URL carries the build
  * (`/sw.js?static=1&v=<build>`, static-cache.ts swUrl), so every deploy
- * installs a fresh worker whose cache is `ea-static-<build>`; activate deletes
- * every other cache — old asset versions do not outlive the deploy. A
+ * installs a fresh worker whose cache is `ea-static-<build>`; activate CARRIES
+ * the previous build's hashed files into it (the same URL is the same bytes —
+ * performance program, Nov 2026; a deploy used to re-download every chunk)
+ * and then deletes every other cache; what the new build never asks for ages
+ * out through the entry cap. A
  * NAVIGATION goes to the network as before; only when the network fails does
  * the worker answer with `/offline.html` (static: no user data, a Retry
  * button). Navigation preload, where the browser has it, keeps the worker off
@@ -59,11 +62,39 @@ self.addEventListener('activate', function (event) {
       staticCacheOn && self.registration.navigationPreload && typeof self.registration.navigationPreload.enable === 'function'
         ? self.registration.navigationPreload.enable().catch(function () {})
         : Promise.resolve(),
-      // Any cache this worker does not own (an older version's) goes.
+      // The previous build's cache is CARRIED FORWARD, then deleted (the
+      // performance program, Nov 2026). Every `/_next/static/*` URL is
+      // content-hashed and immutable, so a chunk the new build still ships
+      // has the same URL and the same bytes — a deploy used to throw the
+      // whole cache away and the installed app re-downloaded every file,
+      // changed or not. Entries the new build never asks for age out through
+      // trimStaticCache. Any cache this worker does not own goes.
       caches.keys().then(function (names) {
-        return Promise.all(
-          names.filter(function (n) { return n !== STATIC_CACHE; }).map(function (n) { return caches.delete(n); })
-        );
+        var previous = names.filter(function (n) { return n !== STATIC_CACHE && n.indexOf('ea-static-') === 0; });
+        var carry = staticCacheOn && previous.length > 0
+          ? caches.open(STATIC_CACHE).then(function (cache) {
+              return Promise.all(previous.map(function (name) {
+                return caches.open(name).then(function (old) {
+                  return old.keys().then(function (keys) {
+                    return Promise.all(keys.slice(-STATIC_CACHE_MAX_ENTRIES).map(function (request) {
+                      if (new URL(request.url).pathname.indexOf(STATIC_PREFIX) !== 0) return Promise.resolve();
+                      return cache.match(request).then(function (hit) {
+                        if (hit) return;
+                        return old.match(request).then(function (response) {
+                          return response ? cache.put(request, response) : undefined;
+                        });
+                      });
+                    }));
+                  });
+                }).catch(function () {});
+              })).then(function () { return trimStaticCache(cache); });
+            })
+          : Promise.resolve();
+        return carry.then(function () {
+          return Promise.all(
+            names.filter(function (n) { return n !== STATIC_CACHE; }).map(function (n) { return caches.delete(n); })
+          );
+        });
       }).catch(function () {}),
     ])
   );

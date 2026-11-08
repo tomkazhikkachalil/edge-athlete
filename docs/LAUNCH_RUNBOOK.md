@@ -469,3 +469,8 @@ and auth emails break if the domain flips without the config following.
 code (password reset, empty-feed experience, health/Sentry/CI/rate limiting,
 PWA baseline). `docs/ROADMAP_2026-07.md` is historical — don't launch-plan
 from it.*
+
+## After every production deploy: the warm step (Nov 2026)
+
+`.github/workflows/warm.yml` runs when Vercel reports the Production deployment ready: `scripts/warm.mjs --base https://edgeathlete.ca --expect <sha>` waits for `/api/health` to carry the sha, then loads every function the feed's open path touches, once in parallel and once in sequence (no secrets — a 401 loads the function). Read its run under Actions → "Warm production": the second column is the cold start the first visitor would have paid, the third is what they will. If the run is red, the deploy never reported its sha within ten minutes — look at the deployment, not the script. `scripts/cold-probe.mjs` (`TARGET_ENV=prod E2E_ALLOW_PROD=1`) is the hand-run version with a signed-in QA user; `/api/health`'s `boot_ms` tells both how long the instance took to boot.
+

@@ -7,11 +7,13 @@
 // — "it cannot be configured" (Next's words), with edge support explicitly
 // deferred to a future minor. Today this file runs as Edge Middleware: a V8
 // isolate at the PoP nearest the user. Under `proxy` it becomes a Node function
-// bound to us-east-1, because vercel.json pins regions: ["iad1"].
+// bound to one region (vercel.json pins regions: ["yul1"], Montréal, since
+// Oct 26 2026 — beside the production database).
 //
-// That matters here specifically because this middleware makes a NETWORK CALL
-// (supabase.auth.getUser) on every non-API request. A user in Sydney would pay
-// Sydney -> Virginia -> Supabase -> back BEFORE routing even begins, plus Node
+// That matters here specifically because this middleware MAY make a NETWORK
+// CALL (supabase.auth.getUser, only when the local JWT check cannot answer —
+// readLocalSession below) on a non-API request. A user in Sydney would pay
+// Sydney -> Montréal -> Supabase -> back BEFORE routing even begins, plus Node
 // cold starts on 100% of navigations. Note the matcher comment below: the `api`
 // exclusion exists precisely because getUser() was costing 100-300ms per call.
 // Migrating re-introduces that same class of latency on a larger surface, and
@@ -410,7 +412,11 @@ export const config = {
      * - offline.html (the service worker's static offline page — precached
      *   at install whatever the session, so neither the launch gate's
      *   redirect nor a per-request CSP nonce may touch it; it holds no data)
+     * - manifest.webmanifest and the font files (performance program, Nov
+     *   2026): the manifest route reads its own theme cookie and the fonts
+     *   are static bytes — neither needs a session refresh or a nonce, and
+     *   each was paying an edge invocation per page view.
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|offline\\.html$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|offline\\.html$|manifest\\.webmanifest$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf)$).*)',
   ],
 }

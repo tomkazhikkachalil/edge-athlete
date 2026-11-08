@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildTag, isStaticAssetPath, staticCacheEnabled, staticCacheName, swUrl } from '../static-cache';
+import { buildTag, isOurStaticCache, isStaticAssetPath, staticCacheEnabled, staticCacheName, swUrl } from '../static-cache';
 
 describe('the static cache rules', () => {
   it('is off unless the deployment says so', () => {
@@ -52,13 +52,28 @@ describe('public/sw.js keeps to the rules (the worker cannot import them)', () =
     expect(nav).toContain('.catch(');
     expect(nav).toContain('OFFLINE_PAGE');
     expect(nav).not.toMatch(/cache\.put|\.put\(/);
-    // The only thing ever put in the cache is a /_next/static/ response.
-    expect(sw.match(/cache\.put\(/g)?.length).toBe(1);
+    // The only things ever put in the cache are /_next/static/ responses: the
+    // fetch handler's, and the previous build's carried forward on activate
+    // (guarded by the same STATIC_PREFIX check).
+    expect(sw.match(/cache\.put\(/g)?.length).toBe(2);
+    expect(sw.match(/pathname\.indexOf\(STATIC_PREFIX\) !== 0/g)?.length).toBe(2);
   });
   it('names its cache by the build and deletes every other on activate', () => {
     expect(sw).toContain("'ea-static-' + BUILD");
     expect(sw).toMatch(/n !== STATIC_CACHE/);
     expect(sw).toContain("cache.add(new Request(OFFLINE_PAGE");
+  });
+  it('carries the previous build\'s hashed files forward before deleting its cache (a deploy no longer re-downloads unchanged chunks)', () => {
+    // Only this worker family's caches are read, only when the static cache is on.
+    expect(sw).toContain("n.indexOf('ea-static-') === 0");
+    expect(sw).toMatch(/staticCacheOn && previous\.length > 0/);
+    // Carried entries respect the cap, and the new build's copy wins when both exist.
+    expect(sw).toContain('keys.slice(-STATIC_CACHE_MAX_ENTRIES)');
+    expect(sw).toMatch(/cache\.match\(request\)\.then\(function \(hit\) \{\s*if \(hit\) return;/);
+    // The carry finishes BEFORE the delete.
+    expect(sw.indexOf('carry.then(function ()')).toBeLessThan(sw.indexOf('caches.delete(n)'));
+    expect(isOurStaticCache(staticCacheName('abc'))).toBe(true);
+    expect(isOurStaticCache('workbox-precache')).toBe(false);
   });
   it('the offline page is static: no user data, no fetch of its own', () => {
     const page = fs.readFileSync(path.join(process.cwd(), 'public/offline.html'), 'utf8');

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getCachedNewsBanner, getCachedNotices, getCachedPages, getCachedSite, getCachedTeams } from '@/lib/org-sites/cached';
+import { getCachedNewsBanner, getCachedNotices, getCachedPages, getCachedSite, getCachedSitemapSites, getCachedTeams } from '@/lib/org-sites/cached';
 import { utcToday } from '@/lib/competitions/golf-weeks';
 import { navTeamsVisible } from '@/lib/org-sites/private';
 import { siteHead } from '@/lib/org-sites/metadata';
@@ -17,6 +17,29 @@ import SiteShell from './_components/SiteShell';
 // around the draft.
 
 export const revalidate = 300;
+
+/** How many published sites the build renders ahead of time; the rest render
+ *  on their first visit as before (`dynamicParams` stays on). */
+export const PREBUILT_SITES_MAX = 20;
+
+// Performance program (Nov 2026): the PUBLISHED sites are built WITH the
+// deploy, so their first visitor after a deploy gets the CDN's copy instead
+// of a cold function render — every deploy used to start every org page from
+// nothing (the pages' own generateStaticParams return [] and keep doing so;
+// a child's empty list adds no params and the layout's slugs flow down). A
+// build that cannot reach the database (CI's placeholder keys, a local build
+// without .env.local) renders nothing ahead, exactly as before.
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  try {
+    const sites = await getCachedSitemapSites();
+    return sites
+      .filter((site) => !site.customDomain)
+      .slice(0, PREBUILT_SITES_MAX)
+      .map((site) => ({ slug: site.subdomain }));
+  } catch {
+    return [];
+  }
+}
 
 /** Phase 6b B1: the per-site favicon — the uploaded logo when there is
  *  one (the tokenless streamer), else the generated /favicon.svg. Pages
